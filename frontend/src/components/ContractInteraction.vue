@@ -4,9 +4,7 @@
     
     <div v-if="!isConnected" class="warning">
       Пожалуйста, подключите кошелек для управления контрактом
-      <button @click="handleConnect" class="connect-button">
-        Подключить кошелек
-      </button>
+      <appkit-button />
     </div>
     
     <div v-else>
@@ -39,6 +37,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { ethers } from 'ethers';
 import { useAppKitAccount, useAppKitProvider, useAppKit } from '@reown/appkit/vue';
+import config from '../config';
 
 export default {
   name: 'ContractInteraction',
@@ -48,17 +47,11 @@ export default {
     const loading = ref(false);
     const { address, isConnected } = useAppKitAccount();
     const { walletProvider } = useAppKitProvider('eip155');
-    const appKit = useAppKit();
+    const { contractAddress, contractABI } = config.contract;
 
-    const contractAddress = '0x6199Ba629C85Da887dBd8Ffd8d2C75Ea24EaDe2a';
-    const contractABI = [
-      'function owner() view returns (address)',
-      'function setOwner(address newOwner)',
-    ];
+    const { open } = useAppKit(); // Получаем функцию открытия модала
 
-    const formatAddress = (addr) => {
-      return addr.slice(0, 6) + '...' + addr.slice(-4);
-    };
+    const formatAddress = (addr) => addr.slice(0, 6) + '...' + addr.slice(-4);
 
     const isValidAddress = (addr) => {
       try {
@@ -68,14 +61,31 @@ export default {
       }
     };
 
-    // Добавим логирование для отладки
-    watch(() => isConnected, (newValue) => {
-      console.log('Состояние подключения изменилось:', newValue);
-      console.log('Адрес кошелька:', address);
-    }, { immediate: true });
+    // Следим за изменением состояния подключения
+    watch(isConnected, async (newValue) => {
+      console.log('Connection state changed:', newValue);
+      if (newValue) {
+        await fetchOwner();
+      } else {
+        owner.value = '';
+      }
+    });
+
+    const handleConnect = async () => {
+      try {
+        console.log('Attempting to connect wallet...');
+        await open(); // Используем хуки для открытия модала
+        console.log('Wallet connected successfully');
+      } catch (error) {
+        console.error('Wallet connection error:', error);
+      }
+    };
 
     const fetchOwner = async () => {
-      if (!isConnected) return;
+      if (!isConnected.value || !walletProvider) {
+        console.log('Cannot fetch owner: wallet not connected');
+        return;
+      }
       loading.value = true;
       try {
         console.log('Получаем владельца контракта...');
@@ -93,7 +103,7 @@ export default {
 
     const setNewOwner = async () => {
       try {
-        if (!isConnected) {
+        if (!isConnected.value) {
           console.log('Пожалуйста, подключите кошелек');
           return;
         }
@@ -109,37 +119,17 @@ export default {
         const tx = await contract.setOwner(newOwner.value);
         await tx.wait();
         
-        // Обновляем информацию после успешной транзакции
         await fetchOwner();
-        newOwner.value = ''; // Очищаем поле ввода
+        newOwner.value = '';
       } catch (error) {
         console.error('Ошибка при установке нового владельца:', error);
       }
     };
 
-    // Обработчик подключения кошелька
-    const handleConnect = async () => {
-      try {
-        await appKit.open();
-      } catch (error) {
-        console.error('Ошибка при подключении:', error);
+    onMounted(async () => {
+      if (isConnected.value) {
+        await fetchOwner();
       }
-    };
-
-    // Обновляем watch
-    watch(() => isConnected, (newValue, oldValue) => {
-      console.log('Состояние подключения изменилось:', { newValue, oldValue });
-      if (newValue) {
-        fetchOwner();
-      } else {
-        owner.value = '';
-      }
-    }, { immediate: true });
-
-    onMounted(() => {
-      // Проверяем состояние подключения при монтировании
-      console.log('Компонент смонтирован, isConnected:', isConnected);
-      fetchOwner();
     });
 
     return {
@@ -148,7 +138,6 @@ export default {
       isConnected,
       loading,
       handleConnect,
-      walletProvider,
       setNewOwner,
       formatAddress,
       isValidAddress
