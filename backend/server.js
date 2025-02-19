@@ -1,12 +1,8 @@
-import express from 'express';
-import cors from 'cors';
-import session from 'express-session';
-import { SiweMessage, generateNonce } from 'siwe';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const express = require('express');
+const cors = require('cors');
+const session = require('express-session');
+const { SiweMessage, generateNonce } = require('siwe');
+const path = require('path');
 
 const app = express();
 
@@ -69,57 +65,37 @@ app.post('/verify', async (req, res) => {
       throw new Error('Invalid session');
     }
     
-    if (!signature || !message) {
-      console.error('Отсутствует подпись или сообщение');
-      throw new Error('Invalid signature or message');
-    }
-
-    // Создаем и верифицируем SIWE сообщение
-    console.log('Начинаем парсинг SIWE сообщения...');
-    const siweMessage = new SiweMessage(message);
-    
-    console.log('Парсинг успешен:', {
-      domain: siweMessage.domain,
-      address: siweMessage.address,
-      nonce: siweMessage.nonce
-    });
-    
-    const { success, data: fields } = await siweMessage.verify({ 
-      signature,
-      domain: siweMessage.domain,
-      nonce: req.session.nonce
-    });
-    
-    console.log('Результат верификации:', { success, fields });
-    
-    if (!success) {
-      throw new Error('Signature verification failed');
-    }
-    
-    // Сохраняем сессию
-    req.session.authenticated = true;
-    req.session.siwe = fields;
-    
-    console.log('Сессия сохранена:', {
-      authenticated: true,
-      address: fields.address
-    });
-    
-    req.session.save(() => {
-      console.log('Session saved successfully');
-      res.status(200).json({ 
+    let siweMessage;
+    try {
+      siweMessage = new SiweMessage(message);
+      const fields = await siweMessage.validate(signature);
+      
+      if (fields.nonce !== req.session.nonce) {
+        console.error('Nonce не совпадает');
+        throw new Error('Invalid nonce');
+      }
+      
+      console.log('Сообщение успешно верифицировано');
+      req.session.siwe = fields;
+      req.session.authenticated = true;
+      req.session.nonce = null;
+      
+      res.json({ 
         success: true,
-        address: fields.address
+        address: fields.address 
       });
-    });
+    } catch (error) {
+      console.error('Ошибка валидации сообщения:', error);
+      req.session.authenticated = false;
+      req.session.siwe = null;
+      req.session.nonce = null;
+      throw error;
+    }
   } catch (error) {
     console.error('Ошибка верификации:', error);
-    req.session.authenticated = false;
-    req.session.nonce = null;
-    req.session.siwe = null;
     res.status(400).json({ 
-      error: 'Verification failed',
-      message: error.message 
+      success: false,
+      error: error.message 
     });
   }
 });
@@ -184,7 +160,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`SIWE сервер запущен на порту ${PORT}`);
   console.log('Доступные эндпоинты:');

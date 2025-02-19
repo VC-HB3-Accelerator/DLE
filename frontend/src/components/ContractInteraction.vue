@@ -105,7 +105,7 @@ const isAuthenticated = ref(false)
 // Константы
 const SEPOLIA_CHAIN_ID = 11155111
 const provider = new JsonRpcProvider(import.meta.env.VITE_APP_ETHEREUM_NETWORK_URL)
-const contractAddress = '0xD1789d2E00e4af3157330ADFbb813427696c8A01'
+const contractAddress = '0xFF7602583E82C097Ae548Fc8B894F0a73089985E'
 const contractABI = [
   'function purchase(uint256 amount) payable',
   'function price() view returns (uint256)',

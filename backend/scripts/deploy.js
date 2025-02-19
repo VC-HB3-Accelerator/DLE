@@ -1,12 +1,17 @@
+const hre = require("hardhat");
+
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  console.log("Начинаем деплой контракта...");
 
-  console.log('Deploying contracts with the account:', deployer.address);
+  // Получаем контракт
+  const MyContract = await hre.ethers.getContractFactory("MyContract");
+  
+  // Деплоим контракт
+  const myContract = await MyContract.deploy();
+  await myContract.waitForDeployment();
 
-  const MyContract = await ethers.getContractFactory('MyContract');
-  const contract = await MyContract.deploy();
-
-  console.log('Contract deployed to:', contract.address);
+  const address = await myContract.getAddress();
+  console.log("Контракт развернут по адресу:", address);
 }
 
 main()

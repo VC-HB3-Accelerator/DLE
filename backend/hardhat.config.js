@@ -1,12 +1,12 @@
-require('dotenv').config()
-require('@nomicfoundation/hardhat-ethers')
-require('@nomicfoundation/hardhat-chai-matchers')
+require("dotenv").config();
+require("@nomicfoundation/hardhat-ethers");
+require("@nomicfoundation/hardhat-chai-matchers");
 
 module.exports = {
-  solidity: "0.8.0",
+  solidity: "0.8.19",
   networks: {
     sepolia: {
-      url: process.env.SEPOLIA_URL,
+      url: process.env.ETHEREUM_NETWORK_URL,
       accounts: [process.env.PRIVATE_KEY]
     }
   }
