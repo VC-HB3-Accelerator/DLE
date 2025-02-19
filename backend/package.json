@@ -20,9 +20,15 @@
     "hardhat": "^2.21.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.5",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
-    "@openzeppelin/contracts": "4.9.3",
+    "@openzeppelin/contracts": "^4.9.6",
     "chai": "4.3.7",
     "dotenv": "^16.4.7",
+    "elliptic": "^6.6.1",
     "ethers": "^6.11.1"
+  },
+  "resolutions": {
+    "elliptic": "^6.6.1",
+    "secp256k1": "^5.0.0",
+    "cookie": "^0.7.0"
   }
 }

@@ -107,12 +107,50 @@ const SEPOLIA_CHAIN_ID = 11155111
 const provider = new JsonRpcProvider(import.meta.env.VITE_APP_ETHEREUM_NETWORK_URL)
 const contractAddress = '0xFF7602583E82C097Ae548Fc8B894F0a73089985E'
 const contractABI = [
-  'function purchase(uint256 amount) payable',
-  'function price() view returns (uint256)',
-  'function owner() view returns (address)',
-  'function setPrice(uint256 newPrice) public',
-  'function withdraw() public',
-  'event Purchase(address buyer, uint256 amount)'
+  {
+    "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+    "name": "purchase",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "price",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "newPrice", "type": "uint256"}],
+    "name": "setPrice",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "internalType": "address", "name": "buyer", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "Purchase",
+    "type": "event"
+  }
 ]
 
 // Вычисляемые свойства
@@ -323,11 +361,27 @@ async function handlePurchase() {
     const contract = new Contract(contractAddress, contractABI, signer)
     
     const totalCost = calculateTotalCost()
+    
+    // Проверяем баланс
+    const balance = await ethersProvider.getBalance(await signer.getAddress())
+    console.log('Баланс кошелька:', formatEther(balance), 'ETH')
+    
+    if (balance < totalCost) {
+      throw new Error(`Недостаточно средств. Нужно ${formatEther(totalCost)} ETH`)
+    }
+    
     console.log('Общая стоимость:', formatEther(totalCost), 'ETH')
+    console.log('Параметры транзакции:', {
+      amount: amount.value,
+      totalCost: formatEther(totalCost),
+      from: await signer.getAddress()
+    })
 
     const tx = await contract.purchase(amount.value, {
-      value: totalCost
+      value: totalCost,
+      gasLimit: 100000 // Явно указываем лимит газа
     })
+    
     console.log('Транзакция отправлена:', tx.hash)
     await tx.wait()
     console.log('Транзакция подтверждена')
@@ -337,8 +391,17 @@ async function handlePurchase() {
     await fetchPrice()
   } catch (err) {
     console.error('Ошибка при покупке:', err)
+    console.error('Детали ошибки:', {
+      code: err.code,
+      message: err.message,
+      data: err.data,
+      reason: err.reason
+    })
+    
     if (err.message.includes('user rejected')) {
       error.value = 'Транзакция отменена пользователем'
+    } else if (err.message.includes('Недостаточно средств')) {
+      error.value = err.message
     } else {
       error.value = 'Произошла ошибка при совершении покупки: ' + err.message
     }
