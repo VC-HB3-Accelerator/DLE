@@ -73,7 +73,7 @@
             </button>
           </div>
           <p v-if="amount && currentPrice" class="total-cost">
-            Общая стоимость: {{ formatPrice(currentPrice * amount) }} ETH
+            Общая стоимость: {{ formatPrice(calculateTotalCost()) }} ETH
           </p>
         </div>
         
@@ -123,6 +123,7 @@ const isOwner = computed(() => {
 
 // Функции
 function formatPrice(price) {
+  if (!price) return '0'
   return formatEther(price)
 }
 
@@ -298,6 +299,12 @@ onMounted(async () => {
   }
 })
 
+// Добавляем функцию для расчета общей стоимости
+function calculateTotalCost() {
+  if (!currentPrice.value || !amount.value) return BigInt(0)
+  return currentPrice.value * BigInt(amount.value)
+}
+
 // Обновляем handlePurchase
 async function handlePurchase() {
   if (!amount.value) return
@@ -315,9 +322,7 @@ async function handlePurchase() {
     const signer = await ethersProvider.getSigner()
     const contract = new Contract(contractAddress, contractABI, signer)
     
-    const price = await contract.price()
-    console.log('Цена для покупки:', formatEther(price), 'ETH')
-    const totalCost = price * BigInt(amount.value)
+    const totalCost = calculateTotalCost()
     console.log('Общая стоимость:', formatEther(totalCost), 'ETH')
 
     const tx = await contract.purchase(amount.value, {
@@ -330,12 +335,12 @@ async function handlePurchase() {
     amount.value = ''
     success.value = 'Покупка успешно совершена!'
     await fetchPrice()
-  } catch (error) {
-    console.error('Ошибка при покупке:', error)
-    if (error.message.includes('user rejected')) {
+  } catch (err) {
+    console.error('Ошибка при покупке:', err)
+    if (err.message.includes('user rejected')) {
       error.value = 'Транзакция отменена пользователем'
     } else {
-      error.value = 'Произошла ошибка при совершении покупки: ' + error.message
+      error.value = 'Произошла ошибка при совершении покупки: ' + err.message
     }
   } finally {
     isLoading.value = false
