@@ -14,17 +14,16 @@
     "cors": "^2.8.5",
     "express": "^4.18.3",
     "express-session": "^1.18.0",
-    "hardhat": "^2.9.3",
+    "hardhat": "^2.20.1",
     "siwe": "^3.0.0",
     "nodemon": "^3.1.0"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.3",
-    "@nomiclabs/hardhat-waffle": "^2.0.6",
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@types/sinon-chai": "^3.2.3",
     "chai": "4.3.7",
     "dotenv": "^16.4.7",
-    "ethereum-waffle": "^4.0.10",
-    "ethers": "^5.7.2"
+    "ethers": "^6.11.1"
   }
 }
