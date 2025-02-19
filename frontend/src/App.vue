@@ -1,27 +1,21 @@
 <template>
   <div id="app">
-    <h1>Добро пожаловать в DApp-for-Business</h1>
-    <appkit-button 
-      balance="show"
-      size="md"
-      label="Подключить кошелек"
-      loadingLabel="Подключение..."
-    />
+    <h1>DApp for Business</h1>
     <ContractInteraction />
   </div>
 </template>
 
-<script>
+<script setup>
 import ContractInteraction from './components/ContractInteraction.vue'
-
-export default {
-  name: "App",
-  components: {
-    ContractInteraction
-  }
-};
 </script>
 
 <style>
-/* Добавьте ваши стили здесь */
+#app {
+  font-family: Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  color: #2c3e50;
+  margin-top: 60px;
+}
 </style> 

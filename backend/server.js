@@ -1,6 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import session from 'express-session';
+import { SiweMessage, generateNonce } from 'siwe';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 
@@ -35,53 +41,85 @@ app.use((req, res, next) => {
 });
 
 // Генерация nonce
-app.get('/nonce', (_, res) => {
+app.get('/nonce', (req, res) => {
   try {
-    const nonce = generateNonce();
-    res.setHeader('Content-Type', 'text/plain');
-    res.status(200).send(nonce);
+    req.session.nonce = generateNonce();
+    console.log('Сгенерирован новый nonce:', req.session.nonce);
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json({ nonce: req.session.nonce });
   } catch (error) {
     console.error('Ошибка генерации nonce:', error);
-    res.status(500).send('Internal Server Error');
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
 // Верификация сообщения
 app.post('/verify', async (req, res) => {
   try {
-    const { address, chainId = 11155111 } = req.body;
+    const { signature, message } = req.body;
     
-    if (isNaN(chainId)) {
-      throw new Error("Invalid chainId");
+    console.log('Получен запрос на верификацию:', {
+      signature: signature?.slice(0, 20) + '...',
+      message,
+      sessionNonce: req.session.nonce
+    });
+    
+    if (!req.session.nonce) {
+      console.error('Сессия не содержит nonce');
+      throw new Error('Invalid session');
+    }
+    
+    if (!signature || !message) {
+      console.error('Отсутствует подпись или сообщение');
+      throw new Error('Invalid signature or message');
     }
 
+    // Создаем и верифицируем SIWE сообщение
+    console.log('Начинаем парсинг SIWE сообщения...');
+    const siweMessage = new SiweMessage(message);
+    
+    console.log('Парсинг успешен:', {
+      domain: siweMessage.domain,
+      address: siweMessage.address,
+      nonce: siweMessage.nonce
+    });
+    
+    const { success, data: fields } = await siweMessage.verify({ 
+      signature,
+      domain: siweMessage.domain,
+      nonce: req.session.nonce
+    });
+    
+    console.log('Результат верификации:', { success, fields });
+    
+    if (!success) {
+      throw new Error('Signature verification failed');
+    }
+    
     // Сохраняем сессию
-    req.session.siwe = { 
-      address,
-      chainId
-    };
+    req.session.authenticated = true;
+    req.session.siwe = fields;
+    
+    console.log('Сессия сохранена:', {
+      authenticated: true,
+      address: fields.address
+    });
     
     req.session.save(() => {
       console.log('Session saved successfully');
       res.status(200).json({ 
         success: true,
-        address,
-        chainId
+        address: fields.address
       });
     });
   } catch (error) {
-    console.error('Ошибка верификации:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    req.session.siwe = null;
+    console.error('Ошибка верификации:', error);
+    req.session.authenticated = false;
     req.session.nonce = null;
-    req.session.save(() => {
-      res.status(400).json({ 
-        error: 'Verification failed',
-        message: error.message 
-      });
+    req.session.siwe = null;
+    res.status(400).json({ 
+      error: 'Verification failed',
+      message: error.message 
     });
   }
 });
@@ -89,7 +127,10 @@ app.post('/verify', async (req, res) => {
 // Получение сессии
 app.get('/session', (req, res) => {
   try {
-    res.json(req.session.siwe || null);
+    res.json({
+      authenticated: !!req.session.authenticated,
+      address: req.session.siwe?.address
+    });
   } catch (error) {
     console.error('Ошибка получения сессии:', error);
     res.status(500).json({ error: 'Internal Server Error' });
