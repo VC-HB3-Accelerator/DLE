@@ -1,0 +1,5 @@
+{
+  "ignore": ["sessions/*", "*.json"],
+  "ext": "js",
+  "delay": "2500"
+} 

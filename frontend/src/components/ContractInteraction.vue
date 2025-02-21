@@ -85,7 +85,7 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import { BrowserProvider, Contract, JsonRpcProvider, formatEther, parseEther } from 'ethers'
+import { BrowserProvider, Contract, JsonRpcProvider, formatEther, parseEther, getAddress } from 'ethers'
 
 // Инициализируем все ref переменные в начале
 const amount = ref('')
@@ -101,6 +101,7 @@ const isInitialized = ref(false)
 const address = ref(null)
 const walletProvider = ref(null)
 const isAuthenticated = ref(false)
+const statement = 'Sign in with Ethereum to access DApp features and AI Assistant'
 
 // Константы
 const SEPOLIA_CHAIN_ID = 11155111
@@ -208,6 +209,60 @@ async function connectWallet() {
     address.value = accounts[0]
     walletProvider.value = window.ethereum
     isConnected.value = true
+
+    // SIWE аутентификация
+    try {
+      // Получаем nonce
+      const nonceResponse = await fetch(
+        'http://127.0.0.1:3000/nonce',
+        { credentials: 'include' }
+      );
+      const { nonce } = await nonceResponse.json();
+      
+      // Сохраняем nonce в localStorage
+      localStorage.setItem('siwe-nonce', nonce);
+      
+      // Создаем сообщение для подписи
+      const message = 
+        `${window.location.host} wants you to sign in with your Ethereum account:\n` +
+        `${getAddress(address.value)}\n\n` +
+        `${statement}\n\n` +
+        `URI: http://${window.location.host}\n` +
+        `Version: 1\n` +
+        `Chain ID: 11155111\n` +
+        `Nonce: ${nonce}\n` +
+        `Issued At: ${new Date().toISOString()}\n` +
+        `Resources:\n` +
+        `- http://${window.location.host}/api/chat\n` +
+        `- http://${window.location.host}/api/contract`;
+      
+      // Получаем подпись
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [message, address.value]
+      });
+      
+      // Верифицируем подпись
+      const verifyResponse = await fetch(
+        'http://127.0.0.1:3000/verify',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-SIWE-Nonce': nonce
+          },
+          credentials: 'include',
+          body: JSON.stringify({ message, signature })
+        }
+      );
+      
+      if (!verifyResponse.ok) {
+        throw new Error('Failed to verify signature');
+      }
+    } catch (error) {
+      console.error('SIWE error:', error);
+      throw new Error('Ошибка аутентификации');
+    }
 
     // Подписываемся на изменение аккаунта
     window.ethereum.on('accountsChanged', handleAccountsChanged)
@@ -458,6 +513,11 @@ async function handleWithdraw() {
     isLoading.value = false
   }
 }
+
+defineExpose({
+  isConnected,
+  address
+})
 </script>
 
 <style scoped>
