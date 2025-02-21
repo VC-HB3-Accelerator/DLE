@@ -35,6 +35,8 @@ const props = defineProps({
   userAddress: String
 })
 
+const emit = defineEmits(['chatUpdated'])
+
 const userInput = ref('')
 const messages = ref([])
 const isLoading = ref(false)
@@ -129,6 +131,7 @@ async function sendMessage() {
     messages.value.push({ role: 'user', content: userInput.value })
     messages.value.push({ role: 'assistant', content: data.response })
     userInput.value = ''
+    emit('chatUpdated')
   } catch (error) {
     console.error('Ошибка при отправке сообщения:', error)
     messages.value.push({ 

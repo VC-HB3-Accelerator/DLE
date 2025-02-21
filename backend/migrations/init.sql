@@ -29,4 +29,12 @@ CREATE TABLE IF NOT EXISTS chat_history (
 
 -- Даем права пользователю
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO postgres; 
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO postgres;
+
+-- Обновляем существующие адреса
+UPDATE users SET address = LOWER(address);
+
+-- Удаляем дубликаты
+DELETE FROM users a USING users b
+WHERE a.id > b.id 
+AND LOWER(a.address) = LOWER(b.address); 

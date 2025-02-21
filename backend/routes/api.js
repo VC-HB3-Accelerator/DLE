@@ -130,7 +130,7 @@ router.post('/chat', requireAuth, async (req, res) => {
 
     // Получаем или создаем пользователя
     let user = await pool.query(
-      'INSERT INTO users (address) VALUES ($1) ON CONFLICT (address) DO UPDATE SET address = EXCLUDED.address RETURNING id',
+      'INSERT INTO users (address) VALUES (LOWER($1)) ON CONFLICT (address) DO UPDATE SET address = LOWER($1) RETURNING id',
       [userAddress]
     );
     const userId = user.rows[0].id;
@@ -166,40 +166,57 @@ router.post('/chat', requireAuth, async (req, res) => {
 router.get('/chat/history', requireAuth, async (req, res) => {
   try {
     const userAddress = req.session.siwe.address;
+    console.log('Запрос истории чата для:', userAddress);
     
     // Получаем ID пользователя
     const userResult = await pool.query(
-      'SELECT id FROM users WHERE address = $1',
+      'SELECT id FROM users WHERE LOWER(address) = LOWER($1) ORDER BY created_at ASC LIMIT 1',
       [userAddress]
     );
+    console.log('Найден пользователь:', userResult.rows);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const userId = userResult.rows[0].id;
 
     // Получаем историю чата
     const history = await pool.query(
-      `SELECT * FROM (
-        SELECT 
-          message as content,
-          created_at,
-          'user' as role
-        FROM chat_history 
-        WHERE user_id = $1
-        UNION ALL
-        SELECT 
-          response as content,
-          created_at,
-          'assistant' as role
-        FROM chat_history 
-        WHERE user_id = $1
-      ) messages
-      ORDER BY created_at ASC`,
+      `SELECT 
+        ch.id,
+        LOWER(u.address) as address,
+        ch.message,
+        ch.response,
+        ch.created_at
+      FROM chat_history ch
+      JOIN users u ON ch.user_id = u.id
+      WHERE ch.user_id = $1
+      ORDER BY created_at DESC`,
       [userId]
     );
+    console.log('История чата:', history.rows);
 
     res.json({ 
       history: history.rows 
     });
   } catch (error) {
     console.error('Ошибка получения истории:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Получение списка пользователей
+router.get('/users', requireAuth, async (req, res) => {
+  try {
+    console.log('Запрос списка пользователей');
+    const users = await pool.query(
+      'SELECT id, LOWER(address) as address, created_at FROM users ORDER BY created_at DESC'
+    );
+    console.log('Найдено пользователей:', users.rows);
+    res.json({ users: users.rows });
+  } catch (error) {
+    console.error('Ошибка получения пользователей:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
