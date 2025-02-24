@@ -27,3 +27,6 @@ yarn-error.log*
 # Coverage directory used by tools like istanbul
 coverage/
 coverage.json
+
+# Sessions directory
+sessions/

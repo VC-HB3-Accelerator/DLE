@@ -5,6 +5,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract MyContract is Ownable, ReentrancyGuard {
+    // Явно объявляем функцию owner
+    function owner() public view override returns (address) {
+        return super.owner();
+    }
+
     uint256 public price;
     
     event Purchase(address buyer, uint256 amount);

@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 DROP TABLE IF EXISTS documents;
 CREATE TABLE documents (
     id bigserial PRIMARY KEY,
-    content text,
+    content text NOT NULL,
     metadata jsonb,
     embedding vector(4096)
 );
@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS chat_history (
     message TEXT NOT NULL,
     response TEXT NOT NULL,
     context_docs INTEGER[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    is_approved BOOLEAN DEFAULT false
 );
 
 -- Даем права пользователю
@@ -37,4 +38,7 @@ UPDATE users SET address = LOWER(address);
 -- Удаляем дубликаты
 DELETE FROM users a USING users b
 WHERE a.id > b.id 
-AND LOWER(a.address) = LOWER(b.address); 
+AND LOWER(a.address) = LOWER(b.address);
+
+ALTER TABLE chat_history 
+ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT false; 
