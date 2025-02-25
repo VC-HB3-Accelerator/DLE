@@ -5,8 +5,23 @@ const { SiweMessage, generateNonce } = require('siwe');
 const path = require('path');
 const apiRoutes = require('./routes/api.js');
 const FileStore = require('session-file-store')(session);
+const TelegramBotService = require('./services/telegramBot');
+const EmailBotService = require('./services/emailBot');
+const { PGVectorStore } = require('@langchain/community/vectorstores/pgvector');
+const { OpenAIEmbeddings } = require('@langchain/openai');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
 const app = express();
+
+// Флаг для отслеживания состояния сервера
+let isShuttingDown = false;
+
+// Глобальные переменные для сервисов
+let telegramBot;
+let emailBot;
+let vectorStore;
 
 // 1. Парсинг JSON
 app.use(express.json());
@@ -258,4 +273,127 @@ server.on('error', (error) => {
       server.listen(PORT);
     });
   }
+});
+
+// Функция корректного завершения работы
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`Получен сигнал ${signal}, начинаем корректное завершение...`);
+
+  try {
+    if (telegramBot) {
+      console.log('Останавливаем Telegram бота...');
+      await telegramBot.stop();
+    }
+    if (emailBot) {
+      console.log('Останавливаем Email бота...');
+      await emailBot.stop();
+    }
+    console.log('Все сервисы остановлены');
+  } catch (error) {
+    console.error('Ошибка при остановке сервисов:', error);
+  }
+
+  // Даем время на завершение всех процессов
+  setTimeout(() => {
+    process.exit(0);
+  }, 1000);
+}
+
+// Обработчики сигналов
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Для nodemon
+
+// Обработка необработанных исключений
+process.on('uncaughtException', (error) => {
+  console.error('Необработанное исключение:', error);
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Необработанное отклонение промиса:', reason);
+  gracefulShutdown('unhandledRejection');
+});
+
+// Функция для проверки и остановки существующих процессов бота
+async function killExistingBotProcesses() {
+  try {
+    console.log('Проверяем существующие процессы бота...');
+    const { stdout } = await execAsync('ps aux | grep "[n]ode.*telegram"');
+    
+    if (stdout) {
+      console.log('Найдены существующие процессы бота, останавливаем...');
+      await execAsync('pkill -SIGTERM -f "[n]ode.*telegram"');
+      // Ждем немного, чтобы процессы успели завершиться
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  } catch (error) {
+    // Ошибка означает, что процессы не найдены - это нормально
+    console.log('Активные процессы бота не найдены');
+  }
+}
+
+// Инициализация векторного хранилища
+async function initializeVectorStore() {
+  try {
+    // Сначала останавливаем существующие процессы
+    await killExistingBotProcesses();
+
+    // Даем время на освобождение ресурсов
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Инициализируем embeddings
+    const embeddings = new OpenAIEmbeddings({
+      openAIApiKey: process.env.OPENAI_API_KEY,
+      configuration: {
+        baseURL: process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
+      }
+    });
+
+    // Инициализируем векторное хранилище
+    vectorStore = await PGVectorStore.initialize(embeddings, {
+      postgresConnectionOptions: {
+        connectionString: process.env.DATABASE_URL
+      },
+      tableName: 'documents',
+      columns: {
+        idColumnName: 'id',
+        vectorColumnName: 'embedding',
+        contentColumnName: 'content',
+        metadataColumnName: 'metadata',
+      }
+    });
+
+    console.log('Векторное хранилище инициализировано');
+
+    // Инициализируем ботов только после успешной инициализации хранилища
+    if (!telegramBot) {
+      telegramBot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, vectorStore);
+      await telegramBot.initialize().catch(error => {
+        if (error.code === 409) {
+          console.log('Telegram бот уже запущен в другом процессе');
+        } else {
+          throw error;
+        }
+      });
+    }
+    if (!emailBot) {
+      emailBot = new EmailBotService(vectorStore);
+    }
+
+    return vectorStore;
+  } catch (error) {
+    console.error('Ошибка при инициализации:', error);
+    throw error;
+  }
+}
+
+// Запускаем инициализацию
+console.log('Начинаем инициализацию векторного хранилища...');
+initializeVectorStore().catch(error => {
+  console.error('Критическая ошибка при инициализации:', error);
+  process.exit(1);
 }); 

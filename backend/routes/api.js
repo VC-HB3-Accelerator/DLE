@@ -10,6 +10,7 @@ const { Pool } = require('pg');
 const { ethers } = require('ethers');
 const contractABI = require('../artifacts/contracts/MyContract.sol/MyContract.json').abi;
 const crypto = require('crypto');
+const TelegramBotService = require('../services/telegramBot');
 require('dotenv').config();
 
 const pool = new Pool({
@@ -806,8 +807,45 @@ async function initializeTables() {
       );
     `);
     console.log('Таблицы успешно инициализированы');
+
+    // Инициализируем vectorStore
+    vectorStore = await PGVectorStore.initialize(
+      embeddings,
+      {
+        postgresConnectionOptions: {
+          connectionString: process.env.DATABASE_URL
+        },
+        tableName: 'documents',
+        columns: {
+          idColumnName: 'id',
+          vectorColumnName: 'embedding',
+          contentColumnName: 'content',
+          metadataColumnName: 'metadata'
+        }
+      }
+    );
+    
+    console.log('Векторное хранилище инициализировано:', {
+      tableName: 'documents',
+      columns: vectorStore.columns,
+      config: {
+        tableName: vectorStore.tableName,
+        columns: vectorStore.columns,
+        client: vectorStore.client ? 'Connected' : 'Not Connected',
+        embeddings: vectorStore.embeddings ? 'Initialized' : 'Not Initialized'
+      }
+    });
+    
+    // Создаем экземпляр TelegramBotService только после инициализации vectorStore
+    if (vectorStore) {
+      const telegramBot = new TelegramBotService(
+        process.env.TELEGRAM_BOT_TOKEN,
+        vectorStore
+      );
+    }
+    
   } catch (error) {
-    console.error('Ошибка инициализации таблиц:', error);
+    console.error('Ошибка при инициализации:', error);
   }
 }
 
