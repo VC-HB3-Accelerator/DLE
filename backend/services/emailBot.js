@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const Imap = require('imap');
 const { simpleParser } = require('mailparser');
 const { checkMailServer } = require('../utils/checkMail');
+const { sleep, isValidEmail } = require('../utils/helpers');
 require('dotenv').config();
 
 class EmailBotService {
@@ -67,8 +68,6 @@ class EmailBotService {
           stack: error.stack
         });
         setTimeout(() => this.initSMTP(), 30000);
-      } else {
-        console.log('SMTP сервер готов к отправке сообщений');
       }
     });
 
@@ -113,7 +112,7 @@ class EmailBotService {
     try {
       console.log('Попытка подключения к SMTP...');
       await this.transporter.verify();
-      console.log('SMTP подключение установлено');
+      console.log('SMTP сервер готов к отправке сообщений');
     } catch (error) {
       console.error('Ошибка подключения к SMTP:', {
         name: error.name,
@@ -165,39 +164,48 @@ class EmailBotService {
 
   async processEmail(message) {
     try {
+      // Очищаем и валидируем email адрес
+      const cleanEmail = message.from.replace(/[<>]/g, '').trim();
+      if (!isValidEmail(cleanEmail)) {
+        console.log('Некорректный email адрес:', message.from);
+        return;
+      }
+      
       // Проверяем, не является ли отправитель no-reply адресом
-      if (message.from.toLowerCase().includes('no-reply') || 
-          message.from.toLowerCase().includes('noreply')) {
-        console.log('Пропускаем письмо от no-reply адреса:', message.from);
+      if (cleanEmail.toLowerCase().includes('no-reply') || 
+          cleanEmail.toLowerCase().includes('noreply')) {
+        console.log('Пропускаем письмо от no-reply адреса:', cleanEmail);
         return;
       }
 
       // Проверяем валидность домена получателя
-      const domain = message.from.split('@')[1];
+      const domain = cleanEmail.split('@')[1];
       try {
+        console.log(`Проверяем MX записи для домена ${domain}...`);
         const records = await checkMailServer(domain);
         if (!records || records.length === 0) {
           console.log('Пропускаем письмо - домен не найден:', domain);
           return;
         }
+        console.log('Найдены MX записи:', records);
       } catch (err) {
-        console.error('Ошибка проверки домена:', err);
+        console.error('Ошибка при проверке MX записей:', err);
         return;
       }
 
       // Получаем ответ от Ollama
       const result = await this.chat.invoke(message.text);
       
-      // Формируем и отправляем ответ
+      // Отправляем ответ
       await this.transporter.sendMail({
         from: process.env.EMAIL_USER,
-        to: message.from,
+        to: cleanEmail,
         subject: `Re: ${message.subject}`,
         text: result.content
       });
 
       console.log('Ответ отправлен:', {
-        to: message.from,
+        to: cleanEmail,
         subject: message.subject
       });
     } catch (error) {

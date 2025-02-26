@@ -4,6 +4,8 @@ const axios = require('axios');
 const dns = require('dns').promises;
 require('dotenv').config();
 const { sleep } = require('../utils/helpers');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 class TelegramBotService {
   constructor(token) {
@@ -156,14 +158,17 @@ class TelegramBotService {
           const addresses = await dns.resolve4('api.telegram.org');
           console.log('IP адреса api.telegram.org:', addresses);
           
-          // Пинг для проверки доступности
-          const { exec } = require('child_process');
-          exec(`ping -c 1 api.telegram.org`, (error, stdout, stderr) => {
+          // Пинг для проверки доступности (теперь ждем результат)
+          try {
+            const { stdout } = await exec('ping -c 1 api.telegram.org');
             console.log('Результат ping:', stdout);
-          });
+          } catch (pingError) {
+            console.error('Ошибка при выполнении ping:', pingError);
+            throw new Error('Сервер Telegram недоступен');
+          }
         } catch (error) {
-          console.error('Ошибка DNS резолвинга:', error);
-          throw error; // Прерываем инициализацию если DNS недоступен
+          console.error('Ошибка сетевой проверки:', error);
+          throw error;
         }
         
         // Затем проверяем API
@@ -341,6 +346,19 @@ class TelegramBotService {
         this.isRunning = false;
       }
     }
+  }
+
+  async checkTelegramAvailability() {
+    const { stdout } = await exec('ping -c 1 api.telegram.org');
+    const match = stdout.match(/time=(\d+(\.\d+)?)/);
+    if (match) {
+      const pingTime = parseFloat(match[1]);
+      console.log(`Время отклика Telegram API: ${pingTime}ms`);
+      if (pingTime > 1000) { // Если пинг больше секунды
+        console.warn('Внимание: высокая задержка при подключении к Telegram API');
+      }
+    }
+    return stdout;
   }
 }
 
