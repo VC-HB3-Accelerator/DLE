@@ -1,63 +1,82 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import Chats from '../components/AI/Chats.vue'
-import Users from '../components/AI/Users.vue'
-import VectorStore from '../components/AI/VectorStore.vue'
-import Deploy from '../components/Contract/Deploy.vue'
-import Manage from '../components/Contract/Manage.vue'
-
-// Защита маршрутов для админа
-const requireAdmin = async (to, from, next) => {
-  try {
-    const response = await fetch('http://127.0.0.1:3000/api/admin/check', {
-      credentials: 'include'
-    })
-    if (response.ok) {
-      const { isAdmin } = await response.json()
-      if (isAdmin) {
-        next()
-        return
-      }
-    }
-    next('/')
-  } catch (error) {
-    console.error('Ошибка проверки прав:', error)
-    next('/')
-  }
-}
+import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
+// Импортируем компоненты напрямую, если они существуют
+import HomeView from '../views/HomeView.vue';
+import DashboardView from '../views/DashboardView.vue';
+import KanbanView from '../views/KanbanView.vue';
+import KanbanBoardView from '../views/KanbanBoardView.vue';
+import AccessTestPage from '../views/AccessTestPage.vue';
+import ProfileView from '../views/ProfileView.vue';
 
 const routes = [
   {
     path: '/',
-    redirect: '/ai/chats'
+    name: 'home',
+    component: HomeView,
+    meta: { requiresAuth: false }
   },
   {
-    path: '/ai/chats',
-    name: 'chats',
-    component: Chats
+    path: '/dashboard',
+    name: 'dashboard',
+    component: DashboardView,
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
-    path: '/ai/users',
-    beforeEnter: requireAdmin,
-    component: Users
+    path: '/access-test',
+    name: 'access-test',
+    component: AccessTestPage,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  // Перенаправляем с /chat на главную страницу
+  {
+    path: '/chat',
+    redirect: { name: 'home' }
+  },
+  // Маршруты для Канбан-досок
+  {
+    path: '/kanban',
+    name: 'kanban',
+    component: KanbanView,
+    meta: { requiresAuth: true }
   },
   {
-    path: '/ai/vectorstore',
-    beforeEnter: requireAdmin,
-    component: VectorStore
+    path: '/kanban/boards/:id',
+    name: 'kanbanBoard',
+    component: KanbanBoardView,
+    meta: { requiresAuth: true }
   },
   {
-    path: '/contract/deploy',
-    beforeEnter: requireAdmin,
-    component: Deploy
-  },
-  {
-    path: '/contract/manage',
-    beforeEnter: requireAdmin,
-    component: Manage
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
+    meta: { requiresAuth: true }
   }
-]
+];
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
-  routes
-}) 
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    return savedPosition || { top: 0 }
+  }
+});
+
+// Навигационный хук для проверки аутентификации
+router.beforeEach((to, from, next) => {
+  const auth = useAuthStore();
+  
+  // Если маршрут требует аутентификации и пользователь не аутентифицирован
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    next({ name: 'home' });
+  } 
+  // Если маршрут требует прав администратора и пользователь не администратор
+  else if (to.meta.requiresAdmin && !auth.isAdmin) {
+    next({ name: 'home' });
+  }
+  // В остальных случаях разрешаем переход
+  else {
+    next();
+  }
+});
+
+export default router; 
