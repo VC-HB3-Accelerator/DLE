@@ -6,10 +6,12 @@ require('dotenv').config();
 const { sleep } = require('../utils/helpers');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
+const { linkIdentity, getUserIdByIdentity } = require('../utils/identity-linker');
 
 class TelegramBotService {
-  constructor(token) {
-    if (!token) {
+  constructor() {
+    // Проверяем наличие токена
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
       throw new Error('Token is required');
     }
 
@@ -18,7 +20,7 @@ class TelegramBotService {
     this.retryDelay = 5000; // 5 секунд между попытками
     
     // Создаем бота без polling
-    this.bot = new TelegramBot(token, {
+    this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
       polling: false,
       request: {
         proxy: null,
@@ -30,7 +32,7 @@ class TelegramBotService {
       }
     });
     
-    this.token = token;
+    this.token = process.env.TELEGRAM_BOT_TOKEN;
     this.chat = new ChatOllama({
       model: 'mistral',
       baseUrl: 'http://localhost:11434'
@@ -45,6 +47,8 @@ class TelegramBotService {
         minVersion: 'TLSv1.2'
       })
     };
+
+    this.initialize();
   }
 
   setupHandlers() {
@@ -71,6 +75,39 @@ class TelegramBotService {
           'Извините, произошла ошибка при обработке вашего запроса. ' +
           'Попробуйте повторить позже или обратитесь к администратору.'
         );
+      }
+    });
+
+    this.bot.onText(/\/link (.+)/, async (msg, match) => {
+      const chatId = msg.chat.id;
+      const ethAddress = match[1];
+      
+      // Проверяем формат Ethereum-адреса
+      if (!/^0x[a-fA-F0-9]{40}$/.test(ethAddress)) {
+        this.bot.sendMessage(chatId, 'Неверный формат Ethereum-адреса. Используйте формат 0x...');
+        return;
+      }
+      
+      try {
+        // Получаем ID пользователя по Ethereum-адресу
+        const userId = await getUserIdByIdentity('ethereum', ethAddress);
+        
+        if (!userId) {
+          this.bot.sendMessage(chatId, 'Пользователь с таким Ethereum-адресом не найден. Сначала войдите через веб-интерфейс.');
+          return;
+        }
+        
+        // Связываем Telegram-аккаунт с пользователем
+        const success = await linkIdentity(userId, 'telegram', chatId.toString());
+        
+        if (success) {
+          this.bot.sendMessage(chatId, `Ваш Telegram-аккаунт успешно связан с Ethereum-адресом ${ethAddress}`);
+        } else {
+          this.bot.sendMessage(chatId, 'Не удалось связать аккаунты. Возможно, этот Telegram-аккаунт уже связан с другим пользователем.');
+        }
+      } catch (error) {
+        console.error('Ошибка при связывании аккаунтов:', error);
+        this.bot.sendMessage(chatId, 'Произошла ошибка при связывании аккаунтов. Попробуйте позже.');
       }
     });
   }

@@ -1,399 +1,676 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const session = require('express-session');
 const { SiweMessage, generateNonce } = require('siwe');
-const path = require('path');
-const apiRoutes = require('./routes/api.js');
-const FileStore = require('session-file-store')(session);
+const { ethers } = require('ethers');
 const TelegramBotService = require('./services/telegramBot');
 const EmailBotService = require('./services/emailBot');
-const { PGVectorStore } = require('@langchain/community/vectorstores/pgvector');
-const { OpenAIEmbeddings } = require('@langchain/openai');
-const { exec } = require('child_process');
-const util = require('util');
-const execAsync = util.promisify(exec);
+const { initializeVectorStore } = require('./services/vectorStore');
+const session = require('express-session');
+const { app, nonceStore } = require('./app');
+const usersRouter = require('./routes/users');
+const { router: authRouter } = require('./routes/auth');
+const contractsRouter = require('./routes/contracts');
+const accessRouter = require('./routes/access');
+const chatRouter = require('./routes/chat');
+const path = require('path');
+const axios = require('axios');
+const { ChatOllama } = require('@langchain/ollama');
+const { getVectorStore } = require('./services/vectorStore');
+const debugRouter = require('./routes/debug');
+const identitiesRouter = require('./routes/identities');
+const kanbanRouter = require('./routes/kanban');
+const { pool } = require('./db');
+const fs = require('fs');
+const pgSession = require('connect-pg-simple')(session);
+const sessionStore = new pgSession({
+  pool: pool,
+  tableName: 'session',
+  createTableIfMissing: true
+});
+const helmet = require('helmet');
+const csrf = require('csurf');
 
-const app = express();
+const PORT = process.env.PORT || 8000;
 
-// Флаг для отслеживания состояния сервера
-let isShuttingDown = false;
+console.log('Начало выполнения server.js');
+console.log('Переменная окружения PORT:', process.env.PORT);
+console.log('Используемый порт:', process.env.PORT || 8000);
 
-// Глобальные переменные для сервисов
+// Инициализация сервисов
 let telegramBot;
 let emailBot;
-let vectorStore;
 
-// 1. Парсинг JSON
-app.use(express.json());
+// Получаем ABI из артефактов
+const contractArtifact = require('./artifacts/contracts/MyContract.sol/MyContract.json');
+const contractABI = contractArtifact.abi;
 
-// 2. CORS
+// Добавим логирование для отладки контракта
+const provider = new ethers.JsonRpcProvider(process.env.ETHEREUM_NETWORK_URL);
+console.log('Provider URL:', process.env.ETHEREUM_NETWORK_URL);
+console.log('Contract address:', process.env.CONTRACT_ADDRESS);
+
+const contract = new ethers.Contract(
+  process.env.CONTRACT_ADDRESS,
+  contractABI,
+  provider
+);
+
+// Проверяем, что библиотека ethers.js правильно импортирована
+console.log('Ethers.js version:', ethers.version);
+
+// Порядок middleware важен!
+// 1. CORS должен быть первым
 app.use(cors({
-  origin: [
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174'
-  ],
+  origin: ['http://127.0.0.1:5173', 'http://localhost:5173'],
   credentials: true,
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-SIWE-Nonce', 'X-Requested-With', 'Accept'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Set-Cookie']
 }));
 
-// 3. Сессии
+// Добавьте после настройки CORS
+app.use(helmet());
+
+// 2. Затем парсеры
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// 3. Затем сессии
 app.use(session({
-  name: 'siwe-dapp',
-  secret: "siwe-dapp-secret",
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: true,
-  saveUninitialized: false,
-  store: new FileStore({
-    path: './sessions',
-    ttl: 86400,
-    retries: 0,
-    logFn: function(){},
-    reapInterval: 86400,
-    reapAsync: true,
-    reapSyncCheck: true,
-    retryTimeout: 100
-  }),
+  saveUninitialized: true,
   cookie: {
     httpOnly: true,
     secure: false,
     sameSite: 'lax',
-    path: '/',
-    domain: '127.0.0.1',
-    maxAge: 30 * 24 * 60 * 60 * 1000
-  }
+    maxAge: 24 * 60 * 60 * 1000
+  },
+  store: sessionStore
 }));
 
-// Middleware для сохранения сессии
+// Добавьте после настройки сессий
 app.use((req, res, next) => {
-  const oldEnd = res.end;
-  res.end = function (chunk, encoding) {
-    if (req.session && req.session.save) {
-      req.session.save((err) => {
-        if (err) console.error('Session save error:', err);
-        oldEnd.apply(res, arguments);
-      });
-    } else {
-      oldEnd.apply(res, arguments);
-    }
-  };
+  // console.log('Middleware для проверки сессии:', {
+  //   url: req.url,
+  //   method: req.method,
+  //   sessionID: req.sessionID,
+  //   session: req.session ? {
+  //     isAuthenticated: req.session.isAuthenticated,
+  //     authenticated: req.session.authenticated,
+  //     address: req.session.address,
+  //     isAdmin: req.session.isAdmin
+  //   } : null,
+  //   cookies: req.cookies,
+  //   headers: {
+  //     cookie: req.headers.cookie
+  //   }
+  // });
+  if (req.session.store) {
+    req.session.store.on('error', (error) => {
+      console.error('Session store error:', error);
+    });
+  }
   next();
 });
 
-// Генерация nonce
-app.get('/nonce', (req, res) => {
-  try {
-    if (!req.session) {
-      throw new Error('No session available');
-    }
+// Добавьте после настройки парсеров
+app.use((req, res, next) => {
+  // if (req.method === 'POST' && req.headers['content-type'] === 'application/json') {
+  //   console.log('POST request body:', {
+  //     url: req.url,
+  //     body: JSON.stringify(req.body)
+  //   });
+  // }
+  next();
+});
 
-    req.session.nonce = generateNonce();
-    console.log('Сгенерирован новый nonce:', req.session.nonce);
-    res.json({ nonce: req.session.nonce });
-  } catch (error) {
-    console.error('Ошибка генерации nonce:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+const requireAuth = (req, res, next) => {
+  if (!req.session.authenticated || !req.session.address) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+app.use('/api/protected', requireAuth);
+
+// Добавляем middleware для проверки состояния аутентификации
+app.use((req, res, next) => {
+  // console.log('Auth check middleware:', {
+  //   url: req.url,
+  //   method: req.method,
+  //   sessionID: req.sessionID,
+  //   session: req.session ? {
+  //     isAuthenticated: req.session.isAuthenticated,
+  //     authenticated: req.session.authenticated,
+  //     address: req.session.address,
+  //     isAdmin: req.session.isAdmin
+  //   } : null
+  // });
+  next();
+});
+
+// Добавьте после настройки парсеров
+app.use((req, res, next) => {
+  // if (req.method === 'POST' && req.headers['content-type'] === 'application/json') {
+  //   console.log('POST request body:', {
+  //     url: req.url,
+  //     body: JSON.stringify(req.body)
+  //   });
+  // }
+  next();
+});
+
+// Добавляем middleware для отладки сессий
+app.use((req, res, next) => {
+  // console.log('Session debug:', {
+  //   url: req.url,
+  //   method: req.method,
+  //   sessionID: req.sessionID,
+  //   cookies: req.headers.cookie,
+  //   session: req.session ? {
+  //     isAuthenticated: req.session.isAuthenticated,
+  //     authenticated: req.session.authenticated,
+  //     address: req.session.address,
+  //     isAdmin: req.session.isAdmin,
+  //     nonce: req.session.nonce ? '[REDACTED]' : undefined,
+  //     pendingAddress: req.session.pendingAddress
+  //   } : null
+  // });
+  next();
+});
+
+// Настройка CSRF-защиты
+const csrfProtection = csrf({
+  cookie: {
+    key: '_csrf',
+    path: '/',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // true в production, false в development
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
   }
 });
 
-// Функция для проверки формата адреса EIP-55
-function isValidEIP55Address(address) {
-  return /^0x[0-9A-F]{40}$/.test(address);
-}
+// Применяем CSRF-защиту только к определенным маршрутам
+app.use('/api/protected', csrfProtection);
+app.use('/api/admin', csrfProtection);
+app.use('/api/kanban', csrfProtection);
 
-// Верификация сообщения
-app.post('/verify', async (req, res) => {
-  try {
-    const clientNonce = req.headers['x-siwe-nonce'];
-    const { signature, message } = req.body;
-    
-    console.log('Received message:', message);
-    
-    if (!req.session) {
-      throw new Error('No session available');
-    }
-
-    // Создаем и проверяем SIWE сообщение
-    let siweMessage;
-    try {
-      siweMessage = new SiweMessage(message);
-      console.log('SIWE message parsed:', siweMessage);
-      
-      // Проверяем nonce
-      if (siweMessage.nonce !== clientNonce) {
-        throw new Error('Invalid nonce');
-      }
-      
-      // Проверяем подпись
-      const fields = await siweMessage.verify({
-        signature: signature,
-        domain: siweMessage.domain,
-        nonce: clientNonce
-      });
-
-      console.log('SIWE validation successful:', fields);
-      console.log('Сообщение успешно верифицировано');
-      
-      // Сохраняем данные в сессии
-      req.session.siwe = fields.data;
-      req.session.authenticated = true;
-      req.session.nonce = null;
-      
-      // Принудительно сохраняем сессию
-      await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      res.json({ 
-        success: true,
-        address: fields.data.address
-      });
-    } catch (error) {
-      console.error('Ошибка валидации сообщения:', error);
-      req.session.authenticated = false;
-      req.session.siwe = null;
-      req.session.nonce = null;
-      throw error;
-    }
-  } catch (error) {
-    console.error('Ошибка верификации:', error);
-    res.status(400).json({ 
-      success: false,
-      error: error.message,
-      details: error.stack
-    });
-  }
+// Маршрут для получения CSRF-токена
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
 });
 
-// Получение сессии
-app.get('/session', (req, res) => {
-  try {
-    if (!req.session) {
-      return res.status(401).json({ 
-        authenticated: false,
-        error: 'No session'
-      });
-    }
-
-    res.json({
-      authenticated: !!req.session.authenticated,
-      address: req.session.siwe?.address
-    });
-  } catch (error) {
-    console.error('Ошибка получения сессии:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// Выход
-app.get('/signout', (req, res) => {
-  try {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Ошибка при удалении сессии:', err);
-        return res.status(500).json({ error: 'Failed to destroy session' });
-      }
-      res.status(200).json({ success: true });
-    });
-  } catch (error) {
-    console.error('Ошибка выхода:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// Базовый маршрут
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    endpoints: {
-      nonce: 'GET /nonce',
-      verify: 'POST /verify',
-      session: 'GET /session',
-      signout: 'GET /signout',
-      shutdown: 'POST /shutdown'
-    }
-  });
-});
-
-// Эндпоинт для остановки сервера
-app.post('/shutdown', (req, res) => {
-  res.json({ message: 'Сервер останавливается...' });
-  console.log('Получен запрос на остановку сервера');
-  setTimeout(() => {
-    process.exit(0);
-  }, 1000);
-});
-
-// 4. API роуты
-app.use('/api', apiRoutes);
-
-// Обработка 404
-app.use((req, res) => {
-  console.log(`404: ${req.method} ${req.url}`);
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Endpoint ${req.method} ${req.url} не существует`
-  });
-});
-
-// Обработка ошибок
+// Обработчик ошибок CSRF
 app.use((err, req, res, next) => {
-  console.error('Ошибка сервера:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, '127.0.0.1', () => {
-  console.log(`SIWE сервер запущен на порту ${PORT}`);
-  console.log('Доступные эндпоинты:');
-  console.log('  GET  /          - Информация о сервере');
-  console.log('  GET  /nonce     - Получить nonce');
-  console.log('  POST /verify    - Верифицировать сообщение');
-  console.log('  GET  /session   - Получить текущую сессию');
-  console.log('  GET  /signout   - Выйти из системы');
-  console.log('  POST /shutdown  - Остановить сервер');
-});
-
-// Обработка ошибки занятого порта
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.log(`Порт ${PORT} занят. Останавливаем предыдущий процесс...`);
-    require('child_process').exec(`lsof -i :${PORT} | grep LISTEN | awk '{print $2}' | xargs kill -9`, (err) => {
-      if (err) {
-        console.error('Ошибка при остановке процесса:', err);
-        process.exit(1);
-      }
-      console.log('Предыдущий процесс остановлен. Перезапускаем сервер...');
-      server.listen(PORT);
+  if (err.code === 'EBADCSRFTOKEN') {
+    console.error('CSRF error:', {
+      url: req.url,
+      method: req.method,
+      headers: req.headers,
+      body: req.body
+    });
+    return res.status(403).json({
+      error: 'CSRF token validation failed',
+      message: 'Your session may have expired. Please refresh the page and try again.'
     });
   }
+  next(err);
 });
 
-// Функция корректного завершения работы
-async function gracefulShutdown(signal) {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-
-  console.log(`Получен сигнал ${signal}, начинаем корректное завершение...`);
-
+async function initServices() {
   try {
-    if (telegramBot) {
-      console.log('Останавливаем Telegram бота...');
-      await telegramBot.stop();
-    }
-    if (emailBot) {
-      console.log('Останавливаем Email бота...');
-      await emailBot.stop();
-    }
-    console.log('Все сервисы остановлены');
-  } catch (error) {
-    console.error('Ошибка при остановке сервисов:', error);
-  }
-
-  // Даем время на завершение всех процессов
-  setTimeout(() => {
-    process.exit(0);
-  }, 1000);
-}
-
-// Обработчики сигналов
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // Для nodemon
-
-// Обработка необработанных исключений
-process.on('uncaughtException', (error) => {
-  console.error('Необработанное исключение:', error);
-  gracefulShutdown('uncaughtException');
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Необработанное отклонение промиса:', reason);
-  gracefulShutdown('unhandledRejection');
-});
-
-// Функция для проверки и остановки существующих процессов бота
-async function killExistingBotProcesses() {
-  try {
-    console.log('Проверяем существующие процессы бота...');
-    const { stdout } = await execAsync('ps aux | grep "[n]ode.*telegram"');
+    console.log('Инициализация сервисов...');
     
-    if (stdout) {
-      console.log('Найдены существующие процессы бота, останавливаем...');
-      await execAsync('pkill -SIGTERM -f "[n]ode.*telegram"');
-      // Ждем немного, чтобы процессы успели завершиться
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    // Инициализируем ботов, если они нужны
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+      telegramBot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN);
+      console.log('Telegram бот инициализирован');
     }
+    
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASS);
+      console.log('Email бот инициализирован');
+    }
+    
+    console.log('Все сервисы успешно инициализированы');
   } catch (error) {
-    // Ошибка означает, что процессы не найдены - это нормально
-    console.log('Активные процессы бота не найдены');
+    console.error('Ошибка при инициализации сервисов:', error);
   }
 }
 
-// Инициализация векторного хранилища
-async function initializeVectorStore() {
+app.use('/api/users', usersRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/contracts', contractsRouter);
+app.use('/api/access', accessRouter);
+app.use('/api/chat', chatRouter);
+app.use('/api/debug', debugRouter);
+app.use('/api/identities', identitiesRouter);
+app.use('/api/kanban', kanbanRouter);
+
+// Добавьте простой эндпоинт для проверки состояния сервера
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Добавьте после настройки маршрутов
+app.post('/api/verify', async (req, res) => {
   try {
-    // Сначала останавливаем существующие процессы
-    await killExistingBotProcesses();
-
-    // Даем время на освобождение ресурсов
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Инициализируем embeddings
-    const embeddings = new OpenAIEmbeddings({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      configuration: {
-        baseURL: process.env.OPENAI_API_BASE || 'https://api.openai.com/v1'
+    // Перенаправляем запрос на /api/auth/verify
+    const { message, signature } = req.body;
+    console.log("Перенаправление запроса на /api/auth/verify:", { message, signature });
+    
+    // Проверяем наличие необходимых данных
+    if (!message || !message.address || !signature) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Отсутствуют необходимые данные для верификации' 
+      });
+    }
+    
+    const address = message.address.toLowerCase();
+    console.log("Адрес из сообщения:", address);
+    
+    // Проверяем, является ли пользователь администратором
+    const isAdmin = true; // Для примера всегда true
+    
+    try {
+      const siweMessage = new SiweMessage(message);
+      const fields = await siweMessage.validate(signature);
+      
+      if (fields.address.toLowerCase() !== address.toLowerCase()) {
+        return res.status(401).json({ success: false, error: 'Invalid signature' });
       }
-    });
-
-    // Инициализируем векторное хранилище
-    vectorStore = await PGVectorStore.initialize(embeddings, {
-      postgresConnectionOptions: {
-        connectionString: process.env.DATABASE_URL
-      },
-      tableName: 'documents',
-      columns: {
-        idColumnName: 'id',
-        vectorColumnName: 'embedding',
-        contentColumnName: 'content',
-        metadataColumnName: 'metadata',
+      
+      // Только после проверки устанавливаем сессию
+      req.session.authenticated = true;
+      req.session.address = fields.address;
+      req.session.lastSignature = signature;
+      
+      // Сохраняем сессию
+      req.session.save();
+    } catch (error) {
+      return res.status(401).json({ success: false, error: error.message });
+    }
+    
+    // Сохраняем данные в сессии
+    req.session.isAuthenticated = true;
+    req.session.isAdmin = isAdmin;
+    
+    // Явно сохраняем сессию
+    req.session.save((err) => {
+      if (err) {
+        console.error('Ошибка сохранения сессии:', err);
+        return res.status(500).json({ error: 'Session save error' });
       }
-    });
-
-    console.log('Векторное хранилище инициализировано');
-
-    // Инициализируем ботов только после успешной инициализации хранилища
-    if (!telegramBot) {
-      telegramBot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, vectorStore);
-      await telegramBot.initialize().catch(error => {
-        if (error.code === 409) {
-          console.log('Telegram бот уже запущен в другом процессе');
-        } else {
-          throw error;
+      
+      console.log('Сессия успешно сохранена:', {
+        sessionID: req.sessionID,
+        session: {
+          isAuthenticated: req.session.isAuthenticated,
+          authenticated: req.session.authenticated,
+          address: req.session.address,
+          isAdmin: req.session.isAdmin
         }
       });
-    }
-    if (!emailBot) {
-      emailBot = new EmailBotService(vectorStore);
-    }
-
-    return vectorStore;
+      
+      res.cookie('authToken', 'true', {
+        maxAge: 86400000,
+        httpOnly: false,
+        secure: false,
+        sameSite: 'lax',
+        path: '/'
+      });
+      
+      res.json({
+        success: true,
+        address: address,
+        isAdmin: isAdmin
+      });
+    });
   } catch (error) {
-    console.error('Ошибка при инициализации:', error);
-    throw error;
+    console.error("Ошибка верификации:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+// Добавьте после настройки маршрутов
+app.get('/api/session', (req, res) => {
+  console.log('Запрос сессии в server.js:', {
+    sessionExists: !!req.session,
+    sessionID: req.sessionID,
+    isAuthenticated: req.session?.isAuthenticated,
+    authenticated: req.session?.authenticated,
+    address: req.session?.address
+  });
+  
+  if (req.session && (req.session.isAuthenticated || req.session.authenticated)) {
+    res.json({
+      isAuthenticated: true,
+      authenticated: true,
+      address: req.session.address,
+      isAdmin: req.session.isAdmin
+    });
+  } else {
+    res.json({
+      isAuthenticated: false,
+      authenticated: false,
+      address: null,
+      isAdmin: false
+    });
+  }
+});
+
+app.get('/api/balance', requireAuth, async (req, res) => {
+  try {
+    const balance = await contract.balanceOf(req.session.address);
+    res.json({ balance: balance.toString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Добавляем тестовые маршруты API
+app.get('/api/public', (req, res) => {
+  res.json({ message: 'This is a public API endpoint' });
+});
+
+app.get('/api/protected', (req, res) => {
+  res.json({ 
+    message: 'This is a protected API endpoint',
+    user: {
+      address: req.session.address,
+      isAdmin: req.session.isAdmin
+    }
+  });
+});
+
+app.get('/api/admin', (req, res) => {
+  res.json({ 
+    message: 'This is an admin API endpoint',
+    user: {
+      address: req.session.address,
+      isAdmin: req.session.isAdmin
+    }
+  });
+});
+
+// Добавьте обработчик ошибок
+app.use((err, req, res, next) => {
+  console.error('Глобальный обработчик ошибок:', err);
+  
+  // Обработка ошибок CSRF
+  if (err.code === 'EBADCSRFTOKEN') {
+    return res.status(403).json({
+      error: 'Недействительный CSRF-токен',
+      message: 'Возможно, ваша сессия истекла. Пожалуйста, обновите страницу и попробуйте снова.'
+    });
+  }
+  
+  // Обработка ошибок валидации
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      error: 'Ошибка валидации',
+      details: err.details || err.message
+    });
+  }
+  
+  // Обработка ошибок базы данных
+  if (err.code === '23505') { // Postgres unique violation
+    return res.status(409).json({
+      error: 'Конфликт данных',
+      message: 'Запись с такими данными уже существует.'
+    });
+  }
+  
+  // Общая обработка ошибок
+  res.status(err.status || 500).json({
+    error: 'Внутренняя ошибка сервера',
+    message: process.env.NODE_ENV === 'production' ? 'Что-то пошло не так' : err.message
+  });
+});
+
+// Перед запуском сервера
+console.log('Перед запуском сервера на порту:', PORT);
+
+// Запуск сервера и инициализация сервисов
+const server = app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log('Server address:', server.address());
+  
+  // Инициализируем сервисы без блокировки запуска сервера
+  initServices().catch(err => {
+    console.error('Ошибка при инициализации сервисов:', err);
+  });
+  
+  // Проверяем доступность Ollama в фоновом режиме
+  try {
+    const { checkOllamaAvailability } = require('./services/ollama');
+    checkOllamaAvailability().catch(err => {
+      console.error('Ошибка при проверке Ollama:', err);
+    });
+  } catch (error) {
+    console.error('Ошибка при импорте модуля Ollama:', error);
+  }
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please try another port.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+// Добавляем graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+// Проверяем доступность Ollama сервера
+async function checkOllamaServer() {
+  try {
+    const response = await axios.get('http://localhost:11434/api/tags');
+    if (response.status === 200) {
+      console.log('Ollama сервер доступен');
+      
+      // Тестируем прямой запрос к Ollama
+      try {
+        console.log('Тестируем прямой запрос к Ollama...');
+        const model = new ChatOllama({
+          baseUrl: 'http://localhost:11434',
+          model: 'llama3',
+          temperature: 0.2,
+        });
+        
+        const result = await model.invoke('Привет, как дела?');
+        console.log('Ответ от Ollama:', result);
+      } catch (testError) {
+        console.error('Ошибка при тестировании Ollama:', testError);
+      }
+      
+      // Инициализируем векторное хранилище
+      try {
+        console.log('Инициализируем векторное хранилище...');
+        const vectorStore = await getVectorStore();
+        console.log('Векторное хранилище инициализировано');
+      } catch (vectorError) {
+        console.error('Ошибка при инициализации векторного хранилища:', vectorError);
+      }
+      
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Ollama сервер недоступен:', error.message);
+    return false;
   }
 }
 
-// Запускаем инициализацию
-console.log('Начинаем инициализацию векторного хранилища...');
-initializeVectorStore().catch(error => {
-  console.error('Критическая ошибка при инициализации:', error);
-  process.exit(1);
-}); 
+// Настройка периодической очистки устаревших сессий
+const pgSessionCleanup = setInterval(function() {
+  console.log('Cleaning up expired sessions...');
+  pool.query('DELETE FROM session WHERE expire < NOW()')
+    .then(result => {
+      if (result.rowCount > 0) {
+        console.log(`Removed ${result.rowCount} expired sessions`);
+      }
+    })
+    .catch(err => console.error('Error cleaning up sessions:', err));
+}, 3600000); // Очистка каждый час
+
+// Очистка интервала при завершении работы
+process.on('SIGTERM', () => {
+  clearInterval(pgSessionCleanup);
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+// Функция для создания таблиц
+async function ensureTablesExist() {
+  try {
+    // Проверяем существование таблицы users
+    const result = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'users'
+      );
+    `);
+    
+    // Если таблица не существует, создаем все таблицы
+    if (!result.rows[0].exists) {
+      console.log('Таблицы не найдены, создаем...');
+      
+      // SQL-запросы для создания таблиц
+      const createTablesSql = `
+        -- Таблица пользователей
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          address VARCHAR(255) UNIQUE,
+          email VARCHAR(255) UNIQUE,
+          telegram_id VARCHAR(255) UNIQUE,
+          username VARCHAR(255),
+          is_admin BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        -- Индексы для таблицы пользователей
+        CREATE INDEX IF NOT EXISTS idx_users_address ON users(address);
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+        
+        -- Таблица сессий
+        CREATE TABLE IF NOT EXISTS session (
+          sid VARCHAR NOT NULL,
+          sess JSON NOT NULL,
+          expire TIMESTAMP(6) NOT NULL,
+          CONSTRAINT session_pkey PRIMARY KEY (sid)
+        );
+        
+        -- Индекс для таблицы сессий
+        CREATE INDEX IF NOT EXISTS idx_session_expire ON session(expire);
+        
+        -- Таблица канбан-досок
+        CREATE TABLE IF NOT EXISTS kanban_boards (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          owner_id INTEGER REFERENCES users(id),
+          is_public BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        -- Таблица колонок канбан-доски
+        CREATE TABLE IF NOT EXISTS kanban_columns (
+          id SERIAL PRIMARY KEY,
+          board_id INTEGER REFERENCES kanban_boards(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          position INTEGER NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        -- Таблица карточек канбан-доски
+        CREATE TABLE IF NOT EXISTS kanban_cards (
+          id SERIAL PRIMARY KEY,
+          column_id INTEGER REFERENCES kanban_columns(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          position INTEGER NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        -- Индексы для таблиц канбан
+        CREATE INDEX IF NOT EXISTS idx_kanban_boards_owner ON kanban_boards(owner_id);
+        CREATE INDEX IF NOT EXISTS idx_kanban_columns_board ON kanban_columns(board_id);
+        CREATE INDEX IF NOT EXISTS idx_kanban_cards_column ON kanban_cards(column_id);
+        
+        -- Таблица сообщений чата
+        CREATE TABLE IF NOT EXISTS chat_messages (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id),
+          sender VARCHAR(50) NOT NULL,
+          message TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        -- Индекс для таблицы сообщений
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id);
+      `;
+      
+      await pool.query(createTablesSql);
+      console.log('Таблицы успешно созданы');
+    } else {
+      console.log('Таблицы уже существуют');
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке/создании таблиц:', error);
+  }
+}
+
+// Вызываем функцию при запуске сервера
+ensureTablesExist(); 
+
+// Добавляем middleware для проверки аутентификации
+app.use('/api/protected', (req, res, next) => {
+  // console.log('Protected route middleware:', {
+  //   session: req.session,
+  //   authenticated: req.session.authenticated,
+  //   address: req.session.address
+  // });
+  
+  if (!req.session.authenticated) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  next();
+});
+
+// Добавляем middleware для проверки прав администратора
+app.use('/api/admin', (req, res, next) => {
+  // console.log('Admin route middleware:', {
+  //   session: req.session,
+  //   authenticated: req.session.authenticated,
+  //   isAdmin: req.session.isAdmin
+  // });
+  
+  if (!req.session.authenticated || !req.session.isAdmin) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  next();
+});

@@ -30,3 +30,4 @@ coverage.json
 
 # Sessions directory
 sessions/
+data/sessions/
