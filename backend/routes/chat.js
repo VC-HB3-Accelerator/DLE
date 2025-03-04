@@ -1,185 +1,200 @@
 const express = require('express');
 const router = express.Router();
-const { checkAccess } = require('../utils/access-check');
-const { createOllamaChain, directOllamaQuery, checkOllamaAvailability, ChatOllama } = require('../services/ollama');
+const { ChatOllama } = require('@langchain/ollama');
 const { getVectorStore } = require('../services/vectorStore');
+const db = require('../db');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
-// Хранилище истории чатов
-const chatHistory = {};
-
-// Обработка чат-сообщений с проверкой сессии
-router.post('/', async (req, res) => {
+// Обработчик сообщений чата
+router.post('/message', requireAuth, async (req, res) => {
   try {
-    console.log('Получен запрос в chat.js:', {
-      body: req.body,
-      session: req.session ? {
-        id: req.sessionID,
-        address: req.session.address,
-        isAuthenticated: req.session.isAuthenticated,
-        authenticated: req.session.authenticated
-      } : null,
-      cookies: req.cookies,
-      headers: {
-        cookie: req.headers.cookie,
-        origin: req.headers.origin,
-        referer: req.headers.referer,
-        'content-type': req.headers['content-type']
-      }
-    });
+    const { message, language = 'ru' } = req.body;
     
-    // Проверяем, что тело запроса правильно парсится
-    if (req.headers['content-type'] === 'application/json') {
-      console.log('JSON body:', JSON.stringify(req.body));
-    } else {
-      console.log('Non-JSON body:', req.body);
+    // Проверка аутентификации
+    if (!req.session || !req.session.authenticated) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
     }
     
-    // ВАЖНО: Принимаем любой адрес из запроса без проверки сессии
-    const userAddress = req.body.address || '0xdefault';
-    
-    const { message } = req.body;
-    
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+    console.log(`Получено сообщение: ${message}, язык: ${language}`);
+
+    // Определяем язык сообщения, если не указан явно
+    let detectedLanguage = language;
+    if (!language || language === 'auto') {
+      // Простая эвристика для определения языка
+      const cyrillicPattern = /[а-яА-ЯёЁ]/;
+      detectedLanguage = cyrillicPattern.test(message) ? 'ru' : 'en';
     }
 
-    console.log(`Processing chat message from ${userAddress}: ${message}`);
-    
-    // Инициализируем историю чата для пользователя, если её нет
-    if (!chatHistory[userAddress]) {
-      chatHistory[userAddress] = [];
+    // Формируем системный промпт в зависимости от языка
+    let systemPrompt = '';
+    if (detectedLanguage === 'ru') {
+      systemPrompt = 'Вы - полезный ассистент. Отвечайте на русском языке.';
+    } else {
+      systemPrompt = 'You are a helpful assistant. Respond in English.';
     }
+
+    // Отправляем запрос к Ollama с указанием языка
+    console.log(`Отправка запроса к Ollama (модель: ${process.env.OLLAMA_MODEL || 'mistral'}, язык: ${detectedLanguage}): ${message}`);
     
-    // Временно возвращаем тестовый ответ для отладки
-    const responseText = `Тестовый ответ на сообщение: ${message}`;
-    
-    // Сохраняем историю чата
-    chatHistory[userAddress].push({
-      type: 'human',
-      text: message
+    // Проверяем доступность Ollama
+    console.log('Проверка доступности Ollama...');
+    try {
+      const response = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}/api/tags`);
+      const data = await response.json();
+      console.log('Ollama доступен. Доступные модели:');
+      data.models.forEach(model => {
+        console.log(`- ${model.name}`);
+      });
+    } catch (error) {
+      console.error('Ошибка при проверке доступности Ollama:', error);
+      return res.status(500).json({ error: 'Сервис Ollama недоступен' });
+    }
+
+    // Создаем экземпляр ChatOllama
+    const chat = new ChatOllama({
+      baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+      model: process.env.OLLAMA_MODEL || 'mistral',
+      system: systemPrompt
     });
+
+    console.log('Отправка запроса к Ollama...');
     
-    chatHistory[userAddress].push({
-      type: 'ai',
-      text: responseText
+    // Получаем ответ от модели
+    let aiResponse;
+    try {
+      const response = await chat.invoke(message);
+      aiResponse = response.content;
+      console.log('Ответ AI:', aiResponse);
+    } catch (error) {
+      console.error('Ошибка при вызове ChatOllama:', error);
+      
+      // Альтернативный метод запроса через прямой API
+      try {
+        console.log('Пробуем альтернативный метод запроса...');
+        const response = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}/api/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.OLLAMA_MODEL || 'mistral',
+            prompt: message,
+            system: systemPrompt,
+            stream: false
+          }),
+        });
+        
+        const data = await response.json();
+        aiResponse = data.response;
+        console.log('Ответ AI (альтернативный метод):', aiResponse);
+      } catch (fallbackError) {
+        console.error('Ошибка при использовании альтернативного метода:', fallbackError);
+        throw error; // Выбрасываем исходную ошибку
+      }
+    }
+
+    // Отправляем ответ клиенту
+    res.json({
+      reply: aiResponse,
+      language: detectedLanguage
     });
-    
-    return res.json({ response: responseText });
   } catch (error) {
-    console.error('Подробная ошибка:', error.stack);
-    console.error('Chat error:', error);
-    res.status(500).json({ 
-      error: "Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже." 
-    });
+    logger.error('Error processing message:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });
 
-// Добавьте новый эндпоинт для проверки сессии
-router.get('/check-session', (req, res) => {
+// Добавьте этот маршрут для проверки доступных моделей
+router.get('/models', async (req, res) => {
   try {
-    console.log('Проверка сессии в chat.js:', {
-      sessionID: req.sessionID,
-      session: req.session ? {
-        isAuthenticated: req.session.isAuthenticated,
-        authenticated: req.session.authenticated,
-        address: req.session.address
-      } : null,
-      cookies: req.cookies,
-      headers: {
-        cookie: req.headers.cookie
-      }
-    });
-    
-    // Если сессия отсутствует, но есть адрес в куки authToken, создаем временную сессию
-    if ((!req.session || (!req.session.isAuthenticated && !req.session.authenticated)) && req.cookies.authToken) {
-      console.log('Создаем временную сессию для проверки');
-      
-      // Инициализируем сессию, если она не существует
-      if (!req.session) {
-        req.session = {};
-      }
-      
-      req.session.isAuthenticated = true;
-      req.session.authenticated = true;
-      req.session.isAdmin = true;
-      
-      return res.json({
-        success: true,
-        message: 'Temporary session created',
-        isAdmin: true
-      });
-    }
-    
-    if (!req.session) {
-      return res.status(401).json({ error: 'No session' });
-    }
-    
-    if (!req.session.isAuthenticated && !req.session.authenticated) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    
+    const ollama = new Ollama();
+    const models = await ollama.list();
+
     res.json({
       success: true,
-      address: req.session.address,
-      isAdmin: req.session.isAdmin
+      models: models.models.map((model) => model.name),
     });
   } catch (error) {
-    console.error('Ошибка при проверке сессии:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Ошибка при получении списка моделей:', error);
+    res.status(500).json({ success: false, message: 'Ошибка сервера' });
   }
 });
 
-// Добавьте новый эндпоинт для прямой отправки сообщений в Ollama
-router.post('/ollama', async (req, res) => {
+// Маршрут для получения истории диалогов (доступен пользователю для своих диалогов)
+router.get('/history', requireAuth, async (req, res) => {
   try {
-    const { message, model = 'mistral' } = req.body;
+    const userId = req.session.userId;
+    const { limit = 50, offset = 0 } = req.query;
     
-    console.log(`Отправка сообщения в Ollama (${model}):`, message);
+    const result = await db.query(`
+      SELECT id, channel, sender_type, content, metadata, created_at
+      FROM chat_history
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
     
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+    res.json(result.rows);
+  } catch (error) {
+    logger.error('Error fetching chat history:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Маршрут для получения всех диалогов (только для админов)
+router.get('/admin/history', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, userId } = req.query;
+    
+    let query = `
+      SELECT ch.id, ch.user_id, u.username, ch.channel, 
+             ch.sender_type, ch.content, ch.metadata, ch.created_at
+      FROM chat_history ch
+      LEFT JOIN users u ON ch.user_id = u.id
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+    
+    if (userId) {
+      query += ` WHERE ch.user_id = $${paramIndex}`;
+      params.push(userId);
+      paramIndex++;
     }
     
-    // Используем функцию directOllamaQuery вместо создания нового экземпляра ChatOllama
-    const result = await directOllamaQuery(message, model);
+    query += ` ORDER BY ch.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
     
-    console.log('Ответ от Ollama:', result);
+    const result = await db.query(query, params);
     
-    // Возвращаем ответ клиенту
-    res.json({
-      response: result,
-      model: model
-    });
+    res.json(result.rows);
   } catch (error) {
-    console.error('Ошибка при отправке сообщения в Ollama:', error);
-    res.status(500).json({ 
-      error: "Ошибка при отправке сообщения в Ollama. Убедитесь, что сервер Ollama запущен." 
-    });
+    logger.error('Error fetching admin chat history:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });
 
-// Проверьте, что маршрут правильно настроен
-router.post('/message', async (req, res) => {
+// Сохранение сообщения в историю чата
+router.post('/message', requireAuth, async (req, res) => {
   try {
-    const { message } = req.body;
+    const { content, channel = 'web', metadata = {} } = req.body;
+    const userId = req.session.userId;
     
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
+    // Сохранение сообщения пользователя
+    const userMessageResult = await db.query(`
+      INSERT INTO chat_history (user_id, channel, sender_type, content, metadata)
+      VALUES ($1, $2, 'user', $3, $4)
+      RETURNING id
+    `, [userId, channel, content, metadata]);
     
-    console.log('Получено сообщение:', message);
+    const messageId = userMessageResult.rows[0].id;
     
-    // Здесь ваш код обработки сообщения
-    // ...
-    
-    // Временный ответ для тестирования
-    res.json({
-      response: `Это тестовый ответ на ваше сообщение: "${message}". Сервер работает.`
-    });
+    res.json({ success: true, messageId });
   } catch (error) {
-    console.error('Error processing message:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Error saving chat message:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });
 
-module.exports = router; 
+module.exports = router;

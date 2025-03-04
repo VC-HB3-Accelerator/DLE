@@ -14,4 +14,4 @@ async function checkMailServer(domain) {
   }
 }
 
-module.exports = { checkMailServer }; 
+module.exports = { checkMailServer };

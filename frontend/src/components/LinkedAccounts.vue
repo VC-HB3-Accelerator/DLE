@@ -1,43 +1,41 @@
 <template>
   <div class="linked-accounts">
     <h2>Связанные аккаунты</h2>
-    
-    <div v-if="loading" class="loading">
-      Загрузка...
-    </div>
-    
+
+    <div v-if="loading" class="loading">Загрузка...</div>
+
     <div v-else-if="error" class="error">
       {{ error }}
     </div>
-    
+
     <div v-else>
-      <div v-if="identities.length === 0" class="no-accounts">
-        У вас нет связанных аккаунтов.
-      </div>
-      
+      <div v-if="identities.length === 0" class="no-accounts">У вас нет связанных аккаунтов.</div>
+
       <div v-else class="accounts-list">
-        <div v-for="identity in identities" :key="`${identity.identity_type}-${identity.identity_value}`" class="account-item">
+        <div
+          v-for="identity in identities"
+          :key="`${identity.identity_type}-${identity.identity_value}`"
+          class="account-item"
+        >
           <div class="account-type">
             {{ getIdentityTypeLabel(identity.identity_type) }}
           </div>
           <div class="account-value">
             {{ formatIdentityValue(identity) }}
           </div>
-          <button @click="unlinkAccount(identity)" class="unlink-button">
-            Отвязать
-          </button>
+          <button @click="unlinkAccount(identity)" class="unlink-button">Отвязать</button>
         </div>
       </div>
-      
+
       <div class="link-instructions">
         <h3>Как связать аккаунты</h3>
-        
+
         <div class="instruction">
           <h4>Telegram</h4>
           <p>Отправьте боту команду:</p>
           <code>/link {{ userAddress }}</code>
         </div>
-        
+
         <div class="instruction">
           <h4>Email</h4>
           <p>Отправьте письмо на адрес бота с темой:</p>
@@ -48,80 +46,85 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useAuthStore } from '../stores/auth';
 import axios from 'axios';
 
-export default {
-  name: 'LinkedAccounts',
-  
-  data() {
-    return {
-      loading: true,
-      error: null,
-      identities: [],
-      userAddress: ''
-    };
-  },
-  
-  async mounted() {
-    this.userAddress = this.$store.state.auth.address;
-    await this.loadIdentities();
-  },
-  
-  methods: {
-    async loadIdentities() {
-      try {
-        this.loading = true;
-        this.error = null;
-        
-        const response = await axios.get('/api/identities', {
-          withCredentials: true
-        });
-        
-        this.identities = response.data.identities;
-      } catch (error) {
-        console.error('Error loading identities:', error);
-        this.error = 'Не удалось загрузить связанные аккаунты. Попробуйте позже.';
-      } finally {
-        this.loading = false;
-      }
-    },
-    
-    async unlinkAccount(identity) {
-      try {
-        await axios.delete(`/api/identities/${identity.identity_type}/${identity.identity_value}`, {
-          withCredentials: true
-        });
-        
-        // Обновляем список идентификаторов
-        await this.loadIdentities();
-      } catch (error) {
-        console.error('Error unlinking account:', error);
-        alert('Не удалось отвязать аккаунт. Попробуйте позже.');
-      }
-    },
-    
-    getIdentityTypeLabel(type) {
-      const labels = {
-        ethereum: 'Ethereum',
-        telegram: 'Telegram',
-        email: 'Email'
-      };
-      
-      return labels[type] || type;
-    },
-    
-    formatIdentityValue(identity) {
-      if (identity.identity_type === 'ethereum') {
-        // Сокращаем Ethereum-адрес
-        const value = identity.identity_value;
-        return `${value.substring(0, 6)}...${value.substring(value.length - 4)}`;
-      }
-      
-      return identity.identity_value;
-    }
+const authStore = useAuthStore();
+const identities = ref([]);
+const loading = ref(true);
+const error = ref(null);
+
+const userAddress = computed(() => authStore.address);
+
+// Получение связанных аккаунтов
+async function fetchLinkedAccounts() {
+  try {
+    loading.value = true;
+    error.value = null;
+
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/identities/linked`, {
+      withCredentials: true,
+    });
+    identities.value = response.data;
+  } catch (err) {
+    console.error('Ошибка при получении связанных аккаунтов:', err);
+    error.value = 'Не удалось загрузить связанные аккаунты. Попробуйте позже.';
+  } finally {
+    loading.value = false;
   }
-};
+}
+
+// Отвязывание аккаунта
+async function unlinkAccount(identity) {
+  try {
+    await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/identities/unlink`,
+      {
+        type: identity.identity_type,
+        value: identity.identity_value,
+      },
+      {
+        withCredentials: true,
+      }
+    );
+
+    // Обновляем список после отвязки
+    await fetchLinkedAccounts();
+  } catch (err) {
+    console.error('Ошибка при отвязке аккаунта:', err);
+    error.value = 'Не удалось отвязать аккаунт. Попробуйте позже.';
+  }
+}
+
+// Форматирование типа идентификатора
+function getIdentityTypeLabel(type) {
+  const labels = {
+    ethereum: 'Ethereum',
+    telegram: 'Telegram',
+    email: 'Email',
+  };
+
+  return labels[type] || type;
+}
+
+// Форматирование значения идентификатора
+function formatIdentityValue(identity) {
+  if (identity.identity_type === 'ethereum') {
+    // Сокращаем Ethereum-адрес
+    const value = identity.identity_value;
+    return `${value.substring(0, 6)}...${value.substring(value.length - 4)}`;
+  }
+
+  return identity.identity_value;
+}
+
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    fetchLinkedAccounts();
+  }
+});
 </script>
 
 <style scoped>
@@ -131,7 +134,9 @@ export default {
   padding: 20px;
 }
 
-.loading, .error, .no-accounts {
+.loading,
+.error,
+.no-accounts {
   margin: 20px 0;
   padding: 10px;
   text-align: center;
@@ -190,4 +195,4 @@ code {
   border-radius: 4px;
   margin-top: 5px;
 }
-</style> 
+</style>

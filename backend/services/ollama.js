@@ -1,7 +1,9 @@
 const { ChatOllama } = require('@langchain/ollama');
-const { RetrievalQAChain } = require("langchain/chains");
-const { PromptTemplate } = require("@langchain/core/prompts");
+const { RetrievalQAChain } = require('langchain/chains');
+const { PromptTemplate } = require('@langchain/core/prompts');
 const axios = require('axios');
+const { Ollama } = require('ollama');
+const { HumanMessage } = require('@langchain/core/messages');
 
 // Создаем шаблон для контекстного запроса
 const PROMPT_TEMPLATE = `
@@ -19,17 +21,17 @@ const PROMPT_TEMPLATE = `
 // Функция для проверки доступности Ollama
 async function checkOllamaAvailability() {
   console.log('Проверка доступности Ollama...');
-  
+
   try {
     // Добавляем таймаут для запроса
     const response = await axios.get('http://localhost:11434/api/tags', {
-      timeout: 5000 // 5 секунд таймаут
+      timeout: 5000, // 5 секунд таймаут
     });
-    
+
     if (response.status === 200) {
       console.log('Ollama доступен. Доступные модели:');
       if (response.data && response.data.models) {
-        response.data.models.forEach(model => {
+        response.data.models.forEach((model) => {
           console.log(`- ${model.name}`);
         });
       }
@@ -42,32 +44,45 @@ async function checkOllamaAvailability() {
   }
 }
 
-// Функция для прямого запроса к Ollama API
-async function directOllamaQuery(message, model = 'mistral') {
+// Функция для прямого запроса к Ollama
+async function directOllamaQuery(message, language = 'en') {
   try {
-    console.log(`Отправка запроса к Ollama (модель: ${model}):`, message);
-    
-    // Проверяем доступность Ollama перед отправкой запроса
-    const isAvailable = await checkOllamaAvailability();
-    if (!isAvailable) {
-      throw new Error('Сервер Ollama недоступен');
+    // Всегда используем модель mistral, независимо от языка
+    const modelName = 'mistral';
+
+    console.log(`Отправка запроса к Ollama (модель: ${modelName}, язык: ${language}): ${message}`);
+
+    // Проверяем доступность Ollama
+    console.log('Проверка доступности Ollama...');
+    const ollama = new Ollama();
+
+    try {
+      const models = await ollama.list();
+      console.log('Ollama доступен. Доступные модели:');
+      models.models.forEach((model) => {
+        console.log(`- ${model.name}`);
+      });
+    } catch (error) {
+      console.error('Ошибка при проверке доступности Ollama:', error);
+      throw new Error('Ollama недоступен');
     }
-    
-    // Создаем экземпляр ChatOllama
-    const ollama = new ChatOllama({
+
+    console.log('Отправка запроса к Ollama...');
+
+    const chatModel = new ChatOllama({
       baseUrl: 'http://localhost:11434',
-      model: model,
+      model: modelName,
       temperature: 0.7,
     });
-    
-    console.log('Отправка запроса к Ollama...');
-    const result = await ollama.invoke(message);
-    console.log('Получен ответ от Ollama');
-    
-    return result.content;
+
+    const response = await chatModel.invoke([new HumanMessage(message)]);
+
+    return response.content;
   } catch (error) {
     console.error('Ошибка при запросе к Ollama:', error);
-    throw error;
+
+    // Возвращаем сообщение об ошибке
+    return 'Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже.';
   }
 }
 
@@ -98,27 +113,23 @@ async function createOllamaChain(vectorStore) {
     // Создаем шаблон запроса
     const prompt = new PromptTemplate({
       template: PROMPT_TEMPLATE,
-      inputVariables: ["context", "query"],
+      inputVariables: ['context', 'query'],
     });
     console.log('Шаблон запроса создан');
 
     console.log('Получаем retriever из векторного хранилища...');
     const retriever = vectorStore.asRetriever();
     console.log('Retriever получен');
-    
+
     console.log('Создаем цепочку для поиска и ответа...');
     // Создаем цепочку для поиска и ответа
-    const chain = RetrievalQAChain.fromLLM(
-      model,
-      retriever,
-      {
-        returnSourceDocuments: true,
-        prompt: prompt,
-        inputKey: "query",
-        outputKey: "text",
-        verbose: true
-      }
-    );
+    const chain = RetrievalQAChain.fromLLM(model, retriever, {
+      returnSourceDocuments: true,
+      prompt: prompt,
+      inputKey: 'query',
+      outputKey: 'text',
+      verbose: true,
+    });
     console.log('Цепочка для поиска и ответа создана');
 
     return chain;
@@ -146,4 +157,4 @@ async function getOllamaModel() {
   }
 }
 
-module.exports = { getOllamaModel, createOllamaChain, checkOllamaAvailability, directOllamaQuery }; 
+module.exports = { getOllamaModel, createOllamaChain, checkOllamaAvailability, directOllamaQuery };

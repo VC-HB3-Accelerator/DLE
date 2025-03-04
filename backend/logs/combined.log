@@ -1,0 +1,10 @@
+{"level":"info","message":"Running scheduled token balance check","timestamp":"2025-03-04T20:30:00.970Z"}
+{"level":"info","message":"Checking token balances for 1 users","timestamp":"2025-03-04T20:30:00.982Z"}
+{"level":"error","message":"Ошибка при получении контракта AccessToken: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T20:30:00.983Z"}
+{"level":"error","message":"Error checking token balance for 0x0000000000000000000000000000000000000000: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T20:30:00.983Z"}
+{"level":"info","message":"User 10 with address 0x0000000000000000000000000000000000000000: admin=false","timestamp":"2025-03-04T20:30:00.984Z"}
+{"level":"info","message":"Running scheduled token balance check","timestamp":"2025-03-04T21:30:00.777Z"}
+{"level":"info","message":"Checking token balances for 1 users","timestamp":"2025-03-04T21:30:00.793Z"}
+{"level":"error","message":"Ошибка при получении контракта AccessToken: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T21:30:00.794Z"}
+{"level":"error","message":"Error checking token balance for 0x0000000000000000000000000000000000000000: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T21:30:00.795Z"}
+{"level":"info","message":"User 10 with address 0x0000000000000000000000000000000000000000: admin=false","timestamp":"2025-03-04T21:30:00.795Z"}

@@ -1,0 +1,4 @@
+{"level":"error","message":"Ошибка при получении контракта AccessToken: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T20:30:00.983Z"}
+{"level":"error","message":"Error checking token balance for 0x0000000000000000000000000000000000000000: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T20:30:00.983Z"}
+{"level":"error","message":"Ошибка при получении контракта AccessToken: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T21:30:00.794Z"}
+{"level":"error","message":"Error checking token balance for 0x0000000000000000000000000000000000000000: Адрес контракта AccessToken не найден в переменных окружения","timestamp":"2025-03-04T21:30:00.795Z"}

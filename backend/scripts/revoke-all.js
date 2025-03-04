@@ -1,9 +1,9 @@
-const hre = require("hardhat");
+const hre = require('hardhat');
 
 async function main() {
   const accessToken = await hre.ethers.getContractAt(
-    "AccessToken",
-    "0xF352c498cF0857F472dC473E4Dd39551E79B1063"
+    'AccessToken',
+    '0xF352c498cF0857F472dC473E4Dd39551E79B1063'
   );
 
   // Отзываем все токены от 1 до 3
@@ -23,4 +23,4 @@ main()
   .catch((error) => {
     console.error(error);
     process.exit(1);
-  }); 
+  });

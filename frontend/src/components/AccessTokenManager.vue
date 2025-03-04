@@ -1,209 +1,161 @@
 <template>
-  <div class="card">
-    <div class="card-header">
-      <h5>Управление токенами доступа</h5>
+  <div class="access-token-manager">
+    <h3>Управление токенами доступа</h3>
+    <div class="token-actions">
+      <button @click="mintNewToken">Выпустить новый токен</button>
+      <button @click="loadTokens">Обновить список</button>
     </div>
-    <div class="card-body">
-      <div v-if="!isConnected" class="alert alert-warning">
-        Подключите ваш кошелек для управления токенами
-      </div>
-      <div v-else-if="loading" class="alert alert-info">
-        Загрузка...
-      </div>
-      <div v-else>
-        <h6>Создать новый токен</h6>
-        <form @submit.prevent="createToken" class="mb-4">
-          <div class="mb-3">
-            <label for="walletAddress" class="form-label">Адрес кошелька</label>
-            <input
-              type="text"
-              class="form-control"
-              id="walletAddress"
-              v-model="newToken.walletAddress"
-              placeholder="0x..."
-              required
-            />
-          </div>
-          <div class="mb-3">
-            <label for="role" class="form-label">Роль</label>
-            <select class="form-select" id="role" v-model="newToken.role" required>
-              <option value="USER">Пользователь</option>
-              <option value="ADMIN">Администратор</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label for="expiresAt" class="form-label">Срок действия (дни)</label>
-            <input
-              type="number"
-              class="form-control"
-              id="expiresAt"
-              v-model="newToken.expiresInDays"
-              min="1"
-              max="365"
-              required
-            />
-          </div>
-          <button type="submit" class="btn btn-primary">Создать токен</button>
-        </form>
 
-        <h6>Активные токены</h6>
-        <div v-if="tokens.length === 0" class="alert alert-info">
-          Нет активных токенов
-        </div>
-        <div v-else class="table-responsive">
-          <table class="table table-striped">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Адрес</th>
-                <th>Роль</th>
-                <th>Истекает</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="token in tokens" :key="token.id">
-                <td>{{ token.id }}</td>
-                <td>{{ shortenAddress(token.walletAddress) }}</td>
-                <td>{{ token.role }}</td>
-                <td>{{ formatDate(token.expiresAt) }}</td>
-                <td>
-                  <button
-                    @click="revokeToken(token.id)"
-                    class="btn btn-sm btn-danger"
-                  >
-                    Отозвать
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <div v-if="loading">Загрузка...</div>
+
+    <table v-else-if="tokens.length > 0" class="tokens-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Владелец</th>
+          <th>Роль</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="token in tokens" :key="token.id">
+          <td>{{ token.id }}</td>
+          <td>{{ token.owner }}</td>
+          <td>{{ getRoleName(token.role) }}</td>
+          <td>
+            <button @click="revokeToken(token.id)">Отозвать</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div v-else>Нет доступных токенов</div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useEthereum } from './useEthereum';
 import axios from 'axios';
 
-const { address, isConnected } = useEthereum();
-const loading = ref(false);
 const tokens = ref([]);
-const newToken = ref({
-  walletAddress: '',
-  role: 'USER',
-  expiresInDays: 30
-});
+const loading = ref(false);
 
-// Сокращение адреса кошелька
-function shortenAddress(addr) {
-  if (!addr) return '';
-  return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+const roles = {
+  0: 'Администратор',
+  1: 'Модератор',
+  2: 'Пользователь',
+};
+
+function getRoleName(roleId) {
+  return roles[roleId] || 'Неизвестная роль';
 }
 
-// Форматирование даты
-function formatDate(timestamp) {
-  if (!timestamp) return 'Н/Д';
-  return new Date(timestamp).toLocaleString();
-}
-
-// Загрузка токенов
 async function loadTokens() {
-  if (!isConnected.value || !address.value) return;
-  
-  loading.value = true;
-  
   try {
+    console.log('Загрузка токенов...');
+    loading.value = true;
+
+    // Добавляем withCredentials для передачи куки с сессией
     const response = await axios.get('/api/access/tokens', {
-      headers: {
-        'x-wallet-address': address.value
-      }
+      withCredentials: true,
     });
-    
+
+    console.log('Ответ API:', response.data);
     tokens.value = response.data;
-  } catch (err) {
-    console.error('Ошибка загрузки токенов:', err);
-    alert('Ошибка загрузки токенов: ' + (err.response?.data?.error || err.message));
+  } catch (error) {
+    console.error('Ошибка при загрузке токенов:', error);
+    if (error.response) {
+      console.error('Статус ошибки:', error.response.status);
+      console.error('Данные ошибки:', error.response.data);
+    } else if (error.request) {
+      console.error('Запрос без ответа:', error.request);
+    } else {
+      console.error('Ошибка настройки запроса:', error.message);
+    }
   } finally {
     loading.value = false;
   }
 }
 
-// Создание токена
-async function createToken() {
-  if (!isConnected.value || !address.value) return;
-  
-  loading.value = true;
-  
+async function mintNewToken() {
   try {
-    await axios.post('/api/access/tokens', 
+    const walletAddress = prompt('Введите адрес получателя:');
+    if (!walletAddress) return;
+
+    const role = prompt('Введите роль (ADMIN, MODERATOR, USER):');
+    if (!role) return;
+
+    const expiresInDays = prompt('Введите срок действия в днях:');
+    if (!expiresInDays) return;
+
+    // Используем правильные имена параметров
+    await axios.post(
+      '/api/access/mint',
       {
-        walletAddress: newToken.value.walletAddress,
-        role: newToken.value.role,
-        expiresInDays: parseInt(newToken.value.expiresInDays)
+        walletAddress,
+        role,
+        expiresInDays,
       },
       {
-        headers: {
-          'x-wallet-address': address.value
-        }
+        withCredentials: true,
       }
     );
-    
-    // Сбрасываем форму
-    newToken.value = {
-      walletAddress: '',
-      role: 'USER',
-      expiresInDays: 30
-    };
-    
-    // Перезагружаем список токенов
+
     await loadTokens();
-    
-    alert('Токен успешно создан');
-  } catch (err) {
-    console.error('Ошибка создания токена:', err);
-    alert('Ошибка создания токена: ' + (err.response?.data?.error || err.message));
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    console.error('Ошибка при выпуске токена:', error);
+    if (error.response) {
+      console.error('Статус ошибки:', error.response.status);
+      console.error('Данные ошибки:', error.response.data);
+    }
   }
 }
 
-// Отзыв токена
 async function revokeToken(tokenId) {
-  if (!isConnected.value || !address.value) return;
-  
-  if (!confirm('Вы уверены, что хотите отозвать этот токен?')) {
-    return;
-  }
-  
-  loading.value = true;
-  
   try {
-    await axios.delete(`/api/access/tokens/${tokenId}`, {
-      headers: {
-        'x-wallet-address': address.value
-      }
-    });
-    
-    // Перезагружаем список токенов
+    if (!confirm(`Вы уверены, что хотите отозвать токен #${tokenId}?`)) return;
+
+    await axios.post('/api/access/revoke', { tokenId });
     await loadTokens();
-    
-    alert('Токен успешно отозван');
-  } catch (err) {
-    console.error('Ошибка отзыва токена:', err);
-    alert('Ошибка отзыва токена: ' + (err.response?.data?.error || err.message));
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    console.error('Ошибка при отзыве токена:', error);
   }
 }
 
-// Загружаем токены при монтировании компонента
-onMounted(() => {
-  if (isConnected.value && address.value) {
-    loadTokens();
-  }
+onMounted(async () => {
+  await loadTokens();
 });
-</script> 
+</script>
+
+<style scoped>
+.access-token-manager {
+  margin: 20px 0;
+}
+
+.token-actions {
+  margin: 15px 0;
+}
+
+.tokens-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.tokens-table th,
+.tokens-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.tokens-table th {
+  background-color: #f2f2f2;
+}
+
+button {
+  margin-right: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+</style>

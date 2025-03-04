@@ -1,27 +1,22 @@
-import { Buffer } from 'buffer'
-globalThis.Buffer = Buffer
+import { Buffer } from 'buffer';
+globalThis.Buffer = Buffer;
 
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import App from './App.vue'
-import router from './router'
-import axios from 'axios'
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import App from './App.vue';
+import router from './router';
+import axios from 'axios';
 
-// Вместо этого
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-// Используйте относительный путь
-axios.defaults.baseURL = ''
-
-// Включение передачи кук
-axios.defaults.withCredentials = true
+// Настройка axios
+axios.defaults.baseURL = 'http://localhost:8000';
+axios.defaults.withCredentials = true; // Важно для работы с сессиями
 
 // Создаем и монтируем приложение Vue
-const app = createApp(App)
-const pinia = createPinia()
+const app = createApp(App);
+const pinia = createPinia();
 
-app.use(pinia)
-app.use(router)
+app.use(pinia);
+app.use(router);
 
 // Не используем заглушки, так как сервер работает
 // if (import.meta.env.DEV) {
@@ -33,4 +28,6 @@ app.use(router)
 //   ]).catch(err => console.error('Failed to load API mocks:', err));
 // }
 
-app.mount('#app') 
+console.log('API URL:', import.meta.env.VITE_API_URL);
+
+app.mount('#app');
