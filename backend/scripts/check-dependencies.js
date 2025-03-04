@@ -4,14 +4,9 @@ const path = require('path');
 const packageJson = require('../package.json');
 const dependencies = packageJson.dependencies || {};
 
-const requiredDependencies = [
-  'express-rate-limit',
-  'winston',
-  'helmet',
-  'csurf'
-];
+const requiredDependencies = ['express-rate-limit', 'winston', 'helmet', 'csurf'];
 
-const missingDependencies = requiredDependencies.filter(dep => !dependencies[dep]);
+const missingDependencies = requiredDependencies.filter((dep) => !dependencies[dep]);
 
 if (missingDependencies.length > 0) {
   console.error('Missing dependencies:', missingDependencies);
@@ -19,4 +14,4 @@ if (missingDependencies.length > 0) {
   process.exit(1);
 }
 
-console.log('All required dependencies are installed.'); 
+console.log('All required dependencies are installed.');

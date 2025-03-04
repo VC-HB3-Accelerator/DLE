@@ -1,6 +1,6 @@
 // Функция для создания задержки
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Функция для валидации email адреса
@@ -11,5 +11,5 @@ function isValidEmail(email) {
 
 module.exports = {
   sleep,
-  isValidEmail
-}; 
+  isValidEmail,
+};

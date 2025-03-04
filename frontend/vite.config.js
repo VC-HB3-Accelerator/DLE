@@ -1,46 +1,49 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import polyfillNode from 'rollup-plugin-polyfill-node'
-import path from 'path'
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import polyfillNode from 'rollup-plugin-polyfill-node';
+import { fileURLToPath } from 'url';
+import path, { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig({
   plugins: [
     vue(),
     polyfillNode({
-      include: ['buffer', 'process', 'util']
-    })
+      include: ['buffer', 'process', 'util'],
+    }),
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
-      buffer: 'buffer/'
-    }
+      '@': path.resolve(__dirname, './src'),
+      buffer: 'buffer/',
+    },
   },
   define: {
-    'global': 'globalThis',
-    'process.env': {}
+    global: 'globalThis',
+    'process.env': {},
   },
   build: {
     rollupOptions: {
-      plugins: [
-        polyfillNode()
-      ]
-    }
+      plugins: [polyfillNode()],
+    },
   },
   optimizeDeps: {
     esbuildOptions: {
       loader: {
-        '.js': 'jsx'
-      }
-    }
+        '.js': 'jsx',
+      },
+    },
   },
   server: {
     port: 5173,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: 'localhost',
       }
-    }
-  }
-}) 
+    },
+  },
+});

@@ -15,11 +15,27 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Modal',
-  emits: ['close']
+<script setup>
+import { onMounted, onBeforeUnmount } from 'vue';
+
+// Закрытие модального окна по нажатию Escape
+function handleKeyDown(e) {
+  if (e.key === 'Escape') {
+    emit('close');
+  }
 }
+
+const emit = defineEmits(['close']);
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown);
+  document.body.style.overflow = 'hidden'; // Блокируем прокрутку страницы
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeyDown);
+  document.body.style.overflow = ''; // Восстанавливаем прокрутку страницы
+});
 </script>
 
 <style scoped>
@@ -43,17 +59,21 @@ export default {
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.modal-body {
   padding: 1rem;
-  border-bottom: 1px solid #eee;
-  font-weight: bold;
-  font-size: 1.2rem;
 }
 
 .close-button {
@@ -65,11 +85,7 @@ export default {
 }
 
 .close-button:hover {
-  color: #000;
-}
-
-.modal-body {
-  padding: 1rem;
+  color: #333;
 }
 
 .modal-footer {
@@ -79,4 +95,4 @@ export default {
   justify-content: flex-end;
   gap: 0.5rem;
 }
-</style> 
+</style>

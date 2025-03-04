@@ -1,286 +1,215 @@
 <template>
   <div id="app">
-    <header class="app-header">
-      <div class="header-brand">
-        <h1>DApp for Business</h1>
-      </div>
-      <div class="header-auth">
-        <template v-if="auth.isAuthenticated">
-          <span class="user-address">{{ shortAddress }}</span>
-          <button class="btn btn-outline" @click="handleDisconnect">Отключить кошелек</button>
-        </template>
-        <template v-else>
-          <button class="btn btn-primary" @click="navigateToHome">Подключиться</button>
-        </template>
-      </div>
-    </header>
-    
-    <div class="app-layout">
-      <!-- Сайдбар для авторизованных пользователей -->
-      <aside v-if="auth.isAuthenticated" class="sidebar">
-        <nav class="sidebar-nav">
-          <router-link to="/" class="nav-item">
-            <span class="nav-icon">🏠</span>
-            <span class="nav-text">Главная</span>
-          </router-link>
-          <router-link v-if="auth.isAdmin" to="/dashboard" class="nav-item">
-            <span class="nav-icon">📊</span>
-            <span class="nav-text">Дашборд</span>
-          </router-link>
-          <router-link to="/kanban" class="nav-item">
-            <span class="nav-icon">📋</span>
-            <span class="nav-text">Канбан</span>
-          </router-link>
-          <router-link v-if="auth.isAdmin" to="/access-test" class="nav-item">
-            <span class="nav-icon">🔐</span>
-            <span class="nav-text">Смарт-контракты</span>
-          </router-link>
-        </nav>
-      </aside>
-      
-      <main class="main-content">
-        <div v-if="isLoading" class="loading">
-          Загрузка...
-        </div>
-        <router-view v-else />
-      </main>
-    </div>
+    <navigation />
+    <main class="main-content">
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, provide } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, watch } from 'vue';
 import { useAuthStore } from './stores/auth';
+import Navigation from './components/Navigation.vue';
 import axios from 'axios';
-import { connectWallet } from './services/wallet';
 
-const router = useRouter();
-const auth = useAuthStore();
-const isLoading = ref(true);
+const authStore = useAuthStore();
 
-// Вычисляемое свойство для отображения сокращенного адреса
-const shortAddress = computed(() => {
-  if (!auth.address) return '';
-  return `${auth.address.substring(0, 6)}...${auth.address.substring(auth.address.length - 4)}`;
-});
+// Проверка сессии при загрузке приложения
+async function checkSession() {
+  try {
+    // Проверяем, установлены ли куки
+    const cookies = document.cookie;
+    console.log('Текущие куки:', cookies);
 
-// Проверяем сессию при загрузке приложения
+    await authStore.checkAuth();
+    console.log('Проверка сессии:', {
+      authenticated: authStore.isAuthenticated,
+      address: authStore.address,
+      isAdmin: authStore.isAdmin,
+      authType: authStore.authType,
+    });
+    console.log('Проверка аутентификации при загрузке:', authStore.isAuthenticated);
+    console.log('Статус администратора при загрузке:', authStore.isAdmin);
+
+    // Если пользователь авторизован, но куки не установлены, пробуем обновить сессию
+    if (authStore.isAuthenticated && !cookies.includes('connect.sid')) {
+      console.log('Куки не установлены, пробуем обновить сессию');
+      await refreshSession();
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке сессии:', error);
+  }
+}
+
+// Функция для обновления сессии
+async function refreshSession() {
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+    // Проверяем, есть ли адрес пользователя
+    if (!authStore.address) {
+      console.log('Нет адреса пользователя для обновления сессии');
+      return;
+    }
+
+    console.log('Попытка обновления сессии для адреса:', authStore.address);
+
+    // Сначала проверяем, доступен ли маршрут
+    try {
+      const response = await axios.post(
+        `${apiUrl}/api/auth/refresh-session`,
+        {
+          address: authStore.address,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+
+      console.log('Сессия обновлена:', response.data);
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        console.log('Маршрут refresh-session не найден, пробуем альтернативный метод');
+
+        // Альтернативный метод: используем маршрут проверки аутентификации
+        const checkResponse = await axios.get(`${apiUrl}/api/auth/check`, {
+          withCredentials: true,
+          headers: {
+            Authorization: `Bearer ${authStore.address}`,
+          },
+        });
+
+        console.log('Проверка аутентификации:', checkResponse.data);
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка при обновлении сессии:', error);
+
+    // Добавляем более подробную информацию об ошибке
+    if (error.response) {
+      console.error('Статус ответа:', error.response.status);
+      console.error('Данные ответа:', error.response.data);
+    }
+  }
+}
+
 onMounted(async () => {
   console.log('App mounted');
   
+  // Проверяем куки
+  const cookies = document.cookie;
+  console.log('Куки при загрузке:', cookies);
+  
   try {
-    // Восстанавливаем состояние аутентификации из localStorage
-    auth.restoreAuth();
+    // Проверяем текущую сессию
+    const response = await axios.get('/api/auth/check', { withCredentials: true });
+    console.log('Ответ проверки сессии:', response.data);
     
-    // Проверяем сессию на сервере
-    const response = await axios.get('/api/auth/check');
-    console.log('Проверка сессии:', response.data);
-    
-    // Если сессия активна, но состояние аутентификации не установлено
-    if (response.data.authenticated && !auth.isAuthenticated) {
-      auth.setAuth({
+    if (response.data.authenticated) {
+      // Если сессия активна, обновляем состояние аутентификации
+      authStore.updateAuthState({
+        authenticated: response.data.authenticated,
         address: response.data.address,
         isAdmin: response.data.isAdmin,
-        authType: response.data.authType || 'wallet'
+        authType: 'wallet'
       });
-    }
-    
-    // Если сессия не активна, но состояние аутентификации установлено
-    if (!response.data.authenticated && auth.isAuthenticated) {
-      auth.disconnect();
+      
+      console.log('Сессия восстановлена:', response.data);
+    } else {
+      console.log('Нет активной сессии');
+      
+      // Если в localStorage есть адрес, пробуем восстановить сессию
+      const savedAddress = localStorage.getItem('walletAddress');
+      if (savedAddress) {
+        console.log('Найден сохраненный адрес:', savedAddress);
+        try {
+          const refreshResponse = await axios.post('/api/auth/refresh-session', 
+            { address: savedAddress },
+            { withCredentials: true }
+          );
+          
+          if (refreshResponse.data.success) {
+            authStore.updateAuthState({
+              authenticated: true,
+              address: savedAddress,
+              isAdmin: refreshResponse.data.user.isAdmin,
+              authType: 'wallet'
+            });
+            console.log('Сессия восстановлена через refresh-session');
+          }
+        } catch (refreshError) {
+          console.error('Ошибка при восстановлении сессии:', refreshError);
+        }
+      }
     }
   } catch (error) {
-    console.error('Error checking session:', error);
-    // Не отключаем пользователя при ошибке проверки сессии
-  } finally {
-    isLoading.value = false;
+    console.error('Ошибка при проверке сессии:', error);
   }
 });
 
-// Функция для отключения кошелька
-async function handleDisconnect() {
-  await auth.disconnect();
-  router.push('/');
-}
-
-// Функция для подключения кошелька
-async function navigateToHome() {
-  console.log('Connecting wallet...');
-  
-  try {
-    await connectWallet((errorMessage) => {
-      console.error('Ошибка при подключении кошелька:', errorMessage);
-      // Можно добавить отображение ошибки пользователю
-    });
-  } catch (error) {
-    console.error('Ошибка при подключении кошелька:', error);
-    
-    // Если не удалось подключить кошелек, перенаправляем на главную страницу
-    console.log('Navigating to home page');
-    router.push('/');
-    
-    // Добавляем небольшую задержку, чтобы убедиться, что компонент HomeView загрузился
-    setTimeout(() => {
-      // Прокручиваем страницу вниз, чтобы показать опции подключения
-      const chatMessages = document.querySelector('.chat-messages');
-      if (chatMessages) {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+// Следим за изменением статуса аутентификации
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) {
+      console.log('Пользователь авторизован, проверяем куки');
+      const cookies = document.cookie;
+      if (!cookies.includes('connect.sid')) {
+        console.log('Куки не установлены после авторизации, пробуем обновить сессию');
+        refreshSession();
       }
-      
-      // Если опции подключения еще не отображаются, имитируем отправку сообщения
-      const authOptions = document.querySelector('.auth-options');
-      if (!authOptions) {
-        const sendButton = document.querySelector('.send-btn');
-        if (sendButton) {
-          // Заполняем поле ввода
-          const textarea = document.querySelector('textarea');
-          if (textarea) {
-            textarea.value = 'Привет';
-          }
-          
-          // Нажимаем кнопку отправки
-          sendButton.click();
-        }
-      }
-    }, 500);
+    }
   }
-}
-
-// Предоставляем состояние аутентификации всем компонентам
-provide('auth', auth);
+);
 </script>
 
 <style>
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
 body {
-  font-family: 'Roboto', 'Helvetica Neue', sans-serif;
-  line-height: 1.6;
+  margin: 0;
+  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   color: #333;
   background-color: #f5f5f5;
 }
 
 #app {
-  height: 100vh;
   display: flex;
   flex-direction: column;
-}
-
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #1976d2;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  z-index: 100;
-}
-
-.header-brand h1 {
-  font-size: 1.5rem;
-  margin: 0;
-}
-
-.header-auth {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-address {
-  font-family: monospace;
-  background-color: rgba(255, 255, 255, 0.2);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.btn {
-  background: none;
-  border: 1px solid white;
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.btn-outline {
-  border: 1px solid white;
-}
-
-.btn-primary {
-  background-color: white;
-  color: #1976d2;
-  border: none;
-}
-
-.app-layout {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.sidebar {
-  width: 250px;
-  background-color: #fff;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
-  overflow-y: auto;
-  z-index: 50;
-}
-
-.sidebar-nav {
-  padding: 1rem 0;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  padding: 0.75rem 1.5rem;
-  color: #333;
-  text-decoration: none;
-  transition: background-color 0.2s;
-}
-
-.nav-item:hover {
-  background-color: #f5f5f5;
-}
-
-.nav-item.router-link-active {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border-left: 3px solid #1976d2;
-}
-
-.nav-icon {
-  margin-right: 0.75rem;
-  font-size: 1.2rem;
+  min-height: 100vh;
 }
 
 .main-content {
   flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto;
-  background-color: #f5f5f5;
+  padding: 1rem;
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  font-size: 1.2rem;
-  color: #666;
+button {
+  cursor: pointer;
 }
-</style> 
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  border: none;
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #95a5a6;
+  color: white;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+</style>

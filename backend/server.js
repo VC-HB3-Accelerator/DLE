@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { SiweMessage, generateNonce } = require('siwe');
 const { ethers } = require('ethers');
-const TelegramBotService = require('./services/telegramBot');
+// const TelegramBotService = require('./services/telegramBot');
 const EmailBotService = require('./services/emailBot');
 const { initializeVectorStore } = require('./services/vectorStore');
 const session = require('express-session');
@@ -12,24 +12,27 @@ const usersRouter = require('./routes/users');
 const { router: authRouter } = require('./routes/auth');
 const contractsRouter = require('./routes/contracts');
 const accessRouter = require('./routes/access');
-const chatRouter = require('./routes/chat');
 const path = require('path');
 const axios = require('axios');
 const { ChatOllama } = require('@langchain/ollama');
 const { getVectorStore } = require('./services/vectorStore');
-const debugRouter = require('./routes/debug');
+// const debugRoutes = require('./routes/debug');
 const identitiesRouter = require('./routes/identities');
-const kanbanRouter = require('./routes/kanban');
 const { pool } = require('./db');
 const fs = require('fs');
 const pgSession = require('connect-pg-simple')(session);
 const sessionStore = new pgSession({
   pool: pool,
   tableName: 'session',
-  createTableIfMissing: true
+  createTableIfMissing: true,
 });
 const helmet = require('helmet');
-const csrf = require('csurf');
+// const csrf = require('csurf');
+// const cookieParser = require('cookie-parser');
+const messagesRouter = require('./routes/messages');
+
+// Импорт сервисов
+const { initTelegramBot } = require('./services/telegram-service');
 
 const PORT = process.env.PORT || 8000;
 
@@ -50,24 +53,21 @@ const provider = new ethers.JsonRpcProvider(process.env.ETHEREUM_NETWORK_URL);
 console.log('Provider URL:', process.env.ETHEREUM_NETWORK_URL);
 console.log('Contract address:', process.env.CONTRACT_ADDRESS);
 
-const contract = new ethers.Contract(
-  process.env.CONTRACT_ADDRESS,
-  contractABI,
-  provider
-);
+const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, provider);
 
 // Проверяем, что библиотека ethers.js правильно импортирована
 console.log('Ethers.js version:', ethers.version);
 
 // Порядок middleware важен!
 // 1. CORS должен быть первым
-app.use(cors({
-  origin: ['http://127.0.0.1:5173', 'http://localhost:5173'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Set-Cookie']
-}));
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Nonce'],
+  })
+);
 
 // Добавьте после настройки CORS
 app.use(helmet());
@@ -77,18 +77,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 3. Затем сессии
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: true,
-  saveUninitialized: true,
-  cookie: {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000
-  },
-  store: sessionStore
-}));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // В разработке можно установить false
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 1 день
+    },
+    store: new pgSession({
+      pool: pool,
+      tableName: 'session',
+    }),
+  })
+);
 
 // Добавьте после настройки сессий
 app.use((req, res, next) => {
@@ -164,76 +169,67 @@ app.use((req, res, next) => {
 
 // Добавляем middleware для отладки сессий
 app.use((req, res, next) => {
-  // console.log('Session debug:', {
-  //   url: req.url,
-  //   method: req.method,
-  //   sessionID: req.sessionID,
-  //   cookies: req.headers.cookie,
-  //   session: req.session ? {
-  //     isAuthenticated: req.session.isAuthenticated,
-  //     authenticated: req.session.authenticated,
-  //     address: req.session.address,
-  //     isAdmin: req.session.isAdmin,
-  //     nonce: req.session.nonce ? '[REDACTED]' : undefined,
-  //     pendingAddress: req.session.pendingAddress
-  //   } : null
-  // });
+  console.log('Сессия:', req.session);
+  console.log('Куки:', req.headers.cookie);
   next();
 });
 
-// Настройка CSRF-защиты
-const csrfProtection = csrf({
-  cookie: {
-    key: '_csrf',
-    path: '/',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true в production, false в development
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
-  }
-});
+// Добавьте cookie-парсер перед CSRF-защитой
+// app.use(cookieParser());
+
+// Затем настройте CSRF-защиту
+// const csrfProtection = csrf({
+//   cookie: {
+//     key: '_csrf',
+//     path: '/',
+//     httpOnly: true,
+//     secure: process.env.NODE_ENV === 'production',
+//     sameSite: 'lax'
+//   }
+// });
+
+// Добавьте маршрут для получения CSRF-токена
+// app.get('/api/csrf-token', csrfProtection, (req, res) => {
+//   res.json({ csrfToken: req.csrfToken() });
+// });
 
 // Применяем CSRF-защиту только к определенным маршрутам
-app.use('/api/protected', csrfProtection);
-app.use('/api/admin', csrfProtection);
-app.use('/api/kanban', csrfProtection);
-
-// Маршрут для получения CSRF-токена
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
+// app.use('/api/protected', csrfProtection);
+// app.use('/api/admin', csrfProtection);
+// app.use('/api/kanban', csrfProtection);
 
 // Обработчик ошибок CSRF
-app.use((err, req, res, next) => {
-  if (err.code === 'EBADCSRFTOKEN') {
-    console.error('CSRF error:', {
-      url: req.url,
-      method: req.method,
-      headers: req.headers,
-      body: req.body
-    });
-    return res.status(403).json({
-      error: 'CSRF token validation failed',
-      message: 'Your session may have expired. Please refresh the page and try again.'
-    });
-  }
-  next(err);
-});
+// app.use((err, req, res, next) => {
+//   if (err.code === 'EBADCSRFTOKEN') {
+//     console.error('CSRF error:', {
+//       url: req.url,
+//       method: req.method,
+//       headers: req.headers,
+//       body: req.body
+//     });
+//     return res.status(403).json({
+//       error: 'CSRF token validation failed',
+//       message: 'Your session may have expired. Please refresh the page and try again.'
+//     });
+//   }
+//   next(err);
+// });
 
 async function initServices() {
   try {
     console.log('Инициализация сервисов...');
-    
+
     // Инициализируем ботов, если они нужны
     if (process.env.TELEGRAM_BOT_TOKEN) {
       telegramBot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN);
       console.log('Telegram бот инициализирован');
     }
-    
+
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASS);
       console.log('Email бот инициализирован');
     }
-    
+
     console.log('Все сервисы успешно инициализированы');
   } catch (error) {
     console.error('Ошибка при инициализации сервисов:', error);
@@ -244,10 +240,10 @@ app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/contracts', contractsRouter);
 app.use('/api/access', accessRouter);
-app.use('/api/chat', chatRouter);
-app.use('/api/debug', debugRouter);
+// app.use('/api/chat', chatRouter);
+// app.use('/api/debug', debugRoutes);
 app.use('/api/identities', identitiesRouter);
-app.use('/api/kanban', kanbanRouter);
+app.use('/api/messages', messagesRouter);
 
 // Добавьте простой эндпоинт для проверки состояния сервера
 app.get('/api/health', (req, res) => {
@@ -259,81 +255,81 @@ app.post('/api/verify', async (req, res) => {
   try {
     // Перенаправляем запрос на /api/auth/verify
     const { message, signature } = req.body;
-    console.log("Перенаправление запроса на /api/auth/verify:", { message, signature });
-    
+    console.log('Перенаправление запроса на /api/auth/verify:', { message, signature });
+
     // Проверяем наличие необходимых данных
     if (!message || !message.address || !signature) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Отсутствуют необходимые данные для верификации' 
+      return res.status(400).json({
+        success: false,
+        error: 'Отсутствуют необходимые данные для верификации',
       });
     }
-    
+
     const address = message.address.toLowerCase();
-    console.log("Адрес из сообщения:", address);
-    
+    console.log('Адрес из сообщения:', address);
+
     // Проверяем, является ли пользователь администратором
     const isAdmin = true; // Для примера всегда true
-    
+
     try {
       const siweMessage = new SiweMessage(message);
       const fields = await siweMessage.validate(signature);
-      
+
       if (fields.address.toLowerCase() !== address.toLowerCase()) {
         return res.status(401).json({ success: false, error: 'Invalid signature' });
       }
-      
+
       // Только после проверки устанавливаем сессию
       req.session.authenticated = true;
       req.session.address = fields.address;
       req.session.lastSignature = signature;
-      
+
       // Сохраняем сессию
       req.session.save();
     } catch (error) {
       return res.status(401).json({ success: false, error: error.message });
     }
-    
+
     // Сохраняем данные в сессии
     req.session.isAuthenticated = true;
     req.session.isAdmin = isAdmin;
-    
+
     // Явно сохраняем сессию
     req.session.save((err) => {
       if (err) {
         console.error('Ошибка сохранения сессии:', err);
         return res.status(500).json({ error: 'Session save error' });
       }
-      
+
       console.log('Сессия успешно сохранена:', {
         sessionID: req.sessionID,
         session: {
           isAuthenticated: req.session.isAuthenticated,
           authenticated: req.session.authenticated,
           address: req.session.address,
-          isAdmin: req.session.isAdmin
-        }
+          isAdmin: req.session.isAdmin,
+        },
       });
-      
+
       res.cookie('authToken', 'true', {
         maxAge: 86400000,
         httpOnly: false,
         secure: false,
         sameSite: 'lax',
-        path: '/'
+        path: '/',
       });
-      
+
       res.json({
         success: true,
         address: address,
-        isAdmin: isAdmin
+        isAdmin: isAdmin,
       });
     });
   } catch (error) {
-    console.error("Ошибка верификации:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Внутренняя ошибка сервера' 
+    console.error('Ошибка верификации:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Внутренняя ошибка сервера',
     });
   }
 });
@@ -345,22 +341,22 @@ app.get('/api/session', (req, res) => {
     sessionID: req.sessionID,
     isAuthenticated: req.session?.isAuthenticated,
     authenticated: req.session?.authenticated,
-    address: req.session?.address
+    address: req.session?.address,
   });
-  
+
   if (req.session && (req.session.isAuthenticated || req.session.authenticated)) {
     res.json({
       isAuthenticated: true,
       authenticated: true,
       address: req.session.address,
-      isAdmin: req.session.isAdmin
+      isAdmin: req.session.isAdmin,
     });
   } else {
     res.json({
       isAuthenticated: false,
       authenticated: false,
       address: null,
-      isAdmin: false
+      isAdmin: false,
     });
   }
 });
@@ -380,89 +376,45 @@ app.get('/api/public', (req, res) => {
 });
 
 app.get('/api/protected', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'This is a protected API endpoint',
     user: {
       address: req.session.address,
-      isAdmin: req.session.isAdmin
-    }
+      isAdmin: req.session.isAdmin,
+    },
   });
 });
 
 app.get('/api/admin', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'This is an admin API endpoint',
     user: {
       address: req.session.address,
-      isAdmin: req.session.isAdmin
-    }
+      isAdmin: req.session.isAdmin,
+    },
   });
 });
 
 // Добавьте обработчик ошибок
 app.use((err, req, res, next) => {
-  console.error('Глобальный обработчик ошибок:', err);
-  
-  // Обработка ошибок CSRF
-  if (err.code === 'EBADCSRFTOKEN') {
-    return res.status(403).json({
-      error: 'Недействительный CSRF-токен',
-      message: 'Возможно, ваша сессия истекла. Пожалуйста, обновите страницу и попробуйте снова.'
-    });
+  console.error('Глобальная ошибка:', err.stack);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
-  
-  // Обработка ошибок валидации
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      error: 'Ошибка валидации',
-      details: err.details || err.message
-    });
-  }
-  
-  // Обработка ошибок базы данных
-  if (err.code === '23505') { // Postgres unique violation
-    return res.status(409).json({
-      error: 'Конфликт данных',
-      message: 'Запись с такими данными уже существует.'
-    });
-  }
-  
-  // Общая обработка ошибок
-  res.status(err.status || 500).json({
-    error: 'Внутренняя ошибка сервера',
-    message: process.env.NODE_ENV === 'production' ? 'Что-то пошло не так' : err.message
-  });
 });
 
 // Перед запуском сервера
 console.log('Перед запуском сервера на порту:', PORT);
 
 // Запуск сервера и инициализация сервисов
-const server = app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log('Server address:', server.address());
-  
-  // Инициализируем сервисы без блокировки запуска сервера
-  initServices().catch(err => {
-    console.error('Ошибка при инициализации сервисов:', err);
+let server;
+
+checkDatabaseStructure().then(() => {
+  // Запускаем сервер
+  server = app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    console.log('Server address:', server.address());
   });
-  
-  // Проверяем доступность Ollama в фоновом режиме
-  try {
-    const { checkOllamaAvailability } = require('./services/ollama');
-    checkOllamaAvailability().catch(err => {
-      console.error('Ошибка при проверке Ollama:', err);
-    });
-  } catch (error) {
-    console.error('Ошибка при импорте модуля Ollama:', error);
-  }
-}).on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Please try another port.`);
-    process.exit(1);
-  } else {
-    console.error('Server error:', err);
-  }
 });
 
 // Добавляем graceful shutdown
@@ -480,7 +432,7 @@ async function checkOllamaServer() {
     const response = await axios.get('http://localhost:11434/api/tags');
     if (response.status === 200) {
       console.log('Ollama сервер доступен');
-      
+
       // Тестируем прямой запрос к Ollama
       try {
         console.log('Тестируем прямой запрос к Ollama...');
@@ -489,13 +441,13 @@ async function checkOllamaServer() {
           model: 'llama3',
           temperature: 0.2,
         });
-        
+
         const result = await model.invoke('Привет, как дела?');
         console.log('Ответ от Ollama:', result);
       } catch (testError) {
         console.error('Ошибка при тестировании Ollama:', testError);
       }
-      
+
       // Инициализируем векторное хранилище
       try {
         console.log('Инициализируем векторное хранилище...');
@@ -504,7 +456,7 @@ async function checkOllamaServer() {
       } catch (vectorError) {
         console.error('Ошибка при инициализации векторного хранилища:', vectorError);
       }
-      
+
       return true;
     }
     return false;
@@ -515,15 +467,16 @@ async function checkOllamaServer() {
 }
 
 // Настройка периодической очистки устаревших сессий
-const pgSessionCleanup = setInterval(function() {
+const pgSessionCleanup = setInterval(function () {
   console.log('Cleaning up expired sessions...');
-  pool.query('DELETE FROM session WHERE expire < NOW()')
-    .then(result => {
+  pool
+    .query('DELETE FROM session WHERE expire < NOW()')
+    .then((result) => {
       if (result.rowCount > 0) {
         console.log(`Removed ${result.rowCount} expired sessions`);
       }
     })
-    .catch(err => console.error('Error cleaning up sessions:', err));
+    .catch((err) => console.error('Error cleaning up sessions:', err));
 }, 3600000); // Очистка каждый час
 
 // Очистка интервала при завершении работы
@@ -547,11 +500,11 @@ async function ensureTablesExist() {
         AND table_name = 'users'
       );
     `);
-    
+
     // Если таблица не существует, создаем все таблицы
     if (!result.rows[0].exists) {
       console.log('Таблицы не найдены, создаем...');
-      
+
       // SQL-запросы для создания таблиц
       const createTablesSql = `
         -- Таблица пользователей
@@ -631,7 +584,7 @@ async function ensureTablesExist() {
         -- Индекс для таблицы сообщений
         CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id);
       `;
-      
+
       await pool.query(createTablesSql);
       console.log('Таблицы успешно созданы');
     } else {
@@ -643,7 +596,7 @@ async function ensureTablesExist() {
 }
 
 // Вызываем функцию при запуске сервера
-ensureTablesExist(); 
+ensureTablesExist();
 
 // Добавляем middleware для проверки аутентификации
 app.use('/api/protected', (req, res, next) => {
@@ -652,11 +605,11 @@ app.use('/api/protected', (req, res, next) => {
   //   authenticated: req.session.authenticated,
   //   address: req.session.address
   // });
-  
+
   if (!req.session.authenticated) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  
+
   next();
 });
 
@@ -667,10 +620,117 @@ app.use('/api/admin', (req, res, next) => {
   //   authenticated: req.session.authenticated,
   //   isAdmin: req.session.isAdmin
   // });
-  
+
   if (!req.session.authenticated || !req.session.isAdmin) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  
+
   next();
 });
+
+// Проверка структуры базы данных
+async function checkDatabaseStructure() {
+  try {
+    const db = require('./db');
+
+    // Проверяем наличие таблицы roles
+    const rolesTable = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'roles'
+      );
+    `);
+
+    if (!rolesTable.rows[0].exists) {
+      console.error('Таблица roles не существует. Выполните миграцию.');
+      process.exit(1);
+    }
+
+    // Проверяем наличие колонки role_id в таблице users
+    const roleIdColumn = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'role_id'
+      );
+    `);
+
+    if (!roleIdColumn.rows[0].exists) {
+      console.error('Колонка role_id не существует в таблице users. Выполните миграцию.');
+      process.exit(1);
+    }
+
+    console.log('Структура базы данных проверена успешно.');
+  } catch (error) {
+    console.error('Ошибка при проверке структуры базы данных:', error);
+    process.exit(1);
+  }
+}
+
+// Обработка сигналов завершения
+process.on('SIGINT', () => {
+  console.log('Получен сигнал SIGINT, завершаем работу...');
+  server.close(() => {
+    console.log('Сервер остановлен');
+    process.exit(0);
+  });
+});
+
+process.on('SIGTERM', () => {
+  console.log('Получен сигнал SIGTERM, завершаем работу...');
+  server.close(() => {
+    console.log('Сервер остановлен');
+    process.exit(0);
+  });
+});
+
+// Обработка необработанных исключений
+process.on('uncaughtException', (error) => {
+  console.error('Необработанное исключение:', error);
+  // Не завершаем процесс, чтобы nodemon мог перезапустить сервер
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Необработанное отклонение промиса:', reason);
+  // Не завершаем процесс, чтобы nodemon мог перезапустить сервер
+});
+
+// Инициализация Telegram бота
+initTelegramBot();
+
+// Добавьте после других маршрутов
+const chatRouter = require('./routes/chat');
+app.use('/api/chat', chatRouter);
+
+const cron = require('node-cron');
+const { checkAllUsersTokens } = require('./utils/access-check');
+const logger = require('./utils/logger');
+
+// Настройка cron-задачи для проверки токенов каждые 30 минут
+cron.schedule('*/30 * * * *', async () => {
+  logger.info('Running scheduled token balance check');
+  await checkAllUsersTokens();
+});
+
+// Периодическая очистка устаревших сессий
+const cleanupInterval = 24 * 60 * 60 * 1000; // 24 часа
+
+setInterval(async () => {
+  try {
+    const { pool } = require('./db');
+    const result = await pool.query('DELETE FROM sessions WHERE expire < NOW()');
+    console.log(`Очищено ${result.rowCount} устаревших сессий`);
+  } catch (err) {
+    console.error('Ошибка при очистке сессий:', err);
+  }
+}, cleanupInterval);
+
+// Запускаем первую очистку через 5 минут после старта сервера
+setTimeout(async () => {
+  try {
+    const { pool } = require('./db');
+    const result = await pool.query('DELETE FROM sessions WHERE expire < NOW()');
+    console.log(`Первоначальная очистка: удалено ${result.rowCount} устаревших сессий`);
+  } catch (err) {
+    console.error('Ошибка при первоначальной очистке сессий:', err);
+  }
+}, 5 * 60 * 1000);

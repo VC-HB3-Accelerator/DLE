@@ -1,134 +1,212 @@
-const { HNSWLib } = require("@langchain/community/vectorstores/hnswlib");
-const { OllamaEmbeddings } = require("@langchain/ollama");
-const { DirectoryLoader } = require("langchain/document_loaders/fs/directory");
-const { TextLoader } = require("langchain/document_loaders/fs/text");
-const { RecursiveCharacterTextSplitter } = require("langchain/text_splitter");
+const { HNSWLib } = require('langchain/vectorstores/hnswlib');
+const { OllamaEmbeddings } = require('langchain/embeddings/ollama');
+const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
+const { DirectoryLoader } = require('langchain/document_loaders/fs/directory');
+const { TextLoader } = require('langchain/document_loaders/fs/text');
+const { PDFLoader } = require('langchain/document_loaders/fs/pdf');
 const fs = require('fs');
 const path = require('path');
 
-// Путь к директории с документами
-const DOCS_DIR = path.join(__dirname, '../data/documents');
-// Путь к директории для хранения векторного индекса
-const VECTOR_STORE_DIR = path.join(__dirname, '../data/vector_store');
+// Путь к директории для хранения векторной базы данных
+const VECTOR_STORE_PATH = path.join(__dirname, '../data/vector_store');
 
-// Создаем директории, если они не существуют
-if (!fs.existsSync(DOCS_DIR)) {
-  fs.mkdirSync(DOCS_DIR, { recursive: true });
-  console.log(`Создана директория для документов: ${DOCS_DIR}`);
-}
+// Инициализация embeddings с использованием локальной модели Ollama
+const embeddings = new OllamaEmbeddings({
+  model: process.env.OLLAMA_EMBEDDINGS_MODEL || 'mistral',
+  baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+});
 
-if (!fs.existsSync(VECTOR_STORE_DIR)) {
-  fs.mkdirSync(VECTOR_STORE_DIR, { recursive: true });
-  console.log(`Создана директория для векторного хранилища: ${VECTOR_STORE_DIR}`);
-}
-
-// Глобальная переменная для хранения экземпляра векторного хранилища
 let vectorStore = null;
 
-// Функция для инициализации векторного хранилища
+/**
+ * Инициализация векторного хранилища
+ */
 async function initializeVectorStore() {
   try {
-    console.log('Инициализация векторного хранилища...');
-    
-    // Проверяем, существует ли директория с документами
-    if (!fs.existsSync(DOCS_DIR)) {
-      console.warn(`Директория с документами не найдена: ${DOCS_DIR}`);
-      return null;
+    // Создание директории, если она не существует
+    if (!fs.existsSync(VECTOR_STORE_PATH)) {
+      fs.mkdirSync(VECTOR_STORE_PATH, { recursive: true });
+      console.log(`Created vector store directory at ${VECTOR_STORE_PATH}`);
     }
-    
-    // Проверяем, есть ли документы в директории
-    const files = fs.readdirSync(DOCS_DIR);
-    if (files.length === 0) {
-      console.warn(`В директории с документами нет файлов: ${DOCS_DIR}`);
-      return null;
-    }
-    
-    console.log(`Найдено ${files.length} файлов в директории с документами`);
-    
-    // Загружаем документы из директории
-    const loader = new DirectoryLoader(
-      DOCS_DIR,
-      {
-        ".txt": (path) => new TextLoader(path),
-        ".md": (path) => new TextLoader(path),
+
+    // Проверка наличия файлов индекса
+    const indexFiles = fs.readdirSync(VECTOR_STORE_PATH);
+
+    if (indexFiles.length > 0 && indexFiles.includes('hnswlib.index')) {
+      // Загрузка существующего индекса
+      console.log('Loading existing vector store...');
+      try {
+        vectorStore = await HNSWLib.load(VECTOR_STORE_PATH, embeddings);
+        console.log('Vector store loaded successfully');
+      } catch (loadError) {
+        console.error('Error loading existing vector store:', loadError);
+        console.log('Creating new vector store...');
+        await createVectorStore();
       }
-    );
-    
-    console.log('Загрузка документов...');
-    const docs = await loader.load();
-    console.log(`Загружено ${docs.length} документов`);
-    
-    if (docs.length === 0) {
-      console.warn('Не удалось загрузить документы');
-      return null;
+    } else {
+      // Создание нового индекса
+      console.log('Creating new vector store...');
+      await createVectorStore();
     }
-    
-    // Разбиваем документы на чанки
+
+    return vectorStore;
+  } catch (error) {
+    console.error('Error initializing vector store:', error);
+    // Создаем пустой векторный индекс в случае ошибки
+    vectorStore = new HNSWLib(embeddings, {
+      space: 'cosine',
+      numDimensions: 4096, // Размерность для Ollama embeddings (зависит от модели)
+    });
+    await vectorStore.save(VECTOR_STORE_PATH);
+    return vectorStore;
+  }
+}
+
+/**
+ * Создание нового векторного хранилища из документов
+ */
+async function createVectorStore() {
+  try {
+    // Проверяем наличие директории documents
+    const docsPath = path.join(__dirname, '../data/documents');
+
+    // Если директория documents не существует, проверяем директорию docs
+    if (!fs.existsSync(docsPath)) {
+      const altDocsPath = path.join(__dirname, '../data/docs');
+
+      // Если директория docs существует, используем ее
+      if (fs.existsSync(altDocsPath)) {
+        console.log(`Using documents directory at ${altDocsPath}`);
+        return await processDocumentsDirectory(altDocsPath);
+      }
+
+      // Иначе создаем директорию documents
+      fs.mkdirSync(docsPath, { recursive: true });
+      console.log(`Created documents directory at ${docsPath}`);
+
+      // Создание примера документа
+      const sampleDocPath = path.join(docsPath, 'sample.txt');
+      fs.writeFileSync(sampleDocPath, 'Это пример документа для векторного хранилища.');
+    }
+
+    return await processDocumentsDirectory(docsPath);
+  } catch (error) {
+    console.error('Error creating vector store:', error);
+    throw error;
+  }
+}
+
+/**
+ * Обработка директории с документами
+ * @param {string} docsPath - Путь к директории с документами
+ */
+async function processDocumentsDirectory(docsPath) {
+  try {
+    // Загрузка документов
+    const loader = new DirectoryLoader(docsPath, {
+      '.txt': (path) => new TextLoader(path),
+      '.pdf': (path) => new PDFLoader(path),
+    });
+
+    const docs = await loader.load();
+    console.log(`Loaded ${docs.length} documents`);
+
+    if (docs.length === 0) {
+      // Создаем пустой векторный индекс, если нет документов
+      vectorStore = new HNSWLib(embeddings, {
+        space: 'cosine',
+        numDimensions: 4096, // Размерность для Ollama embeddings (зависит от модели)
+      });
+    } else {
+      // Разделение документов на чанки
+      const textSplitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1000,
+        chunkOverlap: 200,
+      });
+
+      const splitDocs = await textSplitter.splitDocuments(docs);
+      console.log(`Split into ${splitDocs.length} chunks`);
+
+      // Создание векторного хранилища
+      vectorStore = await HNSWLib.fromDocuments(splitDocs, embeddings);
+    }
+
+    // Сохранение векторного хранилища
+    await vectorStore.save(VECTOR_STORE_PATH);
+    console.log('Vector store created and saved successfully');
+
+    return vectorStore;
+  } catch (error) {
+    console.error('Error processing documents directory:', error);
+    throw error;
+  }
+}
+
+/**
+ * Получение векторного хранилища
+ * @returns {HNSWLib|null} Векторное хранилище
+ */
+function getVectorStore() {
+  return vectorStore;
+}
+
+/**
+ * Поиск похожих документов
+ * @param {string} query - Запрос для поиска
+ * @param {number} k - Количество результатов
+ * @returns {Promise<Array>} - Массив похожих документов
+ */
+async function similaritySearch(query, k = 5) {
+  if (!vectorStore) {
+    await initializeVectorStore();
+  }
+
+  try {
+    const results = await vectorStore.similaritySearch(query, k);
+    return results;
+  } catch (error) {
+    console.error('Error performing similarity search:', error);
+    return [];
+  }
+}
+
+/**
+ * Добавление нового документа в векторное хранилище
+ * @param {string} text - Текст документа
+ * @param {Object} metadata - Метаданные документа
+ * @returns {Promise<boolean>} - Успешность добавления
+ */
+async function addDocument(text, metadata = {}) {
+  if (!vectorStore) {
+    await initializeVectorStore();
+  }
+
+  try {
+    // Разделение документа на чанки
     const textSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
       chunkOverlap: 200,
     });
-    
-    console.log('Разбиение документов на чанки...');
-    const splitDocs = await textSplitter.splitDocuments(docs);
-    console.log(`Документы разбиты на ${splitDocs.length} чанков`);
-    
-    // Создаем эмбеддинги с помощью Ollama
-    console.log('Создание эмбеддингов...');
-    const embeddings = new OllamaEmbeddings({
-      model: "mistral",
-      baseUrl: "http://localhost:11434",
-    });
-    
-    // Проверяем, существует ли уже векторное хранилище
-    if (fs.existsSync(path.join(VECTOR_STORE_DIR, 'hnswlib.index'))) {
-      console.log('Загрузка существующего векторного хранилища...');
-      try {
-        vectorStore = await HNSWLib.load(
-          VECTOR_STORE_DIR,
-          embeddings
-        );
-        console.log('Векторное хранилище успешно загружено');
-        return vectorStore;
-      } catch (error) {
-        console.error('Ошибка при загрузке векторного хранилища:', error);
-        console.log('Создание нового векторного хранилища...');
-      }
-    }
-    
-    // Создаем новое векторное хранилище
-    console.log('Создание нового векторного хранилища...');
-    vectorStore = await HNSWLib.fromDocuments(
-      splitDocs,
-      embeddings
-    );
-    
-    // Сохраняем векторное хранилище
-    console.log('Сохранение векторного хранилища...');
-    await vectorStore.save(VECTOR_STORE_DIR);
-    console.log('Векторное хранилище успешно сохранено');
-    
-    return vectorStore;
+
+    const docs = await textSplitter.createDocuments([text], [metadata]);
+
+    // Добавление документов в векторное хранилище
+    await vectorStore.addDocuments(docs);
+
+    // Сохранение обновленного векторного хранилища
+    await vectorStore.save(VECTOR_STORE_PATH);
+
+    console.log('Document added to vector store successfully');
+    return true;
   } catch (error) {
-    console.error('Ошибка при инициализации векторного хранилища:', error);
-    console.log('Приложение продолжит работу без векторного хранилища');
-    // Возвращаем заглушку вместо реального хранилища
-    return {
-      addDocuments: async () => console.log('Векторное хранилище недоступно: addDocuments'),
-      similaritySearch: async () => {
-        console.log('Векторное хранилище недоступно: similaritySearch');
-        return [];
-      }
-    };
+    console.error('Error adding document to vector store:', error);
+    return false;
   }
 }
 
-// Функция для получения экземпляра векторного хранилища
-async function getVectorStore() {
-  if (!vectorStore) {
-    vectorStore = await initializeVectorStore();
-  }
-  return vectorStore;
-}
-
-module.exports = { initializeVectorStore, getVectorStore }; 
+module.exports = {
+  initializeVectorStore,
+  getVectorStore,
+  similaritySearch,
+  addDocument,
+};
