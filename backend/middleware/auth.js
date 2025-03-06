@@ -1,130 +1,132 @@
+const { createError } = require('./errorHandler');
+const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
-const { getUserInfo } = require('../utils/access-check');
+const { USER_ROLES } = require('../utils/constants');
+const db = require('../db');
 
-// Добавьте в начало файла
-const isMiddleware = true;
-
-// Middleware для проверки роли
-const requireRole = (allowedRoles) => async (req, res, next) => {
-  if (!req.session || !req.session.authenticated || !req.session.userId) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
+/**
+ * Middleware для проверки аутентификации
+ */
+function requireAuth(req, res, next) {
+  console.log('Session in requireAuth:', req.session);
+  if (!req.session || !req.session.authenticated) {
+    return next(createError(401, 'Требуется аутентификация'));
   }
-  
+  next();
+}
+
+/**
+ * Middleware для проверки прав администратора
+ */
+async function requireAdmin(req, res, next) {
   try {
-    // Получение информации о пользователе
-    const userInfo = await getUserInfo(req.session.userId);
-    
-    if (!userInfo) {
-      return res.status(401).json({ error: 'Пользователь не найден' });
-    }
-    
-    // Проверка роли
-    if (!allowedRoles.includes(userInfo.role)) {
-      return res.status(403).json({ error: 'Недостаточно прав' });
-    }
-    
-    next();
-  } catch (error) {
-    logger.error('Error checking user role:', error);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-  }
-};
-
-// Проверка роли пользователя
-const checkRole = async (req, res, next) => {
-  try {
-    // Если функция вызвана как middleware
-    const isMiddleware = typeof next === 'function';
-
-    if (!req.session.authenticated) {
-      return isMiddleware ? res.status(401).json({ error: 'Не авторизован' }) : false;
+    // Проверка аутентификации
+    if (!req.session || !req.session.authenticated) {
+      return next(createError('Требуется аутентификация', 401));
     }
 
-    // Если роль администратора уже проверена в сессии
-    if (req.session.isAdmin === true) {
-      return isMiddleware ? next() : true;
+    // Проверка через сессию
+    if (req.session.isAdmin) {
+      return next();
     }
 
-    const db = require('../db');
-
-    // Проверка наличия токенов доступа в смарт-контракте
+    // Проверка через кошелек
     if (req.session.address) {
-      const address = req.session.address.toLowerCase();
-
-      // Проверка в базе данных
-      const userRole = await db.query(
-        'SELECT r.name FROM users u JOIN roles r ON u.role_id = r.id WHERE LOWER(u.address) = $1',
-        [address]
-      );
-
-      if (userRole.rows.length > 0 && userRole.rows[0].name === 'admin') {
+      const isAdmin = await authService.checkAdminToken(req.session.address);
+      if (isAdmin) {
+        // Обновляем сессию
         req.session.isAdmin = true;
-        return isMiddleware ? next() : true;
-      }
-
-      // Проверка токенов в смарт-контракте через сервис
-      const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(process.env.PROVIDER_URL);
-      const accessTokenABI = require('../artifacts/contracts/AccessToken.sol/AccessToken.json').abi;
-      const accessTokenContract = new ethers.Contract(
-        process.env.ACCESS_TOKEN_ADDRESS,
-        accessTokenABI,
-        provider
-      );
-
-      try {
-        const hasAdminRole = await accessTokenContract.hasRole(
-          ethers.keccak256(ethers.toUtf8Bytes('ADMIN_ROLE')),
-          address
-        );
-
-        if (hasAdminRole) {
-          // Обновляем роль в базе данных
-          await db.query(
-            'UPDATE users SET role_id = (SELECT id FROM roles WHERE name = $1) WHERE LOWER(address) = $2',
-            ['admin', address]
-          );
-          req.session.isAdmin = true;
-          return isMiddleware ? next() : true;
-        }
-      } catch (error) {
-        console.error('Ошибка при проверке роли в контракте:', error);
+        return next();
       }
     }
 
-    // Если пользователь не администратор
-    req.session.isAdmin = false;
-    return isMiddleware ? res.status(403).json({ error: 'Недостаточно прав' }) : false;
+    // Проверка через ID пользователя
+    if (req.session.userId) {
+      const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+      if (userResult.rows.length > 0 && userResult.rows[0].role === USER_ROLES.ADMIN) {
+        // Обновляем сессию
+        req.session.isAdmin = true;
+        return next();
+      }
+    }
+
+    // Если ни одна проверка не прошла
+    return next(createError('Доступ запрещен', 403));
   } catch (error) {
-    console.error('Ошибка при проверке роли:', error);
-    return isMiddleware ? res.status(500).json({ error: 'Внутренняя ошибка сервера' }) : false;
+    logger.error(`Error in requireAdmin middleware: ${error.message}`);
+    return next(createError('Внутренняя ошибка сервера', 500));
   }
-};
+}
 
-// Middleware для проверки аутентификации
-const requireAuth = (req, res, next) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  next();
-};
+/**
+ * Middleware для проверки определенной роли
+ * @param {string} role - Требуемая роль
+ */
+function requireRole(role) {
+  return async (req, res, next) => {
+    try {
+      // Проверка аутентификации
+      if (!req.session || !req.session.authenticated) {
+        return next(createError('Требуется аутентификация', 401));
+      }
 
-// Middleware для проверки прав администратора
-const requireAdmin = (req, res, next) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  
-  if (!req.session.isAdmin) {
-    return res.status(403).json({ error: 'Требуются права администратора' });
-  }
-  
-  next();
-};
+      // Для администраторов разрешаем все
+      if (req.session.isAdmin) {
+        return next();
+      }
+
+      // Проверка через ID пользователя
+      if (req.session.userId) {
+        const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+        if (userResult.rows.length > 0 && userResult.rows[0].role === role) {
+          return next();
+        }
+      }
+
+      // Если проверка не прошла
+      return next(createError('Доступ запрещен', 403));
+    } catch (error) {
+      logger.error(`Error in requireRole middleware: ${error.message}`);
+      return next(createError('Внутренняя ошибка сервера', 500));
+    }
+  };
+}
+
+/**
+ * Проверяет роль пользователя
+ * @param {string} role - Роль для проверки
+ */
+function checkRole(role) {
+  return async (req, res, next) => {
+    try {
+      // Если пользователь не аутентифицирован, просто продолжаем
+      if (!req.session || !req.session.authenticated) {
+        req.hasRole = false;
+        return next();
+      }
+
+      // Проверка через ID пользователя
+      if (req.session.userId) {
+        const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+        if (userResult.rows.length > 0 && userResult.rows[0].role === role) {
+          req.hasRole = true;
+          return next();
+        }
+      }
+
+      req.hasRole = false;
+      next();
+    } catch (error) {
+      logger.error(`Error in checkRole middleware: ${error.message}`);
+      req.hasRole = false;
+      next();
+    }
+  };
+}
 
 module.exports = {
-  requireRole,
   requireAuth,
   requireAdmin,
-  checkRole,
+  requireRole,
+  checkRole
 };

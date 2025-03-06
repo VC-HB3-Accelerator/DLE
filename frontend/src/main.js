@@ -8,7 +8,7 @@ import router from './router';
 import axios from 'axios';
 
 // Настройка axios
-axios.defaults.baseURL = 'http://localhost:8000';
+axios.defaults.baseURL = ''; // Пустой baseURL, так как мы используем прокси
 axios.defaults.withCredentials = true; // Важно для работы с сессиями
 
 // Создаем и монтируем приложение Vue

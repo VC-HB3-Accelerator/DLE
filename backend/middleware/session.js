@@ -4,18 +4,18 @@ const { pool } = require('../db');
 
 const sessionMiddleware = session({
   store: new pgSession({
-    pool: pool,
+    pool,
     tableName: 'session',
     createTableIfMissing: true,
   }),
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // В production должно быть true
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 дней
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 часа
-    sameSite: 'none', // Для работы между разными доменами
+    secure: process.env.NODE_ENV === 'production', // В production должно быть true
+    sameSite: 'lax', // Попробуйте изменить на 'none' если используете разные домены
   },
 });
 

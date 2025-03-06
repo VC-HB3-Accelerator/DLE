@@ -1,85 +1,153 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import axios from 'axios';
+import axios from '../api/axios';
 
-export const useAuthStore = defineStore('auth', () => {
-  const isAuthenticated = ref(false);
-  const isAdmin = ref(false);
-  const address = ref(null);
-  const authType = ref(null);
-  const loading = ref(false);
-  const checkPerformed = ref(false);
-
-  // Проверка аутентификации
-  async function checkAuth() {
-    loading.value = true;
-
-    try {
-      console.log('Проверка аутентификации...');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      console.log('API URL:', apiUrl);
-
-      const response = await axios.get(`${apiUrl}/api/auth/check`, {
-        withCredentials: true,
-      });
-
-      console.log('Статус аутентификации:', response.data.authenticated);
-      console.log('Статус администратора:', response.data.isAdmin);
-
-      isAuthenticated.value = response.data.authenticated;
-      isAdmin.value = response.data.isAdmin;
-      address.value = response.data.address;
-      authType.value = response.data.authType;
-    } catch (error) {
-      console.error('Ошибка при проверке аутентификации:', error);
-      throw error;
-    } finally {
-      loading.value = false;
-      checkPerformed.value = true;
-    }
-  }
-
-  // Обновление состояния аутентификации
-  function updateAuthState(authData) {
-    console.log('Обновление состояния аутентификации:', authData);
-
-    isAuthenticated.value = authData.authenticated || false;
-    isAdmin.value = authData.isAdmin || false;
-    address.value = authData.address || null;
-    authType.value = authData.authType || null;
-    checkPerformed.value = true;
-  }
-
-  // Выход из системы
-  async function logout() {
-    try {
-      await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/logout`,
-        {},
-        {
-          withCredentials: true,
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: null,
+    isAuthenticated: false,
+    isAdmin: false,
+    authType: null,
+    identities: {},
+    loading: false,
+    error: null
+  }),
+  
+  actions: {
+    async connectWallet(address, signature, message) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/verify', {
+          address, 
+          signature, 
+          message
+        });
+        
+        this.user = {
+          id: response.data.userId,
+          address
+        };
+        this.isAuthenticated = response.data.authenticated;
+        this.isAdmin = response.data.isAdmin;
+        this.authType = response.data.authType;
+        this.identities = response.data.identities || {};
+        
+        return true;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка подключения кошелька';
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async connectTelegram(telegramData) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/telegram', telegramData);
+        
+        this.user = {
+          id: response.data.userId,
+          telegramId: telegramData.telegramId
+        };
+        this.isAuthenticated = response.data.authenticated;
+        this.isAdmin = response.data.isAdmin;
+        this.authType = response.data.authType;
+        this.identities = response.data.identities || {};
+        
+        return true;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка подключения Telegram';
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async connectEmail(email, verificationCode) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/email', {
+          email, verificationCode
+        });
+        
+        this.user = {
+          id: response.data.userId,
+          email
+        };
+        this.isAuthenticated = response.data.authenticated;
+        this.isAdmin = response.data.isAdmin;
+        this.authType = response.data.authType;
+        this.identities = response.data.identities || {};
+        
+        return true;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка подключения Email';
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async linkIdentity(identityType, identityValue) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/link-identity', {
+          identityType, identityValue
+        });
+        
+        this.identities = response.data.identities;
+        this.isAdmin = response.data.isAdmin;
+        
+        return true;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка связывания аккаунта';
+        return false;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async logout() {
+      try {
+        await axios.post('/api/auth/logout');
+      } catch (error) {
+        console.error('Ошибка при выходе:', error);
+      }
+      
+      this.user = null;
+      this.isAuthenticated = false;
+      this.isAdmin = false;
+      this.authType = null;
+      this.identities = {};
+    },
+    
+    async checkAuth() {
+      try {
+        const response = await axios.get('/api/auth/check');
+        
+        if (response.data.authenticated) {
+          this.user = {
+            id: response.data.userId
+          };
+          this.isAuthenticated = true;
+          this.isAdmin = response.data.isAdmin;
+          this.authType = response.data.authType;
+          this.identities = response.data.identities || {};
+        } else {
+          this.logout();
         }
-      );
-    } catch (error) {
-      console.error('Ошибка при выходе из системы:', error);
-    } finally {
-      // Сбрасываем состояние независимо от результата запроса
-      isAuthenticated.value = false;
-      isAdmin.value = false;
-      address.value = null;
-      authType.value = null;
+      } catch (error) {
+        console.error('Ошибка при проверке аутентификации:', error);
+        this.logout();
+      }
     }
   }
-
-  return {
-    isAuthenticated,
-    isAdmin,
-    address,
-    authType,
-    loading,
-    checkPerformed,
-    checkAuth,
-    updateAuthState,
-    logout,
-  };
 });

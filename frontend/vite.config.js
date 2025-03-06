@@ -16,7 +16,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, 'src'),
       buffer: 'buffer/',
     },
   },
@@ -42,7 +42,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        cookieDomainRewrite: 'localhost',
+        secure: false
       }
     },
   },

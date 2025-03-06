@@ -8,13 +8,11 @@ const logger = require('../utils/logger');
 
 // Обработчик сообщений чата
 router.post('/message', requireAuth, async (req, res) => {
+  console.log('Сессия в /api/chat/message:', req.session);
+  console.log('Аутентифицирован:', req.session.authenticated);
+  
   try {
     const { message, language = 'ru' } = req.body;
-    
-    // Проверка аутентификации
-    if (!req.session || !req.session.authenticated) {
-      return res.status(401).json({ error: 'Требуется аутентификация' });
-    }
     
     console.log(`Получено сообщение: ${message}, язык: ${language}`);
 
@@ -171,28 +169,6 @@ router.get('/admin/history', requireAdmin, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     logger.error('Error fetching admin chat history:', error);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-  }
-});
-
-// Сохранение сообщения в историю чата
-router.post('/message', requireAuth, async (req, res) => {
-  try {
-    const { content, channel = 'web', metadata = {} } = req.body;
-    const userId = req.session.userId;
-    
-    // Сохранение сообщения пользователя
-    const userMessageResult = await db.query(`
-      INSERT INTO chat_history (user_id, channel, sender_type, content, metadata)
-      VALUES ($1, $2, 'user', $3, $4)
-      RETURNING id
-    `, [userId, channel, content, metadata]);
-    
-    const messageId = userMessageResult.rows[0].id;
-    
-    res.json({ success: true, messageId });
-  } catch (error) {
-    logger.error('Error saving chat message:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });

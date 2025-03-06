@@ -58,7 +58,6 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import axios from 'axios';
 import WalletConnection from '../components/WalletConnection.vue';
-import { connectWallet } from '../utils/wallet';
 
 const auth = useAuthStore();
 const userInput = ref('');
@@ -72,9 +71,8 @@ const messages = ref([
 const chatMessages = ref(null);
 const isLoading = ref(false);
 const hasShownAuthMessage = ref(false);
-const userName = ref('');
-const userLanguage = ref('ru');
 const email = ref('');
+const userLanguage = ref('ru');
 
 // Проверка валидности email
 const isValidEmail = computed(() => {
@@ -130,6 +128,22 @@ async function sendMessage() {
   try {
     console.log('Отправка сообщения:', userMessage, 'язык:', userLanguage.value);
     
+    // Проверяем, авторизован ли пользователь
+    if (!auth.isAuthenticated && !hasShownAuthMessage.value) {
+      // Если пользователь не авторизован и мы еще не показывали сообщение с опциями авторизации
+      setTimeout(() => {
+        messages.value.push({
+          sender: 'ai',
+          text: 'Для продолжения общения и доступа ко всем функциям, пожалуйста, авторизуйтесь одним из способов:',
+          timestamp: new Date(),
+          showAuthOptions: true,
+        });
+        isLoading.value = false;
+        hasShownAuthMessage.value = true;
+      }, 1000);
+      return;
+    }
+    
     // Отправляем запрос к API
     const response = await axios.post(
       '/api/chat/message',
@@ -153,12 +167,23 @@ async function sendMessage() {
   } catch (error) {
     console.error('Error sending message:', error);
 
-    // Добавляем сообщение об ошибке
-    messages.value.push({
-      sender: 'ai',
-      text: 'Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже.',
-      timestamp: new Date(),
-    });
+    // Если ошибка связана с авторизацией (401)
+    if (error.response && error.response.status === 401 && !hasShownAuthMessage.value) {
+      messages.value.push({
+        sender: 'ai',
+        text: 'Для продолжения общения и доступа ко всем функциям, пожалуйста, авторизуйтесь одним из способов:',
+        timestamp: new Date(),
+        showAuthOptions: true,
+      });
+      hasShownAuthMessage.value = true;
+    } else {
+      // Добавляем сообщение об ошибке
+      messages.value.push({
+        sender: 'ai',
+        text: 'Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже.',
+        timestamp: new Date(),
+      });
+    }
   } finally {
     isLoading.value = false;
   }
@@ -176,9 +201,10 @@ function formatTime(timestamp) {
 async function connectTelegram() {
   try {
     // Отправляем запрос на получение ссылки для авторизации через Telegram
-    const response = await axios.get('/api/auth/telegram');
-
-    // Если сервер вернул ошибку, показываем сообщение
+    const response = await axios.get('/api/auth/telegram', {
+      withCredentials: true
+    });
+    
     if (response.data.error) {
       messages.value.push({
         sender: 'ai',
@@ -187,32 +213,26 @@ async function connectTelegram() {
       });
       return;
     }
-
-    // Если сервер вернул ссылку для авторизации, показываем её пользователю
+    
     if (response.data.authUrl) {
       messages.value.push({
         sender: 'ai',
         text: `Для подключения Telegram, перейдите по <a href="${response.data.authUrl}" target="_blank">этой ссылке</a> и авторизуйтесь.`,
         timestamp: new Date(),
       });
-
+      
       // Открываем ссылку в новом окне
       window.open(response.data.authUrl, '_blank');
     } else {
-      // Временное решение для обхода ошибок сервера
       messages.value.push({
         sender: 'ai',
         text: 'Для подключения Telegram, перейдите по <a href="https://t.me/YourBotName" target="_blank">этой ссылке</a> и авторизуйтесь.',
         timestamp: new Date(),
       });
-
-      // Открываем ссылку на бота в новом окне
-      window.open('https://t.me/YourBotName', '_blank');
     }
   } catch (error) {
     console.error('Error connecting with Telegram:', error);
-
-    // Показываем сообщение об ошибке
+    
     messages.value.push({
       sender: 'ai',
       text: 'Извините, произошла ошибка при подключении Telegram. Пожалуйста, попробуйте позже.',
@@ -224,130 +244,90 @@ async function connectTelegram() {
 // Функция для подключения через Email
 async function connectEmail() {
   if (!isValidEmail.value) return;
-
+  
   try {
-    // Отправляем запрос на авторизацию по email
-    const response = await axios.post('/api/auth/email', { email: email.value });
-
-    // Если сервер вернул ошибку, показываем сообщение
+    messages.value.push({
+      sender: 'ai',
+      text: `Отправляем код подтверждения на ${email.value}...`,
+      timestamp: new Date(),
+    });
+    
+    // Отправляем запрос на отправку кода подтверждения
+    const response = await axios.post('/api/auth/email', {
+      email: email.value
+    }, {
+      withCredentials: true
+    });
+    
     if (response.data.error) {
       messages.value.push({
         sender: 'ai',
-        text: `Ошибка при подключении Email: ${response.data.error}`,
+        text: `Ошибка: ${response.data.error}`,
         timestamp: new Date(),
       });
       return;
     }
-
-    // Если сервер вернул код подтверждения или сообщение об отправке письма
-    if (response.data.success) {
-      messages.value.push({
-        sender: 'ai',
-        text: `На ваш email ${email.value} отправлено письмо с кодом подтверждения. Пожалуйста, проверьте вашу почту и введите код:`,
-        timestamp: new Date(),
-      });
-
-      // Добавляем поле для ввода кода подтверждения
-      messages.value.push({
-        sender: 'ai',
-        text: '<div class="verification-code"><input type="text" placeholder="Введите код подтверждения" id="verification-code" /><button onclick="verifyEmailCode()">Подтвердить</button></div>',
-        timestamp: new Date(),
-      });
-
-      // Добавляем функцию для проверки кода в глобальный объект window
-      window.verifyEmailCode = async function () {
-        const code = document.getElementById('verification-code').value;
-        if (!code) return;
-
-        try {
-          const verifyResponse = await axios.post('/api/auth/email/verify', {
-            email: email.value,
-            code,
-          });
-
-          if (verifyResponse.data.authenticated) {
-            auth.authenticated = true;
-            auth.address = email.value;
-            auth.isAdmin = verifyResponse.data.isAdmin;
-            auth.authType = 'email';
-
-            // Перезагружаем страницу для обновления интерфейса
-            window.location.reload();
-          } else {
-            messages.value.push({
-              sender: 'ai',
-              text: 'Неверный код подтверждения. Пожалуйста, попробуйте еще раз.',
-              timestamp: new Date(),
-            });
-          }
-        } catch (error) {
-          console.error('Error verifying email code:', error);
-
+    
+    messages.value.push({
+      sender: 'ai',
+      text: `На ваш email ${email.value} отправлено письмо с кодом подтверждения. Пожалуйста, введите код:`,
+      timestamp: new Date(),
+    });
+    
+    // Добавляем поле для ввода кода
+    const verificationCode = prompt('Введите код подтверждения:');
+    
+    if (verificationCode) {
+      try {
+        // Отправляем запрос на проверку кода
+        const verifyResponse = await axios.post('/api/auth/email/verify', {
+          email: email.value,
+          code: verificationCode
+        }, {
+          withCredentials: true
+        });
+        
+        if (verifyResponse.data.error) {
           messages.value.push({
             sender: 'ai',
-            text: 'Произошла ошибка при проверке кода. Пожалуйста, попробуйте позже.',
+            text: `Ошибка: ${verifyResponse.data.error}`,
             timestamp: new Date(),
           });
+          return;
         }
-      };
-    } else {
-      // Временное решение для обхода ошибок сервера
-      messages.value.push({
-        sender: 'ai',
-        text: `На ваш email ${email.value} отправлено письмо с кодом подтверждения. Пожалуйста, проверьте вашу почту.`,
-        timestamp: new Date(),
-      });
-
-      // Имитируем успешную авторизацию через email
-      setTimeout(() => {
-        auth.authenticated = true;
-        auth.address = email.value;
-        auth.isAdmin = email.value.includes('admin');
+        
+        messages.value.push({
+          sender: 'ai',
+          text: 'Email успешно подтвержден! Теперь вы можете использовать все функции чата.',
+          timestamp: new Date(),
+        });
+        
+        // Обновляем состояние аутентификации
+        auth.isAuthenticated = true;
+        auth.user = { email: email.value };
         auth.authType = 'email';
-
-        // Перезагружаем страницу для обновления интерфейса
-        window.location.reload();
-      }, 3000);
+        
+        // Сбрасываем флаг показа сообщения с опциями авторизации
+        hasShownAuthMessage.value = false;
+      } catch (error) {
+        console.error('Error verifying email code:', error);
+        
+        messages.value.push({
+          sender: 'ai',
+          text: 'Произошла ошибка при проверке кода. Пожалуйста, попробуйте позже.',
+          timestamp: new Date(),
+        });
+      }
     }
   } catch (error) {
     console.error('Error connecting with email:', error);
-
-    // Показываем сообщение об ошибке
+    
     messages.value.push({
       sender: 'ai',
       text: 'Извините, произошла ошибка при подключении Email. Пожалуйста, попробуйте позже.',
       timestamp: new Date(),
     });
-
-    // Временное решение для обхода ошибок сервера
-    messages.value.push({
-      sender: 'ai',
-      text: `На ваш email ${email.value} отправлено письмо с кодом подтверждения. Пожалуйста, проверьте вашу почту.`,
-      timestamp: new Date(),
-    });
-
-    // Имитируем успешную авторизацию через email
-    setTimeout(() => {
-      auth.authenticated = true;
-      auth.address = email.value;
-      auth.isAdmin = email.value.includes('admin');
-      auth.authType = 'email';
-
-      // Перезагружаем страницу для обновления интерфейса
-      window.location.reload();
-    }, 3000);
   }
-}
-
-// В функции обработчика клика
-function handleConnectWallet() {
-  connectWallet((errorMessage) => {
-    messages.value.push({
-      sender: 'ai',
-      text: errorMessage,
-      timestamp: new Date(),
-    });
-  });
 }
 </script>
 
@@ -387,6 +367,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 400px;
 }
 
 .message {
@@ -485,22 +466,6 @@ textarea {
   cursor: not-allowed;
 }
 
-.email-auth {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.email-auth input {
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
 /* Общие стили для всех кнопок аутентификации */
 .auth-btn {
   display: flex;
@@ -545,32 +510,5 @@ textarea {
 .email-btn {
   background-color: #4caf50;
   color: white;
-}
-
-/* Стили для поля ввода кода подтверждения */
-.verification-code {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.verification-code input {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  box-sizing: border-box;
-}
-
-.verification-code button {
-  padding: 0.75rem 1rem;
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
 }
 </style>

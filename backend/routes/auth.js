@@ -6,10 +6,10 @@ const db = require('../db');
 const logger = require('../utils/logger');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { checkIfAdmin } = require('../utils/access-check');
 const { checkRole, requireAuth } = require('../middleware/auth');
 const { pool } = require('../db');
 const { verifySignature, checkAccess, findOrCreateUser } = require('../utils/auth');
+const authService = require('../services/auth-service');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -24,39 +24,31 @@ const authLimiter = rateLimit({
 router.get('/nonce', async (req, res) => {
   try {
     const { address } = req.query;
-
     if (!address) {
       return res.status(400).json({ error: 'Address is required' });
     }
 
-    // Генерируем nonce
+    // Генерируем случайный nonce
     const nonce = crypto.randomBytes(16).toString('hex');
-
+    
     // Сохраняем nonce в сессии
     req.session.authNonce = nonce;
-    req.session.pendingAddress = address.toLowerCase();
-
-    console.log('Сгенерирован nonce для адреса:', address);
-    console.log('Сессия после генерации nonce:', req.session);
-
-    // Сохраняем сессию и ждем завершения
+    req.session.pendingAddress = address;
+    
+    // Важно: сохраняем сессию перед отправкой ответа
     await new Promise((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) {
-          console.error('Ошибка при сохранении сессии:', err);
-          reject(err);
-        } else {
-          resolve();
-        }
+      req.session.save(err => {
+        if (err) reject(err);
+        else resolve();
       });
     });
-
-    // Проверяем, что nonce сохранился
+    
+    console.log('Сессия после генерации nonce:', req.session);
     console.log('Сессия после сохранения:', req.session);
-
+    
     return res.json({ nonce });
   } catch (error) {
-    console.error('Ошибка при генерации nonce:', error);
+    console.error('Error generating nonce:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -89,135 +81,227 @@ async function checkUserRole(address, req) {
   }
 }
 
-// Верификация подписи
+// Проверка подписи и аутентификация
 router.post('/verify', async (req, res) => {
   try {
-    const { address, signature, message, nonce } = req.body;
+    const { address, signature, message } = req.body;
     
-    console.log('Верификация подписи:', { address, signature, message });
-    console.log('Сессия при верификации:', req.session);
+    console.log('Verify request: address=' + address + ', signature=' + signature.substring(0, 10) + '...');
+    console.log('Session data: nonce=' + req.session.authNonce + ', pendingAddress=' + req.session.pendingAddress);
     
-    if (!address || !signature || !message) {
-      return res.status(400).json({ error: 'Address, signature and message are required' });
+    // Проверяем, что nonce и адрес совпадают с сохраненными в сессии
+    if (!req.session.authNonce || !req.session.pendingAddress || req.session.pendingAddress !== address) {
+      console.error(`Invalid session or address mismatch: nonce=${req.session.authNonce}, pendingAddress=${req.session.pendingAddress}, address=${address}`);
+      return res.status(401).json({ error: 'Invalid session or address mismatch' });
     }
-
-    // Проверяем наличие nonce в сессии
-    if (!req.session.authNonce || !req.session.pendingAddress) {
-      console.error('Сессия не содержит nonce или pendingAddress:', req.session);
-
-      // Проверяем наличие nonce в заголовке
-      const headerNonce = req.headers['x-auth-nonce'];
-      if (headerNonce) {
-        console.log('Найден nonce в заголовке:', headerNonce);
-        req.session.authNonce = headerNonce;
-        req.session.pendingAddress = address.toLowerCase();
-      }
-
-      // Если в запросе есть nonce в сообщении, извлекаем его
-      let extractedNonce = null;
-      if (message) {
-        const match = message.match(/nonce: ([a-f0-9]+)/);
-        if (match && match[1]) {
-          extractedNonce = match[1];
-          console.log('Извлечен nonce из сообщения:', extractedNonce);
-
-          // Устанавливаем nonce в сессию
-          req.session.authNonce = extractedNonce;
-          req.session.pendingAddress = address.toLowerCase();
-
-          // Сохраняем сессию
-          await new Promise((resolve) => {
-            req.session.save((err) => {
-              if (err) console.error('Ошибка при сохранении сессии:', err);
-              resolve();
-            });
-          });
+    
+    // Проверяем подпись
+    const isValid = await verifySignature(req.session.authNonce, signature, address);
+    console.log('Signature verification result:', isValid);
+    
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    
+    // Находим или создаем пользователя
+    console.log('Finding or creating user for address:', address);
+    const { userId, isAdmin } = await findOrCreateUser(address);
+    console.log('User found/created:', { userId, isAdmin });
+    
+    // Очищаем nonce и pendingAddress из сессии
+    const nonce = req.session.authNonce;
+    req.session.authNonce = null;
+    req.session.pendingAddress = null;
+    
+    // Устанавливаем пользователя в сессии
+    req.session.userId = userId;
+    req.session.address = address;
+    req.session.isAdmin = isAdmin;
+    req.session.authenticated = true;
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          console.error('Error saving session:', err);
+          reject(err);
+        } else {
+          console.log('Session saved successfully');
+          resolve();
         }
-      }
-    }
-
-    // Формируем ожидаемое сообщение
-    const expectedMessage = `Подтвердите вход в DApp for Business с nonce: ${req.session.authNonce}`;
-
-    // Проверяем, что адрес совпадает с ожидаемым
-    if (req.session.pendingAddress && req.session.pendingAddress.toLowerCase() !== address.toLowerCase()) {
-      console.error('Адрес не совпадает с ожидаемым:', {
-        expected: req.session.pendingAddress,
-        received: address,
       });
-      return res.status(400).json({ error: 'Invalid address' });
+    });
+    
+    console.log('Authentication successful for user:', { userId, address, isAdmin });
+    
+    return res.json({
+      authenticated: true,
+      userId,
+      address,
+      isAdmin,
+      authType: 'wallet'
+    });
+  } catch (error) {
+    console.error('Error verifying signature:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Аутентификация через Telegram
+router.post('/telegram', async (req, res) => {
+  try {
+    const { telegramId, authData } = req.body;
+    
+    // Здесь должна быть проверка данных от Telegram
+    
+    // Получаем или создаем пользователя
+    let userId = await authService.getUserIdByIdentity('telegram', telegramId);
+    
+    if (!userId) {
+      // Создаем нового пользователя
+      const userResult = await db.query(
+        'INSERT INTO users (created_at, role_id) VALUES (NOW(), (SELECT id FROM roles WHERE name = $1)) RETURNING id',
+        ['user']
+      );
+      
+      userId = userResult.rows[0].id;
+      
+      // Добавляем идентификатор Telegram
+      await db.query(
+        'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
+        [userId, 'telegram', telegramId]
+      );
     }
-
-    let verified = false;
-    try {
-      // Проверяем подпись с использованием ethers.js
-      const recoveredAddress = ethers.verifyMessage(expectedMessage, signature);
-
-      if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
-        console.error('Неверная подпись:', {
-          expected: address.toLowerCase(),
-          recovered: recoveredAddress.toLowerCase(),
-        });
-        return res.status(400).json({ error: 'Invalid signature' });
-      }
-
-      verified = true;
-      console.log('Подпись успешно проверена');
-    } catch (error) {
-      console.error('Ошибка при проверке подписи:', error);
-      return res.status(400).json({ error: 'Invalid signature format' });
+    
+    // Проверяем связанные аккаунты
+    const identities = await authService.getAllUserIdentities(userId);
+    
+    // Если есть связанный кошелек, проверяем токены
+    if (identities.wallet) {
+      await authService.checkTokensAndUpdateRole(identities.wallet);
     }
+    
+    // Получаем текущую роль
+    const isAdmin = await authService.isAdmin(userId);
+    
+    // Устанавливаем сессию
+    req.session.userId = userId;
+    req.session.telegramId = telegramId;
+    req.session.authType = 'telegram';
+    req.session.authenticated = true;
+    
+    res.json({
+      authenticated: true,
+      userId,
+      isAdmin,
+      authType: 'telegram',
+      identities
+    });
+  } catch (error) {
+    logger.error(`Telegram auth error: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
 
-    // Если подпись верна, аутентифицируем пользователя
-    if (verified) {
-      // Найдем или создадим пользователя
-      const user = await findOrCreateUser(address, 'wallet');
+// Аутентификация через Email
+router.post('/email', async (req, res) => {
+  try {
+    const { email, verificationCode } = req.body;
+    
+    // Здесь должна быть проверка кода подтверждения
+    
+    // Получаем или создаем пользователя
+    let userId = await authService.getUserIdByIdentity('email', email);
+    
+    if (!userId) {
+      // Создаем нового пользователя
+      const userResult = await db.query(
+        'INSERT INTO users (created_at, role_id) VALUES (NOW(), (SELECT id FROM roles WHERE name = $1)) RETURNING id',
+        ['user']
+      );
       
-      // Обновляем сессию
-      req.session.authenticated = true;
-      req.session.address = address;
-      req.session.userId = user.id;
-      req.session.authType = 'wallet';
-      req.session.isAdmin = user.is_admin;
-      req.session.role = user.role;
-      req.session.authChannel = 'web';
-      req.session.language = req.body.language || 'en';
+      userId = userResult.rows[0].id;
       
-      // Удаляем временные данные
-      delete req.session.authNonce;
-      delete req.session.pendingAddress;
-      
-      // Сохраняем сессию
-      await new Promise((resolve, reject) => {
-        req.session.save(err => {
-          if (err) {
-            console.error('Ошибка при сохранении сессии:', err);
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-      
-      console.log('Аутентификация успешна:', { 
-        address, 
-        isAdmin: user.is_admin,
-        userId: user.id,
-        role: user.role
-      });
+      // Добавляем идентификатор Email
+      await db.query(
+        'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
+        [userId, 'email', email]
+      );
+    }
+    
+    // Проверяем связанные аккаунты
+    const identities = await authService.getAllUserIdentities(userId);
+    
+    // Если есть связанный кошелек, проверяем токены
+    if (identities.wallet) {
+      await authService.checkTokensAndUpdateRole(identities.wallet);
+    }
+    
+    // Получаем текущую роль
+    const isAdmin = await authService.isAdmin(userId);
+    
+    // Устанавливаем сессию
+    req.session.userId = userId;
+    req.session.email = email;
+    req.session.authType = 'email';
+    req.session.authenticated = true;
       
       res.json({ 
         authenticated: true, 
-        address, 
-        isAdmin: user.is_admin,
-        role: user.role
-      });
-    } else {
-      res.status(401).json({ error: 'Invalid signature' });
-    }
+      userId,
+      isAdmin,
+      authType: 'email',
+      identities
+    });
   } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error(`Email auth error: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Связывание аккаунтов
+router.post('/link-identity', async (req, res) => {
+  try {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    
+    const { identityType, identityValue } = req.body;
+    
+    // Проверяем, не привязан ли уже этот идентификатор к другому пользователю
+    const existingUserId = await authService.getUserIdByIdentity(identityType, identityValue);
+    
+    if (existingUserId && existingUserId !== req.session.userId) {
+      return res.status(400).json({ error: 'Этот идентификатор уже привязан к другому аккаунту' });
+    }
+    
+    // Добавляем новый идентификатор
+    if (!existingUserId) {
+      await db.query(
+        'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
+        [req.session.userId, identityType, identityValue]
+      );
+    }
+    
+    // Если добавлен кошелек, проверяем токены
+    if (identityType === 'wallet') {
+      await authService.checkTokensAndUpdateRole(identityValue);
+    }
+    
+    // Получаем все идентификаторы пользователя
+    const identities = await authService.getAllUserIdentities(req.session.userId);
+    
+    // Получаем текущую роль
+    const isAdmin = await authService.isAdmin(req.session.userId);
+    
+    res.json({
+      success: true,
+      identities,
+      isAdmin
+    });
+  } catch (error) {
+    logger.error(`Link identity error: ${error.message}`);
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -418,76 +502,42 @@ router.get('/check-access', requireAuth, (req, res) => {
   }
 });
 
-// Упрощенный маршрут для обновления сессии
+// Добавьте этот маршрут в routes/auth.js
 router.post('/refresh-session', async (req, res) => {
   try {
     const { address } = req.body;
-
+    
     if (!address) {
-      return res.status(400).json({ success: false, message: 'Адрес не указан' });
+      return res.status(400).json({ error: 'Address is required' });
     }
-
-    console.log(`Получен запрос на обновление сессии для адреса: ${address}`);
-
-    // Проверяем, существует ли пользователь в базе данных
-    const userResult = await pool.query('SELECT * FROM users WHERE address = $1', [
-      address.toLowerCase(),
-    ]);
-
-    let user = null;
-
-    if (userResult.rows.length > 0) {
-      user = userResult.rows[0];
-      console.log(`Найден пользователь: ${user.id}`);
-    } else {
-      console.log(`Пользователь с адресом ${address} не найден`);
+    
+    logger.info(`Получен запрос на обновление сессии для адреса: ${address}`);
+    
+    // Проверяем доступ пользователя
+    const accessInfo = await checkAccess(address);
+    
+    if (!accessInfo.hasAccess) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-
-    // Обновляем сессию
+    
+    // Устанавливаем данные сессии
     req.session.authenticated = true;
-    req.session.address = address.toLowerCase();
-
-    if (user) {
-      req.session.userId = user.id;
-      req.session.isAdmin = user.is_admin || false;
-      req.session.role = user.is_admin ? 'ADMIN' : 'USER';
-    } else {
-      // Если пользователь не найден в базе, проверяем через переменные окружения
-      const adminAddresses = (process.env.ADMIN_ADDRESSES || '')
-        .split(',')
-        .map((a) => a.toLowerCase());
-      const isAdmin = adminAddresses.includes(address.toLowerCase());
-      req.session.isAdmin = isAdmin;
-      req.session.role = isAdmin ? 'ADMIN' : 'USER';
-    }
-
-    // Сохраняем сессию
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) {
-          console.error('Ошибка при сохранении сессии:', err);
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
-
-    console.log('Сессия обновлена:', req.session);
-
-    return res.json({
-      success: true,
-      message: 'Сессия обновлена',
-      user: {
-        id: user ? user.id : null,
-        address: address.toLowerCase(),
-        isAdmin: req.session.isAdmin,
-        role: req.session.role,
-      },
+    req.session.address = address;
+    req.session.userId = accessInfo.userId;
+    req.session.isAdmin = accessInfo.isAdmin;
+    req.session.authType = 'wallet';
+    
+    await req.session.save();
+    
+    res.json({
+      authenticated: true,
+      address,
+      isAdmin: accessInfo.isAdmin,
+      authType: 'wallet'
     });
   } catch (error) {
-    console.error('Ошибка при обновлении сессии:', error);
-    return res.status(500).json({ success: false, message: 'Ошибка сервера' });
+    logger.error(`Error refreshing session: ${error.message}`);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -555,10 +605,56 @@ router.get('/check-db-structure', async (req, res) => {
   }
 });
 
+// Добавьте этот маршрут для отладки
+router.get('/debug-session', (req, res) => {
+  res.json({
+    sessionID: req.sessionID,
+    session: req.session,
+    authenticated: req.session ? req.session.authenticated : undefined,
+    address: req.session ? req.session.address : undefined,
+    userId: req.session ? req.session.userId : undefined,
+    isAdmin: req.session ? req.session.isAdmin : undefined,
+    role: req.session ? req.session.role : undefined
+  });
+});
+
+// Маршрут для проверки сессии
+router.get('/session-debug', (req, res) => {
+  console.log('Текущая сессия:', {
+    id: req.sessionID,
+    session: req.session,
+    cookie: req.session.cookie
+  });
+  
+  res.json({
+    sessionID: req.sessionID,
+    authenticated: req.session.authenticated,
+    address: req.session.address,
+    userId: req.session.userId,
+    isAdmin: req.session.isAdmin,
+    role: req.session.role,
+    cookie: req.session.cookie
+  });
+});
+
+// Маршрут для проверки содержимого таблицы сессий
+router.get('/check-sessions', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM sessions');
+    res.json({
+      currentSessionID: req.sessionID,
+      sessions: result.rows
+    });
+  } catch (error) {
+    console.error('Ошибка при получении сессий:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Добавьте обработку ошибок
 router.use((err, req, res, next) => {
   console.error('Auth route error:', err);
   res.status(500).json({ success: false, message: 'Ошибка сервера' });
 });
 
-module.exports = { router };
+module.exports = router;

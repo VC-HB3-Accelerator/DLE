@@ -1,184 +1,152 @@
-const { SiweMessage } = require('siwe');
 const { ethers } = require('ethers');
-const AccessTokenABI = require('../artifacts/contracts/AccessToken.sol/AccessToken.json').abi;
-require('dotenv').config();
-const { pool } = require('../db');
+const db = require('../db');
+const logger = require('./logger');
+const authService = require('../services/auth-service');
+const { USER_ROLES, IDENTITY_TYPES } = require('./constants');
 
-// В ethers.js v6.x используется JsonRpcProvider напрямую
+// Инициализация провайдера
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-const accessToken = new ethers.Contract(process.env.ACCESS_TOKEN_ADDRESS, AccessTokenABI, provider);
-
-// Проверяем наличие адреса контракта
-if (!process.env.ACCESS_TOKEN_ADDRESS) {
-  console.error('ACCESS_TOKEN_ADDRESS не указан в .env файле');
-}
 
 /**
  * Проверяет подпись сообщения
- * @param {Object} message - Сообщение для проверки
- * @param {string} signature - Подпись сообщения
+ * @param {string} nonce - Независимый идентификатор
+ * @param {string} signature - Подпись
  * @param {string} address - Адрес кошелька
  * @returns {Promise<boolean>} - Результат проверки
  */
-async function verifySignature(message, signature, address) {
+async function verifySignature(nonce, signature, address) {
   try {
-    // Формируем сообщение для проверки
-    const domain = message.domain || 'localhost';
-    const statement = message.statement || 'Sign in with Ethereum to the app.';
-    const uri = message.uri || 'http://localhost:8000';
-    const version = message.version || '1';
-    const chainId = message.chainId || '1';
-    const nonce = message.nonce;
-
-    const messageToVerify = `${domain} wants you to sign in with your Ethereum account:
-${address}
-
-${statement}
-
-URI: ${uri}
-Version: ${version}
-Chain ID: ${chainId}
-Nonce: ${nonce}
-`;
-
-    // В ethers.js v6.x используется verifyMessage напрямую
-    const recoveredAddress = ethers.verifyMessage(messageToVerify, signature);
-
+    // Создаем сообщение для проверки
+    const message = `Sign this message to authenticate with our app: ${nonce}`;
+    
+    // Восстанавливаем адрес из подписи
+    const recoveredAddress = ethers.verifyMessage(message, signature);
+    
+    // Проверяем, что восстановленный адрес совпадает с предоставленным
     return recoveredAddress.toLowerCase() === address.toLowerCase();
   } catch (error) {
-    console.error('Signature verification error:', error);
+    console.error('Error verifying signature:', error);
     return false;
   }
 }
 
-async function checkAccess(address) {
-  // Временная заглушка
-  return { hasAccess: false, role: null };
-}
-
-async function verifyAndCheckAccess(message, signature, address) {
-  // Проверяем подпись
-  const verified = await verifySignature(message, signature, address);
-  if (!verified) {
-    return {
-      verified: false,
-      access: { hasAccess: false },
-    };
-  }
-
-  // Проверяем доступ
-  const access = await checkAccess(address);
-
-  return {
-    verified: true,
-    access,
-  };
-}
-
-// Функция для поиска или создания пользователя
-async function findOrCreateUser(identifier, identityType = 'wallet') {
+/**
+ * Проверяет, является ли пользователь администратором
+ * @param {string} address - Адрес кошелька
+ * @returns {Promise<boolean>} - Является ли пользователь администратором
+ */
+async function checkUserRole(address) {
   try {
-    // Проверяем, является ли адрес адресом администратора
-    const isAdmin = identityType === 'wallet' && 
-                    identifier.toLowerCase() === process.env.ADMIN_WALLET_ADDRESS.toLowerCase();
+    // Проверяем наличие токена администратора
+    const isAdmin = await authService.checkAdminToken(address);
+    return isAdmin;
+  } catch (error) {
+    console.error('Error checking user role:', error);
+    return false;
+  }
+}
+
+/**
+ * Проверяет доступ пользователя
+ * @param {string} walletAddress - Адрес кошелька
+ * @returns {Promise<Object>} - Информация о доступе
+ */
+async function checkAccess(walletAddress) {
+  try {
+    // Проверяем наличие токена администратора
+    const isAdmin = await authService.checkAdminToken(walletAddress);
     
-    console.log(`Проверка на администратора: ${identifier.toLowerCase()} === ${process.env.ADMIN_WALLET_ADDRESS.toLowerCase()} = ${isAdmin}`);
+    // Получаем или создаем пользователя
+    const userId = await findOrCreateUser(walletAddress);
     
-    // Проверяем, существует ли пользователь с таким идентификатором
-    const identityResult = await pool.query(
-      'SELECT user_id FROM user_identities WHERE identity_type = $1 AND identity_value = $2',
-      [identityType, identifier.toLowerCase()]
-    );
-
-    let userId;
-    let isNewUser = false;
-
-    if (identityResult.rows.length > 0) {
-      // Пользователь найден
-      userId = identityResult.rows[0].user_id;
-      console.log(`Найден существующий пользователь с ID: ${userId}`);
-      
-      // Обновляем статус администратора, если это необходимо
-      if (isAdmin) {
-        await pool.query(
-          'UPDATE users SET is_admin = true WHERE id = $1',
-          [userId]
-        );
-        console.log(`Обновлен статус администратора для пользователя ${userId}`);
-      }
-    } else {
-      // Создаем нового пользователя с явным указанием всех необходимых полей
-      const username = `user_${Date.now()}`;
-      
-      // Проверяем существование роли USER или ADMIN
-      const roleName = isAdmin ? 'ADMIN' : 'USER';
-      const roleCheck = await pool.query('SELECT id FROM roles WHERE name = $1', [roleName]);
-      let roleId;
-      
-      if (roleCheck.rows.length > 0) {
-        roleId = roleCheck.rows[0].id;
-      } else {
-        // Если роли нет, создаем её
-        const newRole = await pool.query(
-          'INSERT INTO roles (name, description) VALUES ($1, $2) RETURNING id',
-          [roleName, isAdmin ? 'Administrator role' : 'Regular user role']
-        );
-        roleId = newRole.rows[0].id;
-      }
-      
-      // Создаем пользователя с обязательными полями
-      const userResult = await pool.query(
-        `INSERT INTO users (username, role_id, address, created_at, is_admin) 
-         VALUES ($1, $2, $3, NOW(), $4) 
-         RETURNING id`,
-        [username, roleId, identifier.toLowerCase(), isAdmin]
-      );
-      
-      userId = userResult.rows[0].id;
-      isNewUser = true;
-
-      // Создаем запись в таблице идентификаторов
-      await pool.query(
-        'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) VALUES ($1, $2, $3, true, NOW())',
-        [userId, identityType, identifier.toLowerCase()]
-      );
-
-      console.log(`Создан новый пользователь с ID: ${userId}, isAdmin: ${isAdmin}`);
-    }
-
-    // Получаем информацию о пользователе
-    try {
-      const userInfo = await pool.query(
-        `SELECT u.id, u.username, u.is_admin, r.name as role
-         FROM users u
-         JOIN roles r ON u.role_id = r.id
-         WHERE u.id = $1`,
-        [userId]
-      );
-
-      if (userInfo.rows.length > 0) {
-        return userInfo.rows[0];
-      }
-    } catch (err) {
-      console.error('Ошибка при получении информации о пользователе:', err);
-    }
-
-    // Если не удалось получить полную информацию, возвращаем базовую
     return {
-      id: userId,
-      username: isNewUser ? `user_${Date.now()}` : 'unknown',
-      is_admin: isAdmin,
-      role: isAdmin ? 'ADMIN' : 'USER'
+      userId,
+      isAdmin,
+      hasAccess: true
     };
   } catch (error) {
-    console.error('Ошибка при поиске/создании пользователя:', error);
+    logger.error(`Error checking access: ${error.message}`);
+    return {
+      hasAccess: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Находит или создает пользователя по адресу кошелька
+ * @param {string} address - Адрес кошелька
+ * @returns {Promise<Object>} - ID пользователя и роль
+ */
+async function findOrCreateUser(address) {
+  try {
+    // Проверяем, существует ли пользователь
+    const userResult = await db.query('SELECT * FROM users WHERE LOWER(address) = LOWER($1)', [address]);
+    
+    let userId;
+    let isAdmin = false;
+    
+    if (userResult.rows.length === 0) {
+      // Если пользователь не найден, создаем его
+      // Получаем ID роли 'user'
+      const roleResult = await db.query('SELECT id FROM roles WHERE name = $1', ['user']);
+      if (roleResult.rows.length === 0) {
+        throw new Error('Role "user" not found');
+      }
+      const roleId = roleResult.rows[0].id;
+      
+      // Создаем пользователя с ролью 'user'
+      const newUserResult = await db.query(
+        'INSERT INTO users (address, role_id, created_at) VALUES (LOWER($1), $2, NOW()) RETURNING id',
+        [address, roleId]
+      );
+      
+      userId = newUserResult.rows[0].id;
+      
+      // Проверяем, является ли пользователь администратором
+      isAdmin = await checkUserRole(address);
+      
+      // Если пользователь администратор, обновляем его роль
+      if (isAdmin) {
+        const adminRoleResult = await db.query('SELECT id FROM roles WHERE name = $1', ['admin']);
+        if (adminRoleResult.rows.length > 0) {
+          const adminRoleId = adminRoleResult.rows[0].id;
+          await db.query('UPDATE users SET role_id = $1 WHERE id = $2', [adminRoleId, userId]);
+        }
+      }
+    } else {
+      // Если пользователь найден, получаем его ID и роль
+      userId = userResult.rows[0].id;
+      
+      // Проверяем, является ли пользователь администратором по роли
+      const roleResult = await db.query('SELECT name FROM roles WHERE id = $1', [userResult.rows[0].role_id]);
+      isAdmin = roleResult.rows.length > 0 && roleResult.rows[0].name === 'admin';
+      
+      // Проверяем, является ли пользователь администратором по токену
+      const isAdminByToken = await checkUserRole(address);
+      
+      // Обновляем роль пользователя, если она изменилась
+      if (isAdminByToken !== isAdmin) {
+        const roleNameToSet = isAdminByToken ? 'admin' : 'user';
+        const roleToSetResult = await db.query('SELECT id FROM roles WHERE name = $1', [roleNameToSet]);
+        if (roleToSetResult.rows.length > 0) {
+          const roleIdToSet = roleToSetResult.rows[0].id;
+          await db.query('UPDATE users SET role_id = $1 WHERE id = $2', [roleIdToSet, userId]);
+          isAdmin = isAdminByToken;
+        }
+      }
+    }
+    
+    return { userId, isAdmin };
+  } catch (error) {
+    console.error('Error finding or creating user:', error);
     throw error;
   }
 }
 
 module.exports = {
-  verifyAndCheckAccess,
   verifySignature,
   checkAccess,
-  findOrCreateUser
-};
+  findOrCreateUser,
+  checkUserRole
+}; 
