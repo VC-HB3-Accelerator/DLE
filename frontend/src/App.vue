@@ -45,54 +45,22 @@ async function checkSession() {
 // Функция для обновления сессии
 async function refreshSession() {
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
     // Проверяем, есть ли адрес пользователя
-    if (!authStore.address) {
+    if (!authStore.user || !authStore.user.address) {
       console.log('Нет адреса пользователя для обновления сессии');
       return;
     }
 
-    console.log('Попытка обновления сессии для адреса:', authStore.address);
-
-    // Сначала проверяем, доступен ли маршрут
-    try {
-      const response = await axios.post(
-        `${apiUrl}/api/auth/refresh-session`,
-        {
-          address: authStore.address,
-        },
-        {
-          withCredentials: true,
-        }
-      );
-
-      console.log('Сессия обновлена:', response.data);
-    } catch (error) {
-      if (error.response && error.response.status === 404) {
-        console.log('Маршрут refresh-session не найден, пробуем альтернативный метод');
-
-        // Альтернативный метод: используем маршрут проверки аутентификации
-        const checkResponse = await axios.get(`${apiUrl}/api/auth/check`, {
-          withCredentials: true,
-          headers: {
-            Authorization: `Bearer ${authStore.address}`,
-          },
-        });
-
-        console.log('Проверка аутентификации:', checkResponse.data);
-      } else {
-        throw error;
-      }
+    const response = await axios.post('/api/auth/refresh-session', 
+      { address: authStore.user.address },
+      { withCredentials: true }
+    );
+    
+    if (response.data.success) {
+      console.log('Сессия успешно обновлена');
     }
   } catch (error) {
     console.error('Ошибка при обновлении сессии:', error);
-
-    // Добавляем более подробную информацию об ошибке
-    if (error.response) {
-      console.error('Статус ответа:', error.response.status);
-      console.error('Данные ответа:', error.response.data);
-    }
   }
 }
 
@@ -110,40 +78,14 @@ onMounted(async () => {
     
     if (response.data.authenticated) {
       // Если сессия активна, обновляем состояние аутентификации
-      authStore.updateAuthState({
-        authenticated: response.data.authenticated,
-        address: response.data.address,
-        isAdmin: response.data.isAdmin,
-        authType: 'wallet'
-      });
+      authStore.isAuthenticated = response.data.authenticated;
+      authStore.user = { address: response.data.address };
+      authStore.isAdmin = response.data.isAdmin;
+      authStore.authType = 'wallet';
       
       console.log('Сессия восстановлена:', response.data);
     } else {
       console.log('Нет активной сессии');
-      
-      // Если в localStorage есть адрес, пробуем восстановить сессию
-      const savedAddress = localStorage.getItem('walletAddress');
-      if (savedAddress) {
-        console.log('Найден сохраненный адрес:', savedAddress);
-        try {
-          const refreshResponse = await axios.post('/api/auth/refresh-session', 
-            { address: savedAddress },
-            { withCredentials: true }
-          );
-          
-          if (refreshResponse.data.success) {
-            authStore.updateAuthState({
-              authenticated: true,
-              address: savedAddress,
-              isAdmin: refreshResponse.data.user.isAdmin,
-              authType: 'wallet'
-            });
-            console.log('Сессия восстановлена через refresh-session');
-          }
-        } catch (refreshError) {
-          console.error('Ошибка при восстановлении сессии:', refreshError);
-        }
-      }
     }
   } catch (error) {
     console.error('Ошибка при проверке сессии:', error);

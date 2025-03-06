@@ -10,7 +10,7 @@ contract AccessToken is ERC721, Ownable {
     Counters.Counter private _tokenIds;
 
     // Роли для токенов
-    enum Role { ADMIN, MODERATOR, SUPPORT }
+    enum Role { USER, ADMIN }
     
     // Маппинг токен ID => роль
     mapping(uint256 => Role) public tokenRoles;
@@ -24,6 +24,8 @@ contract AccessToken is ERC721, Ownable {
 
     // Создание нового токена доступа
     function mintAccessToken(address to, Role role) public onlyOwner {
+        require(role == Role.USER || role == Role.ADMIN, "Invalid role");
+        
         _tokenIds.increment();
         uint256 newTokenId = _tokenIds.current();
         
@@ -51,10 +53,9 @@ contract AccessToken is ERC721, Ownable {
     function _beforeTokenTransfer(
         address from,
         address to,
-        uint256 tokenId,
-        uint256 batchSize
+        uint256 tokenId
     ) internal override {
         require(from == address(0) || to == address(0), "Token transfer not allowed");
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+        super._beforeTokenTransfer(from, to, tokenId);
     }
 } 

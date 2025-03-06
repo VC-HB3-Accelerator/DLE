@@ -1,10 +1,5 @@
-const { Pool } = require('pg');
-
-// Подключение к БД
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
+const db = require('../db');
+const logger = require('./logger');
 
 /**
  * Связывает идентификатор с пользователем
@@ -16,7 +11,7 @@ const pool = new Pool({
 async function linkIdentity(userId, identityType, identityValue) {
   try {
     // Проверяем, существует ли уже такой идентификатор
-    const existingResult = await pool.query(
+    const existingResult = await db.query(
       'SELECT * FROM user_identities WHERE identity_type = $1 AND identity_value = $2',
       [identityType, identityValue]
     );
@@ -32,7 +27,7 @@ async function linkIdentity(userId, identityType, identityValue) {
     }
 
     // Добавляем новую связь
-    await pool.query(
+    await db.query(
       'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
       [userId, identityType, identityValue]
     );
@@ -53,7 +48,7 @@ async function linkIdentity(userId, identityType, identityValue) {
  */
 async function getUserIdByIdentity(identityType, identityValue) {
   try {
-    const result = await pool.query(
+    const result = await db.query(
       'SELECT user_id FROM user_identities WHERE identity_type = $1 AND identity_value = $2',
       [identityType, identityValue]
     );
@@ -76,7 +71,7 @@ async function getUserIdByIdentity(identityType, identityValue) {
  */
 async function getUserIdentities(userId) {
   try {
-    const result = await pool.query(
+    const result = await db.query(
       'SELECT identity_type, identity_value FROM user_identities WHERE user_id = $1',
       [userId]
     );

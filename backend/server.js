@@ -9,7 +9,7 @@ const { initializeVectorStore } = require('./services/vectorStore');
 const session = require('express-session');
 const { app, nonceStore } = require('./app');
 const usersRouter = require('./routes/users');
-const { router: authRouter } = require('./routes/auth');
+const authRouter = require('./routes/auth');
 const contractsRouter = require('./routes/contracts');
 const accessRouter = require('./routes/access');
 const path = require('path');
@@ -23,13 +23,14 @@ const fs = require('fs');
 const pgSession = require('connect-pg-simple')(session);
 const sessionStore = new pgSession({
   pool: pool,
-  tableName: 'session',
+  tableName: 'sessions',
   createTableIfMissing: true,
 });
 const helmet = require('helmet');
 // const csrf = require('csurf');
 // const cookieParser = require('cookie-parser');
 const messagesRouter = require('./routes/messages');
+const sessionMiddleware = require('./middleware/session');
 
 // Импорт сервисов
 const { initTelegramBot } = require('./services/telegram-service');
@@ -62,7 +63,7 @@ console.log('Ethers.js version:', ethers.version);
 // 1. CORS должен быть первым
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: ['http://127.0.0.1:5173', 'http://localhost:5173'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Nonce'],
@@ -75,50 +76,6 @@ app.use(helmet());
 // 2. Затем парсеры
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// 3. Затем сессии
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // В разработке можно установить false
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 1 день
-    },
-    store: new pgSession({
-      pool: pool,
-      tableName: 'session',
-    }),
-  })
-);
-
-// Добавьте после настройки сессий
-app.use((req, res, next) => {
-  // console.log('Middleware для проверки сессии:', {
-  //   url: req.url,
-  //   method: req.method,
-  //   sessionID: req.sessionID,
-  //   session: req.session ? {
-  //     isAuthenticated: req.session.isAuthenticated,
-  //     authenticated: req.session.authenticated,
-  //     address: req.session.address,
-  //     isAdmin: req.session.isAdmin
-  //   } : null,
-  //   cookies: req.cookies,
-  //   headers: {
-  //     cookie: req.headers.cookie
-  //   }
-  // });
-  if (req.session.store) {
-    req.session.store.on('error', (error) => {
-      console.error('Session store error:', error);
-    });
-  }
-  next();
-});
 
 // Добавьте после настройки парсеров
 app.use((req, res, next) => {
@@ -215,6 +172,9 @@ app.use((req, res, next) => {
 //   next(err);
 // });
 
+// Использовать импортированный middleware для сессий
+app.use(sessionMiddleware);
+
 async function initServices() {
   try {
     console.log('Инициализация сервисов...');
@@ -285,7 +245,17 @@ app.post('/api/verify', async (req, res) => {
       req.session.lastSignature = signature;
 
       // Сохраняем сессию
-      req.session.save();
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('Ошибка при сохранении сессии:', err);
+            reject(err);
+          } else {
+            console.log('Сессия успешно сохранена');
+            resolve();
+          }
+        });
+      });
     } catch (error) {
       return res.status(401).json({ success: false, error: error.message });
     }
@@ -734,3 +704,11 @@ setTimeout(async () => {
     console.error('Ошибка при первоначальной очистке сессий:', err);
   }
 }, 5 * 60 * 1000);
+
+app.get('/session-debug', (req, res) => {
+  // Implementation of the endpoint
+});
+
+app.get('/check-sessions', async (req, res) => {
+  // Implementation of the endpoint
+});

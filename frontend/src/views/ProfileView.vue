@@ -56,7 +56,9 @@ export default {
     const loadProfile = async () => {
       try {
         loading.value = true;
-        const response = await axios.get('/api/users/profile');
+        const response = await axios.get('/api/users/profile', {
+          withCredentials: true
+        });
         profile.value = response.data;
         selectedLanguage.value = response.data.preferred_language || 'ru';
         isAdmin.value = response.data.role === 'admin';
@@ -73,6 +75,8 @@ export default {
       try {
         await axios.post('/api/users/update-language', {
           language: selectedLanguage.value
+        }, {
+          withCredentials: true
         });
         // Обновляем язык в профиле
         profile.value.preferred_language = selectedLanguage.value;

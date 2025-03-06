@@ -1,27 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { linkIdentity, getUserIdentities } = require('../utils/identity-linker');
-const { Pool } = require('pg');
-
-// Подключение к БД
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
-
-// Middleware для проверки аутентификации
-function requireAuth(req, res, next) {
-  if (!req.session || (!req.session.isAuthenticated && !req.session.authenticated)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-}
+const db = require('../db');
+const { requireAuth } = require('../middleware/auth');
 
 // Получение связанных идентификаторов пользователя
 router.get('/', requireAuth, async (req, res) => {
   try {
     // Получаем ID пользователя по Ethereum-адресу
-    const result = await pool.query('SELECT id FROM users WHERE address = $1', [
+    const result = await db.query('SELECT id FROM users WHERE address = $1', [
       req.session.address,
     ]);
 
@@ -47,7 +34,7 @@ router.delete('/:type/:value', requireAuth, async (req, res) => {
     const { type, value } = req.params;
 
     // Получаем ID пользователя по Ethereum-адресу
-    const result = await pool.query('SELECT id FROM users WHERE address = $1', [
+    const result = await db.query('SELECT id FROM users WHERE address = $1', [
       req.session.address,
     ]);
 
@@ -58,7 +45,7 @@ router.delete('/:type/:value', requireAuth, async (req, res) => {
     const userId = result.rows[0].id;
 
     // Удаляем идентификатор
-    await pool.query(
+    await db.query(
       'DELETE FROM user_identities WHERE user_id = $1 AND identity_type = $2 AND identity_value = $3',
       [userId, type, value]
     );
