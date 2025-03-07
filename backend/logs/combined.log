@@ -119,3 +119,13 @@
 {"level":"info","message":"User 13 with address 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b: admin=false","timestamp":"2025-03-06T18:30:01.749Z"}
 {"level":"info","message":"Updated user 13 with address 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b: admin=false","timestamp":"2025-03-06T18:30:01.749Z"}
 {"level":"info","message":"Token check completed","timestamp":"2025-03-06T18:30:01.749Z"}
+{"level":"info","message":"Running scheduled token balance check","timestamp":"2025-03-07T11:00:00.391Z"}
+{"level":"info","message":"Checking tokens for 2 users","timestamp":"2025-03-07T11:00:00.419Z"}
+{"level":"error","message":"Error checking admin token: execution reverted: \"No active token\" (action=\"call\", data=\"0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000f4e6f2061637469766520746f6b656e0000000000000000000000000000000000\", reason=\"No active token\", transaction={ \"data\": \"0xa0d7823e0000000000000000000000000000000000000000000000000000000000000000\", \"to\": \"0xF352c498cF0857F472dC473E4Dd39551E79B1063\" }, invocation=null, revert={ \"args\": [ \"No active token\" ], \"name\": \"Error\", \"signature\": \"Error(string)\" }, code=CALL_EXCEPTION, version=6.13.5)","timestamp":"2025-03-07T11:00:01.373Z"}
+{"level":"info","message":"Updated role for user 10 to user","timestamp":"2025-03-07T11:00:01.379Z"}
+{"level":"info","message":"User 10 with address 0x0000000000000000000000000000000000000000: admin=false","timestamp":"2025-03-07T11:00:01.379Z"}
+{"level":"info","message":"Updated user 10 with address 0x0000000000000000000000000000000000000000: admin=false","timestamp":"2025-03-07T11:00:01.379Z"}
+{"level":"info","message":"Updated role for user 13 to user","timestamp":"2025-03-07T11:00:01.577Z"}
+{"level":"info","message":"User 13 with address 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b: admin=false","timestamp":"2025-03-07T11:00:01.578Z"}
+{"level":"info","message":"Updated user 13 with address 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b: admin=false","timestamp":"2025-03-07T11:00:01.578Z"}
+{"level":"info","message":"Token check completed","timestamp":"2025-03-07T11:00:01.578Z"}
