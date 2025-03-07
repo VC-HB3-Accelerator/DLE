@@ -1,0 +1,30 @@
+# Игнорировать всю директорию .cursor
+.cursor/
+
+# Но не игнорировать директорию rules
+!.cursor/rules/
+
+# Игнорировать временные файлы в директории rules
+.cursor/rules/*.tmp
+.cursor/rules/*.temp
+
+# Игнорировать логи и кэш
+.cursor/logs/
+.cursor/cache/
+
+# Игнорировать файлы настроек, которые могут содержать личные данные
+.cursor/settings.json
+.cursor/user-settings.json
+.cursor/credentials.json
+
+# Игнорировать историю и другие пользовательские данные
+.cursor/history/
+.cursor/user-data/
+
+# Игнорировать файлы состояния
+.cursor/state/
+.cursor/*.state
+
+# Игнорировать бэкапы
+.cursor/backups/
+.cursor/*.bak
