@@ -7,10 +7,11 @@ router.get('/', (req, res) => {
   res.json({
     message: 'Contracts API endpoint',
     contracts: [
-      {
-        name: 'AccessToken',
-        address: process.env.ACCESS_TOKEN_ADDRESS,
-      },
+      // Удаляем AccessToken
+      // {
+      //   name: 'AccessToken',
+      //   address: process.env.ACCESS_TOKEN_ADDRESS,
+      // },
     ],
   });
 });
@@ -20,11 +21,12 @@ router.get('/details', requireRole('ADMIN'), (req, res) => {
   res.json({
     message: 'Contract details endpoint',
     contracts: [
-      {
-        name: 'AccessToken',
-        address: process.env.ACCESS_TOKEN_ADDRESS,
-        network: process.env.ETHEREUM_NETWORK_URL.includes('sepolia') ? 'Sepolia' : 'Unknown',
-      },
+      // Удаляем AccessToken
+      // {
+      //   name: 'AccessToken',
+      //   address: process.env.ACCESS_TOKEN_ADDRESS,
+      //   network: process.env.ETHEREUM_NETWORK_URL.includes('sepolia') ? 'Sepolia' : 'Unknown',
+      // },
     ],
   });
 });

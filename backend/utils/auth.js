@@ -5,7 +5,7 @@ const authService = require('../services/auth-service');
 const { USER_ROLES, IDENTITY_TYPES } = require('./constants');
 
 // Инициализация провайдера
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL_ETH);
 
 /**
  * Проверяет подпись сообщения
@@ -37,8 +37,8 @@ async function verifySignature(nonce, signature, address) {
  */
 async function checkUserRole(address) {
   try {
-    // Проверяем наличие токена администратора
-    const isAdmin = await authService.checkAdminToken(address);
+    // Проверяем наличие токенов администратора
+    const isAdmin = await authService.checkAdminTokens(address);
     return isAdmin;
   } catch (error) {
     console.error('Error checking user role:', error);
@@ -53,8 +53,8 @@ async function checkUserRole(address) {
  */
 async function checkAccess(walletAddress) {
   try {
-    // Проверяем наличие токена администратора
-    const isAdmin = await authService.checkAdminToken(walletAddress);
+    // Проверяем наличие токенов администратора
+    const isAdmin = await authService.checkAdminTokens(walletAddress);
     
     // Получаем или создаем пользователя
     const userId = await findOrCreateUser(walletAddress);
@@ -81,7 +81,11 @@ async function checkAccess(walletAddress) {
 async function findOrCreateUser(address) {
   try {
     // Проверяем, существует ли пользователь
-    const userResult = await db.query('SELECT * FROM users WHERE LOWER(address) = LOWER($1)', [address]);
+    const userResult = await db.query(`
+      SELECT u.id FROM users u
+      JOIN user_identities ui ON u.id = ui.user_id
+      WHERE ui.identity_type = 'wallet' AND LOWER(ui.identity_value) = LOWER($1)
+    `, [address]);
     
     let userId;
     let isAdmin = false;
@@ -97,11 +101,17 @@ async function findOrCreateUser(address) {
       
       // Создаем пользователя с ролью 'user'
       const newUserResult = await db.query(
-        'INSERT INTO users (address, role_id, created_at) VALUES (LOWER($1), $2, NOW()) RETURNING id',
-        [address, roleId]
+        'INSERT INTO users (role_id, created_at) VALUES ($1, NOW()) RETURNING id',
+        [roleId]
       );
       
       userId = newUserResult.rows[0].id;
+      
+      // Добавляем идентификатор кошелька
+      await db.query(
+        'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
+        [userId, 'wallet', address.toLowerCase()]
+      );
       
       // Проверяем, является ли пользователь администратором
       isAdmin = await checkUserRole(address);
@@ -115,25 +125,18 @@ async function findOrCreateUser(address) {
         }
       }
     } else {
-      // Если пользователь найден, получаем его ID и роль
+      // Если пользователь найден, получаем его ID
       userId = userResult.rows[0].id;
       
-      // Проверяем, является ли пользователь администратором по роли
-      const roleResult = await db.query('SELECT name FROM roles WHERE id = $1', [userResult.rows[0].role_id]);
-      isAdmin = roleResult.rows.length > 0 && roleResult.rows[0].name === 'admin';
+      // Проверяем, является ли пользователь администратором
+      isAdmin = await checkUserRole(address);
       
-      // Проверяем, является ли пользователь администратором по токену
-      const isAdminByToken = await checkUserRole(address);
-      
-      // Обновляем роль пользователя, если она изменилась
-      if (isAdminByToken !== isAdmin) {
-        const roleNameToSet = isAdminByToken ? 'admin' : 'user';
-        const roleToSetResult = await db.query('SELECT id FROM roles WHERE name = $1', [roleNameToSet]);
-        if (roleToSetResult.rows.length > 0) {
-          const roleIdToSet = roleToSetResult.rows[0].id;
-          await db.query('UPDATE users SET role_id = $1 WHERE id = $2', [roleIdToSet, userId]);
-          isAdmin = isAdminByToken;
-        }
+      // Обновляем роль пользователя
+      const roleNameToSet = isAdmin ? 'admin' : 'user';
+      const roleToSetResult = await db.query('SELECT id FROM roles WHERE name = $1', [roleNameToSet]);
+      if (roleToSetResult.rows.length > 0) {
+        const roleIdToSet = roleToSetResult.rows[0].id;
+        await db.query('UPDATE users SET role_id = $1 WHERE id = $2', [roleIdToSet, userId]);
       }
     }
     

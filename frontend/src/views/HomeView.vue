@@ -108,6 +108,21 @@ onMounted(() => {
   } else {
     userLanguage.value = userLang.split('-')[0];
   }
+
+  // Проверка прав администратора
+  if (auth.isAdmin) {
+    messages.value.push({
+      sender: 'ai',
+      text: 'Вы имеете права администратора.',
+      timestamp: new Date(),
+    });
+  } else {
+    messages.value.push({
+      sender: 'ai',
+      text: 'У вас нет прав администратора.',
+      timestamp: new Date(),
+    });
+  }
 });
 
 // Функция для отправки сообщения
