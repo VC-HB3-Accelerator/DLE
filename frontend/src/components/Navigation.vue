@@ -6,8 +6,6 @@
     
     <div class="navbar-menu">
       <div class="navbar-start">
-        <router-link to="/" class="navbar-item">Главная</router-link>
-        <router-link v-if="isAuthenticated" to="/chat" class="navbar-item">Чат</router-link>
       </div>
       
       <div class="navbar-end">

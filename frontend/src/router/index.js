@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import HomeView from '../views/HomeView.vue';
-import ChatView from '../views/ChatView.vue';
 
 const routes = [
   {
@@ -10,12 +9,6 @@ const routes = [
     component: HomeView,
     meta: { requiresAuth: false },
   },
-  {
-    path: '/chat',
-    name: 'chat',
-    component: ChatView,
-    meta: { requiresAuth: true }
-  }
 ];
 
 const router = createRouter({

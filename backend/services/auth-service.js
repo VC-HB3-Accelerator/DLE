@@ -1,44 +1,36 @@
 const db = require('../db');
-const { getContract } = require('../utils/contracts');
 const logger = require('../utils/logger');
 const { ethers } = require('ethers');
-const path = require('path');
 
-// Инициализируем провайдер
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+// В начале файла auth-service.js
+const getProvider = (network) => {
+  const primaryUrl = process.env[`RPC_URL_${network.toUpperCase()}`];
+  const backupUrls = {
+    eth: 'https://eth-mainnet.public.blastapi.io',
+    polygon: 'https://polygon-rpc.com',
+    bsc: 'https://bsc-dataseed.binance.org',
+    arbitrum: 'https://arb1.arbitrum.io/rpc'
+  };
+  
+  try {
+    return new ethers.JsonRpcProvider(primaryUrl);
+  } catch (error) {
+    logger.warn(`Failed to connect to primary URL for ${network}, using backup`);
+    return new ethers.JsonRpcProvider(backupUrls[network]);
+  }
+};
 
-const contractsDir = path.join(__dirname, '../artifacts/contracts/AccessToken.sol');
+const providers = {
+  eth: getProvider('eth'),
+  polygon: getProvider('polygon'),
+  bsc: getProvider('bsc'),
+  arbitrum: getProvider('arbitrum')
+};
 
 /**
  * Сервис для работы с аутентификацией и авторизацией
  */
 class AuthService {
-  /**
-   * Проверяет наличие токена администратора для кошелька
-   * @param {string} walletAddress - Адрес кошелька
-   * @returns {Promise<boolean>} - Имеет ли кошелек токен администратора
-   */
-  async checkAdminToken(walletAddress) {
-    try {
-      if (!walletAddress) {
-        logger.error('Wallet address is undefined');
-        return false;
-      }
-
-      // Получаем контракт AccessToken
-      const accessToken = await getContract('AccessToken');
-      
-      // Проверяем роль пользователя
-      const role = await accessToken.checkRole(walletAddress);
-      
-      // 0 = ADMIN
-      return role === 0;
-    } catch (error) {
-      logger.error(`Error checking admin token: ${error.message}`);
-      return false;
-    }
-  }
-
   /**
    * Проверяет наличие токенов на кошельке и обновляет роль
    * @param {string} walletAddress - Адрес кошелька
@@ -60,8 +52,8 @@ class AuthService {
       
       const userId = userResult.rows[0].id;
       
-      // Проверяем наличие токена администратора
-      const isAdmin = await this.checkAdminToken(walletAddress);
+      // Проверяем наличие токенов на кошельке
+      const isAdmin = await this.checkAdminTokens(walletAddress);
       
       // Обновляем роль в базе данных
       await this.updateUserRole(userId, isAdmin ? 'admin' : 'user');
@@ -71,6 +63,62 @@ class AuthService {
       return isAdmin;
     } catch (error) {
       logger.error(`Error checking tokens: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Проверяет наличие токенов на кошельке
+   * @param {string} walletAddress - Адрес кошелька
+   * @returns {Promise<boolean>} - Имеет ли кошелек токены
+   */
+  async checkAdminTokens(walletAddress) {
+    try {
+      const tokenContracts = [
+        { address: "0xd95a45fc46a7300e6022885afec3d618d7d3f27c", network: "eth" },     // Ethereum
+        { address: "0x1d47f12ffA279BFE59Ab16d56fBb10d89AECdD5D", network: "bsc" },     // Binance Smart Chain
+        { address: "0xdce769b847a0a697239777d0b1c7dd33b6012ba0", network: "arbitrum" }, // Arbitrum
+        { address: "0x351f59de4fedbdf7601f5592b93db3b9330c1c1d", network: "polygon" }   // Polygon
+      ];
+
+      const MIN_BALANCE = ethers.parseUnits("1.0", 18); // 1 токен
+
+      for (const contract of tokenContracts) {
+        try {
+          const provider = providers[contract.network];
+          if (!provider) {
+            logger.warn(`Provider not found for network: ${contract.network}`);
+            continue;
+          }
+
+          // Проверка доступности провайдера
+          try {
+            await provider.getBlockNumber(); // Простой запрос для проверки соединения
+          } catch (providerError) {
+            logger.warn(`Provider for ${contract.network} is not responding: ${providerError.message}`);
+            continue;
+          }
+
+          const tokenContract = new ethers.Contract(contract.address, [
+            "function balanceOf(address owner) view returns (uint256)"
+          ], provider);
+
+          const balance = await tokenContract.balanceOf(walletAddress);
+          logger.info(`Balance for ${walletAddress} on ${contract.network}: ${balance.toString()}`);
+          
+          if (balance >= MIN_BALANCE) {
+            logger.info(`Admin token found on ${contract.network} for ${walletAddress}`);
+            return true; // Если найден хотя бы один токен, возвращаем true
+          }
+        } catch (error) {
+          logger.error(`Error checking balance on ${contract.network}: ${error.message}`);
+        }
+      }
+
+      logger.info(`No admin tokens found for ${walletAddress}`);
+      return false; // Если не найдено ни одного токена, возвращаем false
+    } catch (error) {
+      logger.error(`Error in checkAdminTokens: ${error.message}`);
       return false;
     }
   }
@@ -154,10 +202,10 @@ class AuthService {
       
       return result.rows[0].id;
     } catch (error) {
-      logger.error(`Error getting user ID by identity: ${error.message}`);
+      logger.error(`Ошибка при получении ID пользователя по идентификатору: ${error.message}`);
       return null;
     }
   }
 }
 
-module.exports = new AuthService(); 
+module.exports = new AuthService();

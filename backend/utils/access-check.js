@@ -1,5 +1,5 @@
 const db = require('../db');
-const logger = require('./logger');
+const logger = require('../utils/logger');
 const authService = require('../services/auth-service');
 
 /**
