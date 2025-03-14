@@ -14,40 +14,54 @@ const requireAuth = async (req, res, next) => {
     console.log('Authorization header:', req.headers.authorization);
     
     // Проверяем, что пользователь аутентифицирован через сессию
-    if (req.session && req.session.authenticated) {
+    if (req.session && req.session.authenticated && req.session.userId) {
+      // Добавляем информацию о пользователе в запрос
+      req.user = {
+        userId: req.session.userId,
+        address: req.session.address || null,
+        email: req.session.email || null,
+        telegramId: req.session.telegramId || null,
+        isAdmin: req.session.isAdmin || false,
+        authType: req.session.authType || 'unknown'
+      };
       return next();
     }
     
     // Проверяем заголовок авторизации
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const address = authHeader.split(' ')[1];
-      console.log('Found address in Authorization header:', address);
+      const token = authHeader.split(' ')[1];
       
-      try {
-        // Находим пользователя по адресу
-        const { pool } = require('../db');
-        console.log('Querying database for user with address:', address);
-        const result = await pool.query('SELECT * FROM users WHERE LOWER(address) = LOWER($1)', [address]);
-        console.log('Database query result:', result.rows);
+      // Проверяем, это адрес кошелька или JWT-токен
+      if (token.startsWith('0x')) {
+        // Это адрес кошелька
+        const address = token;
+        console.log('Found address in Authorization header:', address);
         
-        if (result.rows.length > 0) {
-          const user = result.rows[0];
-          console.log('Found user by address:', user);
+        try {
+          // Проверяем, существует ли пользователь с таким адресом
+          const result = await db.query(`
+            SELECT u.id, u.is_admin 
+            FROM users u
+            JOIN user_identities ui ON u.id = ui.user_id
+            WHERE ui.identity_type = 'wallet' AND LOWER(ui.identity_value) = LOWER($1)
+          `, [address]);
           
-          // Устанавливаем данные пользователя в запросе
-          req.user = {
-            userId: user.id,
-            address: address,
-            isAdmin: user.is_admin
-          };
-          
-          return next();
-        } else {
-          console.log('No user found with address:', address);
+          if (result.rows.length > 0) {
+            const user = result.rows[0];
+            req.user = {
+              userId: user.id,
+              address: address,
+              isAdmin: user.is_admin,
+              authType: 'wallet'
+            };
+            return next();
+          }
+        } catch (error) {
+          console.error('Error finding user by address:', error);
         }
-      } catch (error) {
-        console.error('Error finding user by address:', error);
+      } else {
+        // Здесь можно добавить логику проверки JWT, если используется
       }
     }
     

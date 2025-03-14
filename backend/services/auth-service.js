@@ -206,6 +206,46 @@ class AuthService {
       return null;
     }
   }
+
+  /**
+   * Получает все идентификаторы пользователя
+   * @param {number} userId - ID пользователя
+   * @returns {Promise<Array>} - Список идентификаторов
+   */
+  async getAllUserIdentities(userId) {
+    try {
+      const result = await db.query(`
+        SELECT identity_type, identity_value, verified, created_at
+        FROM user_identities
+        WHERE user_id = $1
+      `, [userId]);
+      
+      return result.rows;
+    } catch (error) {
+      logger.error(`Error getting user identities: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Проверяет, является ли пользователь администратором
+   * @param {number} userId - ID пользователя
+   * @returns {Promise<boolean>} - Является ли пользователь администратором
+   */
+  async isAdmin(userId) {
+    try {
+      const result = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+      
+      if (result.rows.length === 0) {
+        return false;
+      }
+      
+      return result.rows[0].is_admin;
+    } catch (error) {
+      logger.error(`Error checking admin status: ${error.message}`);
+      return false;
+    }
+  }
 }
 
 module.exports = new AuthService();

@@ -11,6 +11,7 @@ const { pool } = require('../db');
 const { verifySignature, checkAccess, findOrCreateUser } = require('../utils/auth');
 const authService = require('../services/auth-service');
 const { SiweMessage } = require('siwe');
+const { sendEmail } = require('../services/emailBot');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -187,7 +188,12 @@ router.post('/telegram', async (req, res) => {
     }
     
     // Проверяем связанные аккаунты
-    const identities = await authService.getAllUserIdentities(userId);
+    const identitiesResult = await db.query(`
+      SELECT identity_type, identity_value
+      FROM user_identities ui
+      WHERE user_id = $1
+    `, [userId]);
+    const identities = identitiesResult.rows;
     
     // Если есть связанный кошелек, проверяем токены
     if (identities.wallet) {
@@ -213,6 +219,156 @@ router.post('/telegram', async (req, res) => {
   } catch (error) {
     logger.error(`Telegram auth error: ${error.message}`);
     res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Маршрут для запроса кода подтверждения по email
+router.post('/email/request', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    // Генерируем уникальный токен
+    const token = crypto.randomBytes(20).toString('hex');
+    
+    // Создаем или получаем ID пользователя
+    let userId;
+    
+    if (req.session.authenticated && req.session.userId) {
+      // Если пользователь уже аутентифицирован, используем его ID
+      userId = req.session.userId;
+    } else {
+      // Создаем временного пользователя
+      const userResult = await db.query(
+        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
+      );
+      userId = userResult.rows[0].id;
+      
+      // Сохраняем ID в сессии как временный
+      req.session.tempUserId = userId;
+    }
+    
+    // Сохраняем токен в базе данных
+    await db.query(`
+      INSERT INTO email_auth_tokens (user_id, token, created_at, expires_at)
+      VALUES ($1, $2, NOW(), NOW() + INTERVAL '15 minutes')
+    `, [userId, token]);
+    
+    // Отправляем email с кодом подтверждения через emailBot
+    const EmailBotService = require('../services/emailBot');
+    const emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
+    
+    // Используем новый метод sendVerificationCode вместо sendEmail
+    const result = await emailBot.sendVerificationCode(email, token);
+    
+    if (result.success) {
+      // Сохраняем email в сессии для последующей верификации
+      req.session.pendingEmail = email;
+      
+      // Сохраняем сессию
+      await new Promise((resolve, reject) => {
+        req.session.save(err => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Verification code sent to your email',
+        verificationCode: result.code // НЕ ОСТАВЛЯЙТЕ В PRODUCTION - только для отладки
+      });
+    } else {
+      return res.status(500).json({ error: 'Error sending email' });
+    }
+  } catch (error) {
+    console.error('Error requesting email verification:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Маршрут для верификации email
+router.post('/email/verify', async (req, res) => {
+  try {
+    const { code } = req.body;
+    const verificationData = req.session.emailVerificationData;
+    
+    // Проверяем, что код существует и не истек
+    if (!verificationData || 
+        verificationData.code !== code || 
+        Date.now() > verificationData.expires) {
+      return res.status(400).json({
+        success: false,
+        error: 'Неверный или истекший код подтверждения'
+      });
+    }
+    
+    const email = verificationData.email;
+    
+    // Ищем или создаем пользователя с этим email
+    const result = await db.query(
+      'SELECT * FROM find_or_create_user_by_identity($1, $2)',
+      ['email', email]
+    );
+    
+    const userId = result.rows[0].user_id;
+    const isNew = result.rows[0].is_new;
+    
+    // Проверяем, есть ли у пользователя связанный кошелек
+    const walletResult = await db.query(`
+      SELECT identity_value 
+      FROM user_identities ui
+      WHERE ui.user_id = $1 AND ui.identity_type = 'wallet'
+    `, [userId]);
+    
+    const hasWallet = walletResult.rows.length > 0;
+    let walletAddress = null;
+    let isAdmin = false;
+    
+    // Если есть кошелек, проверяем наличие токенов
+    if (hasWallet) {
+      walletAddress = walletResult.rows[0].identity_value;
+      const userResult = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+      isAdmin = userResult.rows[0].is_admin;
+    }
+    
+    // Устанавливаем сессию
+    req.session.authenticated = true;
+    req.session.userId = userId;
+    req.session.authType = 'email';
+    req.session.email = email;
+    req.session.isAdmin = isAdmin;
+    if (walletAddress) {
+      req.session.address = walletAddress;
+    }
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    // Очищаем данные верификации
+    delete req.session.emailVerificationData;
+    
+    res.json({
+      success: true,
+      authenticated: true,
+      userId,
+      email,
+      isAdmin,
+      hasWallet,
+      walletAddress,
+      isNew
+    });
+  } catch (error) {
+    logger.error(`Error in email verification: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -242,29 +398,65 @@ router.post('/email', async (req, res) => {
       );
     }
     
-    // Проверяем связанные аккаунты
-    const identities = await authService.getAllUserIdentities(userId);
+    // Получаем связанные идентификаторы
+    const identitiesResult = await db.query(`
+      SELECT identity_type, identity_value 
+      FROM user_identities ui
+      WHERE ui.user_id = $1
+    `, [userId]);
     
-    // Если есть связанный кошелек, проверяем токены
-    if (identities.wallet) {
-      await authService.checkTokensAndUpdateRole(identities.wallet);
+    const identities = identitiesResult.rows;
+    
+    // Формируем объект с идентификаторами по типам
+    const identitiesMap = {};
+    for (const identity of identities) {
+      identitiesMap[identity.identity_type] = identity.identity_value;
     }
     
-    // Получаем текущую роль
-    const isAdmin = await authService.isAdmin(userId);
+    // Проверяем, есть ли связанный кошелек
+    let isAdmin = false;
+    if (identitiesMap.wallet) {
+      // Если есть связанный кошелек, проверяем токены
+      const walletAddress = identitiesMap.wallet;
+      isAdmin = await authService.checkAdminTokens(walletAddress);
+      
+      // Обновляем статус администратора в БД, если необходимо
+      await db.query('UPDATE users SET is_admin = $1 WHERE id = $2', [isAdmin, userId]);
+    } else {
+      // Если нет связанного кошелька, проверяем текущий статус администратора
+      isAdmin = await authService.isAdmin(userId);
+    }
     
     // Устанавливаем сессию
     req.session.userId = userId;
     req.session.email = email;
     req.session.authType = 'email';
     req.session.authenticated = true;
+    req.session.isAdmin = isAdmin;
+    
+    if (identitiesMap.wallet) {
+      req.session.address = identitiesMap.wallet;
+    }
+    
+    // Сохраняем сессию перед отправкой ответа
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          console.error('Error saving session:', err);
+          reject(err);
+        } else {
+          console.log('Session saved successfully');
+          resolve();
+        }
+      });
+    });
       
-      res.json({ 
-        authenticated: true, 
+    res.json({ 
+      authenticated: true, 
       userId,
       isAdmin,
       authType: 'email',
-      identities
+      identities: identitiesMap
     });
   } catch (error) {
     logger.error(`Email auth error: ${error.message}`);
@@ -302,7 +494,12 @@ router.post('/link-identity', async (req, res) => {
     }
     
     // Получаем все идентификаторы пользователя
-    const identities = await authService.getAllUserIdentities(req.session.userId);
+    const identitiesResult = await db.query(`
+      SELECT identity_type, identity_value
+      FROM user_identities
+      WHERE user_id = $1
+    `, [req.session.userId]);
+    const identities = identitiesResult.rows;
     
     // Получаем текущую роль
     const isAdmin = await authService.isAdmin(req.session.userId);
@@ -383,103 +580,186 @@ router.get('/telegram', (req, res) => {
   res.json({ authUrl });
 });
 
-// Маршрут для авторизации через Email
-router.post('/email', async (req, res) => {
+// Маршрут для получения кода подтверждения Telegram
+router.get('/telegram/code', async (req, res) => {
   try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    // Генерируем код подтверждения
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-
+    // Генерируем код подтверждения (6 символов)
+    const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
     // Сохраняем код в сессии
-    req.session.emailVerificationCode = verificationCode;
-    req.session.pendingEmail = email;
-
-    // В реальном приложении здесь нужно отправить email с кодом подтверждения
-    // Удалите или закомментируйте эти логи
-    // console.log(`Verification code for ${email}: ${verificationCode}`);
-
-    res.json({ success: true, message: 'Verification code sent' });
+    req.session.telegramVerificationData = {
+      code: verificationCode,
+      expires: Date.now() + 10 * 60 * 1000 // 10 минут
+    };
+    
+    res.json({
+      success: true,
+      message: 'Отправьте этот код боту @' + process.env.TELEGRAM_BOT_USERNAME,
+      code: verificationCode,
+      botUsername: process.env.TELEGRAM_BOT_USERNAME || 'YourDAppBot'
+    });
   } catch (error) {
-    // Удалите или закомментируйте эти логи
-    // console.error('Error sending verification code:', error);
-    logger.error('Error sending verification code:', error);
-    res.status(500).json({ error: 'Failed to send verification code' });
+    logger.error(`Error in telegram code request: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
-// Маршрут для проверки кода подтверждения Email
-router.post('/email/verify', async (req, res) => {
+// Маршрут для верификации Telegram
+router.post('/telegram/verify', async (req, res) => {
   try {
-    const { email, code } = req.body;
-
-    if (!email || !code) {
-      return res.status(400).json({ error: 'Email and code are required' });
+    const { telegramId, code } = req.body;
+    const verificationData = req.session.telegramVerificationData;
+    
+    // Проверяем, что код существует и не истек
+    if (!verificationData || 
+        verificationData.code !== code || 
+        Date.now() > verificationData.expires) {
+      return res.status(400).json({
+        success: false,
+        error: 'Неверный или истекший код подтверждения'
+      });
     }
-
-    // Получаем код из сессии
-    const verificationCode = req.session.emailVerificationCode;
-    const pendingEmail = req.session.pendingEmail;
-
-    if (!verificationCode || !pendingEmail) {
-      return res.status(400).json({ error: 'No pending verification' });
-    }
-
-    // Проверяем, что email совпадает с тем, для которого был сгенерирован код
-    if (pendingEmail !== email) {
-      return res.status(400).json({ error: 'Email mismatch' });
-    }
-
-    // Проверяем код
-    if (verificationCode !== code) {
-      return res.status(400).json({ error: 'Invalid verification code' });
-    }
-
-    // Проверяем, существует ли пользователь в базе данных
-    const user = await db.query('SELECT * FROM users WHERE email = $1', [email]);
-
-    let userId;
+    
+    // Ищем или создаем пользователя с этим Telegram ID
+    const result = await db.query(
+      'SELECT * FROM find_or_create_user_by_identity($1, $2)',
+      ['telegram', telegramId]
+    );
+    
+    const userId = result.rows[0].user_id;
+    const isNew = result.rows[0].is_new;
+    
+    // Проверяем, есть ли у пользователя связанный кошелек
+    const walletResult = await db.query(`
+      SELECT identity_value 
+      FROM user_identities ui
+      WHERE ui.user_id = $1 AND ui.identity_type = 'wallet'
+    `, [userId]);
+    
+    const hasWallet = walletResult.rows.length > 0;
+    let walletAddress = null;
     let isAdmin = false;
-
-    if (user.rows.length === 0) {
-      // Если пользователь не существует, создаем его
-      const newUser = await db.query(
-        'INSERT INTO users (email, created_at) VALUES ($1, NOW()) RETURNING id',
-        [email]
-      );
-      userId = newUser.rows[0].id;
-    } else {
-      userId = user.rows[0].id;
-      isAdmin = user.rows[0].is_admin || false;
+    
+    // Если есть кошелек, проверяем наличие токенов
+    if (hasWallet) {
+      walletAddress = walletResult.rows[0].identity_value;
+      const userResult = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+      isAdmin = userResult.rows[0].is_admin;
     }
-
-    // Устанавливаем состояние аутентификации в сессии
-    req.session.isAuthenticated = true;
+    
+    // Устанавливаем сессию
     req.session.authenticated = true;
-    req.session.address = email;
     req.session.userId = userId;
+    req.session.authType = 'telegram';
+    req.session.telegramId = telegramId;
     req.session.isAdmin = isAdmin;
-    req.session.authType = 'email';
-
-    // Удаляем код из сессии
-    delete req.session.emailVerificationCode;
-    delete req.session.pendingEmail;
-
+    if (walletAddress) {
+      req.session.address = walletAddress;
+    }
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    // Очищаем данные верификации
+    delete req.session.telegramVerificationData;
+    
     res.json({
+      success: true,
       authenticated: true,
-      address: email,
+      userId,
+      telegramId,
       isAdmin,
-      authType: 'email',
+      hasWallet,
+      walletAddress,
+      isNew
     });
   } catch (error) {
-    // Удалите или закомментируйте эти логи
-    // console.error('Error verifying email code:', error);
-    logger.error('Error verifying email code:', error);
-    res.status(500).json({ error: 'Failed to verify email code' });
+    logger.error(`Error in telegram verification: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Маршрут для связывания разных идентификаторов
+router.post('/link-identity', requireAuth, async (req, res) => {
+  try {
+    const { type, value } = req.body;
+    const userId = req.session.userId;
+    
+    // Проверяем валидность типа
+    if (!['wallet', 'email', 'telegram'].includes(type)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Неподдерживаемый тип идентификатора' 
+      });
+    }
+    
+    // Проверяем, не связан ли идентификатор с другим пользователем
+    const existingResult = await db.query(`
+      SELECT ui.user_id 
+      FROM user_identities ui
+      WHERE ui.identity_type = $1 AND ui.identity_value = $2
+    `, [type, value]);
+    
+    if (existingResult.rows.length > 0 && existingResult.rows[0].user_id !== userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Этот идентификатор уже связан с другим аккаунтом'
+      });
+    }
+    
+    // Добавляем или обновляем идентификатор
+    await db.query(`
+      INSERT INTO user_identities (user_id, identity_type, identity_value, created_at, verified)
+      VALUES ($1, $2, $3, NOW(), true)
+      ON CONFLICT (identity_type, identity_value) 
+      DO UPDATE SET verified = true
+    `, [userId, type, value]);
+    
+    // Если связываем кошелек, обновляем также поле address в таблице users
+    if (type === 'wallet') {
+      await db.query('UPDATE users SET address = $1 WHERE id = $2', [value, userId]);
+      
+      // Проверяем наличие токенов для статуса админа
+      const isAdmin = await authService.checkAdminTokens(value);
+      if (isAdmin) {
+        await db.query('UPDATE users SET is_admin = true WHERE id = $1', [userId]);
+        req.session.isAdmin = true;
+      }
+      
+      req.session.address = value;
+    }
+    
+    // Если связываем email, обновляем сессию
+    if (type === 'email') {
+      req.session.email = value;
+    }
+    
+    // Если связываем telegram, обновляем сессию
+    if (type === 'telegram') {
+      req.session.telegramId = value;
+    }
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    res.json({
+      success: true,
+      message: `Идентификатор успешно связан с вашим аккаунтом`,
+      isAdmin: req.session.isAdmin
+    });
+  } catch (error) {
+    logger.error(`Error linking identity: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
 
@@ -623,6 +903,212 @@ router.post('/update-admin-status', async (req, res) => {
   } catch (error) {
     console.error('Ошибка при обновлении статуса администратора:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Маршрут для создания токена авторизации через Email
+router.post('/email/auth-token', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.status(400).json({ success: false, error: 'Неверный формат email' });
+    }
+    
+    // Генерируем уникальный токен
+    const token = crypto.randomBytes(20).toString('hex');
+    
+    // Получаем ID пользователя из сессии или создаем нового гостевого пользователя
+    let userId;
+    
+    if (req.session.authenticated && req.session.userId) {
+      // Если пользователь уже аутентифицирован, используем его ID
+      userId = req.session.userId;
+    } else {
+      // Создаем временного пользователя
+      const userResult = await db.query(
+        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
+      );
+      userId = userResult.rows[0].id;
+      
+      // Сохраняем ID в сессии как временный
+      req.session.tempUserId = userId;
+    }
+    
+    // Сохраняем токен в базе данных
+    await db.query(`
+      INSERT INTO email_auth_tokens (user_id, token, created_at, expires_at)
+      VALUES ($1, $2, NOW(), NOW() + INTERVAL '15 minutes')
+    `, [userId, token]);
+    
+    // Отправляем email с кодом подтверждения через emailBot
+    const emailBot = require('../services/emailBot');
+    const emailService = new emailBot(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
+    const sendResult = await emailService.sendVerificationCode(email, token);
+    
+    if (sendResult.success) {
+      res.json({
+        success: true,
+        message: 'Код подтверждения отправлен на ваш email'
+      });
+    } else {
+      res.status(500).json({ success: false, error: 'Ошибка отправки email' });
+    }
+  } catch (error) {
+    logger.error(`Error creating Email auth token: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Ошибка сервера' });
+  }
+});
+
+// Маршрут для проверки статуса аутентификации через Email
+router.get('/email/auth-status/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    // Проверяем статус токена
+    const tokenResult = await db.query(`
+      SELECT user_id, used FROM email_auth_tokens
+      WHERE token = $1 AND expires_at > NOW()
+    `, [token]);
+    
+    if (tokenResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Токен не найден или истек' });
+    }
+    
+    const userId = tokenResult.rows[0].user_id;
+    const isAuthenticated = tokenResult.rows[0].used;
+    
+    if (isAuthenticated) {
+      // Токен использован, email подключен
+      
+      // Получаем email пользователя
+      const emailResult = await db.query(`
+        SELECT ui.identity_value FROM user_identities ui
+        WHERE ui.user_id = $1 AND ui.identity_type = 'email'
+      `, [userId]);
+      
+      if (emailResult.rows.length > 0) {
+        // Устанавливаем полную аутентификацию в сессии
+        req.session.authenticated = true;
+        req.session.userId = userId;
+        req.session.email = emailResult.rows[0].identity_value;
+        req.session.authType = 'email';
+        
+        // Если был временный ID, удаляем его
+        if (req.session.tempUserId) {
+          delete req.session.tempUserId;
+        }
+        
+        // Сохраняем сессию
+        await new Promise((resolve, reject) => {
+          req.session.save(err => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      authenticated: isAuthenticated
+    });
+  } catch (error) {
+    logger.error(`Error checking Email auth status: ${error.message}`);
+    res.status(500).json({ success: false, error: 'Ошибка сервера' });
+  }
+});
+
+// Маршрут для прямой проверки кода, введенного пользователем
+router.post('/email/verify-code', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: 'Email и код обязательны' });
+    }
+    
+    const EmailBotService = require('../services/emailBot');
+    const emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
+    
+    // Проверяем код из хранилища
+    const verificationData = emailBot.verificationCodes.get(email.toLowerCase());
+    
+    if (!verificationData) {
+      return res.status(400).json({ success: false, error: 'Код подтверждения не найден' });
+    }
+    
+    if (Date.now() > verificationData.expires) {
+      emailBot.verificationCodes.delete(email.toLowerCase());
+      return res.status(400).json({ success: false, error: 'Срок действия кода истек' });
+    }
+    
+    if (verificationData.code !== code) {
+      return res.status(400).json({ success: false, error: 'Неверный код подтверждения' });
+    }
+    
+    // Код верный, завершаем аутентификацию
+    const token = verificationData.token;
+    
+    // Получаем информацию о токене
+    const tokenResult = await db.query(
+      'SELECT user_id FROM email_auth_tokens WHERE token = $1',
+      [token]
+    );
+    
+    if (tokenResult.rows.length === 0) {
+      return res.status(500).json({ success: false, error: 'Токен не найден' });
+    }
+    
+    const userId = tokenResult.rows[0].user_id;
+    
+    // Добавляем email в базу данных
+    await db.query(
+      'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
+      'VALUES ($1, $2, $3, true, NOW()) ' +
+      'ON CONFLICT (identity_type, identity_value) ' +
+      'DO UPDATE SET user_id = $1, verified = true',
+      [userId, 'email', email.toLowerCase()]
+    );
+    
+    // Отмечаем токен как использованный
+    await db.query(
+      'UPDATE email_auth_tokens SET used = true WHERE token = $1',
+      [token]
+    );
+    
+    // Устанавливаем аутентификацию пользователя
+    req.session.authenticated = true;
+    req.session.userId = userId;
+    req.session.email = email.toLowerCase();
+    req.session.authType = 'email';
+    
+    // Если был временный ID, удаляем его
+    if (req.session.tempUserId) {
+      delete req.session.tempUserId;
+    }
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    // Удаляем код из хранилища
+    emailBot.verificationCodes.delete(email.toLowerCase());
+    
+    return res.json({
+      success: true,
+      userId,
+      email: email.toLowerCase(),
+      message: 'Аутентификация успешна'
+    });
+    
+  } catch (error) {
+    logger.error(`Error verifying email code: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Ошибка сервера' });
   }
 });
 
