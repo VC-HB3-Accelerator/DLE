@@ -1,4 +1,4 @@
-const { createError } = require('./errorHandler');
+const { createError } = require('../utils/error');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
 const { USER_ROLES } = require('../utils/constants');
@@ -7,13 +7,57 @@ const db = require('../db');
 /**
  * Middleware для проверки аутентификации
  */
-function requireAuth(req, res, next) {
-  console.log('Session in requireAuth:', req.session);
-  if (!req.session || !req.session.authenticated) {
-    return next(createError(401, 'Требуется аутентификация'));
+const requireAuth = async (req, res, next) => {
+  try {
+    console.log('Session in requireAuth:', req.session);
+    console.log('Cookies received:', req.headers.cookie);
+    console.log('Authorization header:', req.headers.authorization);
+    
+    // Проверяем, что пользователь аутентифицирован через сессию
+    if (req.session && req.session.authenticated) {
+      return next();
+    }
+    
+    // Проверяем заголовок авторизации
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const address = authHeader.split(' ')[1];
+      console.log('Found address in Authorization header:', address);
+      
+      try {
+        // Находим пользователя по адресу
+        const { pool } = require('../db');
+        console.log('Querying database for user with address:', address);
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(address) = LOWER($1)', [address]);
+        console.log('Database query result:', result.rows);
+        
+        if (result.rows.length > 0) {
+          const user = result.rows[0];
+          console.log('Found user by address:', user);
+          
+          // Устанавливаем данные пользователя в запросе
+          req.user = {
+            userId: user.id,
+            address: address,
+            isAdmin: user.is_admin
+          };
+          
+          return next();
+        } else {
+          console.log('No user found with address:', address);
+        }
+      } catch (error) {
+        console.error('Error finding user by address:', error);
+      }
+    }
+    
+    // Если пользователь не аутентифицирован, возвращаем ошибку
+    return res.status(401).json({ error: 'Unauthorized' });
+  } catch (error) {
+    console.error('Unexpected error in requireAuth middleware:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  next();
-}
+};
 
 /**
  * Middleware для проверки прав администратора

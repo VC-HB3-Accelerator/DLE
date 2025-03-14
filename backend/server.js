@@ -63,10 +63,10 @@ console.log('Ethers.js version:', ethers.version);
 // 1. CORS должен быть первым
 app.use(
   cors({
-    origin: ['http://127.0.0.1:5173', 'http://localhost:5173'],
-    credentials: true,
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Укажем точные домены
+    credentials: true, // Важно для передачи куки
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Nonce'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
 
@@ -173,7 +173,25 @@ app.use((req, res, next) => {
 // });
 
 // Использовать импортированный middleware для сессий
-app.use(sessionMiddleware);
+// app.use(sessionMiddleware);
+
+// Настройка сессий
+app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'session'
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: true,
+  saveUninitialized: true,
+  cookie: {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/'
+  }
+}));
 
 async function initServices() {
   try {
@@ -687,7 +705,7 @@ const cleanupInterval = 24 * 60 * 60 * 1000; // 24 часа
 setInterval(async () => {
   try {
     const { pool } = require('./db');
-    const result = await pool.query('DELETE FROM sessions WHERE expire < NOW()');
+    const result = await pool.query('DELETE FROM session WHERE expire < NOW()');
     console.log(`Очищено ${result.rowCount} устаревших сессий`);
   } catch (err) {
     console.error('Ошибка при очистке сессий:', err);
@@ -698,7 +716,7 @@ setInterval(async () => {
 setTimeout(async () => {
   try {
     const { pool } = require('./db');
-    const result = await pool.query('DELETE FROM sessions WHERE expire < NOW()');
+    const result = await pool.query('DELETE FROM session WHERE expire < NOW()');
     console.log(`Первоначальная очистка: удалено ${result.rowCount} устаревших сессий`);
   } catch (err) {
     console.error('Ошибка при первоначальной очистке сессий:', err);
@@ -712,3 +730,14 @@ app.get('/session-debug', (req, res) => {
 app.get('/check-sessions', async (req, res) => {
   // Implementation of the endpoint
 });
+
+// Функция для очистки старых сессий
+async function cleanupSessions() {
+  try {
+    // Удаляем сессии старше 30 дней
+    const result = await pool.query('DELETE FROM session WHERE expire < NOW() - INTERVAL \'30 days\'');
+    console.log(`Очищено ${result.rowCount} старых сессий`);
+  } catch (error) {
+    console.error('Ошибка при очистке старых сессий:', error);
+  }
+}

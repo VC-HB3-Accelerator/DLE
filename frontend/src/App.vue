@@ -1,111 +1,41 @@
 <template>
   <div id="app">
-    <navigation />
-    <main class="main-content">
-      <router-view />
-    </main>
+    <router-view />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue';
+import { onMounted } from 'vue';
 import { useAuthStore } from './stores/auth';
-import Navigation from './components/Navigation.vue';
-import axios from 'axios';
+import { useRouter } from 'vue-router';
+
+console.log('App.vue: Version with auth check loaded');
 
 const authStore = useAuthStore();
-
-// Проверка сессии при загрузке приложения
-async function checkSession() {
-  try {
-    // Проверяем, установлены ли куки
-    const cookies = document.cookie;
-    console.log('Текущие куки:', cookies);
-
-    await authStore.checkAuth();
-    console.log('Проверка сессии:', {
-      authenticated: authStore.isAuthenticated,
-      address: authStore.address,
-      isAdmin: authStore.isAdmin,
-      authType: authStore.authType,
-    });
-    console.log('Проверка аутентификации при загрузке:', authStore.isAuthenticated);
-    console.log('Статус администратора при загрузке:', authStore.isAdmin);
-
-    // Если пользователь авторизован, но куки не установлены, пробуем обновить сессию
-    if (authStore.isAuthenticated && !cookies.includes('connect.sid')) {
-      console.log('Куки не установлены, пробуем обновить сессию');
-      await refreshSession();
-    }
-  } catch (error) {
-    console.error('Ошибка при проверке сессии:', error);
-  }
-}
-
-// Функция для обновления сессии
-async function refreshSession() {
-  try {
-    // Проверяем, есть ли адрес пользователя
-    if (!authStore.user || !authStore.user.address) {
-      console.log('Нет адреса пользователя для обновления сессии');
-      return;
-    }
-
-    const response = await axios.post('/api/auth/refresh-session', 
-      { address: authStore.user.address },
-      { withCredentials: true }
-    );
-    
-    if (response.data.success) {
-      console.log('Сессия успешно обновлена');
-    }
-  } catch (error) {
-    console.error('Ошибка при обновлении сессии:', error);
-  }
-}
+const router = useRouter();
 
 onMounted(async () => {
-  console.log('App mounted');
-  
-  // Проверяем куки
-  const cookies = document.cookie;
-  console.log('Куки при загрузке:', cookies);
+  console.log('App.vue: onMounted - checking auth');
   
   try {
-    // Проверяем текущую сессию
-    const response = await axios.get('/api/auth/check', { withCredentials: true });
-    console.log('Ответ проверки сессии:', response.data);
+    // Проверяем аутентификацию на сервере
+    const result = await authStore.checkAuth();
+    console.log('Auth check result:', result.authenticated);
     
-    if (response.data.authenticated) {
-      // Если сессия активна, обновляем состояние аутентификации
-      authStore.isAuthenticated = response.data.authenticated;
-      authStore.user = { address: response.data.address };
-      authStore.isAdmin = response.data.isAdmin;
-      authStore.authType = 'wallet';
+    if (result.authenticated) {
+      // Если пользователь аутентифицирован, восстанавливаем состояние
+      console.log('Session restored from server');
       
-      console.log('Сессия восстановлена:', response.data);
-    } else {
-      console.log('Нет активной сессии');
-    }
-  } catch (error) {
-    console.error('Ошибка при проверке сессии:', error);
-  }
-});
-
-// Следим за изменением статуса аутентификации
-watch(
-  () => authStore.isAuthenticated,
-  (isAuthenticated) => {
-    if (isAuthenticated) {
-      console.log('Пользователь авторизован, проверяем куки');
-      const cookies = document.cookie;
-      if (!cookies.includes('connect.sid')) {
-        console.log('Куки не установлены после авторизации, пробуем обновить сессию');
-        refreshSession();
+      // Загружаем историю чата, если мы на странице чата
+      if (router.currentRoute.value.name === 'home') {
+        console.log('Loading chat history after session restore');
+        // Здесь можно вызвать метод для загрузки истории чата
       }
     }
+  } catch (error) {
+    console.error('Error checking auth:', error);
   }
-);
+});
 </script>
 
 <style>
@@ -153,5 +83,32 @@ button {
 .btn-danger {
   background-color: #e74c3c;
   color: white;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

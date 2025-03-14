@@ -9,7 +9,9 @@ export const useAuthStore = defineStore('auth', {
     authType: null,
     identities: {},
     loading: false,
-    error: null
+    error: null,
+    messages: [],
+    address: null
   }),
   
   actions: {
@@ -18,25 +20,44 @@ export const useAuthStore = defineStore('auth', {
       this.error = null;
       
       try {
-        const response = await axios.post('/api/auth/verify', {
+        const response = await axios.post('/api/chat/verify', {
           address, 
           signature, 
           message
+        }, {
+          withCredentials: true
         });
         
         this.user = {
           id: response.data.userId,
-          address
+          address: address
         };
         this.isAuthenticated = response.data.authenticated;
         this.isAdmin = response.data.isAdmin;
-        this.authType = response.data.authType;
-        this.identities = response.data.identities || {};
+        this.authType = 'wallet';
         
-        return true;
+        // Сохраняем адрес кошелька в локальном хранилище
+        console.log('Saving wallet address to localStorage:', address);
+        localStorage.setItem('walletAddress', address);
+        
+        // Связываем гостевые сообщения с аутентифицированным пользователем
+        try {
+          await axios.post('/api/chat/link-guest-messages');
+          console.log('Guest messages linked to authenticated user');
+        } catch (linkError) {
+          console.error('Error linking guest messages:', linkError);
+        }
+        
+        return {
+          success: true,
+          authenticated: response.data.authenticated,
+          address: address,
+          isAdmin: response.data.isAdmin,
+          authType: response.data.authType
+        };
       } catch (error) {
         this.error = error.response?.data?.error || 'Ошибка подключения кошелька';
-        return false;
+        return { success: false, error: this.error };
       } finally {
         this.loading = false;
       }
@@ -118,36 +139,127 @@ export const useAuthStore = defineStore('auth', {
     async logout() {
       try {
         await axios.post('/api/auth/logout');
+        this.user = null;
+        this.isAuthenticated = false;
+        this.isAdmin = false;
+        this.authType = null;
+        this.identities = {};
+        this.messages = [];
+        this.address = null;
+        
+        // Удаляем адрес из localStorage
+        localStorage.removeItem('walletAddress');
       } catch (error) {
         console.error('Ошибка при выходе:', error);
       }
-      
-      this.user = null;
-      this.isAuthenticated = false;
-      this.isAdmin = false;
-      this.authType = null;
-      this.identities = {};
     },
     
     async checkAuth() {
       try {
+        console.log('Checking auth state...');
         const response = await axios.get('/api/auth/check');
+        console.log('Auth check response:', response.data);
         
         if (response.data.authenticated) {
-          this.user = {
-            id: response.data.userId
-          };
           this.isAuthenticated = true;
+          this.user = {
+            id: response.data.userId,
+            address: response.data.address
+          };
+          this.address = response.data.address;
           this.isAdmin = response.data.isAdmin;
           this.authType = response.data.authType;
-          this.identities = response.data.identities || {};
+          
+          return {
+            authenticated: true,
+            user: this.user,
+            address: response.data.address,
+            isAdmin: response.data.isAdmin,
+            authType: response.data.authType
+          };
         } else {
-          this.logout();
+          this.isAuthenticated = false;
+          this.user = null;
+          this.address = null;
+          this.isAdmin = false;
+          this.authType = null;
+          
+          return { authenticated: false };
         }
       } catch (error) {
-        console.error('Ошибка при проверке аутентификации:', error);
-        this.logout();
+        console.error('Error checking auth:', error);
+        this.isAuthenticated = false;
+        this.user = null;
+        this.address = null;
+        this.isAdmin = false;
+        this.authType = null;
+        
+        return { authenticated: false };
       }
+    },
+    
+    async refreshSession() {
+      try {
+        // Если есть адрес в localStorage, используем его
+        const storedAddress = localStorage.getItem('walletAddress');
+        
+        const response = await axios.post('/api/auth/refresh-session', {
+          address: storedAddress || this.address
+        }, {
+          withCredentials: true
+        });
+        
+        return response.data.success;
+      } catch (error) {
+        console.error('Error refreshing session:', error);
+        return false;
+      }
+    },
+    
+    async checkWalletConnection() {
+      // Проверяем, есть ли сохраненный адрес кошелька
+      const savedAddress = localStorage.getItem('walletAddress');
+      console.log('Checking for saved wallet address:', savedAddress);
+      
+      if (savedAddress) {
+        try {
+          // Проверяем, доступен ли провайдер Ethereum (MetaMask)
+          if (window.ethereum) {
+            // Запрашиваем доступ к аккаунтам
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const currentAddress = accounts[0].toLowerCase();
+            
+            console.log('Current connected address:', currentAddress);
+            console.log('Saved address:', savedAddress.toLowerCase());
+            
+            // Проверяем, совпадает ли текущий адрес с сохраненным
+            if (currentAddress === savedAddress.toLowerCase()) {
+              console.log('Wallet address matches, restoring session');
+              
+              // Восстанавливаем состояние аутентификации
+              this.user = {
+                id: null, // ID будет получен при проверке аутентификации
+                address: savedAddress
+              };
+              
+              // Проверяем аутентификацию на сервере
+              const authResult = await this.checkAuth();
+              
+              if (authResult.authenticated) {
+                console.log('Session restored successfully');
+                return true;
+              }
+            } else {
+              console.log('Connected wallet address does not match saved address');
+              localStorage.removeItem('walletAddress');
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring wallet connection:', error);
+        }
+      }
+      
+      return false;
     }
   }
 });

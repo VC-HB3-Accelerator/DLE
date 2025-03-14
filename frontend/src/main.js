@@ -29,5 +29,7 @@ app.use(router);
 // }
 
 console.log('API URL:', import.meta.env.VITE_API_URL);
+console.log('main.js: Starting application with router and Pinia');
 
 app.mount('#app');
+console.log('main.js: Application with router and Pinia mounted');

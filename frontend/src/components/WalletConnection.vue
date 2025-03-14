@@ -4,64 +4,116 @@
       {{ error }}
     </div>
 
-    <button @click="connectWallet" class="connect-button" :disabled="loading">
-      <div v-if="loading" class="spinner"></div>
-      {{ loading ? 'Подключение...' : 'Подключить кошелек' }}
-    </button>
+    <div v-if="!authStore.isAuthenticated">
+      <button @click="handleConnectWallet" class="connect-button" :disabled="loading">
+        <div v-if="loading" class="spinner"></div>
+        {{ loading ? 'Подключение...' : 'Подключить кошелек' }}
+      </button>
+    </div>
+    <div v-else class="wallet-info">
+      <span class="address">{{ formatAddress(authStore.user?.address) }}</span>
+      <button @click="disconnectWallet" class="disconnect-btn">Выйти</button>
+    </div>
   </div>
 </template>
 
-<script>
-import { ref } from 'vue';
+<script setup>
+import { ref, onMounted } from 'vue';
 import { connectWallet } from '../utils/wallet';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
 
-export default {
-  setup() {
-    const authStore = useAuthStore();
-    const router = useRouter();
-    const loading = ref(false);
-    const error = ref('');
+const authStore = useAuthStore();
+const router = useRouter();
+const loading = ref(false);
+const error = ref('');
+const isConnecting = ref(false);
 
-    return {
-      authStore,
-      router,
-      loading,
-      error
+// Форматирование адреса кошелька
+const formatAddress = (address) => {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
+
+// Функция для подключения кошелька
+const handleConnectWallet = async () => {
+  console.log('Нажата кнопка "Подключить кошелек"');
+  isConnecting.value = true;
+  error.value = '';
+  
+  try {
+    const result = await connectWallet();
+    console.log('Результат подключения:', result);
+    
+    if (result.success) {
+      authStore.isAuthenticated = true;
+      authStore.user = { address: result.address };
+      authStore.isAdmin = result.isAdmin;
+      authStore.authType = result.authType;
+      router.push({ name: 'home' });
+    } else {
+      error.value = result.error || 'Ошибка подключения кошелька';
     }
-  },
-  methods: {
-    async connectWallet() {
-      console.log('Нажата кнопка "Подключить кошелек"');
+  } catch (err) {
+    console.error('Ошибка при подключении кошелька:', err);
+    error.value = 'Ошибка подключения кошелька';
+  } finally {
+    isConnecting.value = false;
+  }
+};
 
-      if (this.loading) return;
-
-      this.loading = true;
-      this.error = '';
-
-      try {
-        const authResult = await connectWallet();
-        console.log('Результат подключения:', authResult);
+// Автоматическое подключение при загрузке компонента
+onMounted(async () => {
+  console.log('WalletConnection mounted, checking auth state...');
+  
+  // Проверяем аутентификацию на сервере
+  const authState = await authStore.checkAuth();
+  console.log('Auth state after check:', authState);
+  
+  // Если пользователь уже аутентифицирован, не нужно ничего делать
+  if (authState.authenticated) {
+    console.log('User is already authenticated, no need to reconnect');
+    return;
+  }
+  
+  // Проверяем, есть ли сохраненный адрес кошелька
+  const savedAddress = localStorage.getItem('walletAddress');
+  
+  if (savedAddress && window.ethereum) {
+    console.log('Found saved wallet address:', savedAddress);
+    
+    try {
+      // Проверяем, разблокирован ли MetaMask, но не запрашиваем разрешение
+      const accounts = await window.ethereum.request({ 
+        method: 'eth_accounts' // Используем eth_accounts вместо eth_requestAccounts
+      });
+      
+      if (accounts && accounts.length > 0) {
+        console.log('MetaMask is unlocked, connected accounts:', accounts);
         
-        if (authResult && authResult.authenticated) {
-          this.authStore.isAuthenticated = authResult.authenticated;
-          this.authStore.user = { address: authResult.address };
-          this.authStore.isAdmin = authResult.isAdmin;
-          this.authStore.authType = authResult.authType;
-          this.router.push({ name: 'home' });
+        // Если кошелек разблокирован и есть доступные аккаунты, проверяем совпадение адреса
+        if (accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
+          console.log('Current account matches saved address');
+          
+          // Не вызываем handleConnectWallet() автоматически, 
+          // просто показываем пользователю, что он может подключиться
         } else {
-          this.error = 'Не удалось подключить кошелек';
+          console.log('Current account does not match saved address');
+          localStorage.removeItem('walletAddress');
         }
-      } catch (error) {
-        console.error('Ошибка при подключении кошелька:', error);
-        this.error = error.message || 'Ошибка при подключении кошелька';
-      } finally {
-        this.loading = false;
+      } else {
+        console.log('MetaMask is locked or no accounts available');
       }
+    } catch (error) {
+      console.error('Error checking MetaMask state:', error);
     }
   }
-}
+});
+
+// Функция для отключения кошелька
+const disconnectWallet = async () => {
+  await authStore.logout();
+};
 </script>
 
 <style scoped>
@@ -103,6 +155,30 @@ export default {
   border-top-color: white;
   animation: spin 1s linear infinite;
   margin-right: 8px;
+}
+
+.wallet-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.address {
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.disconnect-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 @keyframes spin {
