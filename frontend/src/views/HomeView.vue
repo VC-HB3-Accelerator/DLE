@@ -30,22 +30,42 @@
             </div>
             
             <div class="auth-option">
-              <button class="auth-btn telegram-btn" @click="connectTelegram">
-                <span class="auth-icon">📱</span> Подключить Telegram
-              </button>
+              <TelegramConnect />
             </div>
             
-            <div class="auth-option email-option">
+            <!-- Email аутентификация: первый шаг - запрос кода -->
+            <div v-if="!showEmailVerification" class="auth-option email-option">
               <input 
                 type="email" 
                 v-model="email" 
                 placeholder="Введите ваш email" 
                 class="email-input"
               />
-              <button class="auth-btn email-btn" @click="connectEmail" :disabled="!isValidEmail">
+              <button class="auth-btn email-btn" @click="requestEmailCode" :disabled="!isValidEmail">
                 <span class="auth-icon">✉️</span> Подключить Email
               </button>
             </div>
+            
+            <!-- Email аутентификация: второй шаг - ввод кода -->
+            <div v-else class="auth-option email-verification">
+              <p>Код подтверждения отправлен на {{ email }}</p>
+              <input 
+                type="text" 
+                v-model="emailVerificationCode" 
+                placeholder="Введите код подтверждения" 
+                class="verification-input"
+              />
+              <div class="email-verification-actions">
+                <button class="auth-btn email-btn" @click="verifyEmailCode">
+                  <span class="auth-icon">✓</span> Подтвердить
+                </button>
+                <button class="auth-btn cancel-btn" @click="cancelEmailVerification">
+                  Отмена
+                </button>
+              </div>
+            </div>
+            
+            <div v-if="emailErrorMessage" class="error-message">{{ emailErrorMessage }}</div>
           </div>
           
           <div class="message-time">
@@ -73,6 +93,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import WalletConnection from '../components/WalletConnection.vue';
+import TelegramConnect from '../components/TelegramConnect.vue';
 import axios from '../api/axios';
 
 console.log('HomeView.vue: Version with chat loaded');
@@ -88,6 +109,11 @@ const isValidEmail = ref(true);
 const hasShownAuthMessage = ref(false);
 const guestMessages = ref([]);
 const hasShownAuthOptions = ref(false);
+
+// Email аутентификация
+const emailVerificationCode = ref('');
+const showEmailVerification = ref(false);
+const emailErrorMessage = ref('');
 
 // Простая функция для выхода
 const logout = async () => {
@@ -320,93 +346,64 @@ async function connectTelegram() {
   }
 }
 
-// Функция для подключения через Email
-async function connectEmail() {
-  if (!isValidEmail.value) return;
+// Запрос кода подтверждения по email
+async function requestEmailCode() {
+  emailErrorMessage.value = '';
   
   try {
-    messages.value.push({
-      sender: 'ai',
-      text: `Отправляем код подтверждения на ${email.value}...`,
-      timestamp: new Date(),
-    });
+    const response = await auth.requestEmailVerification(email.value);
     
-    // Отправляем запрос на отправку кода подтверждения
-    const response = await axios.post('/api/auth/email', {
-      email: email.value
-    }, {
-      withCredentials: true
-    });
-    
-    if (response.data.error) {
-      messages.value.push({
-        sender: 'ai',
-        text: `Ошибка: ${response.data.error}`,
-        timestamp: new Date(),
-      });
-      return;
-    }
-    
-    messages.value.push({
-      sender: 'ai',
-      text: `На ваш email ${email.value} отправлено письмо с кодом подтверждения. Пожалуйста, введите код:`,
-      timestamp: new Date(),
-    });
-    
-    // Добавляем поле для ввода кода
-    const verificationCode = prompt('Введите код подтверждения:');
-    
-    if (verificationCode) {
-      try {
-        // Отправляем запрос на проверку кода
-        const verifyResponse = await axios.post('/api/auth/email/verify', {
-          email: email.value,
-          code: verificationCode
-        }, {
-          withCredentials: true
-        });
-        
-        if (verifyResponse.data.error) {
-          messages.value.push({
-            sender: 'ai',
-            text: `Ошибка: ${verifyResponse.data.error}`,
-            timestamp: new Date(),
-          });
-          return;
-        }
-        
-        messages.value.push({
-          sender: 'ai',
-          text: 'Email успешно подтвержден! Теперь вы можете использовать все функции чата.',
-          timestamp: new Date(),
-        });
-        
-        // Обновляем состояние аутентификации
-        auth.isAuthenticated = true;
-        auth.user = { email: email.value };
-        auth.authType = 'email';
-        
-        // Сбрасываем флаг показа сообщения с опциями авторизации
-        hasShownAuthMessage.value = false;
-      } catch (error) {
-        console.error('Error verifying email code:', error);
-        
-        messages.value.push({
-          sender: 'ai',
-          text: 'Произошла ошибка при проверке кода. Пожалуйста, попробуйте позже.',
-          timestamp: new Date(),
-        });
+    if (response.success) {
+      showEmailVerification.value = true;
+      // Временно для тестирования
+      if (response.verificationCode) {
+        emailErrorMessage.value = `Код для тестирования: ${response.verificationCode}`;
       }
+    } else {
+      emailErrorMessage.value = response.error || 'Ошибка запроса кода подтверждения';
     }
   } catch (error) {
-    console.error('Error connecting with email:', error);
-    
-    messages.value.push({
-      sender: 'ai',
-      text: 'Извините, произошла ошибка при подключении Email. Пожалуйста, попробуйте позже.',
-      timestamp: new Date(),
-    });
+    console.error('Error requesting email verification:', error);
+    emailErrorMessage.value = 'Ошибка запроса кода подтверждения';
   }
+}
+
+// Подтверждение кода подтверждения по email
+async function verifyEmailCode() {
+  emailErrorMessage.value = '';
+  
+  try {
+    const response = await auth.verifyEmail(emailVerificationCode.value);
+    
+    if (response.success) {
+      // Успешная верификация
+      showEmailVerification.value = false;
+      emailVerificationCode.value = '';
+      
+      // Связываем гостевые сообщения с аутентифицированным пользователем
+      try {
+        await axios.post('/api/chat/link-guest-messages');
+        console.log('Guest messages linked to authenticated user');
+      } catch (linkError) {
+        console.error('Error linking guest messages:', linkError);
+      }
+      
+      // Загружаем историю сообщений
+      await loadChatHistory();
+    } else {
+      emailErrorMessage.value = response.error || 'Неверный код подтверждения';
+    }
+  } catch (error) {
+    console.error('Error verifying email code:', error);
+    emailErrorMessage.value = 'Ошибка верификации';
+  }
+}
+
+// Отмена верификации email
+function cancelEmailVerification() {
+  showEmailVerification.value = false;
+  emailVerificationCode.value = '';
+  emailErrorMessage.value = '';
 }
 
 // Добавьте эту функцию в <script setup>
@@ -855,5 +852,15 @@ h1 {
 .email-btn {
   background-color: #4caf50;
   color: white;
+}
+
+.cancel-btn {
+  background-color: #999;
+}
+
+.error-message {
+  color: #D32F2F;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
 }
 </style>

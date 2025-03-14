@@ -33,7 +33,7 @@ const messagesRouter = require('./routes/messages');
 const sessionMiddleware = require('./middleware/session');
 
 // Импорт сервисов
-const { initTelegramBot } = require('./services/telegram-service');
+const telegramService = require('./services/telegramBot');
 
 const PORT = process.env.PORT || 8000;
 
@@ -199,7 +199,7 @@ async function initServices() {
 
     // Инициализируем ботов, если они нужны
     if (process.env.TELEGRAM_BOT_TOKEN) {
-      telegramBot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN);
+      telegramBot = new telegramService(process.env.TELEGRAM_BOT_TOKEN);
       console.log('Telegram бот инициализирован');
     }
 
@@ -683,7 +683,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Инициализация Telegram бота
-initTelegramBot();
+telegramService.initTelegramBot();
 
 // Добавьте после других маршрутов
 const chatRouter = require('./routes/chat');

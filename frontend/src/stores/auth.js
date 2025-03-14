@@ -260,6 +260,167 @@ export const useAuthStore = defineStore('auth', {
       }
       
       return false;
+    },
+    
+    async requestEmailVerification(email) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/email/request', { email });
+        
+        console.log('Email verification code response:', response.data);
+        
+        return {
+          success: true,
+          message: response.data.message,
+          verificationCode: response.data.verificationCode // Для разработки
+        };
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка запроса кода';
+        return { success: false, error: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async verifyEmail(code) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/email/verify', { code });
+        
+        if (response.data.success) {
+          this.isAuthenticated = true;
+          this.user = {
+            id: response.data.userId,
+            email: response.data.email
+          };
+          
+          if (response.data.walletAddress) {
+            this.user.address = response.data.walletAddress;
+            this.address = response.data.walletAddress;
+          }
+          
+          this.isAdmin = response.data.isAdmin;
+          this.authType = 'email';
+        }
+        
+        return response.data;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка верификации';
+        return { success: false, error: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async requestTelegramCode() {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.get('/api/auth/telegram/code');
+        return response.data;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка запроса кода';
+        return { success: false, error: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async verifyTelegram(telegramId, code) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/telegram/verify', { telegramId, code });
+        
+        if (response.data.success) {
+          this.isAuthenticated = true;
+          this.user = {
+            id: response.data.userId,
+            telegramId: response.data.telegramId
+          };
+          
+          if (response.data.walletAddress) {
+            this.user.address = response.data.walletAddress;
+            this.address = response.data.walletAddress;
+          }
+          
+          this.isAdmin = response.data.isAdmin;
+          this.authType = 'telegram';
+        }
+        
+        return response.data;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка верификации';
+        return { success: false, error: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async linkIdentity(type, value) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/link-identity', { type, value });
+        
+        if (response.data.success) {
+          if (type === 'wallet') {
+            this.user.address = value;
+            this.address = value;
+          } else if (type === 'email') {
+            this.user.email = value;
+          } else if (type === 'telegram') {
+            this.user.telegramId = value;
+          }
+          
+          this.isAdmin = response.data.isAdmin;
+        }
+        
+        return response.data;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка связывания аккаунта';
+        return { success: false, error: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async createTelegramAuthToken() {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await axios.post('/api/auth/telegram/auth-token');
+        return response.data;
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Ошибка создания токена';
+        return { success: false, error: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async checkTelegramAuthStatus(token) {
+      try {
+        const response = await axios.get(`/api/auth/telegram/auth-status/${token}`);
+        
+        if (response.data.success && response.data.authenticated) {
+          // Обновляем состояние аутентификации
+          await this.checkAuth();
+        }
+        
+        return response.data;
+      } catch (error) {
+        console.error('Error checking Telegram auth status:', error);
+        return { success: false, error: 'Ошибка проверки статуса' };
+      }
     }
   }
 });
