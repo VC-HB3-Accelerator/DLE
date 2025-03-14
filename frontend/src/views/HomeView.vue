@@ -108,7 +108,14 @@ const formatTime = (timestamp) => {
       return '';
     }
     
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // Форматируем дату с указанием дня, месяца, года и времени
+    return date.toLocaleString([], { 
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   } catch (error) {
     console.error('Error formatting time:', error, timestamp);
     return '';
