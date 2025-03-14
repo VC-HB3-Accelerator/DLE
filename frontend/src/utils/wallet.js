@@ -1,50 +1,67 @@
-import axios from 'axios';
+import axios from '../api/axios';
+import { useAuthStore } from '../stores/auth';
 
+// Функция для подключения кошелька
 async function connectWallet() {
-  if (typeof window.ethereum !== 'undefined') {
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const address = accounts[0];
-
-      // Получаем nonce
-      const nonceResponse = await axios.get(`/api/auth/nonce?address=${address}`, {
-        withCredentials: true // Важно для сохранения сессии
-      });
-      const nonce = nonceResponse.data.nonce;
-
-      // Подписываем сообщение
-      const message = `Sign this message to authenticate with our app: ${nonce}`;
-      const signature = await window.ethereum.request({
-        method: 'personal_sign',
-        params: [message, address]
-      });
-
-      // Отправляем запрос на проверку
-      const verifyResponse = await axios.post('/api/auth/verify', {
-        address,
-        signature,
-        message
-      }, {
-        withCredentials: true // Важно для сохранения сессии
-      });
-      
-      console.log('Успешно подключен:', verifyResponse.data);
-      
-      // Возвращаем результат подключения
-      return {
-        success: true,
-        authenticated: verifyResponse.data.authenticated,
-        address: address,
-        isAdmin: verifyResponse.data.isAdmin,
-        authType: 'wallet'
-      };
-    } catch (error) {
-      console.error('Ошибка при подключении кошелька:', error);
-      return { success: false, error: error.message };
+  try {
+    // Проверяем, доступен ли MetaMask
+    if (!window.ethereum) {
+      throw new Error('MetaMask не установлен');
     }
-  } else {
-    console.error('MetaMask не установлен');
-    return { success: false, error: 'MetaMask не установлен' };
+    
+    // Запрашиваем доступ к аккаунтам
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const address = accounts[0];
+    
+    // Получаем nonce от сервера
+    const nonceResponse = await axios.get(`/api/auth/nonce?address=${address}`, {
+      withCredentials: true
+    });
+    const nonce = nonceResponse.data.nonce;
+    
+    // Создаем сообщение для подписи
+    const message = `Подпишите это сообщение для аутентификации в DApp for Business. Nonce: ${nonce}`;
+    
+    // Запрашиваем подпись
+    const signature = await window.ethereum.request({
+      method: 'personal_sign',
+      params: [message, address]
+    });
+    
+    // Отправляем подпись на сервер для верификации
+    const response = await axios.post('/api/auth/verify', {
+      address,
+      signature,
+      message
+    }, {
+      withCredentials: true
+    });
+
+    console.log('Успешно подключен:', response.data);
+    
+    // Обновляем состояние в хранилище auth
+    const authStore = useAuthStore();
+    authStore.isAuthenticated = response.data.authenticated;
+    authStore.user = { 
+      id: response.data.userId,
+      address: response.data.address 
+    };
+    authStore.isAdmin = response.data.isAdmin;
+    authStore.authType = response.data.authType;
+    
+    // Сохраняем адрес кошелька в локальном хранилище
+    localStorage.setItem('walletAddress', address);
+    
+    return {
+      success: true,
+      authenticated: response.data.authenticated,
+      address: response.data.address,
+      isAdmin: response.data.isAdmin,
+      authType: response.data.authType
+    };
+  } catch (error) {
+    console.error('Ошибка при подключении кошелька:', error);
+    return { success: false, error: error.message || 'Ошибка подключения кошелька' };
   }
 }
 
@@ -58,6 +75,16 @@ async function disconnectWallet() {
         withCredentials: true,
       }
     );
+    
+    // Удаляем адрес кошелька из локального хранилища
+    localStorage.removeItem('walletAddress');
+    
+    // Обновляем состояние в хранилище auth
+    const authStore = useAuthStore();
+    authStore.isAuthenticated = false;
+    authStore.user = null;
+    authStore.isAdmin = false;
+    authStore.authType = null;
 
     return { success: true };
   } catch (error) {

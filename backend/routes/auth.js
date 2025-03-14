@@ -10,6 +10,7 @@ const { checkRole, requireAuth } = require('../middleware/auth');
 const { pool } = require('../db');
 const { verifySignature, checkAccess, findOrCreateUser } = require('../utils/auth');
 const authService = require('../services/auth-service');
+const { SiweMessage } = require('siwe');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -31,20 +32,19 @@ router.get('/nonce', async (req, res) => {
     // Генерируем случайный nonce
     const nonce = crypto.randomBytes(16).toString('hex');
     
-    // Сохраняем nonce в сессии
-    req.session.authNonce = nonce;
-    req.session.pendingAddress = address;
+    // Удаляем старые nonce для этого адреса
+    await db.query(`
+      DELETE FROM nonces
+      WHERE identity_value = $1
+    `, [address.toLowerCase()]);
     
-    // Важно: сохраняем сессию перед отправкой ответа
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    // Сохраняем новый nonce
+    await db.query(`
+      INSERT INTO nonces (identity_value, nonce, expires_at)
+      VALUES ($1, $2, NOW() + INTERVAL '15 minutes')
+    `, [address.toLowerCase(), nonce]);
     
-    console.log('Сессия после генерации nonce:', req.session);
-    console.log('Сессия после сохранения:', req.session);
+    console.log(`Nonce ${nonce} сохранен для адреса ${address}`);
     
     return res.json({ nonce });
   } catch (error) {
@@ -87,31 +87,40 @@ router.post('/verify', async (req, res) => {
     const { address, signature, message } = req.body;
     
     console.log('Verify request: address=' + address + ', signature=' + signature.substring(0, 10) + '...');
-    console.log('Session data: nonce=' + req.session.authNonce + ', pendingAddress=' + req.session.pendingAddress);
     
-    // Проверяем, что nonce и адрес совпадают с сохраненными в сессии
-    if (!req.session.authNonce || !req.session.pendingAddress || req.session.pendingAddress !== address) {
-      console.error(`Invalid session or address mismatch: nonce=${req.session.authNonce}, pendingAddress=${req.session.pendingAddress}, address=${address}`);
-      return res.status(401).json({ error: 'Invalid session or address mismatch' });
+    // Получаем nonce из базы данных
+    const nonceResult = await db.query(`
+      SELECT nonce FROM nonces
+      WHERE identity_value = $1 AND expires_at > NOW() AND used = false
+    `, [address.toLowerCase()]);
+    
+    if (nonceResult.rows.length === 0) {
+      console.error(`No valid nonce found for address ${address}`);
+      return res.status(401).json({ error: 'Invalid or expired nonce' });
     }
     
+    const nonce = nonceResult.rows[0].nonce;
+    console.log(`Found nonce ${nonce} for address ${address}`);
+    
     // Проверяем подпись
-    const isValid = await verifySignature(req.session.authNonce, signature, address);
+    const isValid = await verifySignature(nonce, signature, address);
     console.log('Signature verification result:', isValid);
     
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid signature' });
     }
     
+    // Помечаем nonce как использованный
+    await db.query(`
+      UPDATE nonces
+      SET used = true
+      WHERE identity_value = $1
+    `, [address.toLowerCase()]);
+    
     // Находим или создаем пользователя
     console.log('Finding or creating user for address:', address);
     const { userId, isAdmin } = await findOrCreateUser(address);
     console.log('User found/created:', { userId, isAdmin });
-    
-    // Очищаем nonce и pendingAddress из сессии
-    const nonce = req.session.authNonce;
-    req.session.authNonce = null;
-    req.session.pendingAddress = null;
     
     // Устанавливаем пользователя в сессии
     req.session.userId = userId;
@@ -119,7 +128,7 @@ router.post('/verify', async (req, res) => {
     req.session.isAdmin = isAdmin;
     req.session.authenticated = true;
     
-    // Сохраняем сессию
+    // Сохраняем сессию ПЕРЕД отправкой ответа
     await new Promise((resolve, reject) => {
       req.session.save(err => {
         if (err) {
@@ -132,7 +141,11 @@ router.post('/verify', async (req, res) => {
       });
     });
     
+    // Добавляем задержку для гарантии сохранения сессии (временное решение)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     console.log('Authentication successful for user:', { userId, address, isAdmin });
+    console.log('Session after save:', req.session);
     
     return res.json({
       authenticated: true,
@@ -305,56 +318,53 @@ router.post('/link-identity', async (req, res) => {
   }
 });
 
-// Проверка текущей сессии
+// Проверка аутентификации
 router.get('/check', (req, res) => {
-  console.log('Сессия при проверке:', req.session);
-  
-  // Если сессия существует и пользователь аутентифицирован
-  if (req.session && req.session.authenticated) {
-    res.json({
-      authenticated: true,
-      address: req.session.address,
-      isAdmin: req.session.isAdmin || false,
-      role: req.session.role || 'USER'
-    });
-  } else {
-    res.json({
-      authenticated: false,
-      address: null,
-      isAdmin: false,
-      authType: null
-    });
+  try {
+    console.log('Сессия при проверке:', req.session);
+    
+    if (req.session && req.session.authenticated) {
+      return res.json({
+        authenticated: true,
+        userId: req.session.userId,
+        address: req.session.address,
+        isAdmin: req.session.isAdmin,
+        authType: req.session.authType || 'wallet'
+      });
+    } else {
+      return res.json({ authenticated: false });
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке аутентификации:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Обработчик выхода из системы
-router.post('/logout', (req, res) => {
+// Выход из системы
+router.post('/logout', async (req, res) => {
   try {
-    // Сохраняем sessionID перед удалением сессии
+    // Сохраняем ID сессии до уничтожения
     const sessionID = req.sessionID;
     
-    // Удаляем сессию из хранилища
-    req.session.destroy(async (err) => {
-      if (err) {
-        console.error('Ошибка при удалении сессии:', err);
-        return res.status(500).json({ error: 'Internal server error' });
-      }
-      
-      try {
-        // Удаляем запись из базы данных
-        await db.query('DELETE FROM sessions WHERE sid = $1', [sessionID]);
-        console.log(`Сессия ${sessionID} удалена из базы данных`);
-      } catch (dbErr) {
-        console.error('Ошибка при удалении сессии из базы данных:', dbErr);
-      }
-      
-      // Очищаем cookie
-      res.clearCookie('dapp.sid');
-      res.json({ success: true });
-    });
+    // Уничтожаем сессию
+    req.session.destroy();
+    
+    // Удаляем сессию из базы данных
+    try {
+      const { pool } = require('../db');
+      await pool.query('DELETE FROM session WHERE sid = $1', [sessionID]);
+      console.log(`Сессия ${sessionID} удалена из базы данных`);
+    } catch (dbError) {
+      console.error('Ошибка при удалении сессии из базы данных:', dbError);
+    }
+    
+    // Очищаем куки
+    res.clearCookie('connect.sid');
+    
+    res.json({ success: true });
   } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Ошибка при выходе из системы:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -502,42 +512,72 @@ router.get('/check-access', requireAuth, (req, res) => {
   }
 });
 
-// Добавьте этот маршрут в routes/auth.js
+// Обновление сессии
 router.post('/refresh-session', async (req, res) => {
   try {
     const { address } = req.body;
     
-    if (!address) {
-      return res.status(400).json({ error: 'Address is required' });
+    if (req.session && req.session.authenticated) {
+      console.log('Обновление сессии для пользователя:', req.session.userId);
+      
+      // Обновляем время жизни сессии
+      req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 дней
+      
+      // Сохраняем обновленную сессию
+      await new Promise((resolve, reject) => {
+        req.session.save(err => {
+          if (err) {
+            console.error('Ошибка при сохранении сессии:', err);
+            reject(err);
+          } else {
+            console.log('Сессия успешно обновлена');
+            resolve();
+          }
+        });
+      });
+      
+      return res.json({ success: true });
+    } else if (address) {
+      // Если сессия не аутентифицирована, но есть адрес
+      try {
+        const { pool } = require('../db');
+        const result = await pool.query('SELECT * FROM users WHERE address = $1', [address]);
+        
+        if (result.rows.length > 0) {
+          const user = result.rows[0];
+          
+          // Обновляем сессию
+          req.session.authenticated = true;
+          req.session.userId = user.id;
+          req.session.address = address;
+          req.session.isAdmin = user.is_admin;
+          req.session.authType = 'wallet';
+          
+          // Сохраняем обновленную сессию
+          await new Promise((resolve, reject) => {
+            req.session.save(err => {
+              if (err) {
+                console.error('Ошибка при сохранении сессии:', err);
+                reject(err);
+              } else {
+                console.log('Сессия успешно обновлена');
+                resolve();
+              }
+            });
+          });
+          
+          return res.json({ success: true });
+        }
+      } catch (error) {
+        console.error('Ошибка при проверке пользователя:', error);
+      }
     }
     
-    logger.info(`Получен запрос на обновление сессии для адреса: ${address}`);
-    
-    // Проверяем доступ пользователя
-    const accessInfo = await checkAccess(address);
-    
-    if (!accessInfo.hasAccess) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    
-    // Устанавливаем данные сессии
-    req.session.authenticated = true;
-    req.session.address = address;
-    req.session.userId = accessInfo.userId;
-    req.session.isAdmin = accessInfo.isAdmin;
-    req.session.authType = 'wallet';
-    
-    await req.session.save();
-    
-    res.json({
-      authenticated: true,
-      address,
-      isAdmin: accessInfo.isAdmin,
-      authType: 'wallet'
-    });
+    // Если не удалось обновить сессию, возвращаем успех=false, но не ошибку
+    return res.json({ success: false });
   } catch (error) {
-    logger.error(`Error refreshing session: ${error.message}`);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Ошибка при обновлении сессии:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -575,7 +615,7 @@ router.post('/update-admin-status', async (req, res) => {
       ]);
 
       console.log(
-        `Обновлен статус администратора для пользователя с адресом ${address} на ${isAdmin}`
+        `Создан новый пользователь с адресом ${address} и статусом администратора ${isAdmin}`
       );
     }
 
@@ -584,77 +624,6 @@ router.post('/update-admin-status', async (req, res) => {
     console.error('Ошибка при обновлении статуса администратора:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
-
-// Маршрут для проверки структуры таблицы users
-router.get('/check-db-structure', async (req, res) => {
-  try {
-    // Получаем информацию о таблице users
-    const tableInfo = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'users'
-    `);
-
-    res.json({
-      tableStructure: tableInfo.rows,
-    });
-  } catch (error) {
-    console.error('Ошибка при получении структуры базы данных:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Добавьте этот маршрут для отладки
-router.get('/debug-session', (req, res) => {
-  res.json({
-    sessionID: req.sessionID,
-    session: req.session,
-    authenticated: req.session ? req.session.authenticated : undefined,
-    address: req.session ? req.session.address : undefined,
-    userId: req.session ? req.session.userId : undefined,
-    isAdmin: req.session ? req.session.isAdmin : undefined,
-    role: req.session ? req.session.role : undefined
-  });
-});
-
-// Маршрут для проверки сессии
-router.get('/session-debug', (req, res) => {
-  console.log('Текущая сессия:', {
-    id: req.sessionID,
-    session: req.session,
-    cookie: req.session.cookie
-  });
-  
-  res.json({
-    sessionID: req.sessionID,
-    authenticated: req.session.authenticated,
-    address: req.session.address,
-    userId: req.session.userId,
-    isAdmin: req.session.isAdmin,
-    role: req.session.role,
-    cookie: req.session.cookie
-  });
-});
-
-// Маршрут для проверки содержимого таблицы сессий
-router.get('/check-sessions', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM sessions');
-    res.json({
-      currentSessionID: req.sessionID,
-      sessions: result.rows
-    });
-  } catch (error) {
-    console.error('Ошибка при получении сессий:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Добавьте обработку ошибок
-router.use((err, req, res, next) => {
-  console.error('Auth route error:', err);
-  res.status(500).json({ success: false, message: 'Ошибка сервера' });
 });
 
 module.exports = router;

@@ -45,7 +45,7 @@ app.use(session({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Настройка CORS (должна быть после настройки сессий)
+// Настройка CORS
 app.use(cors({
   origin: function(origin, callback) {
     // Разрешаем запросы с localhost и 127.0.0.1
@@ -63,7 +63,9 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Настройка безопасности
@@ -74,6 +76,15 @@ app.use(helmet({
 // Логирование запросов
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.url}`);
+  next();
+});
+
+// Добавляем middleware для установки заголовков CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   next();
 });
 
