@@ -1,13 +1,10 @@
 <template>
   <div class="home">
-    <h1>DApp for Business</h1>
+    <h1>✌️ HB3 - Accelerator DLE (Digital Legal Entity - DAO Fork)</h1>
     
     <div class="auth-section" v-if="!auth.isAuthenticated">
-      <p>Подключите кошелек, Telegram или Email для сохранения истории чата и доступа к дополнительным функциям:</p>
-      <WalletConnection />
-      <!-- Здесь можно добавить кнопки для подключения Telegram и Email -->
+      <h3>Венчурный фонд и поставщик программного обеспечения</h3>
     </div>
-    
     <div class="chat-container">
       <div class="chat-header">
         <h2>Чат с ИИ</h2>
