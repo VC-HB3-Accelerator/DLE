@@ -7,10 +7,8 @@
     </div>
     <div class="chat-container">
       <div class="chat-header">
-        <h2>Чат с ИИ</h2>
+        <WalletConnection />
         <div class="user-info" v-if="auth.isAuthenticated">
-          <span>{{ formatAddress(auth.address) }}</span>
-          <button @click="logout" class="logout-btn">Выйти</button>
         </div>
       </div>
       
