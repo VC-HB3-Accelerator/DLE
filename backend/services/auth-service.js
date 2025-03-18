@@ -1,6 +1,7 @@
 const db = require('../db');
 const logger = require('../utils/logger');
 const { ethers } = require('ethers');
+const { processMessage } = require('./ai-assistant'); // Используем AI Assistant
 
 // В начале файла auth-service.js
 const getProvider = (network) => {
@@ -243,6 +244,108 @@ class AuthService {
       return result.rows[0].is_admin;
     } catch (error) {
       logger.error(`Error checking admin status: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Обрабатывает гостевые сообщения после аутентификации
+   */
+  async processGuestMessages(userId, guestId) {
+    try {
+      logger.info(`Processing guest messages for user ${userId} with guestId ${guestId}`);
+
+      // Сначала обновляем user_id для всех бесед с гостевыми сообщениями
+      await db.query(
+        `UPDATE conversations c
+         SET user_id = $1
+         WHERE id IN (
+           SELECT DISTINCT conversation_id
+           FROM messages m
+           WHERE m.metadata->>'guest_id' = $2
+         )`,
+        [userId, guestId]
+      );
+
+      // Получаем все гостевые сообщения без ответов
+      const guestMessages = await db.query(
+        `SELECT m.id, m.content, m.conversation_id, m.metadata, m.created_at
+         FROM messages m
+         WHERE m.metadata->>'guest_id' = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM messages 
+           WHERE conversation_id = m.conversation_id 
+           AND sender_type = 'assistant'
+         )
+         ORDER BY m.created_at ASC`,
+        [guestId]
+      );
+
+      logger.info(`Found ${guestMessages.rows.length} unprocessed guest messages`);
+
+      // Обрабатываем каждое гостевое сообщение
+      for (const msg of guestMessages.rows) {
+        logger.info(`Processing guest message ${msg.id}: ${msg.content}`);
+        
+        // Получаем язык из метаданных
+        const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
+        const language = metadata?.language || 'ru';
+
+        // Используем AI Assistant для обработки сообщения
+        const aiResponse = await processMessage(userId, msg.content, language);
+
+        // Сохраняем ответ AI в ту же беседу
+        await db.query(
+          `INSERT INTO messages 
+           (conversation_id, sender_type, content, channel, created_at)
+           VALUES ($1, 'assistant', $2, 'chat', NOW())`,
+          [msg.conversation_id, aiResponse]
+        );
+
+        logger.info(`Saved AI response for message ${msg.id}`);
+      }
+
+      // Обновляем метаданные сообщений, чтобы показать, что они обработаны
+      await db.query(
+        `UPDATE messages m
+         SET metadata = jsonb_set(
+           CASE 
+             WHEN m.metadata IS NULL THEN '{}'::jsonb
+             ELSE m.metadata::jsonb
+           END,
+           '{processed}',
+           'true'
+         )
+         WHERE m.metadata->>'guest_id' = $1`,
+        [guestId]
+      );
+
+      logger.info(`Successfully processed all guest messages for user ${userId}`);
+      return true;
+    } catch (error) {
+      logger.error('Error processing guest messages:', error);
+      return false;
+    }
+  }
+
+  async disconnect() {
+    try {
+      // Очищаем состояние аутентификации
+      this.isAuthenticated = false;
+      this.userId = null;
+      this.address = null;
+      this.isAdmin = false;
+      this.authType = null;
+
+      // Очищаем сессию
+      localStorage.removeItem('auth');
+      
+      // Очищаем guestId
+      localStorage.removeItem('guestId');
+
+      return true;
+    } catch (error) {
+      logger.error('Error during disconnect:', error);
       return false;
     }
   }

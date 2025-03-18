@@ -1,18 +1,37 @@
 import { defineStore } from 'pinia';
 import axios from '../api/axios';
 
+const loadAuthState = () => {
+  const savedAuth = localStorage.getItem('auth');
+  if (savedAuth) {
+    try {
+      return JSON.parse(savedAuth);
+    } catch (e) {
+      console.error('Error parsing saved auth state:', e);
+    }
+  }
+  return null;
+};
+
 export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    user: null,
-    isAuthenticated: false,
-    isAdmin: false,
-    authType: null,
-    identities: {},
-    loading: false,
-    error: null,
-    messages: [],
-    address: null
-  }),
+  state: () => {
+    const savedState = loadAuthState();
+    return {
+      user: null,
+      isAuthenticated: savedState?.isAuthenticated || false,
+      isAdmin: savedState?.isAdmin || false,
+      authType: savedState?.authType || null,
+      identities: {},
+      loading: false,
+      error: null,
+      messages: [],
+      address: null,
+      wallet: null,
+      telegramId: savedState?.telegramId || null,
+      email: null,
+      userId: savedState?.userId || null
+    };
+  },
   
   actions: {
     async connectWallet(address, signature, message) {
@@ -421,6 +440,99 @@ export const useAuthStore = defineStore('auth', {
         console.error('Error checking Telegram auth status:', error);
         return { success: false, error: 'Ошибка проверки статуса' };
       }
+    },
+    
+    async disconnect(router) {
+      // Проверяем, действительно ли нужно выходить
+      if (!this.isAuthenticated) {
+        console.log('Already logged out, skipping disconnect');
+        return;
+      }
+
+      try {
+        // Сначала пробуем очистить сессию на сервере
+        await axios.post('/api/auth/clear-session');
+        await axios.post('/api/auth/logout');
+        
+        // Очищаем состояние только после успешного выхода
+        this.clearState();
+        
+        if (router) router.push('/');
+      } catch (error) {
+        console.error('Error during logout:', error);
+      }
+    },
+
+    // Выносим очистку состояния в отдельный метод
+    clearState() {
+      this.isAuthenticated = false;
+      this.wallet = null;
+      this.messages = [];
+      this.user = null;
+      this.address = null;
+      this.isAdmin = false;
+      this.authType = null;
+      this.identities = {};
+      this.telegramId = null;
+      this.userId = null;
+
+      // Очищаем локальное хранилище
+      localStorage.removeItem('wallet');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('walletAddress');
+      localStorage.removeItem('auth');
+    },
+
+    async setWalletAuth(authData) {
+      this.isAuthenticated = authData.authenticated;
+      this.address = authData.address;
+      this.isAdmin = authData.isAdmin;
+    },
+
+    async setTelegramAuth(authData) {
+      this.telegramId = authData.telegramId;
+      // Проверяем баланс токенов если есть подключенный кошелек
+      if (this.address) {
+        await this.checkTokenBalance();
+      }
+    },
+
+    async checkTokenBalance() {
+      try {
+        const response = await axios.get(`/api/auth/check-tokens?address=${this.address}`);
+        this.isAdmin = response.data.isAdmin;
+      } catch (error) {
+        console.error('Error checking token balance:', error);
+      }
+    },
+
+    setAuth(authData) {
+      console.log('Setting auth state:', authData);
+      
+      // Обновляем все поля состояния
+      this.isAuthenticated = authData.authenticated || authData.isAuthenticated;
+      this.userId = authData.userId;
+      this.isAdmin = authData.isAdmin;
+      this.authType = authData.authType;
+      this.address = authData.address;
+      
+      // Сохраняем состояние в localStorage
+      const stateToSave = {
+        isAuthenticated: this.isAuthenticated,
+        userId: this.userId,
+        isAdmin: this.isAdmin,
+        authType: this.authType,
+        address: this.address
+      };
+      
+      localStorage.setItem('auth', JSON.stringify(stateToSave));
+
+      console.log('Auth state updated:', {
+        isAuthenticated: this.isAuthenticated,
+        userId: this.userId,
+        authType: this.authType,
+        address: this.address
+      });
     }
   }
 });

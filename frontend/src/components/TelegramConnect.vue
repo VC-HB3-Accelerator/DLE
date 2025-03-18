@@ -1,108 +1,54 @@
 <template>
   <div class="telegram-auth">
-    <div v-if="!isAuthenticating">
-      <a :href="telegramBotLink" target="_blank" class="telegram-btn" @click="startAuth">
-        <span class="auth-icon">📱</span> Подключить Telegram
-      </a>
-    </div>
+    <button v-if="!showVerification" class="auth-btn telegram-btn" @click="startTelegramAuth">
+      <span class="auth-icon">📱</span> Подключить Telegram
+    </button>
     
-    <div v-else class="auth-progress">
-      <p>Для завершения авторизации:</p>
-      <ol>
-        <li>Перейдите в Telegram-бота <strong>@{{ botUsername }}</strong></li>
-        <li>Если бот не открылся автоматически, скопируйте и отправьте ему команду:</li>
-      </ol>
-      
-      <div class="auth-code">
-        /auth {{ authToken }}
-      </div>
-      <button class="copy-btn" @click="copyAuthCommand">Копировать команду</button>
-      
-      <div class="auth-actions">
-        <button class="cancel-btn" @click="cancelAuth">Отмена</button>
-        <button class="check-btn" @click="checkAuthStatus">Проверить статус</button>
-      </div>
-      
-      <div v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
-      </div>
+    <div v-else class="verification-form">
+      <input 
+        type="text" 
+        v-model="verificationCode"
+        placeholder="Введите код из Telegram"
+      />
+      <button class="auth-btn verify-btn" @click="verifyCode">Подтвердить</button>
+      <button class="auth-btn cancel-btn" @click="cancelVerification">Отмена</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import axios from '../api/axios';
 
 const auth = useAuthStore();
+const showVerification = ref(false);
+const verificationCode = ref('');
 
-const isAuthenticating = ref(false);
-const authToken = ref('');
-const botUsername = ref(process.env.VUE_APP_TELEGRAM_BOT_USERNAME || 'HB3_Accelerator_Bot');
-const errorMessage = ref('');
-const checkInterval = ref(null);
+const startTelegramAuth = () => {
+  // Открываем Telegram бота в новом окне
+  window.open('https://t.me/your_bot_username', '_blank');
+  showVerification.value = true;
+};
 
-// Формируем ссылку на бота с параметром авторизации
-const telegramBotLink = computed(() => {
-  // Возвращаем ссылку только если есть токен
-  if (!authToken.value) return `https://t.me/${botUsername.value}`;
-  return `https://t.me/${botUsername.value}?start=auth_${authToken.value}`;
-});
-
-async function startAuth() {
+const verifyCode = async () => {
   try {
-    // Сначала запрашиваем токен
-    const response = await auth.createTelegramAuthToken();
+    const response = await axios.post('/api/auth/telegram/verify', {
+      code: verificationCode.value
+    });
     
-    if (response.success) {
-      authToken.value = response.token;
-      
-      // Теперь можно включить режим авторизации
-      isAuthenticating.value = true;
-      
-      // И запустить проверку
-      checkInterval.value = setInterval(checkAuthStatus, 3000);
-      
-      // Открываем Telegram
-      console.log(`Открывается ссылка на Telegram: ${telegramBotLink.value}`);
-      window.open(telegramBotLink.value, '_blank');
-    } else {
-      errorMessage.value = response.error || 'Не удалось начать авторизацию';
+    if (response.data.success) {
+      auth.setTelegramAuth(response.data);
     }
   } catch (error) {
-    console.error('Error starting Telegram auth:', error);
-    errorMessage.value = 'Ошибка при инициализации авторизации';
+    console.error('Error verifying Telegram code:', error);
   }
-}
+};
 
-async function checkAuthStatus() {
-  try {
-    const response = await auth.checkTelegramAuthStatus(authToken.value);
-    
-    if (response.success && response.authenticated) {
-      // Авторизация успешна, очищаем интервал и состояние
-      clearInterval(checkInterval.value);
-      isAuthenticating.value = false;
-      
-      // Здесь можно добавить дополнительные действия после успешной авторизации
-    }
-  } catch (error) {
-    console.error('Error checking auth status:', error);
-  }
-}
-
-function cancelAuth() {
-  clearInterval(checkInterval.value);
-  isAuthenticating.value = false;
-  authToken.value = '';
-  errorMessage.value = '';
-}
-
-function copyAuthCommand() {
-  const command = `/auth ${authToken.value}`;
-  navigator.clipboard.writeText(command);
-  // Можно добавить уведомление о копировании
-}
+const cancelVerification = () => {
+  showVerification.value = false;
+  verificationCode.value = '';
+};
 </script>
 
 <style scoped>

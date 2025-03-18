@@ -5,7 +5,7 @@
     </div>
 
     <div v-if="!authStore.isAuthenticated">
-      <button @click="handleConnectWallet" class="connect-button" :disabled="loading">
+      <button @click="connectWallet" class="connect-button" :disabled="loading">
         <div v-if="loading" class="spinner"></div>
         {{ loading ? 'Подключение...' : 'Подключить кошелек' }}
       </button>
@@ -19,7 +19,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { connectWallet } from '../utils/wallet';
+import { connectWithWallet } from '../utils/wallet';
 import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
 
@@ -29,6 +29,17 @@ const loading = ref(false);
 const error = ref('');
 const isConnecting = ref(false);
 
+const props = defineProps({
+  onWalletAuth: {
+    type: Function,
+    required: true
+  },
+  isAuthenticated: {
+    type: Boolean,
+    required: true
+  }
+});
+
 // Форматирование адреса кошелька
 const formatAddress = (address) => {
   if (!address) return '';
@@ -36,29 +47,17 @@ const formatAddress = (address) => {
 };
 
 // Функция для подключения кошелька
-const handleConnectWallet = async () => {
-  console.log('Нажата кнопка "Подключить кошелек"');
-  isConnecting.value = true;
+const connectWallet = async () => {
+  loading.value = true;
   error.value = '';
   
   try {
-    const result = await connectWallet();
-    console.log('Результат подключения:', result);
-    
-    if (result.success) {
-      authStore.isAuthenticated = true;
-      authStore.user = { address: result.address };
-      authStore.isAdmin = result.isAdmin;
-      authStore.authType = result.authType;
-      router.push({ name: 'home' });
-    } else {
-      error.value = result.error || 'Ошибка подключения кошелька';
-    }
+    await props.onWalletAuth();
   } catch (err) {
     console.error('Ошибка при подключении кошелька:', err);
     error.value = 'Ошибка подключения кошелька';
   } finally {
-    isConnecting.value = false;
+    loading.value = false;
   }
 };
 
@@ -112,7 +111,22 @@ onMounted(async () => {
 
 // Функция для отключения кошелька
 const disconnectWallet = async () => {
-  await authStore.logout();
+  try {
+    // Сначала отключаем MetaMask
+    if (window.ethereum) {
+      try {
+        // Просто очищаем слушатели событий
+        window.ethereum.removeAllListeners();
+      } catch (error) {
+        console.error('Error disconnecting MetaMask:', error);
+      }
+    }
+    
+    // Затем выполняем выход из системы
+    await authStore.disconnect(router);
+  } catch (error) {
+    console.error('Error disconnecting wallet:', error);
+  }
 };
 </script>
 
