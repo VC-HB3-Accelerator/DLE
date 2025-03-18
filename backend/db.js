@@ -25,10 +25,25 @@ const query = (text, params) => {
   return pool.query(text, params);
 };
 
+// Функция для сохранения гостевого сообщения в базе данных
+async function saveGuestMessageToDatabase(message, language, guestId) {
+  try {
+    await query(`
+      INSERT INTO guest_messages (guest_id, content, language, created_at)
+      VALUES ($1, $2, $3, NOW())
+    `, [guestId, message, language]);
+    console.log('Гостевое сообщение успешно сохранено:', message);
+  } catch (error) {
+    console.error('Ошибка при сохранении гостевого сообщения:', error);
+    throw error; // Пробрасываем ошибку дальше
+  }
+}
+
 // Экспортируем функции для работы с базой данных
 module.exports = {
   query,
   pool,
+  saveGuestMessageToDatabase,
 };
 
 // Функция для создания временного хранилища данных в памяти

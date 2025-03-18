@@ -1,43 +1,38 @@
+import { ethers } from 'ethers';
 import axios from '../api/axios';
 import { useAuthStore } from '../stores/auth';
 
-// Функция для подключения кошелька
-async function connectWallet() {
+// Переименовываем функцию для соответствия импорту
+export async function connectWithWallet() {
   try {
     // Проверяем, доступен ли MetaMask
     if (!window.ethereum) {
       throw new Error('MetaMask не установлен');
     }
     
-    // Запрашиваем доступ к аккаунтам
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    const address = accounts[0];
-    
-    // Получаем nonce от сервера
-    const nonceResponse = await axios.get(`/api/auth/nonce?address=${address}`, {
-      withCredentials: true
-    });
+    // Запрашиваем доступ к кошельку
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const address = await signer.getAddress();
+
+    // Получаем nonce для подписи
+    const nonceResponse = await axios.get(`/api/auth/nonce?address=${address}`);
     const nonce = nonceResponse.data.nonce;
-    
-    // Создаем сообщение для подписи
+
+    // Формируем сообщение для подписи
     const message = `Подпишите это сообщение для аутентификации в DApp for Business. Nonce: ${nonce}`;
-    
-    // Запрашиваем подпись
-    const signature = await window.ethereum.request({
-      method: 'personal_sign',
-      params: [message, address]
-    });
-    
-    // Отправляем подпись на сервер для верификации
+
+    // Подписываем сообщение
+    const signature = await signer.signMessage(message);
+
+    // Верифицируем подпись на сервере
     const response = await axios.post('/api/auth/verify', {
       address,
       signature,
-      message
-    }, {
-      withCredentials: true
+      message: nonce
     });
 
-    console.log('Успешно подключен:', response.data);
+    console.log('Wallet verification response:', response.data);
     
     // Обновляем состояние в хранилище auth
     const authStore = useAuthStore();
@@ -47,7 +42,7 @@ async function connectWallet() {
       address: response.data.address 
     };
     authStore.isAdmin = response.data.isAdmin;
-    authStore.authType = response.data.authType;
+    authStore.authType = 'wallet';
     
     // Сохраняем адрес кошелька в локальном хранилище
     localStorage.setItem('walletAddress', address);
@@ -55,13 +50,14 @@ async function connectWallet() {
     return {
       success: true,
       authenticated: response.data.authenticated,
+      userId: response.data.userId,
       address: response.data.address,
       isAdmin: response.data.isAdmin,
-      authType: response.data.authType
+      authType: 'wallet'
     };
   } catch (error) {
-    console.error('Ошибка при подключении кошелька:', error);
-    return { success: false, error: error.message || 'Ошибка подключения кошелька' };
+    console.error('Error connecting wallet:', error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -92,5 +88,3 @@ async function disconnectWallet() {
     throw error;
   }
 }
-
-export { connectWallet, disconnectWallet };
