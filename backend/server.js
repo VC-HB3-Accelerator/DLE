@@ -45,17 +45,6 @@ console.log('Используемый порт:', process.env.PORT || 8000);
 let telegramBot;
 let emailBot;
 
-// Получаем ABI из артефактов
-const contractArtifact = require('./artifacts/contracts/MyContract.sol/MyContract.json');
-const contractABI = contractArtifact.abi;
-
-// Добавим логирование для отладки контракта
-const provider = new ethers.JsonRpcProvider(process.env.ETHEREUM_NETWORK_URL);
-console.log('Provider URL:', process.env.ETHEREUM_NETWORK_URL);
-console.log('Contract address:', process.env.CONTRACT_ADDRESS);
-
-const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, contractABI, provider);
-
 // Проверяем, что библиотека ethers.js правильно импортирована
 console.log('Ethers.js version:', ethers.version);
 
@@ -131,65 +120,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// Добавьте cookie-парсер перед CSRF-защитой
-// app.use(cookieParser());
-
-// Затем настройте CSRF-защиту
-// const csrfProtection = csrf({
-//   cookie: {
-//     key: '_csrf',
-//     path: '/',
-//     httpOnly: true,
-//     secure: process.env.NODE_ENV === 'production',
-//     sameSite: 'lax'
-//   }
-// });
-
-// Добавьте маршрут для получения CSRF-токена
-// app.get('/api/csrf-token', csrfProtection, (req, res) => {
-//   res.json({ csrfToken: req.csrfToken() });
-// });
-
-// Применяем CSRF-защиту только к определенным маршрутам
-// app.use('/api/protected', csrfProtection);
-// app.use('/api/admin', csrfProtection);
-// app.use('/api/kanban', csrfProtection);
-
-// Обработчик ошибок CSRF
-// app.use((err, req, res, next) => {
-//   if (err.code === 'EBADCSRFTOKEN') {
-//     console.error('CSRF error:', {
-//       url: req.url,
-//       method: req.method,
-//       headers: req.headers,
-//       body: req.body
-//     });
-//     return res.status(403).json({
-//       error: 'CSRF token validation failed',
-//       message: 'Your session may have expired. Please refresh the page and try again.'
-//     });
-//   }
-//   next(err);
-// });
-
-// Использовать импортированный middleware для сессий
-// app.use(sessionMiddleware);
-
 // Настройка сессий
 app.use(session({
   store: new pgSession({
     pool: pool,
     tableName: 'session'
   }),
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: true,
+  secret: process.env.SESSION_SECRET || 'hb3atoken',
+  resave: false,
   saveUninitialized: true,
   cookie: {
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-    path: '/'
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 дней
   }
 }));
 
