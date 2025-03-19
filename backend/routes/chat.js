@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { ChatOllama } = require('@langchain/ollama');
-const { getVectorStore } = require('../services/vectorStore');
+const aiAssistant = require('../services/ai-assistant');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const logger = require('../utils/logger');
@@ -105,7 +104,7 @@ async function processGuestMessages(userId, guestId) {
 
       // Получаем ответ от AI
       console.log(`Getting AI response for message ${msg.id} in ${language}`);
-      const aiResponse = await getAIResponse(msg.content, language);
+      const aiResponse = await aiAssistant.getResponse(msg.content, language);
 
       // Сохраняем ответ AI в ту же беседу
       await db.query(
@@ -128,54 +127,44 @@ async function processGuestMessages(userId, guestId) {
 
 // Обработчик для гостевых сообщений
 router.post('/guest-message', async (req, res) => {
-  const { message, language } = req.body;
-
-  // Генерируем временный ID сессии, если его нет
-  if (!req.session.guestId) {
-    req.session.guestId = crypto.randomBytes(16).toString('hex');
-  }
-
   try {
-    // Создаем запись в conversations для гостя
-    const conversationResult = await db.query(
-      `INSERT INTO conversations (created_at)
-       VALUES (NOW())
-       RETURNING id`
-    );
-    
-    const conversationId = conversationResult.rows[0].id;
+    const { message, language } = req.body;
+    const guestId = req.session.guestId || crypto.randomBytes(16).toString('hex');
 
-    // Создаем метаданные
-    const metadata = {
-      guest_id: req.session.guestId,
-      language: language || 'en'
-    };
+    // Сохраняем ID гостя в сессии
+    req.session.guestId = guestId;
+    await req.session.save();
 
-    // Сохраняем только сообщение пользователя
-    await db.query(
-      `INSERT INTO messages 
-       (conversation_id, sender_type, content, channel, metadata, created_at)
-       VALUES ($1, 'guest', $2, 'chat', $3, NOW())`,
-      [
-        conversationId,
-        message,
-        JSON.stringify(metadata)
-      ]
+    console.log('Saving guest message:', { guestId, message });
+
+    // Сохраняем сообщение пользователя
+    const result = await db.query(
+      'INSERT INTO guest_messages (guest_id, content, language, is_ai) VALUES ($1, $2, $3, false) RETURNING id',
+      [guestId, message, language]
     );
 
-    res.json({ success: true });
+    console.log('Guest message saved:', result.rows[0]);
+
+    res.json({ 
+      success: true, 
+      messageId: result.rows[0].id
+    });
   } catch (error) {
-    console.error('Error processing message:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error saving guest message:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
 // Маршрут для обычных сообщений (для аутентифицированных пользователей)
 router.post('/message', requireAuth, async (req, res) => {
-  const { message, language } = req.body;
-  const userId = req.session.userId;
-
   try {
+    const { message, language } = req.body;
+    const userId = req.session.userId;
+
+    // Используем методы из aiAssistant вместо прямого обращения к vectorStore
+    const similarDocs = await aiAssistant.findSimilarDocuments(message);
+    const aiResponse = await aiAssistant.getResponse(message, language);
+
     // Создаем новую беседу или получаем существующую
     const conversationResult = await db.query(
       `INSERT INTO conversations (user_id, created_at)
@@ -189,20 +178,25 @@ router.post('/message', requireAuth, async (req, res) => {
     // Сохраняем сообщение пользователя
     await db.query(
       `INSERT INTO messages 
-       (conversation_id, sender_type, content, channel, created_at)
-       VALUES ($1, 'user', $2, 'chat', NOW())`,
-      [conversationId, message]
+       (conversation_id, sender_type, content, channel, metadata, created_at)
+       VALUES ($1, 'user', $2, 'chat', $3, NOW())`,
+      [
+        conversationId,
+        message,
+        JSON.stringify({ language: language || 'ru' })
+      ]
     );
-
-    // Получаем ответ от AI
-    const aiResponse = await getAIResponse(message, language);
 
     // Сохраняем ответ AI
     await db.query(
       `INSERT INTO messages 
-       (conversation_id, sender_type, content, channel, created_at)
-       VALUES ($1, 'assistant', $2, 'chat', NOW())`,
-      [conversationId, aiResponse]
+       (conversation_id, sender_type, content, channel, metadata, created_at)
+       VALUES ($1, 'assistant', $2, 'chat', $3, NOW())`,
+      [
+        conversationId,
+        aiResponse,
+        JSON.stringify({ language: language || 'ru' })
+      ]
     );
 
     res.json({
@@ -210,7 +204,7 @@ router.post('/message', requireAuth, async (req, res) => {
       message: aiResponse
     });
   } catch (error) {
-    console.error('Error processing message:', error);
+    logger.error('Error processing message:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -233,47 +227,44 @@ router.get('/models', async (req, res) => {
 
 // Получение истории сообщений
 router.get('/history', async (req, res) => {
-  const limit = parseInt(req.query.limit) || 2; // По умолчанию только последнее сообщение и ответ
-  const offset = parseInt(req.query.offset) || 0;
-
   try {
+    console.log('Session in history route:', {
+      id: req.sessionID,
+      userId: req.session.userId,
+      address: req.session.address,
+      authenticated: req.session.authenticated
+    });
+    
     if (!req.session.authenticated || !req.session.userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Получаем общее количество сообщений
-    const countResult = await db.query(
-      `SELECT COUNT(*) as total
-       FROM messages m
-       JOIN conversations c ON m.conversation_id = c.id
-       WHERE c.user_id = $1 
-       OR (m.metadata->>'guest_id' = $2 AND m.metadata->>'processed' = 'true')`,
-      [req.session.userId, req.session.guestId]
-    );
-
-    const total = parseInt(countResult.rows[0].total);
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
 
     // Получаем сообщения с пагинацией
     const result = await db.query(
-      `SELECT m.id, m.content, m.sender_type as role, m.created_at, 
-              c.user_id, m.metadata
+      `SELECT 
+         m.id, 
+         m.content, 
+         m.sender_type as role, 
+         m.created_at,
+         c.user_id
        FROM messages m
        JOIN conversations c ON m.conversation_id = c.id
-       WHERE c.user_id = $1 
-       OR (m.metadata->>'guest_id' = $2 AND m.metadata->>'processed' = 'true')
+       WHERE c.user_id = $1
        ORDER BY m.created_at DESC
-       LIMIT $3 OFFSET $4`,
-      [req.session.userId, req.session.guestId, limit, offset]
+       LIMIT $2 OFFSET $3`,
+      [req.session.userId, limit, offset]
     );
 
     return res.json({
       success: true,
-      messages: result.rows.reverse(),
-      total
+      messages: result.rows.reverse()
     });
 
   } catch (error) {
-    console.error('Error getting chat history:', error);
+    logger.error('Error getting chat history:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -314,75 +305,41 @@ router.get('/admin/history', requireAdmin, async (req, res) => {
 // Обработчик для связывания гостевых сообщений с пользователем
 router.post('/link-guest-messages', requireAuth, async (req, res) => {
   try {
-    const userId = req.session.userId;
+    const { userId } = req.session;
     const guestId = req.session.guestId;
-    
+
+    console.log('Linking messages:', { userId, guestId });
+
     if (!guestId) {
+      console.log('No guestId in session');
       return res.json({ success: true, message: 'No guest messages to link' });
     }
-    
-    // Связываем гостевые сообщения с пользователем
-    await db.query(`
-      INSERT INTO messages (user_id, content, role, created_at)
-      SELECT $1, content, CASE WHEN is_ai THEN 'assistant' ELSE 'user' END, created_at
-      FROM guest_messages
-      WHERE guest_id = $2
-      ORDER BY created_at
-    `, [userId, guestId]);
-    
-    // Удаляем гостевые сообщения
-    await db.query(`
-      DELETE FROM guest_messages
-      WHERE guest_id = $1
-    `, [guestId]);
-    
-    // Удаляем временный ID из сессии
-    delete req.session.guestId;
-    
-    return res.json({ success: true });
-  } catch (error) {
-    console.error('Error linking guest messages:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
-// Обновляем маршрут верификации кошелька
-router.post('/verify', async (req, res) => {
-  const { address, signature, message } = req.body;
-  
-  try {
-    // ... существующий код верификации ...
+    // Проверяем наличие гостевых сообщений
+    const guestMessages = await db.query(
+      'SELECT EXISTS(SELECT 1 FROM guest_messages WHERE guest_id = $1)',
+      [guestId]
+    );
 
-    // После успешной верификации и создания пользователя
-    if (req.session.guestId) {
-      console.log('Found guest messages, processing...');
-      await processGuestMessages(userId, req.session.guestId);
+    console.log('Guest messages check:', guestMessages.rows[0]);
+
+    if (!guestMessages.rows[0].exists) {
+      console.log('No guest messages found for guestId:', guestId);
+      return res.json({ success: true, message: 'No guest messages to link' });
     }
 
-    // Сохраняем данные в сессии
-    req.session.userId = userId;
-    req.session.address = address;
-    req.session.isAdmin = isAdmin;
-    req.session.authenticated = true;
-
-    console.log('Authentication successful for user:', {
-      userId,
-      address,
-      isAdmin,
-      guestId: req.session.guestId
-    });
-
-    res.json({
-      authenticated: true,
-      userId: userId,
-      address: address,
-      isAdmin: isAdmin,
-      authType: 'wallet'
-    });
-
+    // Связываем сообщения
+    console.log('Calling link_guest_messages function');
+    await db.query('SELECT link_guest_messages($1, $2)', [userId, guestId]);
+    
+    // Очищаем guestId из сессии после связывания
+    delete req.session.guestId;
+    
+    console.log('Messages linked successfully');
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error during wallet verification:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error linking guest messages:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
@@ -403,6 +360,38 @@ router.post('/auth/telegram/verify', async (req, res) => {
       isAdmin: req.session.isAdmin || false,
       authenticated: true
     });
+  }
+});
+
+// Маршрут для удаления сообщений
+router.delete('/message/:id', requireAuth, async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    const userId = req.session.userId;
+
+    // Проверяем права на удаление
+    const messageCheck = await db.query(
+      `SELECT m.id 
+       FROM messages m
+       JOIN conversations c ON m.conversation_id = c.id
+       WHERE m.id = $1 AND c.user_id = $2`,
+      [messageId, userId]
+    );
+
+    if (messageCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Удаляем сообщение
+    await db.query(
+      'DELETE FROM messages WHERE id = $1',
+      [messageId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error deleting message:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

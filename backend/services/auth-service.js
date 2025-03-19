@@ -1,69 +1,54 @@
 const db = require('../db');
 const logger = require('../utils/logger');
 const { ethers } = require('ethers');
+const crypto = require('crypto');
 const { processMessage } = require('./ai-assistant'); // Используем AI Assistant
 
-// В начале файла auth-service.js
-const getProvider = (network) => {
-  const primaryUrl = process.env[`RPC_URL_${network.toUpperCase()}`];
-  const backupUrls = {
-    eth: 'https://eth-mainnet.public.blastapi.io',
-    polygon: 'https://polygon-rpc.com',
-    bsc: 'https://bsc-dataseed.binance.org',
-    arbitrum: 'https://arb1.arbitrum.io/rpc'
-  };
-  
-  try {
-    return new ethers.JsonRpcProvider(primaryUrl);
-  } catch (error) {
-    logger.warn(`Failed to connect to primary URL for ${network}, using backup`);
-    return new ethers.JsonRpcProvider(backupUrls[network]);
-  }
-};
-
-const providers = {
-  eth: getProvider('eth'),
-  polygon: getProvider('polygon'),
-  bsc: getProvider('bsc'),
-  arbitrum: getProvider('arbitrum')
-};
-
-/**
- * Сервис для работы с аутентификацией и авторизацией
- */
 class AuthService {
-  /**
-   * Проверяет наличие токенов на кошельке и обновляет роль
-   * @param {string} walletAddress - Адрес кошелька
-   * @returns {Promise<boolean>} - Имеет ли пользователь права администратора
-   */
-  async checkTokensAndUpdateRole(walletAddress) {
+  constructor() {
+    // Инициализация провайдеров для разных сетей
+    this.providers = {
+      eth: new ethers.JsonRpcProvider(process.env.RPC_URL_ETH),
+      polygon: new ethers.JsonRpcProvider(process.env.RPC_URL_POLYGON),
+      bsc: new ethers.JsonRpcProvider(process.env.RPC_URL_BSC),
+      arbitrum: new ethers.JsonRpcProvider(process.env.RPC_URL_ARBITRUM)
+    };
+
+    // Конфигурация токенов для разных сетей
+    this.tokenContracts = [
+      { address: "0xd95a45fc46a7300e6022885afec3d618d7d3f27c", network: "eth" },     // Ethereum
+      { address: "0x1d47f12ffA279BFE59Ab16d56fBb10d89AECdD5D", network: "bsc" },     // Binance Smart Chain
+      { address: "0xdce769b847a0a697239777d0b1c7dd33b6012ba0", network: "arbitrum" }, // Arbitrum
+      { address: "0x351f59de4fedbdf7601f5592b93db3b9330c1c1d", network: "polygon" }   // Polygon
+    ];
+
+    this.MIN_BALANCE = ethers.parseUnits("1000000.0", 18); // 1,000,000 токенов для роли админа
+  }
+
+  // Проверка подписи
+  async verifySignature(message, signature, address) {
     try {
-      // Получаем ID пользователя по адресу кошелька
-      const userResult = await db.query(`
-        SELECT u.id FROM users u
-        JOIN user_identities ui ON u.id = ui.user_id
-        WHERE ui.identity_type = 'wallet' AND ui.identity_value = $1
-      `, [walletAddress]);
-      
-      if (userResult.rows.length === 0) {
-        logger.warn(`User with wallet ${walletAddress} not found`);
+      logger.info('Verifying signature:', {
+        message: message.substring(0, 100) + '...',
+        signature: signature.substring(0, 10) + '...',
+        address
+      });
+
+      if (!message || !signature || !address) {
+        logger.error('Missing parameters for signature verification');
         return false;
       }
-      
-      const userId = userResult.rows[0].id;
-      
-      // Проверяем наличие токенов на кошельке
-      const isAdmin = await this.checkAdminTokens(walletAddress);
-      
-      // Обновляем роль в базе данных
-      await this.updateUserRole(userId, isAdmin ? 'admin' : 'user');
-      
-      logger.info(`User ${userId} with address ${walletAddress}: admin=${isAdmin}`);
-      
-      return isAdmin;
+
+      try {
+        // Восстанавливаем адрес из подписи через ethers
+        const recoveredAddress = ethers.verifyMessage(message, signature);
+        return ethers.getAddress(recoveredAddress) === ethers.getAddress(address);
+      } catch (error) {
+        logger.error('Error in signature verification:', error);
+        return false;
+      }
     } catch (error) {
-      logger.error(`Error checking tokens: ${error.message}`);
+      logger.error('Error in verifySignature:', error);
       return false;
     }
   }
@@ -75,80 +60,195 @@ class AuthService {
    */
   async checkAdminTokens(walletAddress) {
     try {
-      const tokenContracts = [
-        { address: "0xd95a45fc46a7300e6022885afec3d618d7d3f27c", network: "eth" },     // Ethereum
-        { address: "0x1d47f12ffA279BFE59Ab16d56fBb10d89AECdD5D", network: "bsc" },     // Binance Smart Chain
-        { address: "0xdce769b847a0a697239777d0b1c7dd33b6012ba0", network: "arbitrum" }, // Arbitrum
-        { address: "0x351f59de4fedbdf7601f5592b93db3b9330c1c1d", network: "polygon" }   // Polygon
-      ];
-
-      const MIN_BALANCE = ethers.parseUnits("1.0", 18); // 1 токен
-
-      for (const contract of tokenContracts) {
+      for (const contract of this.tokenContracts) {
         try {
-          const provider = providers[contract.network];
-          if (!provider) {
-            logger.warn(`Provider not found for network: ${contract.network}`);
-            continue;
-          }
-
-          // Проверка доступности провайдера
-          try {
-            await provider.getBlockNumber(); // Простой запрос для проверки соединения
-          } catch (providerError) {
-            logger.warn(`Provider for ${contract.network} is not responding: ${providerError.message}`);
-            continue;
-          }
-
-          const tokenContract = new ethers.Contract(contract.address, [
-            "function balanceOf(address owner) view returns (uint256)"
-          ], provider);
+          const provider = this.providers[contract.network];
+          const tokenContract = new ethers.Contract(
+            contract.address,
+            ['function balanceOf(address) view returns (uint256)'],
+            provider
+          );
 
           const balance = await tokenContract.balanceOf(walletAddress);
-          logger.info(`Balance for ${walletAddress} on ${contract.network}: ${balance.toString()}`);
-          
-          if (balance >= MIN_BALANCE) {
+          logger.info(`Balance for ${walletAddress} on ${contract.network}: ${balance}`);
+
+          if (balance >= this.MIN_BALANCE) {
             logger.info(`Admin token found on ${contract.network} for ${walletAddress}`);
-            return true; // Если найден хотя бы один токен, возвращаем true
+            return true;
           }
         } catch (error) {
-          logger.error(`Error checking balance on ${contract.network}: ${error.message}`);
+          logger.error(`Error checking balance on ${contract.network}:`, error);
         }
       }
 
       logger.info(`No admin tokens found for ${walletAddress}`);
-      return false; // Если не найдено ни одного токена, возвращаем false
+      return false;
     } catch (error) {
-      logger.error(`Error in checkAdminTokens: ${error.message}`);
+      logger.error('Error in checkAdminTokens:', error);
       return false;
     }
   }
 
   /**
-   * Обновляет роль пользователя в базе данных
-   * @param {number} userId - ID пользователя
-   * @param {string} role - Новая роль ('admin' или 'user')
-   * @returns {Promise<boolean>} - Успешно ли обновлена роль
+   * Проверяет баланс токенов и обновляет роль пользователя
+   * @param {string} address - Адрес кошелька
+   * @returns {Promise<boolean>} - Является ли пользователь админом
    */
-  async updateUserRole(userId, role) {
+  async checkTokensAndUpdateRole(address) {
     try {
-      // Получаем ID роли
-      const roleResult = await db.query('SELECT id FROM roles WHERE name = $1', [role]);
+      const isAdmin = await this.checkAdminTokens(address);
       
-      if (roleResult.rows.length === 0) {
-        logger.error(`Role ${role} not found`);
-        return false;
+      // Обновляем роль в базе данных
+      await this.updateUserRole(address, isAdmin);
+
+      logger.info(`Updated role for user with address ${address}: admin=${isAdmin}`);
+      return isAdmin;
+    } catch (error) {
+      logger.error('Error in checkTokensAndUpdateRole:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Находит или создает пользователя по адресу кошелька
+   * @param {string} address - Адрес кошелька
+   * @returns {Promise<{userId: number, isAdmin: boolean}>}
+   */
+  async findOrCreateUser(address) {
+    try {
+      const existingUser = await db.query(
+        `SELECT u.id, 
+        (u.role = 'admin') as is_admin
+        FROM users u
+        JOIN user_identities ui ON u.id = ui.user_id
+        WHERE ui.provider = 'wallet' 
+        AND LOWER(ui.provider_id) = LOWER($1)`,
+        [address]
+      );
+
+      if (existingUser.rows.length > 0) {
+        return existingUser.rows[0];
       }
-      
-      const roleId = roleResult.rows[0].id;
-      
-      // Обновляем роль пользователя
-      await db.query('UPDATE users SET role_id = $1 WHERE id = $2', [roleId, userId]);
-      
-      logger.info(`Updated role for user ${userId} to ${role}`);
+
+      // Если пользователь не найден, создаем нового
+      const result = await db.query(
+        'INSERT INTO users DEFAULT VALUES RETURNING id',
+        []
+      );
+      const userId = result.rows[0].id;
+
+      // Добавляем wallet identity
+      await db.query(
+        `INSERT INTO user_identities 
+         (user_id, provider, provider_id, identity_type, identity_value) 
+         VALUES ($1, 'wallet', $2, 'wallet', $2)`,
+        [userId, address.toLowerCase()]
+      );
+
+      // Проверяем роль админа
+      const isAdmin = await this.checkAdminRole(userId);
+
+      return {
+        userId,
+        isAdmin
+      };
+    } catch (error) {
+      console.error('Error in findOrCreateUser:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Обновляет роль пользователя и связанные данные
+   */
+  async updateUserRole(address, isAdmin) {
+    try {
+      const result = await db.query(`
+        UPDATE users u
+        SET 
+          role = $2::user_role
+        FROM user_identities ui
+        WHERE u.id = ui.user_id
+        AND ui.provider = 'wallet'
+        AND LOWER(ui.provider_id) = LOWER($1)
+        RETURNING u.id
+      `, [
+        address,
+        isAdmin ? 'admin' : 'user'
+      ]);
+
+      if (result.rows.length > 0) {
+        logger.info(`Updated role for user ${result.rows[0].id} to ${isAdmin ? 'admin' : 'user'}`);
+      }
+    } catch (error) {
+      logger.error('Error updating user role:', error);
+    }
+  }
+
+  // Связывание идентификаторов (из identity-linker.js)
+  async linkIdentity(userId, type, value) {
+    try {
+      // Проверяем, не связан ли идентификатор с другим пользователем
+      const existingResult = await db.query(
+        `SELECT user_id 
+         FROM user_identities 
+         WHERE identity_type = $1 
+         AND LOWER(identity_value) = LOWER($2)`,
+        [type, value]
+      );
+
+      if (existingResult.rows.length > 0 && existingResult.rows[0].user_id !== userId) {
+        throw new Error('Identity already linked to another user');
+      }
+
+      // Добавляем или обновляем идентификатор
+      await db.query(
+        `INSERT INTO user_identities 
+         (user_id, identity_type, identity_value, verified, created_at)
+         VALUES ($1, $2, $3, true, NOW())
+         ON CONFLICT (identity_type, identity_value) 
+         DO UPDATE SET user_id = $1, verified = true`,
+        [userId, type, value]
+      );
+
+      // Если это кошелек, проверяем права админа
+      if (type === 'wallet') {
+        await this.checkTokensAndUpdateRole(value);
+      }
+
       return true;
     } catch (error) {
-      logger.error(`Error updating user role: ${error.message}`);
+      logger.error('Error linking identity:', error);
+      throw error;
+    }
+  }
+
+  // Получение всех идентификаторов пользователя
+  async getUserIdentities(userId) {
+    try {
+      const result = await db.query(
+        `SELECT identity_type, identity_value, verified, created_at
+         FROM user_identities
+         WHERE user_id = $1`,
+        [userId]
+      );
+      return result.rows;
+    } catch (error) {
+      logger.error('Error getting user identities:', error);
+      return [];
+    }
+  }
+
+  // Проверка роли админа
+  async isAdmin(userId) {
+    try {
+      const result = await db.query(
+        'SELECT is_admin FROM users WHERE id = $1',
+        [userId]
+      );
+      return result.rows.length > 0 && result.rows[0].is_admin;
+    } catch (error) {
+      logger.error('Error checking admin status:', error);
       return false;
     }
   }
@@ -205,46 +305,6 @@ class AuthService {
     } catch (error) {
       logger.error(`Ошибка при получении ID пользователя по идентификатору: ${error.message}`);
       return null;
-    }
-  }
-
-  /**
-   * Получает все идентификаторы пользователя
-   * @param {number} userId - ID пользователя
-   * @returns {Promise<Array>} - Список идентификаторов
-   */
-  async getAllUserIdentities(userId) {
-    try {
-      const result = await db.query(`
-        SELECT identity_type, identity_value, verified, created_at
-        FROM user_identities
-        WHERE user_id = $1
-      `, [userId]);
-      
-      return result.rows;
-    } catch (error) {
-      logger.error(`Error getting user identities: ${error.message}`);
-      return [];
-    }
-  }
-
-  /**
-   * Проверяет, является ли пользователь администратором
-   * @param {number} userId - ID пользователя
-   * @returns {Promise<boolean>} - Является ли пользователь администратором
-   */
-  async isAdmin(userId) {
-    try {
-      const result = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-      
-      if (result.rows.length === 0) {
-        return false;
-      }
-      
-      return result.rows[0].is_admin;
-    } catch (error) {
-      logger.error(`Error checking admin status: ${error.message}`);
-      return false;
     }
   }
 
@@ -349,6 +409,95 @@ class AuthService {
       return false;
     }
   }
+
+  async createSession(req, userData) {
+    // Сохраняем существующие данные сессии
+    const existingData = { ...req.session };
+    
+    req.session.userId = userData.userId;
+    req.session.address = userData.address;
+    req.session.isAdmin = userData.isAdmin;
+    req.session.authenticated = true;
+    req.session.authType = userData.authType;
+    
+    // Если есть гостевые сообщения в существующей сессии
+    if (existingData.guestId) {
+      req.session.guestId = existingData.guestId;
+      // Связываем сообщения сразу здесь
+      await this.linkGuestMessages(req, {
+        userId: userData.userId,
+        guestId: existingData.guestId
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
+  async linkGuestMessages(req, userData) {
+    if (!userData.guestId) return;
+
+    const { rows } = await db.query(
+      'SELECT EXISTS(SELECT 1 FROM guest_messages WHERE guest_id = $1)',
+      [userData.guestId]
+    );
+    
+    if (rows[0].exists) {
+      // Сначала связываем сообщения
+      await db.query('SELECT link_guest_messages($1, $2)', 
+        [userData.userId, userData.guestId]
+      );
+      // Только после успешного связывания удаляем guestId
+      delete req.session.guestId;
+    }
+  }
+
+  async checkAdminRole(userId) {
+    try {
+      // Получаем все идентификаторы пользователя
+      const identities = await db.query(
+        `SELECT provider, provider_id 
+         FROM user_identities 
+         WHERE user_id = $1`,
+        [userId]
+      );
+
+      // Ищем wallet среди идентификаторов
+      const wallet = identities.rows.find(i => i.provider === 'wallet');
+      if (!wallet) return false;
+
+      // Проверяем баланс токенов
+      const hasTokens = await this.checkAdminTokens(wallet.provider_id);
+      if (!hasTokens) return false;
+
+      // Обновляем роль пользователя
+      await db.query(
+        `UPDATE users SET role = 'admin' WHERE id = $1`,
+        [userId]
+      );
+
+      return true;
+    } catch (error) {
+      console.error('Error checking admin role:', error);
+      return false;
+    }
+  }
+
+  // Проверка при каждой аутентификации
+  async verifyIdentity(type, value) {
+    const userId = await this.getUserIdByIdentity(type, value);
+    if (!userId) return false;
+
+    // Проверяем роль только если есть связанный кошелек
+    await this.checkAdminRole(userId);
+    return true;
+  }
 }
 
-module.exports = new AuthService();
+// Создаем и экспортируем единственный экземпляр
+const authService = new AuthService();
+module.exports = authService;

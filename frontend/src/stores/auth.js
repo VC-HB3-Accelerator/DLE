@@ -1,37 +1,22 @@
 import { defineStore } from 'pinia';
 import axios from '../api/axios';
 
-const loadAuthState = () => {
-  const savedAuth = localStorage.getItem('auth');
-  if (savedAuth) {
-    try {
-      return JSON.parse(savedAuth);
-    } catch (e) {
-      console.error('Error parsing saved auth state:', e);
-    }
-  }
-  return null;
-};
-
 export const useAuthStore = defineStore('auth', {
-  state: () => {
-    const savedState = loadAuthState();
-    return {
-      user: null,
-      isAuthenticated: savedState?.isAuthenticated || false,
-      isAdmin: savedState?.isAdmin || false,
-      authType: savedState?.authType || null,
-      identities: {},
-      loading: false,
-      error: null,
-      messages: [],
-      address: null,
-      wallet: null,
-      telegramId: savedState?.telegramId || null,
-      email: null,
-      userId: savedState?.userId || null
-    };
-  },
+  state: () => ({
+    user: null,
+    isAuthenticated: false,
+    isAdmin: false,
+    authType: null,
+    identities: {},
+    loading: false,
+    error: null,
+    messages: [],
+    address: null,
+    wallet: null,
+    telegramId: null,
+    email: null,
+    userId: null
+  }),
   
   actions: {
     async connectWallet(address, signature, message) {
@@ -442,24 +427,22 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
-    async disconnect(router) {
-      // Проверяем, действительно ли нужно выходить
-      if (!this.isAuthenticated) {
-        console.log('Already logged out, skipping disconnect');
-        return;
-      }
-
+    async disconnect() {
       try {
-        // Сначала пробуем очистить сессию на сервере
+        // Очищаем сессию на сервере
         await axios.post('/api/auth/clear-session');
-        await axios.post('/api/auth/logout');
         
-        // Очищаем состояние только после успешного выхода
-        this.clearState();
-        
-        if (router) router.push('/');
+        // Очищаем состояние
+        this.isAuthenticated = false;
+        this.userId = null;
+        this.address = null;
+        this.isAdmin = false;
+        this.authType = null;
+
+        // Очищаем локальное хранилище
+        localStorage.removeItem('auth');
       } catch (error) {
-        console.error('Error during logout:', error);
+        console.error('Error during disconnect:', error);
       }
     },
 
@@ -509,29 +492,23 @@ export const useAuthStore = defineStore('auth', {
     setAuth(authData) {
       console.log('Setting auth state:', authData);
       
-      // Обновляем все поля состояния
+      // Обновляем только состояние в памяти
       this.isAuthenticated = authData.authenticated || authData.isAuthenticated;
+      this.user = {
+        id: authData.userId,
+        address: authData.address
+      };
       this.userId = authData.userId;
       this.isAdmin = authData.isAdmin;
       this.authType = authData.authType;
       this.address = authData.address;
       
-      // Сохраняем состояние в localStorage
-      const stateToSave = {
-        isAuthenticated: this.isAuthenticated,
-        userId: this.userId,
-        isAdmin: this.isAdmin,
-        authType: this.authType,
-        address: this.address
-      };
-      
-      localStorage.setItem('auth', JSON.stringify(stateToSave));
-
       console.log('Auth state updated:', {
         isAuthenticated: this.isAuthenticated,
         userId: this.userId,
         authType: this.authType,
-        address: this.address
+        address: this.address,
+        isAdmin: this.isAdmin
       });
     }
   }

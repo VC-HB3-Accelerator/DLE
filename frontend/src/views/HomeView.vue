@@ -5,29 +5,39 @@
     <div class="auth-section" v-if="!auth.isAuthenticated">
       <h3>Венчурный фонд и поставщик программного обеспечения</h3>
     </div>
+
     <div class="chat-container">
       <div class="chat-header">
-        <WalletConnection 
-          :onWalletAuth="handleWalletAuth"
-          :isAuthenticated="auth.isAuthenticated"
-        />
-        <div class="user-info" v-if="auth.isAuthenticated">
+        <!-- Используем тот же компонент, что и в сообщениях -->
+        <div v-if="!auth.isAuthenticated" class="auth-buttons">
+          <button class="auth-btn wallet-btn" @click="handleWalletAuth">
+            <span class="auth-icon">👛</span> Подключить кошелек
+          </button>
+        </div>
+        <div v-else class="wallet-info">
+          <span>{{ truncateAddress(auth.address) }}</span>
+          <button class="disconnect-btn" @click="disconnectWallet">
+            Отключить кошелек
+          </button>
         </div>
       </div>
       
       <!-- Кнопка загрузки предыдущих сообщений -->
-      <div v-if="hasMoreMessages" class="load-more-container">
-        <button @click="loadMoreMessages" class="load-more-btn" :disabled="isLoadingMore">
+      <div v-if="auth.isAuthenticated && hasMoreMessages" class="load-more">
+        <button @click="loadMoreMessages" :disabled="isLoadingMore">
           {{ isLoadingMore ? 'Загрузка...' : 'Показать предыдущие сообщения' }}
         </button>
       </div>
-
+      
       <div class="chat-messages" ref="messagesContainer">
+        <div v-if="isLoadingMore" class="loading">
+          Загрузка...
+        </div>
         <div v-for="message in messages" :key="message.id" :class="['message', message.role === 'assistant' ? 'ai-message' : 'user-message']">
           <div class="message-content">
             {{ message.content }}
           </div>
-        
+          
           <!-- Кнопки аутентификации -->
           <div v-if="message.showAuthButtons && !auth.isAuthenticated" class="auth-buttons">
             <button class="auth-btn wallet-btn" @click="handleWalletAuth">
@@ -39,32 +49,32 @@
             <button class="auth-btn email-btn" @click="handleEmailAuth">
               <span class="auth-icon">✉️</span> Подключить Email
             </button>
-          </div>
-          
+            </div>
+            
           <!-- Email форма -->
           <div v-if="showEmailForm" class="auth-form">
-            <input 
+              <input 
               v-model="emailInput"
-              type="email"
-              placeholder="Введите ваш email"
+                type="email" 
+                placeholder="Введите ваш email" 
               class="auth-input"
-            />
+              />
             <button @click="submitEmail" class="auth-btn">
               Отправить код
-            </button>
-          </div>
-          
+              </button>
+            </div>
+            
           <!-- Форма верификации email -->
           <div v-if="showEmailVerification" class="auth-form">
-            <input 
+              <input 
               v-model="emailCode"
-              type="text"
+                type="text" 
               placeholder="Введите код из email"
               class="auth-input"
-            />
+              />
             <button @click="verifyEmailCode" class="auth-btn">
               Подтвердить
-            </button>
+                </button>
           </div>
           
           <!-- Telegram верификация -->
@@ -77,9 +87,9 @@
             />
             <button @click="verifyTelegramCode" class="auth-btn">
               Подтвердить
-            </button>
-          </div>
-          
+                </button>
+            </div>
+            
           <div v-if="emailError" class="error-message">
             {{ emailError }}
           </div>
@@ -106,17 +116,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '../stores/auth';
-import WalletConnection from '../components/WalletConnection.vue';
-import TelegramConnect from '../components/TelegramConnect.vue';
-import axios from '../api/axios';
-import { connectWithWallet } from '../utils/wallet';
+import WalletConnection from '../components/identity/WalletConnection.vue';
+import TelegramConnect from '../components/identity/TelegramConnect.vue';
+import api from '../api/axios';
+import { connectWithWallet } from '../services/wallet';
 
 console.log('HomeView.vue: Version with chat loaded');
 
 const auth = useAuthStore();
 const messages = ref([]);
+const guestMessages = ref([]);
 const newMessage = ref('');
 const isLoading = ref(false);
 const messagesContainer = ref(null);
@@ -124,7 +135,6 @@ const userLanguage = ref('ru');
 const email = ref('');
 const isValidEmail = ref(true);
 const hasShownAuthMessage = ref(false);
-const guestMessages = ref([]);
 const hasShownAuthOptions = ref(false);
 
 // Email аутентификация
@@ -144,8 +154,10 @@ const emailError = ref('');
 const PAGE_SIZE = 2; // Показываем только последнее сообщение и ответ
 const allMessages = ref([]); // Все загруженные сообщения
 const currentPage = ref(1); // Текущая страница
-const hasMoreMessages = ref(false); // Есть ли еще сообщения
+const hasMoreMessages = ref(true); // Есть ли еще сообщения
 const isLoadingMore = ref(false); // Загружаются ли дополнительные сообщения
+const offset = ref(0);
+const limit = ref(20);
 
 // Вычисляемое свойство для отображаемых сообщений
 const displayedMessages = computed(() => {
@@ -153,48 +165,30 @@ const displayedMessages = computed(() => {
   return allMessages.value.slice(startIndex);
 });
 
-// Функция загрузки истории чата
-const loadChatHistory = async () => {
-  try {
-    if (!auth.isAuthenticated || !auth.userId) {
-      return;
-    }
+// Функция для сокращения адреса кошелька
+const truncateAddress = (address) => {
+  if (!address) return '';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+};
 
-    const response = await axios.get('/api/chat/history', { 
-      headers: { Authorization: `Bearer ${auth.address}` },
-      params: { limit: PAGE_SIZE, offset: 0 }
-    });
-    
-    if (response.data.success) {
-      messages.value = response.data.messages.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role || (msg.sender_type === 'assistant' ? 'assistant' : 'user'),
-        timestamp: msg.created_at,
-        showAuthOptions: false
-      }));
-
-      hasMoreMessages.value = response.data.total > PAGE_SIZE;
-      
-      await nextTick();
-      scrollToBottom();
-    }
-  } catch (error) {
-    console.error('Error loading chat history:', error);
+// Функция прокрутки к последнему сообщению
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
   }
 };
 
-// Функция загрузки дополнительных сообщений
+// Загрузка сообщений
 const loadMoreMessages = async () => {
-  if (isLoadingMore.value) return;
+  if (!auth.isAuthenticated) return;
   
   try {
     isLoadingMore.value = true;
-    const offset = messages.value.length;
-    
-    const response = await axios.get('/api/chat/history', {
-      headers: { Authorization: `Bearer ${auth.address}` },
-      params: { limit: PAGE_SIZE, offset }
+    const response = await api.get('/api/chat/history', {
+      params: {
+        limit: limit.value,
+        offset: offset.value
+      }
     });
 
     if (response.data.success) {
@@ -205,83 +199,80 @@ const loadMoreMessages = async () => {
         timestamp: msg.created_at,
         showAuthOptions: false
       }));
-
-      messages.value = [...newMessages, ...messages.value];
+      
+      messages.value = [...messages.value, ...newMessages];
       hasMoreMessages.value = response.data.total > messages.value.length;
+      offset.value += newMessages.length;
     }
   } catch (error) {
-    console.error('Error loading more messages:', error);
+    console.error('Error loading chat history:', error);
   } finally {
     isLoadingMore.value = false;
   }
 };
 
-// Функция прокрутки к последнему сообщению
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-  }
-};
-
-// Инициализация при монтировании
-onMounted(async () => {
-  console.log('HomeView.vue: onMounted called');
-  console.log('Auth state:', auth.isAuthenticated);
-  
-  // Определяем язык
-  const cyrillicPattern = /[а-яА-ЯёЁ]/;
-  userLanguage.value = cyrillicPattern.test(newMessage.value) ? 'ru' : 'en';
-  console.log('Detected language:', userLanguage.value);
-
-  // Если пользователь уже аутентифицирован, загружаем историю
-  if (auth.isAuthenticated && auth.userId) {
-    console.log('User authenticated, loading chat history...');
-    await loadChatHistory();
+// Загружаем сообщения при изменении аутентификации
+watch(() => auth.isAuthenticated, async (newValue) => {
+  if (newValue) {
+    messages.value = [];
+    offset.value = 0;
+    hasMoreMessages.value = true;
+    
+    try {
+      // Сначала загружаем историю из messages
+      await loadMoreMessages();
+      
+      // Связываем гостевые сообщения (копируем из guest_messages в messages)
+      await api.post('/api/chat/link-guest-messages');
+      console.log('Guest messages linked to authenticated user');
+      
+      // Перезагружаем сообщения, чтобы получить все, включая перенесенные
+      messages.value = [];
+      offset.value = 0;
+      await loadMoreMessages();
+      
+      await nextTick();
+      scrollToBottom();
+    } catch (linkError) {
+      console.error('Error linking guest messages:', linkError);
+    }
+  } else {
+    messages.value = [];
+    offset.value = 0;
+    hasMoreMessages.value = true;
   }
 });
-
-// Наблюдатель за изменением состояния аутентификации
-watch(() => auth.isAuthenticated, async (newValue, oldValue) => {
-  console.log('Auth state changed in HomeView:', newValue);
-  
-  if (newValue && auth.userId) {
-    // Пользователь только что аутентифицировался
-    await loadChatHistory();
-  } else {
-    // Пользователь вышел из системы
-    messages.value = []; // Очищаем историю сообщений
-    hasMoreMessages.value = false; // Сбрасываем флаг наличия дополнительных сообщений
-    console.log('Chat history cleared after logout');
-  }
-}, { immediate: true });
 
 // Функция для подключения кошелька
 const handleWalletAuth = async () => {
   try {
     const result = await connectWithWallet();
+    
     if (result.success) {
-      console.log('Wallet auth result:', result);
+      // Сохраняем гостевые сообщения перед очисткой
+      const guestMessages = [...messages.value];
+      messages.value = [];
+      offset.value = 0;
+      hasMoreMessages.value = true;
       
-      // Обновляем состояние аутентификации
-      auth.setAuth({
-        authenticated: true,
-        isAuthenticated: true,
-        userId: result.userId,
-        address: result.address,
-        isAdmin: result.isAdmin,
-        authType: 'wallet'
-      });
-
-      // Добавляем задержку для синхронизации сессии
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Загружаем историю чата
-      await loadChatHistory();
+      try {
+        await api.post('/api/chat/link-guest-messages');
+        console.log('Guest messages linked to authenticated user');
+        await loadMoreMessages();
+        
+        const filteredGuestMessages = guestMessages
+          .filter(msg => !msg.showAuthButtons)
+          .reverse();
+        messages.value = [...messages.value, ...filteredGuestMessages];
+        
+        await nextTick();
+        scrollToBottom();
+      } catch (linkError) {
+        console.error('Error linking guest messages:', linkError);
+      }
     }
-    return result;
   } catch (error) {
     console.error('Error connecting wallet:', error);
-    throw error;
   }
 };
 
@@ -295,7 +286,7 @@ const saveGuestMessagesToServer = async () => {
     
     // Отправляем каждое сообщение на сервер
     for (const msg of userMessages) {
-      await axios.post('/api/chat/message', {
+      await api.post('/api/chat/message', {
         message: msg.content,
         language: userLanguage.value
       });
@@ -311,7 +302,7 @@ const saveGuestMessagesToServer = async () => {
 async function connectTelegram() {
   try {
     // Отправляем запрос на получение ссылки для авторизации через Telegram
-    const response = await axios.get('/api/auth/telegram', {
+    const response = await api.get('/api/auth/telegram', {
       withCredentials: true
     });
     
@@ -376,7 +367,7 @@ async function requestEmailCode() {
 // Функция проверки кода
 const verifyEmailCode = async () => {
   try {
-    const response = await axios.post('/api/auth/email/verify-code', {
+    const response = await api.post('/api/auth/email/verify-code', {
       email: emailInput.value,
       code: emailCode.value
     });
@@ -387,7 +378,7 @@ const verifyEmailCode = async () => {
       emailError.value = '';
       
       // Загружаем историю чата после успешной аутентификации
-      await loadChatHistory();
+      await loadMoreMessages();
     } else {
       emailError.value = response.data.error || 'Неверный код';
     }
@@ -403,12 +394,6 @@ function cancelEmailVerification() {
   emailVerificationCode.value = '';
   emailErrorMessage.value = '';
 }
-
-// Добавьте эту функцию в <script setup>
-const formatAddress = (address) => {
-  if (!address) return '';
-  return address.substring(0, 6) + '...' + address.substring(address.length - 4);
-};
 
 // Форматирование времени
 const formatTime = (timestamp) => {
@@ -438,100 +423,72 @@ const formatTime = (timestamp) => {
 };
 
 // Функция для отправки сообщения
-const handleMessage = async (messageText) => {
-  if (!messageText.trim() || isLoading.value) return;
-
-  console.log('Handling message:', messageText);
-  isLoading.value = true;
-
+const handleMessage = async (text) => {
   try {
+    const messageContent = text.trim();
+    if (!messageContent) return;
+    
+    newMessage.value = '';
+    isLoading.value = true;
+
     if (!auth.isAuthenticated) {
-      await sendGuestMessage(messageText);
+      // Сохраняем в таблицу guest_messages
+      const response = await api.post('/api/chat/guest-message', {
+        message: messageContent,
+        language: userLanguage.value
+      });
+      
+      if (response.data.success) {
+        const userMessage = {
+          id: response.data.messageId,
+          content: messageContent,
+          role: 'user',
+          timestamp: new Date().toISOString(),
+          showAuthButtons: false
+        };
+        messages.value.push(userMessage);
+
+        messages.value.push({
+          id: Date.now() + 1,
+          content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов:',
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          showAuthButtons: true
+        });
+      }
     } else {
-      await sendMessage(messageText);
+      // Для авторизованного пользователя сохраняем в messages
+      const response = await api.post('/api/chat/message', {
+        message: messageContent,
+        language: userLanguage.value
+      });
+
+      if (response.data.success) {
+        const message = {
+          id: response.data.messageId,
+          content: messageContent,
+          role: 'user',
+          timestamp: new Date().toISOString(),
+          hasResponse: true
+        };
+        messages.value.push(message);
+        
+        const aiMessage = {
+          id: response.data.aiMessageId,
+          content: response.data.message,
+          role: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        messages.value.push(aiMessage);
+      }
     }
   } catch (error) {
-    console.error('Error handling message:', error);
+    console.error('Error sending message:', error);
     messages.value.push({
       id: Date.now(),
       content: 'Произошла ошибка при отправке сообщения.',
       role: 'assistant',
       timestamp: new Date().toISOString()
-    });
-  } finally {
-    newMessage.value = '';
-    isLoading.value = false;
-  }
-};
-
-// Функция для отправки сообщения аутентифицированного пользователя
-const sendMessage = async (messageText) => {
-  try {
-    const userMessage = {
-      id: Date.now(),
-      content: messageText,
-      role: 'user',
-      timestamp: new Date().toISOString()
-    };
-    messages.value.push(userMessage);
-
-    const response = await axios.post('/api/chat/message', {
-      message: messageText,
-      language: userLanguage.value
-    });
-
-    if (response.data.success) {
-      messages.value.push({
-        id: Date.now() + 1,
-        content: response.data.message,
-        role: 'assistant',
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    console.error('Error sending message:', error);
-  }
-};
-
-// Функция для отправки гостевого сообщения
-const sendGuestMessage = async (messageText) => {
-  try {
-    // Добавляем сообщение пользователя
-    const userMessage = {
-      id: Date.now(),
-      content: messageText,
-      role: 'user',
-      timestamp: new Date().toISOString(),
-      showAuthButtons: false
-    };
-    messages.value.push(userMessage);
-
-    // Очищаем поле ввода
-    newMessage.value = '';
-
-    // Сохраняем сообщение на сервере без получения ответа от Ollama
-    await axios.post('/api/chat/guest-message', {
-      message: messageText,
-      language: userLanguage.value
-    });
-
-    // Добавляем сообщение с кнопками аутентификации
-    messages.value.push({
-      id: Date.now() + 1,
-      content: 'Для получения ответа, пожалуйста, авторизуйтесь одним из способов:',
-      role: 'assistant',
-      timestamp: new Date().toISOString(),
-      showAuthButtons: true
-    });
-
-  } catch (error) {
-    console.error('Error sending guest message:', error);
-    messages.value.push({
-      id: Date.now() + 2,
-      content: 'Произошла ошибка. Пожалуйста, попробуйте позже.',
-      role: 'assistant',
-      timestamp: new Date().toISOString(),
-      showAuthButtons: true
     });
   } finally {
     isLoading.value = false;
@@ -554,7 +511,7 @@ const handleEmailAuth = async () => {
 // Функция отправки email
 const submitEmail = async () => {
   try {
-    const response = await axios.post('/api/auth/email/request', {
+    const response = await api.post('/api/auth/email/request', {
       email: emailInput.value
     });
 
@@ -573,7 +530,7 @@ const submitEmail = async () => {
 // Функция верификации кода Telegram
 const verifyTelegramCode = async () => {
   try {
-    const response = await axios.post('/api/auth/telegram/verify', {
+    const response = await api.post('/api/auth/telegram/verify', {
       code: telegramCode.value
     });
 
@@ -602,7 +559,7 @@ const verifyTelegramCode = async () => {
 
       // Загружаем историю чата после небольшой задержки
       setTimeout(async () => {
-        await loadChatHistory();
+        await loadMoreMessages();
       }, 100);
     } else {
       messages.value.push({
@@ -622,6 +579,43 @@ const verifyTelegramCode = async () => {
     });
   }
 };
+
+const disconnectWallet = async () => {
+  try {
+    await auth.disconnect();
+    messages.value = [];
+    offset.value = 0;
+    hasMoreMessages.value = true;
+  } catch (error) {
+    console.error('Error disconnecting wallet:', error);
+  }
+};
+
+// Обработка прокрутки
+const handleScroll = async () => {
+  const element = messagesContainer.value;
+  if (
+    !isLoadingMore.value &&
+    hasMoreMessages.value &&
+    element.scrollTop === 0
+  ) {
+    await loadMoreMessages();
+  }
+};
+
+onMounted(() => {
+  // Добавляем слушатель прокрутки
+  if (messagesContainer.value) {
+    messagesContainer.value.addEventListener('scroll', handleScroll);
+  }
+});
+
+onBeforeUnmount(() => {
+  // Удаляем слушатель
+  if (messagesContainer.value) {
+    messagesContainer.value.removeEventListener('scroll', handleScroll);
+  }
+});
 </script>
 
 <style scoped>
@@ -665,64 +659,49 @@ h1 {
 }
 
 .chat-header {
+  padding: 1rem;
+  border-bottom: 1px solid #ddd;
+  background-color: #f8f9fa;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding: 10px 20px;
-  background-color: #f0f0f0;
-  border-bottom: 1px solid #ccc;
 }
 
-/* Адаптивный заголовок чата */
-@media (max-width: 768px) {
-  .chat-header {
-    padding: 8px 12px;
-  }
-  
-  .chat-header h2 {
-    font-size: 1.2rem;
-    margin: 0;
-  }
-}
-
-.user-info {
+.wallet-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 0.9rem;
+  gap: 1rem;
 }
 
-/* Адаптивная информация о пользователе */
-@media (max-width: 768px) {
-  .user-info {
-    font-size: 0.7rem;
-    gap: 5px;
-  }
-  
-  .user-info span {
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.logout-btn {
-  padding: 5px 10px;
-  background-color: #f44336;
+.disconnect-btn {
+  padding: 0.5rem 1rem;
+  background-color: #ff4444;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
 }
 
-/* Адаптивная кнопка выхода */
-@media (max-width: 768px) {
-  .logout-btn {
-    padding: 4px 8px;
-    font-size: 0.8rem;
-  }
+.disconnect-btn:hover {
+  background-color: #cc0000;
+}
+
+.load-more {
+  text-align: center;
+  padding: 1rem;
+}
+
+.load-more button {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.load-more button:hover {
+  background-color: #0056b3;
 }
 
 .chat-messages {
@@ -915,32 +894,27 @@ h1 {
 }
 
 .auth-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 1rem;
+  padding: 8px 16px;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 1rem;
-  border: none;
-  width: 100%;
-  font-weight: 500;
-  transition: opacity 0.2s;
-  box-sizing: border-box;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.auth-btn:hover {
-  opacity: 0.9;
+.wallet-btn {
+  background-color: #4a5568;
+  color: white;
 }
 
-.auth-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.wallet-btn:hover {
+  background-color: #2d3748;
 }
 
 .auth-icon {
-  margin-right: 0.75rem;
-  font-size: 1.2rem;
+  font-size: 16px;
 }
 
 .telegram-btn {
@@ -1079,5 +1053,49 @@ h1 {
 .load-more-btn:disabled {
   background-color: #cbd5e0;
   cursor: not-allowed;
+}
+
+.wallet-section {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.wallet-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.disconnect-btn {
+  padding: 0.5rem 1rem;
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.disconnect-btn:hover {
+  background-color: #cc0000;
+}
+
+.chat-history {
+  height: 60vh;
+  overflow-y: auto;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-top: 1rem;
+}
+
+/* Добавим индикатор загрузки */
+.loading {
+  text-align: center;
+  padding: 1rem;
+  color: #666;
 }
 </style>

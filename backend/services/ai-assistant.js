@@ -1,158 +1,109 @@
 const { ChatOllama } = require('@langchain/ollama');
-const { pool } = require('../db');
+const { HNSWLib } = require('langchain/vectorstores/hnswlib');
+const { OpenAIEmbeddings } = require('langchain/embeddings/openai');
+const logger = require('../utils/logger');
 
-// Инициализация модели Ollama
-const model = new ChatOllama({
-  baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-  model: process.env.OLLAMA_MODEL || 'llama2',
-});
-
-/**
- * Обработка сообщения пользователя и получение ответа от ИИ
- * @param {number} userId - ID пользователя
- * @param {string} message - Текст сообщения
- * @param {string} language - Язык пользователя
- * @returns {Promise<string>} - Ответ ИИ
- */
-async function processMessage(userId, message, language = 'ru') {
-  try {
-    // Получение информации о пользователе
-    const userInfo = await getUserInfo(userId);
-
-    // Получение истории диалога (последние 10 сообщений)
-    const history = await getConversationHistory(userId);
-
-    // Формирование контекста для ИИ
-    const context = `
-Пользователь: ${userInfo.username || 'Пользователь'} (ID: ${userId})
-Язык: ${language}
-Роль: ${userInfo.is_admin ? 'Администратор' : 'Пользователь'}
-История диалога:
-${history}
-
-Текущее сообщение: ${message}
-`;
-
-    // Временная заглушка для ответа ИИ
-    // В будущем здесь будет интеграция с реальной моделью ИИ
-    const responses = {
-      ru: [
-        'Спасибо за ваше сообщение! Чем я могу помочь?',
-        'Я понимаю ваш запрос. Давайте разберемся с этим вопросом.',
-        'Интересный вопрос! Вот что я могу предложить...',
-        'Я обработал вашу информацию. Есть ли у вас дополнительные вопросы?',
-        'Я готов помочь вам с этим запросом. Нужны ли дополнительные детали?',
-      ],
-      en: [
-        'Thank you for your message! How can I help you?',
-        "I understand your request. Let's figure this out.",
-        "Interesting question! Here's what I can suggest...",
-        "I've processed your information. Do you have any additional questions?",
-        "I'm ready to help you with this request. Do you need any additional details?",
-      ],
-    };
-
-    const langResponses = responses[language] || responses['ru'];
-    const randomIndex = Math.floor(Math.random() * langResponses.length);
-
-    // Имитация задержки ответа ИИ
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    return langResponses[randomIndex];
-  } catch (error) {
-    console.error('Error processing message:', error);
-    return 'Извините, произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз позже.';
+class AIAssistant {
+  constructor() {
+    this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    this.defaultModel = process.env.OLLAMA_MODEL || 'mistral';
   }
-}
 
-/**
- * Получение информации о пользователе
- * @param {number} userId - ID пользователя
- * @returns {Promise<Object>} - Информация о пользователе
- */
-async function getUserInfo(userId) {
-  try {
-    const userResult = await pool.query(
-      `SELECT u.id, u.username, u.address, u.is_admin, u.language, r.name as role
-       FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE u.id = $1`,
-      [userId]
-    );
+  // Создание экземпляра ChatOllama с нужными параметрами
+  createChat(language = 'ru') {
+    const systemPrompt = language === 'ru' 
+      ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
+      : 'You are a helpful assistant. Respond in English.';
 
-    if (userResult.rows.length === 0) {
-      return { id: userId };
+    return new ChatOllama({
+      baseUrl: this.baseUrl,
+      model: this.defaultModel,
+      system: systemPrompt
+    });
+  }
+
+  // Определение языка сообщения
+  detectLanguage(message) {
+    const cyrillicPattern = /[а-яА-ЯёЁ]/;
+    return cyrillicPattern.test(message) ? 'ru' : 'en';
+  }
+
+  // Основной метод для получения ответа
+  async getResponse(message, language = 'auto') {
+    try {
+      // Определяем язык, если не указан явно
+      const detectedLanguage = language === 'auto' 
+        ? this.detectLanguage(message) 
+        : language;
+
+      const chat = this.createChat(detectedLanguage);
+      
+      try {
+        // Пробуем получить ответ через ChatOllama
+        const response = await chat.invoke(message);
+        return response.content;
+      } catch (error) {
+        logger.error('Error using ChatOllama:', error);
+        
+        // Пробуем альтернативный метод через прямой API
+        return await this.fallbackRequest(message, detectedLanguage);
+      }
+    } catch (error) {
+      logger.error('Error in getResponse:', error);
+      return "Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.";
     }
-
-    // Получение идентификаторов пользователя
-    const identitiesResult = await pool.query(
-      `SELECT identity_type, identity_value, verified
-       FROM user_identities
-       WHERE user_id = $1`,
-      [userId]
-    );
-
-    const user = userResult.rows[0];
-    user.identities = identitiesResult.rows;
-
-    return user;
-  } catch (error) {
-    console.error('Error getting user info:', error);
-    return { id: userId };
   }
-}
 
-/**
- * Получение истории диалога
- * @param {number} userId - ID пользователя
- * @param {number} limit - Максимальное количество сообщений
- * @returns {Promise<string>} - История диалога в текстовом формате
- */
-async function getConversationHistory(userId, limit = 10) {
-  try {
-    // Получение последнего активного диалога пользователя
-    const conversationResult = await pool.query(
-      `SELECT id FROM conversations
-       WHERE user_id = $1
-       ORDER BY updated_at DESC
-       LIMIT 1`,
-      [userId]
-    );
+  // Альтернативный метод запроса через прямой API
+  async fallbackRequest(message, language) {
+    try {
+      logger.info('Using fallback request method');
+      
+      const systemPrompt = language === 'ru'
+        ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
+        : 'You are a helpful assistant. Respond in English.';
 
-    if (conversationResult.rows.length === 0) {
-      return '';
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.defaultModel,
+          prompt: message,
+          system: systemPrompt,
+          stream: false
+        }),
+      });
+      
+      const data = await response.json();
+      return data.response;
+    } catch (error) {
+      logger.error('Error in fallback request:', error);
+      throw error;
     }
+  }
 
-    const conversationId = conversationResult.rows[0].id;
+  // Получение списка доступных моделей
+  async getAvailableModels() {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      const data = await response.json();
+      return data.models || [];
+    } catch (error) {
+      logger.error('Error getting available models:', error);
+      return [];
+    }
+  }
 
-    // Получение последних сообщений из диалога
-    const messagesResult = await pool.query(
-      `SELECT sender_type, content, created_at
-       FROM messages
-       WHERE conversation_id = $1
-       ORDER BY created_at DESC
-       LIMIT $2`,
-      [conversationId, limit]
-    );
+  // Добавляем методы из vectorStore.js
+  async initVectorStore() {
+    // ... код инициализации ...
+  }
 
-    // Формирование истории в текстовом формате
-    const history = messagesResult.rows
-      .reverse()
-      .map((msg) => {
-        const sender = msg.sender_type === 'user' ? 'Пользователь' : 'ИИ';
-        return `${sender}: ${msg.content}`;
-      })
-      .join('\n\n');
-
-    return history;
-  } catch (error) {
-    console.error('Error getting conversation history:', error);
-    return '';
+  async findSimilarDocuments(query, k = 3) {
+    // ... код поиска документов ...
   }
 }
 
-module.exports = {
-  processMessage,
-  getUserInfo,
-  getConversationHistory,
-};
+// Создаем и экспортируем единственный экземпляр
+const aiAssistant = new AIAssistant();
+module.exports = aiAssistant;
