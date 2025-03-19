@@ -8,34 +8,26 @@
 import { onMounted } from 'vue';
 import { useAuthStore } from './stores/auth';
 import { useRouter } from 'vue-router';
+import axios from 'axios';
 
 console.log('App.vue: Version with auth check loaded');
 
 const authStore = useAuthStore();
 const router = useRouter();
 
-onMounted(async () => {
-  console.log('App.vue: onMounted - checking auth');
-  
+async function checkAuth() {
   try {
-    // Проверяем аутентификацию на сервере
-    const result = await authStore.checkAuth();
-    console.log('Auth check result:', result.authenticated);
+    const response = await axios.get('/api/auth/check');
     
-    if (result.authenticated) {
-      // Если пользователь аутентифицирован, восстанавливаем состояние
-      console.log('Session restored from server');
-      
-      // Загружаем историю чата, если мы на странице чата
-      if (router.currentRoute.value.name === 'home') {
-        console.log('Loading chat history after session restore');
-        // Здесь можно вызвать метод для загрузки истории чата
-      }
+    if (response.data.authenticated) {
+      authStore.setAuth(response.data);
     }
   } catch (error) {
     console.error('Error checking auth:', error);
   }
-});
+}
+
+onMounted(checkAuth);
 </script>
 
 <style>

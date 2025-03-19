@@ -10,7 +10,6 @@ const routes = [
     name: 'home',
     component: HomeView
   }
-  // Другие маршруты можно добавить позже, когда будут созданы соответствующие компоненты
 ];
 
 const router = createRouter({
@@ -32,11 +31,10 @@ router.beforeEach(async (to, from, next) => {
   // Проверяем аутентификацию, если маршрут требует авторизации
   if (to.matched.some(record => record.meta.requiresAuth)) {
     if (!authStore.isAuthenticated) {
-      // Если пользователь не авторизован, перенаправляем на главную
       return next({ name: 'home' });
     }
     
-    // Проверяем права администратора, если маршрут требует прав администратора
+    // Проверяем права администратора
     if (to.matched.some(record => record.meta.requiresAdmin) && !authStore.isAdmin) {
       return next({ name: 'home' });
     }

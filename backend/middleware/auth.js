@@ -9,66 +9,76 @@ const db = require('../db');
  */
 const requireAuth = async (req, res, next) => {
   try {
-    console.log('Session in requireAuth:', req.session);
-    console.log('Cookies received:', req.headers.cookie);
-    console.log('Authorization header:', req.headers.authorization);
-    
-    // Проверяем, что пользователь аутентифицирован через сессию
-    if (req.session && req.session.authenticated && req.session.userId) {
-      // Добавляем информацию о пользователе в запрос
+    console.log('Session in requireAuth:', {
+      id: req.sessionID,
+      userId: req.session?.userId,
+      authenticated: req.session?.authenticated
+    });
+
+    // Проверяем сессию
+    if (req.session?.authenticated && req.session?.userId) {
+      // Обновляем время жизни сессии
+      req.session.touch();
+      
       req.user = {
         userId: req.session.userId,
-        address: req.session.address || null,
-        email: req.session.email || null,
-        telegramId: req.session.telegramId || null,
-        isAdmin: req.session.isAdmin || false,
-        authType: req.session.authType || 'unknown'
+        address: req.session.address,
+        isAdmin: req.session.isAdmin,
+        authType: req.session.authType
       };
       return next();
     }
-    
-    // Проверяем заголовок авторизации
+
+    // Проверяем Bearer токен
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    if (authHeader?.startsWith('Bearer ')) {
+      const address = authHeader.split(' ')[1];
       
-      // Проверяем, это адрес кошелька или JWT-токен
-      if (token.startsWith('0x')) {
-        // Это адрес кошелька
-        const address = token;
-        console.log('Found address in Authorization header:', address);
-        
-        try {
-          // Проверяем, существует ли пользователь с таким адресом
-          const result = await db.query(`
-            SELECT u.id, u.is_admin 
-            FROM users u
-            JOIN user_identities ui ON u.id = ui.user_id
-            WHERE ui.identity_type = 'wallet' AND LOWER(ui.identity_value) = LOWER($1)
-          `, [address]);
+      if (address.startsWith('0x')) {
+        const result = await db.query(`
+          SELECT u.id, u.is_admin 
+          FROM users u
+          JOIN user_identities ui ON u.id = ui.user_id
+          WHERE ui.identity_type = 'wallet' 
+          AND LOWER(ui.identity_value) = LOWER($1)
+        `, [address]);
+
+        if (result.rows.length > 0) {
+          const user = result.rows[0];
           
-          if (result.rows.length > 0) {
-            const user = result.rows[0];
+          // Создаем новую сессию
+          req.session.regenerate(async (err) => {
+            if (err) {
+              console.error('Error regenerating session:', err);
+              return res.status(500).json({ error: 'Session error' });
+            }
+
+            // Устанавливаем данные сессии
+            req.session.authenticated = true;
+            req.session.userId = user.id;
+            req.session.address = address;
+            req.session.isAdmin = user.is_admin;
+            req.session.authType = 'wallet';
+
+            // Сохраняем сессию
+            await new Promise((resolve) => req.session.save(resolve));
+
             req.user = {
               userId: user.id,
               address: address,
               isAdmin: user.is_admin,
               authType: 'wallet'
             };
-            return next();
-          }
-        } catch (error) {
-          console.error('Error finding user by address:', error);
+            next();
+          });
+          return;
         }
-      } else {
-        // Здесь можно добавить логику проверки JWT, если используется
       }
     }
-    
-    // Если пользователь не аутентифицирован, возвращаем ошибку
+
     return res.status(401).json({ error: 'Unauthorized' });
   } catch (error) {
-    console.error('Unexpected error in requireAuth middleware:', error);
+    console.error('Auth middleware error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

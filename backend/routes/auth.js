@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { ethers } = require('ethers');
 const crypto = require('crypto');
 const db = require('../db');
 const logger = require('../utils/logger');
@@ -8,11 +7,11 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { checkRole, requireAuth } = require('../middleware/auth');
 const { pool } = require('../db');
-const { verifySignature, checkAccess, findOrCreateUser } = require('../utils/auth');
 const authService = require('../services/auth-service');
 const { SiweMessage } = require('siwe');
 const { sendEmail } = require('../services/emailBot');
 const { verificationCodes } = require('../services/telegramBot');
+const { checkTokensAndUpdateRole } = require('../services/auth-service');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -87,85 +86,64 @@ async function checkUserRole(address, req) {
 router.post('/verify', async (req, res) => {
   try {
     const { address, signature, message } = req.body;
+    console.log('Received verification request:', { address, message });
+    console.log('Signature:', signature);
+
+    // Проверяем подпись через SIWE
+    const siwe = new SiweMessage(message);
+    console.log('Created SIWE message object');
+
+    const fields = await siwe.verify({ signature });
+    console.log('SIWE validation result:', fields);
     
-    console.log('Verify request: address=' + address + ', signature=' + signature.substring(0, 10) + '...');
-    
-    // Получаем nonce из базы данных
-    const nonceResult = await db.query(`
-      SELECT nonce FROM nonces
-      WHERE identity_value = $1 AND expires_at > NOW() AND used = false
-    `, [address.toLowerCase()]);
-    
-    if (nonceResult.rows.length === 0) {
-      console.error(`No valid nonce found for address ${address}`);
-      return res.status(401).json({ error: 'Invalid or expired nonce' });
-    }
-    
-    const nonce = nonceResult.rows[0].nonce;
-    console.log(`Found nonce ${nonce} for address ${address}`);
-    
-    // Проверяем подпись
-    const isValid = await verifySignature(nonce, signature, address);
-    console.log('Signature verification result:', isValid);
-    
-    if (!isValid) {
+    if (!fields || !fields.success) {
+      console.log('SIWE validation failed');
       return res.status(401).json({ error: 'Invalid signature' });
     }
-    
-    // Помечаем nonce как использованный
-    await db.query(`
-      UPDATE nonces
-      SET used = true
-      WHERE identity_value = $1
-    `, [address.toLowerCase()]);
-    
-    // Находим или создаем пользователя
-    console.log('Finding or creating user for address:', address);
-    const { userId, isAdmin } = await findOrCreateUser(address);
-    console.log('User found/created:', { userId, isAdmin });
-    
-    // Сохраняем guestId перед обновлением сессии
-    const currentGuestId = req.session.guestId;
-    
-    // Устанавливаем пользователя в сессии
-    req.session.userId = userId;
-    req.session.address = address;
-    req.session.isAdmin = isAdmin;
-    req.session.authenticated = true;
-    
-    // Сохраняем guestId в новой сессии
-    if (currentGuestId) {
-      req.session.guestId = currentGuestId;
+
+    // Проверяем nonce
+    const nonceResult = await db.query(
+      `SELECT nonce FROM nonces 
+       WHERE identity_value = $1 
+       AND expires_at > NOW()`,
+      [address.toLowerCase()]
+    );
+    console.log('Nonce check result:', nonceResult.rows);
+
+    if (!nonceResult.rows.length) {
+      console.log('Invalid or expired nonce');
+      return res.status(401).json({ error: 'Invalid or expired nonce' });
     }
-    
-    // Сохраняем сессию ПЕРЕД отправкой ответа
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
-        if (err) {
-          console.error('Error saving session:', err);
-          reject(err);
-        } else {
-          console.log('Session saved successfully');
-          resolve();
-        }
-      });
-    });
-    
-    console.log('Authentication successful for user:', { 
-      userId, 
-      address, 
-      isAdmin, 
-      guestId: currentGuestId 
-    });
-    console.log('Session after save:', req.session);
-    
-    // Обрабатываем гостевые сообщения, если они есть
-    if (currentGuestId) {
-      console.log(`Processing guest messages for guestId: ${currentGuestId}`);
-      await authService.processGuestMessages(userId, currentGuestId);
+
+    // Проверяем соответствие nonce
+    if (nonceResult.rows[0].nonce !== fields.data.nonce) {
+      console.log('Nonce mismatch');
+      return res.status(401).json({ error: 'Invalid nonce' });
     }
-    
-    return res.json({
+
+    // Получаем или создаем пользователя
+    const userResult = await db.query(
+      `INSERT INTO users (address, created_at, updated_at)
+       VALUES ($1, NOW(), NOW())
+       ON CONFLICT (address) DO UPDATE
+       SET updated_at = NOW()
+       RETURNING id, role = 'admin' as is_admin`,
+      [address]
+    );
+
+    const userId = userResult.rows[0].id;
+    const isAdmin = userResult.rows[0].is_admin;
+
+    // Используем централизованный сервис
+    await authService.createSession(req, {
+      userId,
+      address,
+      isAdmin,
+      authType: 'wallet',
+      guestId: req.session.guestId
+    });
+
+    res.json({
       authenticated: true,
       userId,
       address,
@@ -173,7 +151,7 @@ router.post('/verify', async (req, res) => {
       authType: 'wallet'
     });
   } catch (error) {
-    console.error('Error during wallet verification:', error);
+    console.error('Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -818,31 +796,35 @@ router.post('/link-identity', requireAuth, async (req, res) => {
 });
 
 // Добавляем маршрут для проверки прав доступа
-router.get('/check-access', requireAuth, (req, res) => {
+router.get('/check-access', requireAuth, async (req, res) => {
   try {
-    // Получаем информацию о пользователе
-    const userData = {
-      address: req.session.address,
-      isAdmin: req.session.isAdmin || false,
-      roles: req.session.roles || [],
-      authenticated: true,
-    };
+    const userId = req.session.userId;
+    const address = req.session.address;
 
-    // Проверяем доступ к различным разделам
-    const access = {
-      dashboard: true, // Все аутентифицированные пользователи имеют доступ к панели управления
-      admin: userData.isAdmin, // Только администраторы имеют доступ к админке
-      contracts: userData.roles.includes('CONTRACT_MANAGER') || userData.isAdmin,
-      users: userData.roles.includes('USER_MANAGER') || userData.isAdmin,
-    };
+    if (address) {
+      const isAdmin = await checkTokensAndUpdateRole(address);
+      
+      // Обновляем сессию
+      req.session.isAdmin = isAdmin;
 
-    res.json({
-      user: userData,
-      access: access,
+      return res.json({
+        success: true,
+        isAdmin,
+        userId,
+        address
+      });
+    }
+
+    return res.json({
+      success: true,
+      isAdmin: false,
+      userId,
+      address: null
     });
+
   } catch (error) {
-    console.error('Ошибка при проверке прав доступа:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Error checking access:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -2,43 +2,30 @@ import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 
 // Создаем экземпляр axios с базовым URL
-const instance = axios.create({
-  baseURL: '/',
+const api = axios.create({
+  baseURL: '', // Убираем baseURL
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-  },
+    'Content-Type': 'application/json'
+  }
 });
 
-// Добавляем перехватчик для добавления заголовка авторизации
-instance.interceptors.request.use(
+// Перехватчик запросов
+api.interceptors.request.use(
   (config) => {
-    console.log('Axios interceptor running');
-    const authStore = useAuthStore();
+    config.withCredentials = true; // Важно для каждого запроса
     
-    // Логируем параметры запроса
-    console.log('Request parameters:', config);
-
-    // Если уже есть заголовок Authorization, не перезаписываем его
-    if (config.headers.Authorization) {
-      return config;
-    }
-
-    // Если пользователь аутентифицирован и есть адрес кошелька
+    const authStore = useAuthStore();
     if (authStore.isAuthenticated && authStore.address) {
-      console.log('Adding Authorization header:', `Bearer ${authStore.address}`);
       config.headers.Authorization = `Bearer ${authStore.address}`;
     }
-    
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Добавляем перехватчик для обработки ответов
-instance.interceptors.response.use(
+api.interceptors.response.use(
   (response) => {
     console.log('Response from server:', response.data);
     return response;
@@ -69,4 +56,4 @@ const sendGuestMessageToServer = async (messageText) => {
   }
 };
 
-export default instance;
+export default api;
