@@ -1,5 +1,5 @@
 <template>
-  <div v-if="authStore.isAuthenticated">
+  <div v-if="isAuthenticated">
     <div class="message-thread" ref="threadContainer">
       <div v-if="loading" class="loading">Загрузка сообщений...</div>
 
@@ -28,7 +28,6 @@
 <script setup>
 import { ref, onMounted, watch, nextTick, defineExpose } from 'vue';
 import axios from 'axios';
-import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
   conversationId: {
@@ -40,7 +39,7 @@ const props = defineProps({
 const messages = ref([]);
 const loading = ref(true);
 const threadContainer = ref(null);
-const authStore = useAuthStore()
+const isAuthenticated = ref(false);
 
 // Загрузка сообщений диалога
 const fetchMessages = async () => {
@@ -112,8 +111,8 @@ watch(
 );
 
 // Следим за изменением статуса аутентификации
-watch(() => authStore.isAuthenticated, (isAuthenticated) => {
-  if (!isAuthenticated) {
+watch(() => isAuthenticated.value, (authenticated) => {
+  if (!authenticated) {
     messages.value = []; // Очищаем сообщения при отключении
   }
 });

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
-import { useAuthStore } from '../stores/auth';
+import axios from 'axios';
 
 console.log('router/index.js: Script loaded');
 
@@ -21,8 +21,6 @@ console.log('router/index.js: Router created');
 
 // Защита маршрутов
 router.beforeEach(async (to, from, next) => {
-  const authStore = useAuthStore();
-  
   // Если пытаемся перейти на несуществующий маршрут, перенаправляем на главную
   if (!to.matched.length) {
     return next({ name: 'home' });
@@ -30,17 +28,19 @@ router.beforeEach(async (to, from, next) => {
   
   // Проверяем аутентификацию, если маршрут требует авторизации
   if (to.matched.some(record => record.meta.requiresAuth)) {
-    if (!authStore.isAuthenticated) {
-      return next({ name: 'home' });
+    try {
+      const response = await axios.get('/api/auth/check');
+      if (response.data.authenticated) {
+        next();
+      } else {
+        next('/login');
+      }
+    } catch (error) {
+      next('/login');
     }
-    
-    // Проверяем права администратора
-    if (to.matched.some(record => record.meta.requiresAdmin) && !authStore.isAdmin) {
-      return next({ name: 'home' });
-    }
+  } else {
+    next();
   }
-  
-  next();
 });
 
 export default router;

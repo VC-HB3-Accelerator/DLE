@@ -2,7 +2,7 @@
   <div class="home">
     <h1>✌️ HB3 - Accelerator DLE (Digital Legal Entity - DAO Fork)</h1>
     
-    <div class="auth-section" v-if="!auth.isAuthenticated">
+    <div class="auth-section" v-if="!isAuthenticated">
       <h3>Венчурный фонд и поставщик программного обеспечения</h3>
     </div>
        
@@ -10,13 +10,13 @@
     <div class="chat-container">
       <div class="chat-header">
         <!-- Используем тот же компонент, что и в сообщениях -->
-        <div v-if="!auth.isAuthenticated" class="auth-buttons">
+        <div v-if="!isAuthenticated" class="auth-buttons">
           <button class="auth-btn wallet-btn" @click="handleWalletAuth">
             <span class="auth-icon">👛</span> Подключить кошелек
           </button>
         </div>
         <div v-else class="wallet-info">
-          <span>{{ truncateAddress(auth.address) }}</span>
+          <span>{{ truncateAddress(auth.address.value) }}</span>
           <button class="disconnect-btn" @click="disconnectWallet">
             Отключить кошелек
           </button>
@@ -24,7 +24,7 @@
       </div>
       
       <!-- Кнопка загрузки предыдущих сообщений -->
-      <div v-if="auth.isAuthenticated && hasMoreMessages" class="load-more">
+      <div v-if="isAuthenticated && hasMoreMessages" class="load-more">
         <button @click="loadMoreMessages" :disabled="isLoadingMore">
           {{ isLoadingMore ? 'Загрузка...' : 'Показать предыдущие сообщения' }}
         </button>
@@ -40,7 +40,7 @@
           </div>
           
           <!-- Кнопки аутентификации -->
-          <div v-if="message.showAuthButtons && !auth.isAuthenticated" class="auth-buttons">
+          <div v-if="message.showAuthButtons && !isAuthenticated" class="auth-buttons">
             <button class="auth-btn wallet-btn" @click="handleWalletAuth">
               <span class="auth-icon">👛</span> Подключить кошелек
             </button>
@@ -117,16 +117,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
-import { useAuthStore } from '../stores/auth';
+import { ref, computed, onMounted, watch, nextTick, onBeforeUnmount, inject } from 'vue';
 import WalletConnection from '../components/identity/WalletConnection.vue';
 import TelegramConnect from '../components/identity/TelegramConnect.vue';
+import EmailConnect from '../components/identity/EmailConnect.vue';
 import api from '../api/axios';
 import { connectWithWallet } from '../services/wallet';
 
 console.log('HomeView.vue: Version with chat loaded');
 
-const auth = useAuthStore();
+const auth = inject('auth');
+const isAuthenticated = computed(() => auth.isAuthenticated.value);
+const authType = ref(null);
 const messages = ref([]);
 const guestMessages = ref([]);
 const newMessage = ref('');
@@ -181,7 +183,7 @@ const scrollToBottom = () => {
 
 // Загрузка сообщений
 const loadMoreMessages = async () => {
-  if (!auth.isAuthenticated) return;
+  if (!isAuthenticated.value) return;
   
   try {
     isLoadingMore.value = true;
@@ -213,7 +215,7 @@ const loadMoreMessages = async () => {
 };
 
 // Загружаем сообщения при изменении аутентификации
-watch(() => auth.isAuthenticated, async (newValue) => {
+watch(() => isAuthenticated.value, async (newValue) => {
   if (newValue) {
     messages.value = [];
     offset.value = 0;
@@ -244,12 +246,13 @@ watch(() => auth.isAuthenticated, async (newValue) => {
   }
 });
 
-// Функция для подключения кошелька
+// Находим существующую функцию handleWalletAuth и обновляем её
 const handleWalletAuth = async () => {
   try {
     const result = await connectWithWallet();
+    await auth.checkAuth();
     
-    if (result.success) {
+    if (result.authenticated) {
       // Сохраняем гостевые сообщения перед очисткой
       const guestMessages = [...messages.value];
       messages.value = [];
@@ -432,7 +435,7 @@ const handleMessage = async (text) => {
     newMessage.value = '';
     isLoading.value = true;
 
-    if (!auth.isAuthenticated) {
+    if (!isAuthenticated.value) {
       // Сохраняем в таблицу guest_messages
       const response = await api.post('/api/chat/guest-message', {
         message: messageContent,

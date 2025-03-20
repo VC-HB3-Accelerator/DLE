@@ -5,29 +5,60 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
-import { useAuthStore } from './stores/auth';
+import { onMounted, ref, provide, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
 console.log('App.vue: Version with auth check loaded');
 
-const authStore = useAuthStore();
 const router = useRouter();
 
-async function checkAuth() {
-  try {
-    const response = await axios.get('/api/auth/check');
-    
-    if (response.data.authenticated) {
-      authStore.setAuth(response.data);
-    }
-  } catch (error) {
-    console.error('Error checking auth:', error);
-  }
-}
+// Создаем реактивное состояние с помощью ref
+const authState = ref({
+  isAuthenticated: false,
+  userRole: null,
+  address: null
+});
 
-onMounted(checkAuth);
+// Предоставляем состояние аутентификации всем компонентам
+const auth = {
+  // Используем computed для реактивности
+  isAuthenticated: computed(() => authState.value.isAuthenticated),
+  userRole: computed(() => authState.value.userRole),
+  address: computed(() => authState.value.address),
+  async checkAuth() {
+    try {
+      const response = await axios.get('/api/auth/check');
+      console.log('Auth check response:', response.data);
+      authState.value = {
+        isAuthenticated: response.data.authenticated,
+        userRole: response.data.role,
+        address: response.data.address
+      };
+      console.log('Auth state updated:', authState.value);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    }
+  },
+  async disconnect() {
+    try {
+      await axios.post('/api/auth/logout');
+      authState.value = {
+        isAuthenticated: false,
+        userRole: null,
+        address: null
+      };
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  }
+};
+
+provide('auth', auth);
+
+onMounted(async () => {
+  await auth.checkAuth();
+});
 </script>
 
 <style>

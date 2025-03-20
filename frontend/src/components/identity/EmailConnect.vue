@@ -36,6 +36,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import axios from 'axios';
 
 const props = defineProps({
   onEmailAuth: {
@@ -49,6 +50,7 @@ const code = ref('');
 const error = ref('');
 const isLoading = ref(false);
 const showVerification = ref(false);
+const isConnecting = ref(false);
 
 const isValidEmail = computed(() => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value);

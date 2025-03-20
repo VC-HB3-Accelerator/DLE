@@ -18,6 +18,7 @@ import axios from 'axios';
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
+const isConnecting = ref(false);
 
 async function connectTelegram() {
   try {

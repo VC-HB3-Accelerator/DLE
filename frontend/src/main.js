@@ -2,20 +2,17 @@ import { Buffer } from 'buffer';
 globalThis.Buffer = Buffer;
 
 import { createApp } from 'vue';
-import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import axios from 'axios';
 
 // Настройка axios
-axios.defaults.baseURL = ''; // Пустой baseURL, так как мы используем прокси
-axios.defaults.withCredentials = true; // Важно для работы с сессиями
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
+axios.defaults.withCredentials = true;
 
 // Создаем и монтируем приложение Vue
 const app = createApp(App);
-const pinia = createPinia();
 
-app.use(pinia);
 app.use(router);
 
 // Не используем заглушки, так как сервер работает
@@ -29,7 +26,7 @@ app.use(router);
 // }
 
 console.log('API URL:', import.meta.env.VITE_API_URL);
-console.log('main.js: Starting application with router and Pinia');
+console.log('main.js: Starting application with router');
 
 app.mount('#app');
-console.log('main.js: Application with router and Pinia mounted');
+console.log('main.js: Application with router mounted');

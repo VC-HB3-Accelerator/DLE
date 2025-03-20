@@ -1,9 +1,8 @@
 import axios from 'axios';
-import { useAuthStore } from '../stores/auth';
 
 // Создаем экземпляр axios с базовым URL
 const api = axios.create({
-  baseURL: '', // Убираем baseURL
+  baseURL: import.meta.env.VITE_API_URL || '',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
@@ -15,10 +14,6 @@ api.interceptors.request.use(
   (config) => {
     config.withCredentials = true; // Важно для каждого запроса
     
-    const authStore = useAuthStore();
-    if (authStore.isAuthenticated && authStore.address) {
-      config.headers.Authorization = `Bearer ${authStore.address}`;
-    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -30,15 +25,11 @@ api.interceptors.response.use(
     console.log('Response from server:', response.data);
     return response;
   },
-  (error) => {
+  async (error) => {
     // Проверяем, что это действительно ошибка авторизации
-    if (error.response?.status === 401 && 
-        !error.config.url.includes('/auth/') && 
-        !error.config.url.includes('/verify') &&
-        !error.config.url.includes('/chat/history')) { // Не очищаем при ошибке загрузки истории
-      console.log('Auth error, clearing state');
-      const auth = useAuthStore();
-      auth.disconnect();
+    if (error.response?.status === 401) {
+      // Перенаправляем на страницу логина
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

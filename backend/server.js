@@ -65,10 +65,11 @@ app.get('/api/health', (req, res) => {
 });
 
 // Запуск сервера
-app.listen(PORT, async () => {
+const host = app.get('host');
+app.listen(PORT, host, async () => {
   try {
     await initServices();
-    console.log('Server is running on port', PORT);
+    console.log(`Server is running on http://${host}:${PORT}`);
   } catch (error) {
     console.error('Error starting server:', error);
     process.exit(1);
