@@ -13,6 +13,9 @@ const { sendEmail } = require('../services/emailBot');
 const { verificationCodes } = require('../services/telegramBot');
 const { checkTokensAndUpdateRole } = require('../services/auth-service');
 const { ethers } = require('ethers');
+const { initTelegramAuth } = require('../services/telegramBot');
+const { initEmailAuth, verifyEmailCode } = require('../services/emailBot');
+const { getBot } = require('../services/telegramBot');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -34,24 +37,32 @@ router.get('/nonce', async (req, res) => {
     // Генерируем случайный nonce
     const nonce = crypto.randomBytes(16).toString('hex');
     
-    // Удаляем старые nonce для этого адреса
-    await db.query(`
-      DELETE FROM nonces
-      WHERE identity_value = $1
-    `, [address.toLowerCase()]);
+    // Проверяем, существует ли уже nonce для этого адреса
+    const existingNonce = await db.query(
+      'SELECT id FROM nonces WHERE identity_value = $1',
+      [address.toLowerCase()]
+    );
     
-    // Сохраняем новый nonce
-    await db.query(`
-      INSERT INTO nonces (identity_value, nonce, expires_at)
-      VALUES ($1, $2, NOW() + INTERVAL '15 minutes')
-    `, [address.toLowerCase(), nonce]);
+    if (existingNonce.rows.length > 0) {
+      // Обновляем существующий nonce
+      await db.query(
+        'UPDATE nonces SET nonce = $1, expires_at = NOW() + INTERVAL \'15 minutes\' WHERE identity_value = $2',
+        [nonce, address.toLowerCase()]
+      );
+    } else {
+      // Создаем новый nonce
+      await db.query(
+        'INSERT INTO nonces (identity_value, nonce, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'15 minutes\')',
+        [address.toLowerCase(), nonce]
+      );
+    }
     
     console.log(`Nonce ${nonce} сохранен для адреса ${address}`);
     
-    return res.json({ nonce });
+    res.json({ nonce });
   } catch (error) {
     console.error('Error generating nonce:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to generate nonce' });
   }
 });
 
@@ -60,77 +71,85 @@ const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)"
 ];
 
-// Проверка подписи и аутентификация
+// Верификация подписи и создание сессии
 router.post('/verify', async (req, res) => {
   try {
-    const { address, signature, message } = req.body;
-    console.log('Received verification request:', { address, message });
-    console.log('Signature:', signature);
-
-    // Проверяем подпись через SIWE
-    const siwe = new SiweMessage(message);
-    console.log('Created SIWE message object');
-
-    const fields = await siwe.verify({ signature });
-    console.log('SIWE validation result:', fields);
+    const { address, message, signature } = req.body;
     
-    if (!fields || !fields.success) {
-      console.log('SIWE validation failed');
-      return res.status(401).json({ error: 'Invalid signature' });
+    // Проверяем подпись
+    const isValid = await authService.verifySignature(message, signature, address);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
-
+    
     // Проверяем nonce
-    const nonceResult = await db.query(
-      `SELECT nonce FROM nonces 
-       WHERE identity_value = $1 
-       AND expires_at > NOW()`,
-      [address.toLowerCase()]
-    );
-    console.log('Nonce check result:', nonceResult.rows);
-
-    if (!nonceResult.rows.length) {
-      console.log('Invalid or expired nonce');
-      return res.status(401).json({ error: 'Invalid or expired nonce' });
+    const nonceResult = await db.query('SELECT nonce FROM nonces WHERE identity_value = $1', [address.toLowerCase()]);
+    if (nonceResult.rows.length === 0 || nonceResult.rows[0].nonce !== message.match(/Nonce: ([^\n]+)/)[1]) {
+      return res.status(401).json({ success: false, error: 'Invalid nonce' });
     }
-
-    // Проверяем соответствие nonce
-    if (nonceResult.rows[0].nonce !== fields.data.nonce) {
-      console.log('Nonce mismatch');
-      return res.status(401).json({ error: 'Invalid nonce' });
+    
+    // Находим или создаем пользователя
+    let userId, isAdmin;
+    
+    // Ищем пользователя по адресу в таблице user_identities
+    const userResult = await db.query(`
+      SELECT u.* FROM users u 
+      JOIN user_identities ui ON u.id = ui.user_id 
+      WHERE ui.provider = 'wallet' AND ui.provider_id = $1
+    `, [address.toLowerCase()]);
+    
+    if (userResult.rows.length > 0) {
+      // Пользователь найден
+      userId = userResult.rows[0].id;
+      isAdmin = userResult.rows[0].role === 'admin';
+      const address = userResult.rows[0].address;
+    } else {
+      // Создаем нового пользователя
+      const newUserResult = await db.query(
+        'INSERT INTO users (role) VALUES ($1) RETURNING id',
+        ['user']
+      );
+      
+      userId = newUserResult.rows[0].id;
+      isAdmin = false;
+      
+      // Добавляем идентификатор кошелька
+      await db.query(
+        'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
+        [userId, 'wallet', address.toLowerCase()]
+      );
     }
-
-    // Получаем или создаем пользователя
-    const userResult = await db.query(
-      `INSERT INTO users (address, created_at, updated_at)
-       VALUES ($1, NOW(), NOW())
-       ON CONFLICT (address) DO UPDATE
-       SET updated_at = NOW()
-       RETURNING id, role = 'admin' as is_admin`,
-      [address]
-    );
-
-    const userId = userResult.rows[0].id;
-    const isAdmin = false; // Будет обновлено в createSession
-
-    // Используем централизованный сервис
-    await authService.createSession(req, {
+    
+    // Обновляем сессию
+    req.session.userId = userId;
+    req.session.authenticated = true;
+    req.session.authType = 'wallet';
+    req.session.isAdmin = isAdmin;
+    req.session.address = address.toLowerCase();
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    
+    // Возвращаем успешный ответ
+    return res.json({
+      success: true,
       userId,
       address,
       isAdmin,
-      authType: 'wallet',
-      guestId: req.session.guestId
+      authenticated: true
     });
-
-    res.json({
-      authenticated: true,
-      userId,
-      address,
-      isAdmin,
-      authType: 'wallet'
-    });
+    
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in /verify:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
@@ -488,54 +507,106 @@ router.post('/link-identity', async (req, res) => {
   }
 });
 
-// Проверка аутентификации
-router.get('/check', (req, res) => {
-  try {
-    console.log('Сессия при проверке:', req.session);
-    
-    if (req.session && req.session.authenticated) {
-      return res.json({
-        authenticated: true,
-        userId: req.session.userId,
-        address: req.session.address,
-        isAdmin: req.session.isAdmin,
-        authType: req.session.authType || 'wallet'
-      });
+// Проверка статуса аутентификации
+router.get('/check', async (req, res) => {
+  console.log('Сессия при проверке:', req.session);
+  
+  let telegramId = null;
+  
+  if (req.session.userId && req.session.authType === 'telegram') {
+    // Проверяем, есть ли telegramId в сессии
+    if (req.session.telegramId) {
+      telegramId = req.session.telegramId;
+      console.log('Telegram ID from session:', telegramId);
+      
+      // Проверяем, есть ли запись в базе данных
+      try {
+        const result = await db.query(
+          'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2',
+          [req.session.userId, 'telegram']
+        );
+        
+        console.log('Telegram ID query result:', result.rows);
+        
+        if (result.rows.length === 0) {
+          // Если нет, добавляем запись
+          try {
+            await db.query(
+              'INSERT INTO user_identities (user_id, provider, provider_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (provider, provider_id) DO NOTHING',
+              [req.session.userId, 'telegram', telegramId]
+            );
+            console.log('Added Telegram ID to database:', telegramId);
+          } catch (error) {
+            console.error('Error adding Telegram ID to database:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking Telegram ID in database:', error);
+      }
     } else {
-      return res.json({ authenticated: false });
+      // Если нет, ищем в базе данных
+      try {
+        const result = await db.query(
+          'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2',
+          [req.session.userId, 'telegram']
+        );
+        
+        console.log('Telegram ID query result:', result.rows);
+        
+        if (result.rows.length > 0) {
+          telegramId = result.rows[0].provider_id;
+          console.log('Telegram ID from database:', telegramId);
+          
+          // Сохраняем в сессию для будущих запросов
+          req.session.telegramId = telegramId;
+        } else {
+          // Если нет в базе данных, используем фиксированное значение
+          telegramId = 'Telegram User';
+          console.log('Using fixed Telegram ID:', telegramId);
+          
+          // Сохраняем в сессию для будущих запросов
+          req.session.telegramId = telegramId;
+          
+          // Добавляем запись в базу данных
+          try {
+            await db.query(
+              'INSERT INTO user_identities (user_id, provider, provider_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (provider, provider_id) DO NOTHING',
+              [req.session.userId, 'telegram', telegramId]
+            );
+            console.log('Added Telegram ID to database:', telegramId);
+          } catch (error) {
+            console.error('Error adding Telegram ID to database:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching Telegram ID:', error);
+      }
     }
-  } catch (error) {
-    console.error('Ошибка при проверке аутентификации:', error);
-    return res.status(500).json({ error: 'Internal server error' });
   }
+  
+  const response = {
+    authenticated: !!req.session.authenticated,
+    userId: req.session.userId,
+    isAdmin: !!req.session.isAdmin,
+    authType: req.session.authType,
+    address: req.session.address,
+    telegramId: telegramId
+  };
+  
+  console.log('Auth check response:', response);
+  
+  res.json(response);
 });
 
 // Выход из системы
-router.post('/logout', async (req, res) => {
-  try {
-    // Сохраняем ID сессии до уничтожения
-    const sessionID = req.sessionID;
-    
-    // Уничтожаем сессию
-    req.session.destroy();
-    
-    // Удаляем сессию из базы данных
-    try {
-      const { pool } = require('../db');
-      await pool.query('DELETE FROM session WHERE sid = $1', [sessionID]);
-      console.log(`Сессия ${sessionID} удалена из базы данных`);
-    } catch (dbError) {
-      console.error('Ошибка при удалении сессии из базы данных:', dbError);
+router.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Error destroying session:', err);
+      return res.status(500).json({ error: 'Failed to logout' });
     }
-    
-    // Очищаем куки
-    res.clearCookie('connect.sid');
-    
     res.json({ success: true });
-  } catch (error) {
-    console.error('Ошибка при выходе из системы:', error);
-    res.status(500).json({ error: 'Ошибка сервера' });
-  }
+  });
 });
 
 // Маршрут для авторизации через Telegram
@@ -626,11 +697,15 @@ async function checkTokenBalance(address) {
 
 // Маршрут для верификации Telegram
 router.post('/telegram/verify', async (req, res) => {
+  console.log('Telegram verification request body:', req.body);
+  
   const { code } = req.body;
   
   try {
-    const telegramBot = require('../services/telegramBot');
+    const telegramBot = getBot();
     const result = await telegramBot.verifyCode(code);
+    
+    console.log('Telegram verification result:', result);
     
     if (result.success) {
       // Проверяем, что у нас есть telegramId
@@ -677,6 +752,18 @@ router.post('/telegram/verify', async (req, res) => {
           else resolve();
         });
       });
+      
+      console.log('Telegram ID saved in session:', req.session.telegramId);
+      
+      // Сохраняем идентификатор Telegram в базе данных
+      try {
+        await db.query(
+          'INSERT INTO user_identities (user_id, provider, provider_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1',
+          [userId, 'telegram', result.telegramId]
+        );
+      } catch (error) {
+        console.error('Error saving Telegram ID to database:', error);
+      }
       
       return res.json({
         success: true,
@@ -1127,6 +1214,66 @@ router.post('/clear-session', async (req, res) => {
   } catch (error) {
     console.error('Error clearing session:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Инициализация Telegram аутентификации
+router.post('/telegram/init', async (req, res) => {
+  try {
+    // Проверяем, есть ли уже привязанный Telegram
+    if (req.session?.userId) {
+      const existingTelegram = await db.query(
+        `SELECT provider_id 
+         FROM user_identities 
+         WHERE user_id = $1 
+         AND provider = 'telegram'`,
+        [req.session.userId]
+      );
+      
+      if (existingTelegram.rows.length > 0) {
+        return res.status(400).json({ 
+          error: 'Telegram already linked to this account' 
+        });
+      }
+    }
+    
+    const { verificationCode, botLink } = await initTelegramAuth(req.session);
+    res.json({ verificationCode, botLink });
+  } catch (error) {
+    console.error('Error initializing Telegram auth:', error);
+    res.status(500).json({ error: 'Failed to initialize Telegram auth' });
+  }
+});
+
+// Инициализация Email аутентификации
+router.post('/email/init', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    await initEmailAuth(email);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error initializing email auth:', error);
+    res.status(500).json({ error: 'Failed to send verification code' });
+  }
+});
+
+// Проверка кода подтверждения email
+router.post('/email/verify', requireAuth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Verification code is required' });
+    }
+
+    const result = await verifyEmailCode(code, req.session.userId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error verifying email code:', error);
+    res.status(400).json({ error: error.message });
   }
 });
 

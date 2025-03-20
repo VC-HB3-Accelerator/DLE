@@ -1,144 +1,183 @@
-const TelegramBot = require('node-telegram-bot-api');
+const { Telegraf } = require('telegraf');
 const logger = require('../utils/logger');
+const db = require('../db');
+const authService = require('./auth-service');
 
-class TelegramBotService {
-  constructor(token) {
-    this.bot = new TelegramBot(token, { 
-      polling: true,
-      request: {
-        timeout: 30000 // 30 секунд таймаут
-      }
-    });
-    this.verificationCodes = new Map();
-    this.setupHandlers();
-    
-    logger.info('TelegramBot service initialized');
-  }
+let botInstance = null;
+const verificationCodes = new Map();
 
-  setupHandlers() {
-    this.bot.on('message', this.handleMessage.bind(this));
-    this.bot.on('callback_query', this.handleCallbackQuery.bind(this));
-    
-    // Обработка ошибок
-    this.bot.on('polling_error', (error) => {
-      logger.error('Telegram polling error:', error);
-    });
-    
-    this.bot.on('error', (error) => {
-      logger.error('Telegram bot error:', error);
-    });
-  }
-
-  async handleMessage(msg) {
-    try {
-      const chatId = msg.chat.id;
-      const text = msg.text;
-
-      logger.info(`Received message from ${chatId}: ${text}`);
-
-      if (text.startsWith('/start')) {
-        await this.handleStart(msg);
-      } else if (this.verificationCodes.has(chatId)) {
-        await this.handleVerificationCode(msg);
-      }
-    } catch (error) {
-      logger.error('Error handling message:', error);
-    }
-  }
-
-  async handleCallbackQuery(query) {
-    try {
-      const chatId = query.message.chat.id;
-      await this.bot.answerCallbackQuery(query.id);
-      
-      logger.info(`Handled callback query from ${chatId}`);
-    } catch (error) {
-      logger.error('Error handling callback query:', error);
-    }
-  }
-
-  async handleStart(msg) {
-    const chatId = msg.chat.id;
-    try {
-      await this.bot.sendMessage(
-        chatId,
-        'Добро пожаловать! Используйте этого бота для аутентификации в приложении.'
-      );
-      logger.info(`Sent welcome message to ${chatId}`);
-    } catch (error) {
-      logger.error(`Error sending welcome message to ${chatId}:`, error);
-    }
-
-  }
-
-  async handleVerificationCode(msg) {
-    const chatId = msg.chat.id;
-    const code = msg.text.trim();
-    
-    try {
-      const verificationData = this.verificationCodes.get(chatId);
-
-      if (!verificationData) {
-        await this.bot.sendMessage(chatId, 'Нет активного кода подтверждения.');
-        return;
-      }
-
-      if (Date.now() > verificationData.expires) {
-        this.verificationCodes.delete(chatId);
-        await this.bot.sendMessage(chatId, 'Код подтверждения истек. Запросите новый.');
-        return;
-      }
-
-      if (verificationData.code === code) {
-        await this.bot.sendMessage(chatId, 'Код подтвержден успешно!');
-        this.verificationCodes.delete(chatId);
-      } else {
-        await this.bot.sendMessage(chatId, 'Неверный код. Попробуйте еще раз.');
-      }
-    } catch (error) {
-      logger.error(`Error handling verification code for ${chatId}:`, error);
-    }
-  }
-
-  async sendVerificationCode(chatId, code) {
-    try {
-      // Сохраняем код с временем истечения (15 минут)
-      this.verificationCodes.set(chatId, {
-        code,
-        expires: Date.now() + 15 * 60 * 1000
-      });
-
-      await this.bot.sendMessage(
-        chatId,
-        `Ваш код подтверждения: ${code}\nВведите его в приложении.`
-      );
-      
-      logger.info(`Sent verification code to ${chatId}`);
-      return true;
-    } catch (error) {
-      logger.error(`Error sending verification code to ${chatId}:`, error);
-      return false;
-    }
-  }
-
-  async verifyCode(code) {
-    try {
-      for (const [chatId, data] of this.verificationCodes.entries()) {
-        if (data.code === code) {
-          if (Date.now() > data.expires) {
-            this.verificationCodes.delete(chatId);
-            return { success: false, error: 'Код истек' };
-          }
-          this.verificationCodes.delete(chatId);
-          return { success: true, telegramId: chatId.toString() };
-        }
-      }
-      return { success: false, error: 'Неверный код' };
-    } catch (error) {
-      logger.error('Error verifying code:', error);
-      return { success: false, error: 'Внутренняя ошибка' };
-    }
+// Простая остановка бота
+async function stopBot() {
+  if (botInstance) {
+    await botInstance.stop();
+    botInstance = null;
   }
 }
 
-module.exports = TelegramBotService; 
+// Создание и настройка бота
+async function getBot() {
+  if (!botInstance) {
+    botInstance = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+
+    // Обработка команды /start
+    botInstance.command('start', (ctx) => {
+      ctx.reply('Добро пожаловать! Отправьте код подтверждения для аутентификации.');
+    });
+
+    // Обработка кодов верификации
+    botInstance.on('text', async (ctx) => {
+      const code = ctx.message.text.trim();
+      const verification = verificationCodes.get(code);
+      
+      if (!verification) {
+        ctx.reply('Неверный код подтверждения');
+        return;
+      }
+      
+      try {
+        logger.info('Starting Telegram auth process for code:', code);
+        logger.info('Verification data:', verification);
+        
+        // Сначала проверяем, существует ли пользователь с этим Telegram ID
+        let userId;
+        const existingUser = await db.query(
+          `SELECT u.id 
+           FROM users u
+           JOIN user_identities ui ON u.id = ui.user_id
+           WHERE ui.provider = $1 
+           AND ui.provider_id = $2`,
+          ['telegram', ctx.from.id.toString()]
+        );
+        
+        if (existingUser.rows.length > 0) {
+          userId = existingUser.rows[0].id;
+          logger.info('Found existing user with ID:', userId);
+        } else {
+          // Создаем нового пользователя
+          const result = await db.query(
+            `INSERT INTO users (created_at, updated_at) 
+             VALUES (NOW(), NOW()) 
+             RETURNING id`,
+            []
+          );
+          userId = result.rows[0].id;
+          logger.info('Created new user with ID:', userId);
+        }
+        
+        // Связываем Telegram с пользователем
+        await db.query(
+          `INSERT INTO user_identities 
+           (user_id, provider, provider_id, created_at) 
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1`,
+          [userId, 'telegram', ctx.from.id.toString()]
+        );
+        
+        logger.info(`User ${userId} successfully linked Telegram account ${ctx.from.id}`);
+        
+        // Обновляем сессию
+        if (verification?.session) {
+          logger.info('Creating session with data:', verification.session);
+          
+          // Обновляем данные сессии напрямую
+          verification.session.userId = userId;
+          verification.session.authenticated = true;
+          verification.session.authType = 'telegram';
+          verification.session.telegramId = ctx.from.id.toString(); // Добавляем идентификатор Telegram в сессию
+          
+          // Проверяем роль пользователя
+          const userRole = await authService.checkUserRole(userId);
+          verification.session.userRole = userRole;
+          
+          await new Promise((resolve, reject) => {
+            verification.session.save(err => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+          
+          logger.info('Session created successfully');
+        }
+        
+        // Отправляем последнее сообщение пользователя
+        if (verification.session.guestId) {
+          logger.info('Fetching last guest message for guestId:', verification.session.guestId);
+          const messageResult = await db.query(`
+            SELECT content FROM guest_messages 
+            WHERE guest_id = $1 
+            ORDER BY created_at DESC 
+            LIMIT 1
+          `, [verification.session.guestId]);
+          
+          const lastMessage = messageResult.rows[0]?.content;
+          logger.info('Found last message:', lastMessage);
+          if (lastMessage) {
+            await ctx.reply(`Ваше последнее сообщение: "${lastMessage}"`);
+          }
+        }
+        
+        // Отправляем сообщение об успешной аутентификации
+        await ctx.reply('Аутентификация успешна! Можете вернуться в приложение.');
+        
+        // Удаляем сообщение с кодом
+        try {
+          await ctx.deleteMessage(ctx.message.message_id);
+        } catch (error) {
+          logger.warn('Could not delete code message:', error);
+        }
+        
+        // Удаляем код верификации
+        verificationCodes.delete(code);
+        
+      } catch (error) {
+        logger.error('Error in Telegram auth:', error);
+        
+        // Более информативные сообщения об ошибках
+        let errorMessage = 'Произошла ошибка при сохранении. Попробуйте позже.';
+        
+        if (error.code === '42P01') {
+          errorMessage = 'Ошибка сессии. Пожалуйста, обновите страницу и попробуйте снова.';
+        } else if (error.code === '42703') {
+          errorMessage = 'Ошибка структуры данных. Обратитесь к администратору.';
+        }
+        
+        if (error.code) {
+          logger.error('Database error code:', error.code);
+        }
+        if (error.detail) {
+          logger.error('Error detail:', error.detail);
+        }
+        if (error.stack) {
+          logger.error('Error stack:', error.stack);
+        }
+        await ctx.reply(errorMessage);
+      }
+    });
+
+    // Запускаем бота
+    await botInstance.launch();
+  }
+  
+  return botInstance;
+}
+
+// Инициализация процесса аутентификации
+async function initTelegramAuth(session) {
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const botLink = `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}`;
+  
+  verificationCodes.set(code, {
+    timestamp: Date.now(),
+    session: session
+  });
+  
+  logger.info(`Generated verification code: ${code} for Telegram auth`);
+  return { verificationCode: code, botLink };
+}
+
+module.exports = {
+  getBot,
+  stopBot,
+  verificationCodes,
+  initTelegramAuth
+}; 

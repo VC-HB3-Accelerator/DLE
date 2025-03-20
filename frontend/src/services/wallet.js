@@ -1,77 +1,90 @@
 import { ethers } from 'ethers';
-import axios from 'axios';
+import axios from '../api/axios';
+import { SiweMessage } from 'siwe';
 
 export async function connectWithWallet() {
+  console.log('Starting wallet connection...');
+  
   try {
-    console.log('Starting wallet connection...');
     // Проверяем наличие MetaMask
     if (!window.ethereum) {
-      throw new Error('MetaMask не установлен. Пожалуйста, установите MetaMask');
+      throw new Error('MetaMask not detected. Please install MetaMask.');
     }
-
+    
     console.log('MetaMask detected, requesting accounts...');
-    const accounts = await window.ethereum.request({ 
-      method: 'eth_requestAccounts' 
-    });
-
+    
+    // Запрашиваем доступ к аккаунтам
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    
     console.log('Got accounts:', accounts);
+    
     if (!accounts || accounts.length === 0) {
-      throw new Error('Нет доступных аккаунтов. Пожалуйста, разблокируйте MetaMask');
+      throw new Error('No accounts found. Please unlock MetaMask.');
     }
-
+    
+    // Берем первый аккаунт
     const address = ethers.getAddress(accounts[0]);
     console.log('Normalized address:', address);
-
+    
+    // Запрашиваем nonce с сервера
     console.log('Requesting nonce...');
-    const { data: { nonce } } = await axios.get('/api/auth/nonce', {
-      params: { address }
-    });
+    const nonceResponse = await axios.get(`/api/auth/nonce?address=${address}`);
+    const nonce = nonceResponse.data.nonce;
     console.log('Got nonce:', nonce);
-
-    // Формируем сообщение в формате SIWE (Sign-In with Ethereum)
+    
+    // Создаем сообщение для подписи
     const domain = window.location.host;
     const origin = window.location.origin;
-    const statement = "Sign in with Ethereum to the app.";
-    const message = [
-      `${domain} wants you to sign in with your Ethereum account:`,
+    const statement = 'Sign in with Ethereum to the app.';
+    
+    const siweMessage = new SiweMessage({
+      domain,
       address,
-      "",
       statement,
-      "",
-      `URI: ${origin}`,
-      "Version: 1",
-      "Chain ID: 1",
-      `Nonce: ${nonce}`,
-      `Issued At: ${new Date().toISOString()}`,
-      "Resources:",
-      `- ${origin}/api/auth/verify`
-    ].join("\n");
-
+      uri: origin,
+      version: '1',
+      chainId: 1,
+      nonce,
+      resources: [`${origin}/api/auth/verify`]
+    });
+    
+    const message = siweMessage.prepareMessage();
     console.log('SIWE message:', message);
-
+    
+    // Запрашиваем подпись
     console.log('Requesting signature...');
     const signature = await window.ethereum.request({
       method: 'personal_sign',
       params: [message, address]
     });
+    
     console.log('Got signature:', signature);
-
+    
+    // Отправляем подпись на сервер для верификации
     console.log('Sending verification request...');
-    const response = await axios.post('/api/auth/verify', {
-      address,
+    const verificationResponse = await axios.post('/api/auth/verify', {
+      message,
       signature,
-      message
+      address
     });
-    console.log('Verification response:', response.data);
-
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-
-    return { address, signer };
+    
+    console.log('Verification response:', verificationResponse.data);
+    
+    // Обновляем состояние аутентификации
+    if (verificationResponse.data.success) {
+      // Обновляем состояние аутентификации в localStorage
+      localStorage.setItem('isAuthenticated', 'true');
+      localStorage.setItem('userId', verificationResponse.data.userId);
+      localStorage.setItem('address', verificationResponse.data.address);
+      localStorage.setItem('isAdmin', verificationResponse.data.isAdmin);
+      
+      // Перезагружаем страницу для обновления состояния
+      window.location.reload();
+    }
+    
+    return verificationResponse.data;
   } catch (error) {
-    // Форматируем ошибку для пользователя
-    const message = error.message || 'Ошибка подключения кошелька';
-    console.error('Error connecting wallet:', message);
-    throw new Error(message);
+    console.error('Error connecting wallet:', error);
+    throw error;
   }
 } 

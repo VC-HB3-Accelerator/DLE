@@ -44,39 +44,41 @@ class AuthService {
    */
   async findOrCreateUser(address) {
     try {
-      const existingUser = await db.query(
-        `SELECT u.id
-         FROM users u
-         JOIN user_identities ui ON u.id = ui.user_id
-         WHERE ui.provider = 'wallet' 
-         AND LOWER(ui.provider_id) = LOWER($1)`,
-        [address]
-      );
-
-      if (existingUser.rows.length > 0) {
-        const userId = existingUser.rows[0].id;
-        const isAdmin = await this.checkAdminRole(address);
-        return { userId, isAdmin };
+      // Нормализуем адрес
+      address = ethers.getAddress(address);
+      
+      // Ищем пользователя по адресу в таблице user_identities
+      const userResult = await db.query(`
+        SELECT u.* FROM users u 
+        JOIN user_identities ui ON u.id = ui.user_id 
+        WHERE ui.provider = 'wallet' AND ui.provider_id = $1
+      `, [address]);
+      
+      if (userResult.rows.length > 0) {
+        const user = userResult.rows[0];
+        return { 
+          userId: user.id, 
+          isAdmin: user.role === 'admin' 
+        };
       }
-
-      // Создание нового пользователя
-      const result = await db.query(
-        'INSERT INTO users DEFAULT VALUES RETURNING id',
-        []
+      
+      // Если пользователь не найден, создаем нового
+      const newUserResult = await db.query(
+        'INSERT INTO users (role) VALUES ($1) RETURNING id',
+        ['user']
       );
-      const userId = result.rows[0].id;
-
+      
+      const userId = newUserResult.rows[0].id;
+      
+      // Добавляем идентификатор кошелька
       await db.query(
-        `INSERT INTO user_identities 
-         (user_id, provider, provider_id, identity_type, identity_value) 
-         VALUES ($1, 'wallet', $2, 'wallet', $2)`,
-        [userId, address.toLowerCase()]
+        'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
+        [userId, 'wallet', address]
       );
-
-      const isAdmin = await this.checkAdminRole(address);
-      return { userId, isAdmin };
+      
+      return { userId, isAdmin: false };
     } catch (error) {
-      console.error('Error in findOrCreateUser:', error);
+      console.error('Error finding or creating user:', error);
       throw error;
     }
   }
@@ -143,40 +145,79 @@ class AuthService {
   }
 
   // Создание сессии с проверкой роли
-  async createSession(req, { userId, address, authType, guestId }) {
-    let isAdmin = false;
-    
-    if (address) {
-      isAdmin = await this.checkAdminRole(address);
-    } else if (userId) {
-      const linkedWallet = await this.getLinkedWallet(userId);
-      if (linkedWallet) {
-        isAdmin = await this.checkAdminRole(linkedWallet);
+  async createSession(session, { userId, authenticated, authType, guestId, address }) {
+    try {
+      // Обновляем данные сессии
+      session.userId = userId;
+      session.authenticated = authenticated;
+      session.authType = authType;
+      session.guestId = guestId;
+      if (address) {
+        session.address = address;
       }
+      
+      // Сохраняем сессию в БД
+      const result = await db.query(
+        `UPDATE session 
+         SET sess = $1 
+         WHERE sid = $2`,
+        [JSON.stringify({
+          userId,
+          authenticated,
+          authType,
+          guestId,
+          address,
+          cookie: session.cookie
+        }), session.id]
+      );
+      
+      return true;
+    } catch (error) {
+      logger.error('Error creating session:', error);
+      return false;
     }
+  }
 
-    req.session.userId = userId;
-    req.session.address = address;
-    req.session.isAdmin = isAdmin;
-    req.session.authenticated = true;
-    req.session.authType = authType;
-    
-    if (guestId) {
-      req.session.guestId = guestId;
+  async getSession(sessionId) {
+    try {
+      const result = await db.query('SELECT * FROM session WHERE sid = $1', [sessionId]);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error getting session:', error);
+      throw error;
     }
-    
-    await req.session.save();
   }
 
   // Получение связанного кошелька
   async getLinkedWallet(userId) {
     const result = await db.query(
-      `SELECT identity_value as address 
+      `SELECT provider_id as address 
        FROM user_identities 
-       WHERE user_id = $1 AND identity_type = 'wallet'`,
+       WHERE user_id = $1 AND provider = 'wallet'`,
       [userId]
     );
     return result.rows[0]?.address;
+  }
+
+  /**
+   * Проверяет роль пользователя Telegram
+   * @param {number} userId - ID пользователя
+   * @returns {Promise<string>} - Роль пользователя
+   */
+  async checkUserRole(userId) {
+    try {
+      // Проверяем наличие связанного кошелька
+      const wallet = await this.getLinkedWallet(userId);
+      if (wallet) {
+        // Если есть кошелек, проверяем админские токены
+        const isAdmin = await this.checkAdminRole(wallet);
+        return isAdmin ? 'admin' : 'user';
+      }
+      return 'user';
+    } catch (error) {
+      logger.error('Error checking user role:', error);
+      return 'user';
+    }
   }
 }
 
