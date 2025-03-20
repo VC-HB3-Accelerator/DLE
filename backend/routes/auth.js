@@ -12,6 +12,7 @@ const { SiweMessage } = require('siwe');
 const { sendEmail } = require('../services/emailBot');
 const { verificationCodes } = require('../services/telegramBot');
 const { checkTokensAndUpdateRole } = require('../services/auth-service');
+const { ethers } = require('ethers');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -54,33 +55,10 @@ router.get('/nonce', async (req, res) => {
   }
 });
 
-// Функция для проверки роли пользователя
-async function checkUserRole(address, req) {
-  try {
-    const lowerCaseAddress = address.toLowerCase();
-
-    // Проверяем наличие токена доступа в базе данных
-    const result = await db.query(
-      'SELECT role FROM access_tokens WHERE LOWER(wallet_address) = $1 AND expires_at > NOW()',
-      [lowerCaseAddress]
-    );
-
-    if (result.rows.length > 0) {
-      // Если есть активный токен, проверяем роль
-      const role = result.rows[0].role;
-      return role === 'ADMIN';
-    }
-
-    // Если нет токена, проверяем адрес администратора из переменных окружения
-    const adminAddresses = (process.env.ADMIN_ADDRESSES || '')
-      .split(',')
-      .map((a) => a.toLowerCase());
-    return adminAddresses.includes(lowerCaseAddress);
-  } catch (error) {
-    console.error('Ошибка при проверке роли пользователя:', error);
-    return false;
-  }
-}
+// Минимальный ABI для проверки баланса ERC20
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)"
+];
 
 // Проверка подписи и аутентификация
 router.post('/verify', async (req, res) => {
@@ -132,7 +110,7 @@ router.post('/verify', async (req, res) => {
     );
 
     const userId = userResult.rows[0].id;
-    const isAdmin = userResult.rows[0].is_admin;
+    const isAdmin = false; // Будет обновлено в createSession
 
     // Используем централизованный сервис
     await authService.createSession(req, {
