@@ -20,9 +20,16 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
+// Указываем хост явно
+app.set('host', '127.0.0.1');
+app.set('port', process.env.PORT || 8000);
+
 // Настройка CORS
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'  // Добавляем альтернативный origin
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']

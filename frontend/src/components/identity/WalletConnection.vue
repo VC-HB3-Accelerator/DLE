@@ -5,14 +5,17 @@
       :disabled="isLoading"
       class="wallet-btn"
     >
-      {{ isAuthenticated ? 'Подключено' : 'Подключить кошелек' }}
+      {{ isConnected ? 'Подключено' : 'Подключить кошелек' }}
     </button>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, inject, computed } from 'vue';
 import { connectWithWallet } from '../../services/wallet';
+import { ethers } from 'ethers';
+import { SiweMessage } from 'siwe';
+import axios from 'axios';
 
 // Определяем props
 const props = defineProps({
@@ -24,6 +27,12 @@ const props = defineProps({
 
 // Определяем состояние
 const isLoading = ref(false);
+const auth = inject('auth');
+const isConnecting = ref(false);
+const address = ref('');
+
+// Вычисляемое свойство для статуса подключения
+const isConnected = computed(() => auth.isAuthenticated.value);
 
 const emit = defineEmits(['connect']);
 
@@ -33,22 +42,10 @@ const connectWallet = async () => {
   
   try {
     isLoading.value = true;
-    // Получаем адрес кошелька
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    const address = accounts[0];
-    
-    // Получаем nonce
-    const nonceResponse = await api.get(`/api/auth/nonce?address=${address}`);
-    const nonce = nonceResponse.data.nonce;
-    
-    // Подписываем сообщение
-    const message = `${window.location.host} wants you to sign in with your Ethereum account:\n${address.slice(0, 42)}...`;
-    const signature = await window.ethereum.request({
-      method: 'personal_sign',
-      params: [message, address]
-    });
-    
-    emit('connect', { address, signature, message });
+    const result = await connectWithWallet();
+    await auth.checkAuth();
+    console.log('Wallet connected, auth state:', auth.isAuthenticated.value);
+    emit('connect', result);
   } catch (error) {
     console.error('Error connecting wallet:', error);
   } finally {

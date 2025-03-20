@@ -68,6 +68,7 @@ class TelegramBotService {
     } catch (error) {
       logger.error(`Error sending welcome message to ${chatId}:`, error);
     }
+
   }
 
   async handleVerificationCode(msg) {

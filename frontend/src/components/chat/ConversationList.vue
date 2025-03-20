@@ -1,5 +1,5 @@
 <template>
-  <div v-if="authStore.isAuthenticated">
+  <div v-if="isAuthenticated">
     <div class="conversation-list">
       <div class="list-header">
         <h3>Диалоги</h3>
@@ -40,20 +40,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, defineEmits, watch } from 'vue';
-import { useAuthStore } from '../../stores/auth';
+import { ref, onMounted, computed, defineEmits, watch, inject } from 'vue';
 import axios from 'axios';
 
 const emit = defineEmits(['select-conversation']);
-const authStore = useAuthStore();
+const auth = inject('auth');
+const isAuthenticated = computed(() => auth.isAuthenticated.value);
 
 const conversations = ref([]);
 const loading = ref(true);
 const selectedConversationId = ref(null);
 
 // Следим за изменением статуса аутентификации
-watch(() => authStore.isAuthenticated, (isAuthenticated) => {
-  if (!isAuthenticated) {
+watch(() => isAuthenticated.value, (authenticated) => {
+  if (!authenticated) {
     conversations.value = []; // Очищаем список бесед при отключении
     selectedConversationId.value = null;
   }

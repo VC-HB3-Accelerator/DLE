@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
-import api from '../api/axios';
-import { useAuthStore } from '../stores/auth';
+import axios from 'axios';
 
 export async function connectWithWallet() {
   try {
@@ -24,7 +23,7 @@ export async function connectWithWallet() {
     console.log('Normalized address:', address);
 
     console.log('Requesting nonce...');
-    const { data: { nonce } } = await api.get('/api/auth/nonce', {
+    const { data: { nonce } } = await axios.get('/api/auth/nonce', {
       params: { address }
     });
     console.log('Got nonce:', nonce);
@@ -58,19 +57,17 @@ export async function connectWithWallet() {
     console.log('Got signature:', signature);
 
     console.log('Sending verification request...');
-    const response = await api.post('/api/auth/verify', {
+    const response = await axios.post('/api/auth/verify', {
       address,
       signature,
       message
     });
     console.log('Verification response:', response.data);
 
-    const authStore = useAuthStore();
-    if (response.data.authenticated) {
-      authStore.setAuth(response.data);
-    }
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
 
-    return response.data;
+    return { address, signer };
   } catch (error) {
     // Форматируем ошибку для пользователя
     const message = error.message || 'Ошибка подключения кошелька';

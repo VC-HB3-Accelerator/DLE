@@ -38,10 +38,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: 'localhost',
+    host: '127.0.0.1',
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
         credentials: true,
