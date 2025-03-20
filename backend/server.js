@@ -10,7 +10,7 @@ const authRouter = require('./routes/auth');
 const identitiesRouter = require('./routes/identities');
 const { pool } = require('./db');
 const helmet = require('helmet');
-const TelegramBotService = require('./services/telegramBot');
+const { getBot, stopBot } = require('./services/telegramBot');
 const pgSession = require('connect-pg-simple')(session);
 const authService = require('./services/auth-service');
 const logger = require('./utils/logger');
@@ -25,13 +25,34 @@ console.log('Используемый порт:', process.env.PORT || 8000);
 async function initServices() {
   try {
     console.log('Инициализация сервисов...');
-
-    if (process.env.TELEGRAM_BOT_TOKEN) {
-      const telegramBot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN);
-      global.telegramBot = telegramBot; // Сохраняем экземпляр глобально
-      console.log('Telegram бот инициализирован');
+    
+    // Останавливаем предыдущий экземпляр бота
+    await stopBot();
+    
+    // Добавляем обработку ошибок при запуске бота
+    try {
+      await getBot(); // getBot теперь асинхронный и сам запускает бота
+      console.log('Telegram bot started');
+      
+      // Добавляем graceful shutdown
+      process.once('SIGINT', async () => {
+        await stopBot();
+        process.exit(0);
+      });
+      process.once('SIGTERM', async () => {
+        await stopBot();
+        process.exit(0);
+      });
+    } catch (error) {
+      if (error.code === 409) {
+        logger.warn('Another instance of Telegram bot is running. This is normal during development with nodemon');
+        // Просто логируем ошибку и продолжаем работу
+        // Бот будет запущен при следующем перезапуске
+      } else {
+        logger.error('Error launching Telegram bot:', error);
+      }
     }
-
+    
     console.log('Все сервисы успешно инициализированы');
   } catch (error) {
     console.error('Ошибка при инициализации сервисов:', error);

@@ -5,6 +5,7 @@ const simpleParser = require('mailparser').simpleParser;
 const { processMessage } = require('./ai-assistant');
 const { inspect } = require('util');
 const logger = require('../utils/logger');
+const { generateVerificationCode, addUserIdentity } = require('../utils/helpers');
 
 // Хранилище кодов подтверждения
 const verificationCodes = new Map(); // { email: { code, token, expires } }
@@ -334,6 +335,79 @@ class EmailBotService {
   }
 }
 
+// Инициализация процесса аутентификации по email
+async function initEmailAuth(email) {
+  const code = generateVerificationCode();
+  
+  // Сохраняем код на 15 минут
+  verificationCodes.set(code, {
+    email,
+    timestamp: Date.now(),
+    verified: false
+  });
+
+  // Отправляем код на email
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to: email,
+      subject: 'Код подтверждения для HB3 Accelerator',
+      text: `Ваш код подтверждения: ${code}\n\nВведите его на сайте для завершения аутентификации.`,
+      html: `
+        <h2>Код подтверждения для HB3 Accelerator</h2>
+        <p>Ваш код подтверждения: <strong>${code}</strong></p>
+        <p>Введите его на сайте для завершения аутентификации.</p>
+      `
+    });
+
+    logger.info(`Verification code sent to email: ${email}`);
+    return { success: true };
+  } catch (error) {
+    logger.error('Error sending verification email:', error);
+    throw new Error('Failed to send verification email');
+  }
+}
+
+// Проверка кода подтверждения
+async function verifyEmailCode(code, userId) {
+  const verification = verificationCodes.get(code);
+
+  if (!verification) {
+    logger.warn(`Invalid verification code attempt: ${code}`);
+    throw new Error('Неверный код');
+  }
+
+  if (Date.now() - verification.timestamp > 15 * 60 * 1000) {
+    verificationCodes.delete(code);
+    logger.warn(`Expired verification code: ${code}`);
+    throw new Error('Код устарел');
+  }
+
+  try {
+    // Сохраняем связь пользователя с email
+    const success = await addUserIdentity(
+      userId,
+      'email',
+      verification.email
+    );
+
+    if (success) {
+      verificationCodes.delete(code);
+      logger.info(`User ${userId} successfully linked email ${verification.email}`);
+      return { success: true };
+    } else {
+      throw new Error('Этот email уже привязан к другому пользователю');
+    }
+  } catch (error) {
+    logger.error('Error saving email identity:', error);
+    throw error;
+  }
+}
+
 // Экспортируем класс и хранилище кодов
-module.exports = EmailBotService;
-module.exports.verificationCodes = verificationCodes;
+module.exports = {
+  EmailBotService,
+  verificationCodes,
+  initEmailAuth,
+  verifyEmailCode
+};

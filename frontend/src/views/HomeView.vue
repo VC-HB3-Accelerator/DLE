@@ -6,19 +6,30 @@
       <h3>Венчурный фонд и поставщик программного обеспечения</h3>
     </div>
        
-
     <div class="chat-container">
       <div class="chat-header">
         <!-- Используем тот же компонент, что и в сообщениях -->
-        <div v-if="!isAuthenticated" class="auth-buttons">
+        <div v-if="!isAuthenticated && !isConnecting" class="auth-buttons">
           <button class="auth-btn wallet-btn" @click="handleWalletAuth">
             <span class="auth-icon">👛</span> Подключить кошелек
           </button>
         </div>
-        <div v-else class="wallet-info">
-          <span>{{ truncateAddress(auth.address.value) }}</span>
-          <button class="disconnect-btn" @click="disconnectWallet">
-            Отключить кошелек
+        
+        <div v-if="isConnecting" class="connecting-info">
+          <span>Подключение кошелька...</span>
+        </div>
+        
+        <div v-show="isAuthenticated && auth.authType.value === 'wallet'" class="auth-buttons">
+          <span>{{ auth.address && auth.address.value ? truncateAddress(auth.address.value) : '' }}</span>
+          <button class="auth-btn wallet-btn" @click="disconnectWallet">
+            <span class="auth-icon">🔌</span> Отключить кошелек
+          </button>
+        </div>
+        
+        <div v-show="isAuthenticated && auth.authType.value === 'telegram'" class="auth-buttons">
+          <span>Telegram: {{ auth.telegramId }}</span>
+          <button class="auth-btn disconnect-btn" @click="disconnectWallet">
+            <span class="auth-icon">🔌</span> Выйти
           </button>
         </div>
       </div>
@@ -44,52 +55,35 @@
             <button class="auth-btn wallet-btn" @click="handleWalletAuth">
               <span class="auth-icon">👛</span> Подключить кошелек
             </button>
-            <button class="auth-btn telegram-btn" @click="handleTelegramAuth">
+            
+            <!-- Telegram верификация -->
+            <div v-if="showTelegramVerification" class="verification-block">
+              <div class="verification-code">
+                <span>Код подтверждения:</span>
+                <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
+              </div>
+              <a :href="telegramBotLink" target="_blank" class="bot-link">
+                <span class="auth-icon">📱</span> Открыть HB3_Accelerator_Bot
+              </a>
+            </div>
+            <button v-else class="auth-btn telegram-btn" @click="handleTelegramAuth">
               <span class="auth-icon">📱</span> Подключить Telegram
             </button>
-            <button class="auth-btn email-btn" @click="handleEmailAuth">
+            
+            <!-- Email верификация -->
+            <div v-if="showEmailVerification" class="verification-block">
+              <div class="verification-code">
+                <span>Код подтверждения:</span>
+                <code @click="copyCode(emailVerificationCode)">{{ emailVerificationCode }}</code>
+              </div>
+              <a :href="'mailto:' + emailInput" class="bot-link">
+                <span class="auth-icon">✉️</span> Открыть почту
+              </a>
+            </div>
+            <button v-else class="auth-btn email-btn" @click="handleEmailAuth">
               <span class="auth-icon">✉️</span> Подключить Email
             </button>
-            </div>
-            
-          <!-- Email форма -->
-          <div v-if="showEmailForm" class="auth-form">
-              <input 
-              v-model="emailInput"
-                type="email" 
-                placeholder="Введите ваш email" 
-              class="auth-input"
-              />
-            <button @click="submitEmail" class="auth-btn">
-              Отправить код
-              </button>
-            </div>
-            
-          <!-- Форма верификации email -->
-          <div v-if="showEmailVerification" class="auth-form">
-              <input 
-              v-model="emailCode"
-                type="text" 
-              placeholder="Введите код из email"
-              class="auth-input"
-              />
-            <button @click="verifyEmailCode" class="auth-btn">
-              Подтвердить
-                </button>
           </div>
-          
-          <!-- Telegram верификация -->
-          <div v-if="showTelegramVerification" class="auth-form">
-            <input 
-              v-model="telegramCode"
-              type="text"
-              placeholder="Введите код из Telegram"
-              class="auth-input"
-            />
-            <button @click="verifyTelegramCode" class="auth-btn">
-              Подтвердить
-                </button>
-            </div>
             
           <div v-if="emailError" class="error-message">
             {{ emailError }}
@@ -113,6 +107,18 @@
         </button>
       </div>
     </div>
+
+    <!-- В шаблоне, где отображается информация о пользователе -->
+    <div v-if="auth.isAuthenticated" class="auth-info">
+      <div v-if="auth.authType === 'wallet'">
+        <span>Подключен кошелек: {{ auth.address }}</span>
+        <button @click="disconnectWallet">Отключить кошелек</button>
+      </div>
+      <div v-if="auth.authType === 'telegram'">
+        <span>Подключен Telegram: {{ auth.telegramId }}</span>
+        <button @click="disconnectWallet">Выйти</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -123,50 +129,114 @@ import TelegramConnect from '../components/identity/TelegramConnect.vue';
 import EmailConnect from '../components/identity/EmailConnect.vue';
 import api from '../api/axios';
 import { connectWithWallet } from '../services/wallet';
+import axios from 'axios';
+import { useAuth } from '../composables/useAuth';
 
 console.log('HomeView.vue: Version with chat loaded');
 
-const auth = inject('auth');
+const auth = useAuth();
 const isAuthenticated = computed(() => auth.isAuthenticated.value);
-const authType = ref(null);
+const isConnecting = ref(false);
 const messages = ref([]);
-const guestMessages = ref([]);
 const newMessage = ref('');
 const isLoading = ref(false);
 const messagesContainer = ref(null);
 const userLanguage = ref('ru');
-const email = ref('');
-const isValidEmail = ref(true);
-const hasShownAuthMessage = ref(false);
-const hasShownAuthOptions = ref(false);
-
-// Email аутентификация
-const emailVerificationCode = ref('');
-const showEmailVerification = ref(false);
-const emailErrorMessage = ref('');
-
-// Добавляем состояния для форм верификации
-const showTelegramVerification = ref(false);
-const showEmailForm = ref(false);
-const telegramCode = ref('');
-const emailInput = ref('');
-const emailCode = ref('');
-const emailError = ref('');
 
 // Добавляем состояния для пагинации
-const PAGE_SIZE = 2; // Показываем только последнее сообщение и ответ
-const allMessages = ref([]); // Все загруженные сообщения
-const currentPage = ref(1); // Текущая страница
-const hasMoreMessages = ref(true); // Есть ли еще сообщения
-const isLoadingMore = ref(false); // Загружаются ли дополнительные сообщения
+const isLoadingMore = ref(false);
+const hasMoreMessages = ref(false);
 const offset = ref(0);
 const limit = ref(20);
 
-// Вычисляемое свойство для отображаемых сообщений
-const displayedMessages = computed(() => {
-  const startIndex = Math.max(allMessages.value.length - (PAGE_SIZE * currentPage.value), 0);
-  return allMessages.value.slice(startIndex);
-});
+// Состояния для верификации
+const showTelegramVerification = ref(false);
+const telegramVerificationCode = ref('');
+const telegramBotLink = ref('');
+const telegramAuthCheckInterval = ref(null);
+const showEmailVerification = ref(false);
+const emailVerificationCode = ref('');
+const emailInput = ref('');
+const emailError = ref('');
+
+// Функция для копирования кода
+const copyCode = (code) => {
+  navigator.clipboard.writeText(code);
+  // Можно добавить уведомление о копировании
+};
+
+// Функция для показа ошибок
+const showError = (message) => {
+  // Можно использовать toast или alert
+  alert(message);
+};
+
+// Обработчик для Telegram аутентификации
+const handleTelegramAuth = async () => {
+  try {
+    const { data } = await axios.post('/api/auth/telegram/init');
+    const { verificationCode, botLink } = data;
+    
+    // Показываем код верификации
+    showTelegramVerification.value = true;
+    telegramVerificationCode.value = verificationCode;
+    telegramBotLink.value = botLink;
+    
+    // Запускаем проверку статуса аутентификации
+    telegramAuthCheckInterval.value = setInterval(async () => {
+      try {
+        const response = await axios.get('/api/auth/check');
+        if (response.data.authenticated) {
+          auth.updateAuth({
+            isAuthenticated: true,
+            authType: response.data.authType,
+            userId: response.data.userId
+          });
+          
+          clearInterval(telegramAuthCheckInterval.value);
+          telegramAuthCheckInterval.value = null;
+          showTelegramVerification.value = false;
+          
+          // Перезагружаем страницу для полного обновления состояния
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+      }
+    }, 2000);
+    
+    // Очищаем интервал через 5 минут
+    setTimeout(() => {
+      if (telegramAuthCheckInterval.value) {
+        clearInterval(telegramAuthCheckInterval.value);
+        telegramAuthCheckInterval.value = null;
+        showTelegramVerification.value = false;
+      }
+    }, 5 * 60 * 1000);
+    
+  } catch (error) {
+    console.error('Error initializing Telegram auth:', error);
+    showError('Ошибка при инициализации Telegram аутентификации');
+  }
+};
+
+// Обработчик для Email аутентификации
+const handleEmailAuth = async () => {
+  try {
+    // Запрашиваем email у пользователя
+    const email = prompt('Введите ваш email:');
+    if (!email) return;
+    
+    const { data } = await axios.post('/api/auth/email/init', { email });
+    if (data.success) {
+      showEmailVerification.value = true;
+      emailInput.value = email;
+    }
+  } catch (error) {
+    console.error('Error initializing email auth:', error);
+    emailError.value = error.response?.data?.error || 'Ошибка отправки кода';
+  }
+};
 
 // Функция для сокращения адреса кошелька
 const truncateAddress = (address) => {
@@ -246,38 +316,32 @@ watch(() => isAuthenticated.value, async (newValue) => {
   }
 });
 
-// Находим существующую функцию handleWalletAuth и обновляем её
+// Функция для подключения кошелька
 const handleWalletAuth = async () => {
+  if (isConnecting.value || isAuthenticated.value) return; // Предотвращаем повторное подключение
+  
+  isConnecting.value = true;
   try {
     const result = await connectWithWallet();
-    await auth.checkAuth();
+    console.log('Wallet connection result:', result);
     
-    if (result.authenticated) {
-      // Сохраняем гостевые сообщения перед очисткой
-      const guestMessages = [...messages.value];
-      messages.value = [];
-      offset.value = 0;
-      hasMoreMessages.value = true;
+    if (result.success) {
+      // Обновляем состояние авторизации
+      await auth.checkAuth();
       
-      try {
-        await api.post('/api/chat/link-guest-messages');
-        console.log('Guest messages linked to authenticated user');
-        await loadMoreMessages();
-        
-        const filteredGuestMessages = guestMessages
-          .filter(msg => !msg.showAuthButtons)
-          .reverse();
-        messages.value = [...messages.value, ...filteredGuestMessages];
-        
-        await nextTick();
-        scrollToBottom();
-      } catch (linkError) {
-        console.error('Error linking guest messages:', linkError);
-      }
+      // Добавляем небольшую задержку перед сбросом состояния isConnecting
+      setTimeout(() => {
+        isConnecting.value = false;
+      }, 500);
+      return;
+    } else {
+      console.error('Failed to connect wallet:', result.error);
     }
   } catch (error) {
     console.error('Error connecting wallet:', error);
   }
+  
+  isConnecting.value = false;
 };
 
 // Функция для сохранения гостевых сообщений на сервере
@@ -301,103 +365,6 @@ const saveGuestMessagesToServer = async () => {
     console.error('Error saving guest messages to server:', error);
   }
 };
-
-// Функция для подключения через Telegram
-async function connectTelegram() {
-  try {
-    // Отправляем запрос на получение ссылки для авторизации через Telegram
-    const response = await api.get('/api/auth/telegram', {
-      withCredentials: true
-    });
-    
-    if (response.data.error) {
-      messages.value.push({
-        sender: 'ai',
-        text: `Ошибка при подключении Telegram: ${response.data.error}`,
-        timestamp: new Date(),
-      });
-      return;
-    }
-    
-    if (response.data.authUrl) {
-      messages.value.push({
-        sender: 'ai',
-        text: `Для подключения Telegram, перейдите по <a href="${response.data.authUrl}" target="_blank">этой ссылке</a> и авторизуйтесь.`,
-        timestamp: new Date(),
-      });
-      
-      // Открываем ссылку в новом окне
-      window.open(response.data.authUrl, '_blank');
-    } else {
-      messages.value.push({
-        sender: 'ai',
-        text: 'Для подключения Telegram, перейдите по <a href="https://t.me/YourBotName" target="_blank">этой ссылке</a> и авторизуйтесь.',
-        timestamp: new Date(),
-      });
-    }
-  } catch (error) {
-    console.error('Error connecting with Telegram:', error);
-    
-    messages.value.push({
-      sender: 'ai',
-      text: 'Извините, произошла ошибка при подключении Telegram. Пожалуйста, попробуйте позже.',
-      timestamp: new Date(),
-    });
-  }
-}
-
-// Запрос кода подтверждения по email
-async function requestEmailCode() {
-  emailErrorMessage.value = '';
-  
-  try {
-    const response = await auth.requestEmailVerification(email.value);
-    
-    if (response.success) {
-      showEmailVerification.value = true;
-      // Временно для тестирования
-      if (response.verificationCode) {
-        emailErrorMessage.value = `Код для тестирования: ${response.verificationCode}`;
-      }
-    } else {
-      emailErrorMessage.value = response.error || 'Ошибка запроса кода подтверждения';
-    }
-  } catch (error) {
-    console.error('Error requesting email verification:', error);
-    emailErrorMessage.value = 'Ошибка запроса кода подтверждения';
-  }
-}
-
-// Функция проверки кода
-const verifyEmailCode = async () => {
-  try {
-    const response = await api.post('/api/auth/email/verify-code', {
-      email: emailInput.value,
-      code: emailCode.value
-    });
-
-    if (response.data.success) {
-      auth.setEmailAuth(response.data);
-      showEmailVerification.value = false;
-      emailError.value = '';
-      
-      // Загружаем историю чата после успешной аутентификации
-      await loadMoreMessages();
-    } else {
-      emailError.value = response.data.error || 'Неверный код';
-    }
-  } catch (error) {
-    emailError.value = error.response?.data?.error || 'Ошибка проверки кода';
-    console.error('Error verifying email code:', error);
-  }
-};
-
-// Отмена верификации email
-function cancelEmailVerification() {
-  showEmailVerification.value = false;
-  emailVerificationCode.value = '';
-  emailErrorMessage.value = '';
-}
 
 // Форматирование времени
 const formatTime = (timestamp) => {
@@ -499,97 +466,10 @@ const handleMessage = async (text) => {
   }
 };
 
-// Добавляем методы для аутентификации
-const handleTelegramAuth = () => {
-  window.open('https://t.me/HB3_Accelerator_Bot', '_blank');
-  // Показываем форму для ввода кода через небольшую задержку
-  setTimeout(() => {
-    showTelegramVerification.value = true;
-  }, 1000);
-};
-
-const handleEmailAuth = async () => {
-  showEmailForm.value = true;
-};
-
-// Функция отправки email
-const submitEmail = async () => {
-  try {
-    const response = await api.post('/api/auth/email/request', {
-      email: emailInput.value
-    });
-
-    if (response.data.success) {
-      showEmailForm.value = false;
-      showEmailVerification.value = true;
-    } else {
-      emailError.value = response.data.error || 'Ошибка отправки кода';
-    }
-  } catch (error) {
-    emailError.value = 'Ошибка отправки кода';
-    console.error('Error sending email code:', error);
-  }
-};
-
-// Функция верификации кода Telegram
-const verifyTelegramCode = async () => {
-  try {
-    const response = await api.post('/api/auth/telegram/verify', {
-      code: telegramCode.value
-    });
-
-    if (response.data.success) {
-      console.log('Telegram verification successful:', response.data);
-      
-      // Обновляем состояние аутентификации
-      auth.setAuth({
-        isAuthenticated: response.data.authenticated,
-        userId: response.data.userId,
-        telegramId: response.data.telegramId,
-        isAdmin: response.data.isAdmin,
-        authType: 'telegram'
-      });
-
-      showTelegramVerification.value = false;
-      telegramCode.value = '';
-
-      // Показываем сообщение об успехе
-      messages.value.push({
-        id: Date.now(),
-        content: 'Telegram успешно подключен!',
-        role: 'assistant',
-        timestamp: new Date().toISOString()
-      });
-
-      // Загружаем историю чата после небольшой задержки
-      setTimeout(async () => {
-        await loadMoreMessages();
-      }, 100);
-    } else {
-      messages.value.push({
-        id: Date.now(),
-        content: response.data.error || 'Ошибка верификации кода',
-        role: 'assistant',
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    console.error('Error verifying Telegram code:', error);
-    messages.value.push({
-      id: Date.now(),
-      content: 'Произошла ошибка. Пожалуйста, попробуйте позже.',
-      role: 'assistant',
-      timestamp: new Date().toISOString()
-    });
-  }
-};
-
 const disconnectWallet = async () => {
   try {
     await auth.disconnect();
-    messages.value = [];
-    offset.value = 0;
-    hasMoreMessages.value = true;
+    console.log('Wallet disconnected successfully');
   } catch (error) {
     console.error('Error disconnecting wallet:', error);
   }
@@ -612,12 +492,29 @@ onMounted(() => {
   if (messagesContainer.value) {
     messagesContainer.value.addEventListener('scroll', handleScroll);
   }
+  console.log('Auth state on mount:', {
+    isAuthenticated: auth.isAuthenticated.value,
+    authType: auth.authType.value,
+    telegramId: auth.telegramId.value
+  });
+  
+  // Добавляем отладочный вывод для auth.authType
+  console.log('auth.authType:', auth.authType);
+  console.log('auth.authType.value:', auth.authType.value);
+  console.log('auth.authType.value === "telegram":', auth.authType.value === 'telegram');
+});
+
+watch(() => auth.telegramId.value, (newValue) => {
+  console.log('Telegram ID changed:', newValue);
 });
 
 onBeforeUnmount(() => {
   // Удаляем слушатель
   if (messagesContainer.value) {
     messagesContainer.value.removeEventListener('scroll', handleScroll);
+  }
+  if (telegramAuthCheckInterval.value) {
+    clearInterval(telegramAuthCheckInterval.value);
   }
 });
 </script>
@@ -897,7 +794,7 @@ h1 {
   box-sizing: border-box;
 }
 
-.auth-btn {
+.auth-btn, .disconnect-btn {
   padding: 8px 16px;
   border: none;
   border-radius: 4px;
@@ -905,34 +802,43 @@ h1 {
   font-size: 14px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  margin: 0;
 }
 
 .wallet-btn {
-  background-color: #4a5568;
+  background-color: #4CAF50;
   color: white;
 }
 
 .wallet-btn:hover {
-  background-color: #2d3748;
+  background-color: #45a049;
+}
+
+.disconnect-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.disconnect-btn:hover {
+  background-color: #d32f2f;
+}
+
+.auth-buttons, .wallet-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .auth-icon {
-  font-size: 16px;
+  margin-right: 5px;
 }
 
-.telegram-btn {
-  background-color: #0088cc;
+.connecting-info {
+  padding: 8px 16px;
+  background-color: #2196F3;
   color: white;
-}
-
-.email-btn {
-  background-color: #4caf50;
-  color: white;
-}
-
-.cancel-btn {
-  background-color: #999;
+  border-radius: 4px;
 }
 
 .error-message {
@@ -963,13 +869,17 @@ h1 {
   color: white;
 }
 
+.wallet-btn:hover {
+  background-color: #2d3748;
+}
+
 .telegram-btn {
   background-color: #0088cc;
   color: white;
 }
 
 .email-btn {
-  background-color: #48bb78;
+  background-color: #4caf50;
   color: white;
 }
 
@@ -1101,5 +1011,104 @@ h1 {
   text-align: center;
   padding: 1rem;
   color: #666;
+}
+
+/* Добавляем отображение кода и ссылки для Telegram */
+.verification-info {
+  padding: 10px;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.verification-info p {
+  margin: 5px 0;
+}
+
+.verification-info strong {
+  font-weight: bold;
+}
+
+.verification-info a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.verification-info a:hover {
+  text-decoration: underline;
+}
+
+.verification-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.verification-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verification-code code {
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  cursor: pointer;
+  border: 1px solid #ddd;
+}
+
+.verification-code code:hover {
+  background: #f0f0f0;
+}
+
+.bot-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #0088cc;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.bot-link:hover {
+  background: #006699;
+}
+
+.auth-icon {
+  font-size: 1.2em;
+}
+
+/* Добавляем новые стили для информации о пользователе */
+.auth-info {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.auth-info button {
+  padding: 8px 16px;
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.auth-info button:hover {
+  background-color: #cc0000;
 }
 </style>
