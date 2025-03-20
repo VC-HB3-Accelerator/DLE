@@ -3,6 +3,7 @@ const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
 const { USER_ROLES } = require('../utils/constants');
 const db = require('../db');
+const { checkAdminTokens } = require('../services/auth-service');
 
 /**
  * Middleware для проверки аутентификации
@@ -164,32 +165,27 @@ function requireRole(role) {
  * Проверяет роль пользователя
  * @param {string} role - Роль для проверки
  */
-function checkRole(role) {
-  return async (req, res, next) => {
-    try {
-      // Если пользователь не аутентифицирован, просто продолжаем
-      if (!req.session || !req.session.authenticated) {
-        req.hasRole = false;
-        return next();
-      }
-
-      // Проверка через ID пользователя
-      if (req.session.userId) {
-        const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
-        if (userResult.rows.length > 0 && userResult.rows[0].role === role) {
-          req.hasRole = true;
-          return next();
-        }
-      }
-
-      req.hasRole = false;
-      next();
-    } catch (error) {
-      logger.error(`Error in checkRole middleware: ${error.message}`);
-      req.hasRole = false;
-      next();
+async function checkRole(req, res, next) {
+  try {
+    if (!req.session.authenticated) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-  };
+
+    // Если есть адрес кошелька - проверяем токены
+    if (req.session.address) {
+      req.session.isAdmin = await checkAdminTokens(req.session.address);
+      await req.session.save();
+    }
+
+    if (!req.session.isAdmin) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in checkRole middleware:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 module.exports = {

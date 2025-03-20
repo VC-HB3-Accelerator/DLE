@@ -5,6 +5,7 @@
     <div class="auth-section" v-if="!auth.isAuthenticated">
       <h3>Венчурный фонд и поставщик программного обеспечения</h3>
     </div>
+       
 
     <div class="chat-container">
       <div class="chat-header">
