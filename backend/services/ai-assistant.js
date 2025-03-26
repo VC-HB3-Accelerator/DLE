@@ -1,6 +1,6 @@
 const { ChatOllama } = require('@langchain/ollama');
-const { HNSWLib } = require('langchain/vectorstores/hnswlib');
-const { OpenAIEmbeddings } = require('langchain/embeddings/openai');
+const { HNSWLib } = require('@langchain/community/vectorstores/hnswlib');
+const { OpenAIEmbeddings } = require('@langchain/openai');
 const logger = require('../utils/logger');
 
 class AIAssistant {
