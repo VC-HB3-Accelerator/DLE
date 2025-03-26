@@ -27,10 +27,10 @@ DROP TRIGGER IF EXISTS user_identity_role_check ON user_identities;
 DROP TRIGGER IF EXISTS check_admin_role_trigger ON user_identities;
 DROP FUNCTION IF EXISTS sync_identity_type() CASCADE;
 DROP FUNCTION IF EXISTS update_user_role() CASCADE;
-DROP FUNCTION IF EXISTS check_admin_role(INTEGER) CASCADE;
+DROP FUNCTION IF EXISTS check_admin_role() CASCADE;
 
 -- Создаем функцию проверки роли
-CREATE FUNCTION check_admin_role() 
+CREATE OR REPLACE FUNCTION check_admin_role() 
 RETURNS TRIGGER AS $$
 DECLARE
   v_wallet_address VARCHAR;
