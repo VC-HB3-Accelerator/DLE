@@ -128,7 +128,23 @@ app.use('/api/admin', adminRoutes);
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 
-console.log('SESSION_SECRET:', process.env.SESSION_SECRET);
+// Значение для маскирования чувствительных данных
+const redactedValue = '***********';
+
+// Логируем переменные окружения для отладки
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('POSTGRES_HOST:', process.env.POSTGRES_HOST);
+console.log('POSTGRES_PORT:', process.env.POSTGRES_PORT);
+console.log('POSTGRES_DB:', process.env.POSTGRES_DB);
+console.log('POSTGRES_USER:', redactedValue);
+console.log('POSTGRES_PASSWORD:', redactedValue);
+console.log('TELEGRAM_BOT_TOKEN:', redactedValue);
+console.log('TELEGRAM_BOT_USERNAME:', process.env.TELEGRAM_BOT_USERNAME);
+console.log('OPENAI_API_KEY:', redactedValue);
+// console.log('SESSION_SECRET:', process.env.SESSION_SECRET); // Убираем вывод секретного ключа
+console.log('EMAIL_USER:', process.env.EMAIL_USER);
+console.log('EMAIL_PASSWORD:', redactedValue);
 
 // Добавляем обработчик ошибок последним
 app.use(errorHandler);
