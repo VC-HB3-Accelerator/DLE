@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { ethers } = require('ethers');
 const crypto = require('crypto');
 const { processMessage } = require('./ai-assistant'); // Используем AI Assistant
+const verificationService = require('./verification-service'); // Используем сервис верификации
 
 const ADMIN_CONTRACTS = [
   { address: "0xd95a45fc46a7300e6022885afec3d618d7d3f27c", network: "eth" },
@@ -217,6 +218,40 @@ class AuthService {
     } catch (error) {
       logger.error('Error checking user role:', error);
       return 'user';
+    }
+  }
+
+  // Проверка верификации Email
+  async checkEmailVerification(code) {
+    try {
+      // Проверяем код через сервис верификации
+      const result = await verificationService.verifyCode(code, 'email', null);
+      
+      if (!result.success) {
+        return { verified: false };
+      }
+      
+      const userId = result.userId;
+      const email = result.providerId;
+      
+      // Проверяем, существует ли пользователь с таким email
+      const userResult = await db.query(
+        'SELECT * FROM users WHERE id = $1',
+        [userId]
+      );
+      
+      if (userResult.rows.length === 0) {
+        return { verified: false };
+      }
+      
+      return {
+        verified: true,
+        userId,
+        email
+      };
+    } catch (error) {
+      logger.error('Error checking email verification:', error);
+      return { verified: false };
     }
   }
 }
