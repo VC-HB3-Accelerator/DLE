@@ -9,6 +9,7 @@ export function useAuth() {
   const telegramInfo = ref(null);
   const isAdmin = ref(false);
   const telegramId = ref(null);
+  const email = ref(null);
   
   const updateAuth = ({ authenticated, authType: newAuthType, userId: newUserId, address: newAddress, telegramId: newTelegramId, isAdmin: newIsAdmin }) => {
     isAuthenticated.value = authenticated;
@@ -23,10 +24,18 @@ export function useAuth() {
     try {
       const response = await axios.get('/api/auth/check');
       console.log('Auth check response:', response.data);
-      updateAuth(response.data);
+      
+      isAuthenticated.value = response.data.authenticated;
+      userId.value = response.data.userId;
+      isAdmin.value = response.data.isAdmin;
+      authType.value = response.data.authType;
+      address.value = response.data.address;
+      telegramId.value = response.data.telegramId;
+      email.value = response.data.email;
+      
       return response.data;
     } catch (error) {
-      console.error('Error checking auth status:', error);
+      console.error('Error checking auth:', error);
       return { authenticated: false };
     }
   };
@@ -71,6 +80,7 @@ export function useAuth() {
     telegramInfo,
     isAdmin,
     telegramId,
+    email,
     updateAuth,
     checkAuth,
     disconnect

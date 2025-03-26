@@ -11,7 +11,7 @@
         <!-- Используем тот же компонент, что и в сообщениях -->
         <div v-if="!isAuthenticated && !isConnecting" class="auth-buttons">
           <button class="auth-btn wallet-btn" @click="handleWalletAuth">
-            <span class="auth-icon">👛</span> Подключить кошелек
+            Подключить кошелек
           </button>
         </div>
         
@@ -19,17 +19,24 @@
           <span>Подключение кошелька...</span>
         </div>
         
-        <div v-show="isAuthenticated && auth.authType.value === 'wallet'" class="auth-buttons">
-          <span>{{ auth.address && auth.address.value ? truncateAddress(auth.address.value) : '' }}</span>
-          <button class="auth-btn wallet-btn" @click="disconnectWallet">
-            <span class="auth-icon">🔌</span> Отключить кошелек
+        <div v-show="isAuthenticated && auth.authType.value === 'wallet'" class="auth-info-header">
+          <span class="user-id">{{ auth.address && auth.address.value ? truncateAddress(auth.address.value) : '' }}</span>
+          <button class="auth-btn disconnect-btn" @click="disconnectWallet">
+            Отключить кошелек
           </button>
         </div>
         
-        <div v-show="isAuthenticated && auth.authType.value === 'telegram'" class="auth-buttons">
-          <span>Telegram: {{ auth.telegramId }}</span>
+        <div v-show="isAuthenticated && auth.authType.value === 'telegram'" class="auth-info-header">
+          <span class="user-id">Telegram: {{ auth.telegramId }}</span>
           <button class="auth-btn disconnect-btn" @click="disconnectWallet">
-            <span class="auth-icon">🔌</span> Выйти
+            Выйти
+          </button>
+        </div>
+        
+        <div v-show="isAuthenticated && auth.authType.value === 'email'" class="auth-info-header">
+          <span class="user-id">Email: {{ auth.email }}</span>
+          <button class="auth-btn disconnect-btn" @click="disconnectWallet">
+            Выйти
           </button>
         </div>
       </div>
@@ -51,9 +58,9 @@
           </div>
           
           <!-- Кнопки аутентификации -->
-          <div v-if="message.showAuthButtons && !isAuthenticated" class="auth-buttons">
+          <div v-if="message.showAuthButtons && !isAuthenticated" class="message-auth-buttons">
             <button class="auth-btn wallet-btn" @click="handleWalletAuth">
-              <span class="auth-icon">👛</span> Подключить кошелек
+              Подключить кошелек
             </button>
             
             <!-- Telegram верификация -->
@@ -63,11 +70,11 @@
                 <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
               </div>
               <a :href="telegramBotLink" target="_blank" class="bot-link">
-                <span class="auth-icon">📱</span> Открыть HB3_Accelerator_Bot
+                Открыть HB3_Accelerator_Bot
               </a>
             </div>
             <button v-else class="auth-btn telegram-btn" @click="handleTelegramAuth">
-              <span class="auth-icon">📱</span> Подключить Telegram
+              Подключить Telegram
             </button>
             
             <!-- Email верификация -->
@@ -75,18 +82,62 @@
               <div class="verification-code">
                 <span>Код подтверждения:</span>
                 <code @click="copyCode(emailVerificationCode)">{{ emailVerificationCode }}</code>
+                <span v-if="codeCopied" class="copied-message">Скопировано!</span>
               </div>
-              <a :href="'mailto:' + emailInput" class="bot-link">
-                <span class="auth-icon">✉️</span> Открыть почту
-              </a>
+              
+              <div class="email-options">
+                <a :href="`mailto:info@hb3-accelerator.com?subject=Verification%20Code&body=${emailVerificationCode}`" 
+                   class="bot-link" 
+                   target="_blank"
+                   @click="handleEmailClick">
+                  Отправить код на info@hb3-accelerator.com
+                </a>
+                
+                <div v-if="showEmailAlternatives" class="email-alternatives">
+                  <p>Выберите почтовый сервис:</p>
+                  <div class="email-services">
+                    <a href="https://mail.google.com/mail/?view=cm&fs=1&to=info@hb3-accelerator.com&su=Verification%20Code&body=Код%20верификации:%20" 
+                       :href="getEmailServiceUrl('gmail')"
+                       target="_blank" 
+                       class="email-service-btn gmail">
+                      Gmail
+                    </a>
+                    <a href="https://outlook.live.com/mail/0/deeplink/compose" 
+                       :href="getEmailServiceUrl('outlook')"
+                       target="_blank" 
+                       class="email-service-btn outlook">
+                      Outlook
+                    </a>
+                    <a href="https://mail.yahoo.com/d/compose/" 
+                       :href="getEmailServiceUrl('yahoo')"
+                       target="_blank" 
+                       class="email-service-btn yahoo">
+                      Yahoo
+                    </a>
+                    <a href="https://mail.protonmail.com/compose" 
+                       :href="getEmailServiceUrl('proton')"
+                       target="_blank" 
+                       class="email-service-btn proton">
+                      ProtonMail
+                    </a>
+                  </div>
+                  <div class="manual-option">
+                    <p>Или скопируйте код и отправьте вручную:</p>
+                    <button @click="copyEmailWithCode" class="copy-button">
+                      Скопировать email и код
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
             <button v-else class="auth-btn email-btn" @click="handleEmailAuth">
-              <span class="auth-icon">✉️</span> Подключить Email
+              Подключить Email
             </button>
           </div>
             
           <div v-if="emailError" class="error-message">
             {{ emailError }}
+            <button class="close-error" @click="clearEmailError">×</button>
           </div>
           
           <div class="message-time">
@@ -105,18 +156,6 @@
         <button @click="handleMessage(newMessage)" :disabled="isLoading || !newMessage.trim()">
           {{ isLoading ? 'Отправка...' : 'Отправить' }}
         </button>
-      </div>
-    </div>
-
-    <!-- В шаблоне, где отображается информация о пользователе -->
-    <div v-if="auth.isAuthenticated" class="auth-info">
-      <div v-if="auth.authType === 'wallet'">
-        <span>Подключен кошелек: {{ auth.address }}</span>
-        <button @click="disconnectWallet">Отключить кошелек</button>
-      </div>
-      <div v-if="auth.authType === 'telegram'">
-        <span>Подключен Telegram: {{ auth.telegramId }}</span>
-        <button @click="disconnectWallet">Выйти</button>
       </div>
     </div>
   </div>
@@ -156,13 +195,65 @@ const telegramBotLink = ref('');
 const telegramAuthCheckInterval = ref(null);
 const showEmailVerification = ref(false);
 const emailVerificationCode = ref('');
-const emailInput = ref('');
+const emailAuthCheckInterval = ref(null);
 const emailError = ref('');
+const codeCopied = ref(false);
+const showEmailAlternatives = ref(false);
 
 // Функция для копирования кода
 const copyCode = (code) => {
-  navigator.clipboard.writeText(code);
-  // Можно добавить уведомление о копировании
+  navigator.clipboard.writeText(code).then(() => {
+    codeCopied.value = true;
+    setTimeout(() => {
+      codeCopied.value = false;
+    }, 2000);
+  });
+};
+
+// Функция для копирования email и кода
+const copyEmailWithCode = () => {
+  const textToCopy = `Email: info@hb3-accelerator.com\nКод верификации: ${emailVerificationCode.value}`;
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    alert('Email и код скопированы в буфер обмена');
+  });
+};
+
+// Функция для определения URL почтового сервиса
+const getEmailServiceUrl = (service) => {
+  const to = 'info@hb3-accelerator.com';
+  const subject = 'Verification Code';
+  const body = `Код верификации: ${emailVerificationCode.value}`;
+  
+  switch (service) {
+    case 'gmail':
+      return `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${encodeURIComponent(body)}`;
+    case 'outlook':
+      return `https://outlook.live.com/mail/0/deeplink/compose?to=${to}&subject=${subject}&body=${encodeURIComponent(body)}`;
+    case 'yahoo':
+      return `https://compose.mail.yahoo.com/?to=${to}&subject=${subject}&body=${encodeURIComponent(body)}`;
+    case 'proton':
+      return `https://mail.protonmail.com/compose?to=${to}&subject=${subject}&body=${encodeURIComponent(body)}`;
+    default:
+      return `mailto:${to}?subject=${subject}&body=${encodeURIComponent(body)}`;
+  }
+};
+
+// Функция для обработки клика по email-ссылке
+const handleEmailClick = (e) => {
+  // Определяем, есть ли у пользователя почтовый клиент
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isMobile = /android|webos|iphone|ipad|ipod|blackberry|windows phone/i.test(userAgent);
+  
+  // На мобильных устройствах обычно есть почтовые клиенты
+  if (isMobile) {
+    // Позволяем стандартному обработчику открыть почтовый клиент
+    return true;
+  }
+  
+  // На десктопе предлагаем веб-почту
+  e.preventDefault();
+  showEmailAlternatives.value = true;
+  return false;
 };
 
 // Функция для показа ошибок
@@ -220,22 +311,61 @@ const handleTelegramAuth = async () => {
   }
 };
 
-// Обработчик для Email аутентификации
+// Функция для очистки ошибки
+const clearEmailError = () => {
+  emailError.value = '';
+};
+
+// Функция для обработки Email аутентификации
 const handleEmailAuth = async () => {
   try {
-    // Запрашиваем email у пользователя
-    const email = prompt('Введите ваш email:');
-    if (!email) return;
+    clearEmailError(); // Очищаем ошибку перед новой попыткой
     
-    const { data } = await axios.post('/api/auth/email/init', { email });
-    if (data.success) {
+    // Инициализируем процесс аутентификации
+    const response = await axios.post('/api/auth/email/init');
+    
+    if (response.data.success) {
       showEmailVerification.value = true;
-      emailInput.value = email;
+      emailVerificationCode.value = response.data.verificationCode;
+      
+      // Запускаем проверку статуса аутентификации
+      startEmailAuthCheck();
     }
   } catch (error) {
-    console.error('Error initializing email auth:', error);
-    emailError.value = error.response?.data?.error || 'Ошибка отправки кода';
+    console.error('Error in email auth:', error);
+    emailError.value = 'Ошибка при подключении Email';
   }
+};
+
+// Функция для запуска проверки статуса аутентификации по Email
+const startEmailAuthCheck = () => {
+  if (emailAuthCheckInterval.value) {
+    clearInterval(emailAuthCheckInterval.value);
+  }
+  
+  emailAuthCheckInterval.value = setInterval(async () => {
+    try {
+      const response = await axios.get('/api/auth/check-email-verification', {
+        params: { code: emailVerificationCode.value }
+      });
+      
+      if (response.data.verified) {
+        clearInterval(emailAuthCheckInterval.value);
+        showEmailVerification.value = false;
+        
+        // Обновляем состояние аутентификации
+        await auth.checkAuth();
+        
+        // Перезагружаем страницу для обновления UI
+        window.location.reload();
+      } else if (response.data.message) {
+        // Показываем сообщение пользователю, если есть
+        emailError.value = response.data.message;
+      }
+    } catch (error) {
+      console.error('Error checking email verification:', error);
+    }
+  }, 5000); // Проверяем каждые 5 секунд
 };
 
 // Функция для сокращения адреса кошелька
@@ -466,10 +596,18 @@ const handleMessage = async (text) => {
   }
 };
 
+// Функция для отключения кошелька/выхода
 const disconnectWallet = async () => {
   try {
-    await auth.disconnect();
-    console.log('Wallet disconnected successfully');
+    await axios.post('/api/auth/logout');
+    auth.isAuthenticated.value = false;
+    auth.address.value = null;
+    auth.authType.value = null;
+    auth.telegramId = null;
+    auth.email = null;
+    
+    // Перезагружаем страницу для сброса состояния
+    window.location.reload();
   } catch (error) {
     console.error('Error disconnecting wallet:', error);
   }
@@ -515,6 +653,9 @@ onBeforeUnmount(() => {
   }
   if (telegramAuthCheckInterval.value) {
     clearInterval(telegramAuthCheckInterval.value);
+  }
+  if (emailAuthCheckInterval.value) {
+    clearInterval(emailAuthCheckInterval.value);
   }
 });
 </script>
@@ -842,9 +983,24 @@ h1 {
 }
 
 .error-message {
-  color: #D32F2F;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
+  position: relative;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: #ffebee;
+  color: #c62828;
+  border-radius: 4px;
+  border-left: 4px solid #c62828;
+}
+
+.close-error {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: none;
+  border: none;
+  color: #c62828;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 .auth-buttons {
@@ -878,81 +1034,45 @@ h1 {
   color: white;
 }
 
+.telegram-btn:hover {
+  background-color: #0077b5;
+}
+
 .email-btn {
-  background-color: #4caf50;
+  background-color: #f44336;
   color: white;
 }
 
-.auth-icon {
-  margin-right: 8px;
+.email-btn:hover {
+  background-color: #d32f2f;
 }
 
-.email-form {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.email-form input {
-  width: 100%;
-  padding: 8px;
-  margin-bottom: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.email-form button {
-  padding: 8px 16px;
-  background-color: #4CAF50;
+.disconnect-btn {
+  background-color: #f44336;
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
-.email-form button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
+.disconnect-btn:hover {
+  background-color: #d32f2f;
 }
 
-.auth-form {
-  margin-top: 10px;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #f9f9f9;
-}
-
-.auth-input {
-  width: 100%;
-  padding: 8px 12px;
-  margin-bottom: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.error-message {
-  color: #dc3545;
-  font-size: 14px;
-  margin-top: 5px;
-}
-
-.load-more-container {
+/* Стили для информации о пользователе в header */
+.auth-info-header {
   display: flex;
-  justify-content: center;
-  padding: 10px;
-  background-color: #f5f5f5;
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  align-items: center;
+  gap: 15px;
 }
 
-.load-more-btn {
+.user-id {
+  font-size: 14px;
+  color: #333;
+}
+
+/* Общие стили для кнопок */
+.auth-btn {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
-  background-color: #4a5568;
-  color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -960,155 +1080,149 @@ h1 {
   transition: background-color 0.2s;
 }
 
-.load-more-btn:hover:not(:disabled) {
-  background-color: #2d3748;
+.wallet-btn {
+  background-color: #4CAF50;
+  color: white;
 }
 
-.load-more-btn:disabled {
-  background-color: #cbd5e0;
-  cursor: not-allowed;
+.wallet-btn:hover {
+  background-color: #45a049;
 }
 
-.wallet-section {
-  margin-top: 20px;
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background-color: #f9f9f9;
+.telegram-btn {
+  background-color: #0088cc;
+  color: white;
 }
 
-.wallet-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+.telegram-btn:hover {
+  background-color: #0077b5;
+}
+
+.email-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.email-btn:hover {
+  background-color: #d32f2f;
 }
 
 .disconnect-btn {
-  padding: 0.5rem 1rem;
-  background-color: #ff4444;
+  background-color: #f44336;
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 .disconnect-btn:hover {
-  background-color: #cc0000;
+  background-color: #d32f2f;
 }
 
-.chat-history {
-  height: 60vh;
-  overflow-y: auto;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  margin-top: 1rem;
-}
-
-/* Добавим индикатор загрузки */
-.loading {
-  text-align: center;
-  padding: 1rem;
-  color: #666;
-}
-
-/* Добавляем отображение кода и ссылки для Telegram */
-.verification-info {
-  padding: 10px;
-  background-color: #f9f9f9;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+.bot-link {
+  display: inline-block;
   margin-top: 10px;
-}
-
-.verification-info p {
-  margin: 5px 0;
-}
-
-.verification-info strong {
-  font-weight: bold;
-}
-
-.verification-info a {
-  color: #007bff;
-  text-decoration: none;
-}
-
-.verification-info a:hover {
+  color: #0088cc;
   text-decoration: underline;
+  cursor: pointer;
+}
+
+.bot-link:hover {
+  color: #005580;
 }
 
 .verification-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  margin: 8px 0;
+  margin: 15px 0;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+  border-left: 4px solid #0088cc;
 }
 
 .verification-code {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .verification-code code {
-  background: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
+  background-color: #e0e0e0;
+  padding: 5px 10px;
+  border-radius: 3px;
   font-family: monospace;
   cursor: pointer;
+  user-select: all;
+}
+
+.copied-message {
+  color: #4CAF50;
+  font-size: 12px;
+}
+
+.email-options {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.email-alternatives {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 5px;
   border: 1px solid #ddd;
 }
 
-.verification-code code:hover {
-  background: #f0f0f0;
+.email-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 15px 0;
 }
 
-.bot-link {
-  display: flex;
+.email-service-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #0088cc;
+  padding: 8px 15px;
+  border-radius: 4px;
   color: white;
   text-decoration: none;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  font-weight: 500;
+  min-width: 120px;
 }
 
-.bot-link:hover {
-  background: #006699;
+.gmail {
+  background-color: #D44638;
 }
 
-.auth-icon {
-  font-size: 1.2em;
+.outlook {
+  background-color: #0078D4;
 }
 
-/* Добавляем новые стили для информации о пользователе */
-.auth-info {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: #f9f9f9;
+.yahoo {
+  background-color: #6001D2;
 }
 
-.auth-info button {
-  padding: 8px 16px;
-  background-color: #ff4444;
-  color: white;
-  border: none;
+.proton {
+  background-color: #8A6EFF;
+}
+
+.manual-option {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.copy-button {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  padding: 8px 15px;
   border-radius: 4px;
   cursor: pointer;
-  margin-top: 10px;
+  font-size: 14px;
+  margin-top: 5px;
 }
 
-.auth-info button:hover {
-  background-color: #cc0000;
+.copy-button:hover {
+  background-color: #e0e0e0;
 }
 </style>

@@ -5,22 +5,19 @@ const simpleParser = require('mailparser').simpleParser;
 const { processMessage } = require('./ai-assistant');
 const { inspect } = require('util');
 const logger = require('../utils/logger');
-const { generateVerificationCode, addUserIdentity } = require('../utils/helpers');
-
-// Хранилище кодов подтверждения
-const verificationCodes = new Map(); // { email: { code, token, expires } }
+const verificationService = require('./verification-service');
 
 // Конфигурация для отправки писем
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_SMTP_HOST,
   port: process.env.EMAIL_SMTP_PORT,
-  secure: process.env.EMAIL_SMTP_PORT === '465', // true для 465, false для других портов
+  secure: process.env.EMAIL_SMTP_PORT === '465',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
   tls: {
-    rejectUnauthorized: false // Отключение проверки сертификата
+    rejectUnauthorized: false
   }
 });
 
@@ -38,63 +35,39 @@ class EmailBotService {
   constructor(user, password) {
     this.user = user;
     this.password = password;
-    this.transporter = null;
-    this.imap = null;
+    this.transporter = transporter;
+    this.imap = new Imap(imapConfig);
     this.initialize();
     this.listenForReplies();
   }
 
   initialize() {
-    // Настройка транспорта
-    this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_SMTP_HOST,
-      port: process.env.EMAIL_SMTP_PORT,
-      secure: true,
-      auth: {
-        user: this.user,
-        pass: this.password
-      }
-    });
-
-    // Настройка IMAP для чтения входящих писем
-    this.imap = new Imap({
-      user: this.user,
-      password: this.password,
-      host: process.env.EMAIL_IMAP_HOST,
-      port: process.env.EMAIL_IMAP_PORT,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false }
-    });
-
     this.imap.once('error', (err) => {
       logger.error(`IMAP connection error: ${err.message}`);
     });
   }
 
-  async sendVerificationCode(toEmail, token) {
+  async sendVerificationCode(toEmail, userId) {
     try {
-      // Генерируем код подтверждения
-      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Сохраняем код в хранилище
-      verificationCodes.set(toEmail.toLowerCase(), {
-        code: verificationCode,
-        token: token,
-        expires: Date.now() + 15 * 60 * 1000 // 15 минут
-      });
+      // Создаем код через сервис верификации
+      const code = await verificationService.createVerificationCode(
+        'email',
+        toEmail.toLowerCase(),
+        userId
+      );
       
       // Отправляем письмо с кодом
       const mailOptions = {
         from: this.user,
         to: toEmail,
         subject: 'Код подтверждения для DApp for Business',
-        text: `Ваш код подтверждения: ${verificationCode}\n\nДля завершения аутентификации, пожалуйста, ответьте на это письмо, указав только полученный код.\n\nКод действителен в течение 15 минут.`,
+        text: `Ваш код подтверждения: ${code}\n\nДля завершения аутентификации, пожалуйста, ответьте на это письмо, указав только полученный код.\n\nКод действителен в течение 15 минут.`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
             <h2 style="color: #333;">Код подтверждения для DApp for Business</h2>
             <p>Ваш код подтверждения:</p>
             <div style="font-size: 24px; font-weight: bold; padding: 15px; background-color: #f5f5f5; border-radius: 5px; text-align: center; margin: 20px 0;">
-              ${verificationCode}
+              ${code}
             </div>
             <p>Для завершения аутентификации, пожалуйста, ответьте на это письмо, указав только полученный код.</p>
             <p>Код действителен в течение 15 минут.</p>
@@ -107,7 +80,7 @@ class EmailBotService {
       const info = await this.transporter.sendMail(mailOptions);
       logger.info(`Email sent: ${info.messageId}`);
       
-      return { success: true, code: verificationCode }; // Код для отладки
+      return { success: true, code };
     } catch (error) {
       logger.error(`Error sending email: ${error}`);
       return { success: false, error: error.message };
@@ -225,65 +198,48 @@ class EmailBotService {
       
       const code = codeMatch[0];
       
-      // Проверяем, есть ли код для этого email
-      const verificationData = verificationCodes.get(fromEmail);
+      // Проверяем код через сервис верификации
+      const result = await verificationService.verifyCode(code, 'email', fromEmail);
       
-      if (verificationData && verificationData.code === code) {
-        // Проверяем срок действия
-        if (Date.now() > verificationData.expires) {
-          // Код истек
-          this.transporter.sendMail({
-            from: this.user,
-            to: fromEmail,
-            subject: 'Срок действия кода истек',
-            text: 'Срок действия кода подтверждения истек. Пожалуйста, запросите новый код.'
-          });
-          verificationCodes.delete(fromEmail);
-          return;
-        }
-        
-        // Код верный и актуальный
-        const { pool } = require('../db');
-        const token = verificationData.token;
-        
-        // Связываем email с пользователем
-        const tokenResult = await pool.query(
-          'SELECT user_id FROM email_auth_tokens WHERE token = $1',
-          [token]
-        );
-        
-        if (tokenResult.rows.length > 0) {
-          const userId = tokenResult.rows[0].user_id;
-          
-          // Добавляем идентификатор email для пользователя
-          await pool.query(
-            'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
-            'VALUES ($1, $2, $3, true, NOW()) ' +
-            'ON CONFLICT (identity_type, identity_value) ' +
-            'DO UPDATE SET user_id = $1, verified = true',
-            [userId, 'email', fromEmail]
-          );
-          
-          // Отмечаем токен как использованный
-          await pool.query(
-            'UPDATE email_auth_tokens SET used = true WHERE token = $1',
-            [token]
-          );
-          
-          // Отправляем подтверждение
-          this.transporter.sendMail({
-            from: this.user,
-            to: fromEmail,
-            subject: 'Аутентификация успешна',
-            text: 'Ваш email успешно связан с аккаунтом DApp for Business.'
-          });
-          
-          verificationCodes.delete(fromEmail);
-        }
+      if (!result.success) {
+        // Отправляем сообщение об ошибке
+        await this.transporter.sendMail({
+          from: this.user,
+          to: fromEmail,
+          subject: 'Ошибка верификации',
+          text: 'Неверный или истекший код подтверждения. Пожалуйста, запросите новый код.'
+        });
+        return;
       }
+      
+      // Код верный и актуальный
+      const userId = result.userId;
+      
+      // Добавляем идентификатор email для пользователя
+      await pool.query(
+        'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
+        'VALUES ($1, $2, $3, true, NOW()) ' +
+        'ON CONFLICT (identity_type, identity_value) ' +
+        'DO UPDATE SET user_id = $1, verified = true',
+        [userId, 'email', fromEmail]
+      );
+      
+      // Отправляем подтверждение
+      await this.transporter.sendMail({
+        from: this.user,
+        to: fromEmail,
+        subject: 'Аутентификация успешна',
+        text: 'Ваш email успешно связан с аккаунтом DApp for Business.'
+      });
+      
     } catch (error) {
       logger.error(`Error processing email: ${error}`);
     }
+  }
+
+  // Метод для проверки кода без IMAP
+  async verifyCode(email, code) {
+    return await verificationService.verifyCode(code, 'email', email.toLowerCase());
   }
 
   // Оставляем существующие методы
@@ -304,110 +260,9 @@ class EmailBotService {
       return false;
     }
   }
-
-  // Метод для проверки кода без IMAP
-  verifyCode(email, code) {
-    email = email.toLowerCase();
-    const data = verificationCodes.get(email);
-    
-    if (!data) {
-      return { success: false, error: 'Код не найден' };
-    }
-    
-    if (Date.now() > data.expires) {
-      verificationCodes.delete(email);
-      return { success: false, error: 'Срок действия кода истек' };
-    }
-    
-    if (data.code !== code) {
-      return { success: false, error: 'Неверный код' };
-    }
-    
-    return { 
-      success: true, 
-      token: data.token 
-    };
-  }
-  
-  // Метод для удаления кода после проверки
-  removeCode(email) {
-    verificationCodes.delete(email.toLowerCase());
-  }
 }
 
-// Инициализация процесса аутентификации по email
-async function initEmailAuth(email) {
-  const code = generateVerificationCode();
-  
-  // Сохраняем код на 15 минут
-  verificationCodes.set(code, {
-    email,
-    timestamp: Date.now(),
-    verified: false
-  });
-
-  // Отправляем код на email
-  try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
-      to: email,
-      subject: 'Код подтверждения для HB3 Accelerator',
-      text: `Ваш код подтверждения: ${code}\n\nВведите его на сайте для завершения аутентификации.`,
-      html: `
-        <h2>Код подтверждения для HB3 Accelerator</h2>
-        <p>Ваш код подтверждения: <strong>${code}</strong></p>
-        <p>Введите его на сайте для завершения аутентификации.</p>
-      `
-    });
-
-    logger.info(`Verification code sent to email: ${email}`);
-    return { success: true };
-  } catch (error) {
-    logger.error('Error sending verification email:', error);
-    throw new Error('Failed to send verification email');
-  }
-}
-
-// Проверка кода подтверждения
-async function verifyEmailCode(code, userId) {
-  const verification = verificationCodes.get(code);
-
-  if (!verification) {
-    logger.warn(`Invalid verification code attempt: ${code}`);
-    throw new Error('Неверный код');
-  }
-
-  if (Date.now() - verification.timestamp > 15 * 60 * 1000) {
-    verificationCodes.delete(code);
-    logger.warn(`Expired verification code: ${code}`);
-    throw new Error('Код устарел');
-  }
-
-  try {
-    // Сохраняем связь пользователя с email
-    const success = await addUserIdentity(
-      userId,
-      'email',
-      verification.email
-    );
-
-    if (success) {
-      verificationCodes.delete(code);
-      logger.info(`User ${userId} successfully linked email ${verification.email}`);
-      return { success: true };
-    } else {
-      throw new Error('Этот email уже привязан к другому пользователю');
-    }
-  } catch (error) {
-    logger.error('Error saving email identity:', error);
-    throw error;
-  }
-}
-
-// Экспортируем класс и хранилище кодов
 module.exports = {
   EmailBotService,
-  verificationCodes,
-  initEmailAuth,
-  verifyEmailCode
+  transporter
 };

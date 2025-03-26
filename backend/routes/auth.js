@@ -9,18 +9,20 @@ const { checkRole, requireAuth } = require('../middleware/auth');
 const { pool } = require('../db');
 const authService = require('../services/auth-service');
 const { SiweMessage } = require('siwe');
-const { sendEmail } = require('../services/emailBot');
+const { EmailBotService } = require('../services/emailBot');
 const { verificationCodes } = require('../services/telegramBot');
 const { checkTokensAndUpdateRole } = require('../services/auth-service');
 const { ethers } = require('ethers');
 const { initTelegramAuth } = require('../services/telegramBot');
 const { initEmailAuth, verifyEmailCode } = require('../services/emailBot');
 const { getBot } = require('../services/telegramBot');
+const emailAuth = require('../services/emailAuth');
+const verificationService = require('../services/verification-service');
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: 20, // Увеличьте лимит с 5 до 20
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток аутентификации. Попробуйте позже.' },
@@ -99,12 +101,51 @@ router.post('/verify', async (req, res) => {
     `, [address.toLowerCase()]);
     
     if (userResult.rows.length > 0) {
-      // Пользователь найден
+      // Пользователь найден по кошельку
       userId = userResult.rows[0].id;
       isAdmin = userResult.rows[0].role === 'admin';
-      const address = userResult.rows[0].address;
+    } else if (req.session.guestId) {
+      // Проверяем, есть ли пользователь с текущим guestId
+      const guestUserResult = await db.query(`
+        SELECT u.* FROM users u 
+        JOIN user_identities ui ON u.id = ui.user_id 
+        WHERE ui.provider = 'guest' AND ui.provider_id = $1
+      `, [req.session.guestId]);
+      
+      if (guestUserResult.rows.length > 0) {
+        // Используем существующего пользователя с guestId
+        userId = guestUserResult.rows[0].id;
+        isAdmin = guestUserResult.rows[0].role === 'admin';
+        
+        // Добавляем идентификатор кошелька к существующему пользователю
+        await db.query(
+          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
+          [userId, 'wallet', address.toLowerCase()]
+        );
+      } else {
+        // Создаем нового пользователя
+        const newUserResult = await db.query(
+          'INSERT INTO users (role) VALUES ($1) RETURNING id',
+          ['user']
+        );
+        
+        userId = newUserResult.rows[0].id;
+        isAdmin = false;
+        
+        // Добавляем идентификатор кошелька
+        await db.query(
+          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
+          [userId, 'wallet', address.toLowerCase()]
+        );
+        
+        // Добавляем идентификатор гостя
+        await db.query(
+          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
+          [userId, 'guest', req.session.guestId]
+        );
+      }
     } else {
-      // Создаем нового пользователя
+      // Создаем нового пользователя без гостевого ID
       const newUserResult = await db.query(
         'INSERT INTO users (role) VALUES ($1) RETURNING id',
         ['user']
@@ -215,7 +256,7 @@ router.post('/telegram', async (req, res) => {
 });
 
 // Маршрут для запроса кода подтверждения по email
-router.post('/email/request', async (req, res) => {
+router.post('/email/request', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     
@@ -223,62 +264,37 @@ router.post('/email/request', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
     
-    // Генерируем уникальный токен
-    const token = crypto.randomBytes(20).toString('hex');
-    
     // Создаем или получаем ID пользователя
     let userId;
     
     if (req.session.authenticated && req.session.userId) {
-      // Если пользователь уже аутентифицирован, используем его ID
       userId = req.session.userId;
     } else {
-      // Создаем временного пользователя
       const userResult = await db.query(
         'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
       );
       userId = userResult.rows[0].id;
-      
-      // Сохраняем ID в сессии как временный
       req.session.tempUserId = userId;
     }
     
-    // Сохраняем токен в базе данных
-    await db.query(`
-      INSERT INTO email_auth_tokens (user_id, token, created_at, expires_at)
-      VALUES ($1, $2, NOW(), NOW() + INTERVAL '15 minutes')
-    `, [userId, token]);
-    
-    // Отправляем email с кодом подтверждения через emailBot
-    const EmailBotService = require('../services/emailBot');
+    // Отправляем email с кодом подтверждения
     const emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
-    
-    // Используем новый метод sendVerificationCode вместо sendEmail
-    const result = await emailBot.sendVerificationCode(email, token);
+    const result = await emailBot.sendVerificationCode(email, userId);
     
     if (result.success) {
-      // Сохраняем email в сессии для последующей верификации
-      req.session.pendingEmail = email;
-      
-      // Сохраняем сессию
-      await new Promise((resolve, reject) => {
-        req.session.save(err => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-      
-      return res.json({
-        success: true,
-        message: 'Verification code sent to your email',
-        verificationCode: result.code // НЕ ОСТАВЛЯЙТЕ В PRODUCTION - только для отладки
+      res.json({ 
+        success: true, 
+        message: 'Код подтверждения отправлен на email' 
       });
     } else {
-      return res.status(500).json({ error: 'Error sending email' });
+      res.status(500).json({ 
+        success: false, 
+        error: result.error || 'Ошибка отправки кода' 
+      });
     }
   } catch (error) {
-    console.error('Error requesting email verification:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Error requesting email code:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -286,80 +302,55 @@ router.post('/email/request', async (req, res) => {
 router.post('/email/verify', async (req, res) => {
   try {
     const { code } = req.body;
-    const verificationData = req.session.emailVerificationData;
     
-    // Проверяем, что код существует и не истек
-    if (!verificationData || 
-        verificationData.code !== code || 
-        Date.now() > verificationData.expires) {
+    if (!code) {
       return res.status(400).json({
         success: false,
-        error: 'Неверный или истекший код подтверждения'
+        error: 'Код подтверждения обязателен'
       });
     }
     
-    const email = verificationData.email;
+    // Проверяем код через сервис верификации
+    const result = await verificationService.verifyCode(code, 'email', req.session.pendingEmail);
     
-    // Ищем или создаем пользователя с этим email
-    const result = await db.query(
-      'SELECT * FROM find_or_create_user_by_identity($1, $2)',
-      ['email', email]
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'Неверный код подтверждения'
+      });
+    }
+    
+    const userId = result.userId;
+    const email = req.session.pendingEmail;
+    
+    // Добавляем email в базу данных
+    await db.query(
+      'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
+      'VALUES ($1, $2, $3, true, NOW()) ' +
+      'ON CONFLICT (identity_type, identity_value) ' +
+      'DO UPDATE SET user_id = $1, verified = true',
+      [userId, 'email', email.toLowerCase()]
     );
     
-    const userId = result.rows[0].user_id;
-    const isNew = result.rows[0].is_new;
-    
-    // Проверяем, есть ли у пользователя связанный кошелек
-    const walletResult = await db.query(`
-      SELECT identity_value 
-      FROM user_identities ui
-      WHERE ui.user_id = $1 AND ui.identity_type = 'wallet'
-    `, [userId]);
-    
-    const hasWallet = walletResult.rows.length > 0;
-    let walletAddress = null;
-    let isAdmin = false;
-    
-    // Если есть кошелек, проверяем наличие токенов
-    if (hasWallet) {
-      walletAddress = walletResult.rows[0].identity_value;
-      const userResult = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-      isAdmin = userResult.rows[0].is_admin;
-    }
-    
-    // Устанавливаем сессию
+    // Устанавливаем аутентификацию пользователя
     req.session.authenticated = true;
     req.session.userId = userId;
+    req.session.email = email.toLowerCase();
     req.session.authType = 'email';
-    req.session.email = email;
-    req.session.isAdmin = isAdmin;
-    if (walletAddress) {
-      req.session.address = walletAddress;
-    }
     
-    // Сохраняем сессию
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    // Очищаем временные данные
+    delete req.session.pendingEmail;
+    delete req.session.tempUserId;
     
-    // Очищаем данные верификации
-    delete req.session.emailVerificationData;
-    
-    res.json({
+    return res.json({
       success: true,
-      authenticated: true,
       userId,
-      email,
-      isAdmin,
-      hasWallet,
-      walletAddress,
-      isNew
+      email: email.toLowerCase(),
+      message: 'Аутентификация успешна'
     });
+    
   } catch (error) {
-    logger.error(`Error in email verification: ${error.message}`);
+    logger.error('Error in email verification:', error);
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
@@ -508,94 +499,33 @@ router.post('/link-identity', async (req, res) => {
 });
 
 // Проверка статуса аутентификации
-router.get('/check', async (req, res) => {
-  console.log('Сессия при проверке:', req.session);
-  
-  let telegramId = null;
-  
-  if (req.session.userId && req.session.authType === 'telegram') {
-    // Проверяем, есть ли telegramId в сессии
-    if (req.session.telegramId) {
-      telegramId = req.session.telegramId;
-      console.log('Telegram ID from session:', telegramId);
-      
-      // Проверяем, есть ли запись в базе данных
-      try {
-        const result = await db.query(
-          'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2',
-          [req.session.userId, 'telegram']
-        );
-        
-        console.log('Telegram ID query result:', result.rows);
-        
-        if (result.rows.length === 0) {
-          // Если нет, добавляем запись
-          try {
-            await db.query(
-              'INSERT INTO user_identities (user_id, provider, provider_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (provider, provider_id) DO NOTHING',
-              [req.session.userId, 'telegram', telegramId]
-            );
-            console.log('Added Telegram ID to database:', telegramId);
-          } catch (error) {
-            console.error('Error adding Telegram ID to database:', error);
-          }
-        }
-      } catch (error) {
-        console.error('Error checking Telegram ID in database:', error);
-      }
-    } else {
-      // Если нет, ищем в базе данных
-      try {
-        const result = await db.query(
-          'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2',
-          [req.session.userId, 'telegram']
-        );
-        
-        console.log('Telegram ID query result:', result.rows);
-        
-        if (result.rows.length > 0) {
-          telegramId = result.rows[0].provider_id;
-          console.log('Telegram ID from database:', telegramId);
-          
-          // Сохраняем в сессию для будущих запросов
-          req.session.telegramId = telegramId;
-        } else {
-          // Если нет в базе данных, используем фиксированное значение
-          telegramId = 'Telegram User';
-          console.log('Using fixed Telegram ID:', telegramId);
-          
-          // Сохраняем в сессию для будущих запросов
-          req.session.telegramId = telegramId;
-          
-          // Добавляем запись в базу данных
-          try {
-            await db.query(
-              'INSERT INTO user_identities (user_id, provider, provider_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (provider, provider_id) DO NOTHING',
-              [req.session.userId, 'telegram', telegramId]
-            );
-            console.log('Added Telegram ID to database:', telegramId);
-          } catch (error) {
-            console.error('Error adding Telegram ID to database:', error);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching Telegram ID:', error);
-      }
-    }
+router.get('/check', (req, res) => {
+  try {
+    console.log('Сессия при проверке:', req.session);
+    
+    const authenticated = req.session.authenticated || req.session.isAuthenticated || false;
+    const userId = req.session.userId;
+    const authType = req.session.authType;
+    const address = req.session.address;
+    const telegramId = req.session.telegramId;
+    const email = req.session.email;
+    
+    // Проверяем, является ли пользователь администратором
+    const isAdmin = req.session.userRole === 'admin';
+    
+    res.json({
+      authenticated,
+      userId,
+      isAdmin,
+      authType,
+      address,
+      telegramId,
+      email
+    });
+  } catch (error) {
+    console.error('Error checking auth:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  
-  const response = {
-    authenticated: !!req.session.authenticated,
-    userId: req.session.userId,
-    isAdmin: !!req.session.isAdmin,
-    authType: req.session.authType,
-    address: req.session.address,
-    telegramId: telegramId
-  };
-  
-  console.log('Auth check response:', response);
-  
-  res.json(response);
 });
 
 // Выход из системы
@@ -624,22 +554,91 @@ router.get('/telegram', (req, res) => {
   res.json({ authUrl });
 });
 
-// Маршрут для получения кода подтверждения Telegram
-router.get('/telegram/code', async (req, res) => {
+// Маршрут для верификации Telegram
+router.post('/telegram/verify', async (req, res) => {
   try {
-    // Генерируем код подтверждения (6 символов)
-    const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { code } = req.body;
     
-    // Сохраняем код в сессии
-    req.session.telegramVerificationData = {
-      code: verificationCode,
-      expires: Date.now() + 10 * 60 * 1000 // 10 минут
-    };
+    // Проверяем код через сервис верификации
+    const result = await verificationService.verifyCode(code, 'telegram', req.session.guestId || 'temp');
+    
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Неверный код подтверждения' 
+      });
+    }
+    
+    const userId = result.userId;
+    const telegramId = result.providerId;
+    
+    // Добавляем Telegram идентификатор в базу данных
+    await db.query(
+      'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
+      'VALUES ($1, $2, $3, true, NOW()) ' +
+      'ON CONFLICT (identity_type, identity_value) ' +
+      'DO UPDATE SET user_id = $1, verified = true',
+      [userId, 'telegram', telegramId]
+    );
+    
+    // Устанавливаем аутентификацию пользователя
+    req.session.authenticated = true;
+    req.session.userId = userId;
+    req.session.telegramId = telegramId;
+    req.session.authType = 'telegram';
+    
+    // Если был временный ID, удаляем его
+    if (req.session.tempUserId) {
+      delete req.session.tempUserId;
+    }
+    
+    // Если есть подключенный кошелек, проверяем баланс токенов
+    if (req.session.address) {
+      const isAdmin = await checkTokenBalance(req.session.address);
+      req.session.isAdmin = isAdmin;
+    }
+    
+    return res.json({
+      success: true,
+      userId,
+      telegramId,
+      isAdmin: req.session.isAdmin || false,
+      authenticated: true
+    });
+    
+  } catch (error) {
+    logger.error('Error in telegram verification:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Маршрут для получения кода подтверждения Telegram
+router.get('/telegram/code', authLimiter, async (req, res) => {
+  try {
+    // Создаем или получаем ID пользователя
+    let userId;
+    
+    if (req.session.authenticated && req.session.userId) {
+      userId = req.session.userId;
+    } else {
+      const userResult = await db.query(
+        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
+      );
+      userId = userResult.rows[0].id;
+      req.session.tempUserId = userId;
+    }
+    
+    // Создаем код через сервис верификации
+    const code = await verificationService.createVerificationCode(
+      'telegram',
+      req.session.guestId || 'temp',
+      userId
+    );
     
     res.json({
       success: true,
       message: 'Отправьте этот код боту @' + process.env.TELEGRAM_BOT_USERNAME,
-      code: verificationCode,
+      code,
       botUsername: process.env.TELEGRAM_BOT_USERNAME || 'YourDAppBot'
     });
   } catch (error) {
@@ -694,92 +693,6 @@ async function checkTokenBalance(address) {
     return false;
   }
 }
-
-// Маршрут для верификации Telegram
-router.post('/telegram/verify', async (req, res) => {
-  console.log('Telegram verification request body:', req.body);
-  
-  const { code } = req.body;
-  
-  try {
-    const telegramBot = getBot();
-    const result = await telegramBot.verifyCode(code);
-    
-    console.log('Telegram verification result:', result);
-    
-    if (result.success) {
-      // Проверяем, что у нас есть telegramId
-      if (!result.telegramId) {
-        return res.status(400).json({ error: 'Invalid Telegram ID' });
-      }
-
-      // Создаем или находим пользователя
-      const userResult = await pool.query(
-        `INSERT INTO users (created_at) 
-         VALUES (NOW()) 
-         RETURNING id`,
-      );
-      
-      const userId = userResult.rows[0].id;
-
-      // Добавляем Telegram идентификатор
-      await pool.query(
-        `INSERT INTO user_identities 
-         (user_id, identity_type, identity_value, verified, created_at)
-         VALUES ($1, 'telegram', $2, true, NOW())
-         ON CONFLICT (identity_type, identity_value) 
-         DO UPDATE SET verified = true
-         RETURNING user_id`,
-        [userId, result.telegramId]
-      );
-      
-      // Обновляем сессию
-      req.session.userId = userId;
-      req.session.authenticated = true;
-      req.session.authType = 'telegram';
-      req.session.telegramId = result.telegramId;
-      
-      // Если есть подключенный кошелек, проверяем баланс токенов
-      if (req.session.address) {
-        const isAdmin = await checkTokenBalance(req.session.address);
-        req.session.isAdmin = isAdmin;
-      }
-
-      // Сохраняем сессию
-      await new Promise((resolve, reject) => {
-        req.session.save(err => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-      
-      console.log('Telegram ID saved in session:', req.session.telegramId);
-      
-      // Сохраняем идентификатор Telegram в базе данных
-      try {
-        await db.query(
-          'INSERT INTO user_identities (user_id, provider, provider_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1',
-          [userId, 'telegram', result.telegramId]
-        );
-      } catch (error) {
-        console.error('Error saving Telegram ID to database:', error);
-      }
-      
-      return res.json({
-        success: true,
-        userId: userId,
-        telegramId: result.telegramId,
-        isAdmin: req.session.isAdmin || false,
-        authenticated: true
-      });
-    }
-    
-    res.status(400).json({ error: result.error || 'Invalid verification code' });
-  } catch (error) {
-    console.error('Error in telegram verification:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // Маршрут для связывания разных идентификаторов
 router.post('/link-identity', requireAuth, async (req, res) => {
@@ -1120,48 +1033,29 @@ router.get('/email/auth-status/:token', async (req, res) => {
   }
 });
 
-// Маршрут для проверки кода, введенного пользователем
-router.post('/email/verify-code', async (req, res) => {
+// Маршрут для проверки кода email
+router.post('/email/verify-code', authLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     
     if (!email || !code) {
-      return res.status(400).json({ success: false, error: 'Email и код обязательны' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email и код обязательны' 
+      });
     }
 
-    const EmailBotService = require('../services/emailBot');
-    const emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
+    // Проверяем код через сервис верификации
+    const result = await verificationService.verifyCode(code, 'email', email.toLowerCase());
     
-    // Проверяем код из хранилища
-    const verificationData = EmailBotService.verificationCodes.get(email.toLowerCase());
-    
-    if (!verificationData) {
-      return res.status(400).json({ success: false, error: 'Код подтверждения не найден' });
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error || 'Неверный код подтверждения' 
+      });
     }
     
-    if (Date.now() > verificationData.expires) {
-      EmailBotService.verificationCodes.delete(email.toLowerCase());
-      return res.status(400).json({ success: false, error: 'Срок действия кода истек' });
-    }
-    
-    if (verificationData.code !== code) {
-      return res.status(400).json({ success: false, error: 'Неверный код подтверждения' });
-    }
-    
-    // Код верный, завершаем аутентификацию
-    const token = verificationData.token;
-    
-    // Получаем информацию о токене
-    const tokenResult = await db.query(
-      'SELECT user_id FROM email_auth_tokens WHERE token = $1',
-      [token]
-    );
-    
-    if (tokenResult.rows.length === 0) {
-      return res.status(500).json({ success: false, error: 'Токен не найден' });
-    }
-    
-    const userId = tokenResult.rows[0].user_id;
+    const userId = result.userId;
     
     // Добавляем email в базу данных
     await db.query(
@@ -1172,20 +1066,16 @@ router.post('/email/verify-code', async (req, res) => {
       [userId, 'email', email.toLowerCase()]
     );
     
-    // Отмечаем токен как использованный
-    await db.query(
-      'UPDATE email_auth_tokens SET used = true WHERE token = $1',
-      [token]
-    );
-    
     // Устанавливаем аутентификацию пользователя
     req.session.authenticated = true;
     req.session.userId = userId;
     req.session.email = email.toLowerCase();
     req.session.authType = 'email';
     
-    // Удаляем код из хранилища
-    EmailBotService.verificationCodes.delete(email.toLowerCase());
+    // Если был временный ID, удаляем его
+    if (req.session.tempUserId) {
+      delete req.session.tempUserId;
+    }
     
     return res.json({
       success: true,
@@ -1195,8 +1085,11 @@ router.post('/email/verify-code', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error verifying email code:', error);
-    return res.status(500).json({ success: false, error: 'Ошибка сервера' });
+    logger.error('Error verifying email code:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Ошибка сервера' 
+    });
   }
 });
 
@@ -1220,44 +1113,42 @@ router.post('/clear-session', async (req, res) => {
 // Инициализация Telegram аутентификации
 router.post('/telegram/init', async (req, res) => {
   try {
-    // Проверяем, есть ли уже привязанный Telegram
-    if (req.session?.userId) {
-      const existingTelegram = await db.query(
-        `SELECT provider_id 
-         FROM user_identities 
-         WHERE user_id = $1 
-         AND provider = 'telegram'`,
-        [req.session.userId]
-      );
-      
-      if (existingTelegram.rows.length > 0) {
-        return res.status(400).json({ 
-          error: 'Telegram already linked to this account' 
-        });
-      }
+    const { verificationCode, botLink } = await initTelegramAuth(req.session);
+    
+    if (!verificationCode || !botLink) {
+      throw new Error('Failed to generate verification code');
     }
     
-    const { verificationCode, botLink } = await initTelegramAuth(req.session);
-    res.json({ verificationCode, botLink });
+    res.json({ 
+      success: true,
+      verificationCode, 
+      botLink 
+    });
   } catch (error) {
-    console.error('Error initializing Telegram auth:', error);
-    res.status(500).json({ error: 'Failed to initialize Telegram auth' });
+    logger.error('Error initializing Telegram auth:', error);
+    
+    if (error.message === 'Telegram уже привязан к этому аккаунту') {
+      return res.status(400).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to initialize Telegram auth' 
+    });
   }
 });
 
 // Инициализация Email аутентификации
 router.post('/email/init', async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-    
-    await initEmailAuth(email);
-    res.json({ success: true });
+    const { verificationCode } = await emailAuth.initEmailAuth(req.session);
+    res.json({ success: true, verificationCode });
   } catch (error) {
     console.error('Error initializing email auth:', error);
-    res.status(500).json({ error: 'Failed to send verification code' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1269,11 +1160,77 @@ router.post('/email/verify', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Verification code is required' });
     }
 
-    const result = await verifyEmailCode(code, req.session.userId);
+    const result = await emailAuth.checkEmailVerification(code);
     res.json(result);
   } catch (error) {
     console.error('Error verifying email code:', error);
     res.status(400).json({ error: error.message });
+  }
+});
+
+// Проверка кода верификации email
+router.get('/check-email-verification', async (req, res) => {
+  try {
+    const { code } = req.query;
+    
+    if (!code) {
+      return res.status(400).json({ 
+        verified: false, 
+        message: "Код верификации не указан" 
+      });
+    }
+    
+    const result = await emailAuth.checkEmailVerification(code, req.session);
+    
+    if (result.verified) {
+      // Обновляем сессию
+      req.session.userId = result.userId;
+      req.session.authenticated = true;
+      req.session.authType = 'email';
+      req.session.email = result.email;
+      
+      // Проверяем роль пользователя
+      const userRole = await authService.checkUserRole(result.userId);
+      req.session.userRole = userRole;
+      
+      // Сохраняем сессию
+      await new Promise((resolve, reject) => {
+        req.session.save(err => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
+    
+    res.json(result);
+  } catch (error) {
+    logger.error('Error checking email verification:', error);
+    res.status(500).json({ 
+      verified: false, 
+      message: "Ошибка при проверке кода" 
+    });
+  }
+});
+
+// Маршрут для имитации отправки email
+router.post('/email/send', async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ error: 'Code is required' });
+    }
+    
+    const result = await emailAuth.markEmailAsSent(code);
+    
+    if (result.success) {
+      return res.json({ success: true });
+    } else {
+      return res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Error marking email as sent:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
