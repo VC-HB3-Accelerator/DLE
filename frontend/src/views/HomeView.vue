@@ -77,8 +77,48 @@
               Подключить Telegram
             </button>
             
-            <!-- Email верификация -->
-            <div v-if="showEmailVerification" class="verification-block">
+            <!-- Email секция -->
+            <!-- Форма ввода email -->
+            <div v-if="showEmailForm" class="email-form">
+              <p>Введите ваш email для получения кода подтверждения:</p>
+              <div class="email-input-container">
+                <input 
+                  v-model="emailInput" 
+                  type="email" 
+                  placeholder="Ваш email" 
+                  class="email-input"
+                  :class="{ 'email-input-error': emailFormatError }"
+                />
+                <button @click="sendEmailVerification" class="send-email-btn" :disabled="isEmailSending">
+                  {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
+                </button>
+              </div>
+              <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
+            </div>
+            
+            <!-- Форма ввода кода верификации -->
+            <div v-else-if="showEmailVerificationInput" class="email-verification-form">
+              <p>На ваш email <strong>{{ emailVerificationEmail }}</strong> отправлен код подтверждения.</p>
+              <div class="verification-input">
+                <input 
+                  v-model="emailVerificationCode" 
+                  type="text" 
+                  placeholder="Введите код верификации" 
+                  maxlength="6"
+                />
+                <button @click="verifyEmailCode" class="verify-btn" :disabled="isVerifying">
+                  {{ isVerifying ? 'Проверка...' : 'Подтвердить' }}
+                </button>
+              </div>
+            </div>
+            
+            <!-- Сообщение об успехе -->
+            <div v-else-if="showSuccessMessage" class="success-message">
+              <span>{{ successMessage }}</span>
+            </div>
+            
+            <!-- Email верификация через код (старый способ) -->
+            <div v-else-if="showEmailVerification" class="verification-block">
               <div class="verification-code">
                 <span>Код подтверждения:</span>
                 <code @click="copyCode(emailVerificationCode)">{{ emailVerificationCode }}</code>
@@ -130,6 +170,8 @@
                 </div>
               </div>
             </div>
+            
+            <!-- Кнопка для начала email аутентификации -->
             <button v-else class="auth-btn email-btn" @click="handleEmailAuth">
               Подключить Email
             </button>
@@ -195,10 +237,24 @@ const telegramBotLink = ref('');
 const telegramAuthCheckInterval = ref(null);
 const showEmailVerification = ref(false);
 const emailVerificationCode = ref('');
-const emailAuthCheckInterval = ref(null);
 const emailError = ref('');
 const codeCopied = ref(false);
 const showEmailAlternatives = ref(false);
+
+// Добавляем новые состояния для формы ввода кода
+const showEmailVerificationInput = ref(false);
+const emailVerificationEmail = ref('');
+
+// Добавляем новые состояния для формы ввода email
+const showEmailForm = ref(false);
+const emailInput = ref('');
+const emailFormatError = ref(false);
+const isEmailSending = ref(false);
+
+// Добавляем новые состояния для индикации и успешных сообщений
+const isVerifying = ref(false);
+const successMessage = ref('');
+const showSuccessMessage = ref(false);
 
 // Функция для копирования кода
 const copyCode = (code) => {
@@ -319,53 +375,108 @@ const clearEmailError = () => {
 // Функция для обработки Email аутентификации
 const handleEmailAuth = async () => {
   try {
-    clearEmailError(); // Очищаем ошибку перед новой попыткой
-    
-    // Инициализируем процесс аутентификации
-    const response = await axios.post('/api/auth/email/init');
-    
-    if (response.data.success) {
-      showEmailVerification.value = true;
-      emailVerificationCode.value = response.data.verificationCode;
-      
-      // Запускаем проверку статуса аутентификации
-      startEmailAuthCheck();
-    }
+    // Показываем форму для ввода email
+    showEmailForm.value = true;
+    // Сбрасываем другие состояния форм
+    showEmailVerification.value = false;
+    showEmailVerificationInput.value = false;
+    // Очищаем поля и ошибки
+    emailInput.value = '';
+    emailFormatError.value = false;
+    emailError.value = '';
   } catch (error) {
     console.error('Error in email auth:', error);
-    emailError.value = 'Ошибка при подключении Email';
   }
 };
 
-// Функция для запуска проверки статуса аутентификации по Email
-const startEmailAuthCheck = () => {
-  if (emailAuthCheckInterval.value) {
-    clearInterval(emailAuthCheckInterval.value);
-  }
-  
-  emailAuthCheckInterval.value = setInterval(async () => {
-    try {
-      const response = await axios.get('/api/auth/check-email-verification', {
-        params: { code: emailVerificationCode.value }
-      });
-      
-      if (response.data.verified) {
-        clearInterval(emailAuthCheckInterval.value);
-        showEmailVerification.value = false;
-        
-        // Обновляем состояние аутентификации
-        await auth.checkAuth();
-        
-        // Перезагружаем страницу для обновления UI
-        window.location.reload();
-      } else if (response.data.message) {
-        // Показываем сообщение пользователю, если есть
-        emailError.value = response.data.message;
-      }
-    } catch (error) {
-      console.error('Error checking email verification:', error);
+// Функция для отправки запроса на верификацию email
+const sendEmailVerification = async () => {
+  try {
+    emailFormatError.value = false;
+    emailError.value = '';
+    
+    // Проверяем формат email
+    if (!emailInput.value || !emailInput.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      emailFormatError.value = true;
+      return;
     }
-  }, 5000); // Проверяем каждые 5 секунд
+    
+    isEmailSending.value = true;
+    
+    // Отправляем запрос на сервер для инициализации email аутентификации
+    const response = await axios.post('/api/auth/email/init', { email: emailInput.value });
+    
+    if (response.data.success) {
+      // Скрываем форму ввода email
+      showEmailForm.value = false;
+      // Показываем форму для ввода кода
+      showEmailVerificationInput.value = true;
+      // Скрываем старую форму кода верификации
+      showEmailVerification.value = false;
+      // Сохраняем email
+      emailVerificationEmail.value = emailInput.value;
+      // Очищаем поле для ввода кода
+      emailVerificationCode.value = '';
+    } else {
+      emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
+    }
+  } catch (error) {
+    emailError.value = 'Ошибка при запросе кода подтверждения';
+    console.error('Error in email auth:', error);
+  } finally {
+    isEmailSending.value = false;
+  }
+};
+
+// Функция для проверки введенного кода
+const verifyEmailCode = async () => {
+  try {
+    // Очищаем сообщение об ошибке
+    emailError.value = '';
+    
+    if (!emailVerificationCode.value) {
+      emailError.value = 'Пожалуйста, введите код верификации';
+      return;
+    }
+
+    // Показываем индикатор процесса верификации
+    isVerifying.value = true;
+    
+    const response = await axios.get('/api/auth/check-email-verification', {
+      params: { code: emailVerificationCode.value }
+    });
+    
+    if (response.data.verified) {
+      // Сбрасываем все состояния форм email
+      showEmailVerificationInput.value = false;
+      showEmailForm.value = false;
+      showEmailVerification.value = false;
+      
+      // Показываем сообщение об успешной верификации
+      successMessage.value = `Email ${emailVerificationEmail.value} успешно подтвержден!`;
+      showSuccessMessage.value = true;
+      
+      // Скрываем сообщение через 3 секунды
+      setTimeout(() => {
+        showSuccessMessage.value = false;
+      }, 3000);
+      
+      // Обновляем состояние аутентификации
+      await auth.checkAuth();
+      
+      // Перезагружаем страницу для обновления UI через 1 секунду
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } else {
+      emailError.value = response.data.message || 'Неверный код верификации';
+    }
+  } catch (error) {
+    emailError.value = 'Ошибка при проверке кода';
+    console.error('Error verifying email code:', error);
+  } finally {
+    isVerifying.value = false;
+  }
 };
 
 // Функция для сокращения адреса кошелька
@@ -653,9 +764,6 @@ onBeforeUnmount(() => {
   }
   if (telegramAuthCheckInterval.value) {
     clearInterval(telegramAuthCheckInterval.value);
-  }
-  if (emailAuthCheckInterval.value) {
-    clearInterval(emailAuthCheckInterval.value);
   }
 });
 </script>
@@ -1224,5 +1332,108 @@ h1 {
 
 .copy-button:hover {
   background-color: #e0e0e0;
+}
+
+.email-verification-form {
+  margin: 10px 0;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+  border-left: 4px solid #4CAF50;
+}
+
+.verification-input {
+  display: flex;
+  margin-top: 10px;
+  gap: 10px;
+}
+
+.verification-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+.verify-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+
+.verify-btn:hover {
+  background-color: #45a049;
+}
+
+.email-form {
+  margin: 10px 0;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 5px;
+  border-left: 4px solid #4CAF50;
+}
+
+.email-input-container {
+  display: flex;
+  margin-top: 10px;
+  gap: 10px;
+}
+
+.email-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.email-input-error {
+  border-color: #f44336;
+}
+
+.send-email-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+
+.send-email-btn:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.send-email-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.email-format-error {
+  color: #f44336;
+  font-size: 14px;
+  margin-top: 5px;
+  margin-bottom: 0;
+}
+
+.success-message {
+  padding: 10px 15px;
+  background-color: #dff0d8;
+  color: #3c763d;
+  border-radius: 4px;
+  border-left: 4px solid #3c763d;
+  margin: 10px 0;
+  animation: fadeOut 3s forwards;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
 </style>

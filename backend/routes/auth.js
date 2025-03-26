@@ -264,22 +264,25 @@ router.post('/email/request', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
     
-    // Создаем или получаем ID пользователя
-    let userId;
+    // Используем общую логику инициализации email аутентификации
+    const { verificationCode } = await emailAuth.initEmailAuth(req.session, email);
     
-    if (req.session.authenticated && req.session.userId) {
-      userId = req.session.userId;
-    } else {
-      const userResult = await db.query(
-        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
-      );
-      userId = userResult.rows[0].id;
-      req.session.tempUserId = userId;
-    }
+    // Сохраняем сессию после установки pendingEmail
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info(`Session saved successfully with pendingEmail: ${email}`);
+          resolve();
+        }
+      });
+    });
     
     // Отправляем email с кодом подтверждения
     const emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
-    const result = await emailBot.sendVerificationCode(email, userId);
+    const result = await emailBot.sendVerificationCode(email, req.session.tempUserId || req.session.userId);
     
     if (result.success) {
       res.json({ 
@@ -294,7 +297,7 @@ router.post('/email/request', authLimiter, async (req, res) => {
     }
   } catch (error) {
     logger.error('Error requesting email code:', error);
-    res.status(500).json({ error: 'Ошибка сервера' });
+    res.status(500).json({ error: error.message || 'Ошибка сервера' });
   }
 });
 
@@ -307,6 +310,13 @@ router.post('/email/verify', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Код подтверждения обязателен'
+      });
+    }
+    
+    if (!req.session.pendingEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email не найден в сессии. Пожалуйста, запросите код подтверждения снова.'
       });
     }
     
@@ -323,14 +333,57 @@ router.post('/email/verify', async (req, res) => {
     const userId = result.userId;
     const email = req.session.pendingEmail;
     
+    // Проверяем, существует ли пользователь
+    const userResult = await db.query(
+      'SELECT * FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Пользователь не найден'
+      });
+    }
+    
     // Добавляем email в базу данных
     await db.query(
-      'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
-      'VALUES ($1, $2, $3, true, NOW()) ' +
-      'ON CONFLICT (identity_type, identity_value) ' +
-      'DO UPDATE SET user_id = $1, verified = true',
+      `INSERT INTO user_identities 
+       (user_id, provider, provider_id, created_at) 
+       VALUES ($1, $2, $3, NOW()) 
+       ON CONFLICT (provider, provider_id) 
+       DO UPDATE SET user_id = $1`,
       [userId, 'email', email.toLowerCase()]
     );
+    
+    // Связываем гостевой ID с пользователем, если его еще нет
+    if (req.session.guestId) {
+      const guestIdentity = await db.query(
+        `SELECT * FROM user_identities 
+         WHERE user_id = $1 AND provider = 'guest' AND provider_id = $2`,
+        [userId, req.session.guestId]
+      );
+      
+      if (guestIdentity.rows.length === 0) {
+        await db.query(
+          `INSERT INTO user_identities 
+           (user_id, provider, provider_id, created_at) 
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1`,
+          [userId, 'guest', req.session.guestId]
+        );
+      }
+    }
+    
+    // Связываем все гостевые сообщения с пользователем
+    if (req.session.guestId) {
+      try {
+        await db.query('SELECT link_guest_messages($1, $2)', [userId, req.session.guestId]);
+        logger.info(`Messages linked successfully for user ${userId} and guest ${req.session.guestId}`);
+      } catch (linkError) {
+        logger.error(`Error linking messages: ${linkError.message}`);
+      }
+    }
     
     // Устанавливаем аутентификацию пользователя
     req.session.authenticated = true;
@@ -341,6 +394,19 @@ router.post('/email/verify', async (req, res) => {
     // Очищаем временные данные
     delete req.session.pendingEmail;
     delete req.session.tempUserId;
+    
+    // Сохраняем сессию перед отправкой ответа
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info('Session saved successfully');
+          resolve();
+        }
+      });
+    });
     
     return res.json({
       success: true,
@@ -1141,14 +1207,30 @@ router.post('/telegram/init', async (req, res) => {
   }
 });
 
-// Инициализация Email аутентификации
+// Инициализация email аутентификации
 router.post('/email/init', async (req, res) => {
   try {
-    const { verificationCode } = await emailAuth.initEmailAuth(req.session);
-    res.json({ success: true, verificationCode });
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email не указан' 
+      });
+    }
+    
+    const result = await emailAuth.initEmailAuth(req.session, email);
+    
+    return res.json({ 
+      success: true,
+      message: 'Код верификации отправлен на указанный email'
+    });
   } catch (error) {
-    console.error('Error initializing email auth:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Error initializing email auth:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Ошибка при инициализации email аутентификации' 
+    });
   }
 });
 
@@ -1176,38 +1258,57 @@ router.get('/check-email-verification', async (req, res) => {
     if (!code) {
       return res.status(400).json({ 
         verified: false, 
-        message: "Код верификации не указан" 
+        message: 'Код верификации не предоставлен' 
       });
     }
     
+    // Проверяем код через сервис верификации
     const result = await emailAuth.checkEmailVerification(code, req.session);
     
-    if (result.verified) {
-      // Обновляем сессию
-      req.session.userId = result.userId;
-      req.session.authenticated = true;
-      req.session.authType = 'email';
-      req.session.email = result.email;
-      
-      // Проверяем роль пользователя
-      const userRole = await authService.checkUserRole(result.userId);
-      req.session.userRole = userRole;
-      
-      // Сохраняем сессию
-      await new Promise((resolve, reject) => {
-        req.session.save(err => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
+    if (!result.verified) {
+      return res.json(result);
     }
     
-    res.json(result);
+    // Код верный, обновляем сессию
+    req.session.authenticated = true;
+    req.session.userId = result.userId;
+    req.session.authType = 'email';
+    req.session.email = result.email;
+    
+    // Получаем роль пользователя
+    const roleResult = await db.query(
+      'SELECT role FROM users WHERE id = $1',
+      [result.userId]
+    );
+    
+    if (roleResult.rows.length > 0) {
+      req.session.userRole = roleResult.rows[0].role || 'user';
+    } else {
+      req.session.userRole = 'user';
+    }
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('Error saving session:', err);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    
+    return res.json({
+      verified: true,
+      userId: result.userId,
+      email: result.email
+    });
   } catch (error) {
     logger.error('Error checking email verification:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       verified: false, 
-      message: "Ошибка при проверке кода" 
+      message: 'Ошибка при проверке кода верификации' 
     });
   }
 });
