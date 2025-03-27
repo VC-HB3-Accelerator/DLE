@@ -9,13 +9,11 @@ const { checkRole, requireAuth } = require('../middleware/auth');
 const { pool } = require('../db');
 const authService = require('../services/auth-service');
 const { SiweMessage } = require('siwe');
-const { EmailBotService } = require('../services/emailBot');
+const emailBot = require('../services/emailBot');
 const { verificationCodes } = require('../services/telegramBot');
 const { checkTokensAndUpdateRole } = require('../services/auth-service');
 const { ethers } = require('ethers');
 const { initTelegramAuth } = require('../services/telegramBot');
-const { initEmailAuth, verifyEmailCode } = require('../services/emailBot');
-const { getBot } = require('../services/telegramBot');
 const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
 
@@ -281,7 +279,7 @@ router.post('/email/request', authLimiter, async (req, res) => {
     });
     
     // Отправляем email с кодом подтверждения
-    const emailBot = new EmailBotService(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
+    const emailBot = new emailBot(process.env.EMAIL_USER, process.env.EMAIL_PASSWORD);
     const result = await emailBot.sendVerificationCode(email, req.session.tempUserId || req.session.userId);
     
     if (result.success) {
@@ -349,40 +347,24 @@ router.post('/email/verify', async (req, res) => {
     // Добавляем email в базу данных
     await db.query(
       `INSERT INTO user_identities 
-       (user_id, provider, provider_id, created_at) 
-       VALUES ($1, $2, $3, NOW()) 
+       (user_id, provider, provider_id) 
+       VALUES ($1, $2, $3) 
        ON CONFLICT (provider, provider_id) 
        DO UPDATE SET user_id = $1`,
       [userId, 'email', email.toLowerCase()]
     );
     
-    // Связываем гостевой ID с пользователем, если его еще нет
-    if (req.session.guestId) {
-      const guestIdentity = await db.query(
-        `SELECT * FROM user_identities 
-         WHERE user_id = $1 AND provider = 'guest' AND provider_id = $2`,
-        [userId, req.session.guestId]
-      );
-      
-      if (guestIdentity.rows.length === 0) {
-        await db.query(
-          `INSERT INTO user_identities 
-           (user_id, provider, provider_id, created_at) 
-           VALUES ($1, $2, $3, NOW())
-           ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1`,
-          [userId, 'guest', req.session.guestId]
-        );
-      }
-    }
+    // Проверяем наличие кошелька и определяем роль
+    const wallet = await authService.getLinkedWallet(userId);
+    let role = 'user'; // Базовая роль для доступа к чату
     
-    // Связываем все гостевые сообщения с пользователем
-    if (req.session.guestId) {
-      try {
-        await db.query('SELECT link_guest_messages($1, $2)', [userId, req.session.guestId]);
-        logger.info(`Messages linked successfully for user ${userId} and guest ${req.session.guestId}`);
-      } catch (linkError) {
-        logger.error(`Error linking messages: ${linkError.message}`);
-      }
+    if (wallet) {
+      // Если есть кошелек, проверяем баланс токенов
+      const isAdmin = await authService.checkAdminRole(wallet);
+      role = isAdmin ? 'admin' : 'user';
+      logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
+    } else {
+      logger.info(`User ${userId} has no wallet, using basic user role`);
     }
     
     // Устанавливаем аутентификацию пользователя
@@ -390,6 +372,11 @@ router.post('/email/verify', async (req, res) => {
     req.session.userId = userId;
     req.session.email = email.toLowerCase();
     req.session.authType = 'email';
+    req.session.role = role;
+    
+    if (wallet) {
+      req.session.address = wallet;
+    }
     
     // Очищаем временные данные
     delete req.session.pendingEmail;
@@ -402,7 +389,7 @@ router.post('/email/verify', async (req, res) => {
           logger.error('Error saving session:', err);
           reject(err);
         } else {
-          logger.info('Session saved successfully');
+          logger.info(`Session saved successfully for user ${userId} with role ${role}`);
           resolve();
         }
       });
@@ -412,6 +399,8 @@ router.post('/email/verify', async (req, res) => {
       success: true,
       userId,
       email: email.toLowerCase(),
+      role,
+      wallet: wallet || null,
       message: 'Аутентификация успешна'
     });
     
@@ -620,61 +609,72 @@ router.get('/telegram', (req, res) => {
   res.json({ authUrl });
 });
 
-// Маршрут для верификации Telegram
+// Обработка верификации Telegram
 router.post('/telegram/verify', async (req, res) => {
   try {
-    const { code } = req.body;
+    const { telegramId, verificationCode } = req.body;
     
-    // Проверяем код через сервис верификации
-    const result = await verificationService.verifyCode(code, 'telegram', req.session.guestId || 'temp');
-    
-    if (!result.success) {
-      return res.status(400).json({ 
-        success: false, 
-        error: result.error || 'Неверный код подтверждения' 
+    if (!telegramId || !verificationCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
       });
     }
+
+    // Проверяем верификацию через сервис
+    const result = await authService.verifyTelegramAuth(telegramId, verificationCode);
     
-    const userId = result.userId;
-    const telegramId = result.providerId;
-    
-    // Добавляем Telegram идентификатор в базу данных
-    await db.query(
-      'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
-      'VALUES ($1, $2, $3, true, NOW()) ' +
-      'ON CONFLICT (identity_type, identity_value) ' +
-      'DO UPDATE SET user_id = $1, verified = true',
-      [userId, 'telegram', telegramId]
-    );
-    
-    // Устанавливаем аутентификацию пользователя
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid verification'
+      });
+    }
+
+    // Обновляем сессию
+    req.session.userId = result.userId;
     req.session.authenticated = true;
-    req.session.userId = userId;
-    req.session.telegramId = telegramId;
     req.session.authType = 'telegram';
+    req.session.telegramId = result.telegramId;
+    req.session.role = result.role;
     
-    // Если был временный ID, удаляем его
+    if (result.wallet) {
+      req.session.address = result.wallet;
+    }
+
+    // Удаляем временные данные
     if (req.session.tempUserId) {
       delete req.session.tempUserId;
     }
     
-    // Если есть подключенный кошелек, проверяем баланс токенов
-    if (req.session.address) {
-      const isAdmin = await checkTokenBalance(req.session.address);
-      req.session.isAdmin = isAdmin;
-    }
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info(`Session saved successfully for user ${result.userId}`);
+          resolve();
+        }
+      });
+    });
     
     return res.json({
       success: true,
-      userId,
-      telegramId,
-      isAdmin: req.session.isAdmin || false,
-      authenticated: true
+      userId: result.userId,
+      role: result.role,
+      telegramId: result.telegramId,
+      wallet: result.wallet,
+      message: 'Authentication successful'
     });
     
   } catch (error) {
-    logger.error('Error in telegram verification:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Error in Telegram verification:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 });
 
@@ -1212,24 +1212,65 @@ router.post('/email/init', async (req, res) => {
   try {
     const { email } = req.body;
     
-    if (!email) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email не указан' 
+    if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Некорректный формат email'
       });
     }
-    
-    const result = await emailAuth.initEmailAuth(req.session, email);
-    
-    return res.json({ 
-      success: true,
-      message: 'Код верификации отправлен на указанный email'
+
+    // Создаем или получаем ID пользователя
+    let userId;
+    if (req.session.authenticated && req.session.userId) {
+      userId = req.session.userId;
+    } else {
+      const userResult = await db.query(
+        'INSERT INTO users (role) VALUES ($1) RETURNING id',
+        ['user']
+      );
+      userId = userResult.rows[0].id;
+      req.session.tempUserId = userId;
+    }
+
+    // Сохраняем email в сессии
+    req.session.pendingEmail = email.toLowerCase();
+
+    // Генерируем код верификации
+    const code = await verificationService.createVerificationCode('email', email.toLowerCase(), userId);
+
+    // Инициализируем верификацию через email бот
+    const result = await emailBot.initEmailVerification(email, userId, code);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Ошибка при отправке кода верификации'
+      });
+    }
+
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info(`Session saved successfully with pendingEmail: ${email}`);
+          resolve();
+        }
+      });
     });
+
+    return res.json({
+      success: true,
+      message: 'Код верификации отправлен на email'
+    });
+
   } catch (error) {
-    logger.error('Error initializing email auth:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Ошибка при инициализации email аутентификации' 
+    logger.error('Error in email auth initialization:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Внутренняя ошибка сервера'
     });
   }
 });
@@ -1251,13 +1292,14 @@ router.post('/email/verify', requireAuth, async (req, res) => {
 });
 
 // Проверка кода верификации email
-router.get('/check-email-verification', async (req, res) => {
+router.all('/check-email-verification', async (req, res) => {
   try {
-    const { code } = req.query;
+    // Получаем код из query параметров (GET) или тела запроса (POST)
+    const code = req.method === 'POST' ? req.body.code : req.query.code;
     
     if (!code) {
       return res.status(400).json({ 
-        verified: false, 
+        success: false, 
         message: 'Код верификации не предоставлен' 
       });
     }
@@ -1266,7 +1308,11 @@ router.get('/check-email-verification', async (req, res) => {
     const result = await emailAuth.checkEmailVerification(code, req.session);
     
     if (!result.verified) {
-      return res.json(result);
+      // Преобразуем ответ для совместимости с фронтендом
+      return res.json({
+        success: false,
+        message: result.message
+      });
     }
     
     // Код верный, обновляем сессию
@@ -1300,14 +1346,14 @@ router.get('/check-email-verification', async (req, res) => {
     });
     
     return res.json({
-      verified: true,
+      success: true,
       userId: result.userId,
       email: result.email
     });
   } catch (error) {
     logger.error('Error checking email verification:', error);
     return res.status(500).json({ 
-      verified: false, 
+      success: false, 
       message: 'Ошибка при проверке кода верификации' 
     });
   }

@@ -17,6 +17,7 @@ const usersRoutes = require('./routes/users');
 const identitiesRoutes = require('./routes/identities');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
+const tokensRouter = require('./routes/tokens');
 
 const app = express();
 
@@ -125,6 +126,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/tokens', tokensRouter);
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

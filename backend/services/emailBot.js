@@ -5,17 +5,19 @@ const simpleParser = require('mailparser').simpleParser;
 const { processMessage } = require('./ai-assistant');
 const { inspect } = require('util');
 const logger = require('../utils/logger');
-const verificationService = require('./verification-service');
 
 // Конфигурация для отправки писем
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_SMTP_HOST,
-  port: process.env.EMAIL_SMTP_PORT,
-  secure: process.env.EMAIL_SMTP_PORT === '465',
+  host: process.env.EMAIL_SMTP_HOST || 'smtp.hostland.ru',
+  port: process.env.EMAIL_SMTP_PORT || 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
+  pool: true,
+  maxConnections: 3,
+  maxMessages: 5,
   tls: {
     rejectUnauthorized: false
   }
@@ -30,26 +32,22 @@ const imapConfig = {
   tls: true,
   tlsOptions: { rejectUnauthorized: false },
   keepalive: { 
-    interval: 10000,       // Проверка соединения каждые 10 секунд
-    idleInterval: 300000,  // Сброс соединения через 5 минут простоя
-    forceNoop: true        // Принудительная отправка NOOP для поддержания соединения
+    interval: 10000,
+    idleInterval: 300000,
+    forceNoop: true
   }
 };
 
 class EmailBotService {
-  constructor(user, password) {
-    this.user = user;
-    this.password = password;
+  constructor() {
     this.transporter = transporter;
     this.imap = new Imap(imapConfig);
     this.initialize();
-    this.listenForReplies();
   }
 
   initialize() {
     this.imap.once('error', (err) => {
       logger.error(`IMAP connection error: ${err.message}`);
-      // Пробуем переподключиться через 1 минуту при ошибке
       setTimeout(() => {
         try {
           if (this.imap.state !== 'connected') {
@@ -63,51 +61,45 @@ class EmailBotService {
     });
   }
 
-  async sendVerificationCode(toEmail, userId) {
+  // Метод для инициализации email верификации
+  async initEmailVerification(email, userId, code) {
     try {
-      // Создаем код через сервис верификации
-      const code = await verificationService.createVerificationCode(
-        'email',
-        toEmail.toLowerCase(),
-        userId
-      );
+      // Отправляем код на email
+      await this.sendVerificationCode(email, code);
       
-      // Отправляем письмо с кодом
+      return { success: true };
+    } catch (error) {
+      logger.error('Error initializing email verification:', error);
+      throw error;
+    }
+  }
+
+  // Отправка кода верификации
+  async sendVerificationCode(email, code) {
+    try {
       const mailOptions = {
-        from: this.user,
-        to: toEmail,
-        subject: 'Код подтверждения для DApp for Business',
-        text: `Ваш код подтверждения: ${code}\n\nДля завершения аутентификации, пожалуйста, введите этот код на сайте.\n\nКод действителен в течение 15 минут.`,
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Код подтверждения',
+        text: `Ваш код подтверждения: ${code}\n\nКод действителен в течение 15 минут.`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
-            <h2 style="color: #333;">Код подтверждения для DApp for Business</h2>
-            <p>Ваш код подтверждения:</p>
-            <div style="font-size: 24px; font-weight: bold; padding: 15px; background-color: #f5f5f5; border-radius: 5px; text-align: center; margin: 20px 0;">
-              ${code}
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Код подтверждения</h2>
+            <p style="font-size: 16px; color: #666;">Ваш код подтверждения:</p>
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
+              <span style="font-size: 24px; font-weight: bold; color: #333;">${code}</span>
             </div>
-            <p>Для завершения аутентификации, пожалуйста, введите этот код в форме на сайте.</p>
-            <p>Код действителен в течение 15 минут.</p>
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-            <p style="font-size: 12px; color: #777;">Это автоматическое сообщение, пожалуйста, не отвечайте на него.</p>
+            <p style="font-size: 14px; color: #999;">Код действителен в течение 15 минут.</p>
           </div>
         `
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      logger.info(`Email sent: ${info.messageId}`);
-      
-      return { success: true, code };
+      await this.transporter.sendMail(mailOptions);
+      logger.info(`Verification code sent to ${email}`);
     } catch (error) {
-      logger.error(`Error sending email: ${error}`);
-      return { success: false, error: error.message };
+      logger.error('Error sending verification code:', error);
+      throw error;
     }
-  }
-
-  listenForReplies() {
-    // Запускаем проверку почты каждые 60 секунд
-    setInterval(() => {
-      this.checkEmails();
-    }, 60000);
   }
 
   checkEmails() {
@@ -115,7 +107,6 @@ class EmailBotService {
       // Добавляем обработчики ошибок
       this.imap.once('error', (err) => {
         logger.error(`IMAP connection error during check: ${err.message}`);
-        // Пытаемся закрыть соединение при ошибке
         try {
           this.imap.end();
         } catch (e) {
@@ -145,7 +136,6 @@ class EmailBotService {
               return;
             }
             
-            // Защищаемся от пустых результатов
             try {
               const f = this.imap.fetch(results, { bodies: '' });
               
@@ -155,23 +145,6 @@ class EmailBotService {
                     if (err) {
                       logger.error(`Error parsing message: ${err}`);
                       return;
-                    }
-                    
-                    // Обработка входящего письма для Ollama
-                    try {
-                      // Проверяем, что это действительно письмо (защита от ошибок)
-                      if (parsed && parsed.text && parsed.from && parsed.from.value && 
-                          parsed.from.value.length > 0 && parsed.from.value[0].address) {
-                          
-                        const fromEmail = parsed.from.value[0].address.toLowerCase();
-                        const subject = parsed.subject || '';
-                        const text = parsed.text || '';
-                        
-                        // Передаем письмо в Ollama для обработки
-                        await this.processOllamaEmail(fromEmail, subject, text);
-                      }
-                    } catch (e) {
-                      logger.error(`Error processing email for Ollama: ${e.message}`);
                     }
                   });
                 });
@@ -203,7 +176,6 @@ class EmailBotService {
       this.imap.connect();
     } catch (error) {
       logger.error(`Global error checking emails: ${error.message}`);
-      // Обеспечиваем корректное завершение IMAP сессии
       try {
         this.imap.end();
       } catch (e) {
@@ -212,74 +184,25 @@ class EmailBotService {
     }
   }
 
-  // Метод для обработки письма с помощью Ollama
-  async processOllamaEmail(fromEmail, subject, text) {
-    try {
-      // Проверяем, есть ли текст для обработки
-      if (!text || text.trim() === '') {
-        logger.info(`Empty message from ${fromEmail}, skipping Ollama processing`);
-        return;
-      }
-      
-      logger.info(`Processing message from ${fromEmail} for Ollama`);
-      
-      // Получаем ответ от Ollama
-      const response = await processMessage(text);
-      
-      if (response) {
-        // Отправляем ответ обратно пользователю
-        await this.transporter.sendMail({
-          from: this.user,
-          to: fromEmail,
-          subject: `Re: ${subject}`,
-          text: response
-        });
-        
-        logger.info(`Ollama response sent to ${fromEmail}`);
-      }
-    } catch (error) {
-      logger.error(`Error in Ollama email processing: ${error}`);
-      
-      // Отправляем сообщение об ошибке пользователю
-      try {
-        await this.transporter.sendMail({
-          from: this.user,
-          to: fromEmail,
-          subject: 'Error processing your request',
-          text: 'Sorry, we encountered an error processing your message. Please try again later.'
-        });
-      } catch (e) {
-        logger.error(`Error sending error notification: ${e}`);
-      }
-    }
-  }
-
-  // Метод для проверки кода без IMAP
-  async verifyCode(email, code) {
-    return await verificationService.verifyCode(code, 'email', email.toLowerCase());
-  }
-
-  // Оставляем существующий метод для отправки электронных писем
+  // Метод для отправки email
   async sendEmail(to, subject, text) {
     try {
       const mailOptions = {
-        from: this.user,
+        from: process.env.EMAIL_USER,
         to,
         subject,
         text
       };
 
-      const info = await this.transporter.sendMail(mailOptions);
-      logger.info(`Email sent: ${info.messageId}`);
+      await this.transporter.sendMail(mailOptions);
+      logger.info(`Email sent to ${to}`);
       return true;
     } catch (error) {
-      logger.error(`Error sending email: ${error}`);
-      return false;
+      logger.error('Error sending email:', error);
+      throw error;
     }
   }
 }
 
-module.exports = {
-  EmailBotService,
-  transporter
-};
+// Экспортируем singleton instance
+module.exports = new EmailBotService();
