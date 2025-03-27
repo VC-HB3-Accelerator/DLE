@@ -376,3 +376,78 @@
 .user-info-value {
   font-weight: bold;
 }
+
+/* Стили для форм верификации Email */
+.email-form {
+  margin-top: 20px;
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.email-input-container {
+  display: flex;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.email-input {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.email-input-error {
+  border-color: #e74c3c;
+}
+
+.send-email-btn {
+  padding: 0 15px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  margin-left: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.send-email-btn:hover:not(:disabled) {
+  background-color: #3e8e41;
+}
+
+.send-email-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.email-format-error {
+  color: #e74c3c;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.form-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  margin-top: 10px;
+}
+
+.cancel-btn {
+  background-color: #f8f8f8;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px 15px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.cancel-btn:hover {
+  background-color: #e8e8e8;
+}

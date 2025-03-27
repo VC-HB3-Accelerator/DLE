@@ -77,11 +77,11 @@
       </button>
 
       <!-- Добавляем дополнительные кнопки авторизации -->
-      <div v-if="!isAuthenticated" class="auth-buttons">
+      <div v-if="!isAuthenticated && messages.length > 0" class="auth-buttons">
         <button @click="handleTelegramAuth" class="auth-btn telegram-btn">
           Подключить Telegram
         </button>
-        <button @click="handleEmailAuth" class="auth-btn email-btn">
+        <button v-if="!showEmailForm" @click="handleEmailAuth" class="auth-btn email-btn">
           Подключить Email
         </button>
       </div>
@@ -111,7 +111,10 @@
             {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
           </button>
         </div>
-        <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
+        <div class="form-actions">
+          <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
+          <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
+        </div>
       </div>
 
       <!-- Сообщение об ошибке в Email -->
@@ -141,23 +144,23 @@
         <h3>Баланс:</h3>
         <div class="token-balance">
           <span class="token-name">ETH:</span>
-          <span class="token-amount">{{ isAuthenticated ? '1500000' : '0' }}</span>
-          <span class="token-symbol">HB3A</span>
+          <span class="token-amount">{{ tokenBalances.eth }}</span>
+          <span class="token-symbol">{{ TOKEN_CONTRACTS.eth.symbol }}</span>
         </div>
         <div class="token-balance">
           <span class="token-name">ARB:</span>
-          <span class="token-amount">{{ isAuthenticated ? '500000' : '0' }}</span>
-          <span class="token-symbol">HB3A</span>
+          <span class="token-amount">{{ tokenBalances.arbitrum }}</span>
+          <span class="token-symbol">{{ TOKEN_CONTRACTS.arbitrum.symbol }}</span>
         </div>
         <div class="token-balance">
           <span class="token-name">POL:</span>
-          <span class="token-amount">{{ isAuthenticated ? '500000' : '0' }}</span>
-          <span class="token-symbol">HB3A</span>
+          <span class="token-amount">{{ tokenBalances.polygon }}</span>
+          <span class="token-symbol">{{ TOKEN_CONTRACTS.polygon.symbol }}</span>
         </div>
         <div class="token-balance">
           <span class="token-name">BNB:</span>
-          <span class="token-amount">0</span>
-          <span class="token-symbol">HB3A</span>
+          <span class="token-amount">{{ tokenBalances.bsc }}</span>
+          <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
         </div>
       </div>
 
@@ -194,6 +197,7 @@ import api from '../api/axios';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import '../assets/styles/home.css';
+import { fetchTokenBalances, TOKEN_CONTRACTS } from '../services/tokens';
 
 console.log('HomeView.vue: Version with chat loaded');
 
@@ -242,6 +246,14 @@ const showSuccessMessage = ref(false);
 const showSidebar = ref(false);
 const currentPage = ref('home');
 
+// Добавляем состояние для балансов
+const tokenBalances = ref({
+  eth: '0',
+  bsc: '0',
+  arbitrum: '0',
+  polygon: '0'
+});
+
 // Функция для управления сайдбаром
 const toggleSidebar = () => {
   showSidebar.value = !showSidebar.value;
@@ -268,7 +280,7 @@ const clearEmailError = () => {
   emailError.value = '';
 };
 
-// Функция для обработки Email аутентификации
+// Обработчик для Email аутентификации
 const handleEmailAuth = async () => {
   try {
     // Показываем форму для ввода email
@@ -285,9 +297,18 @@ const handleEmailAuth = async () => {
   }
 };
 
+// Функция для отмены email авторизации
+const cancelEmailAuth = () => {
+  showEmailForm.value = false;
+  showEmailVerificationInput.value = false;
+  emailError.value = '';
+  emailFormatError.value = false;
+};
+
 // Функция для отправки запроса на верификацию email
 const sendEmailVerification = async () => {
   try {
+    // Очищаем сообщения об ошибках
     emailFormatError.value = false;
     emailError.value = '';
     
@@ -300,21 +321,30 @@ const sendEmailVerification = async () => {
     isEmailSending.value = true;
     
     // Отправляем запрос на сервер для инициализации email аутентификации
-    const response = await axios.post('/api/auth/email/init', { email: emailInput.value });
-    
-    if (response.data.success) {
-      // Скрываем форму ввода email
-      showEmailForm.value = false;
-      // Показываем форму для ввода кода
-      showEmailVerificationInput.value = true;
-      // Скрываем старую форму кода верификации
-      showEmailVerification.value = false;
-      // Сохраняем email
-      emailVerificationEmail.value = emailInput.value;
-      // Очищаем поле для ввода кода
-      emailVerificationCode.value = '';
-    } else {
-      emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
+    try {
+      const response = await axios.post('/api/auth/email/init', { email: emailInput.value });
+      
+      if (response.data.success) {
+        // Скрываем форму ввода email
+        showEmailForm.value = false;
+        // Показываем форму для ввода кода
+        showEmailVerificationInput.value = true;
+        // Скрываем старую форму кода верификации
+        showEmailVerification.value = false;
+        // Сохраняем email
+        emailVerificationEmail.value = emailInput.value;
+        // Очищаем поле для ввода кода
+        emailVerificationCode.value = '';
+      } else {
+        emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
+      }
+    } catch (error) {
+      console.error('Error sending email verification:', error);
+      if (error.response && error.response.data && error.response.data.error) {
+        emailError.value = error.response.data.error;
+      } else {
+        emailError.value = 'Ошибка при отправке кода. Пожалуйста, проверьте правильность email или попробуйте позже.';
+      }
     }
   } catch (error) {
     emailError.value = 'Ошибка при запросе кода подтверждения';
@@ -338,8 +368,11 @@ const verifyEmailCode = async () => {
     // Показываем индикатор процесса верификации
     isVerifying.value = true;
     
+    // Преобразуем код в верхний регистр перед отправкой
+    const code = emailVerificationCode.value.toUpperCase();
+    
     const response = await axios.post('/api/auth/check-email-verification', {
-      code: emailVerificationCode.value
+      code: code
     });
     
     if (response.data.success) {
@@ -360,10 +393,27 @@ const verifyEmailCode = async () => {
       // Обновляем состояние аутентификации
       await auth.checkAuth();
       
-      // Перезагружаем страницу для обновления UI через 1 секунду
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // Загружаем историю сообщений
+      messages.value = [];
+      offset.value = 0;
+      hasMoreMessages.value = true;
+      await loadMoreMessages();
+      
+      // Связываем гостевые сообщения
+      try {
+        await api.post('/api/chat/link-guest-messages');
+        console.log('Guest messages linked to authenticated user');
+        
+        // Перезагружаем сообщения после связывания
+        messages.value = [];
+        offset.value = 0;
+        await loadMoreMessages();
+      } catch (linkError) {
+        console.error('Error linking guest messages:', linkError);
+      }
+      
+      // Обновляем баланс токенов
+      await updateBalances();
     } else {
       emailError.value = response.data.message || 'Неверный код верификации';
     }
@@ -390,19 +440,47 @@ const handleTelegramAuth = async () => {
     telegramAuthCheckInterval.value = setInterval(async () => {
       try {
         const response = await axios.get('/api/auth/check');
+        console.log('Проверка авторизации:', response.data);
+        
         if (response.data.authenticated) {
+          // Обновляем состояние аутентификации
           auth.updateAuth({
             isAuthenticated: true,
             authType: response.data.authType,
-            userId: response.data.userId
+            userId: response.data.userId,
+            telegramId: response.data.telegramId
           });
+          
+          console.log('Telegram authentication successful:', response.data);
+          
+          // Обновляем все данные пользователя
+          await auth.checkAuth();
+          
+          // Загружаем историю сообщений
+          messages.value = [];
+          offset.value = 0;
+          hasMoreMessages.value = true;
+          await loadMoreMessages();
+          
+          // Связываем гостевые сообщения
+          try {
+            await api.post('/api/chat/link-guest-messages');
+            console.log('Guest messages linked to authenticated user');
+            
+            // Перезагружаем сообщения после связывания
+            messages.value = [];
+            offset.value = 0;
+            await loadMoreMessages();
+          } catch (linkError) {
+            console.error('Error linking guest messages:', linkError);
+          }
+          
+          // Обновляем баланс токенов
+          await updateBalances();
           
           clearInterval(telegramAuthCheckInterval.value);
           telegramAuthCheckInterval.value = null;
           showTelegramVerification.value = false;
-          
-          // Перезагружаем страницу для полного обновления состояния
-          window.location.reload();
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -504,7 +582,7 @@ watch(() => isAuthenticated.value, async (newValue) => {
 
 // Функция для подключения кошелька
 const handleWalletAuth = async () => {
-  if (isConnecting.value || isAuthenticated.value) return; // Предотвращаем повторное подключение
+  if (isConnecting.value || isAuthenticated.value) return;
   
   isConnecting.value = true;
   try {
@@ -514,6 +592,25 @@ const handleWalletAuth = async () => {
     if (result.success) {
       // Обновляем состояние авторизации
       await auth.checkAuth();
+      
+      // Загружаем историю сообщений
+      messages.value = [];
+      offset.value = 0;
+      hasMoreMessages.value = true;
+      await loadMoreMessages();
+      
+      // Связываем гостевые сообщения
+      try {
+        await api.post('/api/chat/link-guest-messages');
+        console.log('Guest messages linked to authenticated user');
+        
+        // Перезагружаем сообщения после связывания
+        messages.value = [];
+        offset.value = 0;
+        await loadMoreMessages();
+      } catch (linkError) {
+        console.error('Error linking guest messages:', linkError);
+      }
       
       // Добавляем небольшую задержку перед сбросом состояния isConnecting
       setTimeout(() => {
@@ -602,18 +699,21 @@ const handleMessage = async (text) => {
           id: response.data.messageId,
           content: messageContent,
           role: 'user',
-          timestamp: new Date().toISOString(),
-          showAuthButtons: false
+          timestamp: new Date().toISOString()
         };
         messages.value.push(userMessage);
 
+        // Показываем сообщение с просьбой авторизоваться
         messages.value.push({
           id: Date.now() + 1,
-          content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов:',
+          content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов в правой панели.',
           role: 'assistant',
-          timestamp: new Date().toISOString(),
-          showAuthButtons: true
+          timestamp: new Date().toISOString()
         });
+
+        // НЕ показываем форму email автоматически и НЕ устанавливаем showEmailAlternatives
+        // showEmailForm.value = true;
+        // showEmailAlternatives.value = true;
       }
     } else {
       // Для авторизованного пользователя сохраняем в messages
@@ -669,6 +769,18 @@ const handleScroll = async () => {
   }
 };
 
+// Функция получения балансов
+const updateBalances = async () => {
+  if (auth.isAuthenticated.value && auth.address?.value) {
+    try {
+      const balances = await fetchTokenBalances();
+      tokenBalances.value = balances;
+    } catch (error) {
+      console.error('Error updating balances:', error);
+    }
+  }
+};
+
 onMounted(() => {
   // Добавляем слушатель прокрутки
   if (messagesContainer.value) {
@@ -682,6 +794,24 @@ onMounted(() => {
 
   // Проверяем статус авторизации
   auth.checkAuth();
+
+  // Обновляем баланс при монтировании и изменении аутентификации
+  if (auth.isAuthenticated.value) {
+    updateBalances();
+  }
+});
+
+watch(() => auth.isAuthenticated.value, async (newValue) => {
+  if (newValue) {
+    await updateBalances();
+  } else {
+    tokenBalances.value = {
+      eth: '0',
+      bsc: '0',
+      arbitrum: '0',
+      polygon: '0'
+    };
+  }
 });
 
 onBeforeUnmount(() => {

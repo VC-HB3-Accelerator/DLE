@@ -1,5 +1,7 @@
 const { initTelegramBot } = require('./telegram-service');
-const { initEmailBot, sendEmail, checkEmails } = require('./emailBot');
+const emailBot = require('./emailBot');
+const telegramBot = require('./telegramBot');
+const aiAssistant = require('./ai-assistant');
 const {
   initializeVectorStore,
   getVectorStore,
@@ -14,9 +16,9 @@ module.exports = {
   initTelegramBot,
 
   // Email
-  initEmailBot,
-  sendEmail,
-  checkEmails,
+  emailBot,
+  sendEmail: emailBot.sendEmail,
+  checkEmails: emailBot.checkEmails,
 
   // Vector Store
   initializeVectorStore,
@@ -28,5 +30,7 @@ module.exports = {
   processMessage,
   getUserInfo,
   getConversationHistory,
-  // ... другие экспорты
+
+  telegramBot,
+  aiAssistant
 };

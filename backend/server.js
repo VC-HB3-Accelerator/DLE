@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
-const EmailBotService = require('./services/emailBot');
+const emailBot = require('./services/emailBot');
 const session = require('express-session');
 const { app, nonceStore } = require('./app');
 const usersRouter = require('./routes/users');
