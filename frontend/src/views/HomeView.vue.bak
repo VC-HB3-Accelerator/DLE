@@ -1,35 +1,17 @@
 <template>
   <div class="app-container">
-    <!-- Боковая панель / Меню -->
-    <div class="sidebar" :class="{ 'sidebar-expanded': showSidebar }">
-      <button class="menu-button" @click="toggleSidebar">
+    <!-- Боковая панель -->
+    <div class="sidebar">
+      <button class="menu-button">
         <div class="hamburger"></div>
       </button>
       <div class="nav-buttons">
-        <button class="nav-btn" @click="navigateTo('page1')">
-          <div class="nav-btn-number">1</div>
-          <div class="nav-btn-text">Кнопка 1</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page2')">
-          <div class="nav-btn-number">2</div>
-          <div class="nav-btn-text">Кнопка 2</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page3')">
-          <div class="nav-btn-number">3</div>
-          <div class="nav-btn-text">Кнопка 3</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page4')">
-          <div class="nav-btn-number">4</div>
-          <div class="nav-btn-text">Кнопка 4</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page5')">
-          <div class="nav-btn-number">5</div>
-          <div class="nav-btn-text">Кнопка 5</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page6')">
-          <div class="nav-btn-number">6</div>
-          <div class="nav-btn-text">Кнопка 6</div>
-        </button>
+        <button class="nav-btn">1</button>
+        <button class="nav-btn">2</button>
+        <button class="nav-btn">3</button>
+        <button class="nav-btn">4</button>
+        <button class="nav-btn">5</button>
+        <button class="nav-btn">6</button>
       </div>
     </div>
 
@@ -237,21 +219,6 @@ const isEmailSending = ref(false);
 const isVerifying = ref(false);
 const successMessage = ref('');
 const showSuccessMessage = ref(false);
-
-// Состояния для сайдбара
-const showSidebar = ref(false);
-const currentPage = ref('home');
-
-// Функция для управления сайдбаром
-const toggleSidebar = () => {
-  showSidebar.value = !showSidebar.value;
-  document.querySelector('.app-container').classList.toggle('menu-open');
-};
-
-const navigateTo = (page) => {
-  currentPage.value = page;
-  console.log(`Навигация на страницу: ${page}`);
-};
 
 // Функция для копирования кода
 const copyCode = (code) => {
@@ -692,6 +659,5 @@ onBeforeUnmount(() => {
   if (telegramAuthCheckInterval.value) {
     clearInterval(telegramAuthCheckInterval.value);
   }
-  document.querySelector('.app-container')?.classList.remove('menu-open');
 });
 </script>
