@@ -78,42 +78,63 @@
 
       <!-- Добавляем дополнительные кнопки авторизации -->
       <div v-if="!isAuthenticated && messages.length > 0" class="auth-buttons">
-        <button @click="handleTelegramAuth" class="auth-btn telegram-btn">
-          Подключить Telegram
-        </button>
-        <button v-if="!showEmailForm" @click="handleEmailAuth" class="auth-btn email-btn">
-          Подключить Email
-        </button>
-      </div>
-
-      <!-- Блок для верификации Telegram -->
-      <div v-if="showTelegramVerification" class="verification-block">
-        <div class="verification-code">
-          <span>Код верификации:</span>
-          <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
-          <span v-if="codeCopied" class="copied-message">Скопировано!</span>
-        </div>
-        <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
-      </div>
-
-      <!-- Форма для Email верификации -->
-      <div v-if="showEmailForm" class="email-form">
-        <p>Введите ваш email для получения кода подтверждения:</p>
-        <div class="email-input-container">
-          <input 
-            v-model="emailInput" 
-            type="email" 
-            placeholder="Ваш email" 
-            class="email-input"
-            :class="{ 'email-input-error': emailFormatError }"
-          />
-          <button @click="sendEmailVerification" class="send-email-btn" :disabled="isEmailSending">
-            {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
+        <div v-if="!showTelegramVerification" class="auth-btn-container">
+          <button @click="handleTelegramAuth" class="auth-btn telegram-btn">
+            Подключить Telegram
           </button>
         </div>
-        <div class="form-actions">
+        <div v-if="showTelegramVerification" class="verification-block">
+          <div class="verification-code">
+            <span>Код верификации:</span>
+            <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
+            <span v-if="codeCopied" class="copied-message">Скопировано!</span>
+          </div>
+          <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
+          <button @click="cancelTelegramAuth" class="cancel-btn">Отмена</button>
+        </div>
+        
+        <div v-if="!showEmailForm && !showEmailVerificationInput" class="auth-btn-container">
+          <button @click="handleEmailAuth" class="auth-btn email-btn">
+            Подключить Email
+          </button>
+        </div>
+        
+        <!-- Форма для Email верификации (встроена в auth-buttons) -->
+        <div v-if="showEmailForm" class="email-form">
+          <p>Введите ваш email для получения кода подтверждения:</p>
+          <div class="email-input-container">
+            <input 
+              v-model="emailInput" 
+              type="email" 
+              placeholder="Ваш email" 
+              class="email-input"
+              :class="{ 'email-input-error': emailFormatError }"
+            />
+            <button @click="sendEmailVerification" class="send-email-btn" :disabled="isEmailSending">
+              {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
+            </button>
+          </div>
+          <div class="form-actions">
+            <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
+            <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
+          </div>
+        </div>
+        
+        <!-- Форма для ввода кода верификации Email (встроена в auth-buttons) -->
+        <div v-if="showEmailVerificationInput" class="email-verification-form">
+          <p>На ваш email <strong>{{ emailVerificationEmail }}</strong> отправлен код подтверждения.</p>
+          <div class="verification-input">
+            <input 
+              v-model="emailVerificationCode" 
+              type="text" 
+              placeholder="Введите код верификации" 
+              maxlength="6"
+            />
+            <button @click="verifyEmailCode" class="verify-btn" :disabled="isVerifying">
+              {{ isVerifying ? 'Проверка...' : 'Подтвердить' }}
+            </button>
+          </div>
           <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
-          <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
         </div>
       </div>
 
@@ -121,22 +142,6 @@
       <div v-if="emailError" class="error-message">
         {{ emailError }}
         <button class="close-error" @click="clearEmailError">×</button>
-      </div>
-
-      <!-- Форма для ввода кода верификации Email -->
-      <div v-if="showEmailVerificationInput" class="email-verification-form">
-        <p>На ваш email <strong>{{ emailVerificationEmail }}</strong> отправлен код подтверждения.</p>
-        <div class="verification-input">
-          <input 
-            v-model="emailVerificationCode" 
-            type="text" 
-            placeholder="Введите код верификации" 
-            maxlength="6"
-          />
-          <button @click="verifyEmailCode" class="verify-btn" :disabled="isVerifying">
-            {{ isVerifying ? 'Проверка...' : 'Подтвердить' }}
-          </button>
-        </div>
       </div>
 
       <!-- Блок баланса токенов -->
@@ -778,6 +783,15 @@ const updateBalances = async () => {
     } catch (error) {
       console.error('Error updating balances:', error);
     }
+  }
+};
+
+// Функция отмены Telegram аутентификации
+const cancelTelegramAuth = () => {
+  showTelegramVerification.value = false;
+  if (telegramAuthCheckInterval.value) {
+    clearInterval(telegramAuthCheckInterval.value);
+    telegramAuthCheckInterval.value = null;
   }
 };
 
