@@ -1,3 +1,38 @@
+/* Общие стили для всех элементов */
+* {
+  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Стили для монопространственных шрифтов (код, верификация) */
+code, .verification-code code, .address {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* Унификация размеров шрифтов */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+}
+
+h3 {
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button, .btn, .auth-btn, .send-email-btn, .verify-btn, .wallet-disconnect-btn-small, .cancel-btn {
+  font-size: 14px;
+}
+
+input, textarea {
+  font-size: 14px;
+}
+
 .app-container {
   display: flex;
   height: 100vh;
@@ -8,9 +43,9 @@
 
 /* Стили для боковой панели */
 .sidebar {
-  width: 84px;
-  min-width: 84px;
-  background-color: #FFDA58;
+  width: 110px;
+  min-width: 110px;
+  background-color: #f5f5f5;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -18,11 +53,12 @@
   position: fixed;
   height: 100vh;
   z-index: 2;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar.sidebar-expanded {
-  width: 250px;
-  min-width: 250px;
+  width: 325px;
+  min-width: 325px;
 }
 
 .menu-button {
@@ -37,7 +73,7 @@
   justify-content: center;
   margin-bottom: 68px;
   position: fixed;
-  left: 22px;
+  left: 35px;
 }
 
 .hamburger {
@@ -69,10 +105,10 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  width: 84px;
+  width: 110px;
   padding: 0;
   position: fixed;
-  left: 22px;
+  left: 35px;
   top: 108px;
 }
 
@@ -98,7 +134,7 @@
   visibility: hidden;
   white-space: nowrap;
   position: absolute;
-  left: 60px;
+  left: 65px;
 }
 
 .sidebar-expanded .nav-btn-text {
@@ -106,48 +142,57 @@
   visibility: visible;
 }
 
+.nav-btn-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-expanded .nav-btn {
+  width: auto;
+  min-width: 200px;
+  text-align: left;
+  padding-left: 40px;
+}
+
 /* Стили для основного контента */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  margin-left: 84px;
+  margin-left: 110px;
+  transition: margin 0.3s ease;
+  max-width: 1200px;
+  margin: 0 auto;
+  margin-left: 110px;
+  padding: 0 20px;
+  height: 100vh;
+  position: relative;
+  box-sizing: border-box;
 }
 
 .sidebar-expanded ~ .main-content {
-  margin-left: 250px;
+  margin-left: 325px;
 }
 
-.header {
-  padding: 20px;
+/* Стили для адаптации основного содержимого при скрытии правой панели */
+.main-content.no-right-sidebar {
+  margin-right: 0;
 }
 
-.title {
-  font-size: 24px;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.main-content:not(.no-right-sidebar) {
+  margin-right: 300px;
 }
 
-.hand-emoji {
-  font-size: 24px;
-}
-
-.subtitle {
-  font-size: 14px;
-  color: #555;
-  margin-top: 5px;
-}
-
-/* Стили для чата */
+/* Стили для контейнера чата */
 .chat-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 0 20px 20px;
-  overflow: hidden;
+  width: 100%;
+  height: calc(100vh - 140px);
+  position: relative;
+  box-sizing: border-box;
 }
 
 .chat-messages {
@@ -158,6 +203,13 @@
   padding: 20px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   margin-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  bottom: 120px; /* Увеличиваем отступ для возможного расширения chat-input */
+  left: 0;
+  right: 0;
 }
 
 .message {
@@ -194,77 +246,165 @@
   display: flex;
   background-color: white;
   border-radius: 8px;
-  padding: 10px;
+  padding: 15px;
+  width: 100%;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  min-height: 70px;
+  max-height: 200px; /* Максимальная высота */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
 .chat-input textarea {
   flex: 1;
-  border: none;
-  resize: none;
+  border: 1px solid #e0e0e0;
+  resize: vertical; /* Разрешаем вертикальное изменение размера */
   padding: 10px;
-  height: 40px;
+  min-height: 40px;
+  max-height: 170px; /* Максимальная высота минус padding */
   font-family: inherit;
   border-radius: 4px;
-}
-
-.chat-input textarea:focus {
-  outline: none;
+  background-color: white;
+  line-height: 1.4;
 }
 
 .chat-input button {
-  background-color: #E8E8E8;
-  color: #555;
-  border: none;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
   border-radius: 4px;
   padding: 0 20px;
   cursor: pointer;
   height: 40px;
   margin-left: 10px;
+  align-self: flex-start;
+  transition: background-color 0.2s;
+  font-size: 14px;
 }
 
 .chat-input button:hover:not(:disabled) {
-  background-color: #d8d8d8;
+  background-color: #f0f0f0;
 }
 
 .chat-input button:disabled {
-  opacity: 0.5;
+  background-color: #f5f5f5;
+  color: #999;
+  border-color: #ddd;
   cursor: not-allowed;
 }
 
 /* Стили для правой панели с информацией о кошельке */
 .wallet-sidebar {
-  width: 250px;
-  min-width: 250px;
-  background-color: #FFDA58;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100vh;
+  background: white;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  padding: 20px;
   overflow-y: auto;
-  max-height: 100vh;
+  z-index: 1000;
+}
+
+.wallet-buttons {
+  margin-top: 40px;
+  width: 100%;
+}
+
+/* Общий стиль для кнопок */
+.wallet-connect-btn,
+.wallet-disconnect-btn,
+.auth-btn,
+.bot-link,
+.verify-btn,
+.send-email-btn,
+.cancel-btn {
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  transition: background-color 0.2s;
+}
+
+.wallet-connect-btn,
+.wallet-disconnect-btn {
+  box-sizing: border-box;
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  border: 1px solid #333;
+  border-radius: 4px;
+  margin-bottom: 30px;
+  font-size: 16px;
+  padding: 12px 15px;
 }
 
 .wallet-connect-btn {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 12px 20px;
-  font-size: 16px;
-  cursor: pointer;
-  margin-bottom: 30px;
+  background-color: white;
+  color: #333;
 }
 
 .wallet-disconnect-btn {
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 12px 20px;
-  font-size: 16px;
-  cursor: pointer;
-  margin-bottom: 30px;
+  background-color: white;
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
+
+.wallet-connect-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.wallet-disconnect-btn:hover {
+  background-color: #ffebee;
+}
+
+.auth-btn {
+  padding: 12px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  color: #333;
+  background-color: white;
+  margin-bottom: 0;
+}
+
+.email-btn, 
+.telegram-btn {
+  color: #333;
+  background-color: white;
+}
+
+.auth-btn:hover,
+.bot-link:hover,
+.verify-btn:hover:not(:disabled),
+.send-email-btn:hover:not(:disabled),
+.cancel-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.bot-link {
+  display: block;
+  text-align: center;
+  padding: 10px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: bold;
+  transition: background-color 0.2s;
+  box-sizing: border-box;
+  font-size: 14px;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
 }
 
 .balance-container {
@@ -312,72 +452,38 @@
   word-break: break-all;
 }
 
-.language-selector {
-  margin-top: auto;
-  align-self: flex-end;
-  background-color: white;
-  padding: 5px 10px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-}
-
-.dropdown-icon {
-  font-size: 10px;
-}
-
 /* Стили для кнопок авторизации */
 .auth-buttons {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   margin-top: 15px;
+  margin-bottom: 20px;
   width: 100%;
-  max-width: 220px;
   box-sizing: border-box;
+}
+
+.auth-buttons h3 {
+  margin-bottom: 15px;
+  font-size: 16px;
 }
 
 .auth-btn-container {
   width: 100%;
-  max-width: 220px;
+  margin-bottom: 15px;
   box-sizing: border-box;
 }
 
-.auth-btn {
-  padding: 12px 10px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.email-btn {
-  background-color: #2196F3;
-  color: white;
-}
-
-.telegram-btn {
-  background-color: #0088cc;
-  color: white;
-}
-
-/* Стили для блока верификации Telegram */
-.verification-block {
-  background-color: #ffffff;
-  border-radius: 8px;
+.verification-block,
+.email-form,
+.email-verification-form {
+  background-color: white;
+  border-radius: 4px;
   padding: 12px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  margin-bottom: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  margin-bottom: 15px;
   width: 100%;
-  max-width: 220px;
   box-sizing: border-box;
+  border: 1px solid #ddd;
 }
 
 .verification-code {
@@ -405,9 +511,8 @@
   cursor: pointer;
   user-select: all;
   border: 1px dashed #ddd;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  width: 100%;
+  display: block;
   box-sizing: border-box;
   text-align: center;
 }
@@ -416,24 +521,6 @@
   color: #4CAF50;
   font-size: 12px;
   margin-top: 5px;
-}
-
-.bot-link {
-  display: block;
-  background-color: #0088cc;
-  color: white;
-  text-align: center;
-  padding: 10px;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: bold;
-  transition: background-color 0.2s;
-  box-sizing: border-box;
-  font-size: 14px;
-}
-
-.bot-link:hover {
-  background-color: #006699;
 }
 
 .user-info {
@@ -461,28 +548,6 @@
 }
 
 /* Стили для форм верификации Email */
-.email-form {
-  background-color: #fff;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  width: 100%;
-  max-width: 220px;
-  margin-bottom: 10px;
-  box-sizing: border-box;
-}
-
-.email-verification-form {
-  background-color: #fff;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  width: 100%;
-  max-width: 220px;
-  margin-bottom: 10px;
-  box-sizing: border-box;
-}
-
 .email-verification-form p {
   margin-bottom: 8px;
   font-size: 13px;
@@ -510,23 +575,22 @@
 
 .verify-btn {
   padding: 0 10px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
   border-radius: 4px;
   margin-left: 8px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
   font-size: 13px;
-}
-
-.verify-btn:hover:not(:disabled) {
-  background-color: #3e8e41;
+  height: 32px;
 }
 
 .verify-btn:disabled {
-  background-color: #cccccc;
+  background-color: #f5f5f5;
+  color: #999;
+  border-color: #ddd;
   cursor: not-allowed;
 }
 
@@ -555,23 +619,24 @@
 
 .send-email-btn {
   padding: 0 10px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
   border-radius: 4px;
-  margin-left: 8px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
   font-size: 13px;
-}
-
-.send-email-btn:hover:not(:disabled) {
-  background-color: #3e8e41;
+  height: 32px;
+  width: 100%;
+  margin-left: 0;
+  box-sizing: border-box;
 }
 
 .send-email-btn:disabled {
-  background-color: #cccccc;
+  background-color: #f5f5f5;
+  color: #999;
+  border-color: #ddd;
   cursor: not-allowed;
 }
 
@@ -588,9 +653,9 @@
 }
 
 .cancel-btn {
-  background-color: #f8f8f8;
+  background-color: white;
   color: #333;
-  border: 1px solid #ddd;
+  border: 1px solid #333;
   border-radius: 4px;
   padding: 8px 15px;
   font-size: 13px;
@@ -600,19 +665,20 @@
   box-sizing: border-box;
 }
 
-.cancel-btn:hover {
-  background-color: #e8e8e8;
-}
-
 .error-message {
-  background-color: #ffebee;
+  background-color: white;
   color: #e74c3c;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   margin-top: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  word-break: break-word;
+  border: 1px solid #e74c3c;
 }
 
 .close-error {
@@ -634,39 +700,15 @@
   line-height: 1.4;
 }
 
-.wallet-connect-btn,
-.wallet-disconnect-btn {
-  box-sizing: border-box;
-  width: 100%;
-  white-space: normal;
-  text-align: center;
-  line-height: 1.3;
-}
-
 .email-verification-form strong {
   word-break: break-all;
-}
-
-.error-message {
-  background-color: #ffebee;
-  color: #e74c3c;
-  padding: 12px;
-  border-radius: 8px;
-  margin-top: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  box-sizing: border-box;
-  word-wrap: break-word;
-  word-break: break-word;
 }
 
 /* Медиа-запрос для узких экранов */
 @media (max-width: 1300px) {
   .wallet-sidebar {
-    width: 220px;
-    min-width: 220px;
+    width: 286px;
+    min-width: 286px;
     padding: 15px;
   }
   
@@ -684,4 +726,292 @@
     padding: 0 10px;
     font-size: 13px;
   }
+  
+  .main-content:not(.no-right-sidebar) {
+    margin-right: 286px;
+  }
+  
+  .close-wallet-sidebar {
+    width: 26px;
+    height: 26px;
+    font-size: 18px;
+    top: 8px;
+    right: 8px;
+  }
+  
+  .wallet-buttons {
+    margin-top: 35px;
+  }
+}
+
+/* Стиль для кнопки в нижней части боковой панели */
+.sidebar-bottom-btn {
+  position: fixed;
+  bottom: 30px;
+  left: 35px;
+  width: 40px;
+  height: 40px;
+  transition: width 0.3s ease;
+}
+
+/* Обновленный стиль для кнопки при раскрытом меню */
+.sidebar-expanded .sidebar-bottom-btn {
+  width: auto;
+  min-width: 200px;
+  text-align: left;
+  padding-left: 40px;
+}
+
+.sidebar-expanded .nav-btn-number {
+  position: absolute;
+  left: 10px;
+}
+
+/* Кнопка закрытия правой панели */
+.close-wallet-sidebar {
+  position: static;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  z-index: 2;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.close-wallet-sidebar:hover {
+  background-color: #f0f0f0;
+}
+
+.sidebar-expanded .sidebar-bottom-btn .nav-btn-text {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+  margin-left: 5px;
+  display: inline-block;
+}
+
+.email-form-error {
+  color: #e74c3c;
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.email-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Стили для заголовка правой панели */
+.wallet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  position: relative;
+  margin-bottom: 15px;
+  gap: 10px;
+}
+
+/* Кнопки в верхней части правой панели */
+.wallet-top-buttons {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.wallet-connect-btn-top,
+.wallet-disconnect-btn-top {
+  width: 100%;
+  height: 40px;
+  border-radius: 4px;
+  background-color: white;
+  border: 1px solid #333;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+  transition: background-color 0.2s;
+}
+
+.wallet-connect-btn-top {
+  color: #333;
+}
+
+.wallet-disconnect-btn-top {
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
+
+.wallet-connect-btn-top:hover {
+  background-color: #f0f0f0;
+}
+
+.wallet-disconnect-btn-top:hover {
+  background-color: #ffebee;
+}
+
+.wallet-disconnect-btn-small {
+  position: absolute;
+  top: 10px;
+  right: 60px;
+  width: 90px;
+  height: 40px;
+  border-radius: 4px;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  z-index: 2;
+  transition: background-color 0.2s;
+}
+
+.wallet-disconnect-btn-small:hover {
+  background-color: #f0f0f0;
+}
+
+.wallet-connect-btn-small {
+  position: absolute;
+  top: 10px;
+  right: 160px;
+  width: 100px;
+  height: 40px;
+  border-radius: 4px;
+  background-color: white;
+  color: #333;
+  border: 1px solid #333;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  z-index: 2;
+  transition: background-color 0.2s;
+}
+
+.wallet-connect-btn-small:hover {
+  background-color: #f0f0f0;
+}
+
+.wallet-connect-btn-header,
+.wallet-disconnect-btn-header {
+  height: 40px;
+  border-radius: 4px;
+  background-color: white;
+  border: 1px solid #333;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0 15px;
+  box-sizing: border-box;
+  transition: background-color 0.2s;
+  flex-grow: 1;
+}
+
+.wallet-connect-btn-header {
+  color: #333;
+}
+
+.wallet-disconnect-btn-header {
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
+
+.wallet-connect-btn-header:hover {
+  background-color: #f0f0f0;
+}
+
+.wallet-disconnect-btn-header:hover {
+  background-color: #ffebee;
+}
+
+.main-container {
+  padding-top: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.header {
+  padding: 20px 0;
+  margin-bottom: 40px; /* Увеличиваем отступ после заголовка */
+  width: 100%;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #666;
+  margin: 5px 0 0 0;
+}
+
+/* Стили для правой панели */
+.wallet-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100vh;
+  background: white;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+/* Стили для основного контента */
+.content-container {
+  padding: 20px 15px;
+  margin-right: 300px; /* Учитываем ширину правой панели */
+}
+
+.footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+}
+
+.footer p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
 }
