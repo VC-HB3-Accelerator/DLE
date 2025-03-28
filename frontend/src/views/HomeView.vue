@@ -49,7 +49,7 @@
       <div class="chat-container">
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="message in messages" :key="message.id" 
-               :class="['message', message.role === 'assistant' ? 'ai-message' : 'user-message']">
+               :class="['message', message.sender_type === 'assistant' || message.role === 'assistant' ? 'ai-message' : 'user-message']">
             <div class="message-content" v-html="formatMessage(message.content)"></div>
             <div class="message-time">{{ formatTime(message.timestamp || message.created_at) }}</div>
         </div>
@@ -213,6 +213,7 @@ const auth = useAuth();
 const isAuthenticated = computed(() => auth.isAuthenticated.value);
 const isConnecting = ref(false);
 const messages = ref([]);
+const hasUserSentMessage = ref(localStorage.getItem('hasUserSentMessage') === 'true');
 const newMessage = ref('');
 const isLoading = ref(false);
 const messagesContainer = ref(null);
@@ -432,15 +433,18 @@ const handleMessage = async (text) => {
     
     if (!isAuthenticated.value) {
       // Сохраняем в таблицу guest_messages
+      console.log('Sending guest message:', messageContent);
       const response = await api.post('/api/chat/guest-message', {
         message: messageContent,
         language: userLanguage.value
       });
       
       if (response.data.success) {
+        console.log('Guest message sent:', response.data);
         const userMessage = {
           id: response.data.messageId,
           content: messageContent,
+          sender_type: 'user',
           role: 'user',
           timestamp: new Date().toISOString()
         };
@@ -450,57 +454,65 @@ const handleMessage = async (text) => {
         messages.value.push({
           id: Date.now() + 1,
           content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов в правой панели.',
+          sender_type: 'assistant',
           role: 'assistant',
           timestamp: new Date().toISOString()
         });
-        
-        // Устанавливаем флаг отправки сообщения
-        if (!hasUserSentMessage.value) {
-          hasUserSentMessage.value = true;
-          localStorage.setItem('hasUserSentMessage', 'true');
-        }
+
+        // Прокручиваем к последнему сообщению
+        await nextTick();
+        scrollToBottom();
       } else {
         throw new Error(response.data.error || 'Ошибка при отправке сообщения');
       }
     } else {
-      // Для авторизованного пользователя сохраняем в messages
+      // Отправляем сообщение аутентифицированного пользователя
+      console.log('Sending authenticated message:', messageContent);
       const response = await api.post('/api/chat/message', {
         message: messageContent,
         language: userLanguage.value
       });
       
       if (response.data.success) {
-        const message = {
-          id: response.data.messageId,
-          content: messageContent,
+        console.log('Authenticated message sent:', response.data);
+        // Добавляем сообщение пользователя
+        messages.value.push({
+          id: response.data.userMessage.id,
+          content: response.data.userMessage.content,
+          sender_type: 'user',
           role: 'user',
-          timestamp: new Date().toISOString(),
-          hasResponse: true
-        };
-        messages.value.push(message);
+          timestamp: response.data.userMessage.created_at
+        });
         
-        const aiMessage = {
-          id: response.data.aiMessageId,
-          content: response.data.message,
+        // Добавляем ответ ассистента
+        messages.value.push({
+          id: response.data.aiMessage.id,
+          content: response.data.aiMessage.content,
+          sender_type: 'assistant',
           role: 'assistant',
-          timestamp: new Date().toISOString()
-        };
-        messages.value.push(aiMessage);
+          timestamp: response.data.aiMessage.created_at
+        });
+        
+        // Прокручиваем к последнему сообщению
+        await nextTick();
+        scrollToBottom();
       } else {
         throw new Error(response.data.error || 'Ошибка при отправке сообщения');
       }
     }
-    
-    await nextTick();
-    scrollToBottom();
   } catch (error) {
     console.error('Error sending message:', error);
     messages.value.push({
-      id: Date.now(),
-      content: error.message || 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте еще раз.',
+      id: Date.now() + 1,
+      content: 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте позже.',
+      sender_type: 'assistant',
       role: 'assistant',
       timestamp: new Date().toISOString()
     });
+    
+    // Прокручиваем к последнему сообщению
+    await nextTick();
+    scrollToBottom();
   } finally {
     isLoading.value = false;
   }
@@ -631,10 +643,12 @@ const scrollToBottom = () => {
 
 // Загрузка сообщений
 const loadMoreMessages = async () => {
-  if (!isAuthenticated.value) return;
-  
   try {
     isLoadingMore.value = true;
+    console.log('Fetching chat history...');
+    
+    // Всегда запрашиваем историю, так как на сервере проверяется наличие
+    // userId или guestId в сессии и возвращаются соответствующие сообщения
     const response = await api.get('/api/chat/history', {
       params: {
         limit: limit.value,
@@ -642,18 +656,39 @@ const loadMoreMessages = async () => {
       }
     });
 
+    console.log('Chat history response:', response.data);
+
     if (response.data.success) {
-      const newMessages = response.data.messages.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role || (msg.sender_type === 'assistant' ? 'assistant' : 'user'),
-        timestamp: msg.created_at,
-        showAuthOptions: false
-      }));
+      const newMessages = response.data.messages.map(msg => {
+        console.log('Processing message:', msg);
+        return {
+          id: msg.id,
+          content: msg.content,
+          sender_type: msg.sender_type || (msg.role === 'assistant' ? 'assistant' : 'user'),
+          role: msg.role || (msg.sender_type === 'assistant' ? 'assistant' : 'user'),
+          timestamp: msg.created_at,
+          showAuthOptions: false
+        };
+      });
       
-      messages.value = [...messages.value, ...newMessages];
+      console.log('Processed messages:', newMessages);
+      
+      // Объединяем сообщения и сортируем их по timestamp
+      const allMessages = [...messages.value, ...newMessages];
+      allMessages.sort((a, b) => {
+        const timeA = new Date(a.timestamp || a.created_at).getTime();
+        const timeB = new Date(b.timestamp || b.created_at).getTime();
+        return timeA - timeB;
+      });
+      
+      messages.value = allMessages;
+      console.log('Updated messages array:', messages.value);
       hasMoreMessages.value = response.data.total > messages.value.length;
       offset.value += newMessages.length;
+      
+      // Прокручиваем к последнему сообщению
+      await nextTick();
+      scrollToBottom();
     }
   } catch (error) {
     console.error('Error loading chat history:', error);
@@ -663,23 +698,18 @@ const loadMoreMessages = async () => {
 };
 
 // Загружаем сообщения при изменении аутентификации
-watch(() => isAuthenticated.value, async (newValue) => {
-  if (newValue) {
-    messages.value = [];
-    offset.value = 0;
-    hasMoreMessages.value = true;
-    
+watch(() => isAuthenticated.value, async (newValue, oldValue) => {
+  // Если пользователь только что авторизовался
+  if (newValue && !oldValue) {
     try {
-      // Сначала загружаем историю из messages
-      await loadMoreMessages();
-      
       // Связываем гостевые сообщения (копируем из guest_messages в messages)
       await api.post('/api/chat/link-guest-messages');
       console.log('Guest messages linked to authenticated user');
       
-      // Перезагружаем сообщения, чтобы получить все, включая перенесенные
+      // Перезагружаем все сообщения
       messages.value = [];
       offset.value = 0;
+      hasMoreMessages.value = true;
       await loadMoreMessages();
       
       await nextTick();
@@ -687,10 +717,12 @@ watch(() => isAuthenticated.value, async (newValue) => {
     } catch (linkError) {
       console.error('Error linking guest messages:', linkError);
     }
-  } else {
+  } else if (!newValue && oldValue) {
+    // Если пользователь вышел из системы, загружаем только гостевые сообщения
     messages.value = [];
     offset.value = 0;
     hasMoreMessages.value = true;
+    await loadMoreMessages(); // Загрузит гостевые сообщения, если они есть
   }
 });
 
@@ -751,8 +783,14 @@ const disconnectWallet = async () => {
     auth.telegramId = null;
     auth.email = null;
     
-    // Перезагружаем страницу для сброса состояния
-    window.location.reload();
+    // Загружаем только гостевые сообщения после выхода
+    messages.value = [];
+    offset.value = 0;
+    hasMoreMessages.value = true;
+    await loadMoreMessages();
+    
+    // НЕ перезагружаем страницу, чтобы не потерять историю сообщений
+    // window.location.reload();
   } catch (error) {
     console.error('Error disconnecting wallet:', error);
   }
@@ -792,13 +830,32 @@ const formatMessage = (text) => {
   return DOMPurify.sanitize(rawHtml);
 };
 
-// Инициализация состояния правой панели при загрузке
-onMounted(() => {
+// Функция для проверки наличия гостевых сообщений
+const checkGuestMessages = async () => {
+  try {
+    const response = await api.get('/api/chat/check-session');
+    console.log('Session check response:', response.data);
+    
+    // После инициализации сессии загружаем сообщения
+    if (!isAuthenticated.value) {
+      // Если пользователь не авторизован, попробуем загрузить гостевые сообщения
+      await loadMoreMessages();
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error checking guest messages:', error);
+    return { success: false };
+  }
+};
+
+// Инициализация состояния при загрузке
+onMounted(async () => {
   // Загружаем состояние правой панели из localStorage
   const savedSidebarState = localStorage.getItem('showWalletSidebar');
   if (savedSidebarState !== null) {
     showWalletSidebar.value = savedSidebarState === 'true';
-    } else {
+  } else {
     // По умолчанию правая панель скрыта
     showWalletSidebar.value = false;
   }
@@ -807,6 +864,7 @@ onMounted(() => {
   if (messagesContainer.value) {
     messagesContainer.value.addEventListener('scroll', handleScroll);
   }
+  
   console.log('Auth state on mount:', {
     isAuthenticated: auth.isAuthenticated.value,
     authType: auth.authType.value,
@@ -814,9 +872,12 @@ onMounted(() => {
   });
   
   // Проверяем статус авторизации
-  auth.checkAuth();
-
-  // Обновляем баланс при монтировании и изменении аутентификации
+  await auth.checkAuth();
+  
+  // Проверяем наличие гостевых сообщений и инициализируем сессию
+  await checkGuestMessages();
+  
+  // Обновляем баланс при монтировании если авторизован
   if (auth.isAuthenticated.value) {
     updateBalances();
   }

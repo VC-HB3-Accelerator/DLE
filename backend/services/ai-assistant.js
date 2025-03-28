@@ -2,6 +2,7 @@ const { ChatOllama } = require('@langchain/ollama');
 const { HNSWLib } = require('@langchain/community/vectorstores/hnswlib');
 const { OpenAIEmbeddings } = require('@langchain/openai');
 const logger = require('../utils/logger');
+const fetch = require('node-fetch');
 
 class AIAssistant {
   constructor() {
@@ -18,7 +19,10 @@ class AIAssistant {
     return new ChatOllama({
       baseUrl: this.baseUrl,
       model: this.defaultModel,
-      system: systemPrompt
+      system: systemPrompt,
+      temperature: 0.7,
+      maxTokens: 1000,
+      timeout: 30000 // 30 секунд таймаут
     });
   }
 
@@ -31,25 +35,38 @@ class AIAssistant {
   // Основной метод для получения ответа
   async getResponse(message, language = 'auto') {
     try {
+      console.log('getResponse called with:', { message, language });
+      
       // Определяем язык, если не указан явно
       const detectedLanguage = language === 'auto' 
         ? this.detectLanguage(message) 
         : language;
 
-      const chat = this.createChat(detectedLanguage);
+      console.log('Detected language:', detectedLanguage);
       
+      // Сначала пробуем прямой API запрос
       try {
-        // Пробуем получить ответ через ChatOllama
+        console.log('Trying direct API request...');
+        const response = await this.fallbackRequest(message, detectedLanguage);
+        console.log('Direct API response received:', response);
+        return response;
+      } catch (error) {
+        console.error('Error in direct API request:', error);
+      }
+
+      // Если прямой запрос не удался, пробуем через ChatOllama
+      const chat = this.createChat(detectedLanguage);
+      try {
+        console.log('Sending request to ChatOllama...');
         const response = await chat.invoke(message);
+        console.log('ChatOllama response:', response);
         return response.content;
       } catch (error) {
-        logger.error('Error using ChatOllama:', error);
-        
-        // Пробуем альтернативный метод через прямой API
-        return await this.fallbackRequest(message, detectedLanguage);
+        console.error('Error using ChatOllama:', error);
+        throw error;
       }
     } catch (error) {
-      logger.error('Error in getResponse:', error);
+      console.error('Error in getResponse:', error);
       return "Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.";
     }
   }
@@ -57,12 +74,13 @@ class AIAssistant {
   // Альтернативный метод запроса через прямой API
   async fallbackRequest(message, language) {
     try {
-      logger.info('Using fallback request method');
+      console.log('Using fallback request method with:', { message, language });
       
       const systemPrompt = language === 'ru'
         ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
         : 'You are a helpful assistant. Respond in English.';
 
+      console.log('Sending request to Ollama API...');
       const response = await fetch(`${this.baseUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,14 +88,23 @@ class AIAssistant {
           model: this.defaultModel,
           prompt: message,
           system: systemPrompt,
-          stream: false
+          stream: false,
+          options: {
+            temperature: 0.7,
+            num_predict: 1000
+          }
         }),
       });
       
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Ollama API response:', data);
       return data.response;
     } catch (error) {
-      logger.error('Error in fallback request:', error);
+      console.error('Error in fallback request:', error);
       throw error;
     }
   }
