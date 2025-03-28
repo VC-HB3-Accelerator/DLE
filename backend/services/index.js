@@ -8,7 +8,6 @@ const {
   similaritySearch,
   addDocument,
 } = require('./vectorStore');
-const { processMessage, getUserInfo, getConversationHistory } = require('./ai-assistant');
 // ... другие импорты
 
 module.exports = {
@@ -27,9 +26,9 @@ module.exports = {
   addDocument,
 
   // AI Assistant
-  processMessage,
-  getUserInfo,
-  getConversationHistory,
+  processMessage: aiAssistant.processMessage,
+  getUserInfo: aiAssistant.getUserInfo,
+  getConversationHistory: aiAssistant.getConversationHistory,
 
   telegramBot,
   aiAssistant
