@@ -29,30 +29,32 @@
         <button class="nav-btn" @click="navigateTo('page6')">
           <div class="nav-btn-number">6</div>
           <div class="nav-btn-text">Кнопка 6</div>
-        </button>
-      </div>
-    </div>
-
+          </button>
+        </div>
+        
+      <!-- Кнопка 7 в нижней части боковой панели -->
+      <button class="nav-btn sidebar-bottom-btn" @click="toggleWalletSidebar">
+        <div class="nav-btn-number">7</div>
+        <div class="nav-btn-text">{{ showWalletSidebar ? 'Скрыть панель' : 'Подключиться' }}</div>
+          </button>
+        </div>
+        
     <!-- Основной контент -->
-    <div class="main-content">
+    <div class="main-content" :class="{ 'no-right-sidebar': !showWalletSidebar }">
       <div class="header">
-        <div class="title">
-          <span class="hand-emoji">✌️</span> HB3 - Accelerator DLE (Digital Legal Entity - DAO Fork)
+        <h1 class="title">✌️HB3 - Accelerator DLE (Digital Legal Entity - DAO Fork)</h1>
+        <p class="subtitle">Венчурный фонд и поставщик программного обеспечения</p>
         </div>
-        <div class="subtitle">
-          Венчурный фонд и поставщик программного обеспечения
-        </div>
-      </div>
-
+        
       <div class="chat-container">
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="message in messages" :key="message.id" 
                :class="['message', message.role === 'assistant' ? 'ai-message' : 'user-message']">
             <div class="message-content" v-html="formatMessage(message.content)"></div>
             <div class="message-time">{{ formatTime(message.timestamp || message.created_at) }}</div>
-          </div>
         </div>
-
+      </div>
+      
         <div class="chat-input">
           <textarea 
             v-model="newMessage" 
@@ -62,47 +64,51 @@
           ></textarea>
           <button @click="handleMessage(newMessage)" :disabled="isLoading || !newMessage.trim()">
             {{ isLoading ? 'Отправка...' : 'Отправить' }}
-          </button>
-        </div>
+        </button>
       </div>
-    </div>
-
+        </div>
+          </div>
+          
     <!-- Правая панель с информацией о кошельке -->
-    <div class="wallet-sidebar">
-      <button v-if="!isAuthenticated" @click="handleWalletAuth" class="wallet-connect-btn">
-        Подключить кошелек
-      </button>
-      <button v-else @click="disconnectWallet" class="wallet-disconnect-btn">
-        Отключить кошелек
-      </button>
-
+    <div class="wallet-sidebar" v-if="showWalletSidebar">
+      <div class="wallet-header">
+        <button v-if="!isAuthenticated" @click="handleWalletAuth" class="wallet-connect-btn-header">
+              Подключить кошелек
+            </button>
+        <button v-if="isAuthenticated" @click="disconnectWallet" class="wallet-disconnect-btn-header">
+          Отключить
+        </button>
+        <button class="close-wallet-sidebar" @click="toggleWalletSidebar">×</button>
+      </div>
+      
       <!-- Добавляем дополнительные кнопки авторизации -->
       <div v-if="!isAuthenticated && messages.length > 0" class="auth-buttons">
+        <h3>Авторизация через:</h3>
         <div v-if="!showTelegramVerification" class="auth-btn-container">
           <button @click="handleTelegramAuth" class="auth-btn telegram-btn">
             Подключить Telegram
           </button>
         </div>
-        <div v-if="showTelegramVerification" class="verification-block">
-          <div class="verification-code">
+            <div v-if="showTelegramVerification" class="verification-block">
+              <div class="verification-code">
             <span>Код верификации:</span>
-            <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
+                <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
             <span v-if="codeCopied" class="copied-message">Скопировано!</span>
-          </div>
+              </div>
           <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
           <button @click="cancelTelegramAuth" class="cancel-btn">Отмена</button>
-        </div>
+            </div>
         
         <div v-if="!showEmailForm && !showEmailVerificationInput" class="auth-btn-container">
           <button @click="handleEmailAuth" class="auth-btn email-btn">
             Подключить Email
           </button>
-        </div>
-        
+              </div>
+              
         <!-- Форма для Email верификации (встроена в auth-buttons) -->
         <div v-if="showEmailForm" class="email-form">
           <p>Введите ваш email для получения кода подтверждения:</p>
-          <div class="email-input-container">
+          <div class="email-form-container">
             <input 
               v-model="emailInput" 
               type="email" 
@@ -112,38 +118,39 @@
             />
             <button @click="sendEmailVerification" class="send-email-btn" :disabled="isEmailSending">
               {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
-            </button>
-          </div>
+                    </button>
+                  </div>
           <div class="form-actions">
             <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
             <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
-          </div>
-        </div>
+                </div>
+              </div>
         
         <!-- Форма для ввода кода верификации Email (встроена в auth-buttons) -->
         <div v-if="showEmailVerificationInput" class="email-verification-form">
           <p>На ваш email <strong>{{ emailVerificationEmail }}</strong> отправлен код подтверждения.</p>
-          <div class="verification-input">
+          <div class="email-form-container">
             <input 
               v-model="emailVerificationCode" 
               type="text" 
               placeholder="Введите код верификации" 
               maxlength="6"
+              class="email-input"
             />
-            <button @click="verifyEmailCode" class="verify-btn" :disabled="isVerifying">
+            <button @click="verifyEmailCode" class="send-email-btn" :disabled="isVerifying">
               {{ isVerifying ? 'Проверка...' : 'Подтвердить' }}
             </button>
           </div>
           <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
         </div>
-      </div>
-
+          </div>
+            
       <!-- Сообщение об ошибке в Email -->
-      <div v-if="emailError" class="error-message">
-        {{ emailError }}
-        <button class="close-error" @click="clearEmailError">×</button>
-      </div>
-
+          <div v-if="emailError" class="error-message">
+            {{ emailError }}
+            <button class="close-error" @click="clearEmailError">×</button>
+          </div>
+          
       <!-- Блок баланса токенов -->
       <div class="balance-container">
         <h3>Баланс:</h3>
@@ -151,7 +158,7 @@
           <span class="token-name">ETH:</span>
           <span class="token-amount">{{ tokenBalances.eth }}</span>
           <span class="token-symbol">{{ TOKEN_CONTRACTS.eth.symbol }}</span>
-        </div>
+          </div>
         <div class="token-balance">
           <span class="token-name">ARB:</span>
           <span class="token-amount">{{ tokenBalances.arbitrum }}</span>
@@ -168,14 +175,14 @@
           <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
         </div>
       </div>
-
+      
       <!-- Блок информации о пользователе -->
       <div v-if="isAuthenticated" class="user-info">
         <h3>Идентификаторы:</h3>
         <div v-if="auth.address?.value" class="user-info-item">
           <span class="user-info-label">Кошелек:</span>
           <span class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
-        </div>
+      </div>
         <div v-if="auth.telegramId?.value" class="user-info-item">
           <span class="user-info-label">Telegram:</span>
           <span class="user-info-value">{{ auth.telegramId.value }}</span>
@@ -184,10 +191,6 @@
           <span class="user-info-label">Email:</span>
           <span class="user-info-value">{{ auth.email.value }}</span>
         </div>
-      </div>
-
-      <div class="language-selector">
-        RU <span class="dropdown-icon">▼</span>
       </div>
     </div>
   </div>
@@ -259,6 +262,9 @@ const tokenBalances = ref({
   polygon: '0'
 });
 
+// Состояние для отображения правой панели
+const showWalletSidebar = ref(false);
+
 // Функция для управления сайдбаром
 const toggleSidebar = () => {
   showSidebar.value = !showSidebar.value;
@@ -268,6 +274,13 @@ const toggleSidebar = () => {
 const navigateTo = (page) => {
   currentPage.value = page;
   console.log(`Навигация на страницу: ${page}`);
+};
+
+// Функция для переключения отображения правой панели
+const toggleWalletSidebar = () => {
+  showWalletSidebar.value = !showWalletSidebar.value;
+  // Сохраняем в localStorage предпочтение пользователя
+  localStorage.setItem('showWalletSidebar', showWalletSidebar.value);
 };
 
 // Функция для копирования кода
@@ -302,18 +315,9 @@ const handleEmailAuth = async () => {
   }
 };
 
-// Функция для отмены email авторизации
-const cancelEmailAuth = () => {
-  showEmailForm.value = false;
-  showEmailVerificationInput.value = false;
-  emailError.value = '';
-  emailFormatError.value = false;
-};
-
 // Функция для отправки запроса на верификацию email
 const sendEmailVerification = async () => {
   try {
-    // Очищаем сообщения об ошибках
     emailFormatError.value = false;
     emailError.value = '';
     
@@ -326,30 +330,21 @@ const sendEmailVerification = async () => {
     isEmailSending.value = true;
     
     // Отправляем запрос на сервер для инициализации email аутентификации
-    try {
-      const response = await axios.post('/api/auth/email/init', { email: emailInput.value });
-      
-      if (response.data.success) {
-        // Скрываем форму ввода email
-        showEmailForm.value = false;
-        // Показываем форму для ввода кода
-        showEmailVerificationInput.value = true;
-        // Скрываем старую форму кода верификации
-        showEmailVerification.value = false;
-        // Сохраняем email
-        emailVerificationEmail.value = emailInput.value;
-        // Очищаем поле для ввода кода
-        emailVerificationCode.value = '';
-      } else {
-        emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
-      }
-    } catch (error) {
-      console.error('Error sending email verification:', error);
-      if (error.response && error.response.data && error.response.data.error) {
-        emailError.value = error.response.data.error;
-      } else {
-        emailError.value = 'Ошибка при отправке кода. Пожалуйста, проверьте правильность email или попробуйте позже.';
-      }
+    const response = await axios.post('/api/auth/email/init', { email: emailInput.value });
+    
+    if (response.data.success) {
+      // Скрываем форму ввода email
+      showEmailForm.value = false;
+      // Показываем форму для ввода кода
+      showEmailVerificationInput.value = true;
+      // Скрываем старую форму кода верификации
+      showEmailVerification.value = false;
+      // Сохраняем email
+      emailVerificationEmail.value = emailInput.value;
+      // Очищаем поле для ввода кода
+      emailVerificationCode.value = '';
+    } else {
+      emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
     }
   } catch (error) {
     emailError.value = 'Ошибка при запросе кода подтверждения';
@@ -373,11 +368,8 @@ const verifyEmailCode = async () => {
     // Показываем индикатор процесса верификации
     isVerifying.value = true;
     
-    // Преобразуем код в верхний регистр перед отправкой
-    const code = emailVerificationCode.value.toUpperCase();
-    
     const response = await axios.post('/api/auth/check-email-verification', {
-      code: code
+      code: emailVerificationCode.value
     });
     
     if (response.data.success) {
@@ -398,27 +390,10 @@ const verifyEmailCode = async () => {
       // Обновляем состояние аутентификации
       await auth.checkAuth();
       
-      // Загружаем историю сообщений
-      messages.value = [];
-      offset.value = 0;
-      hasMoreMessages.value = true;
-      await loadMoreMessages();
-      
-      // Связываем гостевые сообщения
-      try {
-        await api.post('/api/chat/link-guest-messages');
-        console.log('Guest messages linked to authenticated user');
-        
-        // Перезагружаем сообщения после связывания
-        messages.value = [];
-        offset.value = 0;
-        await loadMoreMessages();
-      } catch (linkError) {
-        console.error('Error linking guest messages:', linkError);
-      }
-      
-      // Обновляем баланс токенов
-      await updateBalances();
+      // Перезагружаем страницу для обновления UI через 1 секунду
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } else {
       emailError.value = response.data.message || 'Неверный код верификации';
     }
@@ -427,6 +402,140 @@ const verifyEmailCode = async () => {
     console.error('Error verifying email code:', error);
   } finally {
     isVerifying.value = false;
+  }
+};
+
+// Функция для отмены Email аутентификации
+const cancelEmailAuth = () => {
+  showEmailForm.value = false;
+  showEmailVerificationInput.value = false;
+  showEmailVerification.value = false;
+  emailInput.value = '';
+  emailVerificationCode.value = '';
+  emailError.value = '';
+  emailFormatError.value = false;
+};
+
+// Функция для отправки сообщения
+const handleMessage = async (text) => {
+  try {
+    const messageContent = text.trim();
+    if (!messageContent) return;
+    
+    // Показываем правую панель только если пользователь не аутентифицирован
+    if (!isAuthenticated.value) {
+      showWalletSidebar.value = true;
+    }
+    
+    newMessage.value = '';
+    isLoading.value = true;
+    
+    if (!isAuthenticated.value) {
+      // Сохраняем в таблицу guest_messages
+      const response = await api.post('/api/chat/guest-message', {
+        message: messageContent,
+        language: userLanguage.value
+      });
+      
+      if (response.data.success) {
+        const userMessage = {
+          id: response.data.messageId,
+          content: messageContent,
+          role: 'user',
+          timestamp: new Date().toISOString()
+        };
+        messages.value.push(userMessage);
+
+        // Показываем сообщение с просьбой авторизоваться
+        messages.value.push({
+          id: Date.now() + 1,
+          content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов в правой панели.',
+          role: 'assistant',
+          timestamp: new Date().toISOString()
+        });
+        
+        // Устанавливаем флаг отправки сообщения
+        if (!hasUserSentMessage.value) {
+          hasUserSentMessage.value = true;
+          localStorage.setItem('hasUserSentMessage', 'true');
+        }
+      } else {
+        throw new Error(response.data.error || 'Ошибка при отправке сообщения');
+      }
+    } else {
+      // Для авторизованного пользователя сохраняем в messages
+      const response = await api.post('/api/chat/message', {
+        message: messageContent,
+        language: userLanguage.value
+      });
+      
+      if (response.data.success) {
+        const message = {
+          id: response.data.messageId,
+          content: messageContent,
+          role: 'user',
+          timestamp: new Date().toISOString(),
+          hasResponse: true
+        };
+        messages.value.push(message);
+        
+        const aiMessage = {
+          id: response.data.aiMessageId,
+          content: response.data.message,
+          role: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        messages.value.push(aiMessage);
+      } else {
+        throw new Error(response.data.error || 'Ошибка при отправке сообщения');
+      }
+    }
+    
+    await nextTick();
+    scrollToBottom();
+  } catch (error) {
+    console.error('Error sending message:', error);
+    messages.value.push({
+      id: Date.now(),
+      content: error.message || 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте еще раз.',
+      role: 'assistant',
+      timestamp: new Date().toISOString()
+    });
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// Обработка прокрутки
+const handleScroll = async () => {
+  const element = messagesContainer.value;
+  if (
+    !isLoadingMore.value &&
+    hasMoreMessages.value &&
+    element.scrollTop === 0
+  ) {
+    await loadMoreMessages();
+  }
+};
+
+// Функция получения балансов
+const updateBalances = async () => {
+  if (auth.isAuthenticated.value && auth.address?.value) {
+    try {
+      const balances = await fetchTokenBalances();
+      tokenBalances.value = balances;
+    } catch (error) {
+      console.error('Error updating balances:', error);
+    }
+  }
+};
+
+// Функция отмены Telegram аутентификации
+const cancelTelegramAuth = () => {
+  showTelegramVerification.value = false;
+  if (telegramAuthCheckInterval.value) {
+    clearInterval(telegramAuthCheckInterval.value);
+    telegramAuthCheckInterval.value = null;
   }
 };
 
@@ -532,7 +641,7 @@ const loadMoreMessages = async () => {
         offset: offset.value
       }
     });
-    
+
     if (response.data.success) {
       const newMessages = response.data.messages.map(msg => ({
         id: msg.id,
@@ -683,119 +792,17 @@ const formatMessage = (text) => {
   return DOMPurify.sanitize(rawHtml);
 };
 
-// Функция для отправки сообщения
-const handleMessage = async (text) => {
-  try {
-    const messageContent = text.trim();
-    if (!messageContent) return;
-    
-    newMessage.value = '';
-    isLoading.value = true;
-
-    if (!isAuthenticated.value) {
-      // Сохраняем в таблицу guest_messages
-      const response = await api.post('/api/chat/guest-message', {
-        message: messageContent,
-        language: userLanguage.value
-      });
-      
-      if (response.data.success) {
-        const userMessage = {
-          id: response.data.messageId,
-          content: messageContent,
-          role: 'user',
-          timestamp: new Date().toISOString()
-        };
-        messages.value.push(userMessage);
-
-        // Показываем сообщение с просьбой авторизоваться
-        messages.value.push({
-          id: Date.now() + 1,
-          content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов в правой панели.',
-          role: 'assistant',
-          timestamp: new Date().toISOString()
-        });
-
-        // НЕ показываем форму email автоматически и НЕ устанавливаем showEmailAlternatives
-        // showEmailForm.value = true;
-        // showEmailAlternatives.value = true;
-      }
-    } else {
-      // Для авторизованного пользователя сохраняем в messages
-      const response = await api.post('/api/chat/message', {
-        message: messageContent,
-        language: userLanguage.value
-      });
-
-      if (response.data.success) {
-        const message = {
-          id: response.data.messageId,
-          content: messageContent,
-          role: 'user',
-          timestamp: new Date().toISOString(),
-          hasResponse: true
-        };
-        messages.value.push(message);
-        
-        const aiMessage = {
-          id: response.data.aiMessageId,
-          content: response.data.message,
-          role: 'assistant',
-          timestamp: new Date().toISOString()
-        };
-        messages.value.push(aiMessage);
-      }
-    }
-    
-    await nextTick();
-    scrollToBottom();
-  } catch (error) {
-    console.error('Error sending message:', error);
-    messages.value.push({
-      id: Date.now(),
-      content: 'Произошла ошибка при отправке сообщения.',
-      role: 'assistant',
-      timestamp: new Date().toISOString()
-    });
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-// Обработка прокрутки
-const handleScroll = async () => {
-  const element = messagesContainer.value;
-  if (
-    !isLoadingMore.value &&
-    hasMoreMessages.value &&
-    element.scrollTop === 0
-  ) {
-    await loadMoreMessages();
-  }
-};
-
-// Функция получения балансов
-const updateBalances = async () => {
-  if (auth.isAuthenticated.value && auth.address?.value) {
-    try {
-      const balances = await fetchTokenBalances();
-      tokenBalances.value = balances;
-    } catch (error) {
-      console.error('Error updating balances:', error);
-    }
-  }
-};
-
-// Функция отмены Telegram аутентификации
-const cancelTelegramAuth = () => {
-  showTelegramVerification.value = false;
-  if (telegramAuthCheckInterval.value) {
-    clearInterval(telegramAuthCheckInterval.value);
-    telegramAuthCheckInterval.value = null;
-  }
-};
-
+// Инициализация состояния правой панели при загрузке
 onMounted(() => {
+  // Загружаем состояние правой панели из localStorage
+  const savedSidebarState = localStorage.getItem('showWalletSidebar');
+  if (savedSidebarState !== null) {
+    showWalletSidebar.value = savedSidebarState === 'true';
+    } else {
+    // По умолчанию правая панель скрыта
+    showWalletSidebar.value = false;
+  }
+  
   // Добавляем слушатель прокрутки
   if (messagesContainer.value) {
     messagesContainer.value.addEventListener('scroll', handleScroll);
@@ -805,7 +812,7 @@ onMounted(() => {
     authType: auth.authType.value,
     telegramId: auth.telegramId.value
   });
-
+  
   // Проверяем статус авторизации
   auth.checkAuth();
 
