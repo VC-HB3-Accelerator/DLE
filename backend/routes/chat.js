@@ -7,65 +7,6 @@ const logger = require('../utils/logger');
 const crypto = require('crypto');
 const { saveGuestMessageToDatabase } = require('../db');
 
-// Добавьте эту функцию в начало файла chat.js
-async function getAIResponse(message, language = 'ru') {
-  // Определяем язык сообщения, если не указан явно
-  let detectedLanguage = language;
-  if (!language || language === 'auto') {
-    // Простая эвристика для определения языка
-    const cyrillicPattern = /[а-яА-ЯёЁ]/;
-    detectedLanguage = cyrillicPattern.test(message) ? 'ru' : 'en';
-  }
-
-  // Формируем системный промпт в зависимости от языка
-  let systemPrompt = '';
-  if (detectedLanguage === 'ru') {
-    systemPrompt = 'Вы - полезный ассистент. Отвечайте на русском языке.';
-  } else {
-    systemPrompt = 'You are a helpful assistant. Respond in English.';
-  }
-
-  // Создаем экземпляр ChatOllama
-  const chat = new ChatOllama({
-    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'mistral',
-    system: systemPrompt
-  });
-
-  console.log('Отправка запроса к Ollama...');
-  
-  // Получаем ответ от модели
-  try {
-    const response = await chat.invoke(message);
-    return response.content;
-  } catch (error) {
-    console.error('Ошибка при вызове ChatOllama:', error);
-    
-    // Альтернативный метод запроса через прямой API
-    try {
-      console.log('Пробуем альтернативный метод запроса...');
-      const response = await fetch(`${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}/api/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: process.env.OLLAMA_MODEL || 'mistral',
-          prompt: message,
-          system: systemPrompt,
-          stream: false
-        }),
-      });
-      
-      const data = await response.json();
-      return data.response;
-    } catch (fallbackError) {
-      console.error('Ошибка при использовании альтернативного метода:', fallbackError);
-      return "Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.";
-    }
-  }
-}
-
 // Функция для обработки гостевых сообщений после аутентификации
 async function processGuestMessages(userId, guestId) {
   try {
@@ -279,12 +220,11 @@ router.post('/message', requireAuth, async (req, res) => {
 // Добавьте этот маршрут для проверки доступных моделей
 router.get('/models', async (req, res) => {
   try {
-    const ollama = new Ollama();
-    const models = await ollama.list();
+    const models = await aiAssistant.getAvailableModels();
 
     res.json({
       success: true,
-      models: models.models.map((model) => model.name),
+      models: models,
     });
   } catch (error) {
     console.error('Ошибка при получении списка моделей:', error);
