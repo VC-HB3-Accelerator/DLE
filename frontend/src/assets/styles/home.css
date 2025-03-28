@@ -160,11 +160,10 @@ input, textarea {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-left: 110px;
+  margin-left: 190px; /* 40px + 110px (sidebar) + 40px (button) */
+  margin-right: 190px; /* 40px + 110px (sidebar) + 40px (button) */
   transition: margin 0.3s ease;
   max-width: 1200px;
-  margin: 0 auto;
-  margin-left: 110px;
   padding: 0 20px;
   height: 100vh;
   position: relative;
@@ -172,16 +171,16 @@ input, textarea {
 }
 
 .sidebar-expanded ~ .main-content {
-  margin-left: 325px;
+  margin-left: 190px; /* 40px + 110px (sidebar) + 40px (button) */
 }
 
 /* Стили для адаптации основного содержимого при скрытии правой панели */
 .main-content.no-right-sidebar {
-  margin-right: 0;
+  margin-right: 190px; /* 40px + 110px (sidebar) + 40px (button) */
 }
 
 .main-content:not(.no-right-sidebar) {
-  margin-right: 300px;
+  margin-right: 190px; /* 40px + 110px (sidebar) + 40px (button) */
 }
 
 /* Стили для контейнера чата */
@@ -960,7 +959,7 @@ input, textarea {
 
 .header {
   padding: 20px 0;
-  margin-bottom: 40px; /* Увеличиваем отступ после заголовка */
+  margin-bottom: 24px; /* Уменьшенный отступ после заголовка */
   width: 100%;
 }
 
@@ -994,7 +993,8 @@ input, textarea {
 /* Стили для основного контента */
 .content-container {
   padding: 20px 15px;
-  margin-right: 300px; /* Учитываем ширину правой панели */
+  margin-right: 40px; /* Одинаковый отступ справа */
+  margin-left: 40px; /* Одинаковый отступ слева */
 }
 
 .footer {
