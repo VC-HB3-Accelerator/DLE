@@ -18,8 +18,8 @@ async function checkOllamaModels() {
       });
 
       console.log('\nДля использования конкретной модели, укажите ее в .env файле:');
-      console.log('OLLAMA_EMBEDDINGS_MODEL=mistral');
-      console.log('OLLAMA_MODEL=mistral');
+      console.log('OLLAMA_EMBEDDINGS_MODEL=mistral:7b-instruct-q4_K_M');
+      console.log('OLLAMA_MODEL=mistral:7b-instruct-q4_K_M');
     } else {
       console.log('Не удалось получить список моделей');
     }

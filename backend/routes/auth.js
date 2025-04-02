@@ -554,31 +554,35 @@ router.post('/link-identity', async (req, res) => {
 });
 
 // Проверка статуса аутентификации
-router.get('/check', (req, res) => {
+router.get('/check', async (req, res) => {
   try {
     console.log('Сессия при проверке:', req.session);
     
-    const authenticated = req.session.authenticated || req.session.isAuthenticated || false;
-    const userId = req.session.userId;
-    const authType = req.session.authType;
-    const address = req.session.address;
-    const telegramId = req.session.telegramId;
-    const email = req.session.email;
+    // Если пользователь не аутентифицирован, возвращаем базовую информацию
+    if (!req.session.authenticated) {
+      return res.json({
+        authenticated: false,
+        userId: null,
+        authType: null,
+        address: null,
+        telegramId: null,
+        email: null,
+        isAdmin: false
+      });
+    }
     
-    // Проверяем, является ли пользователь администратором
-    const isAdmin = req.session.userRole === 'admin';
-    
+    // Возвращаем полную информацию об аутентифицированном пользователе
     res.json({
-      authenticated,
-      userId,
-      isAdmin,
-      authType,
-      address,
-      telegramId,
-      email
+      authenticated: true,
+      userId: req.session.userId,
+      authType: req.session.authType,
+      address: req.session.address,
+      telegramId: req.session.telegramId,
+      email: req.session.email,
+      isAdmin: req.session.isAdmin || false
     });
   } catch (error) {
-    console.error('Error checking auth:', error);
+    console.error('Error checking auth status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
