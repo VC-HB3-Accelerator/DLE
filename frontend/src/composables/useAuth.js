@@ -6,18 +6,18 @@ export function useAuth() {
   const authType = ref(null);
   const userId = ref(null);
   const address = ref(null);
-  const telegramInfo = ref(null);
-  const isAdmin = ref(false);
   const telegramId = ref(null);
+  const isAdmin = ref(false);
   const email = ref(null);
   
-  const updateAuth = ({ authenticated, authType: newAuthType, userId: newUserId, address: newAddress, telegramId: newTelegramId, isAdmin: newIsAdmin }) => {
+  const updateAuth = ({ authenticated, authType: newAuthType, userId: newUserId, address: newAddress, telegramId: newTelegramId, isAdmin: newIsAdmin, email: newEmail }) => {
     isAuthenticated.value = authenticated;
     authType.value = newAuthType;
     userId.value = newUserId;
     address.value = newAddress;
     telegramId.value = newTelegramId;
     isAdmin.value = newIsAdmin;
+    email.value = newEmail;
   };
   
   const checkAuth = async () => {
@@ -49,6 +49,7 @@ export function useAuth() {
         userId: null, 
         address: null, 
         telegramId: null,
+        email: null,
         isAdmin: false 
       });
       
@@ -57,9 +58,6 @@ export function useAuth() {
       localStorage.removeItem('userId');
       localStorage.removeItem('address');
       localStorage.removeItem('isAdmin');
-      
-      // Перезагружаем страницу
-      window.location.reload();
       
       return { success: true };
     } catch (error) {
@@ -77,7 +75,6 @@ export function useAuth() {
     authType,
     userId,
     address,
-    telegramInfo,
     isAdmin,
     telegramId,
     email,

@@ -182,14 +182,14 @@
         <div v-if="auth.address?.value" class="user-info-item">
           <span class="user-info-label">Кошелек:</span>
           <span class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
-      </div>
-        <div v-if="auth.telegramId?.value" class="user-info-item">
-          <span class="user-info-label">Telegram:</span>
-          <span class="user-info-value">{{ auth.telegramId.value }}</span>
         </div>
-        <div v-if="auth.email?.value" class="user-info-item">
+        <div v-if="auth.telegramId" class="user-info-item">
+          <span class="user-info-label">Telegram:</span>
+          <span class="user-info-value">{{ auth.telegramId }}</span>
+        </div>
+        <div v-if="auth.email" class="user-info-item">
           <span class="user-info-label">Email:</span>
-          <span class="user-info-value">{{ auth.email.value }}</span>
+          <span class="user-info-value">{{ auth.email }}</span>
         </div>
       </div>
     </div>
@@ -551,6 +551,29 @@ const cancelTelegramAuth = () => {
   }
 };
 
+// Загружаем сообщения при изменении аутентификации
+watch(() => isAuthenticated.value, async (newValue, oldValue) => {
+  // Если пользователь только что авторизовался
+  if (newValue && !oldValue) {
+    try {
+      // Связываем гостевые сообщения только один раз при первой авторизации
+      const response = await api.post('/api/chat/link-guest-messages');
+      console.log('Guest messages linking response:', response.data);
+    } catch (linkError) {
+      console.error('Error linking guest messages:', linkError);
+    }
+  }
+
+  // В любом случае перезагружаем сообщения
+  messages.value = [];
+  offset.value = 0;
+  hasMoreMessages.value = true;
+  await loadMoreMessages();
+  
+  await nextTick();
+  scrollToBottom();
+});
+
 // Обработчик для Telegram аутентификации
 const handleTelegramAuth = async () => {
   try {
@@ -569,37 +592,18 @@ const handleTelegramAuth = async () => {
         console.log('Проверка авторизации:', response.data);
         
         if (response.data.authenticated) {
-          // Обновляем состояние аутентификации
+          // Обновляем состояние аутентификации с полным набором данных
           auth.updateAuth({
             isAuthenticated: true,
+            authenticated: true,
             authType: response.data.authType,
             userId: response.data.userId,
-            telegramId: response.data.telegramId
+            telegramId: response.data.telegramId,
+            isAdmin: response.data.isAdmin,
+            address: response.data.address
           });
           
           console.log('Telegram authentication successful:', response.data);
-          
-          // Обновляем все данные пользователя
-          await auth.checkAuth();
-          
-          // Загружаем историю сообщений
-          messages.value = [];
-          offset.value = 0;
-          hasMoreMessages.value = true;
-          await loadMoreMessages();
-          
-          // Связываем гостевые сообщения
-          try {
-            await api.post('/api/chat/link-guest-messages');
-            console.log('Guest messages linked to authenticated user');
-            
-            // Перезагружаем сообщения после связывания
-            messages.value = [];
-            offset.value = 0;
-            await loadMoreMessages();
-          } catch (linkError) {
-            console.error('Error linking guest messages:', linkError);
-          }
           
           // Обновляем баланс токенов
           await updateBalances();
@@ -697,35 +701,6 @@ const loadMoreMessages = async () => {
   }
 };
 
-// Загружаем сообщения при изменении аутентификации
-watch(() => isAuthenticated.value, async (newValue, oldValue) => {
-  // Если пользователь только что авторизовался
-  if (newValue && !oldValue) {
-    try {
-      // Связываем гостевые сообщения (копируем из guest_messages в messages)
-      await api.post('/api/chat/link-guest-messages');
-      console.log('Guest messages linked to authenticated user');
-      
-      // Перезагружаем все сообщения
-      messages.value = [];
-      offset.value = 0;
-      hasMoreMessages.value = true;
-      await loadMoreMessages();
-      
-      await nextTick();
-      scrollToBottom();
-    } catch (linkError) {
-      console.error('Error linking guest messages:', linkError);
-    }
-  } else if (!newValue && oldValue) {
-    // Если пользователь вышел из системы, загружаем только гостевые сообщения
-    messages.value = [];
-    offset.value = 0;
-    hasMoreMessages.value = true;
-    await loadMoreMessages(); // Загрузит гостевые сообщения, если они есть
-  }
-});
-
 // Функция для подключения кошелька
 const handleWalletAuth = async () => {
   if (isConnecting.value || isAuthenticated.value) return;
@@ -738,25 +713,6 @@ const handleWalletAuth = async () => {
     if (result.success) {
       // Обновляем состояние авторизации
       await auth.checkAuth();
-      
-      // Загружаем историю сообщений
-      messages.value = [];
-      offset.value = 0;
-      hasMoreMessages.value = true;
-      await loadMoreMessages();
-      
-      // Связываем гостевые сообщения
-      try {
-        await api.post('/api/chat/link-guest-messages');
-        console.log('Guest messages linked to authenticated user');
-        
-        // Перезагружаем сообщения после связывания
-        messages.value = [];
-        offset.value = 0;
-        await loadMoreMessages();
-      } catch (linkError) {
-        console.error('Error linking guest messages:', linkError);
-      }
       
       // Добавляем небольшую задержку перед сбросом состояния isConnecting
       setTimeout(() => {

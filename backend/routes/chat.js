@@ -44,19 +44,29 @@ async function processGuestMessages(userId, guestId) {
     for (const guestMessage of guestMessages) {
       console.log(`Processing guest message ID ${guestMessage.id}: ${guestMessage.content}`);
       
+      // Проверяем существование гостевого сообщения перед созданием связанного сообщения
+      const checkGuestMessage = await db.query(
+        'SELECT id FROM guest_messages WHERE id = $1',
+        [guestMessage.id]
+      );
+      
+      if (checkGuestMessage.rows.length === 0) {
+        console.log(`Guest message ${guestMessage.id} no longer exists, skipping`);
+        continue;
+      }
+      
       // Сохраняем сообщение пользователя
       const userMessageResult = await db.query(
         `INSERT INTO messages 
-          (conversation_id, content, sender_type, role, guest_message_id, channel, created_at) 
+          (conversation_id, content, sender_type, role, channel, created_at) 
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7) 
+          ($1, $2, $3, $4, $5, $6) 
          RETURNING *`,
         [
           conversation.id, 
           guestMessage.content, 
           'user', 
           'user', 
-          guestMessage.id,
           'web',
           guestMessage.created_at
         ]
@@ -73,27 +83,26 @@ async function processGuestMessages(userId, guestId) {
       // Сохраняем ответ от ИИ
       const aiMessageResult = await db.query(
         `INSERT INTO messages 
-          (conversation_id, content, sender_type, role, guest_message_id, channel, created_at) 
+          (conversation_id, content, sender_type, role, channel, created_at) 
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7) 
+          ($1, $2, $3, $4, $5, $6) 
          RETURNING *`,
         [
           conversation.id, 
           aiResponse, 
           'assistant', 
           'assistant', 
-          guestMessage.id,
           'web',
           new Date()
         ]
       );
       
       console.log(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
+      
+      // Удаляем обработанное гостевое сообщение
+      await db.query('DELETE FROM guest_messages WHERE id = $1', [guestMessage.id]);
+      console.log(`Deleted processed guest message ${guestMessage.id}`);
     }
-    
-    // Удаляем гостевые сообщения, так как они уже обработаны
-    await db.query('DELETE FROM guest_messages WHERE guest_id = $1', [guestId]);
-    console.log('Deleted processed guest messages');
     
     return { 
       success: true, 
