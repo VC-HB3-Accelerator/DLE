@@ -6,6 +6,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const crypto = require('crypto');
 const { saveGuestMessageToDatabase } = require('../db');
+const { v4: uuidv4 } = require('uuid');
 
 // Функция для обработки гостевых сообщений после аутентификации
 async function processGuestMessages(userId, guestId) {
@@ -26,6 +27,30 @@ async function processGuestMessages(userId, guestId) {
     const guestMessages = guestMessagesResult.rows;
     console.log(`Found ${guestMessages.length} guest messages`);
     
+    // Получаем идентификаторы пользователя
+    const userIdentities = await db.query(
+      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
+      [userId]
+    );
+    
+    console.log(`Found ${userIdentities.rows.length} identities for user ${userId}`, userIdentities.rows);
+    
+    // Сохраняем guestId как отдельный идентификатор для пользователя
+    // если он еще не привязан к пользователю
+    const existingGuestIdentity = userIdentities.rows.find(
+      identity => identity.provider === 'guest' && identity.provider_id === guestId
+    );
+    
+    if (!existingGuestIdentity) {
+      await db.query(
+        `INSERT INTO user_identities (user_id, provider, provider_id) 
+         VALUES ($1, 'guest', $2)
+         ON CONFLICT (provider, provider_id) DO NOTHING`,
+        [userId, guestId]
+      );
+      console.log(`Linked guest ID ${guestId} to user ${userId}`);
+    }
+    
     // Создаем новый диалог для этих сообщений
     const firstMessage = guestMessages[0];
     const title = firstMessage.content.length > 30 
@@ -44,23 +69,23 @@ async function processGuestMessages(userId, guestId) {
     for (const guestMessage of guestMessages) {
       console.log(`Processing guest message ID ${guestMessage.id}: ${guestMessage.content}`);
       
-      // Проверяем существование гостевого сообщения перед созданием связанного сообщения
-      const checkGuestMessage = await db.query(
-        'SELECT id FROM guest_messages WHERE id = $1',
+      // Проверяем, не было ли это сообщение уже обработано
+      const existingMessage = await db.query(
+        'SELECT id FROM messages WHERE guest_message_id = $1',
         [guestMessage.id]
       );
       
-      if (checkGuestMessage.rows.length === 0) {
-        console.log(`Guest message ${guestMessage.id} no longer exists, skipping`);
+      if (existingMessage.rows.length > 0) {
+        console.log(`Guest message ${guestMessage.id} already processed, skipping`);
         continue;
       }
       
       // Сохраняем сообщение пользователя
       const userMessageResult = await db.query(
         `INSERT INTO messages 
-          (conversation_id, content, sender_type, role, channel, created_at) 
+          (conversation_id, content, sender_type, role, channel, guest_message_id, created_at) 
          VALUES 
-          ($1, $2, $3, $4, $5, $6) 
+          ($1, $2, $3, $4, $5, $6, $7) 
          RETURNING *`,
         [
           conversation.id, 
@@ -68,40 +93,39 @@ async function processGuestMessages(userId, guestId) {
           'user', 
           'user', 
           'web',
+          guestMessage.id,
           guestMessage.created_at
         ]
       );
       
       console.log(`Saved user message with ID ${userMessageResult.rows[0].id}`);
       
-      // Получаем ответ от ИИ
-      console.log('Getting AI response for:', guestMessage.content);
-      const language = guestMessage.language || 'auto';
-      const aiResponse = await aiAssistant.getResponse(guestMessage.content, language);
-      console.log('AI response received:', aiResponse);
-      
-      // Сохраняем ответ от ИИ
-      const aiMessageResult = await db.query(
-        `INSERT INTO messages 
-          (conversation_id, content, sender_type, role, channel, created_at) 
-         VALUES 
-          ($1, $2, $3, $4, $5, $6) 
-         RETURNING *`,
-        [
-          conversation.id, 
-          aiResponse, 
-          'assistant', 
-          'assistant', 
-          'web',
-          new Date()
-        ]
-      );
-      
-      console.log(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
-      
-      // Удаляем обработанное гостевое сообщение
-      await db.query('DELETE FROM guest_messages WHERE id = $1', [guestMessage.id]);
-      console.log(`Deleted processed guest message ${guestMessage.id}`);
+      // Получаем ответ от ИИ только для сообщений пользователя (не AI)
+      if (!guestMessage.is_ai) {
+        console.log('Getting AI response for:', guestMessage.content);
+        const language = guestMessage.language || 'auto';
+        const aiResponse = await aiAssistant.getResponse(guestMessage.content, language);
+        console.log('AI response received:', aiResponse);
+        
+        // Сохраняем ответ от ИИ
+        const aiMessageResult = await db.query(
+          `INSERT INTO messages 
+            (conversation_id, content, sender_type, role, channel, created_at) 
+           VALUES 
+            ($1, $2, $3, $4, $5, $6) 
+           RETURNING *`,
+          [
+            conversation.id, 
+            aiResponse, 
+            'assistant', 
+            'assistant', 
+            'web',
+            new Date()
+          ]
+        );
+        
+        console.log(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
+      }
     }
     
     return { 
@@ -255,6 +279,24 @@ router.get('/history', async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
 
+    // Если пользователь аутентифицирован и у него есть гостевые сообщения,
+    // автоматически связываем их перед получением истории
+    if (req.session.authenticated && req.session.userId && req.session.guestId) {
+      try {
+        console.log('Automatically linking guest messages before fetching history');
+        await processGuestMessages(req.session.userId, req.session.guestId);
+        
+        // Очищаем guestId из сессии после связывания
+        req.session.guestId = null;
+        await req.session.save();
+        
+        console.log('Guest messages automatically linked');
+      } catch (linkError) {
+        console.error('Error auto-linking guest messages:', linkError);
+        // Продолжаем выполнение, даже если связывание не удалось
+      }
+    }
+
     let messages = [];
     let total = 0;
 
@@ -288,214 +330,19 @@ router.get('/history', async (req, res) => {
       messages = result.rows;
       console.log(`Found ${messages.length} messages for authenticated user`);
     }
-    // Если есть guestId, получаем гостевые сообщения
-    else if (req.session.guestId) {
-      const countResult = await db.query(
-        `SELECT COUNT(*) as total FROM guest_messages
-         WHERE guest_id = $1`,
-        [req.session.guestId]
-      );
-      total = parseInt(countResult.rows[0].total) || 0;
-
-      const result = await db.query(
-        `SELECT 
-           id, 
-           content, 
-           'user' as sender_type, 
-           'user' as role, 
-           created_at,
-           guest_id as user_id,
-           NULL as conversation_id
-         FROM guest_messages
-         WHERE guest_id = $1
-         ORDER BY created_at ASC
-         LIMIT $2 OFFSET $3`,
-        [req.session.guestId, limit, offset]
-      );
-      
-      messages = result.rows;
-      console.log(`Found ${messages.length} guest messages`);
-    }
-
+    
     return res.json({
       success: true,
       messages: messages,
       total: total
     });
-
+    
   } catch (error) {
     logger.error('Error getting chat history:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Маршрут для получения всех диалогов (только для админов)
-router.get('/admin/history', requireAdmin, async (req, res) => {
-  try {
-    const { limit = 50, offset = 0, userId } = req.query;
-    
-    let query = `
-      SELECT ch.id, ch.user_id, u.username, ch.channel, 
-             ch.sender_type, ch.content, ch.metadata, ch.created_at
-      FROM chat_history ch
-      LEFT JOIN users u ON ch.user_id = u.id
-    `;
-    
-    const params = [];
-    let paramIndex = 1;
-    
-    if (userId) {
-      query += ` WHERE ch.user_id = $${paramIndex}`;
-      params.push(userId);
-      paramIndex++;
-    }
-    
-    query += ` ORDER BY ch.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
-    
-    const result = await db.query(query, params);
-    
-    res.json(result.rows);
-  } catch (error) {
-    logger.error('Error fetching admin chat history:', error);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-  }
-});
-
-// Обработчик для связывания гостевых сообщений с пользователем
-router.post('/link-guest-messages', requireAuth, async (req, res) => {
-  try {
-    const { userId } = req.session;
-    const guestId = req.session.guestId;
-
-    console.log('Linking messages:', { userId, guestId });
-
-    if (!guestId) {
-      console.log('No guestId in session');
-      return res.json({ success: true, message: 'No guest messages to link' });
-    }
-
-    // Проверяем наличие гостевых сообщений
-    const guestMessagesCheck = await db.query(
-      'SELECT EXISTS(SELECT 1 FROM guest_messages WHERE guest_id = $1)',
-      [guestId]
-    );
-
-    console.log('Guest messages check:', guestMessagesCheck.rows[0]);
-
-    if (!guestMessagesCheck.rows[0].exists) {
-      console.log('No guest messages found for guestId:', guestId);
-      return res.json({ success: true, message: 'No guest messages to link' });
-    }
-
-    try {
-      // Обрабатываем гостевые сообщения для получения ответов от AI
-      console.log('Processing guest messages to get AI responses');
-      const result = await processGuestMessages(userId, guestId);
-      console.log('Guest messages processed:', result);
-      
-      // Очищаем guestId из сессии после связывания
-      req.session.guestId = null;
-      await req.session.save();
-      
-      console.log('Messages linked and processed successfully');
-      return res.json({ 
-        success: true,
-        message: 'Guest messages linked and processed',
-        result
-      });
-    } catch (processError) {
-      console.error('Error processing guest messages:', processError);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Error processing guest messages',
-        details: processError.message
-      });
-    }
-  } catch (error) {
-    console.error('Error linking guest messages:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error',
-      details: error.message
-    });
-  }
-});
-
-// Обновляем маршрут верификации Telegram
-router.post('/auth/telegram/verify', async (req, res) => {
-  // ... существующий код ...
-
-  if (result.success) {
-    // Если есть гостевые сообщения, обрабатываем их
-    if (req.session.guestId) {
-      await processGuestMessages(userId, req.session.guestId);
-    }
-
-    res.json({
-      success: true,
-      userId: userId,
-      telegramId: result.telegramId,
-      isAdmin: req.session.isAdmin || false,
-      authenticated: true
-    });
-  }
-});
-
-// Маршрут для удаления сообщений
-router.delete('/message/:id', requireAuth, async (req, res) => {
-  try {
-    const messageId = req.params.id;
-    const userId = req.session.userId;
-
-    // Проверяем права на удаление
-    const messageCheck = await db.query(
-      `SELECT m.id 
-       FROM messages m
-       JOIN conversations c ON m.conversation_id = c.id
-       WHERE m.id = $1 AND c.user_id = $2`,
-      [messageId, userId]
-    );
-
-    if (messageCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    // Удаляем сообщение
-    await db.query(
-      'DELETE FROM messages WHERE id = $1',
-      [messageId]
-    );
-
-    res.json({ success: true });
-  } catch (error) {
-    logger.error('Error deleting message:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Маршрут для проверки и инициализации сессии
-router.get('/check-session', async (req, res) => {
-  try {
-    // Если у пользователя нет guestId, создаем его
-    if (!req.session.guestId) {
-      req.session.guestId = crypto.randomBytes(16).toString('hex');
-      await req.session.save();
-      console.log('Created new guestId:', req.session.guestId);
-    }
-    
-    res.json({
-      success: true,
-      guestId: req.session.guestId,
-      isAuthenticated: req.session.authenticated || false
-    });
-  } catch (error) {
-    console.error('Error checking session:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
-});
-
+// Экспортируем маршрутизатор и функцию processGuestMessages отдельно
 module.exports = router;
+module.exports.processGuestMessages = processGuestMessages;

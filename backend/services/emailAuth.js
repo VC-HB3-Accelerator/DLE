@@ -73,15 +73,36 @@ class EmailAuth {
       const userId = result.userId || session.tempUserId;
       const email = session.pendingEmail;
 
-      // Добавляем email в базу данных
-      await db.query(
-        `INSERT INTO user_identities 
-         (user_id, provider, provider_id) 
-         VALUES ($1, $2, $3) 
-         ON CONFLICT (provider, provider_id) 
-         DO UPDATE SET user_id = $1`,
-        [userId, 'email', email.toLowerCase()]
+      // Проверяем, существует ли уже этот email в user_identities
+      const existingUserQuery = await db.query(
+        `SELECT user_id FROM user_identities 
+         WHERE provider = 'email' AND provider_id = $1`,
+        [email.toLowerCase()]
       );
+
+      let finalUserId = userId;
+      
+      // Если email уже связан с другим пользователем
+      if (existingUserQuery.rows.length > 0) {
+        finalUserId = existingUserQuery.rows[0].user_id;
+        logger.info(`Using existing user ID ${finalUserId} for email ${email}`);
+        
+        // Обновляем идентификатор пользователя в сессии
+        if (userId !== finalUserId) {
+          logger.info(`Changing user ID from ${userId} to ${finalUserId} based on existing email identity`);
+        }
+      } else {
+        // Добавляем email в базу данных для нового пользователя
+        await db.query(
+          `INSERT INTO user_identities 
+           (user_id, provider, provider_id) 
+           VALUES ($1, $2, $3) 
+           ON CONFLICT (provider, provider_id) 
+           DO UPDATE SET user_id = $1`,
+          [finalUserId, 'email', email.toLowerCase()]
+        );
+        logger.info(`Added new email identity ${email} for user ${finalUserId}`);
+      }
 
       // Очищаем временные данные
       delete session.pendingEmail;
@@ -91,7 +112,7 @@ class EmailAuth {
 
       return {
         verified: true,
-        userId,
+        userId: finalUserId,
         email: email.toLowerCase()
       };
     } catch (error) {
