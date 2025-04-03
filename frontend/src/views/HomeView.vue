@@ -49,18 +49,33 @@
       <div class="chat-container">
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="message in messages" :key="message.id" 
-               :class="['message', message.sender_type === 'assistant' || message.role === 'assistant' ? 'ai-message' : 'user-message']">
+               :class="['message', 
+                       message.sender_type === 'assistant' || message.role === 'assistant' ? 'ai-message' : 
+                       message.sender_type === 'system' || message.role === 'system' ? 'system-message' : 'user-message',
+                       message.isLocal ? 'is-local' : '',
+                       message.hasError ? 'has-error' : '']">
             <div class="message-content" v-html="formatMessage(message.content)"></div>
-            <div class="message-time">{{ formatTime(message.timestamp || message.created_at) }}</div>
+            <div class="message-meta">
+              <div class="message-time">{{ formatTime(message.timestamp || message.created_at) }}</div>
+              <div v-if="message.isLocal" class="message-status">
+                <span class="sending-indicator">Отправка...</span>
+              </div>
+              <div v-if="message.hasError" class="message-status">
+                <span class="error-indicator">Ошибка отправки</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-      
+        
         <div class="chat-input">
           <textarea 
             v-model="newMessage" 
             placeholder="Введите сообщение..." 
             @keydown.enter.prevent="handleMessage(newMessage)"
             :disabled="isLoading"
+            ref="messageInput"
+            rows="3"
+            autofocus
           ></textarea>
           <button @click="handleMessage(newMessage)" :disabled="isLoading || !newMessage.trim()">
             {{ isLoading ? 'Отправка...' : 'Отправить' }}
@@ -98,6 +113,12 @@
           <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
           <button @click="cancelTelegramAuth" class="cancel-btn">Отмена</button>
             </div>
+        
+        <!-- Сообщение об ошибке в Telegram -->
+        <div v-if="telegramError" class="error-message">
+          {{ telegramError }}
+          <button class="close-error" @click="telegramError = ''">×</button>
+        </div>
         
         <div v-if="!showEmailForm && !showEmailVerificationInput" class="auth-btn-container">
           <button @click="handleEmailAuth" class="auth-btn email-btn">
@@ -213,6 +234,18 @@
           </div>
         </template>
       </div>
+      
+      <!-- Блок отладочной информации (только для гостей) -->
+      <div v-if="!isAuthenticated" class="debug-info">
+        <h4>Гостевой идентификатор:</h4>
+        <div class="debug-item">
+          <code>{{ guestIdValue || 'Не задан' }}</code>
+        </div>
+        <div class="debug-buttons">
+          <button @click="refreshGuestId" class="small-button">Обновить ID</button>
+          <button @click="clearGuestMessages" class="small-button">Очистить сообщения</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -230,11 +263,57 @@ import { fetchTokenBalances, TOKEN_CONTRACTS } from '../services/tokens';
 
 console.log('HomeView.vue: Version with chat loaded');
 
+// Вспомогательные функции для работы с localStorage
+const isLocalStorageAvailable = () => {
+  try {
+    const test = 'test';
+    window.localStorage.setItem(test, test);
+    window.localStorage.removeItem(test);
+    return true;
+  } catch (e) {
+    console.error('localStorage is not available:', e);
+    return false;
+  }
+};
+
+const getFromStorage = (key, defaultValue = null) => {
+  if (!isLocalStorageAvailable()) return defaultValue;
+  try {
+    return window.localStorage.getItem(key) || defaultValue;
+  } catch (e) {
+    console.error(`Error getting ${key} from localStorage:`, e);
+    return defaultValue;
+  }
+};
+
+const setToStorage = (key, value) => {
+  if (!isLocalStorageAvailable()) return false;
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.error(`Error setting ${key} in localStorage:`, e);
+    return false;
+  }
+};
+
+const removeFromStorage = (key) => {
+  if (!isLocalStorageAvailable()) return false;
+  try {
+    window.localStorage.removeItem(key);
+    return true;
+  } catch (e) {
+    console.error(`Error removing ${key} from localStorage:`, e);
+    return false;
+  }
+};
+
+// Константы
 const auth = useAuth();
 const isAuthenticated = computed(() => auth.isAuthenticated.value);
 const isConnecting = ref(false);
 const messages = ref([]);
-const hasUserSentMessage = ref(localStorage.getItem('hasUserSentMessage') === 'true');
+const hasUserSentMessage = ref(getFromStorage('hasUserSentMessage') === 'true');
 const newMessage = ref('');
 const isLoading = ref(false);
 const messagesContainer = ref(null);
@@ -251,6 +330,7 @@ const showTelegramVerification = ref(false);
 const telegramVerificationCode = ref('');
 const telegramBotLink = ref('');
 const telegramAuthCheckInterval = ref(null);
+const telegramError = ref('');
 const showEmailVerification = ref(false);
 const emailVerificationCode = ref('');
 const emailError = ref('');
@@ -289,29 +369,33 @@ const showWalletSidebar = ref(false);
 
 // Вычисленное свойство для фильтрации идентификаторов
 const filteredIdentities = computed(() => {
-  if (!auth.identities?.value) return [];
+  if (!auth.identities || !auth.identities.value) return [];
   
-  // Фильтруем и оставляем только постоянные идентификаторы
-  return auth.identities.value.filter(identity => 
-    identity.provider !== 'guest' && // Исключаем guest идентификаторы
-    // Также исключаем дубликаты, если идентификатор уже показан выше
-    !(identity.provider === 'wallet' && auth.address?.value) &&
-    !(identity.provider === 'telegram' && auth.telegramId?.value) &&
-    !(identity.provider === 'email' && auth.email?.value)
-  );
+  // Фильтруем идентификаторы, чтобы не показывать те, которые уже отображены в основных полях
+  return auth.identities.value.filter(identity => {
+    if (identity.provider === 'wallet' && auth.address?.value === identity.provider_id) {
+      return false;
+    }
+    if (identity.provider === 'telegram' && auth.telegramId?.value === identity.provider_id) {
+      return false;
+    }
+    if (identity.provider === 'email' && auth.email?.value === identity.provider_id) {
+      return false;
+    }
+    return true;
+  });
 });
 
-// Функция для форматирования названий провайдеров 
-const formatIdentityProvider = (provider) => {
+// Функция для форматирования названий провайдеров
+function formatIdentityProvider(provider) {
   const providers = {
     'wallet': 'Кошелек',
-    'telegram': 'Telegram',
     'email': 'Email',
+    'telegram': 'Telegram',
     'guest': 'Гость'
   };
-  
   return providers[provider] || provider;
-};
+}
 
 // Функция для управления сайдбаром
 const toggleSidebar = () => {
@@ -328,7 +412,7 @@ const navigateTo = (page) => {
 const toggleWalletSidebar = () => {
   showWalletSidebar.value = !showWalletSidebar.value;
   // Сохраняем в localStorage предпочтение пользователя
-  localStorage.setItem('showWalletSidebar', showWalletSidebar.value);
+  setToStorage('showWalletSidebar', showWalletSidebar.value.toString());
 };
 
 // Функция для копирования кода
@@ -420,7 +504,122 @@ const sendEmailVerification = async () => {
   }
 };
 
-// Функция для проверки введенного кода
+// Функция для обработки загрузки сообщений после аутентификации
+const handlePostAuthMessageLoading = async (authType) => {
+  try {
+    console.log(`Обработка загрузки сообщений после аутентификации через ${authType}`);
+    
+    // Сохраняем текущее количество сообщений для отслеживания
+    let currentMessageCount = 0;
+    try {
+      const countResponse = await axios.get('/api/chat/history?count_only=true');
+      if (countResponse.data.success) {
+        currentMessageCount = countResponse.data.count || 0;
+        console.log(`Текущее количество сообщений перед обработкой: ${currentMessageCount}`);
+      }
+    } catch (error) {
+      console.warn('Ошибка при получении текущего количества сообщений:', error);
+    }
+    
+    // Загружаем историю сообщений после успешной авторизации
+    await loadChatHistory();
+    
+    // Получаем новое количество сообщений для отслеживания новых ответов
+    const newCountResponse = await axios.get('/api/chat/history?count_only=true');
+    if (newCountResponse.data.success) {
+      const newCount = newCountResponse.data.count || 0;
+      
+      // Настраиваем отслеживание только если есть разница в количестве сообщений
+      if (newCount !== currentMessageCount) {
+        console.log(`Количество сообщений изменилось: ${currentMessageCount} -> ${newCount}`);
+        setupMessagePolling(newCount);
+      } else {
+        console.log('Количество сообщений не изменилось, отслеживание не требуется');
+      }
+    }
+  } catch (error) {
+    console.error(`Ошибка при обработке сообщений после аутентификации через ${authType}:`, error);
+  }
+};
+
+// Обработчик для Telegram аутентификации
+const handleTelegramAuth = async () => {
+  try {
+    showTelegramVerification.value = true;
+    telegramError.value = '';
+    
+    // Инициализируем процесс аутентификации через Telegram
+    const response = await axios.post('/api/auth/telegram/init');
+    
+    if (response.data.success) {
+      // Используем правильное имя свойства из ответа API
+      telegramVerificationCode.value = response.data.verificationCode;
+      telegramBotLink.value = response.data.botLink;
+      
+      // Создаем интервал для проверки состояния авторизации
+      telegramAuthCheckInterval.value = setInterval(async () => {
+        try {
+          const checkResponse = await auth.checkAuth();
+          if (checkResponse.authenticated && checkResponse.authType === 'telegram') {
+            console.log('Telegram аутентификация успешна');
+            clearTelegramInterval();
+            showTelegramVerification.value = false;
+            telegramVerificationCode.value = '';
+            
+            // Обрабатываем загрузку сообщений после успешной аутентификации
+            await handlePostAuthMessageLoading('telegram');
+          }
+        } catch (error) {
+          console.error('Ошибка при проверке аутентификации:', error);
+        }
+      }, 2000); // Проверяем каждые 2 секунды
+    } else {
+      telegramError.value = response.data.error || 'Ошибка при инициализации авторизации Telegram';
+      showTelegramVerification.value = false;
+    }
+  } catch (error) {
+    console.error('Ошибка инициализации Telegram аутентификации:', error);
+    telegramError.value = 'Произошла ошибка при инициализации аутентификации через Telegram';
+    showTelegramVerification.value = false;
+  }
+};
+
+// Функция для подключения кошелька - обновленная версия
+const handleWalletAuth = async () => {
+  if (isConnecting.value || isAuthenticated.value) return;
+  
+  isConnecting.value = true;
+  try {
+    const result = await connectWithWallet();
+    console.log('Результат подключения кошелька:', result);
+    
+    if (result.success) {
+      // Обновляем состояние авторизации
+      const authResponse = await auth.checkAuth();
+      
+      if (authResponse.authenticated && authResponse.authType === 'wallet') {
+        console.log('Кошелёк успешно подключен и аутентифицирован');
+        
+        // Обрабатываем загрузку сообщений после успешной аутентификации
+        await handlePostAuthMessageLoading('wallet');
+      }
+      
+      // Добавляем небольшую задержку перед сбросом состояния isConnecting
+      setTimeout(() => {
+        isConnecting.value = false;
+      }, 500);
+      return;
+    } else {
+      console.error('Не удалось подключить кошелёк:', result.error);
+    }
+  } catch (error) {
+    console.error('Ошибка при подключении кошелька:', error);
+  }
+  
+  isConnecting.value = false;
+};
+
+// Функция для проверки кода верификации email - обновленная версия
 const verifyEmailCode = async () => {
   try {
     // Очищаем сообщение об ошибке
@@ -455,12 +654,14 @@ const verifyEmailCode = async () => {
       }, 3000);
       
       // Обновляем состояние аутентификации
-      await auth.checkAuth();
+      const authResponse = await auth.checkAuth();
       
-      // Перезагружаем страницу для обновления UI через 1 секунду
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      if (authResponse.authenticated && authResponse.authType === 'email') {
+        console.log('Email успешно подтвержден и аутентифицирован');
+        
+        // Обрабатываем загрузку сообщений после успешной аутентификации
+        await handlePostAuthMessageLoading('email');
+      }
     } else {
       emailError.value = response.data.message || 'Неверный код верификации';
     }
@@ -477,115 +678,377 @@ const verifyEmailCode = async () => {
   }
 };
 
-// Функция для отмены Email аутентификации
-const cancelEmailAuth = () => {
-  showEmailForm.value = false;
-  showEmailVerificationInput.value = false;
-  showEmailVerification.value = false;
-  emailInput.value = '';
-  emailVerificationCode.value = '';
-  emailError.value = '';
-  emailFormatError.value = false;
+// Улучшенная функция для отслеживания изменений аутентификации
+const watchAuthChanges = () => {
+  // Отслеживаем изменения в состоянии аутентификации
+  watch(() => auth.isAuthenticated.value, async (newValue, oldValue) => {
+    const authChanged = {
+      from: oldValue,
+      to: newValue,
+      userId: auth.userId.value,
+      authType: auth.authType.value
+    };
+    
+    console.log('Состояние аутентификации изменилось:', authChanged);
+    
+    // Обновляем отображение аутентификации
+    updateAuthDisplay({
+      isAuthenticated: auth.isAuthenticated.value,
+      authType: auth.authType.value,
+      address: auth.address.value,
+      email: auth.email.value,
+      telegramId: auth.telegramId.value,
+      telegramUsername: auth.telegramUsername
+    });
+    
+    if (newValue && !oldValue) {
+      // Пользователь только что аутентифицировался
+      console.log(`Пользователь аутентифицирован через ${auth.authType.value}, загружаем историю и проверяем новые сообщения`);
+      
+      // Обрабатываем загрузку сообщений после аутентификации
+      await handlePostAuthMessageLoading(auth.authType.value);
+    } else if (!newValue && oldValue) {
+      // Пользователь вышел из системы
+      console.log('Пользователь вышел, сбрасываем сообщения');
+      messages.value = messages.value.filter(msg => msg.isGuest);
+      offset.value = 0;
+      hasMoreMessages.value = true;
+    }
+  }, { immediate: true });
 };
 
-// Функция для отправки сообщения
-const handleMessage = async (text) => {
+// Функция для форматирования времени
+const formatTime = (timestamp) => {
+  if (!timestamp) return '';
+  
   try {
-    const messageContent = text.trim();
-    if (!messageContent) return;
+    const date = new Date(timestamp);
     
-    // Показываем правую панель только если пользователь не аутентифицирован
-    if (!isAuthenticated.value) {
-      showWalletSidebar.value = true;
+    // Проверяем, является ли дата валидной
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid timestamp:', timestamp);
+      return '';
     }
     
-    newMessage.value = '';
-    isLoading.value = true;
+    // Форматируем дату с указанием дня, месяца, года и времени
+    return date.toLocaleString([], { 
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    console.error('Error formatting time:', error, timestamp);
+    return '';
+  }
+};
+
+// Форматирование сообщения с поддержкой markdown
+const formatMessage = (text) => {
+  if (!text) return '';
+  const rawHtml = marked.parse(text);
+  return DOMPurify.sanitize(rawHtml);
+};
+
+// Функция для сокращения адреса кошелька (первые 6 и последние 4 символа)
+function truncateAddress(address) {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+}
+
+// Вычисляемое свойство для гостевого ID
+const guestIdValue = computed(() => {
+  return getFromStorage('guestId', '');
+});
+
+// Функции для отладки гостевых идентификаторов
+const refreshGuestId = () => {
+  const newGuestId = generateUniqueId();
+  setToStorage('guestId', newGuestId);
+  console.log('Guest ID refreshed:', newGuestId);
+};
+
+const clearGuestMessages = () => {
+  removeFromStorage('guestMessages');
+  console.log('Guest messages cleared');
+  messages.value = messages.value.filter(m => !m.isGuest);
+};
+
+// Метод для загрузки истории чата
+const loadChatHistory = async () => {
+  // Сбрасываем текущие сообщения и загружаем новую историю
+  isLoading.value = true;
+  
+  try {
+    // Сначала получаем общее количество сообщений
+    const countResponse = await axios.get('/api/chat/history?count_only=true');
     
-    if (!isAuthenticated.value) {
-      // Сохраняем в таблицу guest_messages
-      console.log('Sending guest message:', messageContent);
-      const response = await api.post('/api/chat/guest-message', {
-        message: messageContent,
-        language: userLanguage.value
-      });
+    if (countResponse.data.success) {
+      const messageCount = countResponse.data.count;
+      console.log(`История содержит ${messageCount} сообщений`);
       
-      if (response.data.success) {
-        console.log('Guest message sent:', response.data);
-        const userMessage = {
-          id: response.data.messageId,
-          content: messageContent,
-          sender_type: 'user',
-          role: 'user',
-          timestamp: new Date().toISOString()
-        };
-        messages.value.push(userMessage);
-
-        // Показываем сообщение с просьбой авторизоваться
-        messages.value.push({
-          id: Date.now() + 1,
-          content: 'Для получения ответа от ассистента, пожалуйста, авторизуйтесь одним из способов в правой панели.',
-          sender_type: 'assistant',
-          role: 'assistant',
-          timestamp: new Date().toISOString()
-        });
-
-        // Прокручиваем к последнему сообщению
-        await nextTick();
-        scrollToBottom();
-      } else {
-        throw new Error(response.data.error || 'Ошибка при отправке сообщения');
-      }
-    } else {
-      // Отправляем сообщение аутентифицированного пользователя
-      console.log('Sending authenticated message:', messageContent);
-      const response = await api.post('/api/chat/message', {
-        message: messageContent,
-        language: userLanguage.value
-      });
+      // Рассчитываем смещение для получения последних сообщений
+      const effectiveOffset = Math.max(0, messageCount - limit.value);
       
-      if (response.data.success) {
-        console.log('Authenticated message sent:', response.data);
-        // Добавляем сообщение пользователя
-        messages.value.push({
-          id: response.data.userMessage.id,
-          content: response.data.userMessage.content,
-          sender_type: 'user',
-          role: 'user',
-          timestamp: response.data.userMessage.created_at
-        });
+      // Загружаем историю сообщений
+      const response = await axios.get(`/api/chat/history?offset=${effectiveOffset}&limit=${limit.value}`);
+      
+      if (response && response.data.success) {
+        // Очищаем локальные гостевые сообщения при успешной загрузке истории аутентифицированного пользователя
+        if (auth.isAuthenticated.value) {
+          removeFromStorage('guestMessages');
+        }
         
-        // Добавляем ответ ассистента
-        messages.value.push({
-          id: response.data.aiMessage.id,
-          content: response.data.aiMessage.content,
-          sender_type: 'assistant',
-          role: 'assistant',
-          timestamp: response.data.aiMessage.created_at
-        });
+        messages.value = response.data.messages;
+        console.log(`Загружено ${messages.value.length} сообщений из истории`);
+        
+        // Отправляем событие об обновлении сообщений
+        window.dispatchEvent(new CustomEvent('messages-updated', { 
+          detail: { count: messages.value.length } 
+        }));
         
         // Прокручиваем к последнему сообщению
         await nextTick();
         scrollToBottom();
-      } else {
-        throw new Error(response.data.error || 'Ошибка при отправке сообщения');
       }
     }
   } catch (error) {
-    console.error('Error sending message:', error);
-    messages.value.push({
-      id: Date.now() + 1,
-      content: 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте позже.',
-      sender_type: 'assistant',
-      role: 'assistant',
-      timestamp: new Date().toISOString()
-    });
-    
-    // Прокручиваем к последнему сообщению
-    await nextTick();
-    scrollToBottom();
+    console.error('Ошибка загрузки истории чата:', error);
   } finally {
     isLoading.value = false;
+  }
+};
+
+// Метод для очистки интервала проверки авторизации
+const clearTelegramInterval = () => {
+  if (telegramAuthCheckInterval.value) {
+    clearInterval(telegramAuthCheckInterval.value);
+    telegramAuthCheckInterval.value = null;
+    console.log('Интервал проверки Telegram авторизации очищен');
+  }
+};
+
+// Метод для обновления отображения аутентификации
+const updateAuthDisplay = (state) => {
+  console.log('Updating auth display:', state);
+  
+  // Обновляем отображение в зависимости от типа аутентификации
+  if (state.isAuthenticated) {
+    const authTypeLabels = {
+      'wallet': 'Кошелек',
+      'email': 'Email',
+      'telegram': 'Telegram'
+    };
+    
+    let authLabel = authTypeLabels[state.authType] || 'Аккаунт';
+    let authValue = '';
+    
+    if (state.authType === 'wallet' && state.address) {
+      authValue = truncateAddress(state.address);
+      // Добавляем класс для отображения подключенного состояния
+      document.body.classList.add('wallet-connected');
+    } else if (state.authType === 'email' && state.email) {
+      authValue = state.email;
+    } else if (state.authType === 'telegram' && state.telegramUsername) {
+      authValue = state.telegramUsername;
+    } else if (state.authType === 'telegram' && state.telegramId) {
+      authValue = `ID: ${state.telegramId}`;
+    }
+    
+    // Обновляем текст в интерфейсе
+    const authDisplayEl = document.getElementById('auth-display');
+    if (authDisplayEl) {
+      authDisplayEl.innerHTML = `${authLabel}: <strong>${authValue}</strong>`;
+      authDisplayEl.style.display = 'inline-block';
+    }
+    
+    // Скрываем кнопки авторизации
+    const authButtonsEl = document.getElementById('auth-buttons');
+    if (authButtonsEl) {
+      authButtonsEl.style.display = 'none';
+    }
+    
+    // Показываем кнопку выхода
+    const logoutButtonEl = document.getElementById('logout-button');
+    if (logoutButtonEl) {
+      logoutButtonEl.style.display = 'inline-block';
+    }
+  } else {
+    // Сбрасываем классы при отсутствии аутентификации
+    document.body.classList.remove('wallet-connected');
+    
+    // Скрываем отображение аутентификации
+    const authDisplayEl = document.getElementById('auth-display');
+    if (authDisplayEl) {
+      authDisplayEl.style.display = 'none';
+    }
+    
+    // Показываем кнопки авторизации
+    const authButtonsEl = document.getElementById('auth-buttons');
+    if (authButtonsEl) {
+      authButtonsEl.style.display = 'inline-block';
+    }
+    
+    // Скрываем кнопку выхода
+    const logoutButtonEl = document.getElementById('logout-button');
+    if (logoutButtonEl) {
+      logoutButtonEl.style.display = 'none';
+    }
+  }
+}
+
+// Генерация уникального ID с помощью времени и случайного числа
+function generateUniqueId() {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Функция для отправки сообщения
+const handleMessage = async (text) => {
+  if (!text.trim()) return;
+  
+  try {
+    // Добавляем сообщение в список
+    const userMessageContent = text.trim();
+    const tempId = generateUniqueId();
+    
+    const userMessage = {
+      id: tempId,
+      content: userMessageContent,
+      sender_type: 'user',
+      role: 'user',
+      isLocal: true,
+      isGuest: !auth.isAuthenticated.value,
+      timestamp: new Date().toISOString()
+    };
+    
+    messages.value.push(userMessage);
+    
+    // Очищаем поле ввода
+    newMessage.value = '';
+    
+    // Прокручиваем к последнему сообщению
+    scrollToBottom();
+    
+    // Устанавливаем состояние загрузки
+    isLoading.value = true;
+    
+    try {
+      if (auth.isAuthenticated.value) {
+        // Отправляем сообщение как авторизованный пользователь
+        const response = await axios.post('/api/chat/message', {
+          message: userMessageContent,
+          language: userLanguage.value
+        });
+        
+        if (response.data.success) {
+          // Обновляем ID сообщения пользователя
+          const userMsgIndex = messages.value.findIndex(m => m.id === tempId);
+          if (userMsgIndex !== -1) {
+            messages.value[userMsgIndex].id = response.data.userMessage.id;
+            messages.value[userMsgIndex].isLocal = false;
+          }
+          
+          // Добавляем ответ ИИ
+          messages.value.push({
+            id: response.data.aiMessage.id,
+            content: response.data.aiMessage.content,
+            sender_type: 'assistant',
+            role: 'assistant',
+            timestamp: response.data.aiMessage.created_at
+          });
+          
+          // Прокручиваем к последнему сообщению
+          scrollToBottom();
+        }
+      } else {
+        // Отправляем сообщение как гость
+        console.log('Sending guest message:', userMessageContent);
+        
+        // Получаем или создаем идентификатор гостя
+        let guestId = getFromStorage('guestId');
+        if (!guestId) {
+          guestId = generateUniqueId();
+          setToStorage('guestId', guestId);
+        }
+        
+        const response = await axios.post('/api/chat/guest-message', {
+          content: userMessageContent,
+          guestId,
+          language: userLanguage.value
+        });
+        
+        if (response.data.success) {
+          console.log('Guest message sent:', response.data);
+          
+          // Обновляем ID сообщения пользователя
+          const userMsgIndex = messages.value.findIndex(m => m.id === tempId);
+          if (userMsgIndex !== -1) {
+            messages.value[userMsgIndex].id = response.data.messageId;
+            messages.value[userMsgIndex].isLocal = false;
+          }
+          
+          // Сохраняем сообщение в localStorage
+          try {
+            const storedMessages = JSON.parse(getFromStorage('guestMessages', '[]'));
+            storedMessages.push({
+              id: response.data.messageId,
+              content: userMessageContent,
+              sender_type: 'user',
+              role: 'user',
+              isGuest: true,
+              timestamp: new Date().toISOString()
+            });
+            setToStorage('guestMessages', JSON.stringify(storedMessages));
+            setToStorage('hasUserSentMessage', 'true');
+            hasUserSentMessage.value = true;
+          } catch (storageError) {
+            console.error('Error saving message to localStorage:', storageError);
+          }
+          
+          // Показываем правую панель, если она скрыта
+          if (!showWalletSidebar.value) {
+            showWalletSidebar.value = true;
+            try {
+              setToStorage('showWalletSidebar', 'true');
+            } catch (storageError) {
+              console.error('Error saving sidebar state to localStorage:', storageError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Помечаем сообщение как ошибочное
+      const userMsgIndex = messages.value.findIndex(m => m.id === tempId);
+      if (userMsgIndex !== -1) {
+        messages.value[userMsgIndex].hasError = true;
+      }
+      
+      // Добавляем сообщение об ошибке в чат
+      messages.value.push({
+        id: `error-${Date.now()}`,
+        content: 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте еще раз.',
+        sender_type: 'system',
+        role: 'system',
+        timestamp: new Date().toISOString()
+      });
+      scrollToBottom();
+    } finally {
+      isLoading.value = false;
+    }
+  } catch (error) {
+    console.error('Unexpected error in handleMessage:', error);
+    isLoading.value = false;
+  }
+};
+
+// Функция для прокрутки к последнему сообщению
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    setTimeout(() => {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    }, 100);
   }
 };
 
@@ -613,66 +1076,150 @@ const updateBalances = async () => {
   }
 };
 
-// Функция отмены Telegram аутентификации
+// Функция для отмены аутентификации через Telegram
 const cancelTelegramAuth = () => {
+  // Очищаем интервал проверки
+  clearTelegramInterval();
+  
+  // Сбрасываем состояния интерфейса
   showTelegramVerification.value = false;
-  if (telegramAuthCheckInterval.value) {
-    clearInterval(telegramAuthCheckInterval.value);
-    telegramAuthCheckInterval.value = null;
-  }
+  telegramVerificationCode.value = '';
+  telegramError.value = '';
+  
+  console.log('Аутентификация Telegram отменена пользователем');
 };
 
 // Вычисленное свойство для определения, нужно ли загружать историю
 const shouldLoadHistory = computed(() => {
   // Загружаем историю только если пользователь авторизован или есть гостевой ID
   return isAuthenticated.value || 
-    (localStorage.getItem('guestId') && localStorage.getItem('guestId').length > 0);
+    (getFromStorage('guestId') && getFromStorage('guestId').length > 0);
 });
 
-// Следим за изменением авторизации
-watch(() => auth.isAuthenticated.value, async (newValue, oldValue) => {
-  console.log('Auth state changed:', { 
-    from: oldValue, 
-    to: newValue, 
-    userId: auth.userId.value 
-  });
+// Метод для периодической проверки новых сообщений
+const setupMessagePolling = (initialCount) => {
+  console.log(`Настраиваю отслеживание сообщений с начальным количеством: ${initialCount}`);
+  let messageCheckInterval;
   
-  if (newValue === true) {
-    // Если пользователь только что авторизовался
-    console.log('User authenticated, loading message history');
-    
-    // Сначала связываем сообщения, затем загружаем историю
-    try {
-      // Сбрасываем текущие сообщения
-      messages.value = [];
-      offset.value = 0;
-      
-      // Сначала связываем гостевые сообщения
-      await auth.linkMessages();
-      
-      // Затем загружаем историю сообщений после небольшой задержки,
-      // чтобы сервер успел обработать связанные сообщения
-      setTimeout(async () => {
-        await loadMoreMessages(true);
-      }, 1000);
-    } catch (error) {
-      console.error('Error loading history after auth:', error);
+  const clearMessagePolling = () => {
+    if (messageCheckInterval) {
+      clearInterval(messageCheckInterval);
+      messageCheckInterval = null;
+      console.log('Отслеживание сообщений остановлено');
     }
+  };
+  
+  // Очищаем предыдущий интервал, если он существует
+  clearMessagePolling();
+  
+  // Создаем новый интервал для проверки сообщений
+  messageCheckInterval = setInterval(async () => {
+    try {
+      // Проверяем, есть ли новые сообщения
+      const newCountResponse = await axios.get('/api/chat/history?count_only=true');
+      
+      if (newCountResponse.data.success) {
+        const newCount = newCountResponse.data.count;
+        console.log(`Проверка новых сообщений: ${newCount} / ${initialCount}`);
+        
+        if (newCount > initialCount) {
+          console.log(`Обнаружены новые сообщения: ${newCount} > ${initialCount}`);
+          
+          // Рассчитываем смещение для получения последних сообщений
+          const effectiveOffset = Math.max(0, newCount - limit.value);
+          
+          // Загружаем обновленную историю
+          const newResponse = await axios.get(`/api/chat/history?offset=${effectiveOffset}&limit=${limit.value}`);
+          
+          if (newResponse && newResponse.data.success) {
+            messages.value = newResponse.data.messages;
+            console.log('Сообщения обновлены с новыми ответами');
+            
+            // Прокручиваем к последнему сообщению
+            await nextTick();
+            scrollToBottom();
+            
+            // Останавливаем интервал после получения ответа
+            clearMessagePolling();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка при проверке новых сообщений:', error);
+      clearMessagePolling();
+    }
+  }, 2000); // Проверяем каждые 2 секунды
+  
+  // Останавливаем интервал после 30 секунд в любом случае
+  setTimeout(() => {
+    clearMessagePolling();
+  }, 30000);
+  
+  return clearMessagePolling;
+};
+
+// Отслеживаем изменения в сообщениях
+watch(() => messages.value.length, (newLength, oldLength) => {
+  if (newLength > 0) {
+    // Сортируем сообщения по дате/времени
+    messages.value.sort((a, b) => {
+      const dateA = new Date(a.timestamp || a.created_at);
+      const dateB = new Date(b.timestamp || b.created_at);
+      return dateA - dateB;
+    });
+    
+    // Прокручиваем к последнему сообщению
+    nextTick(() => {
+      scrollToBottom();
+    });
   }
 });
 
-// Функция для сокращения адреса кошелька
-const truncateAddress = (address) => {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
-
-// Функция прокрутки к последнему сообщению
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    setTimeout(() => {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-    }, 100);
+// Функция для отключения кошелька/выхода
+const disconnectWallet = async () => {
+  try {
+    console.log('Выполняется выход из системы...');
+    
+    // Сохраняем гостевой ID для продолжения работы после выхода
+    const guestId = getFromStorage('guestId') || generateUniqueId();
+    setToStorage('guestId', guestId);
+    
+    // Отправляем запрос на выход
+    await axios.post('/api/auth/logout');
+    
+    // Обновляем состояние аутентификации локально
+    auth.isAuthenticated.value = false;
+    auth.address.value = null;
+    auth.authType.value = null;
+    auth.telegramId.value = null;
+    auth.email.value = null;
+    
+    // Обновляем отображение UI
+    document.body.classList.remove('wallet-connected');
+    
+    // Очищаем историю сообщений, кроме гостевых
+    messages.value = [];
+    offset.value = 0;
+    hasMoreMessages.value = true;
+    
+    // Загружаем только гостевые сообщения после выхода
+    try {
+      // Проверяем наличие сообщений в localStorage
+      const storedMessages = getFromStorage('guestMessages');
+      if (storedMessages) {
+        const parsedMessages = JSON.parse(storedMessages);
+        if (parsedMessages.length > 0) {
+          console.log(`Найдено ${parsedMessages.length} сохраненных гостевых сообщений`);
+          messages.value = [...messages.value, ...parsedMessages];
+        }
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки сообщений из localStorage:', e);
+    }
+    
+    console.log('Выход из системы выполнен успешно');
+  } catch (error) {
+    console.error('Ошибка при выходе из системы:', error);
   }
 };
 
@@ -753,7 +1300,7 @@ const loadMoreMessages = async (silent = false) => {
     // После загрузки первой порции сообщений считаем, что пользователь уже отправлял сообщения
     if (messages.value.length > 0) {
       hasUserSentMessage.value = true;
-      localStorage.setItem('hasUserSentMessage', 'true');
+      window.localStorage.setItem('hasUserSentMessage', 'true');
     }
     
     // Прокручиваем контейнер с сообщениями вниз
@@ -767,266 +1314,102 @@ const loadMoreMessages = async (silent = false) => {
   }
 };
 
-// Функция для подключения кошелька
-const handleWalletAuth = async () => {
-  if (isConnecting.value || isAuthenticated.value) return;
-  
-  isConnecting.value = true;
-  try {
-    const result = await connectWithWallet();
-    console.log('Wallet connection result:', result);
-    
-    if (result.success) {
-      // Обновляем состояние авторизации
-      await auth.checkAuth();
-      
-      // Добавляем небольшую задержку перед сбросом состояния isConnecting
-      setTimeout(() => {
-        isConnecting.value = false;
-      }, 500);
-      return;
-    } else {
-      console.error('Failed to connect wallet:', result.error);
-    }
-  } catch (error) {
-    console.error('Error connecting wallet:', error);
-  }
-  
-  isConnecting.value = false;
+// Функция для отмены Email аутентификации
+const cancelEmailAuth = () => {
+  showEmailForm.value = false;
+  showEmailVerificationInput.value = false;
+  showEmailVerification.value = false;
+  emailInput.value = '';
+  emailVerificationCode.value = '';
+  emailError.value = '';
+  emailFormatError.value = false;
 };
 
-// Функция для отключения кошелька/выхода
-const disconnectWallet = async () => {
-  try {
-    await axios.post('/api/auth/logout');
-    auth.isAuthenticated.value = false;
-    auth.address.value = null;
-    auth.authType.value = null;
-    auth.telegramId = null;
-    auth.email = null;
-    
-    // Загружаем только гостевые сообщения после выхода
-    messages.value = [];
-    offset.value = 0;
-    hasMoreMessages.value = true;
-    await loadMoreMessages();
-    
-    // НЕ перезагружаем страницу, чтобы не потерять историю сообщений
-    // window.location.reload();
-  } catch (error) {
-    console.error('Error disconnecting wallet:', error);
-  }
-};
-
-// Форматирование времени
-const formatTime = (timestamp) => {
-  if (!timestamp) return '';
-  
-  try {
-    const date = new Date(timestamp);
-    
-    // Проверяем, является ли дата валидной
-    if (isNaN(date.getTime())) {
-      console.warn('Invalid timestamp:', timestamp);
-      return '';
-    }
-    
-    // Форматируем дату с указанием дня, месяца, года и времени
-    return date.toLocaleString([], { 
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch (error) {
-    console.error('Error formatting time:', error, timestamp);
-    return '';
-  }
-};
-
-// Форматирование сообщения с поддержкой markdown
-const formatMessage = (text) => {
-  if (!text) return '';
-  const rawHtml = marked.parse(text);
-  return DOMPurify.sanitize(rawHtml);
-};
-
-// Проверяет наличие гостевых сообщений
-const checkGuestMessages = async () => {
-  try {
-    // Проверяем сессию через auth/check вместо chat/check-session
-    const sessionCheck = await axios.get('/api/auth/check');
-    console.log('Session auth check response:', sessionCheck.data);
-    
-    // Проверяем наличие сообщений в localStorage
-    const storedMessages = localStorage.getItem('guestMessages');
-    if (storedMessages) {
-      const parsedMessages = JSON.parse(storedMessages);
-      if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-        // Если есть сообщения и пользователь не аутентифицирован, показываем их
-        if (!auth.isAuthenticated.value) {
-          console.log('Found guest messages in localStorage:', parsedMessages);
-          messages.value = [...messages.value, ...parsedMessages];
-          hasUserSentMessage.value = true;
-          localStorage.setItem('hasUserSentMessage', 'true');
-        } else {
-          // Если пользователь аутентифицирован, удаляем гостевые сообщения из localStorage
-          console.log('User is authenticated, removing guest messages from localStorage');
-          localStorage.removeItem('guestMessages');
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error checking guest messages:', error);
-  }
-};
-
-// Инициализация состояния при загрузке
+// Функции жизненного цикла
 onMounted(async () => {
-  // Загружаем состояние правой панели из localStorage
-  const savedSidebarState = localStorage.getItem('showWalletSidebar');
-  if (savedSidebarState !== null) {
-    showWalletSidebar.value = savedSidebarState === 'true';
-  } else {
-    // По умолчанию правая панель скрыта
-    showWalletSidebar.value = false;
-  }
+  console.log('HomeView.vue: компонент загружен');
   
-  // Добавляем слушатель прокрутки
-  if (messagesContainer.value) {
-    messagesContainer.value.addEventListener('scroll', handleScroll);
-  }
-  
-  console.log('Auth state on mount:', {
+  // Проверяем состояние аутентификации
+  console.log('Состояние аутентификации при загрузке:', {
     isAuthenticated: auth.isAuthenticated.value,
     authType: auth.authType.value,
     telegramId: auth.telegramId.value
   });
-  
-  // Проверяем статус авторизации
-  await auth.checkAuth();
-  
-  // Проверяем наличие гостевых сообщений и инициализируем сессию
-  await checkGuestMessages();
-  
-  // Обновляем баланс при монтировании если авторизован
-  if (auth.isAuthenticated.value) {
-    updateBalances();
-  }
-});
 
-watch(() => auth.isAuthenticated.value, async (newValue) => {
-  if (newValue) {
-    await updateBalances();
+  // Загружаем сохраненное состояние боковой панели
+  const savedSidebarState = getFromStorage('showWalletSidebar');
+  if (savedSidebarState !== null) {
+    showWalletSidebar.value = savedSidebarState === 'true';
   } else {
-    tokenBalances.value = {
-      eth: '0',
-      bsc: '0',
-      arbitrum: '0',
-      polygon: '0'
-    };
+    // По умолчанию показываем панель, если не указано иное
+    showWalletSidebar.value = true;
+    setToStorage('showWalletSidebar', 'true');
   }
+  
+  // Запускаем отслеживание изменений
+  watchAuthChanges();
+  
+  // Установка обработчика скролла
+  if (messagesContainer.value) {
+    messagesContainer.value.addEventListener('scroll', handleScroll);
+  }
+  
+  // Загружаем историю сообщений
+  if (shouldLoadHistory.value) {
+    // Получаем сессию пользователя
+    const { data: sessionData } = await api.get('/api/auth/check');
+    console.log('Проверка сессии:', sessionData);
+    
+    if (!isAuthenticated.value && !sessionData.authenticated) {
+      // Пробуем загрузить локальные сообщения
+      try {
+        // Проверяем наличие сообщений в localStorage
+        const storedMessages = getFromStorage('guestMessages');
+        if (storedMessages) {
+          const parsedMessages = JSON.parse(storedMessages);
+          if (parsedMessages.length > 0) {
+            console.log(`Найдено ${parsedMessages.length} сохраненных гостевых сообщений`);
+            
+            // Если пользователь не аутентифицирован, добавляем гостевые сообщения
+            if (!isAuthenticated.value) {
+              messages.value = [...messages.value, ...parsedMessages];
+              hasUserSentMessage.value = true;
+              setToStorage('hasUserSentMessage', 'true');
+            } else {
+              // Если пользователь аутентифицирован, удаляем гостевые сообщения из localStorage
+              console.log('Пользователь аутентифицирован, удаляем гостевые сообщения из localStorage');
+              removeFromStorage('guestMessages');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Ошибка загрузки сообщений из localStorage:', e);
+      }
+    }
+    
+    if (isAuthenticated.value) {
+      await loadMoreMessages();
+    }
+  }
+  
+  // Добавляем слушатель события для загрузки истории чата
+  window.addEventListener('load-chat-history', loadChatHistory);
+  
+  // Установка статуса отправленных сообщений
+  if (messages.value.length > 0) {
+    hasUserSentMessage.value = true;
+    setToStorage('hasUserSentMessage', 'true');
+  }
+  
+  // Прокручиваем к последнему сообщению
+  scrollToBottom();
 });
 
-// Отслеживаем изменения в идентификаторах
-watch(() => auth.telegramId?.value, (newValue) => {
-  if (newValue) {
-    console.log('Telegram ID изменился:', newValue);
-  }
-});
-
-// Отслеживаем успешную авторизацию через Telegram
-watch(() => auth.authType?.value, (newValue) => {
-  if (newValue === 'telegram') {
-    console.log('Авторизация через Telegram завершена, authType:', newValue);
-    console.log('Текущий telegramId:', auth.telegramId?.value);
-  }
-});
-
+// Очистка слушателей событий при размонтировании компонента
 onBeforeUnmount(() => {
-  // Удаляем слушатель
   if (messagesContainer.value) {
     messagesContainer.value.removeEventListener('scroll', handleScroll);
   }
-  if (telegramAuthCheckInterval.value) {
-    clearInterval(telegramAuthCheckInterval.value);
-  }
-  document.querySelector('.app-container')?.classList.remove('menu-open');
-});
-
-// Обработчик для Telegram аутентификации
-const handleTelegramAuth = async () => {
-  try {
-    const { data } = await axios.post('/api/auth/telegram/init');
-    const { verificationCode, botLink } = data;
-    
-    // Показываем код верификации
-    showTelegramVerification.value = true;
-    telegramVerificationCode.value = verificationCode;
-    telegramBotLink.value = botLink;
-    
-    // Запускаем проверку статуса аутентификации
-    telegramAuthCheckInterval.value = setInterval(async () => {
-      try {
-        const response = await axios.get('/api/auth/check');
-        console.log('Проверка авторизации:', response.data);
-        
-        if (response.data.authenticated && response.data.telegramId) {
-          clearInterval(telegramAuthCheckInterval.value);
-          telegramAuthCheckInterval.value = null;
-          showTelegramVerification.value = false;
-          
-          console.log('Telegram ID получен:', response.data.telegramId);
-          
-          // Обновляем информацию об авторизации через метод updateAuth
-          auth.updateAuth({
-            authenticated: true,
-            authType: response.data.authType,
-            userId: response.data.userId,
-            telegramId: response.data.telegramId,
-            isAdmin: response.data.isAdmin
-          });
-          
-          // Сначала обновляем идентификаторы, затем связываем сообщения и обновляем историю
-          await auth.checkAuth();
-          
-          // Весь процесс загрузки истории будет выполнен через watch на isAuthenticated
-        }
-      } catch (error) {
-        console.error('Error checking auth status:', error);
-      }
-    }, 2000);
-    
-    // Очищаем интервал через 5 минут
-    setTimeout(() => {
-      if (telegramAuthCheckInterval.value) {
-        clearInterval(telegramAuthCheckInterval.value);
-        telegramAuthCheckInterval.value = null;
-        showTelegramVerification.value = false;
-      }
-    }, 5 * 60 * 1000);
-    
-  } catch (error) {
-    console.error('Error initializing Telegram auth:', error);
-    alert('Ошибка при инициализации Telegram аутентификации');
-  }
-};
-
-// Отслеживаем изменения в сообщениях
-watch(() => messages.value.length, (newLength, oldLength) => {
-  if (newLength > 0) {
-    // Сортируем сообщения по дате/времени
-    messages.value.sort((a, b) => {
-      const dateA = new Date(a.timestamp || a.created_at);
-      const dateB = new Date(b.timestamp || b.created_at);
-      return dateA - dateB;
-    });
-    
-    // Прокручиваем к последнему сообщению
-    nextTick(() => {
-      scrollToBottom();
-    });
-  }
+  window.removeEventListener('load-chat-history', loadChatHistory);
 });
 </script>
