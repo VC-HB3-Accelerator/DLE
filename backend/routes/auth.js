@@ -1168,18 +1168,42 @@ router.post('/email/init', async (req, res) => {
         error: 'Некорректный формат email'
       });
     }
+    
+    logger.info(`[email/init] Initializing email authentication for: ${email}`);
+    
+    // Сохраняем гостевой ID до проверки
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[email/init] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
 
-    // Создаем или получаем ID пользователя
+    // Проверяем, существует ли пользователь с таким email
+    const existingUserResult = await db.query(
+      `SELECT u.id FROM users u 
+       JOIN user_identities ui ON u.id = ui.user_id 
+       WHERE ui.provider = $1 AND ui.provider_id = $2`,
+      ['email', email.toLowerCase()]
+    );
+    
     let userId;
-    if (req.session.authenticated && req.session.userId) {
+    if (existingUserResult.rows.length > 0) {
+      // Используем существующего пользователя
+      userId = existingUserResult.rows[0].id;
+      logger.info(`[email/init] Found existing user with ID ${userId} for email ${email}`);
+    } else if (req.session.authenticated && req.session.userId) {
+      // Используем текущего аутентифицированного пользователя
       userId = req.session.userId;
+      logger.info(`[email/init] Using current authenticated user with ID ${userId}`);
     } else {
+      // Создаем нового пользователя
       const userResult = await db.query(
         'INSERT INTO users (role) VALUES ($1) RETURNING id',
         ['user']
       );
+      
       userId = userResult.rows[0].id;
       req.session.tempUserId = userId;
+      logger.info(`[email/init] Created new user with ID ${userId} for email ${email}`);
     }
 
     // Сохраняем email в сессии
