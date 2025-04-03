@@ -349,17 +349,27 @@ const clearEmailError = () => {
 // Обработчик для Email аутентификации
 const handleEmailAuth = async () => {
   try {
+    console.log('Starting email authentication flow');
+    
     // Показываем форму для ввода email
     showEmailForm.value = true;
+    
     // Сбрасываем другие состояния форм
     showEmailVerification.value = false;
     showEmailVerificationInput.value = false;
+    
     // Очищаем поля и ошибки
     emailInput.value = '';
     emailFormatError.value = false;
     emailError.value = '';
+    
+    console.log('Email form displayed, form states:', {
+      showEmailForm: showEmailForm.value,
+      showEmailVerification: showEmailVerification.value,
+      showEmailVerificationInput: showEmailVerificationInput.value
+    });
   } catch (error) {
-    console.error('Error in email auth:', error);
+    console.error('Error initializing email auth:', error);
   }
 };
 
@@ -380,6 +390,8 @@ const sendEmailVerification = async () => {
     // Отправляем запрос на сервер для инициализации email аутентификации
     const response = await axios.post('/api/auth/email/init', { email: emailInput.value });
     
+    console.log('Email init response:', response.data);
+    
     if (response.data.success) {
       // Скрываем форму ввода email
       showEmailForm.value = false;
@@ -391,12 +403,18 @@ const sendEmailVerification = async () => {
       emailVerificationEmail.value = emailInput.value;
       // Очищаем поле для ввода кода
       emailVerificationCode.value = '';
+      
+      console.log('Showing verification code input form for email:', emailVerificationEmail.value);
     } else {
       emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
     }
   } catch (error) {
-    emailError.value = 'Ошибка при запросе кода подтверждения';
-    console.error('Error in email auth:', error);
+    console.error('Error in email init request:', error);
+    if (error.response && error.response.data && error.response.data.error) {
+      emailError.value = error.response.data.error;
+    } else {
+      emailError.value = 'Ошибка при запросе кода подтверждения';
+    }
   } finally {
     isEmailSending.value = false;
   }
@@ -416,7 +434,8 @@ const verifyEmailCode = async () => {
     // Показываем индикатор процесса верификации
     isVerifying.value = true;
     
-    const response = await axios.post('/api/auth/check-email-verification', {
+    const response = await axios.post('/api/auth/email/verify-code', {
+      email: emailVerificationEmail.value,
       code: emailVerificationCode.value
     });
     
@@ -446,8 +465,13 @@ const verifyEmailCode = async () => {
       emailError.value = response.data.message || 'Неверный код верификации';
     }
   } catch (error) {
-    emailError.value = 'Ошибка при проверке кода';
-    console.error('Error verifying email code:', error);
+    if (error.response && error.response.status === 400) {
+      // Обрабатываем ошибку неверного кода
+      emailError.value = error.response.data.error || 'Неверный код верификации';
+    } else {
+      emailError.value = 'Ошибка при проверке кода';
+      console.error('Error verifying email code:', error);
+    }
   } finally {
     isVerifying.value = false;
   }
