@@ -534,51 +534,133 @@ router.post('/link-identity', async (req, res) => {
 // Проверка статуса аутентификации
 router.get('/check', async (req, res) => {
   try {
-    console.log('Check auth, session data:', {
-      userId: req.session.userId,
-      authenticated: req.session.authenticated,
-      authType: req.session.authType,
-      telegramId: req.session.telegramId
-    });
+    logger.info(`[session/check] Checking session: ${req.sessionID}`);
     
-    // Если пользователь не аутентифицирован
-    if (!req.session.authenticated || !req.session.userId) {
-      return res.json({
-        authenticated: false
+    const authenticated = req.session.authenticated || false;
+    const authType = req.session.authType || null;
+    
+    // Подробное логирование для отладки восстановления сессии
+    logger.info(`[session/check] Session state: authenticated=${authenticated}, authType=${authType}, userId=${req.session.userId || 'none'}`);
+    
+    // Проверяем наличие идентификаторов в сессии
+    const sessionIdentities = [];
+    if (req.session.userId) sessionIdentities.push(`userId:${req.session.userId}`);
+    if (req.session.email) sessionIdentities.push(`email:${req.session.email}`);
+    if (req.session.address) sessionIdentities.push(`address:${req.session.address}`);
+    if (req.session.telegramId) sessionIdentities.push(`telegramId:${req.session.telegramId}`);
+    
+    logger.info(`[session/check] Identities in session: ${sessionIdentities.join(', ')}`);
+    
+    let identities = [];
+    let isAdmin = false;
+    
+    if (authenticated && req.session.userId) {
+      // Если пользователь аутентифицирован, получаем его идентификаторы из БД
+      try {
+        const identitiesResult = await db.query(
+          `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
+          [req.session.userId]
+        );
+        
+        identities = identitiesResult.rows;
+        logger.info(`[session/check] Found ${identities.length} identities in database for user ${req.session.userId}`);
+        
+        // Проверяем роль пользователя
+        const roleResult = await db.query(
+          'SELECT role FROM users WHERE id = $1',
+          [req.session.userId]
+        );
+        
+        if (roleResult.rows.length > 0) {
+          isAdmin = roleResult.rows[0].role === 'admin';
+          req.session.isAdmin = isAdmin;
+        }
+      } catch (error) {
+        logger.error(`[session/check] Error fetching identities: ${error.message}`);
+      }
+    }
+    
+    // Проверяем, нужно ли создать новый гостевой ID
+    if (!authenticated && !req.session.guestId) {
+      req.session.guestId = crypto.randomBytes(16).toString('hex');
+      logger.info(`[session/check] Created new guest ID: ${req.session.guestId}`);
+      
+      // Сохраняем сессию с новым гостевым ID
+      await new Promise((resolve, reject) => {
+        req.session.save(err => {
+          if (err) {
+            logger.error('[session/check] Error saving session with new guest ID:', err);
+            reject(err);
+          } else {
+            logger.info('[session/check] Session with new guest ID saved successfully');
+            resolve();
+          }
+        });
       });
     }
     
-    // Возвращаем полную информацию об аутентифицированном пользователе
-    const userData = {
-      authenticated: true,
-      userId: req.session.userId,
-      authType: req.session.authType,
-      isAdmin: req.session.isAdmin || false
+    // Формируем ответ
+    const response = {
+      success: true,
+      authenticated,
+      userId: req.session.userId || null,
+      guestId: req.session.guestId || null,
+      authType,
+      identitiesCount: identities.length,
+      isAdmin: isAdmin || false
     };
     
-    // Добавляем идентификаторы, если они есть в сессии
-    if (req.session.address) userData.address = req.session.address;
-    if (req.session.telegramId) userData.telegramId = req.session.telegramId;
-    if (req.session.email) userData.email = req.session.email;
+    // Добавляем специфические поля в зависимости от типа аутентификации
+    if (authType === 'wallet') {
+      response.address = req.session.address || null;
+    } else if (authType === 'email') {
+      response.email = req.session.email || null;
+    } else if (authType === 'telegram') {
+      response.telegramId = req.session.telegramId || null;
+      if (req.session.telegramUsername) {
+        response.telegramUsername = req.session.telegramUsername;
+      }
+      if (req.session.telegramFirstName) {
+        response.telegramFirstName = req.session.telegramFirstName;
+      }
+    }
     
-    console.log('Returning auth data:', userData);
-    
-    res.json(userData);
+    logger.info(`[session/check] Session check complete: authenticated=${authenticated}, authType=${authType}`);
+    return res.json(response);
   } catch (error) {
-    console.error('Error checking auth status:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('[session/check] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 });
 
 // Выход из системы
-router.post('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Error destroying session:', err);
-      return res.status(500).json({ error: 'Failed to logout' });
+router.post('/logout', async (req, res) => {
+  try {
+    logger.info('[logout] Logout request received');
+    
+    const sessionService = require('../services/session-service');
+    const result = await sessionService.logout(req.session);
+    
+    if (result) {
+      logger.info('[logout] User successfully logged out');
+      return res.json({ success: true });
+    } else {
+      logger.warn('[logout] Error during logout process');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Error during logout process' 
+      });
     }
-    res.json({ success: true });
-  });
+  } catch (error) {
+    logger.error('[logout] Error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error' 
+    });
+  }
 });
 
 // Маршрут для авторизации через Telegram
@@ -1455,29 +1537,10 @@ async function linkGuestMessagesAfterAuth(session, userId) {
       return { success: true, message: 'No guest IDs to process' };
     }
     
-    // Получаем список постоянных идентификаторов пользователя
-    const permanentIdentitiesResult = await db.query(
-      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1 AND provider IN ('wallet', 'email', 'telegram')`,
-      [userId]
-    );
-    
-    // Логирование найденных постоянных идентификаторов
-    logger.info(`[linkGuestMessagesAfterAuth] Found ${permanentIdentitiesResult.rows.length} permanent identities for user ${userId}`);
-    permanentIdentitiesResult.rows.forEach(identity => {
-      logger.info(`[linkGuestMessagesAfterAuth] - ${identity.provider}:${identity.provider_id}`);
-    });
-    
-    // Сохраняем все постоянные идентификаторы из сессии
-    if (session.email) {
-      await saveUserIdentity(userId, 'email', session.email, true);
-    }
-    
-    if (session.address) {
-      await saveUserIdentity(userId, 'wallet', session.address, true);
-    }
-    
-    if (session.telegramId) {
-      await saveUserIdentity(userId, 'telegram', session.telegramId, true);
+    // Инициализируем массив обработанных ID, если он не существует
+    if (!session.processedGuestIds) {
+      session.processedGuestIds = [];
+      logger.info(`[linkGuestMessagesAfterAuth] Initialized processedGuestIds array for session`);
     }
     
     let results = [];
@@ -1487,12 +1550,13 @@ async function linkGuestMessagesAfterAuth(session, userId) {
       logger.info(`[linkGuestMessagesAfterAuth] Processing current guest ID ${guestId} for user ${userId}`);
       
       try {
-        // Сохраняем гостевой ID как идентификатор пользователя
-        await saveUserIdentity(userId, 'guest', guestId, true);
-        
         // Связываем сообщения с пользователем через обертку с правильным порядком аргументов
         const result = await processGuestMessagesWrapper(guestId, userId);
         results.push({ guestId, result });
+        
+        // Добавляем в список обработанных
+        session.processedGuestIds.push(guestId);
+        
         logger.info(`[linkGuestMessagesAfterAuth] Successfully processed guest ID ${guestId}`);
       } catch (error) {
         logger.error(`[linkGuestMessagesAfterAuth] Error processing guest ID ${guestId}:`, error);
@@ -1505,12 +1569,13 @@ async function linkGuestMessagesAfterAuth(session, userId) {
       logger.info(`[linkGuestMessagesAfterAuth] Processing previous guest ID ${previousGuestId} for user ${userId}`);
       
       try {
-        // Сохраняем предыдущий гостевой ID как идентификатор пользователя
-        await saveUserIdentity(userId, 'guest', previousGuestId, true);
-        
         // Связываем сообщения с пользователем через обертку с правильным порядком аргументов
         const result = await processGuestMessagesWrapper(previousGuestId, userId);
         results.push({ guestId: previousGuestId, result });
+        
+        // Добавляем в список обработанных
+        session.processedGuestIds.push(previousGuestId);
+        
         logger.info(`[linkGuestMessagesAfterAuth] Successfully processed previous guest ID ${previousGuestId}`);
       } catch (error) {
         logger.error(`[linkGuestMessagesAfterAuth] Error processing previous guest ID ${previousGuestId}:`, error);
@@ -1688,6 +1753,11 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
     
     logger.info(`[link-guest-messages] Request for user ${userId}`);
     
+    // Проверка кэша обработанных ID в сессии
+    if (!req.session.processedGuestIds) {
+      req.session.processedGuestIds = [];
+    }
+    
     // Получаем все идентификаторы пользователя
     const userIdentitiesResult = await db.query(
       `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
@@ -1696,66 +1766,44 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
     
     const userIdentities = userIdentitiesResult.rows;
     logger.info(`[link-guest-messages] Found ${userIdentities.length} identities for user ${userId}`);
-    userIdentities.forEach(identity => {
-      logger.info(`[link-guest-messages] - ${identity.provider}:${identity.provider_id}`);
-    });
     
-    // Собираем все guestId, связанные с идентификаторами пользователя
-    let guestIds = [];
+    // Получаем только гостевые идентификаторы и фильтруем по неообработанным
+    const guestIdentities = userIdentities
+      .filter(identity => identity.provider === 'guest')
+      .filter(identity => !req.session.processedGuestIds.includes(identity.provider_id));
     
-    // Добавляем текущий guestId из сессии
-    if (req.session.guestId) {
-      guestIds.push(req.session.guestId);
+    // Добавляем текущий guestId из сессии если он еще не обработан
+    if (req.session.guestId && !req.session.processedGuestIds.includes(req.session.guestId)) {
+      guestIdentities.push({ provider: 'guest', provider_id: req.session.guestId });
       logger.info(`[link-guest-messages] Added session guestId: ${req.session.guestId}`);
     }
     
-    // Добавляем guestId из тела запроса, если есть
-    if (req.body.guestId) {
-      guestIds.push(req.body.guestId);
+    // Добавляем guestId из тела запроса, если есть и еще не обработан
+    if (req.body.guestId && !req.session.processedGuestIds.includes(req.body.guestId)) {
+      guestIdentities.push({ provider: 'guest', provider_id: req.body.guestId });
       logger.info(`[link-guest-messages] Added request body guestId: ${req.body.guestId}`);
     }
     
-    // Добавляем массив guestIds из тела запроса, если есть
-    if (req.body.guestIds && Array.isArray(req.body.guestIds)) {
-      logger.info(`[link-guest-messages] Adding ${req.body.guestIds.length} guestIds from request body`);
-      guestIds = [...guestIds, ...req.body.guestIds];
-    }
-    
-    // Добавляем guestId из идентификаторов пользователя
-    const guestIdentities = userIdentities.filter(identity => identity.provider === 'guest');
-    if (guestIdentities.length > 0) {
-      logger.info(`[link-guest-messages] Adding ${guestIdentities.length} guest identities from user_identities`);
-      guestIds = [...guestIds, ...guestIdentities.map(identity => identity.provider_id)];
-    }
-    
     // Убираем дубликаты
-    guestIds = [...new Set(guestIds)];
+    const uniqueGuestIds = [...new Set(guestIdentities.map(i => i.provider_id))];
     
-    logger.info(`[link-guest-messages] Final list of unique guestIds to process: ${guestIds.length}`);
-    guestIds.forEach(id => logger.info(`[link-guest-messages] - ${id}`));
-    
-    if (guestIds.length === 0) {
-      logger.info('[link-guest-messages] No guest IDs found for user');
-      return res.json({ success: true, message: 'No guest messages to link' });
+    // Если все ID уже обработаны, сразу возвращаем успех
+    if (uniqueGuestIds.length === 0) {
+      logger.info('[link-guest-messages] No new guest IDs to process');
+      return res.json({ 
+        success: true, 
+        message: 'All guest IDs already processed',
+        processedIds: req.session.processedGuestIds
+      });
     }
+    
+    logger.info(`[link-guest-messages] Found ${uniqueGuestIds.length} new guestIds to process`);
+    uniqueGuestIds.forEach(id => logger.info(`[link-guest-messages] - ${id}`));
     
     const results = [];
     
-    // Обрабатываем каждый guestId
-    for (const guestId of guestIds) {
-      // Пропускаем пустые или невалидные ID
-      if (!guestId || typeof guestId !== 'string') {
-        logger.warn(`[link-guest-messages] Skipping invalid guest ID: ${guestId}`);
-        continue;
-      }
-      
-      // Проверяем, не обрабатывали ли мы уже этот ID
-      if (req.session.processedGuestIds && req.session.processedGuestIds.includes(guestId)) {
-        logger.info(`[link-guest-messages] Guest ID ${guestId} already processed, skipping`);
-        results.push({ guestId, result: { success: true, message: 'Already processed' } });
-        continue;
-      }
-      
+    // Обрабатываем каждый новый guestId
+    for (const guestId of uniqueGuestIds) {
       // Проверяем наличие гостевых сообщений
       try {
         const guestMessagesCheck = await db.query(
@@ -1769,6 +1817,10 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
             // Используем обертку с правильным порядком аргументов
             const result = await processGuestMessagesWrapper(guestId, userId);
             results.push({ guestId, result });
+            
+            // Добавляем в список обработанных
+            req.session.processedGuestIds.push(guestId);
+            
             logger.info(`[link-guest-messages] Successfully processed guest ID ${guestId}`);
           } catch (error) {
             logger.error(`[link-guest-messages] Error processing guest ID ${guestId}:`, error);
@@ -1776,6 +1828,8 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
           }
         } else {
           logger.info(`[link-guest-messages] No guest messages found for guest ID ${guestId}`);
+          // Всё равно добавляем в обработанные, чтобы не проверять снова
+          req.session.processedGuestIds.push(guestId);
           results.push({ guestId, result: { success: true, message: 'No messages found' } });
         }
       } catch (error) {
@@ -1783,19 +1837,6 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
         results.push({ guestId, error: error.message });
       }
     }
-    
-    // Сохраняем все обработанные guestId, чтобы не обрабатывать их снова
-    if (!req.session.processedGuestIds) {
-      req.session.processedGuestIds = [];
-    }
-    
-    // Добавляем только успешно обработанные ID
-    const successfulGuestIds = results
-      .filter(r => r.result && r.result.success)
-      .map(r => r.guestId);
-    
-    req.session.processedGuestIds = [...new Set([...req.session.processedGuestIds, ...successfulGuestIds])];
-    logger.info(`[link-guest-messages] Updated processed guest IDs: ${req.session.processedGuestIds.join(', ')}`);
     
     // Очищаем текущий guestId из сессии
     req.session.guestId = null;
@@ -1805,7 +1846,8 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
     return res.json({
       success: true,
       message: `Processed ${results.length} guest IDs`,
-      results
+      results,
+      processedIds: req.session.processedGuestIds
     });
   } catch (error) {
     logger.error('[link-guest-messages] Error:', error);

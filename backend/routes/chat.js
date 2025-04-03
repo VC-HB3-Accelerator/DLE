@@ -142,19 +142,25 @@ async function processGuestMessages(userId, guestId) {
 // Обработчик для гостевых сообщений
 router.post('/guest-message', async (req, res) => {
   try {
-    const { message, language } = req.body;
-    const guestId = req.session.guestId || crypto.randomBytes(16).toString('hex');
+    const { content, language, guestId: requestGuestId } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ success: false, error: 'Content is required' });
+    }
+    
+    // Используем гостевой ID из запроса или из сессии, или генерируем новый
+    const guestId = requestGuestId || req.session.guestId || crypto.randomBytes(16).toString('hex');
 
     // Сохраняем ID гостя в сессии
     req.session.guestId = guestId;
     await req.session.save();
 
-    console.log('Saving guest message:', { guestId, message });
+    console.log('Saving guest message:', { guestId, content });
 
     // Сохраняем сообщение пользователя
     const result = await db.query(
       'INSERT INTO guest_messages (guest_id, content, language, is_ai) VALUES ($1, $2, $3, false) RETURNING id',
-      [guestId, message, language]
+      [guestId, content, language || 'auto']
     );
 
     console.log('Guest message saved:', result.rows[0]);

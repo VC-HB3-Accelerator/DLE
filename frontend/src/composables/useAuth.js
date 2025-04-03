@@ -74,9 +74,23 @@ export function useAuth() {
       if (isAuthenticated.value) {
         console.log('Linking messages after authentication');
         
+        // Проверка, есть ли гостевой ID для обработки
+        const localGuestId = localStorage.getItem('guestId');
+        
+        // Если гостевого ID нет или он уже был обработан, пропускаем запрос
+        if (!localGuestId || processedGuestIds.value.includes(localGuestId)) {
+          console.log('No new guest IDs to process or already processed');
+          return { 
+            success: true, 
+            message: 'No new guest IDs to process',
+            processedIds: processedGuestIds.value
+          };
+        }
+        
         // Создаем объект с идентификаторами для передачи на сервер
         const identifiersData = {
-          userId: userId.value
+          userId: userId.value,
+          guestId: localGuestId
         };
         
         // Добавляем все доступные идентификаторы
@@ -84,17 +98,6 @@ export function useAuth() {
         if (email.value) identifiersData.email = email.value;
         if (telegramId.value) identifiersData.telegramId = telegramId.value;
         
-        // Сохраняем предыдущий guestId из localStorage, если есть
-        const localGuestId = localStorage.getItem('guestId');
-        if (localGuestId && !processedGuestIds.value.includes(localGuestId)) {
-          console.log('Found local guestId:', localGuestId);
-          // Добавляем guestId в идентификаторы
-          identifiersData.guestId = localGuestId;
-          // Добавляем guestId в список обработанных
-          processedGuestIds.value.push(localGuestId);
-        }
-        
-        // Логируем попытку связывания сообщений
         console.log('Sending link-guest-messages request with data:', identifiersData);
         
         try {
@@ -104,15 +107,20 @@ export function useAuth() {
           if (response.data.success) {
             console.log('Messages linked successfully:', response.data);
             
-            // Если в ответе есть обработанные guestIds, добавляем их в список
-            if (response.data.results && Array.isArray(response.data.results)) {
+            // Обновляем список обработанных guestIds из ответа сервера
+            if (response.data.processedIds && Array.isArray(response.data.processedIds)) {
+              processedGuestIds.value = [...response.data.processedIds];
+              console.log('Updated processed guest IDs from server:', processedGuestIds.value);
+            }
+            // В качестве запасного варианта также обрабатываем старый формат ответа
+            else if (response.data.results && Array.isArray(response.data.results)) {
               const newProcessedIds = response.data.results
                 .filter(result => result.guestId)
                 .map(result => result.guestId);
               
               if (newProcessedIds.length > 0) {
                 processedGuestIds.value = [...new Set([...processedGuestIds.value, ...newProcessedIds])];
-                console.log('Updated processed guest IDs:', processedGuestIds.value);
+                console.log('Updated processed guest IDs from results:', processedGuestIds.value);
               }
             }
             
@@ -148,6 +156,7 @@ export function useAuth() {
       
       const wasAuthenticated = isAuthenticated.value;
       const previousUserId = userId.value;
+      const previousAuthType = authType.value;
       
       // Обновляем данные авторизации через updateAuth вместо прямого изменения
       updateAuth({
@@ -165,18 +174,34 @@ export function useAuth() {
         // Сначала обновляем идентификаторы, чтобы иметь актуальные данные
         await updateIdentities();
         
-        // Если пользователь только что аутентифицировался или сменил аккаунт, 
+        // Если пользователь только что аутентифицировался или сменил аккаунт,
         // связываем гостевые сообщения с его аккаунтом
         if (!wasAuthenticated || (previousUserId && previousUserId !== response.data.userId)) {
           // Немедленно связываем сообщения
           const linkResult = await linkMessages();
           console.log('Link messages result on auth change:', linkResult);
+          
+          // Если пользователь только что аутентифицировался через Telegram,
+          // обновляем историю чата без перезагрузки страницы
+          if (response.data.authType === 'telegram' && previousAuthType !== 'telegram') {
+            console.log('Telegram auth detected, loading message history');
+            // Отправляем событие для загрузки истории чата
+            window.dispatchEvent(new CustomEvent('load-chat-history'));
+          }
         }
+        
+        // Обновляем отображение подключенного состояния в UI
+        updateConnectionDisplay(true, response.data.authType, response.data);
+      } else {
+        // Обновляем отображение отключенного состояния
+        updateConnectionDisplay(false);
       }
       
       return response.data;
     } catch (error) {
       console.error('Error checking auth:', error);
+      // В случае ошибки сбрасываем состояние аутентификации
+      updateConnectionDisplay(false);
       return { authenticated: false };
     }
   };
@@ -189,6 +214,8 @@ export function useAuth() {
       console.log('Created new guestId for future session:', newGuestId);
       
       await axios.post('/api/auth/logout');
+      
+      // Обновляем состояние в памяти
       updateAuth({ 
         authenticated: false, 
         authType: null, 
@@ -199,6 +226,9 @@ export function useAuth() {
         isAdmin: false 
       });
       
+      // Обновляем отображение отключенного состояния
+      updateConnectionDisplay(false);
+      
       // Очищаем списки идентификаторов
       identities.value = [];
       
@@ -207,6 +237,11 @@ export function useAuth() {
       localStorage.removeItem('userId');
       localStorage.removeItem('address');
       localStorage.removeItem('isAdmin');
+      
+      // Удаляем класс подключенного кошелька
+      document.body.classList.remove('wallet-connected');
+      
+      console.log('User disconnected successfully');
       
       return { success: true };
     } catch (error) {
@@ -219,6 +254,58 @@ export function useAuth() {
   const updateProcessedGuestIds = (ids) => {
     if (Array.isArray(ids)) {
       processedGuestIds.value = [...new Set([...processedGuestIds.value, ...ids])];
+    }
+  };
+  
+  // Функция для обновления отображения подключения в UI
+  const updateConnectionDisplay = (isConnected, authType, authData = {}) => {
+    try {
+      console.log('Updating connection display:', { isConnected, authType, authData });
+      
+      if (isConnected) {
+        document.body.classList.add('wallet-connected');
+        
+        const authDisplayEl = document.getElementById('auth-display');
+        if (authDisplayEl) {
+          let displayText = 'Подключено';
+          
+          if (authType === 'wallet' && authData.address) {
+            const shortAddress = `${authData.address.substring(0, 6)}...${authData.address.substring(authData.address.length - 4)}`;
+            displayText = `Кошелек: <strong>${shortAddress}</strong>`;
+          } else if (authType === 'email' && authData.email) {
+            displayText = `Email: <strong>${authData.email}</strong>`;
+          } else if (authType === 'telegram' && authData.telegramId) {
+            displayText = `Telegram: <strong>${authData.telegramUsername || authData.telegramId}</strong>`;
+          }
+          
+          authDisplayEl.innerHTML = displayText;
+          authDisplayEl.style.display = 'inline-block';
+        }
+        
+        // Скрываем кнопки авторизации и показываем кнопку выхода
+        const authButtonsEl = document.getElementById('auth-buttons');
+        const logoutButtonEl = document.getElementById('logout-button');
+        
+        if (authButtonsEl) authButtonsEl.style.display = 'none';
+        if (logoutButtonEl) logoutButtonEl.style.display = 'inline-block';
+      } else {
+        document.body.classList.remove('wallet-connected');
+        
+        // Скрываем отображение аутентификации
+        const authDisplayEl = document.getElementById('auth-display');
+        if (authDisplayEl) {
+          authDisplayEl.style.display = 'none';
+        }
+        
+        // Показываем кнопки авторизации и скрываем кнопку выхода
+        const authButtonsEl = document.getElementById('auth-buttons');
+        const logoutButtonEl = document.getElementById('logout-button');
+        
+        if (authButtonsEl) authButtonsEl.style.display = 'flex';
+        if (logoutButtonEl) logoutButtonEl.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Error updating connection display:', error);
     }
   };
   
@@ -241,6 +328,7 @@ export function useAuth() {
     disconnect,
     linkMessages,
     updateIdentities,
-    updateProcessedGuestIds
+    updateProcessedGuestIds,
+    updateConnectionDisplay
   };
 } 
