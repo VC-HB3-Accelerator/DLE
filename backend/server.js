@@ -8,6 +8,7 @@ const { app, nonceStore } = require('./app');
 const usersRouter = require('./routes/users');
 const authRouter = require('./routes/auth');
 const identitiesRouter = require('./routes/identities');
+const chatRouter = require('./routes/chat');
 const { pool } = require('./db');
 const helmet = require('helmet');
 const { getBot, stopBot } = require('./services/telegramBot');
@@ -79,6 +80,7 @@ app.use(session({
 app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/identities', identitiesRouter);
+app.use('/api/chat', chatRouter);
 
 // Эндпоинт для проверки состояния сервера
 app.get('/api/health', (req, res) => {

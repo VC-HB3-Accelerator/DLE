@@ -179,18 +179,39 @@
       <!-- Блок информации о пользователе -->
       <div v-if="isAuthenticated" class="user-info">
         <h3>Идентификаторы:</h3>
-        <div v-if="auth.address?.value" class="user-info-item">
-          <span class="user-info-label">Кошелек:</span>
-          <span class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
-        </div>
-        <div v-if="auth.telegramId" class="user-info-item">
-          <span class="user-info-label">Telegram:</span>
-          <span class="user-info-value">{{ auth.telegramId }}</span>
-        </div>
-        <div v-if="auth.email" class="user-info-item">
-          <span class="user-info-label">Email:</span>
-          <span class="user-info-value">{{ auth.email }}</span>
-        </div>
+        <!-- Основные идентификаторы из auth объекта -->
+        <template v-if="auth.address?.value">
+          <div class="user-info-item">
+            <span class="user-info-label">Кошелек:</span>
+            <span class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
+          </div>
+        </template>
+        
+        <template v-if="auth.telegramId?.value">
+          <div class="user-info-item">
+            <span class="user-info-label">Telegram:</span>
+            <span class="user-info-value">{{ auth.telegramId.value }}</span>
+          </div>
+        </template>
+        
+        <template v-if="auth.email?.value">
+          <div class="user-info-item">
+            <span class="user-info-label">Email:</span>
+            <span class="user-info-value">{{ auth.email.value }}</span>
+          </div>
+        </template>
+        
+        <!-- Дополнительные идентификаторы из списка identities (кроме уже отображенных) -->
+        <template v-for="identity in filteredIdentities" :key="`${identity.provider}-${identity.provider_id}`">
+          <div class="user-info-item">
+            <span class="user-info-label">{{ formatIdentityProvider(identity.provider) }}:</span>
+            <span class="user-info-value">{{ 
+              identity.provider === 'wallet' 
+                ? truncateAddress(identity.provider_id) 
+                : identity.provider_id 
+            }}</span>
+          </div>
+        </template>
       </div>
     </div>
   </div>
@@ -223,7 +244,7 @@ const userLanguage = ref('ru');
 const isLoadingMore = ref(false);
 const hasMoreMessages = ref(false);
 const offset = ref(0);
-const limit = ref(20);
+const limit = ref(30);
 
 // Состояния для верификации
 const showTelegramVerification = ref(false);
@@ -265,6 +286,32 @@ const tokenBalances = ref({
 
 // Состояние для отображения правой панели
 const showWalletSidebar = ref(false);
+
+// Вычисленное свойство для фильтрации идентификаторов
+const filteredIdentities = computed(() => {
+  if (!auth.identities?.value) return [];
+  
+  // Фильтруем и оставляем только постоянные идентификаторы
+  return auth.identities.value.filter(identity => 
+    identity.provider !== 'guest' && // Исключаем guest идентификаторы
+    // Также исключаем дубликаты, если идентификатор уже показан выше
+    !(identity.provider === 'wallet' && auth.address?.value) &&
+    !(identity.provider === 'telegram' && auth.telegramId?.value) &&
+    !(identity.provider === 'email' && auth.email?.value)
+  );
+});
+
+// Функция для форматирования названий провайдеров 
+const formatIdentityProvider = (provider) => {
+  const providers = {
+    'wallet': 'Кошелек',
+    'telegram': 'Telegram',
+    'email': 'Email',
+    'guest': 'Гость'
+  };
+  
+  return providers[provider] || provider;
+};
 
 // Функция для управления сайдбаром
 const toggleSidebar = () => {
@@ -551,86 +598,44 @@ const cancelTelegramAuth = () => {
   }
 };
 
-// Загружаем сообщения при изменении аутентификации
-watch(() => isAuthenticated.value, async (newValue, oldValue) => {
-  // Если пользователь только что авторизовался
-  if (newValue && !oldValue) {
-    try {
-      // Связываем гостевые сообщения только один раз при первой авторизации
-      const response = await api.post('/api/chat/link-guest-messages');
-      console.log('Guest messages linking response:', response.data);
-    } catch (linkError) {
-      console.error('Error linking guest messages:', linkError);
-    }
-  }
-
-  // В любом случае перезагружаем сообщения
-  messages.value = [];
-  offset.value = 0;
-  hasMoreMessages.value = true;
-  await loadMoreMessages();
-  
-  await nextTick();
-  scrollToBottom();
+// Вычисленное свойство для определения, нужно ли загружать историю
+const shouldLoadHistory = computed(() => {
+  // Загружаем историю только если пользователь авторизован или есть гостевой ID
+  return isAuthenticated.value || 
+    (localStorage.getItem('guestId') && localStorage.getItem('guestId').length > 0);
 });
 
-// Обработчик для Telegram аутентификации
-const handleTelegramAuth = async () => {
-  try {
-    const { data } = await axios.post('/api/auth/telegram/init');
-    const { verificationCode, botLink } = data;
+// Следим за изменением авторизации
+watch(() => auth.isAuthenticated.value, async (newValue, oldValue) => {
+  console.log('Auth state changed:', { 
+    from: oldValue, 
+    to: newValue, 
+    userId: auth.userId.value 
+  });
+  
+  if (newValue === true) {
+    // Если пользователь только что авторизовался
+    console.log('User authenticated, loading message history');
     
-    // Показываем код верификации
-    showTelegramVerification.value = true;
-    telegramVerificationCode.value = verificationCode;
-    telegramBotLink.value = botLink;
-    
-    // Запускаем проверку статуса аутентификации
-    telegramAuthCheckInterval.value = setInterval(async () => {
-      try {
-        const response = await axios.get('/api/auth/check');
-        console.log('Проверка авторизации:', response.data);
-        
-        if (response.data.authenticated) {
-          // Обновляем состояние аутентификации с полным набором данных
-          auth.updateAuth({
-            isAuthenticated: true,
-            authenticated: true,
-            authType: response.data.authType,
-            userId: response.data.userId,
-            telegramId: response.data.telegramId,
-            isAdmin: response.data.isAdmin,
-            address: response.data.address
-          });
-          
-          console.log('Telegram authentication successful:', response.data);
-          
-          // Обновляем баланс токенов
-          await updateBalances();
-          
-          clearInterval(telegramAuthCheckInterval.value);
-          telegramAuthCheckInterval.value = null;
-          showTelegramVerification.value = false;
-        }
-      } catch (error) {
-        console.error('Error checking auth status:', error);
-      }
-    }, 2000);
-    
-    // Очищаем интервал через 5 минут
-    setTimeout(() => {
-      if (telegramAuthCheckInterval.value) {
-        clearInterval(telegramAuthCheckInterval.value);
-        telegramAuthCheckInterval.value = null;
-        showTelegramVerification.value = false;
-      }
-    }, 5 * 60 * 1000);
-    
-  } catch (error) {
-    console.error('Error initializing Telegram auth:', error);
-    alert('Ошибка при инициализации Telegram аутентификации');
+    // Сначала связываем сообщения, затем загружаем историю
+    try {
+      // Сбрасываем текущие сообщения
+      messages.value = [];
+      offset.value = 0;
+      
+      // Сначала связываем гостевые сообщения
+      await auth.linkMessages();
+      
+      // Затем загружаем историю сообщений после небольшой задержки,
+      // чтобы сервер успел обработать связанные сообщения
+      setTimeout(async () => {
+        await loadMoreMessages(true);
+      }, 1000);
+    } catch (error) {
+      console.error('Error loading history after auth:', error);
+    }
   }
-};
+});
 
 // Функция для сокращения адреса кошелька
 const truncateAddress = (address) => {
@@ -641,63 +646,100 @@ const truncateAddress = (address) => {
 // Функция прокрутки к последнему сообщению
 const scrollToBottom = () => {
   if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    setTimeout(() => {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    }, 100);
   }
 };
 
-// Загрузка сообщений
-const loadMoreMessages = async () => {
+// Функция для загрузки сообщений
+const loadMoreMessages = async (silent = false) => {
+  if (isLoadingMore.value) return;
+  
   try {
     isLoadingMore.value = true;
+    if (!silent) isLoading.value = true;
+    
     console.log('Fetching chat history...');
     
-    // Всегда запрашиваем историю, так как на сервере проверяется наличие
-    // userId или guestId в сессии и возвращаются соответствующие сообщения
-    const response = await api.get('/api/chat/history', {
+    // Проверяем сессию перед загрузкой истории
+    try {
+      const sessionCheck = await axios.get('/api/auth/check');
+      console.log('Session check:', sessionCheck.data);
+      
+      // Проверяем, что пользователь все еще аутентифицирован
+      if (!sessionCheck.data.authenticated && !shouldLoadHistory.value) {
+        console.warn('User is not authenticated, skipping message history load');
+        isLoadingMore.value = false;
+        isLoading.value = false;
+        return;
+      }
+    } catch (error) {
+      console.warn('Session check failed, but continuing anyway:', error);
+    }
+    
+    // Сначала запрашиваем общее количество сообщений
+    const countResponse = await axios.get('/api/chat/history', {
       params: {
-        limit: limit.value,
-        offset: offset.value
+        count_only: true
       }
     });
-
-    console.log('Chat history response:', response.data);
-
-    if (response.data.success) {
-      const newMessages = response.data.messages.map(msg => {
-        console.log('Processing message:', msg);
-        return {
-          id: msg.id,
-          content: msg.content,
-          sender_type: msg.sender_type || (msg.role === 'assistant' ? 'assistant' : 'user'),
-          role: msg.role || (msg.sender_type === 'assistant' ? 'assistant' : 'user'),
-          timestamp: msg.created_at,
-          showAuthOptions: false
-        };
-      });
-      
-      console.log('Processed messages:', newMessages);
-      
-      // Объединяем сообщения и сортируем их по timestamp
-      const allMessages = [...messages.value, ...newMessages];
-      allMessages.sort((a, b) => {
-        const timeA = new Date(a.timestamp || a.created_at).getTime();
-        const timeB = new Date(b.timestamp || b.created_at).getTime();
-        return timeA - timeB;
-      });
-      
-      messages.value = allMessages;
-      console.log('Updated messages array:', messages.value);
-      hasMoreMessages.value = response.data.total > messages.value.length;
-      offset.value += newMessages.length;
-      
-      // Прокручиваем к последнему сообщению
-      await nextTick();
-      scrollToBottom();
+    
+    if (!countResponse.data.success) {
+      throw new Error('Failed to get message count');
     }
+    
+    const totalMessages = countResponse.data.total || 0;
+    console.log(`Total messages in history: ${totalMessages}`);
+    
+    // Рассчитываем offset так, чтобы получить последние сообщения
+    // при первой загрузке (когда offset = 0)
+    let effectiveOffset = offset.value;
+    if (offset.value === 0 && totalMessages > limit.value) {
+      // Загружаем последние сообщения вместо первых
+      effectiveOffset = Math.max(0, totalMessages - limit.value);
+    }
+    
+    // Получаем историю сообщений с параметрами пагинации
+    const response = await axios.get('/api/chat/history', {
+      params: {
+        offset: effectiveOffset,
+        limit: limit.value
+      }
+    });
+    
+    console.log('Chat history response:', response.data);
+    
+    if (response.data.success) {
+      // Если это первая загрузка, заменяем сообщения
+      // Иначе, добавляем полученные сообщения к существующим
+      if (offset.value === 0) {
+        messages.value = response.data.messages || [];
+      } else if (response.data.messages && response.data.messages.length) {
+        messages.value = [...messages.value, ...response.data.messages];
+      }
+      
+      // Обновляем offset для следующей загрузки
+      offset.value = effectiveOffset + (response.data.messages?.length || 0);
+      
+      // Проверяем, есть ли еще сообщения для загрузки
+      hasMoreMessages.value = offset.value < totalMessages;
+    }
+    
+    // После загрузки первой порции сообщений считаем, что пользователь уже отправлял сообщения
+    if (messages.value.length > 0) {
+      hasUserSentMessage.value = true;
+      localStorage.setItem('hasUserSentMessage', 'true');
+    }
+    
+    // Прокручиваем контейнер с сообщениями вниз
+    await nextTick();
+    scrollToBottom();
   } catch (error) {
     console.error('Error loading chat history:', error);
   } finally {
     isLoadingMore.value = false;
+    isLoading.value = false;
   }
 };
 
@@ -786,22 +828,33 @@ const formatMessage = (text) => {
   return DOMPurify.sanitize(rawHtml);
 };
 
-// Функция для проверки наличия гостевых сообщений
+// Проверяет наличие гостевых сообщений
 const checkGuestMessages = async () => {
   try {
-    const response = await api.get('/api/chat/check-session');
-    console.log('Session check response:', response.data);
+    // Проверяем сессию через auth/check вместо chat/check-session
+    const sessionCheck = await axios.get('/api/auth/check');
+    console.log('Session auth check response:', sessionCheck.data);
     
-    // После инициализации сессии загружаем сообщения
-    if (!isAuthenticated.value) {
-      // Если пользователь не авторизован, попробуем загрузить гостевые сообщения
-      await loadMoreMessages();
+    // Проверяем наличие сообщений в localStorage
+    const storedMessages = localStorage.getItem('guestMessages');
+    if (storedMessages) {
+      const parsedMessages = JSON.parse(storedMessages);
+      if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+        // Если есть сообщения и пользователь не аутентифицирован, показываем их
+        if (!auth.isAuthenticated.value) {
+          console.log('Found guest messages in localStorage:', parsedMessages);
+          messages.value = [...messages.value, ...parsedMessages];
+          hasUserSentMessage.value = true;
+          localStorage.setItem('hasUserSentMessage', 'true');
+        } else {
+          // Если пользователь аутентифицирован, удаляем гостевые сообщения из localStorage
+          console.log('User is authenticated, removing guest messages from localStorage');
+          localStorage.removeItem('guestMessages');
+        }
+      }
     }
-    
-    return response.data;
   } catch (error) {
     console.error('Error checking guest messages:', error);
-    return { success: false };
   }
 };
 
@@ -852,6 +905,21 @@ watch(() => auth.isAuthenticated.value, async (newValue) => {
   }
 });
 
+// Отслеживаем изменения в идентификаторах
+watch(() => auth.telegramId?.value, (newValue) => {
+  if (newValue) {
+    console.log('Telegram ID изменился:', newValue);
+  }
+});
+
+// Отслеживаем успешную авторизацию через Telegram
+watch(() => auth.authType?.value, (newValue) => {
+  if (newValue === 'telegram') {
+    console.log('Авторизация через Telegram завершена, authType:', newValue);
+    console.log('Текущий telegramId:', auth.telegramId?.value);
+  }
+});
+
 onBeforeUnmount(() => {
   // Удаляем слушатель
   if (messagesContainer.value) {
@@ -861,5 +929,80 @@ onBeforeUnmount(() => {
     clearInterval(telegramAuthCheckInterval.value);
   }
   document.querySelector('.app-container')?.classList.remove('menu-open');
+});
+
+// Обработчик для Telegram аутентификации
+const handleTelegramAuth = async () => {
+  try {
+    const { data } = await axios.post('/api/auth/telegram/init');
+    const { verificationCode, botLink } = data;
+    
+    // Показываем код верификации
+    showTelegramVerification.value = true;
+    telegramVerificationCode.value = verificationCode;
+    telegramBotLink.value = botLink;
+    
+    // Запускаем проверку статуса аутентификации
+    telegramAuthCheckInterval.value = setInterval(async () => {
+      try {
+        const response = await axios.get('/api/auth/check');
+        console.log('Проверка авторизации:', response.data);
+        
+        if (response.data.authenticated && response.data.telegramId) {
+          clearInterval(telegramAuthCheckInterval.value);
+          telegramAuthCheckInterval.value = null;
+          showTelegramVerification.value = false;
+          
+          console.log('Telegram ID получен:', response.data.telegramId);
+          
+          // Обновляем информацию об авторизации через метод updateAuth
+          auth.updateAuth({
+            authenticated: true,
+            authType: response.data.authType,
+            userId: response.data.userId,
+            telegramId: response.data.telegramId,
+            isAdmin: response.data.isAdmin
+          });
+          
+          // Сначала обновляем идентификаторы, затем связываем сообщения и обновляем историю
+          await auth.checkAuth();
+          
+          // Весь процесс загрузки истории будет выполнен через watch на isAuthenticated
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+      }
+    }, 2000);
+    
+    // Очищаем интервал через 5 минут
+    setTimeout(() => {
+      if (telegramAuthCheckInterval.value) {
+        clearInterval(telegramAuthCheckInterval.value);
+        telegramAuthCheckInterval.value = null;
+        showTelegramVerification.value = false;
+      }
+    }, 5 * 60 * 1000);
+    
+  } catch (error) {
+    console.error('Error initializing Telegram auth:', error);
+    alert('Ошибка при инициализации Telegram аутентификации');
+  }
+};
+
+// Отслеживаем изменения в сообщениях
+watch(() => messages.value.length, (newLength, oldLength) => {
+  if (newLength > 0) {
+    // Сортируем сообщения по дате/времени
+    messages.value.sort((a, b) => {
+      const dateA = new Date(a.timestamp || a.created_at);
+      const dateB = new Date(b.timestamp || b.created_at);
+      return dateA - dateB;
+    });
+    
+    // Прокручиваем к последнему сообщению
+    nextTick(() => {
+      scrollToBottom();
+    });
+  }
 });
 </script>

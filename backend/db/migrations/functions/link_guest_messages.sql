@@ -5,6 +5,8 @@ CREATE OR REPLACE FUNCTION link_guest_messages(
 DECLARE
   v_conversation_id INTEGER;
   v_count INTEGER;
+  v_first_message TEXT;
+  v_title TEXT;
 BEGIN
   -- Логируем входные параметры
   RAISE NOTICE 'Linking messages for user_id: %, guest_id: %', p_user_id, p_guest_id;
@@ -15,13 +17,32 @@ BEGIN
   WHERE guest_id = p_guest_id;
   
   RAISE NOTICE 'Found % guest messages', v_count;
+  
+  -- Если нет гостевых сообщений, выходим
+  IF v_count = 0 THEN
+    RAISE NOTICE 'No guest messages found, exiting';
+    RETURN;
+  END IF;
 
+  -- Получаем первое сообщение для названия беседы
+  SELECT content INTO v_first_message
+  FROM guest_messages
+  WHERE guest_id = p_guest_id AND NOT is_ai
+  ORDER BY created_at ASC
+  LIMIT 1;
+  
+  -- Формируем название диалога на основе первого сообщения
+  v_title := CASE
+    WHEN length(v_first_message) > 30 THEN substring(v_first_message from 1 for 30) || '...'
+    ELSE v_first_message
+  END;
+  
   -- Создаем новую беседу
-  INSERT INTO conversations (user_id, created_at, updated_at)
-  VALUES (p_user_id, NOW(), NOW())
+  INSERT INTO conversations (user_id, title, created_at, updated_at)
+  VALUES (p_user_id, v_title, NOW(), NOW())
   RETURNING id INTO v_conversation_id;
   
-  RAISE NOTICE 'Created conversation with id: %', v_conversation_id;
+  RAISE NOTICE 'Created conversation with id: % and title: %', v_conversation_id, v_title;
 
   -- Копируем сообщения пользователя
   WITH inserted_messages AS (
@@ -46,11 +67,19 @@ BEGIN
       created_at
     FROM guest_messages
     WHERE guest_id = p_guest_id
+      -- Проверка, чтобы избежать дублирования сообщений
+      AND NOT EXISTS (
+        SELECT 1 FROM messages m
+        WHERE m.guest_message_id = guest_messages.id
+      )
     ORDER BY created_at
     RETURNING id
   )
   SELECT COUNT(*) INTO v_count FROM inserted_messages;
   
-  RAISE NOTICE 'Inserted % messages', v_count;
+  RAISE NOTICE 'Inserted % messages into conversation', v_count;
+  
+  -- НЕ удаляем гостевые сообщения, позволяем им существовать на всякий случай
+  -- до автоматической очистки по cron job
 END;
 $$ LANGUAGE plpgsql;

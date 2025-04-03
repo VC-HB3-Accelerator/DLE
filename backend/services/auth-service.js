@@ -391,6 +391,42 @@ class AuthService {
       throw error;
     }
   }
+
+  // Добавляем псевдоним функции checkAdminRole для обратной совместимости
+  async checkAdminTokens(address) {
+    if (!address) return false;
+    
+    console.log(`Checking admin tokens for address: ${address}`);
+    const isAdmin = await this.checkAdminRole(address);
+    console.log(`Admin token check result for ${address}: ${isAdmin}`);
+    
+    // Обновляем роль пользователя в базе данных, если есть админские токены
+    if (isAdmin) {
+      try {
+        // Находим userId по адресу
+        const userResult = await db.query(`
+          SELECT u.id FROM users u 
+          JOIN user_identities ui ON u.id = ui.user_id 
+          WHERE ui.provider = 'wallet' AND ui.provider_id = $1`,
+          [address.toLowerCase()]
+        );
+        
+        if (userResult.rows.length > 0) {
+          const userId = userResult.rows[0].id;
+          // Обновляем роль пользователя
+          await db.query(
+            'UPDATE users SET role = $1 WHERE id = $2',
+            ['admin', userId]
+          );
+          console.log(`Updated user ${userId} role to admin based on token holdings`);
+        }
+      } catch (error) {
+        console.error('Error updating user role:', error);
+      }
+    }
+    
+    return isAdmin;
+  }
 }
 
 // Создаем и экспортируем единственный экземпляр

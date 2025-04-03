@@ -16,6 +16,7 @@ const { ethers } = require('ethers');
 const { initTelegramAuth } = require('../services/telegramBot');
 const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
+const { processGuestMessages } = require('./chat'); // Импортируем функцию обработки гостевых сообщений
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -76,17 +77,29 @@ router.post('/verify', async (req, res) => {
   try {
     const { address, message, signature } = req.body;
     
+    logger.info(`[verify] Verifying signature for address: ${address}`);
+    
+    // Сохраняем гостевые ID до проверки
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[verify] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
+    
     // Проверяем подпись
     const isValid = await authService.verifySignature(message, signature, address);
     if (!isValid) {
+      logger.warn(`[verify] Invalid signature for address: ${address}`);
       return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
     
     // Проверяем nonce
     const nonceResult = await db.query('SELECT nonce FROM nonces WHERE identity_value = $1', [address.toLowerCase()]);
     if (nonceResult.rows.length === 0 || nonceResult.rows[0].nonce !== message.match(/Nonce: ([^\n]+)/)[1]) {
+      logger.warn(`[verify] Invalid nonce for address: ${address}`);
       return res.status(401).json({ success: false, error: 'Invalid nonce' });
     }
+    
+    logger.info(`[verify] Signature and nonce verified for address: ${address}`);
     
     // Находим или создаем пользователя
     let userId, isAdmin;
@@ -102,6 +115,7 @@ router.post('/verify', async (req, res) => {
       // Пользователь найден по кошельку
       userId = userResult.rows[0].id;
       isAdmin = userResult.rows[0].role === 'admin';
+      logger.info(`[verify] Found existing user: ID=${userId}, isAdmin=${isAdmin}`);
     } else if (req.session.guestId) {
       // Проверяем, есть ли пользователь с текущим guestId
       const guestUserResult = await db.query(`
@@ -114,12 +128,11 @@ router.post('/verify', async (req, res) => {
         // Используем существующего пользователя с guestId
         userId = guestUserResult.rows[0].id;
         isAdmin = guestUserResult.rows[0].role === 'admin';
+        logger.info(`[verify] Found user by guestId: ID=${userId}, isAdmin=${isAdmin}`);
         
         // Добавляем идентификатор кошелька к существующему пользователю
-        await db.query(
-          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-          [userId, 'wallet', address.toLowerCase()]
-        );
+        await saveUserIdentity(userId, 'wallet', address.toLowerCase(), true);
+        logger.info(`[verify] Added wallet identity ${address.toLowerCase()} to existing user ${userId}`);
       } else {
         // Создаем нового пользователя
         const newUserResult = await db.query(
@@ -129,18 +142,15 @@ router.post('/verify', async (req, res) => {
         
         userId = newUserResult.rows[0].id;
         isAdmin = false;
+        logger.info(`[verify] Created new user: ID=${userId}`);
         
         // Добавляем идентификатор кошелька
-        await db.query(
-          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-          [userId, 'wallet', address.toLowerCase()]
-        );
+        await saveUserIdentity(userId, 'wallet', address.toLowerCase(), true);
+        logger.info(`[verify] Added wallet identity ${address.toLowerCase()} to new user ${userId}`);
         
         // Добавляем идентификатор гостя
-        await db.query(
-          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-          [userId, 'guest', req.session.guestId]
-        );
+        await saveUserIdentity(userId, 'guest', req.session.guestId, true);
+        logger.info(`[verify] Added guest identity ${req.session.guestId} to new user ${userId}`);
       }
     } else {
       // Создаем нового пользователя без гостевого ID
@@ -151,12 +161,19 @@ router.post('/verify', async (req, res) => {
       
       userId = newUserResult.rows[0].id;
       isAdmin = false;
+      logger.info(`[verify] Created new user without guest ID: ID=${userId}`);
       
       // Добавляем идентификатор кошелька
-      await db.query(
-        'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-        [userId, 'wallet', address.toLowerCase()]
-      );
+      await saveUserIdentity(userId, 'wallet', address.toLowerCase(), true);
+      logger.info(`[verify] Added wallet identity ${address.toLowerCase()} to new user ${userId}`);
+    }
+    
+    // Проверяем наличие админских токенов
+    const adminStatus = await authService.checkAdminTokens(address.toLowerCase());
+    if (adminStatus) {
+      isAdmin = true;
+      await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+      logger.info(`[verify] Updated user ${userId} to admin role based on token check`);
     }
     
     // Обновляем сессию
@@ -166,16 +183,22 @@ router.post('/verify', async (req, res) => {
     req.session.isAdmin = isAdmin;
     req.session.address = address.toLowerCase();
     
-    // Сохраняем сессию
+    // Сохраняем сессию перед связыванием сообщений
     await new Promise((resolve, reject) => {
-      req.session.save((err) => {
+      req.session.save(err => {
         if (err) {
+          logger.error('[verify] Error saving session:', err);
           reject(err);
         } else {
+          logger.info(`[verify] Session saved successfully for user ${userId}`);
           resolve();
         }
       });
     });
+    
+    // Связываем гостевые сообщения с пользователем
+    const linkResults = await linkGuestMessagesAfterAuth(req.session, userId);
+    logger.info(`[verify] Guest messages linking results:`, linkResults);
     
     // Возвращаем успешный ответ
     return res.json({
@@ -187,17 +210,36 @@ router.post('/verify', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error in /verify:', error);
+    logger.error('[verify] Error:', error);
     res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
 // Аутентификация через Telegram
-router.post('/telegram', async (req, res) => {
+router.post('/telegram/verify', async (req, res) => {
   try {
     const { telegramId, authData } = req.body;
     
-    // Здесь должна быть проверка данных от Telegram
+    logger.info(`[telegram/verify] Authentication request with telegramId: ${telegramId}`);
+    
+    // Сохраняем гостевые ID до проверки
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[telegram/verify] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
+    
+    // Проверяем данные от Telegram
+    const isValid = await authService.verifyTelegramAuth(authData);
+    
+    if (!isValid) {
+      logger.warn(`[telegram/verify] Invalid Telegram authentication data for user ${telegramId}`);
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Ошибка верификации Telegram' 
+      });
+    }
+    
+    logger.info(`[telegram/verify] Telegram authentication data verified for user ${telegramId}`);
     
     // Получаем или создаем пользователя
     let userId = await authService.getUserIdByIdentity('telegram', telegramId);
@@ -205,34 +247,29 @@ router.post('/telegram', async (req, res) => {
     if (!userId) {
       // Создаем нового пользователя
       const userResult = await db.query(
-        'INSERT INTO users (created_at, role_id) VALUES (NOW(), (SELECT id FROM roles WHERE name = $1)) RETURNING id',
-        ['user']
+        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
       );
       
       userId = userResult.rows[0].id;
-      
-      // Добавляем идентификатор Telegram
-      await db.query(
-        'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
-        [userId, 'telegram', telegramId]
-      );
+      logger.info(`[telegram/verify] Created new user with ID ${userId} for Telegram user ${telegramId}`);
+    } else {
+      logger.info(`[telegram/verify] Found existing user ID ${userId} for Telegram user ${telegramId}`);
     }
     
-    // Проверяем связанные аккаунты
-    const identitiesResult = await db.query(`
-      SELECT identity_type, identity_value
-      FROM user_identities ui
-      WHERE user_id = $1
-    `, [userId]);
-    const identities = identitiesResult.rows;
+    // Явно сохраняем идентификатор Telegram
+    await saveUserIdentity(userId, 'telegram', telegramId, true);
+    logger.info(`[telegram/verify] Saved Telegram identity ${telegramId} for user ${userId}`);
     
-    // Если есть связанный кошелек, проверяем токены
-    if (identities.wallet) {
-      await authService.checkTokensAndUpdateRole(identities.wallet);
+    // Если есть гостевые ID, сохраняем их
+    if (guestId) {
+      await saveUserIdentity(userId, 'guest', guestId, true);
+      logger.info(`[telegram/verify] Saved guest ID ${guestId} for user ${userId}`);
     }
     
-    // Получаем текущую роль
-    const isAdmin = await authService.isAdmin(userId);
+    if (previousGuestId && previousGuestId !== guestId) {
+      await saveUserIdentity(userId, 'guest', previousGuestId, true);
+      logger.info(`[telegram/verify] Saved previous guest ID ${previousGuestId} for user ${userId}`);
+    }
     
     // Устанавливаем сессию
     req.session.userId = userId;
@@ -240,16 +277,46 @@ router.post('/telegram', async (req, res) => {
     req.session.authType = 'telegram';
     req.session.authenticated = true;
     
-    res.json({
-      authenticated: true,
-      userId,
-      isAdmin,
-      authType: 'telegram',
-      identities
+    // Дополнительно устанавливаем данные из Telegram, если они есть
+    if (authData.first_name) {
+      req.session.telegramFirstName = authData.first_name;
+    }
+    
+    if (authData.username) {
+      req.session.telegramUsername = authData.username;
+    }
+    
+    // Сохраняем сессию перед связыванием сообщений
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('[telegram/verify] Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info(`[telegram/verify] Session saved successfully for telegramId ${telegramId}, userId ${userId}`);
+          resolve();
+        }
+      });
     });
+    
+    // Связываем гостевые сообщения с пользователем
+    const linkResults = await linkGuestMessagesAfterAuth(req.session, userId);
+    logger.info(`[telegram/verify] Guest messages linking results:`, linkResults);
+    
+    // Возвращаем успешный ответ
+    return res.json({
+      success: true,
+      userId,
+      telegramId,
+      authenticated: true
+    });
+    
   } catch (error) {
-    logger.error(`Telegram auth error: ${error.message}`);
-    res.status(500).json({ error: 'Ошибка сервера' });
+    logger.error('[telegram/verify] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ошибка сервера при аутентификации через Telegram' 
+    });
   }
 });
 
@@ -395,6 +462,9 @@ router.post('/email/verify', async (req, res) => {
       });
     });
     
+    // Связываем гостевые сообщения с пользователем
+    await linkGuestMessagesAfterAuth(req.session, userId);
+    
     return res.json({
       success: true,
       userId,
@@ -407,98 +477,6 @@ router.post('/email/verify', async (req, res) => {
   } catch (error) {
     logger.error('Error in email verification:', error);
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
-  }
-});
-
-// Аутентификация через Email
-router.post('/email', async (req, res) => {
-  try {
-    const { email, verificationCode } = req.body;
-    
-    // Здесь должна быть проверка кода подтверждения
-    
-    // Получаем или создаем пользователя
-    let userId = await authService.getUserIdByIdentity('email', email);
-    
-    if (!userId) {
-      // Создаем нового пользователя
-      const userResult = await db.query(
-        'INSERT INTO users (created_at, role_id) VALUES (NOW(), (SELECT id FROM roles WHERE name = $1)) RETURNING id',
-        ['user']
-      );
-      
-      userId = userResult.rows[0].id;
-      
-      // Добавляем идентификатор Email
-      await db.query(
-        'INSERT INTO user_identities (user_id, identity_type, identity_value, created_at) VALUES ($1, $2, $3, NOW())',
-        [userId, 'email', email]
-      );
-    }
-    
-    // Получаем связанные идентификаторы
-    const identitiesResult = await db.query(`
-      SELECT identity_type, identity_value 
-      FROM user_identities ui
-      WHERE ui.user_id = $1
-    `, [userId]);
-    
-    const identities = identitiesResult.rows;
-    
-    // Формируем объект с идентификаторами по типам
-    const identitiesMap = {};
-    for (const identity of identities) {
-      identitiesMap[identity.identity_type] = identity.identity_value;
-    }
-    
-    // Проверяем, есть ли связанный кошелек
-    let isAdmin = false;
-    if (identitiesMap.wallet) {
-      // Если есть связанный кошелек, проверяем токены
-      const walletAddress = identitiesMap.wallet;
-      isAdmin = await authService.checkAdminTokens(walletAddress);
-      
-      // Обновляем статус администратора в БД, если необходимо
-      await db.query('UPDATE users SET is_admin = $1 WHERE id = $2', [isAdmin, userId]);
-    } else {
-      // Если нет связанного кошелька, проверяем текущий статус администратора
-      isAdmin = await authService.isAdmin(userId);
-    }
-    
-    // Устанавливаем сессию
-    req.session.userId = userId;
-    req.session.email = email;
-    req.session.authType = 'email';
-    req.session.authenticated = true;
-    req.session.isAdmin = isAdmin;
-    
-    if (identitiesMap.wallet) {
-      req.session.address = identitiesMap.wallet;
-    }
-    
-    // Сохраняем сессию перед отправкой ответа
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
-        if (err) {
-          console.error('Error saving session:', err);
-          reject(err);
-        } else {
-          console.log('Session saved successfully');
-          resolve();
-        }
-      });
-    });
-      
-    res.json({ 
-      authenticated: true, 
-      userId,
-      isAdmin,
-      authType: 'email',
-      identities: identitiesMap
-    });
-  } catch (error) {
-    logger.error(`Email auth error: ${error.message}`);
-    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -556,31 +534,36 @@ router.post('/link-identity', async (req, res) => {
 // Проверка статуса аутентификации
 router.get('/check', async (req, res) => {
   try {
-    console.log('Сессия при проверке:', req.session);
+    console.log('Check auth, session data:', {
+      userId: req.session.userId,
+      authenticated: req.session.authenticated,
+      authType: req.session.authType,
+      telegramId: req.session.telegramId
+    });
     
-    // Если пользователь не аутентифицирован, возвращаем базовую информацию
-    if (!req.session.authenticated) {
+    // Если пользователь не аутентифицирован
+    if (!req.session.authenticated || !req.session.userId) {
       return res.json({
-        authenticated: false,
-        userId: null,
-        authType: null,
-        address: null,
-        telegramId: null,
-        email: null,
-        isAdmin: false
+        authenticated: false
       });
     }
     
     // Возвращаем полную информацию об аутентифицированном пользователе
-    res.json({
+    const userData = {
       authenticated: true,
       userId: req.session.userId,
       authType: req.session.authType,
-      address: req.session.address,
-      telegramId: req.session.telegramId,
-      email: req.session.email,
       isAdmin: req.session.isAdmin || false
-    });
+    };
+    
+    // Добавляем идентификаторы, если они есть в сессии
+    if (req.session.address) userData.address = req.session.address;
+    if (req.session.telegramId) userData.telegramId = req.session.telegramId;
+    if (req.session.email) userData.email = req.session.email;
+    
+    console.log('Returning auth data:', userData);
+    
+    res.json(userData);
   } catch (error) {
     console.error('Error checking auth status:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -611,75 +594,6 @@ router.get('/telegram', (req, res) => {
   const authUrl = `https://t.me/${botName}?start=${token}`;
 
   res.json({ authUrl });
-});
-
-// Обработка верификации Telegram
-router.post('/telegram/verify', async (req, res) => {
-  try {
-    const { telegramId, verificationCode } = req.body;
-    
-    if (!telegramId || !verificationCode) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields'
-      });
-    }
-
-    // Проверяем верификацию через сервис
-    const result = await authService.verifyTelegramAuth(telegramId, verificationCode);
-    
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid verification'
-      });
-    }
-
-    // Обновляем сессию
-    req.session.userId = result.userId;
-    req.session.authenticated = true;
-    req.session.authType = 'telegram';
-    req.session.telegramId = result.telegramId;
-    req.session.role = result.role;
-    
-    if (result.wallet) {
-      req.session.address = result.wallet;
-    }
-
-    // Удаляем временные данные
-    if (req.session.tempUserId) {
-      delete req.session.tempUserId;
-    }
-    
-    // Сохраняем сессию
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
-        if (err) {
-          logger.error('Error saving session:', err);
-          reject(err);
-        } else {
-          logger.info(`Session saved successfully for user ${result.userId}`);
-          resolve();
-        }
-      });
-    });
-    
-    return res.json({
-      success: true,
-      userId: result.userId,
-      role: result.role,
-      telegramId: result.telegramId,
-      wallet: result.wallet,
-      message: 'Authentication successful'
-    });
-    
-  } catch (error) {
-    logger.error('Error in Telegram verification:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
-  }
 });
 
 // Маршрут для получения кода подтверждения Telegram
@@ -1114,11 +1028,20 @@ router.post('/email/verify-code', authLimiter, async (req, res) => {
         error: 'Email и код обязательны' 
       });
     }
+    
+    logger.info(`[email/verify-code] Verifying code for email: ${email}`);
+
+    // Сохраняем гостевой ID до проверки кода
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[email/verify-code] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
 
     // Проверяем код через сервис верификации
     const result = await verificationService.verifyCode(code, 'email', email.toLowerCase());
     
     if (!result.success) {
+      logger.warn(`[email/verify-code] Invalid code for email ${email}: ${result.error}`);
       return res.status(400).json({ 
         success: false, 
         error: result.error || 'Неверный код подтверждения' 
@@ -1126,15 +1049,21 @@ router.post('/email/verify-code', authLimiter, async (req, res) => {
     }
     
     const userId = result.userId;
+    logger.info(`[email/verify-code] Code verified successfully for email ${email}, userId: ${userId}`);
     
-    // Добавляем email в базу данных
-    await db.query(
-      'INSERT INTO user_identities (user_id, identity_type, identity_value, verified, created_at) ' +
-      'VALUES ($1, $2, $3, true, NOW()) ' +
-      'ON CONFLICT (identity_type, identity_value) ' +
-      'DO UPDATE SET user_id = $1, verified = true',
-      [userId, 'email', email.toLowerCase()]
-    );
+    // Явно сохраняем email в таблицу user_identities
+    await saveUserIdentity(userId, 'email', email.toLowerCase(), true);
+    
+    // Если есть гостевые ID, сохраняем их до установки аутентификации
+    if (guestId) {
+      await saveUserIdentity(userId, 'guest', guestId, true);
+      logger.info(`[email/verify-code] Saved guest ID ${guestId} for user ${userId}`);
+    }
+    
+    if (previousGuestId && previousGuestId !== guestId) {
+      await saveUserIdentity(userId, 'guest', previousGuestId, true);
+      logger.info(`[email/verify-code] Saved previous guest ID ${previousGuestId} for user ${userId}`);
+    }
     
     // Устанавливаем аутентификацию пользователя
     req.session.authenticated = true;
@@ -1147,6 +1076,23 @@ router.post('/email/verify-code', authLimiter, async (req, res) => {
       delete req.session.tempUserId;
     }
     
+    // Сохраняем сессию перед связыванием сообщений
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('[email/verify-code] Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info(`[email/verify-code] Session saved successfully for user ${userId}`);
+          resolve();
+        }
+      });
+    });
+    
+    // Связываем гостевые сообщения с пользователем
+    const linkResults = await linkGuestMessagesAfterAuth(req.session, userId);
+    logger.info(`[email/verify-code] Guest messages linking results:`, linkResults);
+    
     return res.json({
       success: true,
       userId,
@@ -1155,7 +1101,7 @@ router.post('/email/verify-code', authLimiter, async (req, res) => {
     });
     
   } catch (error) {
-    logger.error('Error verifying email code:', error);
+    logger.error('[email/verify-code] Error:', error);
     return res.status(500).json({ 
       success: false, 
       error: 'Ошибка сервера' 
@@ -1265,6 +1211,9 @@ router.post('/email/init', async (req, res) => {
       });
     });
 
+    // Связываем гостевые сообщения с пользователем
+    await linkGuestMessagesAfterAuth(req.session, userId);
+
     return res.json({
       success: true,
       message: 'Код верификации отправлен на email'
@@ -1296,10 +1245,9 @@ router.post('/email/verify', requireAuth, async (req, res) => {
 });
 
 // Проверка кода верификации email
-router.all('/check-email-verification', async (req, res) => {
+router.post('/email/check-verification', async (req, res) => {
   try {
-    // Получаем код из query параметров (GET) или тела запроса (POST)
-    const code = req.method === 'POST' ? req.body.code : req.query.code;
+    const { code } = req.body;
     
     if (!code) {
       return res.status(400).json({ 
@@ -1308,10 +1256,17 @@ router.all('/check-email-verification', async (req, res) => {
       });
     }
     
+    // Сохраняем гостевой ID до проверки кода
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[email/check-verification] Checking verification with code ${code}, guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
+    
     // Проверяем код через сервис верификации
     const result = await emailAuth.checkEmailVerification(code, req.session);
     
     if (!result.verified) {
+      logger.warn(`[email/check-verification] Invalid code: ${result.message}`);
       // Преобразуем ответ для совместимости с фронтендом
       return res.json({
         success: false,
@@ -1319,11 +1274,24 @@ router.all('/check-email-verification', async (req, res) => {
       });
     }
     
+    logger.info(`[email/check-verification] Email verification successful for userId: ${result.userId}, email: ${result.email}`);
+    
     // Код верный, обновляем сессию
     req.session.authenticated = true;
     req.session.userId = result.userId;
     req.session.authType = 'email';
     req.session.email = result.email;
+    
+    // Восстанавливаем гостевой ID, если он был потерян в процессе верификации
+    if (!req.session.guestId && guestId) {
+      req.session.guestId = guestId;
+      logger.info(`[email/check-verification] Restored guestId ${guestId}`);
+    }
+    
+    if (!req.session.previousGuestId && previousGuestId) {
+      req.session.previousGuestId = previousGuestId;
+      logger.info(`[email/check-verification] Restored previous guest ID ${previousGuestId}`);
+    }
     
     // Получаем роль пользователя
     const roleResult = await db.query(
@@ -1333,21 +1301,32 @@ router.all('/check-email-verification', async (req, res) => {
     
     if (roleResult.rows.length > 0) {
       req.session.userRole = roleResult.rows[0].role || 'user';
+      logger.info(`[email/check-verification] User role: ${req.session.userRole}`);
     } else {
       req.session.userRole = 'user';
+      logger.info(`[email/check-verification] User role not found, setting default: user`);
     }
+    
+    // Явно добавляем email в таблицу user_identities
+    await saveUserIdentity(result.userId, 'email', result.email.toLowerCase(), true);
+    logger.info(`[email/check-verification] Email identity ${result.email} saved for user ${result.userId}`);
     
     // Сохраняем сессию
     await new Promise((resolve, reject) => {
       req.session.save(err => {
         if (err) {
-          logger.error('Error saving session:', err);
+          logger.error('[email/check-verification] Error saving session:', err);
           reject(err);
         } else {
+          logger.info(`[email/check-verification] Session saved successfully for email ${result.email}`);
           resolve();
         }
       });
     });
+    
+    // Связываем гостевые сообщения с пользователем
+    const linkResults = await linkGuestMessagesAfterAuth(req.session, result.userId);
+    logger.info(`[email/check-verification] Guest messages linking results:`, linkResults);
     
     return res.json({
       success: true,
@@ -1355,7 +1334,7 @@ router.all('/check-email-verification', async (req, res) => {
       email: result.email
     });
   } catch (error) {
-    logger.error('Error checking email verification:', error);
+    logger.error('[email/check-verification] Error:', error);
     return res.status(500).json({ 
       success: false, 
       message: 'Ошибка при проверке кода верификации' 
@@ -1382,6 +1361,459 @@ router.post('/email/send', async (req, res) => {
   } catch (error) {
     console.error('Error marking email as sent:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Обертка для функции processGuestMessages с правильным порядком аргументов
+async function processGuestMessagesWrapper(guestId, userId) {
+  try {
+    logger.info(`[processGuestMessagesWrapper] Correcting order of arguments: userId=${userId}, guestId=${guestId}`);
+    return await processGuestMessages(userId, guestId);
+  } catch (error) {
+    logger.error(`[processGuestMessagesWrapper] Error: ${error.message}`, error);
+    throw error;
+  }
+}
+
+// Функция для сохранения идентификатора пользователя в базу данных
+async function saveUserIdentity(userId, provider, providerId, verified = true) {
+  try {
+    logger.info(`[saveUserIdentity] Saving identity for user ${userId}: ${provider}:${providerId}`);
+    
+    // Проверяем, существует ли уже такой идентификатор
+    const existingResult = await db.query(
+      `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
+      [provider, providerId]
+    );
+    
+    if (existingResult.rows.length > 0) {
+      const existingUserId = existingResult.rows[0].user_id;
+      
+      // Если идентификатор уже принадлежит этому пользователю, ничего не делаем
+      if (existingUserId === userId) {
+        logger.info(`[saveUserIdentity] Identity ${provider}:${providerId} already exists for user ${userId}`);
+      } else {
+        // Если идентификатор принадлежит другому пользователю, логируем это
+        logger.warn(`[saveUserIdentity] Identity ${provider}:${providerId} already belongs to user ${existingUserId}, not user ${userId}`);
+        return {
+          success: false,
+          error: `Identity already belongs to another user (${existingUserId})`
+        };
+      }
+    } else {
+      // Создаем новую запись
+      await db.query(
+        `INSERT INTO user_identities (user_id, provider, provider_id) 
+         VALUES ($1, $2, $3)`,
+        [userId, provider, providerId]
+      );
+      logger.info(`[saveUserIdentity] Created new identity ${provider}:${providerId} for user ${userId}`);
+    }
+    
+    return { success: true };
+  } catch (error) {
+    logger.error(`[saveUserIdentity] Error saving identity ${provider}:${providerId} for user ${userId}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Функция для связывания гостевых сообщений после аутентификации
+async function linkGuestMessagesAfterAuth(session, userId) {
+  try {
+    const guestId = session.guestId;
+    const previousGuestId = session.previousGuestId;
+    
+    logger.info(`[linkGuestMessagesAfterAuth] Starting for user ${userId} with guestId=${guestId}, previousGuestId=${previousGuestId}`);
+    
+    // Проверяем, есть ли идентификаторы для обработки
+    if (!guestId && !previousGuestId) {
+      logger.debug('[linkGuestMessagesAfterAuth] No guest IDs to process');
+      return { success: true, message: 'No guest IDs to process' };
+    }
+    
+    // Получаем список постоянных идентификаторов пользователя
+    const permanentIdentitiesResult = await db.query(
+      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1 AND provider IN ('wallet', 'email', 'telegram')`,
+      [userId]
+    );
+    
+    // Логирование найденных постоянных идентификаторов
+    logger.info(`[linkGuestMessagesAfterAuth] Found ${permanentIdentitiesResult.rows.length} permanent identities for user ${userId}`);
+    permanentIdentitiesResult.rows.forEach(identity => {
+      logger.info(`[linkGuestMessagesAfterAuth] - ${identity.provider}:${identity.provider_id}`);
+    });
+    
+    // Сохраняем все постоянные идентификаторы из сессии
+    if (session.email) {
+      await saveUserIdentity(userId, 'email', session.email, true);
+    }
+    
+    if (session.address) {
+      await saveUserIdentity(userId, 'wallet', session.address, true);
+    }
+    
+    if (session.telegramId) {
+      await saveUserIdentity(userId, 'telegram', session.telegramId, true);
+    }
+    
+    let results = [];
+    
+    // Обрабатываем текущий гостевой ID
+    if (guestId) {
+      logger.info(`[linkGuestMessagesAfterAuth] Processing current guest ID ${guestId} for user ${userId}`);
+      
+      try {
+        // Сохраняем гостевой ID как идентификатор пользователя
+        await saveUserIdentity(userId, 'guest', guestId, true);
+        
+        // Связываем сообщения с пользователем через обертку с правильным порядком аргументов
+        const result = await processGuestMessagesWrapper(guestId, userId);
+        results.push({ guestId, result });
+        logger.info(`[linkGuestMessagesAfterAuth] Successfully processed guest ID ${guestId}`);
+      } catch (error) {
+        logger.error(`[linkGuestMessagesAfterAuth] Error processing guest ID ${guestId}:`, error);
+        results.push({ guestId, error: error.message });
+      }
+    }
+    
+    // Обрабатываем предыдущий гостевой ID
+    if (previousGuestId && previousGuestId !== guestId) {
+      logger.info(`[linkGuestMessagesAfterAuth] Processing previous guest ID ${previousGuestId} for user ${userId}`);
+      
+      try {
+        // Сохраняем предыдущий гостевой ID как идентификатор пользователя
+        await saveUserIdentity(userId, 'guest', previousGuestId, true);
+        
+        // Связываем сообщения с пользователем через обертку с правильным порядком аргументов
+        const result = await processGuestMessagesWrapper(previousGuestId, userId);
+        results.push({ guestId: previousGuestId, result });
+        logger.info(`[linkGuestMessagesAfterAuth] Successfully processed previous guest ID ${previousGuestId}`);
+      } catch (error) {
+        logger.error(`[linkGuestMessagesAfterAuth] Error processing previous guest ID ${previousGuestId}:`, error);
+        results.push({ guestId: previousGuestId, error: error.message });
+      }
+    }
+    
+    // Очищаем гостевые идентификаторы из сессии
+    delete session.guestId;
+    delete session.previousGuestId;
+    
+    // Сохраняем сессию
+    await new Promise((resolve, reject) => {
+      session.save(err => {
+        if (err) {
+          logger.error('[linkGuestMessagesAfterAuth] Error saving session after guest ID processing:', err);
+          reject(err);
+        } else {
+          logger.info('[linkGuestMessagesAfterAuth] Session saved successfully after guest ID processing');
+          resolve();
+        }
+      });
+    });
+    
+    return { success: true, results };
+  } catch (error) {
+    logger.error(`[linkGuestMessagesAfterAuth] Error: ${error.message}`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Маршрут для получения всех идентификаторов пользователя
+router.get('/identities', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.session;
+    
+    // Получаем все идентификаторы пользователя
+    const identitiesResult = await db.query(
+      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
+      [userId]
+    );
+    
+    const identities = identitiesResult.rows;
+    
+    res.json({
+      success: true,
+      identities
+    });
+  } catch (error) {
+    logger.error('Error getting user identities:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Аутентификация через wallet
+router.post('/wallet', async (req, res) => {
+  try {
+    const { address, nonce, signature } = req.body;
+    
+    if (!address || !nonce || !signature) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields' 
+      });
+    }
+    
+    logger.info(`[wallet] Authentication request for address: ${address}`);
+    
+    // Сохраняем гостевые ID до аутентификации
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[wallet] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
+
+    // Формируем сообщение для проверки
+    const message = `Sign this message to authenticate with HB3 DApp: ${nonce}`;
+    
+    // Проверяем подпись
+    const validSignature = await authService.verifySignature(message, signature, address);
+    if (!validSignature) {
+      logger.warn(`[wallet] Invalid signature for address: ${address}`);
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid signature' 
+      });
+    }
+    
+    logger.info(`[wallet] Valid signature from address: ${address}`);
+    
+    // Получаем или создаем пользователя
+    const { userId } = await authService.findOrCreateUser(address);
+    logger.info(`[wallet] User ID for address ${address}: ${userId}`);
+    
+    // Проверяем наличие админских токенов
+    const isAdmin = await authService.checkAdminTokens(address);
+    logger.info(`[wallet] Admin status for ${address}: ${isAdmin}`);
+    
+    // Обновляем роль пользователя в базе данных, если нужно
+    if (isAdmin) {
+      try {
+        await db.query(
+          'UPDATE users SET role = $1 WHERE id = $2',
+          ['admin', userId]
+        );
+        logger.info(`[wallet] Updated user ${userId} role to admin`);
+      } catch (updateError) {
+        logger.error(`[wallet] Error updating user role:`, updateError);
+      }
+    }
+    
+    // Явно сохраняем wallet адрес как идентификатор пользователя
+    await saveUserIdentity(userId, 'wallet', address.toLowerCase(), true);
+    logger.info(`[wallet] Saved wallet identity ${address.toLowerCase()} for user ${userId}`);
+    
+    // Если есть гостевые ID, сохраняем их
+    if (guestId) {
+      await saveUserIdentity(userId, 'guest', guestId, true);
+      logger.info(`[wallet] Saved guest ID ${guestId} for user ${userId}`);
+    }
+    
+    if (previousGuestId && previousGuestId !== guestId) {
+      await saveUserIdentity(userId, 'guest', previousGuestId, true);
+      logger.info(`[wallet] Saved previous guest ID ${previousGuestId} for user ${userId}`);
+    }
+    
+    // Устанавливаем сессию
+    req.session.userId = userId;
+    req.session.address = address.toLowerCase();
+    req.session.authType = 'wallet';
+    req.session.authenticated = true;
+    req.session.isAdmin = isAdmin;
+    
+    // Сохраняем сессию перед связыванием сообщений
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('[wallet] Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info(`[wallet] Session saved successfully for user ${userId}, address ${address}`);
+          resolve();
+        }
+      });
+    });
+    
+    // Связываем гостевые сообщения с пользователем
+    const linkResults = await linkGuestMessagesAfterAuth(req.session, userId);
+    logger.info(`[wallet] Guest messages linking results:`, linkResults);
+    
+    // Возвращаем успешный ответ
+    return res.json({
+      success: true,
+      userId,
+      address,
+      isAdmin,
+      authenticated: true
+    });
+    
+  } catch (error) {
+    logger.error('[wallet] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error during wallet authentication' 
+    });
+  }
+});
+
+// Обработчик для связывания гостевых сообщений с пользователем
+router.post('/link-guest-messages', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.session;
+    
+    logger.info(`[link-guest-messages] Request for user ${userId}`);
+    
+    // Получаем все идентификаторы пользователя
+    const userIdentitiesResult = await db.query(
+      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
+      [userId]
+    );
+    
+    const userIdentities = userIdentitiesResult.rows;
+    logger.info(`[link-guest-messages] Found ${userIdentities.length} identities for user ${userId}`);
+    userIdentities.forEach(identity => {
+      logger.info(`[link-guest-messages] - ${identity.provider}:${identity.provider_id}`);
+    });
+    
+    // Собираем все guestId, связанные с идентификаторами пользователя
+    let guestIds = [];
+    
+    // Добавляем текущий guestId из сессии
+    if (req.session.guestId) {
+      guestIds.push(req.session.guestId);
+      logger.info(`[link-guest-messages] Added session guestId: ${req.session.guestId}`);
+    }
+    
+    // Добавляем guestId из тела запроса, если есть
+    if (req.body.guestId) {
+      guestIds.push(req.body.guestId);
+      logger.info(`[link-guest-messages] Added request body guestId: ${req.body.guestId}`);
+    }
+    
+    // Добавляем массив guestIds из тела запроса, если есть
+    if (req.body.guestIds && Array.isArray(req.body.guestIds)) {
+      logger.info(`[link-guest-messages] Adding ${req.body.guestIds.length} guestIds from request body`);
+      guestIds = [...guestIds, ...req.body.guestIds];
+    }
+    
+    // Добавляем guestId из идентификаторов пользователя
+    const guestIdentities = userIdentities.filter(identity => identity.provider === 'guest');
+    if (guestIdentities.length > 0) {
+      logger.info(`[link-guest-messages] Adding ${guestIdentities.length} guest identities from user_identities`);
+      guestIds = [...guestIds, ...guestIdentities.map(identity => identity.provider_id)];
+    }
+    
+    // Убираем дубликаты
+    guestIds = [...new Set(guestIds)];
+    
+    logger.info(`[link-guest-messages] Final list of unique guestIds to process: ${guestIds.length}`);
+    guestIds.forEach(id => logger.info(`[link-guest-messages] - ${id}`));
+    
+    if (guestIds.length === 0) {
+      logger.info('[link-guest-messages] No guest IDs found for user');
+      return res.json({ success: true, message: 'No guest messages to link' });
+    }
+    
+    const results = [];
+    
+    // Обрабатываем каждый guestId
+    for (const guestId of guestIds) {
+      // Пропускаем пустые или невалидные ID
+      if (!guestId || typeof guestId !== 'string') {
+        logger.warn(`[link-guest-messages] Skipping invalid guest ID: ${guestId}`);
+        continue;
+      }
+      
+      // Проверяем, не обрабатывали ли мы уже этот ID
+      if (req.session.processedGuestIds && req.session.processedGuestIds.includes(guestId)) {
+        logger.info(`[link-guest-messages] Guest ID ${guestId} already processed, skipping`);
+        results.push({ guestId, result: { success: true, message: 'Already processed' } });
+        continue;
+      }
+      
+      // Проверяем наличие гостевых сообщений
+      try {
+        const guestMessagesCheck = await db.query(
+          'SELECT EXISTS(SELECT 1 FROM guest_messages WHERE guest_id = $1)',
+          [guestId]
+        );
+        
+        if (guestMessagesCheck.rows[0].exists) {
+          logger.info(`[link-guest-messages] Found messages for guest ID ${guestId}, processing`);
+          try {
+            // Используем обертку с правильным порядком аргументов
+            const result = await processGuestMessagesWrapper(guestId, userId);
+            results.push({ guestId, result });
+            logger.info(`[link-guest-messages] Successfully processed guest ID ${guestId}`);
+          } catch (error) {
+            logger.error(`[link-guest-messages] Error processing guest ID ${guestId}:`, error);
+            results.push({ guestId, error: error.message });
+          }
+        } else {
+          logger.info(`[link-guest-messages] No guest messages found for guest ID ${guestId}`);
+          results.push({ guestId, result: { success: true, message: 'No messages found' } });
+        }
+      } catch (error) {
+        logger.error(`[link-guest-messages] Error checking guest messages for ${guestId}:`, error);
+        results.push({ guestId, error: error.message });
+      }
+    }
+    
+    // Сохраняем все обработанные guestId, чтобы не обрабатывать их снова
+    if (!req.session.processedGuestIds) {
+      req.session.processedGuestIds = [];
+    }
+    
+    // Добавляем только успешно обработанные ID
+    const successfulGuestIds = results
+      .filter(r => r.result && r.result.success)
+      .map(r => r.guestId);
+    
+    req.session.processedGuestIds = [...new Set([...req.session.processedGuestIds, ...successfulGuestIds])];
+    logger.info(`[link-guest-messages] Updated processed guest IDs: ${req.session.processedGuestIds.join(', ')}`);
+    
+    // Очищаем текущий guestId из сессии
+    req.session.guestId = null;
+    await req.session.save();
+    logger.info('[link-guest-messages] Session updated, guestId cleared');
+    
+    return res.json({
+      success: true,
+      message: `Processed ${results.length} guest IDs`,
+      results
+    });
+  } catch (error) {
+    logger.error('[link-guest-messages] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
+// Маршрут для проверки и инициализации сессии гостя
+router.get('/check-session', async (req, res) => {
+  try {
+    // Если у пользователя нет guestId, создаем его
+    if (!req.session.guestId && !req.session.authenticated) {
+      req.session.guestId = crypto.randomBytes(16).toString('hex');
+      await req.session.save();
+      logger.info('Created new guestId:', req.session.guestId);
+    }
+    
+    res.json({
+      success: true,
+      guestId: req.session.guestId,
+      isAuthenticated: req.session.authenticated || false
+    });
+  } catch (error) {
+    logger.error('Error checking session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 });
 
