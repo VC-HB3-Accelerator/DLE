@@ -5,7 +5,7 @@ const db = require('../db');
 const logger = require('../utils/logger');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { checkRole, requireAuth } = require('../middleware/auth');
+const { checkRole, requireAuth, auth } = require('../middleware/auth');
 const { pool } = require('../db');
 const authService = require('../services/auth-service');
 const { SiweMessage } = require('siwe');
@@ -1746,115 +1746,27 @@ router.post('/wallet', async (req, res) => {
   }
 });
 
-// Обработчик для связывания гостевых сообщений с пользователем
+// Маршрут для обработки гостевых сообщений после аутентификации
 router.post('/link-guest-messages', requireAuth, async (req, res) => {
   try {
-    const { userId } = req.session;
-    
-    logger.info(`[link-guest-messages] Request for user ${userId}`);
-    
-    // Проверка кэша обработанных ID в сессии
-    if (!req.session.processedGuestIds) {
-      req.session.processedGuestIds = [];
-    }
-    
-    // Получаем все идентификаторы пользователя
-    const userIdentitiesResult = await db.query(
-      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
-      [userId]
-    );
-    
-    const userIdentities = userIdentitiesResult.rows;
-    logger.info(`[link-guest-messages] Found ${userIdentities.length} identities for user ${userId}`);
-    
-    // Получаем только гостевые идентификаторы и фильтруем по неообработанным
-    const guestIdentities = userIdentities
-      .filter(identity => identity.provider === 'guest')
-      .filter(identity => !req.session.processedGuestIds.includes(identity.provider_id));
-    
-    // Добавляем текущий guestId из сессии если он еще не обработан
-    if (req.session.guestId && !req.session.processedGuestIds.includes(req.session.guestId)) {
-      guestIdentities.push({ provider: 'guest', provider_id: req.session.guestId });
-      logger.info(`[link-guest-messages] Added session guestId: ${req.session.guestId}`);
-    }
-    
-    // Добавляем guestId из тела запроса, если есть и еще не обработан
-    if (req.body.guestId && !req.session.processedGuestIds.includes(req.body.guestId)) {
-      guestIdentities.push({ provider: 'guest', provider_id: req.body.guestId });
-      logger.info(`[link-guest-messages] Added request body guestId: ${req.body.guestId}`);
-    }
-    
-    // Убираем дубликаты
-    const uniqueGuestIds = [...new Set(guestIdentities.map(i => i.provider_id))];
-    
-    // Если все ID уже обработаны, сразу возвращаем успех
-    if (uniqueGuestIds.length === 0) {
-      logger.info('[link-guest-messages] No new guest IDs to process');
-      return res.json({ 
-        success: true, 
-        message: 'All guest IDs already processed',
-        processedIds: req.session.processedGuestIds
+    const userId = req.user.id;
+    const { currentGuestId } = req.body;
+
+    if (!currentGuestId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Guest ID is required' 
       });
     }
+
+    const result = await authService.linkGuestMessagesAfterAuth(userId, currentGuestId);
     
-    logger.info(`[link-guest-messages] Found ${uniqueGuestIds.length} new guestIds to process`);
-    uniqueGuestIds.forEach(id => logger.info(`[link-guest-messages] - ${id}`));
-    
-    const results = [];
-    
-    // Обрабатываем каждый новый guestId
-    for (const guestId of uniqueGuestIds) {
-      // Проверяем наличие гостевых сообщений
-      try {
-        const guestMessagesCheck = await db.query(
-          'SELECT EXISTS(SELECT 1 FROM guest_messages WHERE guest_id = $1)',
-          [guestId]
-        );
-        
-        if (guestMessagesCheck.rows[0].exists) {
-          logger.info(`[link-guest-messages] Found messages for guest ID ${guestId}, processing`);
-          try {
-            // Используем обертку с правильным порядком аргументов
-            const result = await processGuestMessagesWrapper(guestId, userId);
-            results.push({ guestId, result });
-            
-            // Добавляем в список обработанных
-            req.session.processedGuestIds.push(guestId);
-            
-            logger.info(`[link-guest-messages] Successfully processed guest ID ${guestId}`);
-          } catch (error) {
-            logger.error(`[link-guest-messages] Error processing guest ID ${guestId}:`, error);
-            results.push({ guestId, error: error.message });
-          }
-        } else {
-          logger.info(`[link-guest-messages] No guest messages found for guest ID ${guestId}`);
-          // Всё равно добавляем в обработанные, чтобы не проверять снова
-          req.session.processedGuestIds.push(guestId);
-          results.push({ guestId, result: { success: true, message: 'No messages found' } });
-        }
-      } catch (error) {
-        logger.error(`[link-guest-messages] Error checking guest messages for ${guestId}:`, error);
-        results.push({ guestId, error: error.message });
-      }
-    }
-    
-    // Очищаем текущий guestId из сессии
-    req.session.guestId = null;
-    await req.session.save();
-    logger.info('[link-guest-messages] Session updated, guestId cleared');
-    
-    return res.json({
-      success: true,
-      message: `Processed ${results.length} guest IDs`,
-      results,
-      processedIds: req.session.processedGuestIds
-    });
+    res.json(result);
   } catch (error) {
-    logger.error('[link-guest-messages] Error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: error.message
+    logger.error('Error in /link-guest-messages:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to process guest messages' 
     });
   }
 });
@@ -1876,6 +1788,56 @@ router.get('/check-session', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error checking session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Маршрут для проверки баланса токенов
+router.get('/check-tokens/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    
+    // Проверяем баланс токенов на разных сетях
+    const balances = {
+      eth: '0',
+      bsc: '0',
+      arbitrum: '0',
+      polygon: '0'
+    };
+    
+    try {
+      balances.eth = await authService.getTokenBalance(address, 'eth');
+    } catch (error) {
+      logger.error(`Error checking ETH balance: ${error.message}`);
+    }
+    
+    try {
+      balances.bsc = await authService.getTokenBalance(address, 'bsc');
+    } catch (error) {
+      logger.error(`Error checking BSC balance: ${error.message}`);
+    }
+    
+    try {
+      balances.arbitrum = await authService.getTokenBalance(address, 'arbitrum');
+    } catch (error) {
+      logger.error(`Error checking Arbitrum balance: ${error.message}`);
+    }
+    
+    try {
+      balances.polygon = await authService.getTokenBalance(address, 'polygon');
+    } catch (error) {
+      logger.error(`Error checking Polygon balance: ${error.message}`);
+    }
+    
+    res.json({
+      success: true,
+      balances
+    });
+  } catch (error) {
+    logger.error('Error checking token balances:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

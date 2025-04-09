@@ -45,4 +45,31 @@ router.post('/link', requireAuth, async (req, res) => {
   }
 });
 
+// Получение балансов токенов
+router.get('/token-balances', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Получаем связанный кошелек
+    const wallet = await authService.getLinkedWallet(userId);
+    if (!wallet) {
+      return res.status(404).json({ error: 'No wallet linked' });
+    }
+
+    // Получаем балансы токенов
+    const balances = await authService.getTokenBalances(wallet);
+
+    res.json({
+      success: true,
+      balances
+    });
+  } catch (error) {
+    logger.error('Error getting token balances:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

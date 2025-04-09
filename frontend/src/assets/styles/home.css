@@ -1174,3 +1174,61 @@ input, textarea {
 .small-button:hover {
   background-color: #444;
 }
+
+/* Стили для блоков информации о пользователе и баланса токенов */
+.user-info, .token-balances {
+  background: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.user-info h3, .token-balances h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.user-info-item, .token-balance {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.user-info-label, .token-name {
+  min-width: 80px;
+  color: #666;
+}
+
+.user-info-value, .token-amount {
+  flex: 1;
+  color: #333;
+  font-family: monospace;
+}
+
+.token-symbol {
+  margin-left: 5px;
+  color: #666;
+  font-size: 12px;
+}
+
+/* Стили для правой панели */
+.right-sidebar {
+  width: 250px;
+  padding: 20px;
+  background: #f5f5f5;
+  border-left: 1px solid #ddd;
+  height: 100vh;
+  position: fixed;
+  right: 0;
+  top: 0;
+  overflow-y: auto;
+}
+
+.right-sidebar.collapsed {
+  width: 0;
+  padding: 0;
+  border-left: none;
+}

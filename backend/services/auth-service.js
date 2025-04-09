@@ -96,10 +96,11 @@ class AuthService {
     let foundTokens = false;
     const balances = {};
     
-    for (const contract of ADMIN_CONTRACTS) {
+    // Создаем массив промисов для параллельной проверки балансов
+    const checkPromises = ADMIN_CONTRACTS.map(async (contract) => {
       try {
         const provider = this.providers[contract.network];
-        if (!provider) continue;
+        if (!provider) return null;
         
         const tokenContract = new ethers.Contract(
           contract.address,
@@ -107,7 +108,14 @@ class AuthService {
           provider
         );
         
-        const balance = await tokenContract.balanceOf(address);
+        // Создаем промис с таймаутом
+        const balancePromise = tokenContract.balanceOf(address);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        );
+        
+        // Ждем первый выполненный промис
+        const balance = await Promise.race([balancePromise, timeoutPromise]);
         const formattedBalance = ethers.formatUnits(balance, 18);
         balances[contract.network] = formattedBalance;
         
@@ -122,6 +130,8 @@ class AuthService {
           logger.info(`Found admin tokens on ${contract.network}`);
           foundTokens = true;
         }
+        
+        return { network: contract.network, balance: formattedBalance };
       } catch (error) {
         logger.error(`Error checking balance in ${contract.network}:`, {
           address,
@@ -129,8 +139,12 @@ class AuthService {
           error: error.message
         });
         balances[contract.network] = 'Error';
+        return null;
       }
-    }
+    });
+    
+    // Ждем выполнения всех проверок
+    await Promise.all(checkPromises);
     
     if (foundTokens) {
       logger.info(`Admin role summary for ${address}:`, {
@@ -162,6 +176,7 @@ class AuthService {
     }
 
     const balances = {};
+    const timeout = 3000; // 3 секунды таймаут
     
     for (const contract of ADMIN_CONTRACTS) {
       try {
@@ -178,12 +193,20 @@ class AuthService {
           provider
         );
 
-        const balance = await tokenContract.balanceOf(address);
+        // Создаем промис с таймаутом
+        const balancePromise = tokenContract.balanceOf(address);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), timeout)
+        );
+
+        // Ждем первый выполненный промис
+        const balance = await Promise.race([balancePromise, timeoutPromise]);
         const formattedBalance = ethers.formatUnits(balance, 18);
         
         logger.info(`Token balance for ${address} on ${contract.network}:`, {
           contract: contract.address,
-          balance: formattedBalance
+          balance: formattedBalance,
+          timestamp: new Date().toISOString()
         });
 
         balances[contract.network] = formattedBalance;
@@ -191,11 +214,17 @@ class AuthService {
         logger.error(`Error getting balance for ${contract.network}:`, {
           address,
           contract: contract.address,
-          error: error.message
+          error: error.message || 'Unknown error',
+          timestamp: new Date().toISOString()
         });
         balances[contract.network] = '0';
       }
     }
+    
+    logger.info(`Token balances fetched for ${address}:`, {
+      ...balances,
+      timestamp: new Date().toISOString()
+    });
     
     return balances;
   }
@@ -426,6 +455,161 @@ class AuthService {
     }
     
     return isAdmin;
+  }
+
+  /**
+   * Очистка старых гостевых идентификаторов
+   * @param {number} userId - ID пользователя
+   * @returns {Promise<void>}
+   */
+  async cleanupGuestIdentities(userId) {
+    try {
+      // Получаем все идентификаторы пользователя
+      const identities = await this.getUserIdentities(userId);
+      
+      // Фильтруем только гостевые идентификаторы
+      const guestIdentities = identities.filter(id => id.identity_type === 'guest');
+      
+      // Если гостевых идентификаторов больше 3, удаляем старые
+      if (guestIdentities.length > 3) {
+        // Сортируем по дате создания (новые первые)
+        guestIdentities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        
+        // Оставляем только 3 последних идентификатора
+        const identitiesToDelete = guestIdentities.slice(3);
+        
+        // Удаляем старые идентификаторы
+        for (const identity of identitiesToDelete) {
+          await db.query(
+            'DELETE FROM user_identities WHERE id = $1',
+            [identity.id]
+          );
+          logger.info(`Deleted old guest identity: ${identity.identity_value}`);
+        }
+      }
+    } catch (error) {
+      logger.error('Error cleaning up guest identities:', error);
+    }
+  }
+
+  /**
+   * Получение всех идентификаторов пользователя
+   * @param {number} userId - ID пользователя
+   * @returns {Promise<Array>} - Массив идентификаторов
+   */
+  async getUserIdentities(userId) {
+    try {
+      const result = await db.query(
+        'SELECT * FROM user_identities WHERE user_id = $1 ORDER BY created_at DESC',
+        [userId]
+      );
+      return result.rows;
+    } catch (error) {
+      logger.error('[getUserIdentities] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Проверка баланса токенов в сети Arbitrum с оптимизированным таймаутом
+   * @param {string} address - Адрес кошелька
+   * @returns {Promise<Object>} - Результат проверки баланса
+   */
+  async checkArbitrumBalance(address) {
+    const timeout = 2000; // Уменьшаем таймаут до 2 секунд
+    try {
+      const balance = await Promise.race([
+        this.getTokenBalance(address, ADMIN_CONTRACTS.ARBITRUM),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('TIMEOUT')), timeout)
+        )
+      ]);
+      return { balance, hasTokens: balance > 0 };
+    } catch (error) {
+      logger.warn(`[checkArbitrumBalance] Timeout or error for ${address}:`, error);
+      return { balance: 0, hasTokens: false, error: error.message };
+    }
+  }
+
+  /**
+   * Обработка гостевых сообщений после аутентификации
+   */
+  async linkGuestMessagesAfterAuth(userId, currentGuestId, previousGuestId) {
+    try {
+      logger.info(`[linkGuestMessagesAfterAuth] Starting for user ${userId} with guestId=${currentGuestId}`);
+      
+      // Проверяем, есть ли идентификатор для обработки
+      if (!currentGuestId) {
+        logger.debug('[linkGuestMessagesAfterAuth] No guest ID to process');
+        return { success: true, message: 'No guest ID to process' };
+      }
+
+      // Получаем все гостевые сообщения для этого ID
+      const guestMessagesResult = await db.query(
+        'SELECT * FROM guest_messages WHERE guest_id = $1 ORDER BY created_at ASC',
+        [currentGuestId]
+      );
+
+      if (guestMessagesResult.rows.length === 0) {
+        logger.info(`[linkGuestMessagesAfterAuth] No messages found for guest ID ${currentGuestId}`);
+        return { success: true, message: 'No messages found' };
+      }
+
+      const guestMessages = guestMessagesResult.rows;
+      logger.info(`[linkGuestMessagesAfterAuth] Found ${guestMessages.length} messages for guest ID ${currentGuestId}`);
+
+      // Создаем одну беседу для всех сообщений этого гостевого ID
+      const firstMessage = guestMessages[0];
+      const title = firstMessage.content.length > 30 
+        ? `${firstMessage.content.substring(0, 30)}...` 
+        : firstMessage.content;
+
+      const newConversationResult = await db.query(
+        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
+        [userId, title]
+      );
+
+      const conversation = newConversationResult.rows[0];
+      logger.info(`[linkGuestMessagesAfterAuth] Created conversation ${conversation.id} for user ${userId}`);
+
+      // Переносим все сообщения в новую беседу
+      for (const guestMessage of guestMessages) {
+        await db.query(
+          `INSERT INTO messages 
+            (conversation_id, content, sender_type, role, channel, guest_message_id, created_at) 
+           VALUES 
+            ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            conversation.id,
+            guestMessage.content,
+            guestMessage.is_ai ? 'assistant' : 'user',
+            guestMessage.is_ai ? 'assistant' : 'user',
+            'web',
+            guestMessage.id,
+            guestMessage.created_at
+          ]
+        );
+      }
+
+      // Удаляем гостевой идентификатор после успешной привязки
+      await db.query(
+        'DELETE FROM user_identities WHERE user_id = $1 AND identity_type = $2 AND identity_value = $3',
+        [userId, 'guest', currentGuestId]
+      );
+      logger.info(`[linkGuestMessagesAfterAuth] Deleted guest identity ${currentGuestId}`);
+
+      return {
+        success: true,
+        result: {
+          conversationId: conversation.id,
+          message: `Processed ${guestMessages.length} guest messages`,
+          success: true
+        }
+      };
+    } catch (error) {
+      logger.error('[linkGuestMessagesAfterAuth] Error:', error);
+      throw error;
+    }
   }
 }
 
