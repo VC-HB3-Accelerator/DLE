@@ -11,6 +11,7 @@ export function useAuth() {
   const email = ref(null);
   const processedGuestIds = ref([]);
   const identities = ref([]);
+  const tokenBalances = ref([]);
   
   // Функция для обновления списка идентификаторов
   const updateIdentities = async () => {
@@ -27,7 +28,21 @@ export function useAuth() {
     }
   };
   
-  const updateAuth = ({ authenticated, authType: newAuthType, userId: newUserId, address: newAddress, telegramId: newTelegramId, isAdmin: newIsAdmin, email: newEmail }) => {
+  const checkTokenBalances = async (address) => {
+    try {
+      const response = await axios.get(`/api/auth/check-tokens/${address}`);
+      if (response.data.success) {
+        tokenBalances.value = response.data.balances;
+        return response.data.balances;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error checking token balances:', error);
+      return null;
+    }
+  };
+  
+  const updateAuth = async ({ authenticated, authType: newAuthType, userId: newUserId, address: newAddress, telegramId: newTelegramId, isAdmin: newIsAdmin, email: newEmail }) => {
     const wasAuthenticated = isAuthenticated.value;
     const previousUserId = userId.value;
     
@@ -49,6 +64,22 @@ export function useAuth() {
     telegramId.value = newTelegramId || null;
     isAdmin.value = newIsAdmin === true;
     email.value = newEmail || null;
+    
+    // Кэшируем данные аутентификации
+    localStorage.setItem('authData', JSON.stringify({
+      authenticated,
+      authType: newAuthType,
+      userId: newUserId,
+      address: newAddress,
+      telegramId: newTelegramId,
+      isAdmin: newIsAdmin,
+      email: newEmail
+    }));
+    
+    // Если аутентификация через кошелек, проверяем баланс токенов только при изменении адреса
+    if (authenticated && newAuthType === 'wallet' && newAddress && newAddress !== address.value) {
+      await checkTokenBalances(newAddress);
+    }
     
     console.log('Auth updated:', { 
       authenticated: isAuthenticated.value,
@@ -159,7 +190,7 @@ export function useAuth() {
       const previousAuthType = authType.value;
       
       // Обновляем данные авторизации через updateAuth вместо прямого изменения
-      updateAuth({
+      await updateAuth({
         authenticated: response.data.authenticated,
         authType: response.data.authType,
         userId: response.data.userId,
@@ -323,6 +354,7 @@ export function useAuth() {
     email,
     identities,
     processedGuestIds,
+    tokenBalances,
     updateAuth,
     checkAuth,
     disconnect,

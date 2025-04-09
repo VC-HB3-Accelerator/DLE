@@ -172,14 +172,108 @@
             <button class="close-error" @click="clearEmailError">×</button>
           </div>
           
+      <!-- Блок информации о пользователе -->
+      <div v-if="isAuthenticated" class="user-info">
+        <h3>Идентификаторы:</h3>
+        <div class="user-info-item">
+          <span class="user-info-label">Кошелек:</span>
+          <span v-if="auth.address?.value" class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
+          <button v-else @click="handleWalletAuth" class="connect-btn">
+            Подключить кошелек
+          </button>
+        </div>
+        <div class="user-info-item">
+          <span class="user-info-label">Telegram:</span>
+          <span v-if="auth.telegramId?.value" class="user-info-value">{{ auth.telegramId.value }}</span>
+          <button v-else @click="handleTelegramAuth" class="connect-btn">
+            Подключить Telegram
+          </button>
+        </div>
+        <div class="user-info-item">
+          <span class="user-info-label">Email:</span>
+          <span v-if="auth.email?.value" class="user-info-value">{{ auth.email.value }}</span>
+          <button v-else @click="handleEmailAuth" class="connect-btn">
+            Подключить Email
+          </button>
+        </div>
+      </div>
+      
+      <!-- Блок форм подключения -->
+      <div v-if="showEmailForm || showTelegramVerification || showEmailVerificationInput" class="connect-forms">
+        <!-- Форма для Email верификации -->
+        <div v-if="showEmailForm" class="email-form">
+          <p>Введите ваш email для получения кода подтверждения:</p>
+          <div class="email-form-container">
+            <input 
+              v-model="emailInput" 
+              type="email" 
+              placeholder="Ваш email" 
+              class="email-input"
+              :class="{ 'email-input-error': emailFormatError }"
+            />
+            <button @click="sendEmailVerification" class="send-email-btn" :disabled="isEmailSending">
+              {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
+            </button>
+          </div>
+          <div class="form-actions">
+            <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
+            <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
+          </div>
+        </div>
+
+        <!-- Форма для ввода кода верификации Email -->
+        <div v-if="showEmailVerificationInput" class="email-verification-form">
+          <p>На ваш email <strong>{{ emailVerificationEmail }}</strong> отправлен код подтверждения.</p>
+          <div class="email-form-container">
+            <input 
+              v-model="emailVerificationCode" 
+              type="text" 
+              placeholder="Введите код верификации" 
+              maxlength="6"
+              class="email-input"
+            />
+            <button @click="verifyEmailCode" class="send-email-btn" :disabled="isVerifying">
+              {{ isVerifying ? 'Проверка...' : 'Подтвердить' }}
+            </button>
+          </div>
+          <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
+        </div>
+
+        <!-- Форма для Telegram верификации -->
+        <div v-if="showTelegramVerification" class="verification-block">
+          <div class="verification-code">
+            <span>Код верификации:</span>
+            <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
+            <span v-if="codeCopied" class="copied-message">Скопировано!</span>
+          </div>
+          <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
+          <button @click="cancelTelegramAuth" class="cancel-btn">Отмена</button>
+        </div>
+
+        <!-- Сообщения об ошибках -->
+        <div v-if="telegramError" class="error-message">
+          {{ telegramError }}
+          <button class="close-error" @click="telegramError = ''">×</button>
+        </div>
+        <div v-if="emailError" class="error-message">
+          {{ emailError }}
+          <button class="close-error" @click="clearEmailError">×</button>
+        </div>
+      </div>
+      
       <!-- Блок баланса токенов -->
-      <div class="balance-container">
-        <h3>Баланс:</h3>
+      <div v-if="isAuthenticated && auth.address?.value" class="token-balances">
+        <h3>Баланс токенов:</h3>
         <div class="token-balance">
           <span class="token-name">ETH:</span>
           <span class="token-amount">{{ tokenBalances.eth }}</span>
           <span class="token-symbol">{{ TOKEN_CONTRACTS.eth.symbol }}</span>
-          </div>
+        </div>
+        <div class="token-balance">
+          <span class="token-name">BSC:</span>
+          <span class="token-amount">{{ tokenBalances.bsc }}</span>
+          <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
+        </div>
         <div class="token-balance">
           <span class="token-name">ARB:</span>
           <span class="token-amount">{{ tokenBalances.arbitrum }}</span>
@@ -190,49 +284,6 @@
           <span class="token-amount">{{ tokenBalances.polygon }}</span>
           <span class="token-symbol">{{ TOKEN_CONTRACTS.polygon.symbol }}</span>
         </div>
-        <div class="token-balance">
-          <span class="token-name">BNB:</span>
-          <span class="token-amount">{{ tokenBalances.bsc }}</span>
-          <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
-        </div>
-      </div>
-      
-      <!-- Блок информации о пользователе -->
-      <div v-if="isAuthenticated" class="user-info">
-        <h3>Идентификаторы:</h3>
-        <!-- Основные идентификаторы из auth объекта -->
-        <template v-if="auth.address?.value">
-          <div class="user-info-item">
-            <span class="user-info-label">Кошелек:</span>
-            <span class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
-          </div>
-        </template>
-        
-        <template v-if="auth.telegramId?.value">
-          <div class="user-info-item">
-            <span class="user-info-label">Telegram:</span>
-            <span class="user-info-value">{{ auth.telegramId.value }}</span>
-          </div>
-        </template>
-        
-        <template v-if="auth.email?.value">
-          <div class="user-info-item">
-            <span class="user-info-label">Email:</span>
-            <span class="user-info-value">{{ auth.email.value }}</span>
-          </div>
-        </template>
-        
-        <!-- Дополнительные идентификаторы из списка identities (кроме уже отображенных) -->
-        <template v-for="identity in filteredIdentities" :key="`${identity.provider}-${identity.provider_id}`">
-          <div class="user-info-item">
-            <span class="user-info-label">{{ formatIdentityProvider(identity.provider) }}:</span>
-            <span class="user-info-value">{{ 
-              identity.provider === 'wallet' 
-                ? truncateAddress(identity.provider_id) 
-                : identity.provider_id 
-            }}</span>
-          </div>
-        </template>
       </div>
       
       <!-- Блок отладочной информации (только для гостей) -->
@@ -584,6 +635,37 @@ const handleTelegramAuth = async () => {
   }
 };
 
+// Функция для обновления балансов
+const updateBalances = async () => {
+  if (auth.isAuthenticated.value && auth.address?.value) {
+    try {
+      const balances = await fetchTokenBalances();
+      tokenBalances.value = balances;
+      console.log('Token balances updated:', balances);
+    } catch (error) {
+      console.error('Error updating balances:', error);
+    }
+  }
+};
+
+// Функция для периодического обновления балансов
+let balanceUpdateInterval = null;
+
+const startBalanceUpdates = () => {
+  // Обновляем балансы сразу
+  updateBalances();
+  
+  // Увеличиваем интервал обновления до 5 минут
+  balanceUpdateInterval = setInterval(updateBalances, 300000);
+};
+
+const stopBalanceUpdates = () => {
+  if (balanceUpdateInterval) {
+    clearInterval(balanceUpdateInterval);
+    balanceUpdateInterval = null;
+  }
+};
+
 // Функция для подключения кошелька - обновленная версия
 const handleWalletAuth = async () => {
   if (isConnecting.value || isAuthenticated.value) return;
@@ -602,6 +684,9 @@ const handleWalletAuth = async () => {
         
         // Обрабатываем загрузку сообщений после успешной аутентификации
         await handlePostAuthMessageLoading('wallet');
+        
+        // Запускаем обновление балансов
+        startBalanceUpdates();
       }
       
       // Добавляем небольшую задержку перед сбросом состояния isConnecting
@@ -1064,18 +1149,6 @@ const handleScroll = async () => {
   }
 };
 
-// Функция получения балансов
-const updateBalances = async () => {
-  if (auth.isAuthenticated.value && auth.address?.value) {
-    try {
-      const balances = await fetchTokenBalances();
-      tokenBalances.value = balances;
-    } catch (error) {
-      console.error('Error updating balances:', error);
-    }
-  }
-};
-
 // Функция для отмены аутентификации через Telegram
 const cancelTelegramAuth = () => {
   // Очищаем интервал проверки
@@ -1179,6 +1252,9 @@ watch(() => messages.value.length, (newLength, oldLength) => {
 const disconnectWallet = async () => {
   try {
     console.log('Выполняется выход из системы...');
+    
+    // Останавливаем обновление балансов
+    stopBalanceUpdates();
     
     // Сохраняем гостевой ID для продолжения работы после выхода
     const guestId = getFromStorage('guestId') || generateUniqueId();
@@ -1401,6 +1477,24 @@ onMounted(async () => {
     setToStorage('hasUserSentMessage', 'true');
   }
   
+  // Проверяем аутентификацию только если нет данных в localStorage
+  const cachedAuth = localStorage.getItem('authData');
+  if (!cachedAuth) {
+    const { data: sessionData } = await api.get('/api/auth/check');
+    console.log('Проверка сессии:', sessionData);
+    
+    if (sessionData.authenticated && sessionData.authType === 'wallet') {
+      // Запускаем обновление балансов
+      startBalanceUpdates();
+    }
+  } else {
+    // Используем кэшированные данные
+    const authData = JSON.parse(cachedAuth);
+    if (authData.authenticated && authData.authType === 'wallet') {
+      startBalanceUpdates();
+    }
+  }
+  
   // Прокручиваем к последнему сообщению
   scrollToBottom();
 });
@@ -1411,5 +1505,8 @@ onBeforeUnmount(() => {
     messagesContainer.value.removeEventListener('scroll', handleScroll);
   }
   window.removeEventListener('load-chat-history', loadChatHistory);
+  
+  // Останавливаем обновление балансов
+  stopBalanceUpdates();
 });
 </script>
