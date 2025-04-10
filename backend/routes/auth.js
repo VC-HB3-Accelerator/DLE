@@ -183,6 +183,9 @@ router.post('/verify', async (req, res) => {
     req.session.isAdmin = isAdmin;
     req.session.address = address.toLowerCase();
     
+    // Удаляем временный ID
+    delete req.session.tempUserId;
+    
     // Сохраняем сессию перед связыванием сообщений
     await new Promise((resolve, reject) => {
       req.session.save(err => {
@@ -218,105 +221,138 @@ router.post('/verify', async (req, res) => {
 // Аутентификация через Telegram
 router.post('/telegram/verify', async (req, res) => {
   try {
-    const { telegramId, authData } = req.body;
+    const { code } = req.body;
     
-    logger.info(`[telegram/verify] Authentication request with telegramId: ${telegramId}`);
+    logger.info(`[telegram/verify] Verifying code: ${code}`);
+    
+    // Проверяем код верификации
+    const verificationResult = await verifyTelegramCode(code);
+    
+    if (!verificationResult.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Неверный код подтверждения' 
+      });
+    }
+    
+    const { telegramId, authData } = verificationResult;
+    logger.info(`[telegram/verify] Code verified successfully for telegramId: ${telegramId}`);
     
     // Сохраняем гостевые ID до проверки
     const guestId = req.session.guestId;
-    const previousGuestId = req.session.previousGuestId;
     
-    logger.info(`[telegram/verify] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
+    let userId;
     
-    // Проверяем данные от Telegram
-    const isValid = await authService.verifyTelegramAuth(authData);
-    
-    if (!isValid) {
-      logger.warn(`[telegram/verify] Invalid Telegram authentication data for user ${telegramId}`);
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Ошибка верификации Telegram' 
-      });
-    }
-    
-    logger.info(`[telegram/verify] Telegram authentication data verified for user ${telegramId}`);
-    
-    // Получаем или создаем пользователя
-    let userId = await authService.getUserIdByIdentity('telegram', telegramId);
-    
-    if (!userId) {
-      // Создаем нового пользователя
-      const userResult = await db.query(
-        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
-      );
+    // Если пользователь уже аутентифицирован, добавляем Telegram к существующему аккаунту
+    if (req.session.authenticated && req.session.userId) {
+      userId = req.session.userId;
       
-      userId = userResult.rows[0].id;
-      logger.info(`[telegram/verify] Created new user with ID ${userId} for Telegram user ${telegramId}`);
+      // Проверяем не связан ли Telegram с другим аккаунтом
+      const existingTelegram = await db.query(`
+        SELECT user_id FROM user_identities 
+        WHERE provider = 'telegram' AND provider_id = $1
+      `, [telegramId]);
+      
+      if (existingTelegram.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Этот Telegram аккаунт уже связан с другим пользователем'
+        });
+      }
+      
+      // Добавляем Telegram к существующему пользователю
+      await saveUserIdentity(userId, 'telegram', telegramId, true);
+      logger.info(`[telegram/verify] Added Telegram identity ${telegramId} to existing user ${userId}`);
+      
     } else {
-      logger.info(`[telegram/verify] Found existing user ID ${userId} for Telegram user ${telegramId}`);
+      // Ищем существующего пользователя по Telegram ID
+      const existingUser = await db.query(`
+        SELECT u.* FROM users u 
+        JOIN user_identities ui ON u.id = ui.user_id 
+        WHERE ui.provider = 'telegram' AND ui.provider_id = $1
+      `, [telegramId]);
+      
+      if (existingUser.rows.length > 0) {
+        // Используем существующего пользователя
+        userId = existingUser.rows[0].id;
+        logger.info(`[telegram/verify] Found existing user with ID ${userId} for telegramId ${telegramId}`);
+      } else {
+        // Создаем нового пользователя
+        const newUser = await db.query(
+          'INSERT INTO users (role) VALUES ($1) RETURNING id',
+          ['user']
+        );
+        userId = newUser.rows[0].id;
+        
+        // Добавляем Telegram идентификатор
+        await saveUserIdentity(userId, 'telegram', telegramId, true);
+        logger.info(`[telegram/verify] Created new user with ID ${userId} for telegramId ${telegramId}`);
+      }
+    }
+
+    // Если есть гостевые сообщения, переносим их
+    if (guestId && !req.session.processedGuestIds?.includes(guestId)) {
+      await processGuestMessages(userId, guestId);
+      // Сохраняем обработанный guestId чтобы избежать повторной обработки
+      if (!req.session.processedGuestIds) {
+        req.session.processedGuestIds = [];
+      }
+      req.session.processedGuestIds.push(guestId);
+      logger.info(`[telegram/verify] Processed guest messages for user ${userId} with guest ID ${guestId}`);
     }
     
-    // Явно сохраняем идентификатор Telegram
-    await saveUserIdentity(userId, 'telegram', telegramId, true);
-    logger.info(`[telegram/verify] Saved Telegram identity ${telegramId} for user ${userId}`);
-    
-    // Если есть гостевые ID, сохраняем их
-    if (guestId) {
-      await saveUserIdentity(userId, 'guest', guestId, true);
-      logger.info(`[telegram/verify] Saved guest ID ${guestId} for user ${userId}`);
-    }
-    
-    if (previousGuestId && previousGuestId !== guestId) {
-      await saveUserIdentity(userId, 'guest', previousGuestId, true);
-      logger.info(`[telegram/verify] Saved previous guest ID ${previousGuestId} for user ${userId}`);
-    }
-    
-    // Устанавливаем сессию
-    req.session.userId = userId;
-    req.session.telegramId = telegramId;
-    req.session.authType = 'telegram';
-    req.session.authenticated = true;
-    
-    // Дополнительно устанавливаем данные из Telegram, если они есть
-    if (authData.first_name) {
-      req.session.telegramFirstName = authData.first_name;
-    }
-    
-    if (authData.username) {
-      req.session.telegramUsername = authData.username;
-    }
-    
-    // Сохраняем сессию перед связыванием сообщений
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
+    // Создаем новую сессию
+    req.session.regenerate(async (err) => {
+      if (err) {
+        logger.error('Error regenerating session:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+      }
+      
+      // Устанавливаем данные новой сессии
+      req.session.authenticated = true;
+      req.session.userId = userId;
+      req.session.telegramId = telegramId;
+      req.session.authType = 'telegram';
+      
+      // Сохраняем список обработанных гостевых ID
+      if (req.session.processedGuestIds?.length > 0) {
+        req.session.processedGuestIds = [...req.session.processedGuestIds];
+      }
+      
+      // Удаляем временные данные
+      delete req.session.tempUserId;
+      delete req.session.guestId;
+      delete req.session.pendingTelegramId;
+      
+      if (authData.first_name) {
+        req.session.telegramFirstName = authData.first_name;
+      }
+      if (authData.username) {
+        req.session.telegramUsername = authData.username;
+      }
+      
+      // Сохраняем сессию
+      req.session.save((err) => {
         if (err) {
-          logger.error('[telegram/verify] Error saving session:', err);
-          reject(err);
-        } else {
-          logger.info(`[telegram/verify] Session saved successfully for telegramId ${telegramId}, userId ${userId}`);
-          resolve();
+          logger.error('Error saving session:', err);
+          return res.status(500).json({ success: false, error: 'Server error' });
         }
+        
+        res.json({
+          success: true,
+          userId,
+          telegramId,
+          authenticated: true,
+          authType: 'telegram',
+          username: authData.username,
+          firstName: authData.first_name
+        });
       });
-    });
-    
-    // Связываем гостевые сообщения с пользователем
-    const linkResults = await linkGuestMessagesAfterAuth(req.session, userId);
-    logger.info(`[telegram/verify] Guest messages linking results:`, linkResults);
-    
-    // Возвращаем успешный ответ
-    return res.json({
-      success: true,
-      userId,
-      telegramId,
-      authenticated: true
     });
     
   } catch (error) {
     logger.error('[telegram/verify] Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Ошибка сервера при аутентификации через Telegram' 
-    });
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
@@ -366,6 +402,38 @@ router.post('/email/request', authLimiter, async (req, res) => {
   }
 });
 
+// Функция для проверки кода email
+async function verifyEmailCode(code, email) {
+  try {
+    logger.info(`[verifyEmailCode] Verifying code ${code} for email ${email}`);
+    
+    // Получаем код из базы данных
+    const result = await db.query(
+      `SELECT * FROM verification_codes 
+       WHERE code = $1 AND provider_id = $2 AND provider = 'email' 
+       AND used = false AND expires_at > NOW()`,
+      [code, email]
+    );
+    
+    if (result.rows.length === 0) {
+      logger.warn(`[verifyEmailCode] No valid code found for ${email}`);
+      return { success: false, error: 'Неверный или истекший код' };
+    }
+    
+    // Помечаем код как использованный
+    await db.query(
+      'UPDATE verification_codes SET used = true WHERE code = $1 AND provider_id = $2 AND provider = \'email\'',
+      [code, email]
+    );
+    
+    logger.info(`[verifyEmailCode] Code verified successfully for ${email}`);
+    return { success: true };
+  } catch (error) {
+    logger.error(`[verifyEmailCode] Error:`, error);
+    throw error;
+  }
+}
+
 // Маршрут для верификации email
 router.post('/email/verify', async (req, res) => {
   try {
@@ -385,98 +453,122 @@ router.post('/email/verify', async (req, res) => {
       });
     }
     
-    // Проверяем код через сервис верификации
-    const result = await verificationService.verifyCode(code, 'email', req.session.pendingEmail);
+    // Сохраняем гостевые ID до проверки
+    const guestId = req.session.guestId;
     
-    if (!result.success) {
+    // Проверяем код через сервис верификации
+    const verificationResult = await verifyEmailCode(code, req.session.pendingEmail);
+    
+    if (!verificationResult.success) {
       return res.status(400).json({
         success: false,
-        error: result.error || 'Неверный код подтверждения'
+        error: verificationResult.error || 'Неверный код подтверждения'
       });
     }
     
-    const userId = result.userId;
-    const email = req.session.pendingEmail;
+    let userId;
     
-    // Проверяем, существует ли пользователь
-    const userResult = await db.query(
-      'SELECT * FROM users WHERE id = $1',
-      [userId]
-    );
-    
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Пользователь не найден'
-      });
-    }
-    
-    // Добавляем email в базу данных
-    await db.query(
-      `INSERT INTO user_identities 
-       (user_id, provider, provider_id) 
-       VALUES ($1, $2, $3) 
-       ON CONFLICT (provider, provider_id) 
-       DO UPDATE SET user_id = $1`,
-      [userId, 'email', email.toLowerCase()]
-    );
-    
-    // Проверяем наличие кошелька и определяем роль
-    const wallet = await authService.getLinkedWallet(userId);
-    let role = 'user'; // Базовая роль для доступа к чату
-    
-    if (wallet) {
-      // Если есть кошелек, проверяем баланс токенов
-      const isAdmin = await authService.checkAdminRole(wallet);
-      role = isAdmin ? 'admin' : 'user';
-      logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
+    // Если пользователь уже аутентифицирован, добавляем email к существующему аккаунту
+    if (req.session.authenticated && req.session.userId) {
+      userId = req.session.userId;
+      
+      // Проверяем не связан ли email с другим аккаунтом
+      const existingEmail = await db.query(`
+        SELECT user_id FROM user_identities 
+        WHERE provider = 'email' AND provider_id = $1
+      `, [req.session.pendingEmail]);
+      
+      if (existingEmail.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Этот email уже связан с другим пользователем'
+        });
+      }
+      
+      // Добавляем email к существующему пользователю
+      await saveUserIdentity(userId, 'email', req.session.pendingEmail, true);
+      logger.info(`[email/verify] Added email identity ${req.session.pendingEmail} to existing user ${userId}`);
+      
     } else {
-      logger.info(`User ${userId} has no wallet, using basic user role`);
+      // Ищем существующего пользователя по email
+      const existingUser = await db.query(`
+        SELECT u.* FROM users u 
+        JOIN user_identities ui ON u.id = ui.user_id 
+        WHERE ui.provider = 'email' AND ui.provider_id = $1
+      `, [req.session.pendingEmail]);
+      
+      if (existingUser.rows.length > 0) {
+        // Используем существующего пользователя
+        userId = existingUser.rows[0].id;
+        logger.info(`[email/verify] Found existing user with ID ${userId} for email ${req.session.pendingEmail}`);
+      } else {
+        // Создаем нового пользователя
+        const newUser = await db.query(
+          'INSERT INTO users (role) VALUES ($1) RETURNING id',
+          ['user']
+        );
+        userId = newUser.rows[0].id;
+        
+        // Добавляем email идентификатор
+        await saveUserIdentity(userId, 'email', req.session.pendingEmail, true);
+        logger.info(`[email/verify] Created new user with ID ${userId} for email ${req.session.pendingEmail}`);
+      }
+    }
+
+    // Если есть гостевые сообщения, переносим их
+    if (guestId && !req.session.processedGuestIds?.includes(guestId)) {
+      await processGuestMessages(userId, guestId);
+      // Сохраняем обработанный guestId чтобы избежать повторной обработки
+      if (!req.session.processedGuestIds) {
+        req.session.processedGuestIds = [];
+      }
+      req.session.processedGuestIds.push(guestId);
+      logger.info(`[email/verify] Processed guest messages for user ${userId} with guest ID ${guestId}`);
     }
     
-    // Устанавливаем аутентификацию пользователя
-    req.session.authenticated = true;
-    req.session.userId = userId;
-    req.session.email = email.toLowerCase();
-    req.session.authType = 'email';
-    req.session.role = role;
-    
-    if (wallet) {
-      req.session.address = wallet;
-    }
-    
-    // Очищаем временные данные
-    delete req.session.pendingEmail;
-    delete req.session.tempUserId;
-    
-    // Сохраняем сессию перед отправкой ответа
-    await new Promise((resolve, reject) => {
-      req.session.save(err => {
+    // Создаем новую сессию
+    req.session.regenerate(async (err) => {
+      if (err) {
+        logger.error('Error regenerating session:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+      }
+      
+      // Устанавливаем данные новой сессии
+      req.session.authenticated = true;
+      req.session.userId = userId;
+      req.session.email = req.session.pendingEmail;
+      req.session.authType = 'email';
+      
+      // Сохраняем список обработанных гостевых ID
+      if (req.session.processedGuestIds?.length > 0) {
+        req.session.processedGuestIds = [...req.session.processedGuestIds];
+      }
+      
+      // Удаляем временные данные
+      delete req.session.tempUserId;
+      delete req.session.guestId;
+      delete req.session.pendingEmail;
+      
+      // Сохраняем сессию
+      req.session.save((err) => {
         if (err) {
           logger.error('Error saving session:', err);
-          reject(err);
-        } else {
-          logger.info(`Session saved successfully for user ${userId} with role ${role}`);
-          resolve();
+          return res.status(500).json({ success: false, error: 'Server error' });
         }
+        
+        res.json({
+          success: true,
+          userId,
+          email: req.session.email,
+          authenticated: true,
+          authType: 'email'
+        });
       });
-    });
-    
-    // Связываем гостевые сообщения с пользователем
-    await linkGuestMessagesAfterAuth(req.session, userId);
-    
-    return res.json({
-      success: true,
-      userId,
-      email: email.toLowerCase(),
-      role,
-      wallet: wallet || null,
-      message: 'Аутентификация успешна'
     });
     
   } catch (error) {
-    logger.error('Error in email verification:', error);
-    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
+    logger.error('[email/verify] Error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
@@ -637,29 +729,29 @@ router.get('/check', async (req, res) => {
 });
 
 // Выход из системы
-router.post('/logout', async (req, res) => {
+router.post('/logout', (req, res) => {
   try {
-    logger.info('[logout] Logout request received');
+    // Сохраняем важные данные перед уничтожением сессии
+    const guestId = req.session.guestId;
     
-    const sessionService = require('../services/session-service');
-    const result = await sessionService.logout(req.session);
-    
-    if (result) {
-      logger.info('[logout] User successfully logged out');
-      return res.json({ success: true });
-    } else {
-      logger.warn('[logout] Error during logout process');
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Error during logout process' 
+    // Полностью уничтожаем сессию
+    req.session.destroy((err) => {
+      if (err) {
+        logger.error('Error destroying session:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+      }
+      
+      // Очищаем куки сессии
+      res.clearCookie('connect.sid');
+      
+      res.json({ 
+        success: true,
+        guestId // Возвращаем guestId для фронтенда
       });
-    }
-  } catch (error) {
-    logger.error('[logout] Error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error' 
     });
+  } catch (error) {
+    logger.error('Error in logout:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
@@ -1100,63 +1192,90 @@ router.get('/email/auth-status/:token', async (req, res) => {
 });
 
 // Маршрут для проверки кода email
-router.post('/email/verify-code', authLimiter, async (req, res) => {
+router.post('/email/verify-code', async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const { code } = req.body;
+    const pendingEmail = req.session.pendingEmail;
     
-    if (!email || !code) {
+    logger.info(`[email/verify-code] Verifying code for email: ${pendingEmail}`);
+    logger.info(`[email/verify-code] Guest context: guestId=${req.session.guestId}, previousGuestId=${req.session.previousGuestId}`);
+    
+    if (!pendingEmail) {
+      logger.warn('[email/verify-code] No pending email found in session');
       return res.status(400).json({ 
         success: false, 
-        error: 'Email и код обязательны' 
+        error: 'Нет ожидающей верификации электронной почты' 
       });
     }
     
-    logger.info(`[email/verify-code] Verifying code for email: ${email}`);
-
-    // Сохраняем гостевой ID до проверки кода
-    const guestId = req.session.guestId;
-    const previousGuestId = req.session.previousGuestId;
-    
-    logger.info(`[email/verify-code] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
-
-    // Проверяем код через сервис верификации
-    const result = await verificationService.verifyCode(code, 'email', email.toLowerCase());
-    
-    if (!result.success) {
-      logger.warn(`[email/verify-code] Invalid code for email ${email}: ${result.error}`);
+    if (!code) {
+      logger.warn('[email/verify-code] No verification code provided');
       return res.status(400).json({ 
         success: false, 
-        error: result.error || 'Неверный код подтверждения' 
+        error: 'Код подтверждения не указан' 
       });
     }
     
-    const userId = result.userId;
-    logger.info(`[email/verify-code] Code verified successfully for email ${email}, userId: ${userId}`);
+    // Проверяем код верификации
+    const verificationResult = await verifyEmailCode(code, pendingEmail);
     
-    // Явно сохраняем email в таблицу user_identities
-    await saveUserIdentity(userId, 'email', email.toLowerCase(), true);
-    
-    // Если есть гостевые ID, сохраняем их до установки аутентификации
-    if (guestId) {
-      await saveUserIdentity(userId, 'guest', guestId, true);
-      logger.info(`[email/verify-code] Saved guest ID ${guestId} for user ${userId}`);
+    if (!verificationResult.success) {
+      logger.warn(`[email/verify-code] Invalid verification code for email ${pendingEmail}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: verificationResult.error || 'Неверный код подтверждения' 
+      });
     }
     
-    if (previousGuestId && previousGuestId !== guestId) {
-      await saveUserIdentity(userId, 'guest', previousGuestId, true);
-      logger.info(`[email/verify-code] Saved previous guest ID ${previousGuestId} for user ${userId}`);
+    // Используем существующего пользователя, если он уже аутентифицирован
+    let userId;
+    if (req.session.authenticated && req.session.userId) {
+      userId = req.session.userId;
+      logger.info(`[email/verify-code] Using existing authenticated user ID ${userId}`);
+    } else {
+      // Проверяем, существует ли пользователь с таким email
+      const existingUser = await db.query(
+        `SELECT u.id FROM users u 
+         JOIN user_identities ui ON u.id = ui.user_id 
+         WHERE ui.provider = 'email' AND ui.provider_id = $1`,
+        [pendingEmail]
+      );
+      
+      if (existingUser.rows.length > 0) {
+        userId = existingUser.rows[0].id;
+        logger.info(`[email/verify-code] Found existing user with ID ${userId} for email ${pendingEmail}`);
+      } else {
+        // Создаем нового пользователя только если нет существующей аутентификации
+        const newUser = await db.query(
+          'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
+        );
+        userId = newUser.rows[0].id;
+        logger.info(`[email/verify-code] Created new user with ID ${userId} for email ${pendingEmail}`);
+      }
     }
     
-    // Устанавливаем аутентификацию пользователя
+    // Сохраняем email как идентификатор пользователя
+    await saveUserIdentity(userId, 'email', pendingEmail, true);
+    logger.info(`[email/verify-code] Saved email identity ${pendingEmail} for user ${userId}`);
+    
+    // Если есть гостевые ID, сохраняем их
+    if (req.session.guestId) {
+      await saveUserIdentity(userId, 'guest', req.session.guestId, true);
+      logger.info(`[email/verify-code] Saved guest ID ${req.session.guestId} for user ${userId}`);
+    }
+    
+    if (req.session.previousGuestId && req.session.previousGuestId !== req.session.guestId) {
+      await saveUserIdentity(userId, 'guest', req.session.previousGuestId, true);
+      logger.info(`[email/verify-code] Saved previous guest ID ${req.session.previousGuestId} for user ${userId}`);
+    }
+    
+    // Обновляем сессию
     req.session.authenticated = true;
     req.session.userId = userId;
-    req.session.email = email.toLowerCase();
+    req.session.email = pendingEmail;
     req.session.authType = 'email';
-    
-    // Если был временный ID, удаляем его
-    if (req.session.tempUserId) {
-      delete req.session.tempUserId;
-    }
+    delete req.session.pendingEmail;
+    delete req.session.tempUserId;
     
     // Сохраняем сессию перед связыванием сообщений
     await new Promise((resolve, reject) => {
@@ -1178,8 +1297,8 @@ router.post('/email/verify-code', authLimiter, async (req, res) => {
     return res.json({
       success: true,
       userId,
-      email: email.toLowerCase(),
-      message: 'Аутентификация успешна'
+      email: pendingEmail,
+      authenticated: true
     });
     
   } catch (error) {
@@ -1470,10 +1589,10 @@ router.post('/email/send', async (req, res) => {
   }
 });
 
-// Обертка для функции processGuestMessages с правильным порядком аргументов
-async function processGuestMessagesWrapper(guestId, userId) {
+// Обертка для функции processGuestMessages
+async function processGuestMessagesWrapper(userId, guestId) {
   try {
-    logger.info(`[processGuestMessagesWrapper] Correcting order of arguments: userId=${userId}, guestId=${guestId}`);
+    logger.info(`[processGuestMessagesWrapper] Processing messages: userId=${userId}, guestId=${guestId}`);
     return await processGuestMessages(userId, guestId);
   } catch (error) {
     logger.error(`[processGuestMessagesWrapper] Error: ${error.message}`, error);
@@ -1526,72 +1645,49 @@ async function saveUserIdentity(userId, provider, providerId, verified = true) {
 // Функция для связывания гостевых сообщений после аутентификации
 async function linkGuestMessagesAfterAuth(session, userId) {
   try {
-    const guestId = session.guestId;
-    const previousGuestId = session.previousGuestId;
-    
-    logger.info(`[linkGuestMessagesAfterAuth] Starting for user ${userId} with guestId=${guestId}, previousGuestId=${previousGuestId}`);
-    
-    // Проверяем, есть ли идентификаторы для обработки
-    if (!guestId && !previousGuestId) {
-      logger.debug('[linkGuestMessagesAfterAuth] No guest IDs to process');
-      return { success: true, message: 'No guest IDs to process' };
-    }
-    
-    // Инициализируем массив обработанных ID, если он не существует
+    logger.info(`[linkGuestMessagesAfterAuth] Starting for user ${userId} with guestId=${session.guestId}, previousGuestId=${session.previousGuestId}`);
+
+    // Инициализируем массив обработанных гостевых ID, если его нет
     if (!session.processedGuestIds) {
       session.processedGuestIds = [];
-      logger.info(`[linkGuestMessagesAfterAuth] Initialized processedGuestIds array for session`);
+      logger.info('[linkGuestMessagesAfterAuth] Initialized processedGuestIds array for session');
     }
-    
-    let results = [];
-    
+
+    // Получаем все гостевые ID для текущего пользователя
+    const guestIdsResult = await db.query(
+      'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2',
+      [userId, 'guest']
+    );
+    const userGuestIds = guestIdsResult.rows.map(row => row.provider_id);
+
     // Обрабатываем текущий гостевой ID
-    if (guestId) {
-      logger.info(`[linkGuestMessagesAfterAuth] Processing current guest ID ${guestId} for user ${userId}`);
-      
-      try {
-        // Связываем сообщения с пользователем через обертку с правильным порядком аргументов
-        const result = await processGuestMessagesWrapper(guestId, userId);
-        results.push({ guestId, result });
-        
-        // Добавляем в список обработанных
-        session.processedGuestIds.push(guestId);
-        
-        logger.info(`[linkGuestMessagesAfterAuth] Successfully processed guest ID ${guestId}`);
-      } catch (error) {
-        logger.error(`[linkGuestMessagesAfterAuth] Error processing guest ID ${guestId}:`, error);
-        results.push({ guestId, error: error.message });
-      }
+    if (session.guestId && !session.processedGuestIds.includes(session.guestId)) {
+      logger.info(`[linkGuestMessagesAfterAuth] Processing current guest ID ${session.guestId} for user ${userId}`);
+      await processGuestMessagesWrapper(userId, session.guestId);
+      session.processedGuestIds.push(session.guestId);
     }
-    
+
     // Обрабатываем предыдущий гостевой ID
-    if (previousGuestId && previousGuestId !== guestId) {
-      logger.info(`[linkGuestMessagesAfterAuth] Processing previous guest ID ${previousGuestId} for user ${userId}`);
-      
-      try {
-        // Связываем сообщения с пользователем через обертку с правильным порядком аргументов
-        const result = await processGuestMessagesWrapper(previousGuestId, userId);
-        results.push({ guestId: previousGuestId, result });
-        
-        // Добавляем в список обработанных
-        session.processedGuestIds.push(previousGuestId);
-        
-        logger.info(`[linkGuestMessagesAfterAuth] Successfully processed previous guest ID ${previousGuestId}`);
-      } catch (error) {
-        logger.error(`[linkGuestMessagesAfterAuth] Error processing previous guest ID ${previousGuestId}:`, error);
-        results.push({ guestId: previousGuestId, error: error.message });
+    if (session.previousGuestId && !session.processedGuestIds.includes(session.previousGuestId)) {
+      logger.info(`[linkGuestMessagesAfterAuth] Processing previous guest ID ${session.previousGuestId} for user ${userId}`);
+      await processGuestMessagesWrapper(userId, session.previousGuestId);
+      session.processedGuestIds.push(session.previousGuestId);
+    }
+
+    // Обрабатываем все гостевые ID пользователя
+    for (const guestId of userGuestIds) {
+      if (!session.processedGuestIds.includes(guestId)) {
+        logger.info(`[linkGuestMessagesAfterAuth] Processing user's guest ID ${guestId} for user ${userId}`);
+        await processGuestMessagesWrapper(userId, guestId);
+        session.processedGuestIds.push(guestId);
       }
     }
-    
-    // Очищаем гостевые идентификаторы из сессии
-    delete session.guestId;
-    delete session.previousGuestId;
-    
+
     // Сохраняем сессию
     await new Promise((resolve, reject) => {
       session.save(err => {
         if (err) {
-          logger.error('[linkGuestMessagesAfterAuth] Error saving session after guest ID processing:', err);
+          logger.error('[linkGuestMessagesAfterAuth] Error saving session:', err);
           reject(err);
         } else {
           logger.info('[linkGuestMessagesAfterAuth] Session saved successfully after guest ID processing');
@@ -1599,10 +1695,10 @@ async function linkGuestMessagesAfterAuth(session, userId) {
         }
       });
     });
-    
-    return { success: true, results };
+
+    return { success: true };
   } catch (error) {
-    logger.error(`[linkGuestMessagesAfterAuth] Error: ${error.message}`, error);
+    logger.error('[linkGuestMessagesAfterAuth] Error:', error);
     return { success: false, error: error.message };
   }
 }

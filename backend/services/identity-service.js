@@ -195,6 +195,110 @@ class IdentityService {
       return { success: false, error: error.message };
     }
   }
+  
+  /**
+   * Мигрирует все идентификаторы и сообщения от одного пользователя к другому
+   * @param {number} fromUserId - ID исходного пользователя
+   * @param {number} toUserId - ID целевого пользователя
+   * @returns {Promise<object>} - Результат операции
+   */
+  async migrateUserData(fromUserId, toUserId) {
+    try {
+      if (!fromUserId || !toUserId) {
+        logger.warn(`[IdentityService] Missing parameters: fromUserId=${fromUserId}, toUserId=${toUserId}`);
+        return { success: false, error: 'Missing required parameters' };
+      }
+
+      // Начинаем транзакцию
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // Получаем все идентификаторы исходного пользователя
+        const identitiesResult = await client.query(
+          `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
+          [fromUserId]
+        );
+        
+        // Переносим каждый идентификатор
+        for (const identity of identitiesResult.rows) {
+          await client.query(
+            `UPDATE user_identities 
+             SET user_id = $1 
+             WHERE user_id = $2 AND provider = $3 AND provider_id = $4`,
+            [toUserId, fromUserId, identity.provider, identity.provider_id]
+          );
+        }
+
+        // Переносим все сообщения
+        await client.query(
+          `UPDATE messages 
+           SET user_id = $1 
+           WHERE user_id = $2`,
+          [toUserId, fromUserId]
+        );
+
+        // Переносим все диалоги
+        await client.query(
+          `UPDATE conversations 
+           SET user_id = $1 
+           WHERE user_id = $2`,
+          [toUserId, fromUserId]
+        );
+
+        // Удаляем исходного пользователя
+        await client.query(
+          `DELETE FROM users WHERE id = $1`,
+          [fromUserId]
+        );
+
+        await client.query('COMMIT');
+        
+        logger.info(`[IdentityService] Successfully migrated data from user ${fromUserId} to user ${toUserId}`);
+        return { 
+          success: true, 
+          migratedIdentities: identitiesResult.rows.length 
+        };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      logger.error(`[IdentityService] Error migrating data from user ${fromUserId} to user ${toUserId}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Находит всех пользователей с похожими идентификаторами
+   * @param {object} identities - Объект с идентификаторами
+   * @returns {Promise<Array>} - Массив ID пользователей
+   */
+  async findRelatedUsers(identities) {
+    try {
+      const userIds = new Set();
+      
+      for (const [provider, providerId] of Object.entries(identities)) {
+        if (!providerId) continue;
+        
+        const result = await db.query(
+          `SELECT DISTINCT user_id 
+           FROM user_identities 
+           WHERE provider = $1 AND provider_id = $2`,
+          [provider, providerId]
+        );
+        
+        result.rows.forEach(row => userIds.add(row.user_id));
+      }
+      
+      return Array.from(userIds);
+    } catch (error) {
+      logger.error(`[IdentityService] Error finding related users:`, error);
+      return [];
+    }
+  }
 }
 
 module.exports = new IdentityService(); 

@@ -70,38 +70,57 @@ class EmailAuth {
         return { verified: false, message: result.error || 'Неверный код верификации' };
       }
 
-      const userId = result.userId || session.tempUserId;
-      const email = session.pendingEmail;
+      const email = session.pendingEmail.toLowerCase();
+      let finalUserId;
 
-      // Проверяем, существует ли уже этот email в user_identities
-      const existingUserQuery = await db.query(
-        `SELECT user_id FROM user_identities 
-         WHERE provider = 'email' AND provider_id = $1`,
-        [email.toLowerCase()]
-      );
+      // Ищем всех пользователей с похожими идентификаторами
+      const identities = {
+        email: email,
+        guest: session.guestId
+      };
 
-      let finalUserId = userId;
-      
-      // Если email уже связан с другим пользователем
-      if (existingUserQuery.rows.length > 0) {
-        finalUserId = existingUserQuery.rows[0].user_id;
-        logger.info(`Using existing user ID ${finalUserId} for email ${email}`);
-        
-        // Обновляем идентификатор пользователя в сессии
-        if (userId !== finalUserId) {
-          logger.info(`Changing user ID from ${userId} to ${finalUserId} based on existing email identity`);
+      const relatedUsers = await authService.identityService.findRelatedUsers(identities);
+      logger.info(`[checkEmailVerification] Found ${relatedUsers.length} related users for identities:`, identities);
+
+      if (relatedUsers.length > 0) {
+        // Берем первого найденного пользователя как основного
+        finalUserId = relatedUsers[0];
+        logger.info(`[checkEmailVerification] Using existing user ${finalUserId} as primary`);
+
+        // Мигрируем данные от остальных пользователей к основному
+        for (const userId of relatedUsers.slice(1)) {
+          await authService.identityService.migrateUserData(userId, finalUserId);
+          logger.info(`[checkEmailVerification] Migrated data from user ${userId} to ${finalUserId}`);
+        }
+
+        // Если у нас есть временный пользователь, мигрируем его данные тоже
+        if (session.tempUserId && !relatedUsers.includes(session.tempUserId)) {
+          await authService.identityService.migrateUserData(session.tempUserId, finalUserId);
+          logger.info(`[checkEmailVerification] Migrated temporary user ${session.tempUserId} to ${finalUserId}`);
         }
       } else {
-        // Добавляем email в базу данных для нового пользователя
-        await db.query(
-          `INSERT INTO user_identities 
-           (user_id, provider, provider_id) 
-           VALUES ($1, $2, $3) 
-           ON CONFLICT (provider, provider_id) 
-           DO UPDATE SET user_id = $1`,
-          [finalUserId, 'email', email.toLowerCase()]
-        );
-        logger.info(`Added new email identity ${email} for user ${finalUserId}`);
+        // Если связанных пользователей нет, используем временного или создаем нового
+        if (session.tempUserId) {
+          finalUserId = session.tempUserId;
+          logger.info(`[checkEmailVerification] Using temporary user ${finalUserId}`);
+        } else {
+          const newUserResult = await db.query(
+            'INSERT INTO users (role) VALUES ($1) RETURNING id',
+            ['user']
+          );
+          finalUserId = newUserResult.rows[0].id;
+          logger.info(`[checkEmailVerification] Created new user ${finalUserId}`);
+        }
+      }
+
+      // Добавляем email в базу данных
+      await authService.identityService.saveIdentity(finalUserId, 'email', email, true);
+      logger.info(`[checkEmailVerification] Added email identity ${email} for user ${finalUserId}`);
+
+      // Если есть гостевой ID, добавляем его тоже
+      if (session.guestId) {
+        await authService.identityService.saveIdentity(finalUserId, 'guest', session.guestId, true);
+        logger.info(`[checkEmailVerification] Added guest identity ${session.guestId} for user ${finalUserId}`);
       }
 
       // Очищаем временные данные
@@ -113,7 +132,7 @@ class EmailAuth {
       return {
         verified: true,
         userId: finalUserId,
-        email: email.toLowerCase()
+        email: email
       };
     } catch (error) {
       logger.error('Error checking email verification:', error);

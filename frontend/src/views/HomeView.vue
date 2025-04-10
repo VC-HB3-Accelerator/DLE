@@ -97,22 +97,22 @@
       </div>
       
       <!-- Добавляем дополнительные кнопки авторизации -->
-      <div v-if="!isAuthenticated && messages.length > 0" class="auth-buttons">
+      <div v-if="!isAuthenticated" class="auth-buttons">
         <h3>Авторизация через:</h3>
         <div v-if="!showTelegramVerification" class="auth-btn-container">
           <button @click="handleTelegramAuth" class="auth-btn telegram-btn">
             Подключить Telegram
           </button>
         </div>
-            <div v-if="showTelegramVerification" class="verification-block">
-              <div class="verification-code">
+        <div v-if="showTelegramVerification" class="verification-block">
+          <div class="verification-code">
             <span>Код верификации:</span>
-                <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
+            <code @click="copyCode(telegramVerificationCode)">{{ telegramVerificationCode }}</code>
             <span v-if="codeCopied" class="copied-message">Скопировано!</span>
-              </div>
+          </div>
           <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
           <button @click="cancelTelegramAuth" class="cancel-btn">Отмена</button>
-            </div>
+        </div>
         
         <!-- Сообщение об ошибке в Telegram -->
         <div v-if="telegramError" class="error-message">
@@ -124,9 +124,9 @@
           <button @click="handleEmailAuth" class="auth-btn email-btn">
             Подключить Email
           </button>
-              </div>
+        </div>
               
-        <!-- Форма для Email верификации (встроена в auth-buttons) -->
+        <!-- Форма для Email верификации -->
         <div v-if="showEmailForm" class="email-form">
           <p>Введите ваш email для получения кода подтверждения:</p>
           <div class="email-form-container">
@@ -139,15 +139,15 @@
             />
             <button @click="sendEmailVerification" class="send-email-btn" :disabled="isEmailSending">
               {{ isEmailSending ? 'Отправка...' : 'Отправить код' }}
-                    </button>
-                  </div>
+            </button>
+          </div>
           <div class="form-actions">
             <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
             <p v-if="emailFormatError" class="email-format-error">Пожалуйста, введите корректный email</p>
-                </div>
-              </div>
+          </div>
+        </div>
         
-        <!-- Форма для ввода кода верификации Email (встроена в auth-buttons) -->
+        <!-- Форма для ввода кода верификации Email -->
         <div v-if="showEmailVerificationInput" class="email-verification-form">
           <p>На ваш email <strong>{{ emailVerificationEmail }}</strong> отправлен код подтверждения.</p>
           <div class="email-form-container">
@@ -164,42 +164,48 @@
           </div>
           <button @click="cancelEmailAuth" class="cancel-btn">Отмена</button>
         </div>
-          </div>
+      </div>
             
       <!-- Сообщение об ошибке в Email -->
-          <div v-if="emailError" class="error-message">
-            {{ emailError }}
-            <button class="close-error" @click="clearEmailError">×</button>
-          </div>
+      <div v-if="emailError" class="error-message">
+        {{ emailError }}
+        <button class="close-error" @click="clearEmailError">×</button>
+      </div>
           
       <!-- Блок информации о пользователе -->
       <div v-if="isAuthenticated" class="user-info">
         <h3>Идентификаторы:</h3>
         <div class="user-info-item">
           <span class="user-info-label">Кошелек:</span>
-          <span v-if="auth.address?.value" class="user-info-value">{{ truncateAddress(auth.address.value) }}</span>
+          <span v-if="hasIdentityType('wallet')" class="user-info-value">
+            {{ truncateAddress(getIdentityValue('wallet')) }}
+          </span>
           <button v-else @click="handleWalletAuth" class="connect-btn">
             Подключить кошелек
           </button>
         </div>
         <div class="user-info-item">
           <span class="user-info-label">Telegram:</span>
-          <span v-if="auth.telegramId?.value" class="user-info-value">{{ auth.telegramId.value }}</span>
+          <span v-if="hasIdentityType('telegram')" class="user-info-value">
+            {{ getIdentityValue('telegram') }}
+          </span>
           <button v-else @click="handleTelegramAuth" class="connect-btn">
             Подключить Telegram
           </button>
         </div>
         <div class="user-info-item">
           <span class="user-info-label">Email:</span>
-          <span v-if="auth.email?.value" class="user-info-value">{{ auth.email.value }}</span>
+          <span v-if="hasIdentityType('email')" class="user-info-value">
+            {{ getIdentityValue('email') }}
+          </span>
           <button v-else @click="handleEmailAuth" class="connect-btn">
             Подключить Email
           </button>
         </div>
       </div>
       
-      <!-- Блок форм подключения -->
-      <div v-if="showEmailForm || showTelegramVerification || showEmailVerificationInput" class="connect-forms">
+      <!-- Блок форм подключения для аутентифицированных пользователей -->
+      <div v-if="isAuthenticated && (showEmailForm || showTelegramVerification || showEmailVerificationInput)" class="connect-forms">
         <!-- Форма для Email верификации -->
         <div v-if="showEmailForm" class="email-form">
           <p>Введите ваш email для получения кода подтверждения:</p>
@@ -248,16 +254,6 @@
           </div>
           <a :href="telegramBotLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
           <button @click="cancelTelegramAuth" class="cancel-btn">Отмена</button>
-        </div>
-
-        <!-- Сообщения об ошибках -->
-        <div v-if="telegramError" class="error-message">
-          {{ telegramError }}
-          <button class="close-error" @click="telegramError = ''">×</button>
-        </div>
-        <div v-if="emailError" class="error-message">
-          {{ emailError }}
-          <button class="close-error" @click="clearEmailError">×</button>
         </div>
       </div>
       
@@ -542,6 +538,9 @@ const sendEmailVerification = async () => {
       console.log('Showing verification code input form for email:', emailVerificationEmail.value);
     } else {
       emailError.value = response.data.error || 'Ошибка инициализации аутентификации по email';
+      // Возвращаем форму ввода email в исходное состояние
+      showEmailForm.value = true;
+      showEmailVerificationInput.value = false;
     }
   } catch (error) {
     console.error('Error in email init request:', error);
@@ -550,6 +549,9 @@ const sendEmailVerification = async () => {
     } else {
       emailError.value = 'Ошибка при запросе кода подтверждения';
     }
+    // Возвращаем форму ввода email в исходное состояние
+    showEmailForm.value = true;
+    showEmailVerificationInput.value = false;
   } finally {
     isEmailSending.value = false;
   }
@@ -1399,6 +1401,18 @@ const cancelEmailAuth = () => {
   emailVerificationCode.value = '';
   emailError.value = '';
   emailFormatError.value = false;
+};
+
+// Методы для работы с идентификаторами
+const hasIdentityType = (type) => {
+  if (!auth.identities?.value) return false;
+  return auth.identities.value.some(identity => identity.provider === type);
+};
+
+const getIdentityValue = (type) => {
+  if (!auth.identities?.value) return null;
+  const identity = auth.identities.value.find(identity => identity.provider === type);
+  return identity ? identity.provider_id : null;
 };
 
 // Функции жизненного цикла

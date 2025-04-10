@@ -232,11 +232,17 @@ class AuthService {
   // Создание сессии с проверкой роли
   async createSession(session, { userId, authenticated, authType, guestId, address }) {
     try {
+      // Если пользователь аутентифицирован, обрабатываем гостевые сообщения
+      if (authenticated && guestId) {
+        await this.processAndCleanupGuestData(userId, guestId, session);
+      }
+
       // Обновляем данные сессии
       session.userId = userId;
       session.authenticated = authenticated;
       session.authType = authType;
-      session.guestId = guestId;
+      
+      // Сохраняем адрес кошелька если есть
       if (address) {
         session.address = address;
       }
@@ -250,7 +256,6 @@ class AuthService {
           userId,
           authenticated,
           authType,
-          guestId,
           address,
           cookie: session.cookie
         }), session.id]
@@ -260,6 +265,31 @@ class AuthService {
     } catch (error) {
       logger.error('Error creating session:', error);
       return false;
+    }
+  }
+
+  /**
+   * Обработка и очистка гостевых данных после авторизации
+   * @param {number} userId - ID пользователя
+   * @param {string} guestId - Гостевой ID
+   * @param {Object} session - Объект сессии
+   */
+  async processAndCleanupGuestData(userId, guestId, session) {
+    try {
+      // Обрабатываем гостевые сообщения
+      const { processGuestMessages } = require('../routes/chat');
+      await processGuestMessages(userId, guestId);
+
+      // Очищаем гостевой ID из сессии
+      delete session.guestId;
+      if (session.previousGuestId) {
+        delete session.previousGuestId;
+      }
+
+      logger.info(`Cleaned up guest data for user ${userId}, guest ID ${guestId}`);
+    } catch (error) {
+      logger.error('Error processing and cleaning up guest data:', error);
+      throw error;
     }
   }
 
