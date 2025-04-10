@@ -1,6 +1,6 @@
 <template>
   <div class="email-connection">
-    <div v-if="!showVerification">
+    <div v-if="!showVerification" class="email-form">
       <input 
         v-model="email"
         type="email"
@@ -12,10 +12,11 @@
         :disabled="isLoading || !isValidEmail"
         class="email-btn"
       >
-        Получить код
+        {{ isLoading ? 'Отправка...' : 'Получить код' }}
       </button>
     </div>
-    <div v-else>
+    <div v-else class="verification-form">
+      <p class="verification-info">Код отправлен на {{ email }}</p>
       <input 
         v-model="code"
         type="text"
@@ -24,10 +25,16 @@
       />
       <button 
         @click="verifyCode"
-        :disabled="isLoading"
+        :disabled="isLoading || !code"
         class="verify-btn"
       >
-        Подтвердить
+        {{ isLoading ? 'Проверка...' : 'Подтвердить' }}
+      </button>
+      <button 
+        @click="resetForm"
+        class="reset-btn"
+      >
+        Изменить email
       </button>
     </div>
     <div v-if="error" class="error">{{ error }}</div>
@@ -36,21 +43,17 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import axios from 'axios';
+import axios from '@/api/axios';
+import { useAuth } from '@/composables/useAuth';
 
-const props = defineProps({
-  onEmailAuth: {
-    type: Function,
-    required: true
-  }
-});
+const emit = defineEmits(['close']);
+const { linkIdentity } = useAuth();
 
 const email = ref('');
 const code = ref('');
 const error = ref('');
 const isLoading = ref(false);
 const showVerification = ref(false);
-const isConnecting = ref(false);
 
 const isValidEmail = computed(() => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value);
@@ -59,11 +62,19 @@ const isValidEmail = computed(() => {
 const requestCode = async () => {
   try {
     isLoading.value = true;
-    await props.onEmailAuth(email.value);
-    showVerification.value = true;
     error.value = '';
+    
+    const response = await axios.post('/api/auth/email/request-verification', {
+      email: email.value
+    });
+    
+    if (response.data.success) {
+      showVerification.value = true;
+    } else {
+      error.value = response.data.error || 'Ошибка отправки кода';
+    }
   } catch (err) {
-    error.value = err.message || 'Ошибка отправки кода';
+    error.value = err.response?.data?.error || 'Ошибка отправки кода';
   } finally {
     isLoading.value = false;
   }
@@ -72,37 +83,80 @@ const requestCode = async () => {
 const verifyCode = async () => {
   try {
     isLoading.value = true;
-    await props.onEmailAuth(email.value, code.value);
     error.value = '';
+    
+    const response = await axios.post('/api/auth/email/verify', {
+      email: email.value,
+      code: code.value
+    });
+    
+    if (response.data.success) {
+      // Связываем email с текущим пользователем
+      await linkIdentity('email', email.value);
+      emit('close');
+    } else {
+      error.value = response.data.error || 'Неверный код';
+    }
   } catch (err) {
-    error.value = err.message || 'Неверный код';
+    error.value = err.response?.data?.error || 'Ошибка проверки кода';
   } finally {
     isLoading.value = false;
   }
+};
+
+const resetForm = () => {
+  email.value = '';
+  code.value = '';
+  error.value = '';
+  showVerification.value = false;
 };
 </script>
 
 <style scoped>
 .email-connection {
-  margin: 10px 0;
+  padding: 20px;
+  max-width: 400px;
+}
+
+.email-form,
+.verification-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .email-input,
 .code-input {
-  padding: 8px;
-  margin-right: 10px;
+  padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
+  font-size: 16px;
+}
+
+.email-btn,
+.verify-btn,
+.reset-btn {
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
 }
 
 .email-btn,
 .verify-btn {
-  padding: 10px 20px;
   background-color: #48bb78;
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+}
+
+.reset-btn {
+  background-color: #e2e8f0;
+  color: #4a5568;
+}
+
+.verification-info {
+  color: #4a5568;
   font-size: 14px;
 }
 

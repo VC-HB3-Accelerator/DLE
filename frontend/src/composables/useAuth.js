@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import axios from '../api/axios';
 
 export function useAuth() {
@@ -20,11 +20,38 @@ export function useAuth() {
     try {
       const response = await axios.get('/api/auth/identities');
       if (response.data.success) {
-        identities.value = response.data.identities;
+        // Фильтруем идентификаторы: убираем гостевые и оставляем только уникальные
+        const filteredIdentities = response.data.identities
+          .filter(identity => identity.provider !== 'guest')
+          .reduce((acc, identity) => {
+            // Для каждого типа провайдера оставляем только один идентификатор
+            const existingIdentity = acc.find(i => i.provider === identity.provider);
+            if (!existingIdentity) {
+              acc.push(identity);
+            }
+            return acc;
+          }, []);
+        
+        identities.value = filteredIdentities;
         console.log('User identities updated:', identities.value);
       }
     } catch (error) {
       console.error('Error fetching user identities:', error);
+    }
+  };
+  
+  // Периодическое обновление идентификаторов
+  let identitiesInterval;
+
+  const startIdentitiesPolling = () => {
+    if (identitiesInterval) return;
+    identitiesInterval = setInterval(updateIdentities, 30000); // Обновляем каждые 30 секунд
+  };
+
+  const stopIdentitiesPolling = () => {
+    if (identitiesInterval) {
+      clearInterval(identitiesInterval);
+      identitiesInterval = null;
     }
   };
   
@@ -81,6 +108,15 @@ export function useAuth() {
       await checkTokenBalances(newAddress);
     }
     
+    // Обновляем идентификаторы при любом изменении аутентификации
+    if (authenticated) {
+      await updateIdentities();
+      startIdentitiesPolling();
+    } else {
+      stopIdentitiesPolling();
+      identities.value = [];
+    }
+    
     console.log('Auth updated:', { 
       authenticated: isAuthenticated.value,
       userId: userId.value,
@@ -91,11 +127,10 @@ export function useAuth() {
     });
     
     // Если пользователь только что аутентифицировался или сменил аккаунт, 
-    // пробуем связать сообщения и обновить идентификаторы
+    // пробуем связать сообщения
     if (authenticated && (!wasAuthenticated || (previousUserId && previousUserId !== newUserId))) {
-      console.log('Auth change detected, linking messages and updating identities');
+      console.log('Auth change detected, linking messages');
       linkMessages();
-      updateIdentities();
     }
   };
   
@@ -342,6 +377,11 @@ export function useAuth() {
   
   onMounted(async () => {
     await checkAuth();
+  });
+
+  // Очищаем интервал при размонтировании компонента
+  onUnmounted(() => {
+    stopIdentitiesPolling();
   });
   
   return {

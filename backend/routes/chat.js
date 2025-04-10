@@ -27,30 +27,6 @@ async function processGuestMessages(userId, guestId) {
     const guestMessages = guestMessagesResult.rows;
     console.log(`Found ${guestMessages.length} guest messages`);
     
-    // Получаем идентификаторы пользователя
-    const userIdentities = await db.query(
-      `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
-      [userId]
-    );
-    
-    console.log(`Found ${userIdentities.rows.length} identities for user ${userId}`, userIdentities.rows);
-    
-    // Сохраняем guestId как отдельный идентификатор для пользователя
-    // если он еще не привязан к пользователю
-    const existingGuestIdentity = userIdentities.rows.find(
-      identity => identity.provider === 'guest' && identity.provider_id === guestId
-    );
-    
-    if (!existingGuestIdentity) {
-      await db.query(
-        `INSERT INTO user_identities (user_id, provider, provider_id) 
-         VALUES ($1, 'guest', $2)
-         ON CONFLICT (provider, provider_id) DO NOTHING`,
-        [userId, guestId]
-      );
-      console.log(`Linked guest ID ${guestId} to user ${userId}`);
-    }
-    
     // Создаем новый диалог для этих сообщений
     const firstMessage = guestMessages[0];
     const title = firstMessage.content.length > 30 
@@ -69,23 +45,12 @@ async function processGuestMessages(userId, guestId) {
     for (const guestMessage of guestMessages) {
       console.log(`Processing guest message ID ${guestMessage.id}: ${guestMessage.content}`);
       
-      // Проверяем, не было ли это сообщение уже обработано
-      const existingMessage = await db.query(
-        'SELECT id FROM messages WHERE guest_message_id = $1',
-        [guestMessage.id]
-      );
-      
-      if (existingMessage.rows.length > 0) {
-        console.log(`Guest message ${guestMessage.id} already processed, skipping`);
-        continue;
-      }
-      
       // Сохраняем сообщение пользователя
       const userMessageResult = await db.query(
         `INSERT INTO messages 
-          (conversation_id, content, sender_type, role, channel, guest_message_id, created_at) 
+          (conversation_id, content, sender_type, role, channel, created_at) 
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7) 
+          ($1, $2, $3, $4, $5, $6) 
          RETURNING *`,
         [
           conversation.id, 
@@ -93,7 +58,6 @@ async function processGuestMessages(userId, guestId) {
           'user', 
           'user', 
           'web',
-          guestMessage.id,
           guestMessage.created_at
         ]
       );
@@ -127,6 +91,10 @@ async function processGuestMessages(userId, guestId) {
         console.log(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
       }
     }
+    
+    // Удаляем обработанные гостевые сообщения
+    await db.query('DELETE FROM guest_messages WHERE guest_id = $1', [guestId]);
+    console.log(`Deleted processed guest messages for guest ID ${guestId}`);
     
     return { 
       success: true, 
