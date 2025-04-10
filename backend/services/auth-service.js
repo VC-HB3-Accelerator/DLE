@@ -7,7 +7,7 @@ const verificationService = require('./verification-service'); // Использ
 
 const ADMIN_CONTRACTS = [
   { address: "0xd95a45fc46a7300e6022885afec3d618d7d3f27c", network: "eth" },
-  { address: "0x1d47f12ffA279BFE59Ab16d56fBb10d89AECdD5D", network: "bsc" },
+  { address: "0x4B294265720B09ca39BFBA18c7E368413c0f68eB", network: "bsc" },
   { address: "0xdce769b847a0a697239777d0b1c7dd33b6012ba0", network: "arbitrum" },
   { address: "0x351f59de4fedbdf7601f5592b93db3b9330c1c1d", network: "polygon" }
 ];

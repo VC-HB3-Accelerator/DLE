@@ -29,26 +29,31 @@ DROP FUNCTION IF EXISTS sync_identity_type() CASCADE;
 DROP FUNCTION IF EXISTS update_user_role() CASCADE;
 DROP FUNCTION IF EXISTS check_admin_role() CASCADE;
 
+-- Создаем функцию для проверки баланса токенов
+CREATE OR REPLACE FUNCTION check_token_balance(wallet_address VARCHAR) 
+RETURNS BOOLEAN AS $$
+BEGIN
+  -- Эта функция будет вызываться из auth-service.js
+  -- Здесь только заглушка, реальная проверка в JavaScript
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Создаем функцию проверки роли
 CREATE OR REPLACE FUNCTION check_admin_role() 
 RETURNS TRIGGER AS $$
-DECLARE
-  v_wallet_address VARCHAR;
 BEGIN
-  SELECT provider_id INTO v_wallet_address
-  FROM user_identities
-  WHERE user_id = NEW.user_id 
-  AND provider = 'wallet'
-  LIMIT 1;
-
-  IF v_wallet_address IS NULL THEN
+  -- Не меняем роль при обновлении других типов идентификаторов
+  IF NEW.provider != 'wallet' THEN
     RETURN NEW;
   END IF;
 
+  -- По умолчанию устанавливаем роль user
   UPDATE users 
-  SET role = 'admin'::user_role
+  SET role = 'user'::user_role
   WHERE id = NEW.user_id;
 
+  -- Роль админа будет назначаться через auth-service.js после проверки баланса токенов
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -59,13 +64,19 @@ AFTER INSERT OR UPDATE ON user_identities
 FOR EACH ROW
 EXECUTE FUNCTION check_admin_role();
 
--- Обновляем существующие записи
-UPDATE users u
-SET role = CASE 
-  WHEN EXISTS (
-    SELECT 1 FROM user_identities ui 
-    WHERE ui.user_id = u.id 
-    AND ui.provider = 'wallet'
-  ) THEN 'admin'::user_role
-  ELSE 'user'::user_role
+-- Сбрасываем все роли на user
+UPDATE users SET role = 'user'::user_role;
+
+-- Создаем индекс для оптимизации поиска по роли
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
+-- Создаем функцию для безопасного обновления роли
+CREATE OR REPLACE FUNCTION update_user_role(p_user_id INTEGER, p_role user_role) 
+RETURNS VOID AS $$
+BEGIN
+  UPDATE users 
+  SET role = p_role,
+      updated_at = NOW()
+  WHERE id = p_user_id;
 END;
+$$ LANGUAGE plpgsql;
