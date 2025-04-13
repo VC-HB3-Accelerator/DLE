@@ -20,14 +20,24 @@ class VerificationService {
     const expiresAt = new Date(Date.now() + this.expirationMinutes * 60 * 1000);
 
     try {
-      logger.info(`Creating verification code for ${provider}:${providerId}, userId: ${userId}`);
+      logger.info(`Creating verification code for ${provider}:${providerId}, userId: ${userId || 'null'}`);
       
-      await db.query(
-        `INSERT INTO verification_codes 
-         (code, provider, provider_id, user_id, expires_at) 
-         VALUES ($1, $2, $3, $4, $5)`,
-        [code, provider, providerId, userId, expiresAt]
-      );
+      // Если userId не указан, добавляем запись без ссылки на пользователя
+      if (userId === null || userId === undefined) {
+        await db.query(
+          `INSERT INTO verification_codes 
+           (code, provider, provider_id, expires_at) 
+           VALUES ($1, $2, $3, $4)`,
+          [code, provider, providerId, expiresAt]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO verification_codes 
+           (code, provider, provider_id, user_id, expires_at) 
+           VALUES ($1, $2, $3, $4, $5)`,
+          [code, provider, providerId, userId, expiresAt]
+        );
+      }
 
       logger.info(`Verification code created successfully for ${provider}:${providerId}`);
       return code;

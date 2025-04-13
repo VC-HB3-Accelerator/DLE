@@ -274,11 +274,7 @@ export function useAuth() {
   
   const disconnect = async () => {
     try {
-      // Сохраняем текущий guestId перед выходом
-      const newGuestId = crypto.randomUUID();
-      localStorage.setItem('guestId', newGuestId);
-      console.log('Created new guestId for future session:', newGuestId);
-      
+      // Удаляем все идентификаторы перед выходом
       await axios.post('/api/auth/logout');
       
       // Обновляем состояние в памяти
@@ -297,17 +293,22 @@ export function useAuth() {
       
       // Очищаем списки идентификаторов
       identities.value = [];
+      processedGuestIds.value = [];
       
-      // Очищаем localStorage кроме guestId
+      // Очищаем localStorage полностью
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('userId');
       localStorage.removeItem('address');
       localStorage.removeItem('isAdmin');
+      localStorage.removeItem('guestId');
+      localStorage.removeItem('guestMessages');
+      localStorage.removeItem('telegramId');
+      localStorage.removeItem('email');
       
       // Удаляем класс подключенного кошелька
       document.body.classList.remove('wallet-connected');
       
-      console.log('User disconnected successfully');
+      console.log('User disconnected successfully and all identifiers cleared');
       
       return { success: true };
     } catch (error) {

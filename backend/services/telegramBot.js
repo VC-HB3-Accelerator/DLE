@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const db = require('../db');
 const authService = require('./auth-service');
 const verificationService = require('./verification-service');
+const crypto = require('crypto');
 
 let botInstance = null;
 
@@ -38,7 +39,7 @@ async function getBot() {
         
         const verification = codeResult.rows[0];
         const providerId = verification.provider_id;
-        let userId = verification.user_id;
+        let userId;
         
         // Отмечаем код как использованный
         await db.query(
@@ -57,40 +58,37 @@ async function getBot() {
         );
         
         if (existingTelegramUser.rows.length > 0) {
-          // Если пользователь с таким Telegram ID уже существует,
-          // используем его ID вместо создания нового связывания
-          const existingUserId = existingTelegramUser.rows[0].user_id;
+          // Если пользователь с таким Telegram ID уже существует, используем его
+          userId = existingTelegramUser.rows[0].user_id;
+          logger.info(`Using existing user ${userId} for Telegram account ${ctx.from.id}`);
+        } else {
+          // Создаем нового пользователя, если нет существующего с этим Telegram ID
+          const userResult = await db.query(
+            'INSERT INTO users (created_at, role) VALUES (NOW(), $1) RETURNING id',
+            ['user']
+          );
+          userId = userResult.rows[0].id;
           
-          // Связываем гостевой ID с существующим пользователем, если его еще нет
-          const guestIdentity = await db.query(
-            `SELECT * FROM user_identities 
-             WHERE user_id = $1 AND provider = 'guest' AND provider_id = $2`,
-            [existingUserId, providerId]
+          // Связываем Telegram с новым пользователем
+          await db.query(
+            `INSERT INTO user_identities 
+             (user_id, provider, provider_id, created_at) 
+             VALUES ($1, $2, $3, NOW())`,
+            [userId, 'telegram', ctx.from.id.toString()]
           );
           
-          if (guestIdentity.rows.length === 0 && providerId) {
+          // Если был гостевой ID, связываем его с новым пользователем
+          if (providerId) {
             await db.query(
               `INSERT INTO user_identities 
                (user_id, provider, provider_id, created_at) 
                VALUES ($1, $2, $3, NOW())
-               ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1`,
-              [existingUserId, 'guest', providerId]
+               ON CONFLICT (provider, provider_id) DO NOTHING`,
+              [userId, 'guest', providerId]
             );
           }
           
-          userId = existingUserId;
-          logger.info(`Using existing user ${userId} for Telegram account ${ctx.from.id}`);
-        } else {
-          // Связываем Telegram с пользователем
-          await db.query(
-            `INSERT INTO user_identities 
-             (user_id, provider, provider_id, created_at) 
-             VALUES ($1, $2, $3, NOW())
-             ON CONFLICT (provider, provider_id) DO UPDATE SET user_id = $1`,
-            [userId, 'telegram', ctx.from.id.toString()]
-          );
-          
-          logger.info(`User ${userId} successfully linked Telegram account ${ctx.from.id}`);
+          logger.info(`Created new user ${userId} with Telegram account ${ctx.from.id}`);
         }
         
         // Обновляем сессию в базе данных
@@ -149,57 +147,18 @@ async function stopBot() {
 // Инициализация процесса аутентификации
 async function initTelegramAuth(session) {
   try {
-    // Создаем или получаем ID пользователя
-    let userId;
+    // Используем временный идентификатор для создания кода верификации
+    // Реальный пользователь будет создан или найден при проверке кода через бота
+    const tempId = crypto.randomBytes(16).toString('hex');
     
-    if (session.authenticated && session.userId) {
-      // Если пользователь уже аутентифицирован, используем его ID
-      userId = session.userId;
-    } else if (session.guestId) {
-      // Проверяем, есть ли уже пользователь с этим guestId
-      const existingUser = await db.query(
-        `SELECT u.id 
-         FROM users u 
-         JOIN user_identities ui ON u.id = ui.user_id 
-         WHERE ui.provider = 'guest' AND ui.provider_id = $1`,
-        [session.guestId]
-      );
-      
-      if (existingUser.rows.length > 0) {
-        // Используем существующего пользователя
-        userId = existingUser.rows[0].id;
-      } else {
-        // Создаем нового пользователя
-        const userResult = await db.query(
-          'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
-        );
-        userId = userResult.rows[0].id;
-        
-        // Связываем гостевой ID с пользователем
-        await db.query(
-          `INSERT INTO user_identities 
-           (user_id, provider, provider_id, created_at) 
-           VALUES ($1, $2, $3, NOW())`,
-          [userId, 'guest', session.guestId]
-        );
-      }
-      
-      session.tempUserId = userId;
-    } else {
-      // Создаем нового пользователя без гостевого ID
-      const userResult = await db.query(
-        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
-      );
-      userId = userResult.rows[0].id;
-      session.tempUserId = userId;
-    }
-    
-    // Создаем код через сервис верификации
+    // Создаем код через сервис верификации с временным идентификатором
     const code = await verificationService.createVerificationCode(
       'telegram',
-      session.guestId || 'temp',
-      userId
+      session.guestId || tempId,
+      null // Не привязываем к конкретному userId на этом этапе
     );
+    
+    logger.info(`[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}`);
     
     return {
       verificationCode: code,
