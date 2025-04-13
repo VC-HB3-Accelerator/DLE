@@ -1,51 +1,21 @@
 <template>
   <div class="app-container">
-    <!-- Боковая панель / Меню -->
-    <div class="sidebar" :class="{ 'sidebar-expanded': showSidebar }">
-      <button class="menu-button" @click="toggleSidebar">
-        <div class="hamburger"></div>
-      </button>
-      <div class="nav-buttons">
-        <button class="nav-btn" @click="navigateTo('page1')">
-          <div class="nav-btn-number">1</div>
-          <div class="nav-btn-text">Кнопка 1</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page2')">
-          <div class="nav-btn-number">2</div>
-          <div class="nav-btn-text">Кнопка 2</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page3')">
-          <div class="nav-btn-number">3</div>
-          <div class="nav-btn-text">Кнопка 3</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page4')">
-          <div class="nav-btn-number">4</div>
-          <div class="nav-btn-text">Кнопка 4</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page5')">
-          <div class="nav-btn-number">5</div>
-          <div class="nav-btn-text">Кнопка 5</div>
-        </button>
-        <button class="nav-btn" @click="navigateTo('page6')">
-          <div class="nav-btn-number">6</div>
-          <div class="nav-btn-text">Кнопка 6</div>
-          </button>
-        </div>
-        
-      <!-- Кнопка 7 в нижней части боковой панели -->
-      <button class="nav-btn sidebar-bottom-btn" @click="toggleWalletSidebar">
-        <div class="nav-btn-number">7</div>
-        <div class="nav-btn-text">{{ showWalletSidebar ? 'Скрыть панель' : 'Подключиться' }}</div>
-          </button>
-        </div>
-        
     <!-- Основной контент -->
     <div class="main-content" :class="{ 'no-right-sidebar': !showWalletSidebar }">
       <div class="header">
-        <h1 class="title">✌️HB3 - Accelerator DLE (Digital Legal Entity - DAO Fork)</h1>
-        <p class="subtitle">Венчурный фонд и поставщик программного обеспечения</p>
+        <div class="header-content">
+          <div class="header-text">
+            <h1 class="title">✌️HB3 - Accelerator DLE</h1>
+            <p class="subtitle">Венчурный фонд и поставщик программного обеспечения</p>
+          </div>
+          <button class="nav-btn header-wallet-btn" @click="toggleWalletSidebar" :class="{ active: showWalletSidebar }">
+            <div class="hamburger-line"></div>
+            <div class="nav-btn-number">7</div>
+            <div class="nav-btn-text">{{ showWalletSidebar ? 'Скрыть панель' : 'Подключиться' }}</div>
+          </button>
         </div>
-        
+      </div>
+      
       <div class="chat-container">
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="message in messages" :key="message.id" 
@@ -77,10 +47,15 @@
             rows="3"
             autofocus
           ></textarea>
-          <button @click="handleMessage(newMessage)" :disabled="isLoading || !newMessage.trim()">
-            {{ isLoading ? 'Отправка...' : 'Отправить' }}
-        </button>
-      </div>
+          <div class="chat-buttons">
+            <button @click="handleMessage(newMessage)" :disabled="isLoading || !newMessage.trim()">
+              {{ isLoading ? 'Отправка...' : 'Отправить' }}
+            </button>
+            <button @click="clearGuestMessages" class="clear-btn" :disabled="isLoading">
+              Очистить
+            </button>
+          </div>
+        </div>
         </div>
           </div>
           
@@ -281,18 +256,6 @@
           <span class="token-symbol">{{ TOKEN_CONTRACTS.polygon.symbol }}</span>
         </div>
       </div>
-      
-      <!-- Блок отладочной информации (только для гостей) -->
-      <div v-if="!isAuthenticated" class="debug-info">
-        <h4>Гостевой идентификатор:</h4>
-        <div class="debug-item">
-          <code>{{ guestIdValue || 'Не задан' }}</code>
-        </div>
-        <div class="debug-buttons">
-          <button @click="refreshGuestId" class="small-button">Обновить ID</button>
-          <button @click="clearGuestMessages" class="small-button">Очистить сообщения</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -371,6 +334,7 @@ const isLoadingMore = ref(false);
 const hasMoreMessages = ref(false);
 const offset = ref(0);
 const limit = ref(30);
+const isMessageLoadingInProgress = ref(false); // Добавляем флаг для отслеживания процесса загрузки
 
 // Состояния для верификации
 const showTelegramVerification = ref(false);
@@ -400,8 +364,7 @@ const successMessage = ref('');
 const showSuccessMessage = ref(false);
 
 // Состояния для сайдбара
-const showSidebar = ref(false);
-const currentPage = ref('home');
+const showWalletSidebar = ref(false);
 
 // Добавляем состояние для балансов
 const tokenBalances = ref({
@@ -411,8 +374,8 @@ const tokenBalances = ref({
   polygon: '0'
 });
 
-// Состояние для отображения правой панели
-const showWalletSidebar = ref(false);
+// Добавляем состояние для отслеживания привязки гостевых сообщений
+const isLinkingGuestMessages = ref(false);
 
 // Вычисленное свойство для фильтрации идентификаторов
 const filteredIdentities = computed(() => {
@@ -443,17 +406,6 @@ function formatIdentityProvider(provider) {
   };
   return providers[provider] || provider;
 }
-
-// Функция для управления сайдбаром
-const toggleSidebar = () => {
-  showSidebar.value = !showSidebar.value;
-  document.querySelector('.app-container').classList.toggle('menu-open');
-};
-
-const navigateTo = (page) => {
-  currentPage.value = page;
-  console.log(`Навигация на страницу: ${page}`);
-};
 
 // Функция для переключения отображения правой панели
 const toggleWalletSidebar = () => {
@@ -560,38 +512,26 @@ const sendEmailVerification = async () => {
 // Функция для обработки загрузки сообщений после аутентификации
 const handlePostAuthMessageLoading = async (authType) => {
   try {
-    console.log(`Обработка загрузки сообщений после аутентификации через ${authType}`);
+    isMessageLoadingInProgress.value = true;
     
-    // Сохраняем текущее количество сообщений для отслеживания
-    let currentMessageCount = 0;
-    try {
-      const countResponse = await axios.get('/api/chat/history?count_only=true');
-      if (countResponse.data.success) {
-        currentMessageCount = countResponse.data.count || 0;
-        console.log(`Текущее количество сообщений перед обработкой: ${currentMessageCount}`);
-      }
-    } catch (error) {
-      console.warn('Ошибка при получении текущего количества сообщений:', error);
-    }
-    
-    // Загружаем историю сообщений после успешной авторизации
-    await loadChatHistory();
-    
-    // Получаем новое количество сообщений для отслеживания новых ответов
-    const newCountResponse = await axios.get('/api/chat/history?count_only=true');
-    if (newCountResponse.data.success) {
-      const newCount = newCountResponse.data.count || 0;
+    // Загружаем историю сообщений напрямую через API
+    const response = await axios.get('/api/chat/history');
+    if (response.data.success) {
+      messages.value = response.data.messages || [];
+      console.log(`Загружено ${messages.value.length} сообщений после аутентификации`);
       
-      // Настраиваем отслеживание только если есть разница в количестве сообщений
-      if (newCount !== currentMessageCount) {
-        console.log(`Количество сообщений изменилось: ${currentMessageCount} -> ${newCount}`);
-        setupMessagePolling(newCount);
-      } else {
-        console.log('Количество сообщений не изменилось, отслеживание не требуется');
-      }
+      // Очищаем локальное хранилище гостевых сообщений
+      localStorage.removeItem('guestMessages');
+      localStorage.removeItem('guestId');
+      
+      // Прокручиваем к последнему сообщению
+      await nextTick();
+      scrollToBottom();
     }
   } catch (error) {
     console.error(`Ошибка при обработке сообщений после аутентификации через ${authType}:`, error);
+  } finally {
+    isMessageLoadingInProgress.value = false;
   }
 };
 
@@ -864,38 +804,40 @@ const clearGuestMessages = () => {
 
 // Метод для загрузки истории чата
 const loadChatHistory = async () => {
-  // Сбрасываем текущие сообщения и загружаем новую историю
   isLoading.value = true;
   
   try {
-    // Сначала получаем общее количество сообщений
+    // Если пользователь аутентифицирован и есть гостевые сообщения, 
+    // но привязка уже выполняется - ждем её завершения
+    if (auth.isAuthenticated.value && isLinkingGuestMessages.value) {
+      await new Promise(resolve => {
+        const checkInterval = setInterval(() => {
+          if (!isLinkingGuestMessages.value) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    // Получаем общее количество сообщений
     const countResponse = await axios.get('/api/chat/history?count_only=true');
     
     if (countResponse.data.success) {
       const messageCount = countResponse.data.count;
       console.log(`История содержит ${messageCount} сообщений`);
       
-      // Рассчитываем смещение для получения последних сообщений
       const effectiveOffset = Math.max(0, messageCount - limit.value);
-      
-      // Загружаем историю сообщений
       const response = await axios.get(`/api/chat/history?offset=${effectiveOffset}&limit=${limit.value}`);
       
       if (response && response.data.success) {
-        // Очищаем локальные гостевые сообщения при успешной загрузке истории аутентифицированного пользователя
-        if (auth.isAuthenticated.value) {
-          removeFromStorage('guestMessages');
-        }
-        
         messages.value = response.data.messages;
         console.log(`Загружено ${messages.value.length} сообщений из истории`);
         
-        // Отправляем событие об обновлении сообщений
         window.dispatchEvent(new CustomEvent('messages-updated', { 
           detail: { count: messages.value.length } 
         }));
         
-        // Прокручиваем к последнему сообщению
         await nextTick();
         scrollToBottom();
       }
@@ -1258,10 +1200,6 @@ const disconnectWallet = async () => {
     // Останавливаем обновление балансов
     stopBalanceUpdates();
     
-    // Сохраняем гостевой ID для продолжения работы после выхода
-    const guestId = getFromStorage('guestId') || generateUniqueId();
-    setToStorage('guestId', guestId);
-    
     // Отправляем запрос на выход
     await axios.post('/api/auth/logout');
     
@@ -1275,25 +1213,14 @@ const disconnectWallet = async () => {
     // Обновляем отображение UI
     document.body.classList.remove('wallet-connected');
     
-    // Очищаем историю сообщений, кроме гостевых
+    // Очищаем все сообщения и состояния
     messages.value = [];
     offset.value = 0;
     hasMoreMessages.value = true;
     
-    // Загружаем только гостевые сообщения после выхода
-    try {
-      // Проверяем наличие сообщений в localStorage
-      const storedMessages = getFromStorage('guestMessages');
-      if (storedMessages) {
-        const parsedMessages = JSON.parse(storedMessages);
-        if (parsedMessages.length > 0) {
-          console.log(`Найдено ${parsedMessages.length} сохраненных гостевых сообщений`);
-          messages.value = [...messages.value, ...parsedMessages];
-        }
-      }
-    } catch (e) {
-      console.error('Ошибка загрузки сообщений из localStorage:', e);
-    }
+    // Очищаем localStorage от всех сообщений
+    localStorage.removeItem('guestMessages');
+    localStorage.removeItem('hasUserSentMessage');
     
     console.log('Выход из системы выполнен успешно');
   } catch (error) {

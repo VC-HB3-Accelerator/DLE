@@ -3,6 +3,13 @@
   font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #fff;
 }
 
 /* Стили для монопространственных шрифтов (код, верификация) */
@@ -35,10 +42,9 @@ input, textarea {
 
 .app-container {
   display: flex;
-  height: 100vh;
-  width: 100%;
-  background-color: #f5f5f5;
-  position: relative;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #fff;
 }
 
 /* Стили для боковой панели */
@@ -160,14 +166,10 @@ input, textarea {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-left: 190px; /* 40px + 110px (sidebar) + 40px (button) */
-  margin-right: 190px; /* 40px + 110px (sidebar) + 40px (button) */
-  transition: margin 0.3s ease;
   max-width: 1200px;
+  margin: 0 auto;
   padding: 0 20px;
-  height: 100vh;
-  position: relative;
-  box-sizing: border-box;
+  width: 100%;
 }
 
 .sidebar-expanded ~ .main-content {
@@ -188,27 +190,18 @@ input, textarea {
   flex: 1;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: calc(100vh - 140px);
-  position: relative;
-  box-sizing: border-box;
+  margin: 20px 0;
+  min-height: 0;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  background-color: white;
-  border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
   margin-bottom: 20px;
-  width: 100%;
-  box-sizing: border-box;
-  position: absolute;
-  top: 0;
-  bottom: 120px; /* Увеличиваем отступ для возможного расширения chat-input */
-  left: 0;
-  right: 0;
 }
 
 .message {
@@ -282,57 +275,45 @@ input, textarea {
   border: 1px solid #F44336;
 }
 
+/* Стили для ввода сообщений */
 .chat-input {
   display: flex;
-  background-color: white;
+  gap: 10px;
+  padding: 20px;
+  background: #fff;
   border-radius: 8px;
-  padding: 15px;
-  width: 100%;
-  box-sizing: border-box;
-  position: absolute;
-  bottom: 40px;
-  left: 0;
-  right: 0;
-  min-height: 70px;
-  max-height: 200px; /* Максимальная высота */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e0e0e0;
 }
 
 .chat-input textarea {
   flex: 1;
+  padding: 12px;
   border: 1px solid #e0e0e0;
-  resize: vertical; /* Разрешаем вертикальное изменение размера */
-  padding: 10px;
-  min-height: 40px;
-  max-height: 170px; /* Максимальная высота минус padding */
-  font-family: inherit;
   border-radius: 4px;
-  background-color: white;
-  line-height: 1.4;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 60px;
+  max-height: 200px;
 }
 
 .chat-input button {
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  border-radius: 4px;
   padding: 0 20px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
-  height: 40px;
-  margin-left: 10px;
-  align-self: flex-start;
-  transition: background-color 0.2s;
   font-size: 14px;
+  transition: background-color 0.3s;
 }
 
 .chat-input button:hover:not(:disabled) {
-  background-color: #f0f0f0;
+  background: #45a049;
 }
 
 .chat-input button:disabled {
-  background-color: #f5f5f5;
-  color: #999;
-  border-color: #ddd;
+  background: #ccc;
   cursor: not-allowed;
 }
 
@@ -744,43 +725,63 @@ input, textarea {
   word-break: break-all;
 }
 
-/* Медиа-запрос для узких экранов */
-@media (max-width: 1300px) {
-  .wallet-sidebar {
-    width: 286px;
-    min-width: 286px;
-    padding: 15px;
+/* Медиа-запросы для адаптивности */
+@media (max-width: 1200px) {
+  .header-content,
+  .main-content {
+    max-width: 100%;
+    padding: 0 15px;
   }
-  
-  .verification-code code {
-    font-size: 14px;
-    padding: 6px 10px;
+}
+
+/* Медиа-запросы для мобильных устройств */
+@media screen and (max-width: 768px) {
+  .header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
   }
-  
-  .auth-btn, .bot-link, .cancel-btn {
-    padding: 10px 8px;
-    font-size: 13px;
+
+  .header-text {
+    flex: 1;
+    margin-right: 10px;
+    min-width: 0; /* Важно для корректной работы text-overflow */
   }
-  
-  .verify-btn, .send-email-btn {
-    padding: 0 10px;
-    font-size: 13px;
+
+  .title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1.2rem;
+    margin: 0;
   }
-  
-  .main-content:not(.no-right-sidebar) {
-    margin-right: 286px;
+
+  .subtitle {
+    white-space: normal;
+    font-size: 0.9rem;
+    margin: 0;
+    line-height: 1.2;
   }
-  
-  .close-wallet-sidebar {
-    width: 26px;
-    height: 26px;
-    font-size: 18px;
-    top: 8px;
-    right: 8px;
+
+  .header-wallet-btn {
+    flex-shrink: 0;
+    margin-left: 10px;
   }
-  
-  .wallet-buttons {
-    margin-top: 35px;
+}
+
+/* Дополнительные стили для очень маленьких экранов */
+@media screen and (max-width: 480px) {
+  .header-content {
+    padding: 8px;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .subtitle {
+    font-size: 0.8rem;
   }
 }
 
@@ -999,43 +1000,119 @@ input, textarea {
 }
 
 .header {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
   padding: 20px 0;
-  margin-bottom: 24px; /* Уменьшенный отступ после заголовка */
-  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-text {
+  flex: 1;
 }
 
 .title {
   font-size: 24px;
-  font-weight: bold;
-  margin: 0;
-  line-height: 1.2;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 5px;
 }
 
 .subtitle {
-  font-size: 14px;
+  font-size: 16px;
   color: #666;
-  margin: 5px 0 0 0;
 }
 
-/* Стили для правой панели */
-.wallet-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 100vh;
-  background: white;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  overflow-y: auto;
-  z-index: 1000;
+.header-wallet-btn {
+  margin-left: 20px;
+  padding: 10px;
+  background: transparent;
+  color: #333;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.3s;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  justify-content: center;
 }
 
-/* Стили для основного контента */
-.content-container {
-  padding: 20px 15px;
-  margin-right: 40px; /* Одинаковый отступ справа */
-  margin-left: 40px; /* Одинаковый отступ слева */
+.header-wallet-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.header-wallet-btn .nav-btn-number {
+  display: none;
+}
+
+.header-wallet-btn .nav-btn-text {
+  display: none;
+}
+
+.header-wallet-btn::before,
+.header-wallet-btn::after,
+.header-wallet-btn .hamburger-line {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 2px;
+  background-color: #333;
+  transition: all 0.3s ease;
+}
+
+.header-wallet-btn::before {
+  top: 12px;
+}
+
+.header-wallet-btn::after {
+  bottom: 12px;
+}
+
+.header-wallet-btn .hamburger-line {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Анимация при наведении */
+.header-wallet-btn:hover::before {
+  top: 11px;
+}
+
+.header-wallet-btn:hover::after {
+  bottom: 11px;
+}
+
+/* Анимация при активном состоянии */
+.header-wallet-btn.active::before {
+  transform: rotate(45deg);
+  top: 50%;
+}
+
+.header-wallet-btn.active::after {
+  transform: rotate(-45deg);
+  bottom: 50%;
+}
+
+.header-wallet-btn.active .hamburger-line {
+  opacity: 0;
+}
+
+.header-wallet-btn .hamburger-line {
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .footer {
@@ -1231,4 +1308,43 @@ input, textarea {
   width: 0;
   padding: 0;
   border-left: none;
+}
+
+/* Стили для кнопок в чате */
+.chat-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.chat-buttons button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.chat-buttons button:first-child {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.chat-buttons button:first-child:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.chat-buttons .clear-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.chat-buttons .clear-btn:hover:not(:disabled) {
+  background-color: #da190b;
+}
+
+.chat-buttons button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }

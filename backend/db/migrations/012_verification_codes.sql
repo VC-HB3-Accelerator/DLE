@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS verification_codes (
   code VARCHAR(6) NOT NULL,
   provider VARCHAR(50) NOT NULL, -- 'telegram', 'email'
   provider_id VARCHAR(255) NOT NULL, -- telegram_id или email
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE, -- Может быть NULL
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NOT NULL,
   used BOOLEAN DEFAULT FALSE

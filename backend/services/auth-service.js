@@ -393,60 +393,63 @@ class AuthService {
   /**
    * Проверка Telegram аутентификации
    */
-  async verifyTelegramAuth(telegramId, verificationCode) {
+  async verifyTelegramAuth(telegramId, verificationCode, session) {
     try {
-      logger.info(`Verifying Telegram auth for ID: ${telegramId} with code: ${verificationCode}`);
+      logger.info(`[verifyTelegramAuth] Starting for telegramId: ${telegramId}`);
       
-      // Находим или создаем пользователя
-      const userResult = await db.query(
-        `SELECT u.* FROM users u 
+      // Проверяем, существует ли уже пользователь с таким Telegram ID
+      const existingUserResult = await db.query(
+        `SELECT u.*, ui.provider, ui.provider_id 
+         FROM users u 
          JOIN user_identities ui ON u.id = ui.user_id 
          WHERE ui.provider = 'telegram' AND ui.provider_id = $1`,
         [telegramId]
       );
-      
+
       let userId;
-      if (userResult.rows.length > 0) {
-        userId = userResult.rows[0].id;
-        logger.info(`Found existing user ${userId} for Telegram ID ${telegramId}`);
+      let isNewUser = false;
+
+      // Если пользователь существует с таким telegramId, используем его
+      if (existingUserResult.rows.length > 0) {
+        const existingUser = existingUserResult.rows[0];
+        userId = existingUser.id;
+        logger.info(`[verifyTelegramAuth] Found existing user ${userId} for Telegram ID ${telegramId}`);
       } else {
-        // Создаем нового пользователя с ролью user
+        // Создаем нового пользователя для нового telegramId
         const newUserResult = await db.query(
           'INSERT INTO users (role) VALUES ($1) RETURNING id',
           ['user']
         );
         userId = newUserResult.rows[0].id;
+        isNewUser = true;
         
         // Добавляем Telegram идентификатор
         await db.query(
           'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
           [userId, 'telegram', telegramId]
         );
-        logger.info(`Created new user ${userId} for Telegram ID ${telegramId}`);
+        
+        logger.info(`[verifyTelegramAuth] Created new user ${userId} for Telegram ID ${telegramId}`);
       }
-      
-      // Проверяем наличие кошелька и определяем роль
-      const wallet = await this.getLinkedWallet(userId);
-      let role = 'user'; // Базовая роль для доступа к чату
-      
-      if (wallet) {
-        // Если есть кошелек, проверяем баланс токенов
-        const isAdmin = await this.checkAdminRole(wallet);
-        role = isAdmin ? 'admin' : 'user';
-        logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
-      } else {
-        logger.info(`User ${userId} has no wallet, using basic user role`);
+
+      // Если есть гостевой ID в сессии, сохраняем его для нового пользователя
+      if (session.guestId && isNewUser) {
+        await db.query(
+          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [userId, 'guest', session.guestId]
+        );
+        logger.info(`[verifyTelegramAuth] Saved guest ID ${session.guestId} for user ${userId}`);
       }
-      
+
       return {
         success: true,
         userId,
-        role,
+        role: 'user',
         telegramId,
-        wallet: wallet || null
+        isNewUser
       };
     } catch (error) {
-      logger.error('Error in Telegram auth verification:', error);
+      logger.error('[verifyTelegramAuth] Error:', error);
       throw error;
     }
   }
@@ -574,68 +577,104 @@ class AuthService {
         return { success: true, message: 'No guest ID to process' };
       }
 
-      // Получаем все гостевые сообщения для этого ID
-      const guestMessagesResult = await db.query(
-        'SELECT * FROM guest_messages WHERE guest_id = $1 ORDER BY created_at ASC',
+      // Проверяем, не привязаны ли уже эти гостевые сообщения к другому пользователю
+      const existingMessagesCheck = await db.query(
+        `SELECT DISTINCT user_id 
+         FROM messages 
+         WHERE guest_message_id IN (
+           SELECT id FROM guest_messages WHERE guest_id = $1
+         )`,
         [currentGuestId]
       );
 
-      if (guestMessagesResult.rows.length === 0) {
-        logger.info(`[linkGuestMessagesAfterAuth] No messages found for guest ID ${currentGuestId}`);
-        return { success: true, message: 'No messages found' };
-      }
-
-      const guestMessages = guestMessagesResult.rows;
-      logger.info(`[linkGuestMessagesAfterAuth] Found ${guestMessages.length} messages for guest ID ${currentGuestId}`);
-
-      // Создаем одну беседу для всех сообщений этого гостевого ID
-      const firstMessage = guestMessages[0];
-      const title = firstMessage.content.length > 30 
-        ? `${firstMessage.content.substring(0, 30)}...` 
-        : firstMessage.content;
-
-      const newConversationResult = await db.query(
-        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-        [userId, title]
-      );
-
-      const conversation = newConversationResult.rows[0];
-      logger.info(`[linkGuestMessagesAfterAuth] Created conversation ${conversation.id} for user ${userId}`);
-
-      // Переносим все сообщения в новую беседу
-      for (const guestMessage of guestMessages) {
-        await db.query(
-          `INSERT INTO messages 
-            (conversation_id, content, sender_type, role, channel, guest_message_id, created_at) 
-           VALUES 
-            ($1, $2, $3, $4, $5, $6, $7)`,
-          [
-            conversation.id,
-            guestMessage.content,
-            guestMessage.is_ai ? 'assistant' : 'user',
-            guestMessage.is_ai ? 'assistant' : 'user',
-            'web',
-            guestMessage.id,
-            guestMessage.created_at
-          ]
-        );
-      }
-
-      // Удаляем гостевой идентификатор после успешной привязки
-      await db.query(
-        'DELETE FROM user_identities WHERE user_id = $1 AND identity_type = $2 AND identity_value = $3',
-        [userId, 'guest', currentGuestId]
-      );
-      logger.info(`[linkGuestMessagesAfterAuth] Deleted guest identity ${currentGuestId}`);
-
-      return {
-        success: true,
-        result: {
-          conversationId: conversation.id,
-          message: `Processed ${guestMessages.length} guest messages`,
-          success: true
+      if (existingMessagesCheck.rows.length > 0) {
+        const existingUserId = existingMessagesCheck.rows[0].user_id;
+        if (existingUserId !== userId) {
+          logger.warn(`[linkGuestMessagesAfterAuth] Guest messages for ${currentGuestId} are already linked to user ${existingUserId}`);
+          return { 
+            success: false, 
+            error: 'Guest messages are already linked to another user' 
+          };
         }
-      };
+      }
+
+      // Блокируем таблицу guest_messages для атомарной операции
+      await db.query('BEGIN');
+
+      try {
+        // Получаем все гостевые сообщения для этого ID
+        const guestMessagesResult = await db.query(
+          'SELECT * FROM guest_messages WHERE guest_id = $1 ORDER BY created_at ASC FOR UPDATE',
+          [currentGuestId]
+        );
+
+        if (guestMessagesResult.rows.length === 0) {
+          await db.query('COMMIT');
+          logger.info(`[linkGuestMessagesAfterAuth] No messages found for guest ID ${currentGuestId}`);
+          return { success: true, message: 'No messages found' };
+        }
+
+        const guestMessages = guestMessagesResult.rows;
+        logger.info(`[linkGuestMessagesAfterAuth] Found ${guestMessages.length} messages for guest ID ${currentGuestId}`);
+
+        // Создаем одну беседу для всех сообщений этого гостевого ID
+        const firstMessage = guestMessages[0];
+        const title = firstMessage.content.length > 30 
+          ? `${firstMessage.content.substring(0, 30)}...` 
+          : firstMessage.content;
+
+        const newConversationResult = await db.query(
+          'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
+          [userId, title]
+        );
+
+        const conversation = newConversationResult.rows[0];
+        logger.info(`[linkGuestMessagesAfterAuth] Created conversation ${conversation.id} for user ${userId}`);
+
+        // Переносим все сообщения в новую беседу
+        for (const guestMessage of guestMessages) {
+          await db.query(
+            `INSERT INTO messages 
+              (conversation_id, content, sender_type, role, channel, guest_message_id, created_at, user_id) 
+             VALUES 
+              ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              conversation.id,
+              guestMessage.content,
+              guestMessage.is_ai ? 'assistant' : 'user',
+              guestMessage.is_ai ? 'assistant' : 'user',
+              'web',
+              guestMessage.id,
+              guestMessage.created_at,
+              userId
+            ]
+          );
+        }
+
+        // Удаляем обработанные гостевые сообщения
+        await db.query('DELETE FROM guest_messages WHERE guest_id = $1', [currentGuestId]);
+
+        // Удаляем гостевой идентификатор
+        await db.query(
+          'DELETE FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3',
+          [userId, 'guest', currentGuestId]
+        );
+
+        await db.query('COMMIT');
+        logger.info(`[linkGuestMessagesAfterAuth] Successfully processed guest ID ${currentGuestId}`);
+
+        return {
+          success: true,
+          result: {
+            conversationId: conversation.id,
+            message: `Processed ${guestMessages.length} guest messages`,
+            success: true
+          }
+        };
+      } catch (error) {
+        await db.query('ROLLBACK');
+        throw error;
+      }
     } catch (error) {
       logger.error('[linkGuestMessagesAfterAuth] Error:', error);
       throw error;

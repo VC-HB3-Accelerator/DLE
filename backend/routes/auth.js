@@ -17,6 +17,7 @@ const { initTelegramAuth } = require('../services/telegramBot');
 const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
 const { processGuestMessages } = require('./chat'); // Импортируем функцию обработки гостевых сообщений
+const nonceStore = {};
 
 // Создайте лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -221,138 +222,89 @@ router.post('/verify', async (req, res) => {
 // Аутентификация через Telegram
 router.post('/telegram/verify', async (req, res) => {
   try {
-    const { code } = req.body;
+    const { telegramId, verificationCode } = req.body;
     
-    logger.info(`[telegram/verify] Verifying code: ${code}`);
-    
-    // Проверяем код верификации
-    const verificationResult = await verifyTelegramCode(code);
-    
-    if (!verificationResult.success) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Неверный код подтверждения' 
+    if (!telegramId || !verificationCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
       });
-    }
-    
-    const { telegramId, authData } = verificationResult;
-    logger.info(`[telegram/verify] Code verified successfully for telegramId: ${telegramId}`);
-    
-    // Сохраняем гостевые ID до проверки
-    const guestId = req.session.guestId;
-    
-    let userId;
-    
-    // Если пользователь уже аутентифицирован, добавляем Telegram к существующему аккаунту
-    if (req.session.authenticated && req.session.userId) {
-      userId = req.session.userId;
-      
-      // Проверяем не связан ли Telegram с другим аккаунтом
-      const existingTelegram = await db.query(`
-        SELECT user_id FROM user_identities 
-        WHERE provider = 'telegram' AND provider_id = $1
-      `, [telegramId]);
-      
-      if (existingTelegram.rows.length > 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Этот Telegram аккаунт уже связан с другим пользователем'
-        });
-      }
-      
-      // Добавляем Telegram к существующему пользователю
-      await saveUserIdentity(userId, 'telegram', telegramId, true);
-      logger.info(`[telegram/verify] Added Telegram identity ${telegramId} to existing user ${userId}`);
-      
-    } else {
-      // Ищем существующего пользователя по Telegram ID
-      const existingUser = await db.query(`
-        SELECT u.* FROM users u 
-        JOIN user_identities ui ON u.id = ui.user_id 
-        WHERE ui.provider = 'telegram' AND ui.provider_id = $1
-      `, [telegramId]);
-      
-      if (existingUser.rows.length > 0) {
-        // Используем существующего пользователя
-        userId = existingUser.rows[0].id;
-        logger.info(`[telegram/verify] Found existing user with ID ${userId} for telegramId ${telegramId}`);
-      } else {
-        // Создаем нового пользователя
-        const newUser = await db.query(
-          'INSERT INTO users (role) VALUES ($1) RETURNING id',
-          ['user']
-        );
-        userId = newUser.rows[0].id;
-        
-        // Добавляем Telegram идентификатор
-        await saveUserIdentity(userId, 'telegram', telegramId, true);
-        logger.info(`[telegram/verify] Created new user with ID ${userId} for telegramId ${telegramId}`);
-      }
     }
 
-    // Если есть гостевые сообщения, переносим их
-    if (guestId && !req.session.processedGuestIds?.includes(guestId)) {
-      await processGuestMessages(userId, guestId);
-      // Сохраняем обработанный guestId чтобы избежать повторной обработки
-      if (!req.session.processedGuestIds) {
-        req.session.processedGuestIds = [];
-      }
-      req.session.processedGuestIds.push(guestId);
-      logger.info(`[telegram/verify] Processed guest messages for user ${userId} with guest ID ${guestId}`);
-    }
+    logger.info(`[telegram/verify] Verifying Telegram auth for ID: ${telegramId}`);
+
+    // Сохраняем гостевой ID из текущей сессии
+    const guestId = req.session.guestId;
     
-    // Создаем новую сессию
+    // Передаем сессию в метод верификации
+    const verificationResult = await authService.verifyTelegramAuth(
+      telegramId,
+      verificationCode,
+      req.session
+    );
+
+    if (!verificationResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: verificationResult.error || 'Verification failed'
+      });
+    }
+
+    // Создаем новую сессию для этого telegramId
     req.session.regenerate(async (err) => {
       if (err) {
-        logger.error('Error regenerating session:', err);
-        return res.status(500).json({ success: false, error: 'Server error' });
+        logger.error('[telegram/verify] Error regenerating session:', err);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Session regeneration failed' 
+        });
       }
-      
-      // Устанавливаем данные новой сессии
-      req.session.authenticated = true;
-      req.session.userId = userId;
+
+      // Устанавливаем данные в новой сессии
+      req.session.userId = verificationResult.userId;
       req.session.telegramId = telegramId;
       req.session.authType = 'telegram';
+      req.session.authenticated = true;
+      req.session.role = verificationResult.role;
       
-      // Сохраняем список обработанных гостевых ID
-      if (req.session.processedGuestIds?.length > 0) {
-        req.session.processedGuestIds = [...req.session.processedGuestIds];
+      // Восстанавливаем гостевой ID, если он был
+      if (guestId) {
+        req.session.guestId = guestId;
       }
-      
-      // Удаляем временные данные
-      delete req.session.tempUserId;
-      delete req.session.guestId;
-      delete req.session.pendingTelegramId;
-      
-      if (authData.first_name) {
-        req.session.telegramFirstName = authData.first_name;
-      }
-      if (authData.username) {
-        req.session.telegramUsername = authData.username;
-      }
-      
+
       // Сохраняем сессию
-      req.session.save((err) => {
-        if (err) {
-          logger.error('Error saving session:', err);
-          return res.status(500).json({ success: false, error: 'Server error' });
-        }
-        
-        res.json({
-          success: true,
-          userId,
-          telegramId,
-          authenticated: true,
-          authType: 'telegram',
-          username: authData.username,
-          firstName: authData.first_name
+      await new Promise((resolve, reject) => {
+        req.session.save(err => {
+          if (err) {
+            logger.error('[telegram/verify] Error saving session:', err);
+            reject(err);
+          } else {
+            logger.info(`[telegram/verify] Session saved for user ${verificationResult.userId}`);
+            resolve();
+          }
         });
       });
+
+      // Связываем гостевые сообщения только если это новый пользователь
+      if (verificationResult.isNewUser && guestId) {
+        const linkResults = await authService.linkGuestMessagesAfterAuth(verificationResult.userId, guestId);
+        logger.info(`[telegram/verify] Guest messages linking results for new user:`, linkResults);
+      }
+
+      return res.json({
+        success: true,
+        userId: verificationResult.userId,
+        role: verificationResult.role,
+        telegramId,
+        isNewUser: verificationResult.isNewUser
+      });
     });
-    
   } catch (error) {
     logger.error('[telegram/verify] Error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 });
 
@@ -729,29 +681,46 @@ router.get('/check', async (req, res) => {
 });
 
 // Выход из системы
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   try {
-    // Сохраняем важные данные перед уничтожением сессии
-    const guestId = req.session.guestId;
-    
-    // Полностью уничтожаем сессию
-    req.session.destroy((err) => {
-      if (err) {
-        logger.error('Error destroying session:', err);
-        return res.status(500).json({ success: false, error: 'Server error' });
-      }
-      
-      // Очищаем куки сессии
-      res.clearCookie('connect.sid');
-      
-      res.json({ 
-        success: true,
-        guestId // Возвращаем guestId для фронтенда
+    // Очищаем все идентификаторы сессии
+    req.session.authenticated = false;
+    req.session.userId = null;
+    req.session.address = null;
+    req.session.telegramId = null;
+    req.session.email = null;
+    req.session.isAdmin = false;
+    req.session.guestId = null;
+    req.session.previousGuestId = null;
+    req.session.processedGuestIds = [];
+    req.session.pendingEmail = null;
+    req.session.authType = null;
+
+    // Сохраняем изменения в сессии
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          logger.error('[logout] Error saving session:', err);
+          reject(err);
+        } else {
+          logger.info('[logout] Session cleared successfully');
+          resolve();
+        }
       });
     });
+
+    // Уничтожаем сессию полностью
+    req.session.destroy((err) => {
+      if (err) {
+        logger.error('[logout] Error destroying session:', err);
+        return res.status(500).json({ success: false, error: 'Error during logout' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ success: true, message: 'Logged out successfully' });
+    });
   } catch (error) {
-    logger.error('Error in logout:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
+    logger.error('[logout] Error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error during logout' });
   }
 });
 
@@ -773,30 +742,20 @@ router.get('/telegram', (req, res) => {
 // Маршрут для получения кода подтверждения Telegram
 router.get('/telegram/code', authLimiter, async (req, res) => {
   try {
-    // Создаем или получаем ID пользователя
-    let userId;
+    // Создаем код через сервис телеграм авторизации
+    const authData = await initTelegramAuth(req.session);
     
-    if (req.session.authenticated && req.session.userId) {
-      userId = req.session.userId;
-    } else {
-      const userResult = await db.query(
-        'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
-      );
-      userId = userResult.rows[0].id;
-      req.session.tempUserId = userId;
+    if (!authData.verificationCode) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to generate verification code' 
+      });
     }
-    
-    // Создаем код через сервис верификации
-    const code = await verificationService.createVerificationCode(
-      'telegram',
-      req.session.guestId || 'temp',
-      userId
-    );
     
     res.json({
       success: true,
       message: 'Отправьте этот код боту @' + process.env.TELEGRAM_BOT_USERNAME,
-      code,
+      code: authData.verificationCode,
       botUsername: process.env.TELEGRAM_BOT_USERNAME || 'YourDAppBot'
     });
   } catch (error) {
