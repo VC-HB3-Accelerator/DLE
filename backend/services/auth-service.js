@@ -566,6 +566,10 @@ class AuthService {
 
   /**
    * Обработка гостевых сообщений после аутентификации
+   * ПРИМЕЧАНИЕ: Эта функция оставлена для обратной совместимости.
+   * Фактически все маршруты теперь используют версию функции из auth.js,
+   * которая корректно обрабатывает сообщения для всех типов аутентификации.
+   * @deprecated Используйте функцию linkGuestMessagesAfterAuth из routes/auth.js
    */
   async linkGuestMessagesAfterAuth(userId, currentGuestId, previousGuestId) {
     try {
@@ -598,83 +602,20 @@ class AuthService {
         }
       }
 
-      // Блокируем таблицу guest_messages для атомарной операции
-      await db.query('BEGIN');
+      // Используем ту же функцию processGuestMessages что и в auth.js
+      const result = await processGuestMessages(userId, currentGuestId);
+      logger.info(`[linkGuestMessagesAfterAuth] Guest messages processed: ${JSON.stringify(result)}`);
 
-      try {
-        // Получаем все гостевые сообщения для этого ID
-        const guestMessagesResult = await db.query(
-          'SELECT * FROM guest_messages WHERE guest_id = $1 ORDER BY created_at ASC FOR UPDATE',
-          [currentGuestId]
-        );
-
-        if (guestMessagesResult.rows.length === 0) {
-          await db.query('COMMIT');
-          logger.info(`[linkGuestMessagesAfterAuth] No messages found for guest ID ${currentGuestId}`);
-          return { success: true, message: 'No messages found' };
-        }
-
-        const guestMessages = guestMessagesResult.rows;
-        logger.info(`[linkGuestMessagesAfterAuth] Found ${guestMessages.length} messages for guest ID ${currentGuestId}`);
-
-        // Создаем одну беседу для всех сообщений этого гостевого ID
-        const firstMessage = guestMessages[0];
-        const title = firstMessage.content.length > 30 
-          ? `${firstMessage.content.substring(0, 30)}...` 
-          : firstMessage.content;
-
-        const newConversationResult = await db.query(
-          'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-          [userId, title]
-        );
-
-        const conversation = newConversationResult.rows[0];
-        logger.info(`[linkGuestMessagesAfterAuth] Created conversation ${conversation.id} for user ${userId}`);
-
-        // Переносим все сообщения в новую беседу
-        for (const guestMessage of guestMessages) {
-          await db.query(
-            `INSERT INTO messages 
-              (conversation_id, content, sender_type, role, channel, guest_message_id, created_at, user_id) 
-             VALUES 
-              ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [
-              conversation.id,
-              guestMessage.content,
-              guestMessage.is_ai ? 'assistant' : 'user',
-              guestMessage.is_ai ? 'assistant' : 'user',
-              'web',
-              guestMessage.id,
-              guestMessage.created_at,
-              userId
-            ]
-          );
-        }
-
-        // Удаляем обработанные гостевые сообщения
-        await db.query('DELETE FROM guest_messages WHERE guest_id = $1', [currentGuestId]);
-
-        // Удаляем гостевой идентификатор
-        await db.query(
-          'DELETE FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3',
-          [userId, 'guest', currentGuestId]
-        );
-
-        await db.query('COMMIT');
-        logger.info(`[linkGuestMessagesAfterAuth] Successfully processed guest ID ${currentGuestId}`);
-
-        return {
-          success: true,
-          result: {
-            conversationId: conversation.id,
-            message: `Processed ${guestMessages.length} guest messages`,
-            success: true
-          }
-        };
-      } catch (error) {
-        await db.query('ROLLBACK');
-        throw error;
+      // Если есть предыдущий гостевой ID, обработаем и его
+      if (previousGuestId && previousGuestId !== currentGuestId) {
+        const prevResult = await processGuestMessages(userId, previousGuestId);
+        logger.info(`[linkGuestMessagesAfterAuth] Previous guest messages processed: ${JSON.stringify(prevResult)}`);
       }
+
+      return {
+        success: true,
+        result: result
+      };
     } catch (error) {
       logger.error('[linkGuestMessagesAfterAuth] Error:', error);
       throw error;
