@@ -256,7 +256,7 @@ router.post('/telegram/verify', async (req, res) => {
         logger.error('[telegram/verify] Error regenerating session:', err);
         return res.status(500).json({ 
           success: false, 
-          error: 'Session regeneration failed' 
+          error: 'Session error' 
         });
       }
 
@@ -285,8 +285,8 @@ router.post('/telegram/verify', async (req, res) => {
         });
       });
 
-      // Связываем гостевые сообщения только если это новый пользователь
-      if (verificationResult.isNewUser && guestId) {
+      // Связываем гостевые сообщения только один раз - исправлено дублирование
+      if (guestId) {
         // Создаем объект сессии для совместимости с другими методами аутентификации
         const session = {
           guestId: guestId,
@@ -298,12 +298,7 @@ router.post('/telegram/verify', async (req, res) => {
           }
         };
         const linkResults = await linkGuestMessagesAfterAuth(session, verificationResult.userId);
-        logger.info(`[telegram/verify] Guest messages linking results for new user:`, linkResults);
-      }
-      // Если пользователь не новый, но есть гостевой ID, все равно связываем сообщения
-      else if (!verificationResult.isNewUser && guestId) {
-        const linkResults = await linkGuestMessagesAfterAuth(req.session, verificationResult.userId);
-        logger.info(`[telegram/verify] Guest messages linking results for existing user:`, linkResults);
+        logger.info(`[telegram/verify] Guest messages linking results:`, linkResults);
       }
 
       return res.json({
@@ -1168,88 +1163,94 @@ router.get('/email/auth-status/:token', async (req, res) => {
 // Маршрут для проверки кода email
 router.post('/email/verify-code', async (req, res) => {
   try {
-    const { code } = req.body;
-    const pendingEmail = req.session.pendingEmail;
+    const { email, code } = req.body;
     
-    logger.info(`[email/verify-code] Verifying code for email: ${pendingEmail}`);
-    logger.info(`[email/verify-code] Guest context: guestId=${req.session.guestId}, previousGuestId=${req.session.previousGuestId}`);
-    
-    if (!pendingEmail) {
-      logger.warn('[email/verify-code] No pending email found in session');
+    if (!email || !code) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Нет ожидающей верификации электронной почты' 
+        error: 'Email и код подтверждения обязательны' 
       });
     }
     
-    if (!code) {
-      logger.warn('[email/verify-code] No verification code provided');
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Код подтверждения не указан' 
-      });
+    logger.info(`[email/verify-code] Verifying code for email: ${email}`);
+    
+    // Сохраняем гостевой ID до проверки
+    const guestId = req.session.guestId;
+    const previousGuestId = req.session.previousGuestId;
+    
+    logger.info(`[email/verify-code] Guest context: guestId=${guestId}, previousGuestId=${previousGuestId}`);
+    
+    // Проверяем существование пользователя с таким email
+    const userResult = await db.query(
+      `SELECT u.id FROM users u 
+       JOIN user_identities ui ON u.id = ui.user_id 
+       WHERE ui.provider = $1 AND ui.provider_id = $2`,
+      ['email', email.toLowerCase()]
+    );
+    
+    let userId;
+    let isNewUser = false;
+    
+    if (userResult.rows.length > 0) {
+      // Пользователь уже существует
+      userId = userResult.rows[0].id;
+      logger.info(`[email/verify-code] Found existing user with ID ${userId}`);
+    } else if (req.session.tempUserId) {
+      // Используем временный ID пользователя
+      userId = req.session.tempUserId;
+      logger.info(`[email/verify-code] Using tempUserId ${userId}`);
+    } else {
+      // Создаем нового пользователя
+      const newUserResult = await db.query(
+        'INSERT INTO users (created_at, role) VALUES (NOW(), $1) RETURNING id',
+        ['user']
+      );
+      userId = newUserResult.rows[0].id;
+      isNewUser = true;
+      logger.info(`[email/verify-code] Created new user with ID ${userId} for email ${email}`);
     }
     
     // Проверяем код верификации
-    const verificationResult = await verifyEmailCode(code, pendingEmail);
+    const verification = await verificationService.verifyCode(
+      code.toUpperCase(),
+      'email',
+      email.toLowerCase()
+    );
     
-    if (!verificationResult.success) {
-      logger.warn(`[email/verify-code] Invalid verification code for email ${pendingEmail}`);
+    if (!verification.success) {
+      logger.warn(`[email/verify-code] Invalid verification code for ${email}: ${verification.error}`);
       return res.status(400).json({ 
         success: false, 
-        error: verificationResult.error || 'Неверный код подтверждения' 
+        error: verification.error 
       });
     }
     
-    // Используем существующего пользователя, если он уже аутентифицирован
-    let userId;
-    if (req.session.authenticated && req.session.userId) {
-      userId = req.session.userId;
-      logger.info(`[email/verify-code] Using existing authenticated user ID ${userId}`);
-    } else {
-      // Проверяем, существует ли пользователь с таким email
-      const existingUser = await db.query(
-        `SELECT u.id FROM users u 
-         JOIN user_identities ui ON u.id = ui.user_id 
-         WHERE ui.provider = 'email' AND ui.provider_id = $1`,
-        [pendingEmail]
-      );
-      
-      if (existingUser.rows.length > 0) {
-        userId = existingUser.rows[0].id;
-        logger.info(`[email/verify-code] Found existing user with ID ${userId} for email ${pendingEmail}`);
-      } else {
-        // Создаем нового пользователя только если нет существующей аутентификации
-        const newUser = await db.query(
-          'INSERT INTO users (created_at) VALUES (NOW()) RETURNING id'
-        );
-        userId = newUser.rows[0].id;
-        logger.info(`[email/verify-code] Created new user with ID ${userId} for email ${pendingEmail}`);
-      }
+    logger.info(`[email/verify-code] Verification successful for email ${email}, user ${userId}`);
+    
+    // Сохраняем email как identity
+    await saveUserIdentity(userId, 'email', email.toLowerCase(), true);
+    logger.info(`[email/verify-code] Saved email identity ${email} for user ${userId}`);
+    
+    // Если есть гостевой ID, сохраняем его
+    if (guestId) {
+      await saveUserIdentity(userId, 'guest', guestId, true);
+      logger.info(`[email/verify-code] Saved guest ID ${guestId} for user ${userId}`);
     }
     
-    // Сохраняем email как идентификатор пользователя
-    await saveUserIdentity(userId, 'email', pendingEmail, true);
-    logger.info(`[email/verify-code] Saved email identity ${pendingEmail} for user ${userId}`);
-    
-    // Если есть гостевые ID, сохраняем их
-    if (req.session.guestId) {
-      await saveUserIdentity(userId, 'guest', req.session.guestId, true);
-      logger.info(`[email/verify-code] Saved guest ID ${req.session.guestId} for user ${userId}`);
+    if (previousGuestId && previousGuestId !== guestId) {
+      await saveUserIdentity(userId, 'guest', previousGuestId, true);
+      logger.info(`[email/verify-code] Saved previous guest ID ${previousGuestId} for user ${userId}`);
     }
     
-    if (req.session.previousGuestId && req.session.previousGuestId !== req.session.guestId) {
-      await saveUserIdentity(userId, 'guest', req.session.previousGuestId, true);
-      logger.info(`[email/verify-code] Saved previous guest ID ${req.session.previousGuestId} for user ${userId}`);
-    }
-    
-    // Обновляем сессию
+    // Устанавливаем данные сессии
     req.session.authenticated = true;
     req.session.userId = userId;
-    req.session.email = pendingEmail;
     req.session.authType = 'email';
-    delete req.session.pendingEmail;
+    req.session.email = email.toLowerCase();
+    
+    // Удаляем временный ID
     delete req.session.tempUserId;
+    delete req.session.pendingEmail;
     
     // Сохраняем сессию перед связыванием сообщений
     await new Promise((resolve, reject) => {
@@ -1264,14 +1265,19 @@ router.post('/email/verify-code', async (req, res) => {
       });
     });
     
+    // Сначала сохраняем сессию с актуальным гостевым ID
+    if (guestId) {
+      req.session.guestId = guestId;
+    }
+
     // Связываем гостевые сообщения с пользователем
     const linkResults = await linkGuestMessagesAfterAuth(req.session, userId);
     logger.info(`[email/verify-code] Guest messages linking results:`, linkResults);
     
-    return res.json({
+    return res.json({ 
       success: true,
       userId,
-      email: pendingEmail,
+      email: email.toLowerCase(),
       authenticated: true
     });
     
