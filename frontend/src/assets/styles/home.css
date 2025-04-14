@@ -190,37 +190,68 @@ input, textarea {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: 20px 0;
-  min-height: 0;
+  margin: 20px 0 35px 0; /* Добавляем нижний отступ 35px */
+  height: calc(100vh - 195px); /* Вычитаем высоту header, footer и margins */
+  min-height: 500px; /* Минимальная высота для контейнера */
+  position: relative;
 }
 
 .chat-messages {
+  display: flex;
+  flex-direction: column;
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto; /* Обеспечиваем прокрутку */
   padding: 20px;
+  margin-bottom: 20px;
   background: #fff;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
-  margin-bottom: 20px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 135px; /* Базовое значение: минимальная высота chat-input (100px) + margin (15px) + padding (20px) */
+  transition: bottom 0.3s ease; /* Плавный переход для изменения позиции */
+}
+
+/* Адаптация позиции при активации фокуса */
+.chat-container:has(.chat-input.focused) .chat-messages {
+  bottom: 235px; /* Для расширенного chat-input: 200px + margin (15px) + padding (20px) */
+}
+
+/* Реализуем программное изменение позиции через JS для браузеров без поддержки :has */
+@media (max-width: 100vw) {
+  .chat-input.focused ~ .messages-container {
+    bottom: 235px;
+  }
 }
 
 .message {
   margin-bottom: 15px;
   padding: 10px 15px;
   border-radius: 8px;
-  max-width: 80%;
+  max-width: 75%;
+  word-wrap: break-word;
   position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .user-message {
   background-color: #EFFAFF;
   align-self: flex-end;
   margin-left: auto;
+  margin-right: 10px;
+  border-bottom-right-radius: 2px;
 }
 
 .ai-message {
   background-color: #F8F8F8;
   align-self: flex-start;
+  margin-right: auto;
+  margin-left: 10px;
+  word-break: break-word;
+  max-width: 70%;
+  border-bottom-left-radius: 2px;
 }
 
 .system-message {
@@ -238,6 +269,8 @@ input, textarea {
   margin-bottom: 5px;
   white-space: pre-wrap;
   word-break: break-word;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .message-meta {
@@ -278,11 +311,31 @@ input, textarea {
 /* Стили для ввода сообщений */
 .chat-input {
   display: flex;
+  flex-direction: column;
   gap: 10px;
-  padding: 20px;
+  padding: 15px 20px; /* Уменьшаем вертикальный padding */
   background: #fff;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: auto; /* Меняем на auto для адаптивной высоты */
+  min-height: 100px; /* Минимальная высота */
+  max-height: 200px; /* Максимальная высота */
+  transition: min-height 0.3s ease, padding 0.3s ease; /* Добавляем transition для padding */
+  margin-bottom: 15px; /* Отступ от нижнего края экрана */
+  z-index: 10; /* Обеспечиваем отображение поверх других элементов */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Добавляем тень для выделения */
+}
+
+/* Стиль для input при фокусе */
+.chat-input.focused {
+  min-height: 170px; /* Увеличенная минимальная высота при фокусе */
+  max-height: 300px; /* Увеличенная максимальная высота при фокусе */
+  padding: 20px; /* Увеличиваем padding при фокусе */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); /* Усиливаем тень при фокусе */
 }
 
 .chat-input textarea {
@@ -293,8 +346,17 @@ input, textarea {
   resize: none;
   font-size: 14px;
   line-height: 1.5;
-  min-height: 60px;
-  max-height: 200px;
+  min-height: 40px; /* Уменьшаем минимальную высоту */
+  transition: min-height 0.3s ease, border-color 0.3s ease; /* Плавный переход для высоты и границы */
+}
+
+.chat-input textarea:focus {
+  outline: none;
+  border-color: #4CAF50; /* Подсветка границы при фокусе */
+}
+
+.chat-input.focused textarea {
+  min-height: 120px; /* Увеличенная высота textarea при фокусе */
 }
 
 .chat-input button {
@@ -736,6 +798,34 @@ input, textarea {
 
 /* Медиа-запросы для мобильных устройств */
 @media screen and (max-width: 768px) {
+  .chat-container {
+    margin: 10px 0 25px 0;
+    height: calc(100vh - 165px);
+  }
+  
+  .chat-messages {
+    padding: 15px;
+  }
+  
+  .message {
+    max-width: 85%;
+    padding: 8px 12px;
+  }
+  
+  .ai-message {
+    max-width: 85%;
+  }
+  
+  .chat-input {
+    padding: 10px 15px;
+    margin-bottom: 10px;
+  }
+  
+  .chat-input textarea {
+    padding: 10px;
+    font-size: 14px;
+  }
+  
   .header-content {
     flex-direction: row;
     align-items: center;
@@ -772,6 +862,25 @@ input, textarea {
 
 /* Дополнительные стили для очень маленьких экранов */
 @media screen and (max-width: 480px) {
+  .chat-container {
+    margin: 5px 0 20px 0;
+    height: calc(100vh - 150px);
+  }
+  
+  .message {
+    max-width: 90%;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  
+  .ai-message, .user-message {
+    max-width: 90%;
+  }
+  
+  .message-time {
+    font-size: 10px;
+  }
+  
   .header-content {
     padding: 8px;
   }
@@ -782,6 +891,12 @@ input, textarea {
 
   .subtitle {
     font-size: 0.8rem;
+  }
+  
+  .chat-buttons button {
+    padding: 8px 10px;
+    font-size: 13px;
+    max-width: 120px;
   }
 }
 
@@ -1314,7 +1429,12 @@ input, textarea {
 .chat-buttons {
   display: flex;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 5px;
+  padding-bottom: 0;
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  box-sizing: border-box;
 }
 
 .chat-buttons button {
@@ -1324,6 +1444,11 @@ input, textarea {
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.3s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-buttons button:first-child {
@@ -1347,4 +1472,16 @@ input, textarea {
 .chat-buttons button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+/* Адаптивность для маленьких экранов */
+@media (max-width: 480px) {
+  .chat-buttons button {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  
+  .chat-buttons {
+    gap: 5px;
+  }
 }
