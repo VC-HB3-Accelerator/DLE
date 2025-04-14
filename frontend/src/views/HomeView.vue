@@ -42,6 +42,8 @@
             v-model="newMessage" 
             placeholder="Введите сообщение..." 
             @keydown.enter.prevent="handleMessage(newMessage)"
+            @focus="handleFocus"
+            @blur="handleBlur"
             :disabled="isLoading"
             ref="messageInput"
             rows="3"
@@ -802,6 +804,18 @@ const handleMessage = async (text) => {
     } finally {
       isLoading.value = false;
     }
+
+    // После отправки сообщения возвращаем нормальный размер
+    setTimeout(() => {
+      const chatInput = document.querySelector('.chat-input');
+      const chatMessages = document.querySelector('.chat-messages');
+      if (chatInput) {
+        chatInput.classList.remove('focused');
+        if (!CSS.supports('selector(:has(div))') && chatMessages) {
+          chatMessages.style.bottom = '135px';
+        }
+      }
+    }, 100);
   } catch (error) {
     console.error('Непредвиденная ошибка в handleMessage:', error);
     isLoading.value = false;
@@ -1375,6 +1389,37 @@ const copyCode = (code) => {
 const toggleWalletSidebar = () => {
   showWalletSidebar.value = !showWalletSidebar.value;
   setToStorage('showWalletSidebar', showWalletSidebar.value.toString());
+};
+
+/**
+ * Обрабатывает получение фокуса полем ввода
+ */
+const handleFocus = () => {
+  const chatInput = document.querySelector('.chat-input');
+  const chatMessages = document.querySelector('.chat-messages');
+  if (chatInput) {
+    chatInput.classList.add('focused');
+    if (!CSS.supports('selector(:has(div))') && chatMessages) {
+      chatMessages.style.bottom = '235px';
+    }
+  }
+};
+
+/**
+ * Обрабатывает потерю фокуса полем ввода
+ */
+const handleBlur = () => {
+  // Если сообщение непустое, оставляем расширенный вид
+  if (!newMessage.value.trim()) {
+    const chatInput = document.querySelector('.chat-input');
+    const chatMessages = document.querySelector('.chat-messages');
+    if (chatInput) {
+      chatInput.classList.remove('focused');
+      if (!CSS.supports('selector(:has(div))') && chatMessages) {
+        chatMessages.style.bottom = '135px';
+      }
+    }
+  }
 };
 
 // =====================================================================
