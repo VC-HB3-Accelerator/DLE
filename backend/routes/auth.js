@@ -287,8 +287,23 @@ router.post('/telegram/verify', async (req, res) => {
 
       // Связываем гостевые сообщения только если это новый пользователь
       if (verificationResult.isNewUser && guestId) {
-        const linkResults = await authService.linkGuestMessagesAfterAuth(verificationResult.userId, guestId);
+        // Создаем объект сессии для совместимости с другими методами аутентификации
+        const session = {
+          guestId: guestId,
+          save: async (callback) => {
+            if (typeof callback === 'function') {
+              callback(null);
+            }
+            return Promise.resolve();
+          }
+        };
+        const linkResults = await linkGuestMessagesAfterAuth(session, verificationResult.userId);
         logger.info(`[telegram/verify] Guest messages linking results for new user:`, linkResults);
+      }
+      // Если пользователь не новый, но есть гостевой ID, все равно связываем сообщения
+      else if (!verificationResult.isNewUser && guestId) {
+        const linkResults = await linkGuestMessagesAfterAuth(req.session, verificationResult.userId);
+        logger.info(`[telegram/verify] Guest messages linking results for existing user:`, linkResults);
       }
 
       return res.json({
@@ -1814,7 +1829,18 @@ router.post('/link-guest-messages', requireAuth, async (req, res) => {
       });
     }
 
-    const result = await authService.linkGuestMessagesAfterAuth(userId, currentGuestId);
+    // Создаем временную сессию для совместимости
+    const tempSession = {
+      guestId: currentGuestId,
+      save: async (callback) => {
+        if (typeof callback === 'function') {
+          callback(null);
+        }
+        return Promise.resolve();
+      }
+    };
+
+    const result = await linkGuestMessagesAfterAuth(tempSession, userId);
     
     res.json(result);
   } catch (error) {
