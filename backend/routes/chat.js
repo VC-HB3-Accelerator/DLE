@@ -41,38 +41,16 @@ async function processGuestMessages(userId, guestId) {
     const conversation = newConversationResult.rows[0];
     console.log('Created new conversation for guest messages:', conversation);
     
+    // Отслеживаем успешные сохранения сообщений
+    const savedMessageIds = [];
+    
     // Обрабатываем каждое гостевое сообщение
     for (const guestMessage of guestMessages) {
       console.log(`Processing guest message ID ${guestMessage.id}: ${guestMessage.content}`);
       
-      // Сохраняем сообщение пользователя
-      const userMessageResult = await db.query(
-        `INSERT INTO messages 
-          (conversation_id, content, sender_type, role, channel, created_at) 
-         VALUES 
-          ($1, $2, $3, $4, $5, $6) 
-         RETURNING *`,
-        [
-          conversation.id, 
-          guestMessage.content, 
-          'user', 
-          'user', 
-          'web',
-          guestMessage.created_at
-        ]
-      );
-      
-      console.log(`Saved user message with ID ${userMessageResult.rows[0].id}`);
-      
-      // Получаем ответ от ИИ только для сообщений пользователя (не AI)
-      if (!guestMessage.is_ai) {
-        console.log('Getting AI response for:', guestMessage.content);
-        const language = guestMessage.language || 'auto';
-        const aiResponse = await aiAssistant.getResponse(guestMessage.content, language);
-        console.log('AI response received:', aiResponse);
-        
-        // Сохраняем ответ от ИИ
-        const aiMessageResult = await db.query(
+      try {
+        // Сохраняем сообщение пользователя
+        const userMessageResult = await db.query(
           `INSERT INTO messages 
             (conversation_id, content, sender_type, role, channel, created_at) 
            VALUES 
@@ -80,25 +58,60 @@ async function processGuestMessages(userId, guestId) {
            RETURNING *`,
           [
             conversation.id, 
-            aiResponse, 
-            'assistant', 
-            'assistant', 
+            guestMessage.content, 
+            'user', 
+            'user', 
             'web',
-            new Date()
+            guestMessage.created_at
           ]
         );
         
-        console.log(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
+        console.log(`Saved user message with ID ${userMessageResult.rows[0].id}`);
+        savedMessageIds.push(guestMessage.id);
+        
+        // Получаем ответ от ИИ только для сообщений пользователя (не AI)
+        if (!guestMessage.is_ai) {
+          console.log('Getting AI response for:', guestMessage.content);
+          const language = guestMessage.language || 'auto';
+          const aiResponse = await aiAssistant.getResponse(guestMessage.content, language);
+          console.log('AI response received:', aiResponse);
+          
+          // Сохраняем ответ от ИИ
+          const aiMessageResult = await db.query(
+            `INSERT INTO messages 
+              (conversation_id, content, sender_type, role, channel, created_at) 
+             VALUES 
+              ($1, $2, $3, $4, $5, $6) 
+             RETURNING *`,
+            [
+              conversation.id, 
+              aiResponse, 
+              'assistant', 
+              'assistant', 
+              'web',
+              new Date()
+            ]
+          );
+          
+          console.log(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
+        }
+      } catch (error) {
+        console.error(`Error processing guest message ${guestMessage.id}:`, error);
+        // Продолжаем с другими сообщениями в случае ошибки
       }
     }
     
-    // Удаляем обработанные гостевые сообщения
-    await db.query('DELETE FROM guest_messages WHERE guest_id = $1', [guestId]);
-    console.log(`Deleted processed guest messages for guest ID ${guestId}`);
+    // Удаляем только успешно обработанные гостевые сообщения
+    if (savedMessageIds.length > 0) {
+      await db.query('DELETE FROM guest_messages WHERE id = ANY($1)', [savedMessageIds]);
+      console.log(`Deleted ${savedMessageIds.length} processed guest messages for guest ID ${guestId}`);
+    } else {
+      console.log('No guest messages were successfully processed, skipping deletion');
+    }
     
     return { 
       success: true, 
-      message: `Processed ${guestMessages.length} guest messages`,
+      message: `Processed ${savedMessageIds.length} of ${guestMessages.length} guest messages`,
       conversationId: conversation.id
     };
   } catch (error) {

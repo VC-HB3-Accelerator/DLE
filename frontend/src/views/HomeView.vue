@@ -529,11 +529,8 @@ const formatIdentityProvider = (provider) => {
 // =====================================================================
 
 /**
- * Загружает историю сообщений
- * @param {Object} options - Параметры загрузки
- * @param {boolean} options.silent - Не показывать индикатор загрузки
- * @param {boolean} options.initial - Первоначальная загрузка
- * @param {string} options.authType - Тип аутентификации
+ * Загружает сообщения пользователя из истории
+ * @param {Object} options - Опции загрузки
  */
 const loadMessages = async (options = {}) => {
   const { silent = false, initial = false, authType = null } = options;
@@ -547,16 +544,32 @@ const loadMessages = async (options = {}) => {
     
     console.log(`Загрузка истории сообщений${authType ? ` после ${authType} аутентификации` : ''}...`);
     
-    // Если это загрузка после аутентификации, ждем завершения привязки гостевых сообщений
-    if (authType && messageLoading.value.isLinkingGuest) {
-      await new Promise(resolve => {
-        const checkInterval = setInterval(() => {
-          if (!messageLoading.value.isLinkingGuest) {
+    // Если это загрузка после аутентификации, немного ждем для завершения привязки сообщений
+    if (authType) {
+      console.log(`Ожидание завершения привязки гостевых сообщений после ${authType} аутентификации...`);
+      
+      // Задержка для гарантии, что сервер успеет обработать сессию
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Дополнительно проверяем, что процесс связывания сообщений завершился
+      if (messageLoading.value.isLinkingGuest) {
+        await new Promise(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!messageLoading.value.isLinkingGuest) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+          
+          // Таймаут на всякий случай
+          setTimeout(() => {
             clearInterval(checkInterval);
             resolve();
-          }
-        }, 100);
-      });
+          }, 5000);
+        });
+      }
+      
+      console.log('Привязка сообщений завершена, загружаем историю...');
     }
     
     // Проверяем сессию перед загрузкой
@@ -568,10 +581,14 @@ const loadMessages = async (options = {}) => {
           messageLoading.value.isLoadingMore = false;
           messageLoading.value.isInProgress = false;
           isLoading.value = false;
-      return;
-    }
-  } catch (error) {
-        console.warn('Ошибка проверки сессии, продолжаем загрузку:', error);
+          return;
+        }
+      } catch (error) {
+        console.error('Ошибка при проверке сессии:', error);
+        messageLoading.value.isLoadingMore = false;
+        messageLoading.value.isInProgress = false;
+        isLoading.value = false;
+        return;
       }
     }
     

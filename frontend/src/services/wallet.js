@@ -77,9 +77,6 @@ export async function connectWithWallet() {
       localStorage.setItem('userId', verificationResponse.data.userId);
       localStorage.setItem('address', verificationResponse.data.address);
       localStorage.setItem('isAdmin', verificationResponse.data.isAdmin);
-      
-      // Перезагружаем страницу для обновления состояния
-      window.location.reload();
     }
     
     return verificationResponse.data;
