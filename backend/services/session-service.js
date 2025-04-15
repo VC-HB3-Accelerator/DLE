@@ -1,40 +1,167 @@
 const logger = require('../utils/logger');
 const db = require('../db');
+const { processGuestMessages } = require('../routes/chat');
 
 /**
  * Сервис для работы с сессиями пользователей
  */
 class SessionService {
   /**
-   * Сохраняет сессию с обработкой ошибок
-   * @param {object} session - Объект сессии
-   * @param {string} context - Контекст для логирования
-   * @returns {Promise<boolean>} - Результат операции
+   * Сохраняет сессию, обрабатывая ошибки и логируя результат
+   * @param {Object} session - Объект сессии Express
+   * @returns {Promise<boolean>} - Успешно ли сохранена сессия
    */
-  async saveSession(session, context = '') {
-    if (!session) {
-      logger.warn(`[SessionService${context ? '/' + context : ''}] Cannot save null session`);
-      return false;
-    }
-    
+  async saveSession(session) {
     try {
-      return await new Promise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         session.save(err => {
           if (err) {
-            logger.error(`[SessionService${context ? '/' + context : ''}] Error saving session:`, err);
+            logger.error('Error saving session:', err);
             reject(err);
           } else {
-            logger.info(`[SessionService${context ? '/' + context : ''}] Session saved successfully`);
+            logger.info('Session saved successfully');
             resolve(true);
           }
         });
       });
     } catch (error) {
-      logger.error(`[SessionService${context ? '/' + context : ''}] Error in saveSession:`, error);
-      return false;
+      logger.error(`[saveSession] Error:`, error);
+      throw error;
     }
   }
-  
+
+  /**
+   * Связывает гостевые сообщения с пользователем после аутентификации
+   * @param {Object} session - Объект сессии Express
+   * @param {number} userId - ID пользователя
+   * @returns {Promise<Object>} - Результат операции
+   */
+  async linkGuestMessages(session, userId) {
+    try {
+      logger.info(`[linkGuestMessages] Starting for user ${userId} with guestId=${session.guestId}, previousGuestId=${session.previousGuestId}`);
+
+      // Инициализируем массив обработанных гостевых ID, если его нет
+      if (!session.processedGuestIds) {
+        session.processedGuestIds = [];
+      }
+
+      // Получаем все гостевые ID для текущего пользователя из новой таблицы
+      const guestIdsResult = await db.query(
+        'SELECT guest_id FROM guest_user_mapping WHERE user_id = $1',
+        [userId]
+      );
+      const userGuestIds = guestIdsResult.rows.map(row => row.guest_id);
+
+      // Собираем все гостевые ID, которые нужно обработать
+      const guestIdsToProcess = new Set();
+      
+      // Добавляем текущий гостевой ID
+      if (session.guestId && !session.processedGuestIds.includes(session.guestId)) {
+        guestIdsToProcess.add(session.guestId);
+        
+        // Записываем связь с пользователем в новую таблицу
+        await db.query(
+          'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+          [userId, session.guestId]
+        );
+      }
+
+      // Добавляем предыдущий гостевой ID
+      if (session.previousGuestId && !session.processedGuestIds.includes(session.previousGuestId)) {
+        guestIdsToProcess.add(session.previousGuestId);
+        
+        // Записываем связь с пользователем в новую таблицу
+        await db.query(
+          'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+          [userId, session.previousGuestId]
+        );
+      }
+
+      // Добавляем все гостевые ID пользователя из таблицы
+      for (const guestId of userGuestIds) {
+        if (!session.processedGuestIds.includes(guestId)) {
+          guestIdsToProcess.add(guestId);
+        }
+      }
+
+      // Обрабатываем все собранные гостевые ID
+      for (const guestId of guestIdsToProcess) {
+        await this.processGuestMessagesWrapper(userId, guestId);
+        session.processedGuestIds.push(guestId);
+        
+        // Помечаем guestId как обработанный в базе данных
+        await db.query(
+          'UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1',
+          [guestId]
+        );
+      }
+
+      // Сохраняем сессию
+      await this.saveSession(session);
+
+      return { success: true };
+    } catch (error) {
+      logger.error('[linkGuestMessages] Error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Обертка для функции processGuestMessages
+   * @param {number} userId - ID пользователя
+   * @param {string} guestId - ID гостя
+   * @returns {Promise<Object>} - Результат операции
+   */
+  async processGuestMessagesWrapper(userId, guestId) {
+    try {
+      logger.info(`[processGuestMessagesWrapper] Processing messages: userId=${userId}, guestId=${guestId}`);
+      return await processGuestMessages(userId, guestId);
+    } catch (error) {
+      logger.error(`[processGuestMessagesWrapper] Error: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Получает сессию из хранилища по ID
+   * @param {string} sessionId - ID сессии
+   * @returns {Promise<Object|null>} - Объект сессии или null
+   */
+  async getSession(sessionId) {
+    try {
+      // Реализация будет зависеть от используемого хранилища сессий
+      // Этот метод будет полезен, если нужно получить сессию не из текущего запроса
+      return null; // Временная заглушка
+    } catch (error) {
+      logger.error(`[getSession] Error getting session ${sessionId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Удаляет сессию
+   * @param {Object} session - Объект сессии Express
+   * @returns {Promise<boolean>} - Успешно ли удалена сессия
+   */
+  async destroySession(session) {
+    try {
+      return new Promise((resolve, reject) => {
+        session.destroy(err => {
+          if (err) {
+            logger.error('Error destroying session:', err);
+            reject(err);
+          } else {
+            logger.info('Session destroyed successfully');
+            resolve(true);
+          }
+        });
+      });
+    } catch (error) {
+      logger.error(`[destroySession] Error:`, error);
+      throw error;
+    }
+  }
+
   /**
    * Восстанавливает сессию из базы данных по ID
    * @param {string} sessionId - ID сессии
@@ -166,4 +293,5 @@ class SessionService {
   }
 }
 
-module.exports = new SessionService(); 
+const sessionService = new SessionService();
+module.exports = sessionService; 

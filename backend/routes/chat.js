@@ -13,6 +13,27 @@ async function processGuestMessages(userId, guestId) {
   try {
     console.log(`Processing guest messages for user ${userId} with guest ID ${guestId}`);
     
+    // Проверяем, обрабатывались ли уже эти сообщения
+    const mappingCheck = await db.query(
+      'SELECT processed FROM guest_user_mapping WHERE guest_id = $1',
+      [guestId]
+    );
+    
+    // Если сообщения уже обработаны, пропускаем
+    if (mappingCheck.rows.length > 0 && mappingCheck.rows[0].processed) {
+      console.log(`Guest messages for guest ID ${guestId} were already processed.`);
+      return { success: true, message: 'Guest messages already processed' };
+    }
+    
+    // Проверяем наличие mapping записи и создаем если нет
+    if (mappingCheck.rows.length === 0) {
+      await db.query(
+        'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+        [userId, guestId]
+      );
+      console.log(`Created mapping for guest ID ${guestId} to user ${userId}`);
+    }
+    
     // Получаем все гостевые сообщения
     const guestMessagesResult = await db.query(
       'SELECT * FROM guest_messages WHERE guest_id = $1 ORDER BY created_at ASC',
@@ -21,6 +42,13 @@ async function processGuestMessages(userId, guestId) {
     
     if (guestMessagesResult.rows.length === 0) {
       console.log('No guest messages found');
+      
+      // Помечаем как обработанные, даже если сообщений нет
+      await db.query(
+        'UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1',
+        [guestId]
+      );
+      
       return { success: true, message: 'No guest messages found' };
     }
     
@@ -52,9 +80,9 @@ async function processGuestMessages(userId, guestId) {
         // Сохраняем сообщение пользователя
         const userMessageResult = await db.query(
           `INSERT INTO messages 
-            (conversation_id, content, sender_type, role, channel, created_at) 
+            (conversation_id, content, sender_type, role, channel, created_at, user_id) 
            VALUES 
-            ($1, $2, $3, $4, $5, $6) 
+            ($1, $2, $3, $4, $5, $6, $7) 
            RETURNING *`,
           [
             conversation.id, 
@@ -62,7 +90,8 @@ async function processGuestMessages(userId, guestId) {
             'user', 
             'user', 
             'web',
-            guestMessage.created_at
+            guestMessage.created_at,
+            userId // Добавляем userId в сообщение для прямой связи
           ]
         );
         
@@ -79,9 +108,9 @@ async function processGuestMessages(userId, guestId) {
           // Сохраняем ответ от ИИ
           const aiMessageResult = await db.query(
             `INSERT INTO messages 
-              (conversation_id, content, sender_type, role, channel, created_at) 
+              (conversation_id, content, sender_type, role, channel, created_at, user_id) 
              VALUES 
-              ($1, $2, $3, $4, $5, $6) 
+              ($1, $2, $3, $4, $5, $6, $7) 
              RETURNING *`,
             [
               conversation.id, 
@@ -89,7 +118,8 @@ async function processGuestMessages(userId, guestId) {
               'assistant', 
               'assistant', 
               'web',
-              new Date()
+              new Date(),
+              userId // Добавляем userId в сообщение для прямой связи
             ]
           );
           
@@ -105,6 +135,12 @@ async function processGuestMessages(userId, guestId) {
     if (savedMessageIds.length > 0) {
       await db.query('DELETE FROM guest_messages WHERE id = ANY($1)', [savedMessageIds]);
       console.log(`Deleted ${savedMessageIds.length} processed guest messages for guest ID ${guestId}`);
+      
+      // Помечаем гостевой ID как обработанный
+      await db.query(
+        'UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1',
+        [guestId]
+      );
     } else {
       console.log('No guest messages were successfully processed, skipping deletion');
     }

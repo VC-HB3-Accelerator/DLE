@@ -385,6 +385,52 @@ export function useAuth() {
     stopIdentitiesPolling();
   });
   
+  /**
+   * Связывает новый идентификатор с текущим аккаунтом пользователя
+   * @param {string} provider - Тип идентификатора (wallet, email, telegram)
+   * @param {string} providerId - Значение идентификатора
+   * @returns {Promise<Object>} - Результат операции
+   */
+  const linkIdentity = async (provider, providerId) => {
+    try {
+      if (!isAuthenticated.value) {
+        console.error('Невозможно связать идентификатор: пользователь не аутентифицирован');
+        return { success: false, error: 'Пользователь не аутентифицирован' };
+      }
+      
+      const response = await axios.post('/api/auth/identities/link', {
+        type: provider,
+        value: providerId
+      });
+      
+      if (response.data.success) {
+        // Обновляем локальные данные при необходимости
+        if (provider === 'wallet') {
+          address.value = providerId;
+          isAdmin.value = response.data.isAdmin || false;
+        } else if (provider === 'telegram') {
+          telegramId.value = providerId;
+        } else if (provider === 'email') {
+          email.value = providerId;
+        }
+        
+        // Обновляем список идентификаторов
+        await updateIdentities();
+        
+        console.log(`Идентификатор ${provider} успешно связан с аккаунтом`);
+        return { success: true };
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при связывании идентификатора:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.error || error.message 
+      };
+    }
+  };
+  
   return {
     isAuthenticated,
     authType,
@@ -402,6 +448,7 @@ export function useAuth() {
     linkMessages,
     updateIdentities,
     updateProcessedGuestIds,
-    updateConnectionDisplay
+    updateConnectionDisplay,
+    linkIdentity
   };
 } 
