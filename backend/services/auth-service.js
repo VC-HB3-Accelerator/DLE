@@ -397,6 +397,28 @@ class AuthService {
     try {
       logger.info(`[verifyTelegramAuth] Starting for telegramId: ${telegramId}`);
       
+      let userId;
+      let isNewUser = false;
+      
+      // Проверяем наличие аутентифицированного пользователя в сессии
+      if (session && session.authenticated && session.userId) {
+        // Если есть авторизованный пользователь в сессии, связываем Telegram с ним
+        userId = session.userId;
+        logger.info(`[verifyTelegramAuth] Using existing authenticated user ${userId} from session`);
+        
+        // Связываем Telegram с текущим пользователем
+        await this.linkIdentity(userId, 'telegram', telegramId);
+        
+        return {
+          success: true,
+          userId,
+          role: session.isAdmin ? 'admin' : 'user',
+          telegramId,
+          isNewUser: false
+        };
+      }
+      
+      // Если в сессии нет авторизованного пользователя, проверяем существующие идентификаторы
       // Проверяем, существует ли уже пользователь с таким Telegram ID
       const existingUserResult = await db.query(
         `SELECT u.*, ui.provider, ui.provider_id 
@@ -405,9 +427,6 @@ class AuthService {
          WHERE ui.provider = 'telegram' AND ui.provider_id = $1`,
         [telegramId]
       );
-
-      let userId;
-      let isNewUser = false;
 
       // Если пользователь существует с таким telegramId, используем его
       if (existingUserResult.rows.length > 0) {
@@ -458,9 +477,8 @@ class AuthService {
   async checkAdminTokens(address) {
     if (!address) return false;
     
-    console.log(`Checking admin tokens for address: ${address}`);
+    logger.info(`Checking admin tokens for address: ${address}`);
     const isAdmin = await this.checkAdminRole(address);
-    console.log(`Admin token check result for ${address}: ${isAdmin}`);
     
     // Обновляем роль пользователя в базе данных, если есть админские токены
     if (isAdmin) {
@@ -480,10 +498,10 @@ class AuthService {
             'UPDATE users SET role = $1 WHERE id = $2',
             ['admin', userId]
           );
-          console.log(`Updated user ${userId} role to admin based on token holdings`);
+          logger.info(`Updated user ${userId} role to admin based on token holdings`);
         }
       } catch (error) {
-        console.error('Error updating user role:', error);
+        logger.error('Error updating user role:', error);
       }
     }
     
@@ -561,6 +579,79 @@ class AuthService {
     } catch (error) {
       logger.warn(`[checkArbitrumBalance] Timeout or error for ${address}:`, error);
       return { balance: 0, hasTokens: false, error: error.message };
+    }
+  }
+
+  /**
+   * Связывает новый идентификатор с существующим пользователем
+   * @param {number} userId - ID пользователя
+   * @param {string} provider - Тип идентификатора (wallet, email, telegram)
+   * @param {string} providerId - Значение идентификатора
+   * @returns {Promise<Object>} - Результат операции
+   */
+  async linkIdentity(userId, provider, providerId) {
+    try {
+      if (!userId || !provider || !providerId) {
+        logger.warn(`[AuthService] Missing parameters for linkIdentity: userId=${userId}, provider=${provider}, providerId=${providerId}`);
+        throw new Error('Missing parameters');
+      }
+      
+      // Нормализуем значение идентификатора
+      if (provider === 'wallet' && providerId) {
+        providerId = providerId.toLowerCase();
+      } else if (provider === 'email' && providerId) {
+        providerId = providerId.toLowerCase();
+      }
+      
+      logger.info(`[AuthService] Linking identity ${provider}:${providerId} to user ${userId}`);
+      
+      // Проверяем, существует ли уже такой идентификатор
+      const existingResult = await db.query(
+        `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
+        [provider, providerId]
+      );
+      
+      if (existingResult.rows.length > 0) {
+        const existingUserId = existingResult.rows[0].user_id;
+        
+        // Если идентификатор уже принадлежит этому пользователю, ничего не делаем
+        if (existingUserId === userId) {
+          logger.info(`[AuthService] Identity ${provider}:${providerId} already exists for user ${userId}`);
+          return { success: true, message: 'Identity already exists' };
+        } else {
+          // Если идентификатор принадлежит другому пользователю, возвращаем ошибку
+          logger.warn(`[AuthService] Identity ${provider}:${providerId} already belongs to user ${existingUserId}, not user ${userId}`);
+          throw new Error(`Identity already belongs to another user (${existingUserId})`);
+        }
+      }
+      
+      // Добавляем новый идентификатор для пользователя
+      await db.query(
+        `INSERT INTO user_identities (user_id, provider, provider_id) 
+         VALUES ($1, $2, $3)`,
+        [userId, provider, providerId]
+      );
+      
+      // Проверяем и обновляем роль администратора, если это идентификатор кошелька
+      let isAdmin = false;
+      if (provider === 'wallet') {
+        isAdmin = await this.checkAdminTokens(providerId);
+        
+        // Обновляем роль пользователя в базе данных, если нужно
+        if (isAdmin) {
+          await db.query(
+            'UPDATE users SET role = $1 WHERE id = $2',
+            ['admin', userId]
+          );
+          logger.info(`[AuthService] Updated user ${userId} role to admin based on token holdings`);
+        }
+      }
+      
+      logger.info(`[AuthService] Identity ${provider}:${providerId} successfully linked to user ${userId}`);
+      return { success: true, isAdmin };
+    } catch (error) {
+      logger.error(`[AuthService] Error linking identity ${provider}:${providerId} to user ${userId}:`, error);
+      throw error;
     }
   }
 

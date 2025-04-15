@@ -59,6 +59,9 @@ router.get('/token-balances', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'No wallet linked' });
     }
 
+    // Здесь логирование инициирования получения баланса может быть полезно
+    logger.info(`Fetching token balances for user ${userId} with wallet ${wallet}`);
+    
     // Получаем балансы токенов
     const balances = await authService.getTokenBalances(wallet);
 

@@ -8,7 +8,7 @@ class IdentityService {
   /**
    * Сохраняет идентификатор пользователя в базу данных
    * @param {number} userId - ID пользователя
-   * @param {string} provider - Тип идентификатора (wallet, email, telegram, guest)
+   * @param {string} provider - Тип идентификатора (wallet, email, telegram)
    * @param {string} providerId - Значение идентификатора
    * @param {boolean} verified - Флаг верификации идентификатора
    * @returns {Promise<object>} - Результат операции
@@ -20,6 +20,38 @@ class IdentityService {
         return {
           success: false,
           error: 'Missing required parameters'
+        };
+      }
+      
+      // Приводим provider и providerId к нужному формату
+      provider = provider.toLowerCase();
+      if (provider === 'wallet' || provider === 'email') {
+        providerId = providerId.toLowerCase();
+      }
+      
+      // Проверяем тип провайдера и перенаправляем гостевые идентификаторы в guest_user_mapping
+      if (provider === 'guest') {
+        logger.info(`[IdentityService] Converting guest identity for user ${userId} to guest_user_mapping: ${providerId}`);
+        
+        try {
+          await db.query(
+            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+            [userId, providerId]
+          );
+          return { success: true };
+        } catch (guestError) {
+          logger.error(`[IdentityService] Error saving guest identity for user ${userId}:`, guestError);
+          return { success: false, error: guestError.message };
+        }
+      }
+      
+      // Проверяем, разрешен ли такой тип провайдера
+      const allowedProviders = ['email', 'wallet', 'telegram', 'username'];
+      if (!allowedProviders.includes(provider)) {
+        logger.warn(`[IdentityService] Invalid provider type: ${provider}`);
+        return {
+          success: false,
+          error: `Invalid provider type. Allowed types: ${allowedProviders.join(', ')}`
         };
       }
       
@@ -177,15 +209,31 @@ class IdentityService {
         results.push({ type: 'telegram', result: telegramResult });
       }
       
-      // Сохраняем гостевые идентификаторы
+      // Сохраняем гостевые идентификаторы в guest_user_mapping
       if (session.guestId) {
-        const guestResult = await this.saveIdentity(userId, 'guest', session.guestId, true);
-        results.push({ type: 'guest', result: guestResult });
+        try {
+          await db.query(
+            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+            [userId, session.guestId]
+          );
+          results.push({ type: 'guest', result: { success: true } });
+        } catch (error) {
+          logger.error(`[IdentityService] Error saving guest ID for user ${userId}:`, error);
+          results.push({ type: 'guest', result: { success: false, error: error.message } });
+        }
       }
       
       if (session.previousGuestId && session.previousGuestId !== session.guestId) {
-        const prevGuestResult = await this.saveIdentity(userId, 'guest', session.previousGuestId, true);
-        results.push({ type: 'previousGuest', result: prevGuestResult });
+        try {
+          await db.query(
+            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+            [userId, session.previousGuestId]
+          );
+          results.push({ type: 'previousGuest', result: { success: true } });
+        } catch (error) {
+          logger.error(`[IdentityService] Error saving previous guest ID for user ${userId}:`, error);
+          results.push({ type: 'previousGuest', result: { success: false, error: error.message } });
+        }
       }
       
       logger.info(`[IdentityService] Saved ${results.length} identities from session for user ${userId}`);
@@ -223,12 +271,42 @@ class IdentityService {
         // Переносим каждый идентификатор
         for (const identity of identitiesResult.rows) {
           await client.query(
-            `UPDATE user_identities 
-             SET user_id = $1 
-             WHERE user_id = $2 AND provider = $3 AND provider_id = $4`,
-            [toUserId, fromUserId, identity.provider, identity.provider_id]
+            `INSERT INTO user_identities (user_id, provider, provider_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (provider, provider_id) DO NOTHING`,
+            [toUserId, identity.provider, identity.provider_id]
+          );
+          
+          // Удаляем старый идентификатор
+          await client.query(
+            `DELETE FROM user_identities
+             WHERE user_id = $1 AND provider = $2 AND provider_id = $3`,
+            [fromUserId, identity.provider, identity.provider_id]
           );
         }
+        
+        // Мигрируем гостевые идентификаторы из новой таблицы guest_user_mapping
+        const guestMappingsResult = await client.query(
+          `SELECT guest_id, processed FROM guest_user_mapping WHERE user_id = $1`,
+          [fromUserId]
+        );
+        
+        // Переносим каждый гостевой идентификатор
+        for (const mapping of guestMappingsResult.rows) {
+          await client.query(
+            `INSERT INTO guest_user_mapping (user_id, guest_id, processed)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (guest_id) DO UPDATE 
+             SET user_id = $1, processed = EXCLUDED.processed OR guest_user_mapping.processed`,
+            [toUserId, mapping.guest_id, mapping.processed]
+          );
+        }
+        
+        // Удаляем старые гостевые маппинги
+        await client.query(
+          `DELETE FROM guest_user_mapping WHERE user_id = $1`,
+          [fromUserId]
+        );
 
         // Переносим все сообщения
         await client.query(
@@ -245,28 +323,29 @@ class IdentityService {
            WHERE user_id = $2`,
           [toUserId, fromUserId]
         );
-
-        // Удаляем исходного пользователя
+        
+        // Переносим настройки пользователя
         await client.query(
-          `DELETE FROM users WHERE id = $1`,
-          [fromUserId]
+          `UPDATE user_preferences
+           SET user_id = $1
+           WHERE user_id = $2`,
+          [toUserId, fromUserId]
         );
 
+        // Завершаем транзакцию
         await client.query('COMMIT');
         
-        logger.info(`[IdentityService] Successfully migrated data from user ${fromUserId} to user ${toUserId}`);
-        return { 
-          success: true, 
-          migratedIdentities: identitiesResult.rows.length 
-        };
+        logger.info(`[IdentityService] Successfully migrated data from user ${fromUserId} to ${toUserId}`);
+        return { success: true };
       } catch (error) {
         await client.query('ROLLBACK');
-        throw error;
+        logger.error(`[IdentityService] Transaction error:`, error);
+        return { success: false, error: error.message };
       } finally {
         client.release();
       }
     } catch (error) {
-      logger.error(`[IdentityService] Error migrating data from user ${fromUserId} to user ${toUserId}:`, error);
+      logger.error(`[IdentityService] Error migrating user data:`, error);
       return { success: false, error: error.message };
     }
   }

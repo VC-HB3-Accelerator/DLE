@@ -18,7 +18,6 @@ router.get('/balances', requireAuth, async (req, res) => {
     logger.info(`Fetching token balances for address: ${address}`);
     const balances = await authService.getTokenBalances(address);
     
-    logger.info(`Token balances fetched for ${address}:`, balances);
     res.json(balances);
   } catch (error) {
     logger.error('Error fetching token balances:', error);

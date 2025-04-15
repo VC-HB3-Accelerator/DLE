@@ -918,7 +918,7 @@ const setupMessagePolling = (initialCount) => {
  * Обрабатывает аутентификацию через кошелек
  */
 const handleWalletAuth = async () => {
-  if (isConnecting.value || isAuthenticated.value) return;
+  if (isConnecting.value) return;
   
   isConnecting.value = true;
   try {
@@ -926,17 +926,45 @@ const handleWalletAuth = async () => {
     console.log('Результат подключения кошелька:', result);
     
     if (result.success) {
-      // Обновляем состояние авторизации
-      const authResponse = await auth.checkAuth();
-      
-      if (authResponse.authenticated && authResponse.authType === 'wallet') {
-        console.log('Кошелёк успешно подключен и аутентифицирован');
+      if (auth.isAuthenticated.value) {
+        // Если пользователь уже авторизован, связываем кошелек с существующим аккаунтом
+        console.log('Связывание кошелька с существующим аккаунтом:', result.address);
+        const linkResult = await auth.linkIdentity('wallet', result.address);
         
-        // Загружаем сообщения после аутентификации
-        await loadMessages({ authType: 'wallet' });
+        if (linkResult.success) {
+          notifications.value.successMessage = 'Кошелек успешно подключен к вашему аккаунту!';
+          notifications.value.showSuccess = true;
+          
+          // Скрываем сообщение через 3 секунды
+          setTimeout(() => {
+            notifications.value.showSuccess = false;
+          }, 3000);
+          
+          // Обновляем данные авторизации и балансы
+          await auth.checkAuth();
+          startBalanceUpdates();
+        } else {
+          notifications.value.errorMessage = linkResult.error || 'Не удалось подключить кошелек';
+          notifications.value.showError = true;
+          
+          // Скрываем сообщение через 3 секунды
+          setTimeout(() => {
+            notifications.value.showError = false;
+          }, 3000);
+        }
+      } else {
+        // Если пользователь не авторизован, выполняем обычную авторизацию через кошелек
+        const authResponse = await auth.checkAuth();
         
-        // Запускаем обновление балансов
-        startBalanceUpdates();
+        if (authResponse.authenticated && authResponse.authType === 'wallet') {
+          console.log('Кошелёк успешно подключен и аутентифицирован');
+          
+          // Загружаем сообщения после аутентификации
+          await loadMessages({ authType: 'wallet' });
+          
+          // Запускаем обновление балансов
+          startBalanceUpdates();
+        }
       }
       
       // Небольшая задержка перед сбросом состояния
@@ -959,6 +987,7 @@ const handleWalletAuth = async () => {
  */
 const handleTelegramAuth = async () => {
   try {
+    // Показываем окно верификации
     telegramAuth.value.showVerification = true;
     telegramAuth.value.error = '';
     
@@ -973,14 +1002,43 @@ const handleTelegramAuth = async () => {
       telegramAuth.value.checkInterval = setInterval(async () => {
         try {
           const checkResponse = await auth.checkAuth();
-          if (checkResponse.authenticated && checkResponse.authType === 'telegram') {
-            console.log('Telegram аутентификация успешна');
+          
+          // Получаем Telegram ID из проверки аутентификации
+          const telegramId = checkResponse.telegramId;
+          
+          if (auth.isAuthenticated.value && telegramId) {
+            if (auth.authType.value !== 'telegram') {
+              // Если пользователь авторизован не через Telegram, связываем идентификаторы
+              console.log('Связывание Telegram с существующим аккаунтом:', telegramId);
+              const linkResult = await auth.linkIdentity('telegram', telegramId);
+              
+              if (linkResult.success) {
+                notifications.value.successMessage = 'Telegram успешно подключен к вашему аккаунту!';
+                notifications.value.showSuccess = true;
+                
+                setTimeout(() => {
+                  notifications.value.showSuccess = false;
+                }, 3000);
+              } else {
+                notifications.value.errorMessage = linkResult.error || 'Не удалось подключить Telegram';
+                notifications.value.showError = true;
+                
+                setTimeout(() => {
+                  notifications.value.showError = false;
+                }, 3000);
+              }
+            } else {
+              // Если новая аутентификация через Telegram
+              console.log('Telegram аутентификация успешна');
+              
+              // Загружаем сообщения после аутентификации
+              await loadMessages({ authType: 'telegram' });
+            }
+            
+            // Очищаем интервал и скрываем окно верификации
             clearTelegramInterval();
             telegramAuth.value.showVerification = false;
             telegramAuth.value.verificationCode = '';
-            
-            // Загружаем сообщения после аутентификации
-            await loadMessages({ authType: 'telegram' });
           }
         } catch (error) {
           console.error('Ошибка при проверке аутентификации:', error);
@@ -1114,20 +1172,55 @@ const verifyEmailCode = async () => {
       emailAuth.value.showForm = false;
       emailAuth.value.showVerification = false;
       
-      // Показываем сообщение об успехе
-      notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подтвержден!`;
-      notifications.value.showSuccess = true;
-      
-      // Скрываем сообщение через 3 секунды
-      setTimeout(() => {
-        notifications.value.showSuccess = false;
-      }, 3000);
-      
-      // Обновляем состояние аутентификации
+      // Получаем текущее состояние аутентификации
       const authResponse = await auth.checkAuth();
       
-      if (authResponse.authenticated && authResponse.authType === 'email') {
-        console.log('Email успешно подтвержден и аутентифицирован');
+      if (auth.isAuthenticated.value && emailAuth.value.verificationEmail) {
+        // Если пользователь уже авторизован, связываем email
+        if (auth.authType.value !== 'email') {
+          console.log('Связывание Email с существующим аккаунтом:', emailAuth.value.verificationEmail);
+          const linkResult = await auth.linkIdentity('email', emailAuth.value.verificationEmail);
+          
+          if (linkResult.success) {
+            // Показываем сообщение об успехе
+            notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подключен к вашему аккаунту!`;
+            notifications.value.showSuccess = true;
+            
+            // Скрываем сообщение через 3 секунды
+            setTimeout(() => {
+              notifications.value.showSuccess = false;
+            }, 3000);
+          } else {
+            notifications.value.errorMessage = linkResult.error || 'Не удалось подключить Email';
+            notifications.value.showError = true;
+            
+            setTimeout(() => {
+              notifications.value.showError = false;
+            }, 3000);
+          }
+        } else {
+          // Показываем сообщение об успехе
+          notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подтвержден!`;
+          notifications.value.showSuccess = true;
+          
+          // Скрываем сообщение через 3 секунды
+          setTimeout(() => {
+            notifications.value.showSuccess = false;
+          }, 3000);
+          
+          // Загружаем сообщения после аутентификации
+          await loadMessages({ authType: 'email' });
+        }
+      } else {
+        // Если пользователь не был авторизован до этого
+        // Показываем сообщение об успехе
+        notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подтвержден!`;
+        notifications.value.showSuccess = true;
+        
+        // Скрываем сообщение через 3 секунды
+        setTimeout(() => {
+          notifications.value.showSuccess = false;
+        }, 3000);
         
         // Загружаем сообщения после аутентификации
         await loadMessages({ authType: 'email' });
