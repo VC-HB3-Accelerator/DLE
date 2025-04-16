@@ -30,8 +30,15 @@ class AuthService {
   async verifySignature(message, signature, address) {
     try {
       if (!message || !signature || !address) return false;
+      
+      // Нормализуем входящий адрес
+      const normalizedAddress = ethers.getAddress(address).toLowerCase();
+      
+      // Восстанавливаем адрес из подписи
       const recoveredAddress = ethers.verifyMessage(message, signature);
-      return ethers.getAddress(recoveredAddress) === ethers.getAddress(address);
+      
+      // Сравниваем нормализованные адреса
+      return ethers.getAddress(recoveredAddress).toLowerCase() === normalizedAddress;
     } catch (error) {
       logger.error('Error in signature verification:', error);
       return false;
@@ -45,15 +52,15 @@ class AuthService {
    */
   async findOrCreateUser(address) {
     try {
-      // Нормализуем адрес
-      address = ethers.getAddress(address);
+      // Нормализуем адрес - всегда приводим к нижнему регистру
+      const normalizedAddress = ethers.getAddress(address).toLowerCase();
       
       // Ищем пользователя по адресу в таблице user_identities
       const userResult = await db.query(`
         SELECT u.* FROM users u 
         JOIN user_identities ui ON u.id = ui.user_id 
         WHERE ui.provider = 'wallet' AND ui.provider_id = $1
-      `, [address]);
+      `, [normalizedAddress]);
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
@@ -71,13 +78,22 @@ class AuthService {
       
       const userId = newUserResult.rows[0].id;
       
-      // Добавляем идентификатор кошелька
+      // Добавляем идентификатор кошелька (всегда в нижнем регистре)
       await db.query(
         'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-        [userId, 'wallet', address]
+        [userId, 'wallet', normalizedAddress]
       );
       
-      return { userId, isAdmin: false };
+      // Проверяем, есть ли у пользователя роль админа
+      const isAdmin = await this.checkAdminRole(normalizedAddress);
+      
+      // Если у пользователя есть админские токены, обновляем его роль
+      if (isAdmin) {
+        await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+        logger.info(`New user ${userId} with wallet ${normalizedAddress} automatically granted admin role`);
+      }
+      
+      return { userId, isAdmin };
     } catch (error) {
       console.error('Error finding or creating user:', error);
       throw error;
@@ -454,8 +470,8 @@ class AuthService {
       // Если есть гостевой ID в сессии, сохраняем его для нового пользователя
       if (session.guestId && isNewUser) {
         await db.query(
-          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-          [userId, 'guest', session.guestId]
+          'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+          [userId, session.guestId]
         );
         logger.info(`[verifyTelegramAuth] Saved guest ID ${session.guestId} for user ${userId}`);
       }
@@ -597,18 +613,25 @@ class AuthService {
       }
       
       // Нормализуем значение идентификатора
-      if (provider === 'wallet' && providerId) {
-        providerId = providerId.toLowerCase();
-      } else if (provider === 'email' && providerId) {
-        providerId = providerId.toLowerCase();
+      let normalizedProviderId = providerId;
+      if (provider === 'wallet') {
+        // Для кошельков используем ethers для валидации и нормализации
+        try {
+          normalizedProviderId = ethers.getAddress(providerId).toLowerCase();
+        } catch (error) {
+          logger.error(`[AuthService] Invalid wallet address: ${providerId}`, error);
+          throw new Error('Invalid wallet address');
+        }
+      } else if (provider === 'email') {
+        normalizedProviderId = providerId.toLowerCase();
       }
       
-      logger.info(`[AuthService] Linking identity ${provider}:${providerId} to user ${userId}`);
+      logger.info(`[AuthService] Linking identity ${provider}:${normalizedProviderId} to user ${userId}`);
       
       // Проверяем, существует ли уже такой идентификатор
       const existingResult = await db.query(
         `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
-        [provider, providerId]
+        [provider, normalizedProviderId]
       );
       
       if (existingResult.rows.length > 0) {
@@ -616,11 +639,11 @@ class AuthService {
         
         // Если идентификатор уже принадлежит этому пользователю, ничего не делаем
         if (existingUserId === userId) {
-          logger.info(`[AuthService] Identity ${provider}:${providerId} already exists for user ${userId}`);
+          logger.info(`[AuthService] Identity ${provider}:${normalizedProviderId} already exists for user ${userId}`);
           return { success: true, message: 'Identity already exists' };
         } else {
           // Если идентификатор принадлежит другому пользователю, возвращаем ошибку
-          logger.warn(`[AuthService] Identity ${provider}:${providerId} already belongs to user ${existingUserId}, not user ${userId}`);
+          logger.warn(`[AuthService] Identity ${provider}:${normalizedProviderId} already belongs to user ${existingUserId}, not user ${userId}`);
           throw new Error(`Identity already belongs to another user (${existingUserId})`);
         }
       }
@@ -629,13 +652,13 @@ class AuthService {
       await db.query(
         `INSERT INTO user_identities (user_id, provider, provider_id) 
          VALUES ($1, $2, $3)`,
-        [userId, provider, providerId]
+        [userId, provider, normalizedProviderId]
       );
       
       // Проверяем и обновляем роль администратора, если это идентификатор кошелька
       let isAdmin = false;
       if (provider === 'wallet') {
-        isAdmin = await this.checkAdminTokens(providerId);
+        isAdmin = await this.checkAdminTokens(normalizedProviderId);
         
         // Обновляем роль пользователя в базе данных, если нужно
         if (isAdmin) {
@@ -647,7 +670,7 @@ class AuthService {
         }
       }
       
-      logger.info(`[AuthService] Identity ${provider}:${providerId} successfully linked to user ${userId}`);
+      logger.info(`[AuthService] Identity ${provider}:${normalizedProviderId} successfully linked to user ${userId}`);
       return { success: true, isAdmin };
     } catch (error) {
       logger.error(`[AuthService] Error linking identity ${provider}:${providerId} to user ${userId}:`, error);

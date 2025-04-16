@@ -39,6 +39,7 @@ async function getBot() {
         
         const verification = codeResult.rows[0];
         const providerId = verification.provider_id;
+        const linkedUserId = verification.user_id;  // Получаем связанный userId если он есть
         let userId;
         
         // Отмечаем код как использованный
@@ -62,33 +63,72 @@ async function getBot() {
           userId = existingTelegramUser.rows[0].user_id;
           logger.info(`Using existing user ${userId} for Telegram account ${ctx.from.id}`);
         } else {
-          // Создаем нового пользователя, если нет существующего с этим Telegram ID
-          const userResult = await db.query(
-            'INSERT INTO users (created_at, role) VALUES (NOW(), $1) RETURNING id',
-            ['user']
-          );
-          userId = userResult.rows[0].id;
-          
-          // Связываем Telegram с новым пользователем
-          await db.query(
-            `INSERT INTO user_identities 
-             (user_id, provider, provider_id, created_at) 
-             VALUES ($1, $2, $3, NOW())`,
-            [userId, 'telegram', ctx.from.id.toString()]
-          );
-          
-          // Если был гостевой ID, связываем его с новым пользователем
-          if (providerId) {
+          // Если код верификации был связан с существующим пользователем, используем его
+          if (linkedUserId) {
+            // Используем userId из кода верификации
+            userId = linkedUserId;
+            // Связываем Telegram с этим пользователем
             await db.query(
               `INSERT INTO user_identities 
                (user_id, provider, provider_id, created_at) 
-               VALUES ($1, $2, $3, NOW())
-               ON CONFLICT (provider, provider_id) DO NOTHING`,
-              [userId, 'guest', providerId]
+               VALUES ($1, $2, $3, NOW())`,
+              [userId, 'telegram', ctx.from.id.toString()]
             );
+            logger.info(`Linked Telegram account ${ctx.from.id} to pre-authenticated user ${userId}`);
+          } else {
+            // Проверяем, есть ли пользователь, связанный с гостевым идентификатором
+            let existingUserWithGuestId = null;
+            if (providerId) {
+              const guestUserResult = await db.query(
+                `SELECT user_id FROM guest_user_mapping WHERE guest_id = $1`,
+                [providerId]
+              );
+              if (guestUserResult.rows.length > 0) {
+                existingUserWithGuestId = guestUserResult.rows[0].user_id;
+                logger.info(`Found existing user ${existingUserWithGuestId} by guest ID ${providerId}`);
+              }
+            }
+            
+            if (existingUserWithGuestId) {
+              // Используем существующего пользователя и добавляем ему Telegram идентификатор
+              userId = existingUserWithGuestId;
+              await db.query(
+                `INSERT INTO user_identities 
+                 (user_id, provider, provider_id, created_at) 
+                 VALUES ($1, $2, $3, NOW())`,
+                [userId, 'telegram', ctx.from.id.toString()]
+              );
+              logger.info(`Linked Telegram account ${ctx.from.id} to existing user ${userId}`);
+            } else {
+              // Создаем нового пользователя, если не нашли существующего
+              const userResult = await db.query(
+                'INSERT INTO users (created_at, role) VALUES (NOW(), $1) RETURNING id',
+                ['user']
+              );
+              userId = userResult.rows[0].id;
+              
+              // Связываем Telegram с новым пользователем
+              await db.query(
+                `INSERT INTO user_identities 
+                 (user_id, provider, provider_id, created_at) 
+                 VALUES ($1, $2, $3, NOW())`,
+                [userId, 'telegram', ctx.from.id.toString()]
+              );
+              
+              // Если был гостевой ID, связываем его с новым пользователем
+              if (providerId) {
+                await db.query(
+                  `INSERT INTO guest_user_mapping 
+                   (user_id, guest_id) 
+                   VALUES ($1, $2)
+                   ON CONFLICT (guest_id) DO UPDATE SET user_id = $1`,
+                  [userId, providerId]
+                );
+              }
+              
+              logger.info(`Created new user ${userId} with Telegram account ${ctx.from.id}`);
+            }
           }
-          
-          logger.info(`Created new user ${userId} with Telegram account ${ctx.from.id}`);
         }
         
         // Обновляем сессию в базе данных
@@ -151,14 +191,30 @@ async function initTelegramAuth(session) {
     // Реальный пользователь будет создан или найден при проверке кода через бота
     const tempId = crypto.randomBytes(16).toString('hex');
     
-    // Создаем код через сервис верификации с временным идентификатором
+    // Если пользователь уже авторизован, сохраняем его userId в guest_user_mapping
+    // чтобы потом при авторизации через бота этот пользователь был найден
+    if (session && session.authenticated && session.userId) {
+      const guestId = session.guestId || tempId;
+      
+      // Связываем гостевой ID с текущим пользователем
+      await db.query(
+        `INSERT INTO guest_user_mapping (user_id, guest_id) 
+         VALUES ($1, $2) 
+         ON CONFLICT (guest_id) DO UPDATE SET user_id = $1`,
+        [session.userId, guestId]
+      );
+      
+      logger.info(`[initTelegramAuth] Linked guestId ${guestId} to authenticated user ${session.userId}`);
+    }
+    
+    // Создаем код через сервис верификации с идентификатором
     const code = await verificationService.createVerificationCode(
       'telegram',
       session.guestId || tempId,
-      null // Не привязываем к конкретному userId на этом этапе
+      session.authenticated ? session.userId : null
     );
     
-    logger.info(`[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}`);
+    logger.info(`[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}${session.authenticated ? `, userId: ${session.userId}` : ''}`);
     
     return {
       verificationCode: code,

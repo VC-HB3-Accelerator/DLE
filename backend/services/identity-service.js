@@ -6,6 +6,32 @@ const logger = require('../utils/logger');
  */
 class IdentityService {
   /**
+   * Нормализует значения идентификаторов (приводит к нижнему регистру где нужно)
+   * @param {string} provider - Тип идентификатора
+   * @param {string} providerId - Значение идентификатора
+   * @returns {object} - Нормализованные значения
+   */
+  normalizeIdentity(provider, providerId) {
+    if (!provider || !providerId) {
+      return { provider, providerId };
+    }
+    
+    // Приводим провайдер к нижнему регистру
+    const normalizedProvider = provider.toLowerCase();
+    
+    // Для email и wallet приводим значение к нижнему регистру
+    let normalizedProviderId = providerId;
+    if (normalizedProvider === 'wallet' || normalizedProvider === 'email') {
+      normalizedProviderId = providerId.toLowerCase();
+    }
+    
+    return { 
+      provider: normalizedProvider, 
+      providerId: normalizedProviderId 
+    };
+  }
+
+  /**
    * Сохраняет идентификатор пользователя в базу данных
    * @param {number} userId - ID пользователя
    * @param {string} provider - Тип идентификатора (wallet, email, telegram)
@@ -23,20 +49,18 @@ class IdentityService {
         };
       }
       
-      // Приводим provider и providerId к нужному формату
-      provider = provider.toLowerCase();
-      if (provider === 'wallet' || provider === 'email') {
-        providerId = providerId.toLowerCase();
-      }
+      // Нормализуем значения
+      const { provider: normalizedProvider, providerId: normalizedProviderId } = 
+        this.normalizeIdentity(provider, providerId);
       
       // Проверяем тип провайдера и перенаправляем гостевые идентификаторы в guest_user_mapping
-      if (provider === 'guest') {
-        logger.info(`[IdentityService] Converting guest identity for user ${userId} to guest_user_mapping: ${providerId}`);
+      if (normalizedProvider === 'guest') {
+        logger.info(`[IdentityService] Converting guest identity for user ${userId} to guest_user_mapping: ${normalizedProviderId}`);
         
         try {
           await db.query(
             'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-            [userId, providerId]
+            [userId, normalizedProviderId]
           );
           return { success: true };
         } catch (guestError) {
@@ -47,20 +71,20 @@ class IdentityService {
       
       // Проверяем, разрешен ли такой тип провайдера
       const allowedProviders = ['email', 'wallet', 'telegram', 'username'];
-      if (!allowedProviders.includes(provider)) {
-        logger.warn(`[IdentityService] Invalid provider type: ${provider}`);
+      if (!allowedProviders.includes(normalizedProvider)) {
+        logger.warn(`[IdentityService] Invalid provider type: ${normalizedProvider}`);
         return {
           success: false,
           error: `Invalid provider type. Allowed types: ${allowedProviders.join(', ')}`
         };
       }
       
-      logger.info(`[IdentityService] Saving identity for user ${userId}: ${provider}:${providerId}`);
+      logger.info(`[IdentityService] Saving identity for user ${userId}: ${normalizedProvider}:${normalizedProviderId}`);
       
       // Проверяем, существует ли уже такой идентификатор
       const existingResult = await db.query(
         `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
-        [provider, providerId]
+        [normalizedProvider, normalizedProviderId]
       );
       
       if (existingResult.rows.length > 0) {
@@ -68,10 +92,10 @@ class IdentityService {
         
         // Если идентификатор уже принадлежит этому пользователю, ничего не делаем
         if (existingUserId === userId) {
-          logger.info(`[IdentityService] Identity ${provider}:${providerId} already exists for user ${userId}`);
+          logger.info(`[IdentityService] Identity ${normalizedProvider}:${normalizedProviderId} already exists for user ${userId}`);
         } else {
           // Если идентификатор принадлежит другому пользователю, логируем это
-          logger.warn(`[IdentityService] Identity ${provider}:${providerId} already belongs to user ${existingUserId}, not user ${userId}`);
+          logger.warn(`[IdentityService] Identity ${normalizedProvider}:${normalizedProviderId} already belongs to user ${existingUserId}, not user ${userId}`);
           return {
             success: false,
             error: `Identity already belongs to another user (${existingUserId})`
@@ -82,9 +106,9 @@ class IdentityService {
         await db.query(
           `INSERT INTO user_identities (user_id, provider, provider_id) 
            VALUES ($1, $2, $3)`,
-          [userId, provider, providerId]
+          [userId, normalizedProvider, normalizedProviderId]
         );
-        logger.info(`[IdentityService] Created new identity ${provider}:${providerId} for user ${userId}`);
+        logger.info(`[IdentityService] Created new identity ${normalizedProvider}:${normalizedProviderId} for user ${userId}`);
       }
       
       return { success: true };
@@ -158,19 +182,23 @@ class IdentityService {
         return null;
       }
       
+      // Нормализуем значения
+      const { provider: normalizedProvider, providerId: normalizedProviderId } = 
+        this.normalizeIdentity(provider, providerId);
+      
       const result = await db.query(
         `SELECT u.id, u.role FROM users u 
          JOIN user_identities ui ON u.id = ui.user_id 
          WHERE ui.provider = $1 AND ui.provider_id = $2`,
-        [provider, providerId]
+        [normalizedProvider, normalizedProviderId]
       );
       
       if (result.rows.length === 0) {
-        logger.info(`[IdentityService] No user found with identity ${provider}:${providerId}`);
+        logger.info(`[IdentityService] No user found with identity ${normalizedProvider}:${normalizedProviderId}`);
         return null;
       }
       
-      logger.info(`[IdentityService] Found user ${result.rows[0].id} with identity ${provider}:${providerId}`);
+      logger.info(`[IdentityService] Found user ${result.rows[0].id} with identity ${normalizedProvider}:${normalizedProviderId}`);
       return result.rows[0];
     } catch (error) {
       logger.error(`[IdentityService] Error finding user by identity ${provider}:${providerId}:`, error);
@@ -195,12 +223,12 @@ class IdentityService {
       
       // Сохраняем все постоянные идентификаторы из сессии
       if (session.email) {
-        const emailResult = await this.saveIdentity(userId, 'email', session.email.toLowerCase(), true);
+        const emailResult = await this.saveIdentity(userId, 'email', session.email, true);
         results.push({ type: 'email', result: emailResult });
       }
       
       if (session.address) {
-        const walletResult = await this.saveIdentity(userId, 'wallet', session.address.toLowerCase(), true);
+        const walletResult = await this.saveIdentity(userId, 'wallet', session.address, true);
         results.push({ type: 'wallet', result: walletResult });
       }
       

@@ -82,18 +82,49 @@ router.post('/verify', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
     
+    // Нормализуем адрес для использования в запросах
+    const normalizedAddress = ethers.getAddress(address).toLowerCase();
+    
     // Проверяем nonce
-    const nonceResult = await db.query('SELECT nonce FROM nonces WHERE identity_value = $1', [address.toLowerCase()]);
+    const nonceResult = await db.query('SELECT nonce FROM nonces WHERE identity_value = $1', [normalizedAddress]);
     if (nonceResult.rows.length === 0 || nonceResult.rows[0].nonce !== message.match(/Nonce: ([^\n]+)/)[1]) {
       return res.status(401).json({ success: false, error: 'Invalid nonce' });
     }
     
-    // Находим или создаем пользователя
-    const { userId, isAdmin } = await authService.findOrCreateUser(address.toLowerCase());
+    let userId;
+    let isAdmin = false;
     
-    // Сохраняем идентификаторы
-    await identityService.saveIdentity(userId, 'wallet', address.toLowerCase(), true);
+    // Проверяем, авторизован ли пользователь уже
+    if (req.session.authenticated && req.session.userId) {
+      // Если пользователь уже авторизован, привязываем кошелек к существующему пользователю
+      userId = req.session.userId;
+      logger.info(`[verify] Using existing authenticated user ${userId} for wallet ${normalizedAddress}`);
+      
+      // Связываем кошелек с пользователем через identity-service для предотвращения дубликатов
+      const linkResult = await authService.linkIdentity(
+        userId, 
+        'wallet',
+        address
+      );
+      
+      if (!linkResult.success && linkResult.error) {
+        return res.status(400).json({
+          success: false,
+          error: linkResult.error
+        });
+      }
+      
+      // Если linkResult.message содержит 'already exists', значит кошелек уже привязан
+      logger.info(`[verify] Wallet ${normalizedAddress} linked to user ${userId}: ${linkResult.message || 'success'}`);
+    } else {
+      // Находим или создаем пользователя, если не авторизован
+      const result = await authService.findOrCreateUser(address);
+      userId = result.userId;
+      isAdmin = result.isAdmin;
+      logger.info(`[verify] Found or created user ${userId} for wallet ${normalizedAddress}`);
+    }
     
+    // Сохраняем идентификаторы гостевой сессии
     if (guestId) {
       await identityService.saveIdentity(userId, 'guest', guestId, true);
     }
@@ -103,10 +134,11 @@ router.post('/verify', async (req, res) => {
     }
     
     // Проверяем наличие админских токенов
-    const adminStatus = await authService.checkAdminTokens(address.toLowerCase());
+    const adminStatus = await authService.checkAdminTokens(normalizedAddress);
     
     if (adminStatus) {
       await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+      isAdmin = true;
     }
     
     // Обновляем сессию
@@ -114,7 +146,7 @@ router.post('/verify', async (req, res) => {
     req.session.authenticated = true;
     req.session.authType = 'wallet';
     req.session.isAdmin = adminStatus || isAdmin;
-    req.session.address = address.toLowerCase();
+    req.session.address = normalizedAddress; // Всегда сохраняем нормализованный адрес
     
     // Удаляем временный ID
     delete req.session.tempUserId;
@@ -129,7 +161,7 @@ router.post('/verify', async (req, res) => {
     return res.json({
       success: true,
       userId,
-      address,
+      address: normalizedAddress, // Возвращаем нормализованный адрес
       isAdmin: adminStatus || isAdmin,
       authenticated: true
     });
