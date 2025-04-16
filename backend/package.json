@@ -19,7 +19,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,vue,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,vue,json,md}\"",
-    "run-migrations": "node scripts/run-migrations.js"
+    "run-migrations": "node scripts/run-migrations.js",
+    "fix-duplicates": "node scripts/fix-duplicate-identities.js"
   },
   "dependencies": {
     "@langchain/community": "^0.3.34",

@@ -3,6 +3,7 @@ const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
+const db = require('../db');
 
 // Получение всех идентификаторов пользователя
 router.get('/', requireAuth, async (req, res) => {
@@ -22,7 +23,29 @@ router.post('/link', requireAuth, async (req, res) => {
     const { type, value } = req.body;
     const userId = req.session.userId;
 
-    await authService.linkIdentity(userId, type, value);
+    // Если тип - wallet, сначала проверим, не привязан ли он уже к другому пользователю
+    if (type === 'wallet') {
+      const normalizedWallet = value.toLowerCase();
+      
+      // Проверяем, существует ли уже такой кошелек
+      const existingCheck = await db.query(
+        `SELECT user_id FROM user_identities 
+         WHERE provider = 'wallet' AND provider_id = $1`,
+        [normalizedWallet]
+      );
+      
+      if (existingCheck.rows.length > 0) {
+        const existingUserId = existingCheck.rows[0].user_id;
+        if (existingUserId !== userId) {
+          return res.status(400).json({
+            success: false,
+            error: `This wallet (${value}) is already linked to another account`
+          });
+        }
+      }
+    }
+
+    const result = await authService.linkIdentity(userId, type, value);
 
     // Обновляем сессию
     if (type === 'wallet') {
@@ -41,6 +64,15 @@ router.post('/link', requireAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error linking identity:', error);
+    
+    // Делаем более понятные сообщения об ошибках
+    if (error.message && error.message.includes('already belongs to another user')) {
+      return res.status(400).json({ 
+        success: false,
+        error: `This identity is already linked to another account` 
+      });
+    }
+    
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
