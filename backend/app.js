@@ -1,15 +1,14 @@
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const session = require('express-session');
-const pgSession = require('connect-pg-simple')(session);
-const { pool } = require('./db');
-const helmet = require('helmet');
-const path = require('path');
+const { sessionMiddleware } = require('./config/session');
 const logger = require('./utils/logger');
-const authService = require('./services/auth-service');
-const { errorHandler, AppError, ErrorTypes } = require('./middleware/errorHandler');
-const aiAssistant = require('./services/ai-assistant');
-const crypto = require('crypto');
+// const csurf = require('csurf'); // Закомментировано, так как не используется
+const { errorHandler } = require('./middleware/errorHandler');
+// const { version } = require('./package.json'); // Закомментировано, так как не используется
+const pool = require('./db'); // Добавляем импорт pool
+const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
 
 // Импорт маршрутов
 const authRoutes = require('./routes/auth');
@@ -41,10 +40,7 @@ app.use(
 // Настройка сессии
 app.use(
   session({
-    store: new pgSession({
-      pool,
-      tableName: 'session',
-    }),
+    store: sessionMiddleware.store,
     secret: process.env.SESSION_SECRET || 'hb3atoken',
     name: 'sessionId',
     resave: false,

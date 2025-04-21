@@ -177,6 +177,7 @@ export function useAuth() {
 
         console.log('Sending link-guest-messages request with data:', identifiersData);
 
+        /* Удаляем ненужный вызов
         try {
           // Отправляем запрос на связывание сообщений
           const response = await axios.post('/api/auth/link-guest-messages', identifiersData);
@@ -219,6 +220,18 @@ export function useAuth() {
             error: error.message,
           };
         }
+        */
+        // Предполагаем, что бэкенд автоматически связывает сообщения
+        // Очищаем данные гостя локально
+        console.log('Assuming backend handles message linking. Clearing local guest data.');
+        localStorage.removeItem('guestMessages');
+        localStorage.removeItem('guestId');
+        // Добавляем текущий guestId в обработанные, чтобы не пытаться отправить его снова
+        if(localGuestId) {
+          updateProcessedGuestIds([localGuestId]);
+        }
+        return { success: true, message: 'Local guest data cleared.' };
+
       }
 
       return { success: false, message: 'Not authenticated' };

@@ -4,15 +4,12 @@ const crypto = require('crypto');
 const db = require('../db');
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
-const { checkRole, requireAuth, auth } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const authService = require('../services/auth-service');
-const emailBot = require('../services/emailBot');
-const { verificationCodes } = require('../services/telegramBot');
 const { ethers } = require('ethers');
 const { initTelegramAuth } = require('../services/telegramBot');
 const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
-const { processGuestMessages } = require('./chat');
 const identityService = require('../services/identity-service');
 const sessionService = require('../services/session-service');
 
@@ -107,18 +104,11 @@ router.post('/verify', async (req, res) => {
       );
 
       // Связываем кошелек с пользователем через identity-service для предотвращения дубликатов
-      const linkResult = await authService.linkIdentity(userId, 'wallet', address);
-
-      if (!linkResult.success && linkResult.error) {
-        return res.status(400).json({
-          success: false,
-          error: linkResult.error,
-        });
-      }
+      await authService.linkIdentity(userId, 'wallet', address);
 
       // Если linkResult.message содержит 'already exists', значит кошелек уже привязан
       logger.info(
-        `[verify] Wallet ${normalizedAddress} linked to user ${userId}: ${linkResult.message || 'success'}`
+        `[verify] Wallet ${normalizedAddress} linked to user ${userId}: already exists`
       );
     } else {
       // Находим или создаем пользователя, если не авторизован
@@ -443,17 +433,13 @@ router.post('/email/verify-code', async (req, res) => {
 // Инициализация Telegram аутентификации
 router.post('/telegram/init', async (req, res) => {
   try {
-    const { verificationCode, botLink } = await initTelegramAuth(req.session);
+    const { userId } = req.session;
 
-    if (!verificationCode || !botLink) {
-      throw new Error('Failed to generate verification code');
-    }
+    // Инициализируем процесс аутентификации через Telegram
+    await initTelegramAuth(userId);
 
-    res.json({
-      success: true,
-      verificationCode,
-      botLink,
-    });
+    // Не возвращаем данные обратно, так как они отправляются ботом
+    res.json({ success: true, message: 'Проверьте вашего Telegram бота' });
   } catch (error) {
     logger.error('Error initializing Telegram auth:', error);
 

@@ -45,7 +45,7 @@ router.post('/link', requireAuth, async (req, res) => {
       }
     }
 
-    const result = await authService.linkIdentity(userId, type, value);
+    await authService.linkIdentity(userId, type, value);
 
     // Обновляем сессию
     if (type === 'wallet') {

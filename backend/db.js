@@ -16,13 +16,15 @@ const pool = new Pool({
 });
 
 // Проверяем подключение к базе данных
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('Ошибка подключения к базе данных:', err);
+pool.query('SELECT NOW()')
+  .then(res => {
+    console.log('Успешное подключение к базе данных:', res.rows[0]);
+  })
+  .catch(err => {
+    console.error('Failed to connect to the database using DATABASE_URL:', err);
+    console.log('Attempting alternative database connection...');
 
     // Пробуем альтернативное подключение
-    console.log('Попытка альтернативного подключения через прямые параметры...');
-
     const altPool = new Pool({
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
@@ -31,22 +33,19 @@ pool.query('SELECT NOW()', (err, res) => {
       password: process.env.DB_PASSWORD,
     });
 
-    altPool.query('SELECT NOW()', (altErr, altRes) => {
-      if (altErr) {
-        console.error('Альтернативное подключение тоже не удалось:', altErr);
-        console.log('Переключение на временное хранилище данных в памяти...');
-        module.exports = createInMemoryStorage();
-      } else {
+    altPool.query('SELECT NOW()')
+      .then(altRes => {
         console.log('Альтернативное подключение успешно:', altRes.rows[0]);
         // Заменяем основной пул на альтернативный
         module.exports.pool = altPool;
         module.exports.query = (text, params) => altPool.query(text, params);
-      }
-    });
-  } else {
-    console.log('Успешное подключение к базе данных:', res.rows[0]);
-  }
-});
+      })
+      .catch(altErr => {
+        console.error('Альтернативное подключение тоже не удалось:', altErr);
+        console.log('Переключение на временное хранилище данных в памяти...');
+        module.exports = createInMemoryStorage();
+      });
+  });
 
 // Функция для выполнения SQL-запросов
 const query = (text, params) => {
@@ -138,39 +137,4 @@ function createInMemoryStorage() {
       },
     },
   };
-}
-
-// Проверка и создание таблицы session, если она не существует
-async function checkSessionTable() {
-  try {
-    const result = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'session'
-      );
-    `);
-
-    const tableExists = result.rows[0].exists;
-
-    if (!tableExists) {
-      console.log('Таблица session не существует, создаем...');
-
-      await pool.query(`
-        CREATE TABLE "session" (
-          "sid" varchar NOT NULL COLLATE "default",
-          "sess" json NOT NULL,
-          "expire" timestamp(6) NOT NULL,
-          CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
-        );
-        CREATE INDEX "IDX_session_expire" ON "session" ("expire");
-      `);
-
-      console.log('Таблица session успешно создана');
-    } else {
-      console.log('Таблица session уже существует');
-    }
-  } catch (error) {
-    console.error('Ошибка при проверке/создании таблицы session:', error);
-  }
 }
