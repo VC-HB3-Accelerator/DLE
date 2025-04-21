@@ -4,7 +4,7 @@ node_modules/
 .pnp.js
 
 # Логи
-logs/
+logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -16,6 +16,13 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+backend/.env
+frontend/.env
+
+# Файлы сборки
+/dist
+/build
+/out
 
 # Кэши и временные файлы
 .cache/
@@ -26,14 +33,8 @@ yarn-error.log*
 *.swp
 *.swo
 
-# Файлы сборки
-/dist
-/dist-ssr
-/build
-*.local
-
-# Тесты
-/coverage
+# Docker тома
+/data
 
 # Приватные ключи и сертификаты
 *.pem
@@ -41,4 +42,9 @@ yarn-error.log*
 
 # Локальные настройки
 .prettierrc.local
-.eslintrc.local 
+.eslintrc.local
+
+# Файлы базы данных
+*.db
+*.sqlite
+*.sqlite3 
