@@ -64,6 +64,21 @@ class AuthService {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
+        
+        // Проверяем роль администратора при каждой аутентификации
+        const isAdmin = await this.checkAdminRole(normalizedAddress);
+        
+        // Если статус админа изменился, обновляем роль в базе данных
+        if (user.role === 'admin' && !isAdmin) {
+          await db.query('UPDATE users SET role = $1 WHERE id = $2', ['user', user.id]);
+          logger.info(`Updated user ${user.id} role to user (admin tokens no longer present)`);
+          return { userId: user.id, isAdmin: false };
+        } else if (user.role !== 'admin' && isAdmin) {
+          await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
+          logger.info(`Updated user ${user.id} role to admin (admin tokens found)`);
+          return { userId: user.id, isAdmin: true };
+        }
+        
         return { 
           userId: user.id, 
           isAdmin: user.role === 'admin' 
@@ -86,6 +101,7 @@ class AuthService {
       
       // Проверяем, есть ли у пользователя роль админа
       const isAdmin = await this.checkAdminRole(normalizedAddress);
+      logger.info(`New user ${userId} role check result: ${isAdmin ? 'admin' : 'user'}`);
       
       // Если у пользователя есть админские токены, обновляем его роль
       if (isAdmin) {
@@ -95,7 +111,7 @@ class AuthService {
       
       return { userId, isAdmin };
     } catch (error) {
-      console.error('Error finding or creating user:', error);
+      logger.error('Error finding or creating user:', error);
       throw error;
     }
   }
@@ -110,13 +126,36 @@ class AuthService {
     
     logger.info(`Checking admin role for address: ${address}`);
     let foundTokens = false;
+    let errorCount = 0;
     const balances = {};
+    const totalNetworks = ADMIN_CONTRACTS.length;
     
     // Создаем массив промисов для параллельной проверки балансов
     const checkPromises = ADMIN_CONTRACTS.map(async (contract) => {
       try {
         const provider = this.providers[contract.network];
-        if (!provider) return null;
+        if (!provider) {
+          logger.error(`No provider available for network ${contract.network}`);
+          balances[contract.network] = 'Error: No provider';
+          errorCount++;
+          return null;
+        }
+        
+        // Проверяем доступность провайдера
+        try {
+          // Проверка доступности сети с таймаутом
+          const networkCheckPromise = provider.getNetwork();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Network check timeout')), 3000)
+          );
+          
+          await Promise.race([networkCheckPromise, timeoutPromise]);
+        } catch (networkError) {
+          logger.error(`Provider for ${contract.network} is not available: ${networkError.message}`);
+          balances[contract.network] = 'Error: Network unavailable';
+          errorCount++;
+          return null;
+        }
         
         const tokenContract = new ethers.Contract(
           contract.address,
@@ -142,7 +181,7 @@ class AuthService {
           hasTokens: balance > 0
         });
 
-        if (balance > 0) {
+        if (parseFloat(formattedBalance) > 0) {
           logger.info(`Found admin tokens on ${contract.network}`);
           foundTokens = true;
         }
@@ -152,9 +191,10 @@ class AuthService {
         logger.error(`Error checking balance in ${contract.network}:`, {
           address,
           contract: contract.address,
-          error: error.message
+          error: error.message || 'Unknown error'
         });
         balances[contract.network] = 'Error';
+        errorCount++;
         return null;
       }
     });
@@ -162,9 +202,15 @@ class AuthService {
     // Ждем выполнения всех проверок
     await Promise.all(checkPromises);
     
+    // Если все запросы завершились с ошибкой, считаем, что проверка не удалась
+    if (errorCount === totalNetworks) {
+      logger.error(`All network checks for ${address} failed. Cannot verify admin status.`);
+      return false;
+    }
+    
     if (foundTokens) {
       logger.info(`Admin role summary for ${address}:`, {
-        networks: Object.keys(balances).filter(net => balances[net] > 0),
+        networks: Object.keys(balances).filter(net => balances[net] > 0 && balances[net] !== 'Error'),
         balances
       });
       logger.info(`Admin role granted for ${address}`);
@@ -199,6 +245,21 @@ class AuthService {
         const provider = this.providers[contract.network];
         if (!provider) {
           logger.error(`No provider for network ${contract.network}`);
+          balances[contract.network] = '0';
+          continue;
+        }
+
+        // Проверяем доступность провайдера
+        try {
+          // Проверка доступности сети с таймаутом
+          const networkCheckPromise = provider.getNetwork();
+          const networkTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Network check timeout')), timeout)
+          );
+          
+          await Promise.race([networkCheckPromise, networkTimeoutPromise]);
+        } catch (networkError) {
+          logger.error(`Provider for ${contract.network} is not available: ${networkError.message}`);
           balances[contract.network] = '0';
           continue;
         }
@@ -494,34 +555,62 @@ class AuthService {
     if (!address) return false;
     
     logger.info(`Checking admin tokens for address: ${address}`);
-    const isAdmin = await this.checkAdminRole(address);
     
-    // Обновляем роль пользователя в базе данных, если есть админские токены
-    if (isAdmin) {
-      try {
-        // Находим userId по адресу
-        const userResult = await db.query(`
-          SELECT u.id FROM users u 
-          JOIN user_identities ui ON u.id = ui.user_id 
-          WHERE ui.provider = 'wallet' AND ui.provider_id = $1`,
-          [address.toLowerCase()]
-        );
-        
-        if (userResult.rows.length > 0) {
-          const userId = userResult.rows[0].id;
-          // Обновляем роль пользователя
-          await db.query(
-            'UPDATE users SET role = $1 WHERE id = $2',
-            ['admin', userId]
+    try {
+      const isAdmin = await this.checkAdminRole(address);
+      
+      // Обновляем роль пользователя в базе данных, если есть админские токены
+      if (isAdmin) {
+        try {
+          // Находим userId по адресу
+          const userResult = await db.query(`
+            SELECT u.id FROM users u 
+            JOIN user_identities ui ON u.id = ui.user_id 
+            WHERE ui.provider = 'wallet' AND ui.provider_id = $1`,
+            [address.toLowerCase()]
           );
-          logger.info(`Updated user ${userId} role to admin based on token holdings`);
+          
+          if (userResult.rows.length > 0) {
+            const userId = userResult.rows[0].id;
+            // Обновляем роль пользователя
+            await db.query(
+              'UPDATE users SET role = $1 WHERE id = $2',
+              ['admin', userId]
+            );
+            logger.info(`Updated user ${userId} role to admin based on token holdings`);
+          }
+        } catch (error) {
+          logger.error('Error updating user role:', error);
+          // Продолжаем выполнение, даже если обновление роли не удалось
         }
-      } catch (error) {
-        logger.error('Error updating user role:', error);
+      } else {
+        // Если пользователь не является администратором, сбрасываем роль на "user", если она была "admin"
+        try {
+          const userResult = await db.query(`
+            SELECT u.id, u.role FROM users u 
+            JOIN user_identities ui ON u.id = ui.user_id 
+            WHERE ui.provider = 'wallet' AND ui.provider_id = $1`,
+            [address.toLowerCase()]
+          );
+          
+          if (userResult.rows.length > 0 && userResult.rows[0].role === 'admin') {
+            const userId = userResult.rows[0].id;
+            await db.query(
+              'UPDATE users SET role = $1 WHERE id = $2',
+              ['user', userId]
+            );
+            logger.info(`Reset user ${userId} role from admin to user (no tokens found)`);
+          }
+        } catch (error) {
+          logger.error('Error updating user role:', error);
+        }
       }
+      
+      return isAdmin;
+    } catch (error) {
+      logger.error(`Error in checkAdminTokens: ${error.message}`);
+      return false; // При любой ошибке считаем, что пользователь не админ
     }
-    
-    return isAdmin;
   }
 
   /**

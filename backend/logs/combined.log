@@ -1,0 +1,165 @@
+{"level":"error","message":"Error launching Telegram bot: 401: Bot Token is required","on":{},"response":{"description":"Bot Token is required","error_code":401},"stack":"Error: 401: Bot Token is required\n    at Telegram.callApi (/app/node_modules/telegraf/lib/core/network/client.js:290:19)\n    at Telegram.getMe (/app/node_modules/telegraf/lib/telegram.js:17:21)\n    at Telegraf.launch (/app/node_modules/telegraf/lib/telegraf.js:188:98)\n    at getBot (/app/services/telegramBot.js:167:23)\n    at initServices (/app/server.js:35:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async Server.<anonymous> (/app/server.js:94:5)","timestamp":"2025-04-21T07:51:39.303Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:51:44.405Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T07:51:44.411Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:51:44.436Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T07:51:44.441Z"}
+{"level":"info","message":"POST /api/chat/guest-message","timestamp":"2025-04-21T07:51:47.198Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:51:52.648Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:51:52.671Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:51:52.691Z"}
+{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T07:52:01.008Z"}
+{"level":"info","message":"Nonce fca7792b319519564c35076fb9cf2347 сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T07:52:01.017Z"}
+{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-04-21T07:52:02.948Z"}
+{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T07:52:02.949Z"}
+{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:52:03.049Z"}
+{"level":"info","message":"[IdentityService] Converting guest identity for user 1 to guest_user_mapping: 1745221905698-9rejq7xoe","timestamp":"2025-04-21T07:52:03.050Z"}
+{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:52:03.057Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:52:03.058Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","error":"","level":"error","message":"Error checking balance in eth:","timestamp":"2025-04-21T07:52:03.088Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","error":"","level":"error","message":"Error checking balance in bsc:","timestamp":"2025-04-21T07:52:03.090Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","error":"","level":"error","message":"Error checking balance in arbitrum:","timestamp":"2025-04-21T07:52:03.091Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","error":"","level":"error","message":"Error checking balance in polygon:","timestamp":"2025-04-21T07:52:03.092Z"}
+{"level":"info","message":"Admin role denied - no tokens found for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:52:03.094Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T07:52:03.099Z"}
+{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=1745221905698-9rejq7xoe, previousGuestId=undefined","timestamp":"2025-04-21T07:52:03.100Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745221905698-9rejq7xoe","timestamp":"2025-04-21T07:52:03.105Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745079293895-f5bi3mnlq","timestamp":"2025-04-21T07:52:28.397Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=06a8da2f6b8ccb05be8606d6f5785c3e","timestamp":"2025-04-21T07:52:28.401Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745098219233-r5wj2olz0","timestamp":"2025-04-21T07:52:28.404Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=784e89fbeba721cf5c3dda2267d9ddd5","timestamp":"2025-04-21T07:52:28.409Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T07:52:28.416Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:52:28.429Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:52:28.433Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:52:28.454Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:52:28.457Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:52:28.477Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T07:52:28.484Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:52:28.486Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:52:28.489Z"}
+{"level":"info","message":"POST /api/auth/link-guest-messages","timestamp":"2025-04-21T07:52:28.496Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","error":"Unknown error","level":"error","message":"Error getting balance for eth:","timestamp":"2025-04-21T07:52:28.505Z"}
+{"level":"info","message":"POST /api/auth/link-guest-messages","timestamp":"2025-04-21T07:52:28.510Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","error":"Unknown error","level":"error","message":"Error getting balance for bsc:","timestamp":"2025-04-21T07:52:28.521Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","error":"Unknown error","level":"error","message":"Error getting balance for arbitrum:","timestamp":"2025-04-21T07:52:28.534Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","error":"Unknown error","level":"error","message":"Error getting balance for polygon:","timestamp":"2025-04-21T07:52:28.548Z"}
+{"arbitrum":"0","bsc":"0","eth":"0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"0","timestamp":"2025-04-21T07:52:28.549Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T07:52:28.557Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:52:28.559Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","error":"Unknown error","level":"error","message":"Error getting balance for eth:","timestamp":"2025-04-21T07:52:28.574Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","error":"Unknown error","level":"error","message":"Error getting balance for bsc:","timestamp":"2025-04-21T07:52:28.589Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","error":"Unknown error","level":"error","message":"Error getting balance for arbitrum:","timestamp":"2025-04-21T07:52:28.603Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","error":"Unknown error","level":"error","message":"Error getting balance for polygon:","timestamp":"2025-04-21T07:52:28.617Z"}
+{"arbitrum":"0","bsc":"0","eth":"0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"0","timestamp":"2025-04-21T07:52:28.618Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T07:52:29.749Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:52:29.750Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T07:52:29.765Z"}
+{"level":"info","message":"GET /api/chat/history?offset=0&limit=30","timestamp":"2025-04-21T07:52:29.795Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:52:59.118Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:52:59.121Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:53:29.470Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:53:29.473Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:53:59.207Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:53:59.210Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:54:29.824Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:54:29.827Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:54:57.226Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:54:57.229Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:55:58.564Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:55:58.567Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:57:00.007Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:57:00.009Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T07:57:28.350Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T07:57:28.351Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","error":"Unknown error","level":"error","message":"Error getting balance for eth:","timestamp":"2025-04-21T07:57:28.364Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","error":"Unknown error","level":"error","message":"Error getting balance for bsc:","timestamp":"2025-04-21T07:57:28.378Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","error":"Unknown error","level":"error","message":"Error getting balance for arbitrum:","timestamp":"2025-04-21T07:57:28.392Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","error":"Unknown error","level":"error","message":"Error getting balance for polygon:","timestamp":"2025-04-21T07:57:28.406Z"}
+{"arbitrum":"0","bsc":"0","eth":"0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"0","timestamp":"2025-04-21T07:57:28.406Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:58:01.345Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:58:01.348Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T07:59:02.870Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T07:59:02.873Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:00:04.317Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:00:04.321Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:01:05.670Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:01:05.673Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:01:27.179Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:01:27.182Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:01:57.724Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:01:57.728Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T08:02:13.487Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:02:13.490Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T08:02:13.502Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:02:13.504Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T08:02:13.521Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T08:02:13.522Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","error":"Unknown error","level":"error","message":"Error getting balance for eth:","timestamp":"2025-04-21T08:02:13.538Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:02:13.543Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:02:13.546Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","error":"Unknown error","level":"error","message":"Error getting balance for bsc:","timestamp":"2025-04-21T08:02:13.552Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:02:13.558Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:02:13.559Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","error":"Unknown error","level":"error","message":"Error getting balance for arbitrum:","timestamp":"2025-04-21T08:02:13.567Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","error":"Unknown error","level":"error","message":"Error getting balance for polygon:","timestamp":"2025-04-21T08:02:13.580Z"}
+{"arbitrum":"0","bsc":"0","eth":"0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"0","timestamp":"2025-04-21T08:02:13.580Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T08:02:14.448Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:02:14.449Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T08:02:14.461Z"}
+{"level":"info","message":"GET /api/chat/history?offset=0&limit=30","timestamp":"2025-04-21T08:02:14.477Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T08:03:04.374Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:03:04.386Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T08:03:04.407Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:03:04.410Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:03:04.436Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:03:04.441Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:03:04.457Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:03:04.459Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T08:03:04.469Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T08:03:04.471Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T08:03:05.346Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:03:05.350Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T08:03:05.370Z"}
+{"level":"info","message":"GET /api/chat/history?offset=0&limit=30","timestamp":"2025-04-21T08:03:05.403Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T08:03:05.616Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T08:03:06.946Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T08:03:07.769Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T08:03:09.204Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T08:03:09.205Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:03:34.938Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:03:34.942Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:04:05.153Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:04:05.156Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:04:35.377Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:04:35.383Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:05:05.720Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:05:05.727Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:05:36.094Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:05:36.100Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:06:15.233Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:06:15.237Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:07:15.823Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:07:15.827Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T08:08:04.364Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T08:08:04.366Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T08:08:08.039Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T08:08:10.515Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T08:08:11.776Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T08:08:13.345Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T08:08:13.345Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:08:16.041Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:08:16.044Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:09:16.812Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:09:16.819Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:09:50.293Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:09:50.299Z"}
+{"level":"info","message":"POST /api/chat/message","timestamp":"2025-04-21T08:09:54.822Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:10:07.389Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:10:07.394Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:10:35.890Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:10:35.901Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:11:05.861Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:11:05.865Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:11:36.242Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:11:36.245Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T08:12:06.558Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T08:12:06.561Z"}
