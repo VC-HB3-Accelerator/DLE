@@ -7920,3 +7920,578 @@
 {"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:51:33.815Z"}
 {"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:52:15.206Z"}
 {"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:52:15.210Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:52:34.099Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:52:34.105Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:53:04.292Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:53:04.296Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:54:15.742Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:54:15.746Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:55:15.978Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:55:15.981Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:56:16.276Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:56:16.281Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:57:14.461Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:57:14.468Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:58:14.617Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:58:14.622Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T13:59:14.424Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T13:59:14.428Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:00:15.127Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:00:15.132Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:01:15.786Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:01:15.789Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:02:15.874Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:02:15.883Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:03:16.140Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:03:16.145Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:04:16.400Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:04:16.403Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:05:14.537Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:05:14.541Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:06:14.778Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:06:14.783Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:07:15.131Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:07:15.136Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-04-21T14:07:24.527Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:07:24.547Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:07:24.572Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:07:24.578Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:15:43.797Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:15:43.819Z"}
+{"level":"info","message":"POST /api/auth/telegram/init","timestamp":"2025-04-21T14:23:49.891Z"}
+{"level":"info","message":"Generated verification code: FBRKH5","timestamp":"2025-04-21T14:23:49.892Z"}
+{"level":"info","message":"Creating verification code for telegram:e50442b5c6fad89fc34176fc078d56f1, userId: null","timestamp":"2025-04-21T14:23:49.892Z"}
+{"level":"info","message":"Verification code created successfully for telegram:e50442b5c6fad89fc34176fc078d56f1","timestamp":"2025-04-21T14:23:49.900Z"}
+{"level":"info","message":"[initTelegramAuth] Created verification code for guestId: e50442b5c6fad89fc34176fc078d56f1","timestamp":"2025-04-21T14:23:49.901Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:23:51.775Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:23:53.643Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:23:55.499Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:23:57.546Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:23:59.414Z"}
+{"level":"info","message":"Starting Telegram auth process for code:","timestamp":"2025-04-21T14:24:01.260Z"}
+{"level":"info","message":"Using existing user 1 for Telegram account 5155951987","timestamp":"2025-04-21T14:24:01.269Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:24:01.312Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:24:01.320Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:24:01.362Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:24:01.365Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:24:01.390Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:24:01.394Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:24:01.415Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:24:01.483Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:24:05.271Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:24:05.274Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:24:05.335Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:24:05.410Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-04-21T14:24:10.741Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:24:10.762Z"}
+{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T14:42:10.379Z"}
+{"level":"info","message":"Nonce f90108f4ef8e168fc79bc36648d6fd95 сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T14:42:10.387Z"}
+{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-04-21T14:42:12.698Z"}
+{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T14:42:12.699Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:12.793Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T14:42:13.708Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T14:42:13.709Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T14:42:13.990Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T14:42:13.990Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T14:42:13.992Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T14:42:13.993Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T14:42:16.371Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T14:42:16.372Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","eth","arbitrum","polygon"],"timestamp":"2025-04-21T14:42:16.372Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:16.373Z"}
+{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:16.373Z"}
+{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:16.373Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:16.374Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T14:42:16.662Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T14:42:16.662Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T14:42:16.788Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T14:42:16.789Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T14:42:16.834Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T14:42:16.835Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T14:42:17.006Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T14:42:17.007Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","eth","polygon","arbitrum"],"timestamp":"2025-04-21T14:42:17.007Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:17.007Z"}
+{"level":"info","message":"Updated user 1 role to admin based on token holdings","timestamp":"2025-04-21T14:42:17.013Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:42:17.019Z"}
+{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=undefined, previousGuestId=undefined","timestamp":"2025-04-21T14:42:17.020Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bdbb9e9a6b156fb309480755554c017c","timestamp":"2025-04-21T14:42:17.023Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e4ca877a9e8a823241c5f1669ad4b177","timestamp":"2025-04-21T14:42:17.029Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=63404462543ed032df62eb0597cfbf92","timestamp":"2025-04-21T14:42:17.032Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=53e3ea1b2c59ed4f4b37a6402da579db","timestamp":"2025-04-21T14:42:17.036Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745240790811-mxagvk0lf","timestamp":"2025-04-21T14:42:17.040Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d447b0a532867a90636e000c9bbb72a","timestamp":"2025-04-21T14:42:17.043Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=3987b209726bd85f79f6668c69cec67a","timestamp":"2025-04-21T14:42:17.047Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e7dd7cc2be1f4cf5628ac67496f0ff60","timestamp":"2025-04-21T14:42:17.050Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1643e4ae05e31df62ceaa1c784dbf2e7","timestamp":"2025-04-21T14:42:17.054Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b6de4a34d192b6d3c6a04d64921bc2c6","timestamp":"2025-04-21T14:42:17.057Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d85d2c40506052a630bb7737bc2769e6","timestamp":"2025-04-21T14:42:17.062Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8edb112101cbbaa5bef2c3a08f275ec6","timestamp":"2025-04-21T14:42:17.066Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745079293895-f5bi3mnlq","timestamp":"2025-04-21T14:42:17.069Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f74f7950c4b8085f2cead1620d087bb5","timestamp":"2025-04-21T14:42:17.073Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9c7f2342b8ff1f8fe4d545f6d2af05d4","timestamp":"2025-04-21T14:42:17.076Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bf299ef8e5ac941443b24bc023d55bdf","timestamp":"2025-04-21T14:42:17.080Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e70ff3b19f49cb1ce11e3bf9d4c3f5b5","timestamp":"2025-04-21T14:42:17.083Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dca0cf1d9efe806bc9915e5a57c344b3","timestamp":"2025-04-21T14:42:17.087Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=19ca3c1e1a77f6688e48e996ec94e32b","timestamp":"2025-04-21T14:42:17.090Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dc34a86ca22b491572bc728db26ec8d2","timestamp":"2025-04-21T14:42:17.094Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cd399a7b2782ab9dcd510a6d624311ef","timestamp":"2025-04-21T14:42:17.097Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5fbeaeed77f7e790089e3687b6272cc4","timestamp":"2025-04-21T14:42:17.101Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=06a8da2f6b8ccb05be8606d6f5785c3e","timestamp":"2025-04-21T14:42:17.105Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=12b912bafbdae6136947a2405c43afc7","timestamp":"2025-04-21T14:42:17.109Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=75e90bb5664f78f2d4e89dba9c764340","timestamp":"2025-04-21T14:42:17.112Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d1a1a0c6759fa0092a9ac54cc6bca38c","timestamp":"2025-04-21T14:42:17.116Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5c62c06c28391e47ca9da69d82d6b665","timestamp":"2025-04-21T14:42:17.119Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e1313ff9002847b61b9f8ea825150512","timestamp":"2025-04-21T14:42:17.123Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4b83b24f9c0cb26179c0637632426e4a","timestamp":"2025-04-21T14:42:17.126Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=221d5a74f84eca5d55db182e0a3d9143","timestamp":"2025-04-21T14:42:17.130Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=7e030d98195da1dd7f81b669c666dca7","timestamp":"2025-04-21T14:42:17.133Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4256b2a7e0d8b7ed947ba6c1f5f72d15","timestamp":"2025-04-21T14:42:17.136Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a87f7b05515098ad5a3079377690f769","timestamp":"2025-04-21T14:42:17.141Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4401b63702956724a4ccb3bb849f7207","timestamp":"2025-04-21T14:42:17.144Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5957393c426559cd5ffb817d29e4da37","timestamp":"2025-04-21T14:42:17.148Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=064746c1fd4456b7021c936bb9638dfc","timestamp":"2025-04-21T14:42:17.151Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745098219233-r5wj2olz0","timestamp":"2025-04-21T14:42:17.155Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243339797-5jz07df5q","timestamp":"2025-04-21T14:42:17.158Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e50442b5c6fad89fc34176fc078d56f1","timestamp":"2025-04-21T14:42:17.162Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243066352-5zqw1zro4","timestamp":"2025-04-21T14:42:17.165Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8f897f5f63a679da6893cac2548cdd8c","timestamp":"2025-04-21T14:42:17.169Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f622d55418e4159e864ea4e6e18115d9","timestamp":"2025-04-21T14:42:17.172Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cee8775f1ef14ec06069222412527621","timestamp":"2025-04-21T14:42:17.176Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4801418ef94eac344f7372c5db4bcd41","timestamp":"2025-04-21T14:42:17.180Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=6f93b96d30b4ef36faa2943c5635d949","timestamp":"2025-04-21T14:42:17.184Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=ddf4efa4dca07970401397faae6ad10d","timestamp":"2025-04-21T14:42:17.187Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a9c5cab9491ffd9a8340488892a3a83f","timestamp":"2025-04-21T14:42:17.190Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=fa541d53f0b7910b5d90be7822f211c0","timestamp":"2025-04-21T14:42:17.194Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9b1fb20e39a4215abe7c83b8eb752b40","timestamp":"2025-04-21T14:42:17.197Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=750e6a49666b28814122e1d901aea6b5","timestamp":"2025-04-21T14:42:17.201Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8bbf43a7d107802415e69966ec47edd7","timestamp":"2025-04-21T14:42:17.204Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=784e89fbeba721cf5c3dda2267d9ddd5","timestamp":"2025-04-21T14:42:17.208Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=30c3be3e079722b3a8d20203b1a567f9","timestamp":"2025-04-21T14:42:17.211Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745221905698-9rejq7xoe","timestamp":"2025-04-21T14:42:17.215Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=85f386bbe2c9b7affbd50d0366a39147","timestamp":"2025-04-21T14:42:17.218Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2d284866bfe0da04a3716d3f96d2cc64","timestamp":"2025-04-21T14:42:17.222Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d6c03e2a1a30f997e7ae94097b8bdc33","timestamp":"2025-04-21T14:42:17.225Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=00e90de9aef9134750d4519a5e10c4ee","timestamp":"2025-04-21T14:42:17.229Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f79a4edd77d8db2def23394f52e0d0a4","timestamp":"2025-04-21T14:42:17.234Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b710161e84700cd43778fb846c4017ff","timestamp":"2025-04-21T14:42:17.238Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5a7dec430e4da72e53b8b07fc1713a4e","timestamp":"2025-04-21T14:42:17.241Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2f2e2330b4263952294d93ae6a86146a","timestamp":"2025-04-21T14:42:17.245Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b2e89db3924be1b1d3b0f06f130cf8e0","timestamp":"2025-04-21T14:42:17.250Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b4460596d1947e93312e2607cda758ba","timestamp":"2025-04-21T14:42:17.254Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:42:17.262Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:17.275Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:17.278Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:42:17.300Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:17.306Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:42:17.321Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:17.324Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T14:42:17.330Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:17.332Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T14:42:17.758Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T14:42:18.103Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:18.241Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:18.244Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:42:18.258Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:42:18.278Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T14:42:18.720Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T14:42:19.150Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T14:42:19.150Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T14:42:19.158Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T14:42:19.159Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T14:42:19.602Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-04-21T14:42:19.890Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:42:19.893Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:19.907Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:42:19.910Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T14:42:19.946Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T14:42:20.678Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T14:42:21.104Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T14:42:21.104Z"}
+{"level":"info","message":"POST /api/auth/telegram/init","timestamp":"2025-04-21T14:42:21.356Z"}
+{"level":"info","message":"Generated verification code: FDOU1Z","timestamp":"2025-04-21T14:42:21.357Z"}
+{"level":"info","message":"Creating verification code for telegram:16236f2b04a47bc549afe4960f6aeded, userId: null","timestamp":"2025-04-21T14:42:21.357Z"}
+{"level":"info","message":"Verification code created successfully for telegram:16236f2b04a47bc549afe4960f6aeded","timestamp":"2025-04-21T14:42:21.361Z"}
+{"level":"info","message":"[initTelegramAuth] Created verification code for guestId: 16236f2b04a47bc549afe4960f6aeded","timestamp":"2025-04-21T14:42:21.361Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:23.254Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:25.753Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:27.630Z"}
+{"level":"info","message":"Starting Telegram auth process for code:","timestamp":"2025-04-21T14:42:29.032Z"}
+{"level":"info","message":"Using existing user 1 for Telegram account 5155951987","timestamp":"2025-04-21T14:42:29.034Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:29.498Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:29.499Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:42:29.514Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:29.515Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:42:29.527Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:29.530Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:42:29.542Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:42:29.586Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:42:31.366Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:42:31.368Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:42:31.382Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:42:31.396Z"}
+{"level":"info","message":"POST /api/auth/email/init","timestamp":"2025-04-21T14:42:52.368Z"}
+{"level":"info","message":"[initEmailAuth] Using existing authenticated user 1 for email hb3accelerator@gmail.com","timestamp":"2025-04-21T14:42:52.372Z"}
+{"level":"info","message":"Generated verification code: CIC646","timestamp":"2025-04-21T14:42:52.373Z"}
+{"level":"info","message":"Creating verification code for email:hb3accelerator@gmail.com, userId: 1","timestamp":"2025-04-21T14:42:52.373Z"}
+{"level":"info","message":"Verification code created successfully for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:42:52.377Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error sending verification code: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:42:55.058Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:42:55.058Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:42:55.059Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:43:00.542Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:43:00.544Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:43:29.809Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:43:29.812Z"}
+{"level":"info","message":"POST /api/auth/email/init","timestamp":"2025-04-21T14:43:48.555Z"}
+{"level":"info","message":"[initEmailAuth] Using existing authenticated user 1 for email hb3accelerator@gmail.com","timestamp":"2025-04-21T14:43:48.560Z"}
+{"level":"info","message":"Generated verification code: 1UEQBE","timestamp":"2025-04-21T14:43:48.560Z"}
+{"level":"info","message":"Creating verification code for email:hb3accelerator@gmail.com, userId: 1","timestamp":"2025-04-21T14:43:48.560Z"}
+{"level":"info","message":"Verification code created successfully for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:43:48.565Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error sending verification code: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:43:53.439Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:43:53.439Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:43:53.440Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:43:59.923Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:43:59.925Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:44:30.983Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:44:30.986Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:45:01.130Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:45:01.133Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:45:39.212Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:45:39.217Z"}
+{"level":"info","message":"POST /api/auth/email/init","timestamp":"2025-04-21T14:45:40.648Z"}
+{"level":"info","message":"[initEmailAuth] Using existing authenticated user 1 for email hb3accelerator@gmail.com","timestamp":"2025-04-21T14:45:40.650Z"}
+{"level":"info","message":"Generated verification code: DPO9NP","timestamp":"2025-04-21T14:45:40.651Z"}
+{"level":"info","message":"Creating verification code for email:hb3accelerator@gmail.com, userId: 1","timestamp":"2025-04-21T14:45:40.651Z"}
+{"level":"info","message":"Verification code created successfully for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:45:40.654Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error sending verification code: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:45:43.536Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:45:43.537Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:45:43.537Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:46:01.386Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:46:01.389Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:46:29.398Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:46:29.401Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:46:59.562Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:46:59.566Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:29.639Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:29.642Z"}
+{"client":{"_connected":true,"_connecting":false,"_connectionCallback":null,"_connectionError":false,"_connectionTimeoutMillis":0,"_ended":false,"_ending":true,"_events":{},"_eventsCount":1,"_poolUseCount":4,"_queryable":false,"_types":{"_types":{"arrayParser":{},"builtins":{"ABSTIME":702,"ACLITEM":1033,"BIT":1560,"BOOL":16,"BPCHAR":1042,"BYTEA":17,"CHAR":18,"CID":29,"CIDR":650,"CIRCLE":718,"DATE":1082,"FLOAT4":700,"FLOAT8":701,"GTSVECTOR":3642,"INET":869,"INT2":21,"INT4":23,"INT8":20,"INTERVAL":1186,"JSON":114,"JSONB":3802,"MACADDR":829,"MACADDR8":774,"MONEY":790,"NUMERIC":1700,"OID":26,"PATH":602,"PG_DEPENDENCIES":3402,"PG_LSN":3220,"PG_NDISTINCT":3361,"PG_NODE_TREE":194,"POLYGON":604,"REFCURSOR":1790,"REGCLASS":2205,"REGCONFIG":3734,"REGDICTIONARY":3769,"REGNAMESPACE":4089,"REGOPER":2203,"REGOPERATOR":2204,"REGPROC":24,"REGPROCEDURE":2202,"REGROLE":4096,"REGTYPE":2206,"RELTIME":703,"SMGR":210,"TEXT":25,"TID":27,"TIME":1083,"TIMESTAMP":1114,"TIMESTAMPTZ":1184,"TIMETZ":1266,"TINTERVAL":704,"TSQUERY":3615,"TSVECTOR":3614,"TXID_SNAPSHOT":2970,"UUID":2950,"VARBIT":1562,"VARCHAR":1043,"XID":28,"XML":142}},"binary":{},"text":{}},"activeQuery":null,"binary":false,"connection":{"_connecting":true,"_emitMessage":false,"_ending":true,"_events":{"end":[null,null]},"_eventsCount":23,"_keepAlive":false,"_keepAliveInitialDelayMillis":0,"lastBuffer":false,"parsedStatements":{},"ssl":false,"stream":{"_closeAfterHandlingError":false,"_events":{"end":[null,null]},"_eventsCount":4,"_hadError":false,"_host":"postgres","_parent":null,"_pendingData":null,"_pendingEncoding":"","_readableState":{"awaitDrainWriters":null,"buffer":[],"bufferIndex":0,"highWaterMark":16384,"length":0,"pipes":[]},"_server":null,"_sockname":null,"_writableState":{"bufferedIndex":0,"corked":0,"highWaterMark":16384,"length":0,"pendingcb":0,"writelen":0},"allowHalfOpen":false,"connecting":false,"server":null}},"connectionParameters":{"binary":false,"client_encoding":"","connect_timeout":0,"database":"dapp_db","host":"postgres","idle_in_transaction_session_timeout":false,"isDomainSocket":false,"lock_timeout":false,"port":5432,"query_timeout":false,"ssl":false,"statement_timeout":false,"user":"dapp_user"},"database":"dapp_db","hasExecuted":true,"host":"postgres","port":5432,"processID":32813,"queryQueue":[],"readyForQuery":true,"saslSession":null,"secretKey":-471726342,"ssl":false,"user":"dapp_user"},"code":"57P01","file":"postgres.c","length":116,"level":"error","line":"3286","message":"Uncaught Exception: terminating connection due to administrator command","name":"error","routine":"ProcessInterrupts","severity":"FATAL","stack":"error: terminating connection due to administrator command\n    at Parser.parseErrorMessage (/app/node_modules/pg-protocol/dist/parser.js:283:98)\n    at Parser.handlePacket (/app/node_modules/pg-protocol/dist/parser.js:122:29)\n    at Parser.parse (/app/node_modules/pg-protocol/dist/parser.js:35:38)\n    at Socket.<anonymous> (/app/node_modules/pg-protocol/dist/index.js:11:42)\n    at Socket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)\n    at TCP.onStreamRead (node:internal/stream_base_commons:191:23)","timestamp":"2025-04-21T14:47:41.049Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:47:50.599Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:50.616Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:47:50.640Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:50.644Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:50.675Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:50.685Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:50.701Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:50.706Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:50.722Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:50.725Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:50.737Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:50.744Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:47:50.752Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:47:50.789Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:47:50.793Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:47:50.818Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:47:51.613Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:51.615Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:47:51.630Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:47:51.651Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:47:59.736Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:59.738Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:47:59.753Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:59.755Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:59.778Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:59.780Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:59.793Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:59.795Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:59.811Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:59.814Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:47:59.838Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:47:59.841Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:47:59.849Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:47:59.866Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:47:59.878Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:47:59.895Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:48:00.729Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:48:00.731Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:48:00.745Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:48:00.762Z"}
+{"level":"info","message":"POST /api/auth/email/init","timestamp":"2025-04-21T14:48:20.774Z"}
+{"level":"info","message":"[initEmailAuth] Using existing authenticated user 1 for email hb3accelerator@gmail.com","timestamp":"2025-04-21T14:48:20.780Z"}
+{"level":"info","message":"Generated verification code: TYVZAH","timestamp":"2025-04-21T14:48:20.781Z"}
+{"level":"info","message":"Creating verification code for email:hb3accelerator@gmail.com, userId: 1","timestamp":"2025-04-21T14:48:20.781Z"}
+{"level":"info","message":"Verification code created successfully for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:48:20.789Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error sending verification code: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:48:23.553Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:48:23.554Z"}
+{"code":"EAUTH","command":"AUTH PLAIN","level":"error","message":"Error in email auth initialization: Invalid login: 535 5.7.8 Error: authentication failed: ","response":"535 5.7.8 Error: authentication failed: ","responseCode":535,"stack":"Error: Invalid login: 535 5.7.8 Error: authentication failed: \n    at SMTPConnection._formatError (/app/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)\n    at SMTPConnection._actionAUTHComplete (/app/node_modules/nodemailer/lib/smtp-connection/index.js:1588:34)\n    at SMTPConnection.<anonymous> (/app/node_modules/nodemailer/lib/smtp-connection/index.js:556:26)\n    at SMTPConnection._processResponse (/app/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)\n    at SMTPConnection._onData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)\n    at SMTPConnection._onSocketData (/app/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)\n    at TLSSocket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)","timestamp":"2025-04-21T14:48:23.554Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:48:29.942Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:48:29.945Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:48:29.956Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:48:29.958Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:49:00.057Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:00.060Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:49:00.071Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:00.073Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:49:30.195Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:30.198Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:49:30.207Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:30.209Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:49:47.048Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:47.052Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:49:47.074Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:47.076Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:49:47.092Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:47.094Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:49:47.118Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:49:47.142Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:49:47.169Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:49:47.187Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:49:48.257Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:49:48.260Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:49:48.278Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:49:48.299Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:50:00.443Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:50:00.446Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:50:15.384Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:50:15.387Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:50:30.536Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:50:30.539Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:50:45.460Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:50:45.463Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:51:14.633Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:51:14.637Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:51:15.540Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:51:15.541Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:51:45.712Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:51:45.715Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:13.860Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:13.864Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:21.090Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:21.092Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:52:26.148Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:26.150Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:52:26.170Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:26.172Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:26.195Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:26.197Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:26.218Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:26.221Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:26.238Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:26.240Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:26.258Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:26.260Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:52:26.288Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:52:26.307Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:52:26.315Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:52:26.333Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:52:27.158Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:27.160Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:52:27.173Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:52:27.192Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:52:41.975Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:41.979Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:52:42.003Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:42.005Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:42.034Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:42.036Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:42.054Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:42.056Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:42.073Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:42.076Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:52:42.091Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:42.094Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:52:42.131Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:52:42.156Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:52:42.164Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:52:42.189Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:52:42.977Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:52:42.978Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:52:42.994Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:52:43.016Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:53:11.492Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:53:11.496Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:53:12.411Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:53:12.413Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:53:41.670Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:53:41.673Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:53:42.585Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:53:42.587Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:54:11.793Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:54:11.795Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:54:12.712Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:54:12.714Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:54:42.849Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:54:42.852Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:54:42.863Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:54:42.870Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:55:12.054Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:55:12.057Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:55:15.772Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:55:15.774Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:56:16.054Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:56:16.058Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:56:16.070Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:56:16.073Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:57:16.339Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:57:16.342Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:57:16.354Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:57:16.356Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:00.474Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:00.479Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:00.489Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:00.492Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:11.657Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:11.659Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:11.669Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:11.671Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:58:28.544Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:28.564Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:58:28.585Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:28.590Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:28.622Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:28.628Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:28.652Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:28.655Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:28.670Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:28.672Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:28.685Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:28.692Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:58:28.700Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:58:28.728Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:58:28.732Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:58:28.753Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:58:29.559Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:29.561Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:58:29.575Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:58:29.594Z"}
+{"level":"info","message":"POST /api/auth/email/init","timestamp":"2025-04-21T14:58:45.743Z"}
+{"level":"info","message":"[initEmailAuth] Using existing authenticated user 1 for email hb3accelerator@gmail.com","timestamp":"2025-04-21T14:58:45.748Z"}
+{"level":"info","message":"Generated verification code: 2G8B80","timestamp":"2025-04-21T14:58:45.749Z"}
+{"level":"info","message":"Creating verification code for email:hb3accelerator@gmail.com, userId: 1","timestamp":"2025-04-21T14:58:45.749Z"}
+{"level":"info","message":"Verification code created successfully for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:58:45.754Z"}
+{"level":"info","message":"Verification code sent to hb3accelerator@gmail.com","timestamp":"2025-04-21T14:58:46.694Z"}
+{"level":"info","message":"Generated verification code for Email auth for hb3accelerator@gmail.com and sent to user's email","timestamp":"2025-04-21T14:58:46.695Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:58:46.699Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:58.901Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:58.905Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:58:58.916Z"}
+{"level":"info","message":"[IdentityService] Found 2 identities for user 1","timestamp":"2025-04-21T14:58:58.918Z"}
+{"level":"info","message":"POST /api/auth/email/verify-code","timestamp":"2025-04-21T14:59:07.050Z"}
+{"level":"info","message":"Verifying code for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:59:07.051Z"}
+{"level":"info","message":"Normalized code: 2G8B80","timestamp":"2025-04-21T14:59:07.051Z"}
+{"level":"info","message":"Found codes for email:hb3accelerator@gmail.com: [\"DPO9NP\",\"TYVZAH\",\"2G8B80\"]","timestamp":"2025-04-21T14:59:07.056Z"}
+{"level":"info","message":"Code verified successfully for email:hb3accelerator@gmail.com","timestamp":"2025-04-21T14:59:07.060Z"}
+{"level":"info","message":"[email/verify-code] Linking email hb3accelerator@gmail.com to existing authenticated user 1","timestamp":"2025-04-21T14:59:07.060Z"}
+{"level":"info","message":"[AuthService] Linking identity email:hb3accelerator@gmail.com to user 1","timestamp":"2025-04-21T14:59:07.061Z"}
+{"level":"info","message":"[AuthService] Identity email:hb3accelerator@gmail.com successfully linked to user 1","timestamp":"2025-04-21T14:59:07.072Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T14:59:07.074Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:59:07.087Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:07.089Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:07.104Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:07.106Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:07.121Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:07.123Z"}
+{"level":"info","message":"POST /api/auth/identities/link","timestamp":"2025-04-21T14:59:07.139Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:28.925Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:28.928Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:28.940Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:28.945Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:59:31.705Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:31.707Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:59:31.720Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:31.722Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:31.742Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:31.745Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:31.761Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:31.767Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:31.782Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:31.785Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T14:59:31.798Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:31.801Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:59:31.829Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:59:31.854Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:59:31.861Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T14:59:31.892Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T14:59:32.694Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T14:59:32.696Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T14:59:32.709Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T14:59:32.728Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:00:01.973Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:01.976Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:00:01.986Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:01.988Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:00:32.108Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:32.111Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:00:32.126Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:32.128Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:00:48.645Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:48.648Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:00:48.668Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:48.671Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:00:48.685Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:48.687Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:00:48.702Z"}
+{"level":"info","message":"GET /api/chat/history?offset=36&limit=30","timestamp":"2025-04-21T15:00:48.727Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:00:49.852Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:00:49.853Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:00:49.867Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T15:00:49.883Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:02.246Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:02.249Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:09.844Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:09.846Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:09.865Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:09.868Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:09.899Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:09.905Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:09.926Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:09.930Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:09.945Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:09.950Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:09.964Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:09.967Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:10.844Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:10.846Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:01:10.861Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T15:01:10.879Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-04-21T15:01:14.966Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:01:14.970Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:14.988Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:01:14.991Z"}
+{"level":"info","message":"POST /api/auth/telegram/init","timestamp":"2025-04-21T15:01:17.266Z"}
+{"level":"info","message":"Generated verification code: 077C49","timestamp":"2025-04-21T15:01:17.267Z"}
+{"level":"info","message":"Creating verification code for telegram:8890d8475daa4b9515427d7db88cd3f6, userId: null","timestamp":"2025-04-21T15:01:17.267Z"}
+{"level":"info","message":"Verification code created successfully for telegram:8890d8475daa4b9515427d7db88cd3f6","timestamp":"2025-04-21T15:01:17.270Z"}
+{"level":"info","message":"[initTelegramAuth] Created verification code for guestId: 8890d8475daa4b9515427d7db88cd3f6","timestamp":"2025-04-21T15:01:17.271Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:19.151Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:21.860Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:23.730Z"}
+{"level":"info","message":"Starting Telegram auth process for code:","timestamp":"2025-04-21T15:01:25.195Z"}
+{"level":"info","message":"Using existing user 1 for Telegram account 5155951987","timestamp":"2025-04-21T15:01:25.196Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:25.611Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:25.613Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:25.630Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:25.632Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:25.646Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:25.648Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:01:27.473Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:27.474Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:01:27.487Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T15:01:27.585Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:40.114Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:40.116Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:01:56.741Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:01:56.744Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:02:10.937Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:02:10.941Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:02:26.784Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:02:26.787Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:02:41.062Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:02:41.065Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:02:56.976Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:02:56.979Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:03:11.193Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:03:11.196Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:03:27.119Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:03:27.122Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:03:41.328Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:03:41.331Z"}

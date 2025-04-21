@@ -8,23 +8,23 @@ const logger = require('../utils/logger');
 router.get('/balances', requireAuth, async (req, res) => {
   try {
     const { address } = req.session;
-    
+
     if (!address) {
-      return res.status(400).json({ 
-        error: 'No wallet address in session' 
+      return res.status(400).json({
+        error: 'No wallet address in session',
       });
     }
 
     logger.info(`Fetching token balances for address: ${address}`);
     const balances = await authService.getTokenBalances(address);
-    
+
     res.json(balances);
   } catch (error) {
     logger.error('Error fetching token balances:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch token balances' 
+    res.status(500).json({
+      error: 'Failed to fetch token balances',
     });
   }
 });
 
-module.exports = router; 
+module.exports = router;

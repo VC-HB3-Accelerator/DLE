@@ -10,4 +10,4 @@ function createError(message, statusCode = 500) {
   return error;
 }
 
-module.exports = { createError }; 
+module.exports = { createError };

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const db = require('../db');
 const { requireAdmin } = require('../middleware/auth');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');

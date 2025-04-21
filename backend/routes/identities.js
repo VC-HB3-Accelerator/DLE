@@ -26,20 +26,20 @@ router.post('/link', requireAuth, async (req, res) => {
     // Если тип - wallet, сначала проверим, не привязан ли он уже к другому пользователю
     if (type === 'wallet') {
       const normalizedWallet = value.toLowerCase();
-      
+
       // Проверяем, существует ли уже такой кошелек
       const existingCheck = await db.query(
         `SELECT user_id FROM user_identities 
          WHERE provider = 'wallet' AND provider_id = $1`,
         [normalizedWallet]
       );
-      
+
       if (existingCheck.rows.length > 0) {
         const existingUserId = existingCheck.rows[0].user_id;
         if (existingUserId !== userId) {
           return res.status(400).json({
             success: false,
-            error: `This wallet (${value}) is already linked to another account`
+            error: `This wallet (${value}) is already linked to another account`,
           });
         }
       }
@@ -57,22 +57,22 @@ router.post('/link', requireAuth, async (req, res) => {
       req.session.email = value;
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Identity linked successfully',
-      isAdmin: req.session.isAdmin
+      isAdmin: req.session.isAdmin,
     });
   } catch (error) {
     logger.error('Error linking identity:', error);
-    
+
     // Делаем более понятные сообщения об ошибках
     if (error.message && error.message.includes('already belongs to another user')) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: `This identity is already linked to another account` 
+        error: `This identity is already linked to another account`,
       });
     }
-    
+
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -93,13 +93,13 @@ router.get('/token-balances', requireAuth, async (req, res) => {
 
     // Здесь логирование инициирования получения баланса может быть полезно
     logger.info(`Fetching token balances for user ${userId} with wallet ${wallet}`);
-    
+
     // Получаем балансы токенов
     const balances = await authService.getTokenBalances(wallet);
 
     res.json({
       success: true,
-      balances
+      balances,
     });
   } catch (error) {
     logger.error('Error getting token balances:', error);

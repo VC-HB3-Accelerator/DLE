@@ -13,19 +13,19 @@ const requireAuth = async (req, res, next) => {
     console.log('Session in requireAuth:', {
       id: req.sessionID,
       userId: req.session?.userId,
-      authenticated: req.session?.authenticated
+      authenticated: req.session?.authenticated,
     });
 
     // Проверяем сессию
     if (req.session?.authenticated && req.session?.userId) {
       // Обновляем время жизни сессии
       req.session.touch();
-      
+
       req.user = {
         userId: req.session.userId,
         address: req.session.address,
         isAdmin: req.session.isAdmin,
-        authType: req.session.authType
+        authType: req.session.authType,
       };
       return next();
     }
@@ -34,19 +34,22 @@ const requireAuth = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
       const address = authHeader.split(' ')[1];
-      
+
       if (address.startsWith('0x')) {
-        const result = await db.query(`
+        const result = await db.query(
+          `
           SELECT u.id, u.is_admin 
           FROM users u
           JOIN user_identities ui ON u.id = ui.user_id
           WHERE ui.identity_type = 'wallet' 
           AND LOWER(ui.identity_value) = LOWER($1)
-        `, [address]);
+        `,
+          [address]
+        );
 
         if (result.rows.length > 0) {
           const user = result.rows[0];
-          
+
           // Создаем новую сессию
           req.session.regenerate(async (err) => {
             if (err) {
@@ -68,7 +71,7 @@ const requireAuth = async (req, res, next) => {
               userId: user.id,
               address: address,
               isAdmin: user.is_admin,
-              authType: 'wallet'
+              authType: 'wallet',
             };
             next();
           });
@@ -111,7 +114,9 @@ async function requireAdmin(req, res, next) {
 
     // Проверка через ID пользователя
     if (req.session.userId) {
-      const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+      const userResult = await db.query('SELECT role FROM users WHERE id = $1', [
+        req.session.userId,
+      ]);
       if (userResult.rows.length > 0 && userResult.rows[0].role === USER_ROLES.ADMIN) {
         // Обновляем сессию
         req.session.isAdmin = true;
@@ -146,7 +151,9 @@ function requireRole(role) {
 
       // Проверка через ID пользователя
       if (req.session.userId) {
-        const userResult = await db.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
+        const userResult = await db.query('SELECT role FROM users WHERE id = $1', [
+          req.session.userId,
+        ]);
         if (userResult.rows.length > 0 && userResult.rows[0].role === role) {
           return next();
         }
@@ -192,5 +199,5 @@ module.exports = {
   requireAuth,
   requireAdmin,
   requireRole,
-  checkRole
+  checkRole,
 };

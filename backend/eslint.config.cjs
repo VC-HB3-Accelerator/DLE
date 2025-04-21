@@ -1,6 +1,6 @@
-import globals from 'globals';
+const globals = require('globals');
 
-export default [
+module.exports = [
   {
     ignores: ['node_modules/**', 'artifacts/**', 'sessions/**', 'logs/**', 'data/**'],
   },
@@ -8,10 +8,11 @@ export default [
     files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'module',
+      sourceType: 'module', // Оставляем module, т.к. ESLint может анализировать ES модули
       globals: {
         ...globals.node,
         ...globals.es2021,
+        // Для тестов Mocha
         describe: 'readonly',
         it: 'readonly',
         beforeEach: 'readonly',
@@ -21,10 +22,10 @@ export default [
       },
     },
     rules: {
-      'no-unused-vars': 'off',
-      'no-console': 'off',
+      'no-unused-vars': 'warn', // Лучше warn, чем off
+      'no-console': 'off', // Оставляем off для логов в Node.js
       'no-undef': 'error',
       'no-duplicate-imports': 'error',
     },
   },
-];
+]; 

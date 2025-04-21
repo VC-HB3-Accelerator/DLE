@@ -13,7 +13,7 @@ async function initRoles() {
         WHERE table_name = 'roles'
       );
     `);
-    
+
     if (!tableExists.rows[0].exists) {
       // Создаем таблицу roles
       await pool.query(`
@@ -24,40 +24,44 @@ async function initRoles() {
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
       `);
-      
+
       // Добавляем роли
       await pool.query(`
         INSERT INTO roles (id, name, description) VALUES 
         (3, 'user', 'Обычный пользователь'),
         (4, 'admin', 'Администратор с полным доступом');
       `);
-      
+
       console.log('Таблица roles создана и заполнена');
     } else {
       // Проверяем наличие ролей
       const rolesExist = await pool.query(`
         SELECT COUNT(*) FROM roles WHERE id IN (3, 4);
       `);
-      
+
       if (rolesExist.rows[0].count < 2) {
         // Добавляем недостающие роли
-        const userRoleExists = await pool.query(`SELECT EXISTS (SELECT FROM roles WHERE name = 'user');`);
-        const adminRoleExists = await pool.query(`SELECT EXISTS (SELECT FROM roles WHERE name = 'admin');`);
-        
+        const userRoleExists = await pool.query(
+          `SELECT EXISTS (SELECT FROM roles WHERE name = 'user');`
+        );
+        const adminRoleExists = await pool.query(
+          `SELECT EXISTS (SELECT FROM roles WHERE name = 'admin');`
+        );
+
         if (!userRoleExists.rows[0].exists) {
           await pool.query(`
             INSERT INTO roles (id, name, description) VALUES 
             (3, 'user', 'Обычный пользователь');
           `);
         }
-        
+
         if (!adminRoleExists.rows[0].exists) {
           await pool.query(`
             INSERT INTO roles (id, name, description) VALUES 
             (4, 'admin', 'Администратор с полным доступом');
           `);
         }
-        
+
         console.log('Таблица roles обновлена');
       }
     }
@@ -80,31 +84,29 @@ async function initializeDatabase() {
 
     // Путь к папке с миграциями
     const migrationsPath = path.join(__dirname, 'migrations');
-    
+
     // Получаем все файлы миграций
-    const migrationFiles = fs.readdirSync(migrationsPath)
-      .filter(file => file.endsWith('.sql'))
+    const migrationFiles = fs
+      .readdirSync(migrationsPath)
+      .filter((file) => file.endsWith('.sql'))
       .sort();
 
     // Получаем выполненные миграции
     const { rows } = await pool.query('SELECT name FROM migrations');
-    const executedMigrations = new Set(rows.map(row => row.name));
+    const executedMigrations = new Set(rows.map((row) => row.name));
 
     // Выполняем только новые миграции
     for (const file of migrationFiles) {
       if (!executedMigrations.has(file)) {
         const filePath = path.join(migrationsPath, file);
         const sql = fs.readFileSync(filePath, 'utf8');
-        
+
         logger.info(`Executing migration: ${file}`);
         await pool.query(sql);
-        
+
         // Записываем выполненную миграцию
-        await pool.query(
-          'INSERT INTO migrations (name) VALUES ($1)',
-          [file]
-        );
-        
+        await pool.query('INSERT INTO migrations (name) VALUES ($1)', [file]);
+
         logger.info(`Migration completed: ${file}`);
       }
     }
@@ -116,4 +118,4 @@ async function initializeDatabase() {
   }
 }
 
-module.exports = { initializeDatabase }; 
+module.exports = { initializeDatabase };

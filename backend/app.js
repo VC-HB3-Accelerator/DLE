@@ -26,46 +26,47 @@ app.set('host', '0.0.0.0');
 app.set('port', process.env.PORT || 8000);
 
 // Настройка CORS
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173'  // Добавляем альтернативный origin
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-}));
+app.use(
+  cors({
+    origin: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173', // Добавляем альтернативный origin
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  })
+);
 
 // Настройка сессии
-app.use(session({
-  store: new pgSession({
-    pool,
-    tableName: 'session',
-  }),
-  secret: process.env.SESSION_SECRET || 'hb3atoken',
-  name: 'sessionId',
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    path: '/'
-  }
-}));
+app.use(
+  session({
+    store: new pgSession({
+      pool,
+      tableName: 'session',
+    }),
+    secret: process.env.SESSION_SECRET || 'hb3atoken',
+    name: 'sessionId',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+    },
+  })
+);
 
 // Добавим middleware для проверки сессии
 app.use(async (req, res, next) => {
   console.log('Request cookies:', req.headers.cookie);
   console.log('Session ID:', req.sessionID);
-  
+
   // Проверяем сессию в базе данных
   if (req.sessionID) {
-    const result = await pool.query(
-      'SELECT sess FROM session WHERE sid = $1',
-      [req.sessionID]
-    );
+    const result = await pool.query('SELECT sess FROM session WHERE sid = $1', [req.sessionID]);
     console.log('Session from DB:', result.rows[0]?.sess);
   }
 
@@ -80,28 +81,31 @@ app.use(async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     try {
       // Находим пользователя по токену
-      const { rows } = await pool.query(`
+      const { rows } = await pool.query(
+        `
         SELECT u.id, 
         (u.role = 'admin') as is_admin,
         u.address 
         FROM users u 
         WHERE u.id = $1
-      `, [token]);
-      
+      `,
+        [token]
+      );
+
       if (rows.length > 0) {
         const user = rows[0];
         req.session.userId = user.id;
         req.session.address = user.address;
         req.session.isAdmin = user.is_admin;
         req.session.authenticated = true;
-        
-        await new Promise(resolve => req.session.save(resolve));
+
+        await new Promise((resolve) => req.session.save(resolve));
       }
     } catch (error) {
       console.error('Error checking auth header:', error);
     }
   }
-  
+
   next();
 });
 
@@ -110,9 +114,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Настройка безопасности
-app.use(helmet({
-  contentSecurityPolicy: false // Отключаем CSP для разработки
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Отключаем CSP для разработки
+  })
+);
 
 // Логирование запросов
 app.use((req, res, next) => {
@@ -156,32 +162,35 @@ app.get('/api/health', async (req, res) => {
   try {
     // Проверяем подключение к БД
     await pool.query('SELECT NOW()');
-    
+
     // Проверяем AI сервис
     const aiStatus = await aiAssistant.checkHealth();
-    
+
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       database: 'connected',
-      ai: aiStatus
+      ai: aiStatus,
     });
   } catch (error) {
     logger.error('Health check failed:', error);
     res.status(500).json({
       status: 'error',
-      error: error.message
+      error: error.message,
     });
   }
 });
 
 // Очистка старых сессий
-setInterval(async () => {
-  try {
-    await pool.query('DELETE FROM session WHERE expire < NOW()');
-  } catch (error) {
-    console.error('Error cleaning old sessions:', error);
-  }
-}, 15 * 60 * 1000); // Каждые 15 минут
+setInterval(
+  async () => {
+    try {
+      await pool.query('DELETE FROM session WHERE expire < NOW()');
+    } catch (error) {
+      console.error('Error cleaning old sessions:', error);
+    }
+  },
+  15 * 60 * 1000
+); // Каждые 15 минут
 
 module.exports = { app, nonceStore };

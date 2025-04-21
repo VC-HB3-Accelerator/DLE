@@ -16,10 +16,10 @@ const sessionConfig = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/'
-  }
+    path: '/',
+  },
 };
 
 module.exports = {
-  sessionMiddleware: session(sessionConfig)
+  sessionMiddleware: session(sessionConfig),
 };

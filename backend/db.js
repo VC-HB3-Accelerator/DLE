@@ -19,10 +19,10 @@ const pool = new Pool({
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('Ошибка подключения к базе данных:', err);
-    
+
     // Пробуем альтернативное подключение
     console.log('Попытка альтернативного подключения через прямые параметры...');
-    
+
     const altPool = new Pool({
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
@@ -30,7 +30,7 @@ pool.query('SELECT NOW()', (err, res) => {
       user: process.env.DB_USER || 'dapp_user',
       password: process.env.DB_PASSWORD,
     });
-    
+
     altPool.query('SELECT NOW()', (altErr, altRes) => {
       if (altErr) {
         console.error('Альтернативное подключение тоже не удалось:', altErr);
@@ -56,10 +56,13 @@ const query = (text, params) => {
 // Функция для сохранения гостевого сообщения в базе данных
 async function saveGuestMessageToDatabase(message, language, guestId) {
   try {
-    await query(`
+    await query(
+      `
       INSERT INTO guest_messages (guest_id, content, language, created_at)
       VALUES ($1, $2, $3, NOW())
-    `, [guestId, message, language]);
+    `,
+      [guestId, message, language]
+    );
     console.log('Гостевое сообщение успешно сохранено:', message);
   } catch (error) {
     console.error('Ошибка при сохранении гостевого сообщения:', error);

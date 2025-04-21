@@ -634,11 +634,17 @@
   const loadMessages = async (options = {}) => {
     const { silent = false, initial = false, authType = null } = options;
 
+    // Усиленная проверка для предотвращения параллельного выполнения
+    if (messageLoading.value.isInProgress) {
+      console.warn('[loadMessages] Выполнение уже идет, пропуск вызова.');
+      return;
+    }
+    messageLoading.value.isInProgress = true; // Устанавливаем флаг НЕМЕДЛЕННО
+
     if (messageLoading.value.isLoadingMore && !initial) return;
 
     try {
       messageLoading.value.isLoadingMore = true;
-      messageLoading.value.isInProgress = true;
       if (!silent) isLoading.value = true;
 
       console.log(
@@ -732,8 +738,8 @@
             removeFromStorage('guestId');
           }
         } else if (response.data.messages && response.data.messages.length) {
-          // Иначе добавляем к существующим
-          messages.value = [...messages.value, ...response.data.messages];
+          // Иначе добавляем к существующим (В НАЧАЛО МАССИВА)
+          messages.value = [...response.data.messages, ...messages.value];
         }
 
         console.log(`Загружено ${messages.value.length} сообщений из истории`);
