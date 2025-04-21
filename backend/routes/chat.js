@@ -2,11 +2,8 @@ const express = require('express');
 const router = express.Router();
 const aiAssistant = require('../services/ai-assistant');
 const db = require('../db');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
 const logger = require('../utils/logger');
-const crypto = require('crypto');
-const { saveGuestMessageToDatabase } = require('../db');
-const { v4: uuidv4 } = require('uuid');
+const { requireAuth } = require('../middleware/auth');
 
 // Функция для обработки гостевых сообщений после аутентификации
 async function processGuestMessages(userId, guestId) {

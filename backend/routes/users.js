@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
+// const userService = require('../services/userService');
 
 // Получение списка пользователей
 router.get('/', (req, res) => {
@@ -69,48 +70,53 @@ router.post('/update-profile', requireAuth, async (req, res) => {
   }
 });
 
-// Маршрут для получения профиля пользователя
-router.get('/profile/current', requireAuth, async (req, res) => {
+// Получить профиль текущего пользователя
+/*
+router.get('/profile', requireAuth, async (req, res) => {
   try {
     const userId = req.session.userId;
-
-    // Получение данных пользователя
-    const userResult = await db.query(
-      'SELECT id, username, first_name, last_name, role, status, created_at, preferred_language FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
+    const user = await userService.getUserProfile(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-
-    // Получение идентификаторов пользователя
-    const identitiesResult = await db.query(
-      'SELECT provider, provider_id FROM user_identities WHERE user_id = $1',
-      [userId]
-    );
-
-    const user = userResult.rows[0];
-    const identities = identitiesResult.rows.reduce((acc, identity) => {
-      acc[identity.provider] = identity.provider_id;
-      return acc;
-    }, {});
-
-    res.json({
-      id: user.id,
-      username: user.username,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      role: user.role,
-      status: user.status,
-      createdAt: user.created_at,
-      preferredLanguage: user.preferred_language,
-      identities,
-    });
+    res.json({ success: true, user });
   } catch (error) {
-    logger.error('Error getting user profile:', error);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    console.error('Error getting user profile:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
+*/
+
+// Обновить профиль текущего пользователя
+/*
+router.put('/profile', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const profileData = req.body;
+    const updatedUser = await userService.updateUserProfile(userId, profileData);
+    res.json({ success: true, user: updatedUser, message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    // Можно добавить более специфичную обработку ошибок, например, если данные невалидны
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+*/
+
+// GET /api/users - Получить список всех пользователей (пример, может требовать прав администратора)
+// В текущей реализации этот маршрут не используется и закомментирован
+/*
+router.get('/', async (req, res) => {
+  try {
+    // const users = await userService.getAllUsers(); // Удаляем
+    await userService.getAllUsers(); // Просто вызываем, если нужно действие, но результат не используется
+    // res.json({ success: true, users });
+    res.json({ success: true, message: "Users retrieved" }); // Пример ответа без данных
+  } catch (error) {
+    console.error('Error getting all users:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+*/
 
 module.exports = router;

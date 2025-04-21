@@ -1,10 +1,12 @@
+const { AppError, ErrorTypes } = require('../utils/error');
 const logger = require('../utils/logger');
 const { ERROR_CODES } = require('../utils/constants');
 
 /**
  * Middleware для обработки ошибок
  */
-function errorHandler(err, req, res, next) {
+// eslint-disable-next-line no-unused-vars
+const errorHandler = (err, req, res, /* next */) => {
   // Логируем ошибку
   logger.error(`Error: ${err.message}`, {
     stack: err.stack,

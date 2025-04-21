@@ -8495,3 +8495,474 @@
 {"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:03:27.122Z"}
 {"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:03:41.328Z"}
 {"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:03:41.331Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:03:57.229Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:03:57.233Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:04:09.384Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:04:09.399Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:04:27.349Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:04:27.356Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:14:47.015Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:14:47.024Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:14:47.039Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:14:47.042Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:14:47.051Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:14:47.053Z"}
+{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:14:52.070Z"}
+{"level":"info","message":"Nonce 9fb7fe558e286d18ef276ee6faa1f295 сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:14:52.077Z"}
+{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-04-21T15:14:56.026Z"}
+{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:14:56.027Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:56.118Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T15:14:57.108Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T15:14:57.109Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T15:14:57.258Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T15:14:57.258Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T15:14:57.472Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T15:14:57.472Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T15:14:57.622Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T15:14:57.623Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","arbitrum","eth","polygon"],"timestamp":"2025-04-21T15:14:57.623Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:57.624Z"}
+{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:57.624Z"}
+{"level":"info","message":"[IdentityService] Converting guest identity for user 1 to guest_user_mapping: 8d17604b9cd44fa9074cba30f7acb374","timestamp":"2025-04-21T15:14:57.625Z"}
+{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:57.630Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:57.630Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T15:14:57.937Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T15:14:57.937Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T15:14:58.078Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T15:14:58.079Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T15:14:58.084Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T15:14:58.084Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T15:14:58.204Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T15:14:58.204Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","eth","polygon","arbitrum"],"timestamp":"2025-04-21T15:14:58.204Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:58.205Z"}
+{"level":"info","message":"Updated user 1 role to admin based on token holdings","timestamp":"2025-04-21T15:14:58.209Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:14:58.211Z"}
+{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=8d17604b9cd44fa9074cba30f7acb374, previousGuestId=undefined","timestamp":"2025-04-21T15:14:58.212Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d17604b9cd44fa9074cba30f7acb374","timestamp":"2025-04-21T15:14:58.218Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=3987b209726bd85f79f6668c69cec67a","timestamp":"2025-04-21T15:14:58.227Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e7dd7cc2be1f4cf5628ac67496f0ff60","timestamp":"2025-04-21T15:14:58.231Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1643e4ae05e31df62ceaa1c784dbf2e7","timestamp":"2025-04-21T15:14:58.235Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b6de4a34d192b6d3c6a04d64921bc2c6","timestamp":"2025-04-21T15:14:58.239Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d85d2c40506052a630bb7737bc2769e6","timestamp":"2025-04-21T15:14:58.243Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8edb112101cbbaa5bef2c3a08f275ec6","timestamp":"2025-04-21T15:14:58.247Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4b83b24f9c0cb26179c0637632426e4a","timestamp":"2025-04-21T15:14:58.252Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=221d5a74f84eca5d55db182e0a3d9143","timestamp":"2025-04-21T15:14:58.256Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=7e030d98195da1dd7f81b669c666dca7","timestamp":"2025-04-21T15:14:58.259Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4256b2a7e0d8b7ed947ba6c1f5f72d15","timestamp":"2025-04-21T15:14:58.263Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a87f7b05515098ad5a3079377690f769","timestamp":"2025-04-21T15:14:58.266Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4401b63702956724a4ccb3bb849f7207","timestamp":"2025-04-21T15:14:58.270Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5957393c426559cd5ffb817d29e4da37","timestamp":"2025-04-21T15:14:58.278Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=064746c1fd4456b7021c936bb9638dfc","timestamp":"2025-04-21T15:14:58.282Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745098219233-r5wj2olz0","timestamp":"2025-04-21T15:14:58.285Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243339797-5jz07df5q","timestamp":"2025-04-21T15:14:58.289Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e50442b5c6fad89fc34176fc078d56f1","timestamp":"2025-04-21T15:14:58.293Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243066352-5zqw1zro4","timestamp":"2025-04-21T15:14:58.298Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8f897f5f63a679da6893cac2548cdd8c","timestamp":"2025-04-21T15:14:58.302Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f622d55418e4159e864ea4e6e18115d9","timestamp":"2025-04-21T15:14:58.306Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cee8775f1ef14ec06069222412527621","timestamp":"2025-04-21T15:14:58.312Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4801418ef94eac344f7372c5db4bcd41","timestamp":"2025-04-21T15:14:58.316Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=6f93b96d30b4ef36faa2943c5635d949","timestamp":"2025-04-21T15:14:58.320Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=ddf4efa4dca07970401397faae6ad10d","timestamp":"2025-04-21T15:14:58.324Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a9c5cab9491ffd9a8340488892a3a83f","timestamp":"2025-04-21T15:14:58.329Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=fa541d53f0b7910b5d90be7822f211c0","timestamp":"2025-04-21T15:14:58.332Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9b1fb20e39a4215abe7c83b8eb752b40","timestamp":"2025-04-21T15:14:58.336Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=750e6a49666b28814122e1d901aea6b5","timestamp":"2025-04-21T15:14:58.339Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8bbf43a7d107802415e69966ec47edd7","timestamp":"2025-04-21T15:14:58.344Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=784e89fbeba721cf5c3dda2267d9ddd5","timestamp":"2025-04-21T15:14:58.347Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=30c3be3e079722b3a8d20203b1a567f9","timestamp":"2025-04-21T15:14:58.352Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745221905698-9rejq7xoe","timestamp":"2025-04-21T15:14:58.357Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=85f386bbe2c9b7affbd50d0366a39147","timestamp":"2025-04-21T15:14:58.361Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2d284866bfe0da04a3716d3f96d2cc64","timestamp":"2025-04-21T15:14:58.364Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d6c03e2a1a30f997e7ae94097b8bdc33","timestamp":"2025-04-21T15:14:58.368Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=00e90de9aef9134750d4519a5e10c4ee","timestamp":"2025-04-21T15:14:58.372Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f79a4edd77d8db2def23394f52e0d0a4","timestamp":"2025-04-21T15:14:58.376Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b710161e84700cd43778fb846c4017ff","timestamp":"2025-04-21T15:14:58.380Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5a7dec430e4da72e53b8b07fc1713a4e","timestamp":"2025-04-21T15:14:58.383Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bdbb9e9a6b156fb309480755554c017c","timestamp":"2025-04-21T15:14:58.388Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e4ca877a9e8a823241c5f1669ad4b177","timestamp":"2025-04-21T15:14:58.394Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=63404462543ed032df62eb0597cfbf92","timestamp":"2025-04-21T15:14:58.398Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=53e3ea1b2c59ed4f4b37a6402da579db","timestamp":"2025-04-21T15:14:58.402Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745240790811-mxagvk0lf","timestamp":"2025-04-21T15:14:58.406Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d447b0a532867a90636e000c9bbb72a","timestamp":"2025-04-21T15:14:58.410Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745079293895-f5bi3mnlq","timestamp":"2025-04-21T15:14:58.414Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f74f7950c4b8085f2cead1620d087bb5","timestamp":"2025-04-21T15:14:58.418Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2f2e2330b4263952294d93ae6a86146a","timestamp":"2025-04-21T15:14:58.422Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b2e89db3924be1b1d3b0f06f130cf8e0","timestamp":"2025-04-21T15:14:58.426Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b4460596d1947e93312e2607cda758ba","timestamp":"2025-04-21T15:14:58.430Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=16236f2b04a47bc549afe4960f6aeded","timestamp":"2025-04-21T15:14:58.433Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9c7f2342b8ff1f8fe4d545f6d2af05d4","timestamp":"2025-04-21T15:14:58.438Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bf299ef8e5ac941443b24bc023d55bdf","timestamp":"2025-04-21T15:14:58.441Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e70ff3b19f49cb1ce11e3bf9d4c3f5b5","timestamp":"2025-04-21T15:14:58.445Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dca0cf1d9efe806bc9915e5a57c344b3","timestamp":"2025-04-21T15:14:58.449Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=19ca3c1e1a77f6688e48e996ec94e32b","timestamp":"2025-04-21T15:14:58.454Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dc34a86ca22b491572bc728db26ec8d2","timestamp":"2025-04-21T15:14:58.457Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cd399a7b2782ab9dcd510a6d624311ef","timestamp":"2025-04-21T15:14:58.460Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5fbeaeed77f7e790089e3687b6272cc4","timestamp":"2025-04-21T15:14:58.464Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8890d8475daa4b9515427d7db88cd3f6","timestamp":"2025-04-21T15:14:58.468Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=06a8da2f6b8ccb05be8606d6f5785c3e","timestamp":"2025-04-21T15:14:58.471Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=12b912bafbdae6136947a2405c43afc7","timestamp":"2025-04-21T15:14:58.476Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=75e90bb5664f78f2d4e89dba9c764340","timestamp":"2025-04-21T15:14:58.480Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d1a1a0c6759fa0092a9ac54cc6bca38c","timestamp":"2025-04-21T15:14:58.483Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5c62c06c28391e47ca9da69d82d6b665","timestamp":"2025-04-21T15:14:58.487Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e1313ff9002847b61b9f8ea825150512","timestamp":"2025-04-21T15:14:58.491Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:14:58.496Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:14:58.509Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:14:58.511Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:14:58.537Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:14:58.545Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:14:58.551Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:14:58.554Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:14:58.570Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:14:58.574Z"}
+{"level":"info","message":"POST /api/auth/link-guest-messages","timestamp":"2025-04-21T15:14:58.584Z"}
+{"level":"error","message":"Error: undefined","timestamp":"2025-04-21T15:14:58.586Z"}
+{"level":"info","message":"POST /api/auth/link-guest-messages","timestamp":"2025-04-21T15:14:58.604Z"}
+{"level":"error","message":"Error: undefined","timestamp":"2025-04-21T15:14:58.605Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:14:58.985Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:14:59.288Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:14:59.476Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:14:59.480Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:14:59.491Z"}
+{"level":"info","message":"GET /api/chat/history?offset=6&limit=30","timestamp":"2025-04-21T15:14:59.511Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:14:59.867Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:15:00.277Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:15:00.277Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:15:00.284Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:15:00.286Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:15:00.741Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:15:01.052Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:15:01.715Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:15:02.153Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:15:02.153Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:15:29.181Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:15:29.184Z"}
+{"client":{"_connected":true,"_connecting":false,"_connectionCallback":null,"_connectionError":false,"_connectionTimeoutMillis":0,"_ended":false,"_ending":true,"_events":{},"_eventsCount":1,"_poolUseCount":2,"_queryable":false,"_types":{"_types":{"arrayParser":{},"builtins":{"ABSTIME":702,"ACLITEM":1033,"BIT":1560,"BOOL":16,"BPCHAR":1042,"BYTEA":17,"CHAR":18,"CID":29,"CIDR":650,"CIRCLE":718,"DATE":1082,"FLOAT4":700,"FLOAT8":701,"GTSVECTOR":3642,"INET":869,"INT2":21,"INT4":23,"INT8":20,"INTERVAL":1186,"JSON":114,"JSONB":3802,"MACADDR":829,"MACADDR8":774,"MONEY":790,"NUMERIC":1700,"OID":26,"PATH":602,"PG_DEPENDENCIES":3402,"PG_LSN":3220,"PG_NDISTINCT":3361,"PG_NODE_TREE":194,"POLYGON":604,"REFCURSOR":1790,"REGCLASS":2205,"REGCONFIG":3734,"REGDICTIONARY":3769,"REGNAMESPACE":4089,"REGOPER":2203,"REGOPERATOR":2204,"REGPROC":24,"REGPROCEDURE":2202,"REGROLE":4096,"REGTYPE":2206,"RELTIME":703,"SMGR":210,"TEXT":25,"TID":27,"TIME":1083,"TIMESTAMP":1114,"TIMESTAMPTZ":1184,"TIMETZ":1266,"TINTERVAL":704,"TSQUERY":3615,"TSVECTOR":3614,"TXID_SNAPSHOT":2970,"UUID":2950,"VARBIT":1562,"VARCHAR":1043,"XID":28,"XML":142}},"binary":{},"text":{}},"activeQuery":null,"binary":false,"connection":{"_connecting":true,"_emitMessage":false,"_ending":true,"_events":{"end":[null,null]},"_eventsCount":23,"_keepAlive":false,"_keepAliveInitialDelayMillis":0,"lastBuffer":false,"parsedStatements":{},"ssl":false,"stream":{"_closeAfterHandlingError":false,"_events":{"end":[null,null]},"_eventsCount":4,"_hadError":false,"_host":"postgres","_parent":null,"_pendingData":null,"_pendingEncoding":"","_readableState":{"awaitDrainWriters":null,"buffer":[],"bufferIndex":0,"highWaterMark":16384,"length":0,"pipes":[]},"_server":null,"_sockname":null,"_writableState":{"bufferedIndex":0,"corked":0,"highWaterMark":16384,"length":0,"pendingcb":0,"writelen":0},"allowHalfOpen":false,"connecting":false,"server":null}},"connectionParameters":{"binary":false,"client_encoding":"","connect_timeout":0,"database":"dapp_db","host":"postgres","idle_in_transaction_session_timeout":false,"isDomainSocket":false,"lock_timeout":false,"port":5432,"query_timeout":false,"ssl":false,"statement_timeout":false,"user":"dapp_user"},"database":"dapp_db","hasExecuted":true,"host":"postgres","port":5432,"processID":210,"queryQueue":[],"readyForQuery":true,"saslSession":null,"secretKey":1769938562,"ssl":false,"user":"dapp_user"},"code":"57P01","file":"postgres.c","length":116,"level":"error","line":"3286","message":"Uncaught Exception: terminating connection due to administrator command","name":"error","routine":"ProcessInterrupts","severity":"FATAL","stack":"error: terminating connection due to administrator command\n    at Parser.parseErrorMessage (/app/node_modules/pg-protocol/dist/parser.js:283:98)\n    at Parser.handlePacket (/app/node_modules/pg-protocol/dist/parser.js:122:29)\n    at Parser.parse (/app/node_modules/pg-protocol/dist/parser.js:35:38)\n    at Socket.<anonymous> (/app/node_modules/pg-protocol/dist/index.js:11:42)\n    at Socket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)\n    at TCP.onStreamRead (node:internal/stream_base_commons:191:23)","timestamp":"2025-04-21T15:15:37.285Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:15:59.333Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:16:00.211Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:16:00.214Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:16:00.225Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:16:31.490Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:16:31.494Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:16:31.505Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:16:31.507Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:16:31.515Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:16:31.517Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:17:12.404Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:17:12.411Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:17:12.428Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:17:12.430Z"}
+{"level":"info","message":"POST /api/chat/guest-message","timestamp":"2025-04-21T15:17:19.746Z"}
+{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:17:21.246Z"}
+{"level":"info","message":"Nonce cbfa8ebd87d3a60d04d78b2cba6f558b сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:17:21.252Z"}
+{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-04-21T15:17:23.064Z"}
+{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:17:23.066Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:17:23.148Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T15:17:24.113Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T15:17:24.113Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T15:17:24.143Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T15:17:24.143Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T15:17:24.151Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T15:17:24.152Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T15:17:24.364Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T15:17:24.364Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","eth","arbitrum","polygon"],"timestamp":"2025-04-21T15:17:24.365Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:17:24.365Z"}
+{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:17:24.366Z"}
+{"level":"info","message":"[IdentityService] Converting guest identity for user 1 to guest_user_mapping: 1745248639754-svfzgedxz","timestamp":"2025-04-21T15:17:24.367Z"}
+{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:17:24.371Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:17:24.371Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T15:17:24.671Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T15:17:24.671Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T15:17:24.786Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T15:17:24.786Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T15:17:24.813Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T15:17:24.814Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T15:17:24.972Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T15:17:24.972Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","polygon","eth","arbitrum"],"timestamp":"2025-04-21T15:17:24.972Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:17:24.972Z"}
+{"level":"info","message":"Updated user 1 role to admin based on token holdings","timestamp":"2025-04-21T15:17:24.977Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:17:24.980Z"}
+{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=1745248639754-svfzgedxz, previousGuestId=undefined","timestamp":"2025-04-21T15:17:24.980Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745248639754-svfzgedxz","timestamp":"2025-04-21T15:17:24.985Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f622d55418e4159e864ea4e6e18115d9","timestamp":"2025-04-21T15:18:20.507Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cee8775f1ef14ec06069222412527621","timestamp":"2025-04-21T15:18:20.512Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4801418ef94eac344f7372c5db4bcd41","timestamp":"2025-04-21T15:18:20.515Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=6f93b96d30b4ef36faa2943c5635d949","timestamp":"2025-04-21T15:18:20.519Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=ddf4efa4dca07970401397faae6ad10d","timestamp":"2025-04-21T15:18:20.523Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a9c5cab9491ffd9a8340488892a3a83f","timestamp":"2025-04-21T15:18:20.527Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=fa541d53f0b7910b5d90be7822f211c0","timestamp":"2025-04-21T15:18:20.530Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9b1fb20e39a4215abe7c83b8eb752b40","timestamp":"2025-04-21T15:18:20.533Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=750e6a49666b28814122e1d901aea6b5","timestamp":"2025-04-21T15:18:20.538Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8bbf43a7d107802415e69966ec47edd7","timestamp":"2025-04-21T15:18:20.542Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=784e89fbeba721cf5c3dda2267d9ddd5","timestamp":"2025-04-21T15:18:20.547Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=30c3be3e079722b3a8d20203b1a567f9","timestamp":"2025-04-21T15:18:20.550Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745221905698-9rejq7xoe","timestamp":"2025-04-21T15:18:20.556Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=85f386bbe2c9b7affbd50d0366a39147","timestamp":"2025-04-21T15:18:20.560Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2d284866bfe0da04a3716d3f96d2cc64","timestamp":"2025-04-21T15:18:20.564Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d6c03e2a1a30f997e7ae94097b8bdc33","timestamp":"2025-04-21T15:18:20.567Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=00e90de9aef9134750d4519a5e10c4ee","timestamp":"2025-04-21T15:18:20.572Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f79a4edd77d8db2def23394f52e0d0a4","timestamp":"2025-04-21T15:18:20.575Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b710161e84700cd43778fb846c4017ff","timestamp":"2025-04-21T15:18:20.580Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5a7dec430e4da72e53b8b07fc1713a4e","timestamp":"2025-04-21T15:18:20.584Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bdbb9e9a6b156fb309480755554c017c","timestamp":"2025-04-21T15:18:20.588Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e4ca877a9e8a823241c5f1669ad4b177","timestamp":"2025-04-21T15:18:20.592Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=63404462543ed032df62eb0597cfbf92","timestamp":"2025-04-21T15:18:20.596Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=53e3ea1b2c59ed4f4b37a6402da579db","timestamp":"2025-04-21T15:18:20.601Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745240790811-mxagvk0lf","timestamp":"2025-04-21T15:18:20.605Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d447b0a532867a90636e000c9bbb72a","timestamp":"2025-04-21T15:18:20.610Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745079293895-f5bi3mnlq","timestamp":"2025-04-21T15:18:20.613Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f74f7950c4b8085f2cead1620d087bb5","timestamp":"2025-04-21T15:18:20.618Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2f2e2330b4263952294d93ae6a86146a","timestamp":"2025-04-21T15:18:20.623Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b2e89db3924be1b1d3b0f06f130cf8e0","timestamp":"2025-04-21T15:18:20.626Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b4460596d1947e93312e2607cda758ba","timestamp":"2025-04-21T15:18:20.630Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=16236f2b04a47bc549afe4960f6aeded","timestamp":"2025-04-21T15:18:20.635Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9c7f2342b8ff1f8fe4d545f6d2af05d4","timestamp":"2025-04-21T15:18:20.640Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bf299ef8e5ac941443b24bc023d55bdf","timestamp":"2025-04-21T15:18:20.643Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e70ff3b19f49cb1ce11e3bf9d4c3f5b5","timestamp":"2025-04-21T15:18:20.647Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dca0cf1d9efe806bc9915e5a57c344b3","timestamp":"2025-04-21T15:18:20.651Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=19ca3c1e1a77f6688e48e996ec94e32b","timestamp":"2025-04-21T15:18:20.655Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dc34a86ca22b491572bc728db26ec8d2","timestamp":"2025-04-21T15:18:20.658Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cd399a7b2782ab9dcd510a6d624311ef","timestamp":"2025-04-21T15:18:20.663Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5fbeaeed77f7e790089e3687b6272cc4","timestamp":"2025-04-21T15:18:20.667Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8890d8475daa4b9515427d7db88cd3f6","timestamp":"2025-04-21T15:18:20.671Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=06a8da2f6b8ccb05be8606d6f5785c3e","timestamp":"2025-04-21T15:18:20.674Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=12b912bafbdae6136947a2405c43afc7","timestamp":"2025-04-21T15:18:20.678Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=75e90bb5664f78f2d4e89dba9c764340","timestamp":"2025-04-21T15:18:20.682Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d1a1a0c6759fa0092a9ac54cc6bca38c","timestamp":"2025-04-21T15:18:20.687Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5c62c06c28391e47ca9da69d82d6b665","timestamp":"2025-04-21T15:18:20.690Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e1313ff9002847b61b9f8ea825150512","timestamp":"2025-04-21T15:18:20.694Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=3987b209726bd85f79f6668c69cec67a","timestamp":"2025-04-21T15:18:20.698Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e7dd7cc2be1f4cf5628ac67496f0ff60","timestamp":"2025-04-21T15:18:20.701Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d17604b9cd44fa9074cba30f7acb374","timestamp":"2025-04-21T15:18:20.704Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1643e4ae05e31df62ceaa1c784dbf2e7","timestamp":"2025-04-21T15:18:20.708Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b6de4a34d192b6d3c6a04d64921bc2c6","timestamp":"2025-04-21T15:18:20.712Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d85d2c40506052a630bb7737bc2769e6","timestamp":"2025-04-21T15:18:20.716Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8edb112101cbbaa5bef2c3a08f275ec6","timestamp":"2025-04-21T15:18:20.720Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4b83b24f9c0cb26179c0637632426e4a","timestamp":"2025-04-21T15:18:20.725Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=221d5a74f84eca5d55db182e0a3d9143","timestamp":"2025-04-21T15:18:20.729Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=7e030d98195da1dd7f81b669c666dca7","timestamp":"2025-04-21T15:18:20.733Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4256b2a7e0d8b7ed947ba6c1f5f72d15","timestamp":"2025-04-21T15:18:20.737Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a87f7b05515098ad5a3079377690f769","timestamp":"2025-04-21T15:18:20.740Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4401b63702956724a4ccb3bb849f7207","timestamp":"2025-04-21T15:18:20.743Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5957393c426559cd5ffb817d29e4da37","timestamp":"2025-04-21T15:18:20.748Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=064746c1fd4456b7021c936bb9638dfc","timestamp":"2025-04-21T15:18:20.751Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745098219233-r5wj2olz0","timestamp":"2025-04-21T15:18:20.755Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243339797-5jz07df5q","timestamp":"2025-04-21T15:18:20.759Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e50442b5c6fad89fc34176fc078d56f1","timestamp":"2025-04-21T15:18:20.762Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243066352-5zqw1zro4","timestamp":"2025-04-21T15:18:20.766Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8f897f5f63a679da6893cac2548cdd8c","timestamp":"2025-04-21T15:18:20.770Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:18:20.773Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:18:20.790Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:18:20.795Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:18:20.816Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:18:20.821Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:18:20.838Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:18:20.839Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:18:20.846Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:18:20.860Z"}
+{"level":"info","message":"POST /api/auth/link-guest-messages","timestamp":"2025-04-21T15:18:20.869Z"}
+{"level":"error","message":"Error: undefined","timestamp":"2025-04-21T15:18:20.871Z"}
+{"level":"info","message":"POST /api/auth/link-guest-messages","timestamp":"2025-04-21T15:18:20.883Z"}
+{"level":"error","message":"Error: undefined","timestamp":"2025-04-21T15:18:20.884Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:18:21.954Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:18:22.295Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:18:22.297Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:18:22.307Z"}
+{"level":"info","message":"GET /api/chat/history?offset=8&limit=30","timestamp":"2025-04-21T15:18:22.332Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:18:22.795Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:18:23.697Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:18:24.804Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:18:24.805Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:18:24.812Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:18:24.814Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:18:25.299Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:18:25.574Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:18:26.237Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:18:26.702Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:18:26.702Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:18:51.532Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:18:51.536Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:21.701Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:21.705Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:19:22.367Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.368Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:19:22.378Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.383Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:19:22.393Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.396Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:22.407Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:19:22.412Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:19:22.413Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.414Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:22.422Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.481Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:22.490Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.493Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:22.504Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.509Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:22.516Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.519Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:22.525Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:22.527Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:19:23.464Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:19:23.527Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:23.529Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:19:23.546Z"}
+{"level":"info","message":"GET /api/chat/history?offset=8&limit=30","timestamp":"2025-04-21T15:19:23.564Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:19:24.352Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:19:25.397Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:19:26.562Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:19:26.563Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:52.745Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:52.748Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:52.756Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:52.758Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:19:52.765Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:19:52.767Z"}
+{"client":{"_connected":true,"_connecting":false,"_connectionCallback":null,"_connectionError":false,"_connectionTimeoutMillis":0,"_ended":false,"_ending":true,"_events":{},"_eventsCount":1,"_poolUseCount":6,"_queryable":false,"_types":{"_types":{"arrayParser":{},"builtins":{"ABSTIME":702,"ACLITEM":1033,"BIT":1560,"BOOL":16,"BPCHAR":1042,"BYTEA":17,"CHAR":18,"CID":29,"CIDR":650,"CIRCLE":718,"DATE":1082,"FLOAT4":700,"FLOAT8":701,"GTSVECTOR":3642,"INET":869,"INT2":21,"INT4":23,"INT8":20,"INTERVAL":1186,"JSON":114,"JSONB":3802,"MACADDR":829,"MACADDR8":774,"MONEY":790,"NUMERIC":1700,"OID":26,"PATH":602,"PG_DEPENDENCIES":3402,"PG_LSN":3220,"PG_NDISTINCT":3361,"PG_NODE_TREE":194,"POLYGON":604,"REFCURSOR":1790,"REGCLASS":2205,"REGCONFIG":3734,"REGDICTIONARY":3769,"REGNAMESPACE":4089,"REGOPER":2203,"REGOPERATOR":2204,"REGPROC":24,"REGPROCEDURE":2202,"REGROLE":4096,"REGTYPE":2206,"RELTIME":703,"SMGR":210,"TEXT":25,"TID":27,"TIME":1083,"TIMESTAMP":1114,"TIMESTAMPTZ":1184,"TIMETZ":1266,"TINTERVAL":704,"TSQUERY":3615,"TSVECTOR":3614,"TXID_SNAPSHOT":2970,"UUID":2950,"VARBIT":1562,"VARCHAR":1043,"XID":28,"XML":142}},"binary":{},"text":{}},"activeQuery":null,"binary":false,"connection":{"_connecting":true,"_emitMessage":false,"_ending":true,"_events":{"end":[null,null]},"_eventsCount":23,"_keepAlive":false,"_keepAliveInitialDelayMillis":0,"lastBuffer":false,"parsedStatements":{},"ssl":false,"stream":{"_closeAfterHandlingError":false,"_events":{"end":[null,null]},"_eventsCount":4,"_hadError":false,"_host":"postgres","_parent":null,"_pendingData":null,"_pendingEncoding":"","_readableState":{"awaitDrainWriters":null,"buffer":[],"bufferIndex":0,"highWaterMark":16384,"length":0,"pipes":[]},"_server":null,"_sockname":null,"_writableState":{"bufferedIndex":0,"corked":0,"highWaterMark":16384,"length":0,"pendingcb":0,"writelen":0},"allowHalfOpen":false,"connecting":false,"server":null}},"connectionParameters":{"binary":false,"client_encoding":"","connect_timeout":0,"database":"dapp_db","host":"postgres","idle_in_transaction_session_timeout":false,"isDomainSocket":false,"lock_timeout":false,"port":5432,"query_timeout":false,"ssl":false,"statement_timeout":false,"user":"dapp_user"},"database":"dapp_db","hasExecuted":true,"host":"postgres","port":5432,"processID":360,"queryQueue":[],"readyForQuery":true,"saslSession":null,"secretKey":1023036091,"ssl":false,"user":"dapp_user"},"code":"57P01","file":"postgres.c","length":116,"level":"error","line":"3286","message":"Uncaught Exception: terminating connection due to administrator command","name":"error","routine":"ProcessInterrupts","severity":"FATAL","stack":"error: terminating connection due to administrator command\n    at Parser.parseErrorMessage (/app/node_modules/pg-protocol/dist/parser.js:283:98)\n    at Parser.handlePacket (/app/node_modules/pg-protocol/dist/parser.js:122:29)\n    at Parser.parse (/app/node_modules/pg-protocol/dist/parser.js:35:38)\n    at Socket.<anonymous> (/app/node_modules/pg-protocol/dist/index.js:11:42)\n    at Socket.emit (node:events:524:28)\n    at addChunk (node:internal/streams/readable:561:12)\n    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)\n    at Readable.push (node:internal/streams/readable:392:5)\n    at TCP.onStreamRead (node:internal/stream_base_commons:191:23)","timestamp":"2025-04-21T15:20:02.189Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:20:21.379Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:20:21.396Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:20:21.423Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:20:21.426Z"}
+{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:20:24.007Z"}
+{"level":"info","message":"Nonce 8d0f806f82370a171e95af1fe3c92fbc сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:20:24.037Z"}
+{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-04-21T15:20:27.320Z"}
+{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-04-21T15:20:27.321Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:27.461Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T15:20:29.132Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T15:20:29.132Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T15:20:29.142Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T15:20:29.142Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T15:20:29.389Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T15:20:29.389Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T15:20:29.434Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T15:20:29.435Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","eth","arbitrum","polygon"],"timestamp":"2025-04-21T15:20:29.435Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:29.436Z"}
+{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:29.436Z"}
+{"level":"info","message":"[IdentityService] Converting guest identity for user 1 to guest_user_mapping: d7c8e008ba7c6b456dbf116a97e93b60","timestamp":"2025-04-21T15:20:29.437Z"}
+{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:29.447Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:29.447Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","hasTokens":true,"level":"info","message":"Token balance on bsc:","timestamp":"2025-04-21T15:20:29.781Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-04-21T15:20:29.781Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","timestamp":"2025-04-21T15:20:29.873Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-04-21T15:20:29.873Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on eth:","timestamp":"2025-04-21T15:20:29.887Z"}
+{"level":"info","message":"Found admin tokens on eth","timestamp":"2025-04-21T15:20:29.888Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","timestamp":"2025-04-21T15:20:30.068Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-04-21T15:20:30.068Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","polygon":"454852.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","polygon","eth","arbitrum"],"timestamp":"2025-04-21T15:20:30.068Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:30.068Z"}
+{"level":"info","message":"Updated user 1 role to admin based on token holdings","timestamp":"2025-04-21T15:20:30.079Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:20:30.081Z"}
+{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=d7c8e008ba7c6b456dbf116a97e93b60, previousGuestId=undefined","timestamp":"2025-04-21T15:20:30.082Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d7c8e008ba7c6b456dbf116a97e93b60","timestamp":"2025-04-21T15:20:30.087Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=ddf4efa4dca07970401397faae6ad10d","timestamp":"2025-04-21T15:20:30.097Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a9c5cab9491ffd9a8340488892a3a83f","timestamp":"2025-04-21T15:20:30.100Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=fa541d53f0b7910b5d90be7822f211c0","timestamp":"2025-04-21T15:20:30.104Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9b1fb20e39a4215abe7c83b8eb752b40","timestamp":"2025-04-21T15:20:30.108Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e4ca877a9e8a823241c5f1669ad4b177","timestamp":"2025-04-21T15:20:30.112Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=63404462543ed032df62eb0597cfbf92","timestamp":"2025-04-21T15:20:30.117Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=53e3ea1b2c59ed4f4b37a6402da579db","timestamp":"2025-04-21T15:20:30.121Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745240790811-mxagvk0lf","timestamp":"2025-04-21T15:20:30.124Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d447b0a532867a90636e000c9bbb72a","timestamp":"2025-04-21T15:20:30.128Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745079293895-f5bi3mnlq","timestamp":"2025-04-21T15:20:30.133Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f74f7950c4b8085f2cead1620d087bb5","timestamp":"2025-04-21T15:20:30.137Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2f2e2330b4263952294d93ae6a86146a","timestamp":"2025-04-21T15:20:30.140Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b2e89db3924be1b1d3b0f06f130cf8e0","timestamp":"2025-04-21T15:20:30.145Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b4460596d1947e93312e2607cda758ba","timestamp":"2025-04-21T15:20:30.149Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=16236f2b04a47bc549afe4960f6aeded","timestamp":"2025-04-21T15:20:30.154Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9c7f2342b8ff1f8fe4d545f6d2af05d4","timestamp":"2025-04-21T15:20:30.159Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bf299ef8e5ac941443b24bc023d55bdf","timestamp":"2025-04-21T15:20:30.163Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e70ff3b19f49cb1ce11e3bf9d4c3f5b5","timestamp":"2025-04-21T15:20:30.168Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dca0cf1d9efe806bc9915e5a57c344b3","timestamp":"2025-04-21T15:20:30.172Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=19ca3c1e1a77f6688e48e996ec94e32b","timestamp":"2025-04-21T15:20:30.176Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dc34a86ca22b491572bc728db26ec8d2","timestamp":"2025-04-21T15:20:30.181Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5fbeaeed77f7e790089e3687b6272cc4","timestamp":"2025-04-21T15:20:30.185Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8890d8475daa4b9515427d7db88cd3f6","timestamp":"2025-04-21T15:20:30.190Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=06a8da2f6b8ccb05be8606d6f5785c3e","timestamp":"2025-04-21T15:20:30.194Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=12b912bafbdae6136947a2405c43afc7","timestamp":"2025-04-21T15:20:30.199Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=75e90bb5664f78f2d4e89dba9c764340","timestamp":"2025-04-21T15:20:30.203Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d1a1a0c6759fa0092a9ac54cc6bca38c","timestamp":"2025-04-21T15:20:30.207Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5c62c06c28391e47ca9da69d82d6b665","timestamp":"2025-04-21T15:20:30.212Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e1313ff9002847b61b9f8ea825150512","timestamp":"2025-04-21T15:20:30.215Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=3987b209726bd85f79f6668c69cec67a","timestamp":"2025-04-21T15:20:30.219Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e7dd7cc2be1f4cf5628ac67496f0ff60","timestamp":"2025-04-21T15:20:30.223Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8d17604b9cd44fa9074cba30f7acb374","timestamp":"2025-04-21T15:20:30.227Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1643e4ae05e31df62ceaa1c784dbf2e7","timestamp":"2025-04-21T15:20:30.232Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b6de4a34d192b6d3c6a04d64921bc2c6","timestamp":"2025-04-21T15:20:30.237Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d85d2c40506052a630bb7737bc2769e6","timestamp":"2025-04-21T15:20:30.242Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8edb112101cbbaa5bef2c3a08f275ec6","timestamp":"2025-04-21T15:20:30.245Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4b83b24f9c0cb26179c0637632426e4a","timestamp":"2025-04-21T15:20:30.248Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=221d5a74f84eca5d55db182e0a3d9143","timestamp":"2025-04-21T15:20:30.252Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=7e030d98195da1dd7f81b669c666dca7","timestamp":"2025-04-21T15:20:30.257Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4256b2a7e0d8b7ed947ba6c1f5f72d15","timestamp":"2025-04-21T15:20:30.261Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a87f7b05515098ad5a3079377690f769","timestamp":"2025-04-21T15:20:30.265Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4401b63702956724a4ccb3bb849f7207","timestamp":"2025-04-21T15:20:30.269Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5957393c426559cd5ffb817d29e4da37","timestamp":"2025-04-21T15:20:30.273Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=064746c1fd4456b7021c936bb9638dfc","timestamp":"2025-04-21T15:20:30.278Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745098219233-r5wj2olz0","timestamp":"2025-04-21T15:20:30.282Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243339797-5jz07df5q","timestamp":"2025-04-21T15:20:30.286Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e50442b5c6fad89fc34176fc078d56f1","timestamp":"2025-04-21T15:20:30.290Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=750e6a49666b28814122e1d901aea6b5","timestamp":"2025-04-21T15:20:30.293Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8bbf43a7d107802415e69966ec47edd7","timestamp":"2025-04-21T15:20:30.296Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745248639754-svfzgedxz","timestamp":"2025-04-21T15:20:30.300Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f622d55418e4159e864ea4e6e18115d9","timestamp":"2025-04-21T15:20:30.304Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cee8775f1ef14ec06069222412527621","timestamp":"2025-04-21T15:20:30.307Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=4801418ef94eac344f7372c5db4bcd41","timestamp":"2025-04-21T15:20:30.311Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=6f93b96d30b4ef36faa2943c5635d949","timestamp":"2025-04-21T15:20:30.315Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=784e89fbeba721cf5c3dda2267d9ddd5","timestamp":"2025-04-21T15:20:30.319Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=30c3be3e079722b3a8d20203b1a567f9","timestamp":"2025-04-21T15:20:30.324Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745221905698-9rejq7xoe","timestamp":"2025-04-21T15:20:30.329Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=85f386bbe2c9b7affbd50d0366a39147","timestamp":"2025-04-21T15:20:30.333Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=2d284866bfe0da04a3716d3f96d2cc64","timestamp":"2025-04-21T15:20:30.337Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1745243066352-5zqw1zro4","timestamp":"2025-04-21T15:20:30.341Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8f897f5f63a679da6893cac2548cdd8c","timestamp":"2025-04-21T15:20:30.345Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d6c03e2a1a30f997e7ae94097b8bdc33","timestamp":"2025-04-21T15:20:30.348Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=00e90de9aef9134750d4519a5e10c4ee","timestamp":"2025-04-21T15:20:30.352Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f79a4edd77d8db2def23394f52e0d0a4","timestamp":"2025-04-21T15:20:30.356Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b710161e84700cd43778fb846c4017ff","timestamp":"2025-04-21T15:20:30.361Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5a7dec430e4da72e53b8b07fc1713a4e","timestamp":"2025-04-21T15:20:30.366Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bdbb9e9a6b156fb309480755554c017c","timestamp":"2025-04-21T15:20:30.371Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cd399a7b2782ab9dcd510a6d624311ef","timestamp":"2025-04-21T15:20:30.375Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:20:30.379Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:20:30.393Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:20:30.397Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:20:30.421Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:20:30.428Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:20:30.437Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:30.439Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:20:30.450Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:20:30.454Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:20:30.877Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:20:31.360Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:20:31.363Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-04-21T15:20:31.377Z"}
+{"level":"info","message":"GET /api/chat/history?offset=8&limit=30","timestamp":"2025-04-21T15:20:31.404Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:20:31.441Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:20:33.031Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:20:33.616Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:20:33.617Z"}
+{"level":"info","message":"GET /api/tokens/balances","timestamp":"2025-04-21T15:20:33.624Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-04-21T15:20:33.625Z"}
+{"balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on eth:","timestamp":"2025-04-21T15:20:34.142Z"}
+{"balance":"500000.0","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on bsc:","timestamp":"2025-04-21T15:20:34.560Z"}
+{"balance":"499999.9","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on arbitrum:","timestamp":"2025-04-21T15:20:35.371Z"}
+{"balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","level":"info","message":"Token balance for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b on polygon:","timestamp":"2025-04-21T15:20:35.994Z"}
+{"arbitrum":"499999.9","bsc":"500000.0","eth":"1500000.0","level":"info","message":"Token balances fetched for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","polygon":"454852.0","timestamp":"2025-04-21T15:20:35.994Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:21:01.365Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:21:01.368Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:21:31.514Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:21:31.517Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:22:01.666Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:22:01.670Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:22:31.789Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:22:31.792Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:23:15.026Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-04-21T15:23:15.030Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-04-21T15:23:42.883Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:23:43.989Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-04-21T15:23:43.993Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-04-21T15:23:44.017Z"}

@@ -118,4 +118,9 @@ async function initializeDatabase() {
   }
 }
 
-module.exports = { initializeDatabase };
+const initDb = async () => {
+  await createTables();
+  // await initRoles(); // Вызов тоже удаляем
+};
+
+module.exports = initDb;
