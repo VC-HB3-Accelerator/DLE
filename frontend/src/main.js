@@ -8,7 +8,8 @@ import axios from 'axios';
 
 // Настройка axios
 // В Docker контейнере localhost:8000 не работает, поэтому используем явное значение
-const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:8000' : import.meta.env.VITE_API_URL;
+const apiUrl =
+  window.location.hostname === 'localhost' ? 'http://localhost:8000' : import.meta.env.VITE_API_URL;
 axios.defaults.baseURL = apiUrl;
 axios.defaults.withCredentials = true;
 

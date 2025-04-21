@@ -1,15 +1,96 @@
+/* Переменные CSS для цветов, размеров и т.д. */
+:root {
+  /* Цвета */
+  --color-primary: #4CAF50;
+  --color-primary-dark: #45a049;
+  --color-secondary: #2196F3;
+  --color-danger: #F44336;
+  --color-warning: #FF9800;
+  --color-light: #f5f5f5;
+  --color-dark: #333333;
+  --color-grey: #777777;
+  --color-grey-light: #e0e0e0;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-telegram: #0088cc;
+  --color-error: #e74c3c;
+  
+  /* Цвета сообщений */
+  --color-user-message: #EFFAFF;
+  --color-ai-message: #F8F8F8;
+  --color-system-message: #FFF3E0;
+  --color-system-text: #FF5722;
+  
+  /* Тени */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  
+  /* Отступы */
+  --spacing-xs: 5px;
+  --spacing-sm: 10px;
+  --spacing-md: 15px;
+  --spacing-lg: 20px;
+  --spacing-xl: 30px;
+  
+  /* Размеры шрифтов */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 24px;
+  
+  /* Радиусы скругления */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  
+  /* Переходы */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  
+  /* Размеры компонентов */
+  --sidebar-width: 110px;
+  --sidebar-expanded-width: 325px;
+  --nav-btn-size: 40px;
+  --chat-input-min-height: 100px;
+  --chat-input-max-height: 200px;
+  --chat-input-focus-min-height: 170px;
+  --chat-input-focus-max-height: 300px;
+  
+  /* Унифицированные размеры для кнопок и форм */
+  --button-height: 48px;
+  --button-height-mobile: 42px;
+  --button-padding: 0 var(--spacing-lg);
+  --button-gap: var(--spacing-md);
+  --form-gap: var(--spacing-md);
+  --block-padding: 24px;
+  --block-padding-mobile: 16px;
+  --block-margin: 24px;
+  --block-margin-mobile: 16px;
+  --input-height: 48px;
+  --input-height-mobile: 42px;
+  --input-padding: 0 var(--spacing-lg);
+  
+  /* Общие стили */
+  --button-radius: var(--radius-lg);
+  --input-radius: var(--radius-lg);
+  --block-radius: var(--radius-lg);
+}
+
 /* Общие стили для всех элементов */
 * {
-  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background-color: #fff;
+  background-color: var(--color-white);
 }
 
 /* Стили для монопространственных шрифтов (код, верификация) */
@@ -23,56 +104,77 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h3 {
-  font-size: 18px;
-  margin-bottom: 15px;
+  font-size: var(--font-size-xl);
+  margin-bottom: var(--spacing-md);
 }
 
 p {
-  font-size: 14px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
 }
 
-button, .btn, .auth-btn, .send-email-btn, .verify-btn, .wallet-disconnect-btn-small, .cancel-btn {
-  font-size: 14px;
-}
-
 input, textarea {
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
+/* Контейнеры */
 .app-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-color: #fff;
+  background-color: var(--color-white);
 }
 
-/* Стили для боковой панели */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+  width: 100%;
+}
+
+/* Адаптация контента при боковой панели */
+.sidebar-expanded ~ .main-content {
+  margin-left: 190px;
+}
+
+.main-content.no-right-sidebar {
+  margin-right: 190px;
+}
+
+.main-content:not(.no-right-sidebar) {
+  margin-right: 190px;
+}
+
+/* Стили для боковой панели (sidebar) */
 .sidebar {
-  width: 110px;
-  min-width: 110px;
-  background-color: #f5f5f5;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background-color: var(--color-light);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 20px;
+  padding-top: var(--spacing-lg);
   position: fixed;
   height: 100vh;
   z-index: 2;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .sidebar.sidebar-expanded {
-  width: 325px;
-  min-width: 325px;
+  width: var(--sidebar-expanded-width);
+  min-width: var(--sidebar-expanded-width);
 }
 
+/* Кнопка меню в боковой панели */
 .menu-button {
-  width: 40px;
-  height: 40px;
-  background: white;
-  border: 1px solid #333;
-  border-radius: 4px;
+  width: var(--nav-btn-size);
+  height: var(--nav-btn-size);
+  background: var(--color-white);
+  border: 1px solid var(--color-dark);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -85,7 +187,7 @@ input, textarea {
 .hamburger {
   width: 24px;
   height: 3px;
-  background-color: #333;
+  background-color: var(--color-dark);
   position: relative;
 }
 
@@ -95,7 +197,7 @@ input, textarea {
   position: absolute;
   width: 24px;
   height: 3px;
-  background-color: #333;
+  background-color: var(--color-dark);
   left: 0;
 }
 
@@ -107,11 +209,12 @@ input, textarea {
   bottom: -8px;
 }
 
+/* Навигационные кнопки */
 .nav-buttons {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: 110px;
+  gap: var(--spacing-lg);
+  width: var(--sidebar-width);
   padding: 0;
   position: fixed;
   left: 35px;
@@ -119,23 +222,23 @@ input, textarea {
 }
 
 .nav-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid #333;
-  border-radius: 4px;
-  background: white;
+  width: var(--nav-btn-size);
+  height: var(--nav-btn-size);
+  border: 1px solid var(--color-dark);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   padding: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .nav-btn-text {
-  font-size: 16px;
-  color: #333;
+  font-size: var(--font-size-lg);
+  color: var(--color-dark);
   opacity: 0;
   visibility: hidden;
   white-space: nowrap;
@@ -161,756 +264,16 @@ input, textarea {
   padding-left: 40px;
 }
 
-/* Стили для основного контента */
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-  width: 100%;
-}
-
-.sidebar-expanded ~ .main-content {
-  margin-left: 190px; /* 40px + 110px (sidebar) + 40px (button) */
-}
-
-/* Стили для адаптации основного содержимого при скрытии правой панели */
-.main-content.no-right-sidebar {
-  margin-right: 190px; /* 40px + 110px (sidebar) + 40px (button) */
-}
-
-.main-content:not(.no-right-sidebar) {
-  margin-right: 190px; /* 40px + 110px (sidebar) + 40px (button) */
-}
-
-/* Стили для контейнера чата */
-.chat-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  margin: 20px 0 35px 0; /* Добавляем нижний отступ 35px */
-  height: calc(100vh - 195px); /* Вычитаем высоту header, footer и margins */
-  min-height: 500px; /* Минимальная высота для контейнера */
-  position: relative;
-}
-
-.chat-messages {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow-y: auto; /* Обеспечиваем прокрутку */
-  padding: 20px;
-  margin-bottom: 20px;
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 135px; /* Базовое значение: минимальная высота chat-input (100px) + margin (15px) + padding (20px) */
-  transition: bottom 0.3s ease; /* Плавный переход для изменения позиции */
-}
-
-/* Адаптация позиции при активации фокуса */
-.chat-container:has(.chat-input.focused) .chat-messages {
-  bottom: 235px; /* Для расширенного chat-input: 200px + margin (15px) + padding (20px) */
-}
-
-/* Реализуем программное изменение позиции через JS для браузеров без поддержки :has */
-@media (max-width: 100vw) {
-  .chat-input.focused ~ .messages-container {
-    bottom: 235px;
-  }
-}
-
-.message {
-  margin-bottom: 15px;
-  padding: 10px 15px;
-  border-radius: 8px;
-  max-width: 75%;
-  word-wrap: break-word;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.user-message {
-  background-color: #EFFAFF;
-  align-self: flex-end;
-  margin-left: auto;
-  margin-right: 10px;
-  border-bottom-right-radius: 2px;
-}
-
-.ai-message {
-  background-color: #F8F8F8;
-  align-self: flex-start;
-  margin-right: auto;
-  margin-left: 10px;
-  word-break: break-word;
-  max-width: 70%;
-  border-bottom-left-radius: 2px;
-}
-
-.system-message {
-  background-color: #FFF3E0;
-  align-self: center;
-  margin-left: auto;
-  margin-right: auto;
-  font-style: italic;
-  color: #FF5722;
-  text-align: center;
-  max-width: 90%;
-}
-
-.message-content {
-  margin-bottom: 5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.message-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.message-time {
-  font-size: 12px;
-  color: #777;
-  text-align: right;
-}
-
-.message-status {
-  font-size: 12px;
-  color: #777;
-}
-
-.sending-indicator {
-  color: #2196F3;
-  font-style: italic;
-}
-
-.error-indicator {
-  color: #F44336;
-  font-weight: bold;
-}
-
-.is-local {
-  opacity: 0.7;
-}
-
-.has-error {
-  border: 1px solid #F44336;
-}
-
-/* Стили для ввода сообщений */
-.chat-input {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 15px 20px; /* Уменьшаем вертикальный padding */
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: auto; /* Меняем на auto для адаптивной высоты */
-  min-height: 100px; /* Минимальная высота */
-  max-height: 200px; /* Максимальная высота */
-  transition: min-height 0.3s ease, padding 0.3s ease; /* Добавляем transition для padding */
-  margin-bottom: 15px; /* Отступ от нижнего края экрана */
-  z-index: 10; /* Обеспечиваем отображение поверх других элементов */
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Добавляем тень для выделения */
-}
-
-/* Стиль для input при фокусе */
-.chat-input.focused {
-  min-height: 170px; /* Увеличенная минимальная высота при фокусе */
-  max-height: 300px; /* Увеличенная максимальная высота при фокусе */
-  padding: 20px; /* Увеличиваем padding при фокусе */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); /* Усиливаем тень при фокусе */
-}
-
-.chat-input textarea {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  resize: none;
-  font-size: 14px;
-  line-height: 1.5;
-  min-height: 40px; /* Уменьшаем минимальную высоту */
-  transition: min-height 0.3s ease, border-color 0.3s ease; /* Плавный переход для высоты и границы */
-}
-
-.chat-input textarea:focus {
-  outline: none;
-  border-color: #4CAF50; /* Подсветка границы при фокусе */
-}
-
-.chat-input.focused textarea {
-  min-height: 120px; /* Увеличенная высота textarea при фокусе */
-}
-
-.chat-input button {
-  padding: 0 20px;
-  background: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
-}
-
-.chat-input button:hover:not(:disabled) {
-  background: #45a049;
-}
-
-.chat-input button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-/* Стили для правой панели с информацией о кошельке */
-.wallet-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 100vh;
-  background: white;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  overflow-y: auto;
-  z-index: 1000;
-}
-
-.wallet-buttons {
-  margin-top: 40px;
-  width: 100%;
-}
-
-/* Общий стиль для кнопок */
-.wallet-connect-btn,
-.wallet-disconnect-btn,
-.auth-btn,
-.bot-link,
-.verify-btn,
-.send-email-btn,
-.cancel-btn {
-  border: 1px solid #333;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 10px 15px;
-  margin-bottom: 10px;
-  transition: background-color 0.2s;
-}
-
-.wallet-connect-btn,
-.wallet-disconnect-btn {
-  box-sizing: border-box;
-  width: 100%;
-  white-space: normal;
-  text-align: center;
-  line-height: 1.3;
-  border: 1px solid #333;
-  border-radius: 4px;
-  margin-bottom: 30px;
-  font-size: 16px;
-  padding: 12px 15px;
-}
-
-.wallet-connect-btn {
-  background-color: white;
-  color: #333;
-}
-
-.wallet-disconnect-btn {
-  background-color: white;
-  color: #e74c3c;
-  border-color: #e74c3c;
-}
-
-.wallet-connect-btn:hover {
-  background-color: #f0f0f0;
-}
-
-.wallet-disconnect-btn:hover {
-  background-color: #ffebee;
-}
-
-.auth-btn {
-  padding: 12px 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  box-sizing: border-box;
-  color: #333;
-  background-color: white;
-  margin-bottom: 0;
-}
-
-.email-btn, 
-.telegram-btn {
-  color: #333;
-  background-color: white;
-}
-
-.auth-btn:hover,
-.bot-link:hover,
-.verify-btn:hover:not(:disabled),
-.send-email-btn:hover:not(:disabled),
-.cancel-btn:hover {
-  background-color: #f0f0f0;
-}
-
-.bot-link {
-  display: block;
-  text-align: center;
-  padding: 10px;
-  border-radius: 4px;
-  text-decoration: none;
-  font-weight: bold;
-  transition: background-color 0.2s;
-  box-sizing: border-box;
-  font-size: 14px;
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-}
-
-.balance-container {
-  margin-top: 20px;
-}
-
-.balance-container h3 {
-  margin-bottom: 15px;
-  font-size: 18px;
-}
-
-.token-balance {
-  display: flex;
-  margin-bottom: 10px;
-  font-size: 16px;
-}
-
-.token-name {
-  width: 60px;
-}
-
-.token-amount {
-  flex: 1;
-  text-align: right;
-  padding-right: 10px;
-}
-
-.token-symbol {
-  width: 60px;
-  text-align: right;
-}
-
-.wallet-address {
-  margin-top: 30px;
-}
-
-.wallet-address h3 {
-  margin-bottom: 10px;
-  font-size: 18px;
-}
-
-.address {
-  font-family: monospace;
-  font-size: 14px;
-  word-break: break-all;
-}
-
-/* Стили для кнопок авторизации */
-.auth-buttons {
-  display: flex;
-  flex-direction: column;
-  margin-top: 15px;
-  margin-bottom: 20px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.auth-buttons h3 {
-  margin-bottom: 15px;
-  font-size: 16px;
-}
-
-.auth-btn-container {
-  width: 100%;
-  margin-bottom: 15px;
-  box-sizing: border-box;
-}
-
-.verification-block,
-.email-form,
-.email-verification-form {
-  background-color: white;
-  border-radius: 4px;
-  padding: 12px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  margin-bottom: 15px;
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #ddd;
-}
-
-.verification-code {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 15px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.verification-code span {
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: #555;
-}
-
-.verification-code code {
-  background-color: #f5f5f5;
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  user-select: all;
-  border: 1px dashed #ddd;
-  width: 100%;
-  display: block;
-  box-sizing: border-box;
-  text-align: center;
-}
-
-.verification-code .copied-message {
-  color: #4CAF50;
-  font-size: 12px;
-  margin-top: 5px;
-}
-
-.user-info {
-  margin-top: 20px;
-}
-
-.user-info h3 {
-  margin-bottom: 10px;
-  font-size: 18px;
-}
-
-.user-info-item {
-  display: flex;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.user-info-label {
-  min-width: 80px;
-  color: #555;
-}
-
-.user-info-value {
-  font-weight: bold;
-}
-
-/* Стили для форм верификации Email */
-.email-verification-form p {
-  margin-bottom: 8px;
-  font-size: 13px;
-}
-
-.verification-input {
-  display: flex;
-  margin-bottom: 10px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.verification-input input {
-  flex-grow: 1;
-  flex-shrink: 1;
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-  letter-spacing: 1px;
-  text-align: center;
-  box-sizing: border-box;
-}
-
-.verify-btn {
-  padding: 0 10px;
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  border-radius: 4px;
-  margin-left: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-size: 13px;
-  height: 32px;
-}
-
-.verify-btn:disabled {
-  background-color: #f5f5f5;
-  color: #999;
-  border-color: #ddd;
-  cursor: not-allowed;
-}
-
-.email-input-container {
-  display: flex;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.email-input {
-  flex-grow: 1;
-  flex-shrink: 1;
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-  box-sizing: border-box;
-}
-
-.email-input-error {
-  border-color: #e74c3c;
-}
-
-.send-email-btn {
-  padding: 0 10px;
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-size: 13px;
-  height: 32px;
-  width: 100%;
-  margin-left: 0;
-  box-sizing: border-box;
-}
-
-.send-email-btn:disabled {
-  background-color: #f5f5f5;
-  color: #999;
-  border-color: #ddd;
-  cursor: not-allowed;
-}
-
-.email-format-error {
-  color: #e74c3c;
-  font-size: 12px;
-  margin-top: 5px;
-}
-
-.form-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: start;
-}
-
-.cancel-btn {
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  border-radius: 4px;
-  padding: 8px 15px;
-  font-size: 13px;
-  cursor: pointer;
-  margin-top: 10px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.error-message {
-  background-color: white;
-  color: #e74c3c;
-  padding: 12px;
-  border-radius: 4px;
-  margin-top: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  box-sizing: border-box;
-  word-wrap: break-word;
-  word-break: break-word;
-  border: 1px solid #e74c3c;
-}
-
-.close-error {
-  background: none;
-  border: none;
-  color: #e74c3c;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 0 5px;
-}
-
-.verification-block p,
-.email-form p,
-.email-verification-form p {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  line-height: 1.4;
-}
-
-.email-verification-form strong {
-  word-break: break-all;
-}
-
-/* Медиа-запросы для адаптивности */
-@media (max-width: 1200px) {
-  .header-content,
-  .main-content {
-    max-width: 100%;
-    padding: 0 15px;
-  }
-}
-
-/* Медиа-запросы для мобильных устройств */
-@media screen and (max-width: 768px) {
-  .chat-container {
-    margin: 10px 0 25px 0;
-    height: calc(100vh - 165px);
-  }
-  
-  .chat-messages {
-    padding: 15px;
-  }
-  
-  .message {
-    max-width: 85%;
-    padding: 8px 12px;
-  }
-  
-  .ai-message {
-    max-width: 85%;
-  }
-  
-  .chat-input {
-    padding: 10px 15px;
-    margin-bottom: 10px;
-  }
-  
-  .chat-input textarea {
-    padding: 10px;
-    font-size: 14px;
-  }
-  
-  .header-content {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px;
-  }
-
-  .header-text {
-    flex: 1;
-    margin-right: 10px;
-    min-width: 0; /* Важно для корректной работы text-overflow */
-  }
-
-  .title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 1.2rem;
-    margin: 0;
-  }
-
-  .subtitle {
-    white-space: normal;
-    font-size: 0.9rem;
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  .header-wallet-btn {
-    flex-shrink: 0;
-    margin-left: 10px;
-  }
-}
-
-/* Дополнительные стили для очень маленьких экранов */
-@media screen and (max-width: 480px) {
-  .chat-container {
-    margin: 5px 0 20px 0;
-    height: calc(100vh - 150px);
-  }
-  
-  .message {
-    max-width: 90%;
-    margin-bottom: 10px;
-    font-size: 13px;
-  }
-  
-  .ai-message, .user-message {
-    max-width: 90%;
-  }
-  
-  .message-time {
-    font-size: 10px;
-  }
-  
-  .header-content {
-    padding: 8px;
-  }
-
-  .title {
-    font-size: 1.1rem;
-  }
-
-  .subtitle {
-    font-size: 0.8rem;
-  }
-  
-  .chat-buttons button {
-    padding: 8px 10px;
-    font-size: 13px;
-    max-width: 120px;
-  }
-}
-
-/* Стиль для кнопки в нижней части боковой панели */
+/* Кнопка в нижней части боковой панели */
 .sidebar-bottom-btn {
   position: fixed;
   bottom: 30px;
   left: 35px;
-  width: 40px;
-  height: 40px;
-  transition: width 0.3s ease;
+  width: var(--nav-btn-size);
+  height: var(--nav-btn-size);
+  transition: width var(--transition-normal);
 }
 
-/* Обновленный стиль для кнопки при раскрытом меню */
 .sidebar-expanded .sidebar-bottom-btn {
   width: auto;
   min-width: 200px;
@@ -923,32 +286,6 @@ input, textarea {
   left: 10px;
 }
 
-/* Кнопка закрытия правой панели */
-.close-wallet-sidebar {
-  position: static;
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  z-index: 2;
-  transition: background-color 0.2s;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.close-wallet-sidebar:hover {
-  background-color: #f0f0f0;
-}
-
 .sidebar-expanded .sidebar-bottom-btn .nav-btn-text {
   opacity: 1;
   visibility: visible;
@@ -957,211 +294,587 @@ input, textarea {
   display: inline-block;
 }
 
-.email-form-error {
-  color: #e74c3c;
-  margin-top: 5px;
-  margin-bottom: 5px;
-}
-
-.email-form-container {
+/* Стили для контейнера чата */
+.chat-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Стили для заголовка правой панели */
-.wallet-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  height: 40px;
-  position: relative;
-  margin-bottom: 15px;
-  gap: 10px;
-}
-
-/* Кнопки в верхней части правой панели */
-.wallet-top-buttons {
-  width: 100%;
-  margin-bottom: 20px;
-}
-
-.wallet-connect-btn-top,
-.wallet-disconnect-btn-top {
-  width: 100%;
-  height: 40px;
-  border-radius: 4px;
-  background-color: white;
-  border: 1px solid #333;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  box-sizing: border-box;
-  transition: background-color 0.2s;
-}
-
-.wallet-connect-btn-top {
-  color: #333;
-}
-
-.wallet-disconnect-btn-top {
-  color: #e74c3c;
-  border-color: #e74c3c;
-}
-
-.wallet-connect-btn-top:hover {
-  background-color: #f0f0f0;
-}
-
-.wallet-disconnect-btn-top:hover {
-  background-color: #ffebee;
-}
-
-.wallet-disconnect-btn-small {
-  position: absolute;
-  top: 10px;
-  right: 60px;
-  width: 90px;
-  height: 40px;
-  border-radius: 4px;
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  z-index: 2;
-  transition: background-color 0.2s;
-}
-
-.wallet-disconnect-btn-small:hover {
-  background-color: #f0f0f0;
-}
-
-.wallet-connect-btn-small {
-  position: absolute;
-  top: 10px;
-  right: 160px;
-  width: 100px;
-  height: 40px;
-  border-radius: 4px;
-  background-color: white;
-  color: #333;
-  border: 1px solid #333;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  z-index: 2;
-  transition: background-color 0.2s;
-}
-
-.wallet-connect-btn-small:hover {
-  background-color: #f0f0f0;
-}
-
-.wallet-connect-btn-header,
-.wallet-disconnect-btn-header {
-  height: 40px;
-  border-radius: 4px;
-  background-color: white;
-  border: 1px solid #333;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0 15px;
-  box-sizing: border-box;
-  transition: background-color 0.2s;
-  flex-grow: 1;
-}
-
-.wallet-connect-btn-header {
-  color: #333;
-}
-
-.wallet-disconnect-btn-header {
-  color: #e74c3c;
-  border-color: #e74c3c;
-}
-
-.wallet-connect-btn-header:hover {
-  background-color: #f0f0f0;
-}
-
-.wallet-disconnect-btn-header:hover {
-  background-color: #ffebee;
-}
-
-.main-container {
-  padding-top: 0;
-  max-width: 1200px;
-  margin: 0 auto;
+  margin: var(--spacing-lg) 0 35px 0;
+  height: calc(100vh - 195px);
+  min-height: 500px;
   position: relative;
 }
 
-.header {
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 20px 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
+.chat-messages {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-text {
+  flex-direction: column;
   flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 135px;
+  transition: bottom var(--transition-normal);
 }
 
-.title {
-  font-size: 24px;
+/* Адаптация позиции при активации фокуса */
+.chat-container:has(.chat-input.focused) .chat-messages {
+  bottom: 235px;
+}
+
+/* Реализуем программное изменение позиции через JS для браузеров без поддержки :has */
+@media (max-width: 100vw) {
+  .chat-input.focused ~ .messages-container {
+    bottom: 235px;
+  }
+}
+
+/* Стили для сообщений */
+.message {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  max-width: 75%;
+  word-wrap: break-word;
+  position: relative;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-message {
+  background-color: var(--color-user-message);
+  align-self: flex-end;
+  margin-left: auto;
+  margin-right: var(--spacing-sm);
+  border-bottom-right-radius: 2px;
+}
+
+.ai-message {
+  background-color: var(--color-ai-message);
+  align-self: flex-start;
+  margin-right: auto;
+  margin-left: var(--spacing-sm);
+  word-break: break-word;
+  max-width: 70%;
+  border-bottom-left-radius: 2px;
+}
+
+.system-message {
+  background-color: var(--color-system-message);
+  align-self: center;
+  margin-left: auto;
+  margin-right: auto;
+  font-style: italic;
+  color: var(--color-system-text);
+  text-align: center;
+  max-width: 90%;
+}
+
+.message-content {
+  margin-bottom: var(--spacing-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+.message-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.message-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-grey);
+  text-align: right;
+}
+
+.message-status {
+  font-size: var(--font-size-xs);
+  color: var(--color-grey);
+}
+
+.sending-indicator {
+  color: var(--color-secondary);
+  font-style: italic;
+}
+
+.error-indicator {
+  color: var(--color-danger);
+  font-weight: bold;
+}
+
+.is-local {
+  opacity: 0.7;
+}
+
+.has-error {
+  border: 1px solid var(--color-danger);
+}
+
+/* Стили для ввода сообщений */
+.chat-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  min-height: var(--chat-input-min-height);
+  max-height: var(--chat-input-max-height);
+  transition: min-height var(--transition-normal), padding var(--transition-normal);
+  margin-bottom: var(--spacing-md);
+  z-index: 10;
+  box-shadow: none;
+}
+
+/* Стиль для input при фокусе */
+.chat-input.focused {
+  min-height: var(--chat-input-focus-min-height);
+  max-height: var(--chat-input-focus-max-height);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.chat-input textarea {
+  flex: 1;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-grey-light);
+  border-radius: var(--radius-sm);
+  resize: none;
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  min-height: 40px;
+  transition: min-height var(--transition-normal), border-color var(--transition-normal);
+}
+
+.chat-input textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.chat-input.focused textarea {
+  min-height: 120px;
+}
+
+.chat-input button {
+  padding: 0 var(--spacing-lg);
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  transition: background-color var(--transition-normal);
+}
+
+.chat-input button:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.chat-input button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Стили для кнопок в чате */
+.chat-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  padding-bottom: 0;
+  width: 100%;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  box-sizing: border-box;
+}
+
+.chat-buttons button {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  transition: background-color var(--transition-normal);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-buttons button:first-child {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+.chat-buttons button:first-child:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+  }
+  
+.chat-buttons .clear-btn {
+  background-color: var(--color-danger);
+  color: var(--color-white);
+}
+
+.chat-buttons .clear-btn:hover:not(:disabled) {
+  background-color: #da190b;
+  }
+  
+.chat-buttons button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Стили для правой панели */
+  .wallet-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-white);
+  z-index: 1000;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-normal), opacity var(--transition-normal);
+  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.wallet-sidebar-content {
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+/* Блок с кнопкой отключения */
+.disconnect-block {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+}
+
+.disconnect-btn {
+  width: 100%;
+  height: 48px;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.disconnect-btn:hover {
+  background-color: #ffebee;
+}
+
+/* Кнопка закрытия */
+.close-wallet-sidebar {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  background-color: var(--color-white);
+  color: var(--color-dark);
+  border: 1px solid var(--color-grey);
+  border-radius: var(--radius-lg);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: all var(--transition-normal);
+  margin-left: var(--spacing-sm);
+}
+
+.close-wallet-sidebar:hover {
+  background-color: var(--color-grey-light);
+  border-color: var(--color-dark);
+}
+
+/* Блок идентификаторов */
+.identifiers-block {
+  width: 100%;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: var(--spacing-lg);
+}
+
+.identifiers-block h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-dark);
+  border-bottom: 1px solid var(--color-grey-light);
+  padding-bottom: var(--spacing-sm);
+}
+
+.identifier-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-md);
+}
+
+.identifier-item:last-child {
+  margin-bottom: 0;
+}
+
+.identifier-label {
+  min-width: 100px;
+  color: var(--color-grey);
   font-weight: 500;
-  color: #333;
-  margin-bottom: 5px;
 }
 
-.subtitle {
-  font-size: 16px;
+.identifier-value {
+  flex: 1;
+  font-family: monospace;
+  color: var(--color-dark);
+  word-break: break-all;
+}
+
+/* Медиа-запросы */
+@media screen and (min-width: 1200px) {
+  .wallet-sidebar {
+    width: 30%;
+    max-width: 550px;
+  }
+}
+
+@media screen and (min-width: 769px) and (max-width: 1199px) {
+  .wallet-sidebar {
+    width: 40%;
+    max-width: 500px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .wallet-sidebar {
+    padding: var(--spacing-md);
+  }
+
+  .wallet-sidebar-content {
+    padding: 0;
+    gap: var(--spacing-md);
+  }
+
+  .disconnect-block {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .disconnect-btn,
+  .close-wallet-sidebar {
+    height: 42px;
+  }
+
+  .close-wallet-sidebar {
+    width: 42px;
+    min-width: 42px;
+    font-size: 18px;
+  }
+
+  .identifiers-block {
+    padding: var(--spacing-md);
+  }
+
+  .identifier-item {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .identifier-label {
+    min-width: 80px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .wallet-sidebar {
+    padding: var(--spacing-sm);
+  }
+
+  .wallet-sidebar-content {
+    gap: var(--spacing-sm);
+  }
+
+  .disconnect-block {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .disconnect-btn,
+  .close-wallet-sidebar {
+    height: 36px;
+    font-size: var(--font-size-sm);
+  }
+
+  .close-wallet-sidebar {
+    width: 36px;
+    min-width: 36px;
+  }
+
+  .identifiers-block {
+    padding: var(--spacing-sm);
+  }
+}
+
+/* Стили для блока кнопок авторизации */
+.auth-buttons-container {
+  width: 100%;
+  max-width: 450px;
+  margin-bottom: var(--spacing-lg);
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Стили для заголовка */
+.header-with-close {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--nav-btn-size);
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+}
+
+/* Стили для кнопок в заголовке */
+.header-button {
+  height: var(--nav-btn-size);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all var(--transition-normal);
+}
+
+/* Стили для кнопок авторизации */
+.auth-buttons-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.auth-btn {
+  width: 100%;
+  height: var(--nav-btn-size);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-light);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--color-dark);
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0 var(--spacing-md);
+  box-sizing: border-box;
+  transition: all var(--transition-normal);
+  margin: 0;
+}
+
+.auth-btn:hover {
+  background-color: var(--color-grey-light);
+}
+
+/* Стили для блока информации о пользователе и баланса токенов */
+.user-info, .token-balances {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.user-info h3, .token-balances h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-dark);
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.user-info-item, .token-balance {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-md);
+}
+
+.user-info-label, .token-name {
+  min-width: 80px;
   color: #666;
+  font-weight: 500;
 }
 
+.user-info-value, .token-amount {
+  flex: 1;
+  color: var(--color-dark);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-symbol {
+  margin-left: var(--spacing-xs);
+  color: #666;
+  font-size: var(--font-size-xs);
+}
+
+/* Стили для кнопки бургера в шапке */
 .header-wallet-btn {
-  margin-left: 20px;
-  padding: 10px;
+  margin-left: var(--spacing-lg);
+  padding: var(--spacing-sm);
   background: transparent;
-  color: #333;
+  color: var(--color-dark);
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
-  transition: background-color 0.3s;
+  gap: var(--spacing-sm);
+  transition: background-color var(--transition-normal);
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: var(--nav-btn-size);
+  height: var(--nav-btn-size);
   justify-content: center;
 }
 
@@ -1184,8 +897,8 @@ input, textarea {
   position: absolute;
   width: 24px;
   height: 2px;
-  background-color: #333;
-  transition: all 0.3s ease;
+  background-color: var(--color-dark);
+  transition: all var(--transition-normal);
 }
 
 .header-wallet-btn::before {
@@ -1225,263 +938,1113 @@ input, textarea {
   opacity: 0;
 }
 
-.header-wallet-btn .hamburger-line {
-  top: 50%;
-  transform: translateY(-50%);
+/* Стили для заголовка */
+.header {
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-grey-light);
+  padding: var(--spacing-lg) 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
-.footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-text {
+  flex: 1;
+}
+
+.title {
+  font-size: var(--font-size-xxl);
+  font-weight: 500;
+  color: var(--color-dark);
+  margin-bottom: var(--spacing-xs);
+}
+
+.subtitle {
+  font-size: var(--font-size-lg);
+  color: #666;
+}
+
+/* Анимация появления и исчезновения правой панели */
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: all var(--transition-normal);
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+  }
+
+.sidebar-slide-enter-to,
+.sidebar-slide-leave-from {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* Стили для блока кнопок авторизации */
+.auth-buttons-container {
+  width: 100%;
+  max-width: 450px;
+  margin-bottom: var(--spacing-lg);
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.auth-btn {
+  width: 100%;
+  height: var(--nav-btn-size);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-light);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--color-dark);
+  font-size: var(--font-size-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f5f5f5;
-  border-top: 1px solid #e0e0e0;
-}
-
-.footer p {
+  cursor: pointer;
+  padding: 0 var(--spacing-md);
+  box-sizing: border-box;
+  transition: all var(--transition-normal);
   margin: 0;
-  color: #666;
-  font-size: 14px;
 }
 
-/* Стили для отображения подключенного кошелька */
-.wallet-connected .wallet-button {
-  background-color: #4CAF50 !important;
-  color: white !important;
+.auth-btn:hover {
+  background-color: var(--color-grey-light);
 }
 
-.wallet-connected #auth-display {
-  display: inline-block;
-  padding: 8px 12px;
-  background-color: rgba(76, 175, 80, 0.1);
-  border: 1px solid #4CAF50;
-  border-radius: 4px;
-  margin-right: 10px;
-  color: #4CAF50;
-  font-weight: 500;
-}
-
-/* Индикатор подключения */
-.connection-indicator {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 8px;
-  background-color: #ccc;
-}
-
-.wallet-connected .connection-indicator {
-  background-color: #4CAF50;
-}
-
-/* Стили для кнопок авторизации */
-#auth-buttons {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-#logout-button {
-  display: none;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-#logout-button:hover {
-  background-color: #d32f2f;
-}
-
-/* Анимация для индикации подключения */
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+/* Медиа-запросы для адаптивности */
+@media screen and (min-width: 1200px) {
+  .wallet-sidebar {
+    width: 30%;
+    max-width: 550px;
   }
 }
 
-.wallet-connected .connection-indicator {
-  animation: pulse 2s infinite;
+@media screen and (min-width: 769px) and (max-width: 1199px) {
+  .wallet-sidebar {
+    width: 40%;
+    max-width: 500px;
+  }
 }
 
-/* Стили для отладочной информации */
-.debug-info {
-  margin-top: 20px;
-  padding: 10px;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-  font-size: 0.9em;
+@media screen and (min-width: 481px) and (max-width: 768px) {
+  .wallet-sidebar {
+    width: 100%;
+    padding: var(--spacing-md);
+  }
+  
+  .wallet-sidebar-content {
+    padding: 0;
+    gap: var(--spacing-md);
+  }
+
+  .sidebar-block {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .sidebar-block h3 {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .identifier-item,
+  .token-balance {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .identifier-label,
+  .token-name {
+    min-width: 80px;
+  }
+
+  .chat-container {
+    margin: var(--spacing-sm) 0 25px 0;
+    height: calc(100vh - 165px);
+  }
+
+  .chat-messages {
+    padding: var(--spacing-md);
+  }
+  
+  .message {
+    max-width: 85%;
+    padding: 8px var(--spacing-sm);
+  }
+
+  .ai-message {
+    max-width: 85%;
+  }
+  
+  .chat-input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .chat-input textarea {
+    padding: var(--spacing-sm);
+    font-size: var(--font-size-md);
+  }
+  
+  .header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm);
+  }
+
+  .header-text {
+    flex: 1;
+    margin-right: var(--spacing-sm);
+    min-width: 0;
+  }
+  
+  .title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1.2rem;
+    margin: 0;
+  }
+
+  .subtitle {
+    white-space: normal;
+    font-size: 0.9rem;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .header-wallet-btn {
+    flex-shrink: 0;
+    margin-left: var(--spacing-sm);
+  }
 }
 
-.debug-info h4 {
-  margin-top: 0;
-  margin-bottom: 8px;
-  color: #666;
+@media screen and (max-width: 480px) {
+  .wallet-sidebar {
+    padding: var(--spacing-sm);
+  }
+
+  .wallet-sidebar-content {
+    gap: var(--spacing-sm);
+  }
+
+  .sidebar-block {
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .disconnect-block {
+    padding: var(--spacing-sm) 0;
+  }
+
+  .wallet-header {
+    height: 32px;
+    gap: var(--spacing-xs);
+  }
+  
+  .wallet-header-buttons {
+    gap: var(--spacing-xs);
+  }
+  
+  .wallet-connect-btn-header,
+  .wallet-disconnect-btn-header,
+  .auth-btn.disconnect-wallet-btn {
+    height: 32px;
+    font-size: var(--font-size-sm);
+    padding: 0 12px;
+  }
+  
+  .close-wallet-sidebar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  font-size: 18px;
 }
 
-.debug-item {
-  margin-bottom: 8px;
-  word-break: break-all;
+  .auth-buttons-container {
+    padding: var(--spacing-sm);
+  }
+  
+  .auth-btn {
+    height: 32px;
+    font-size: var(--font-size-sm);
+  }
+  
+  .chat-container {
+    margin: var(--spacing-xs) 0 var(--spacing-lg) 0;
+    height: calc(100vh - 150px);
+  }
+  
+  .message {
+    max-width: 90%;
+    margin-bottom: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  .ai-message, .user-message {
+    max-width: 90%;
+  }
+
+  .message-time {
+    font-size: var(--font-size-xs);
+  }
+  
+  .header-content {
+    padding: 8px;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .subtitle {
+    font-size: 0.8rem;
+  }
+  
+  .chat-buttons button {
+    padding: 8px var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    max-width: 120px;
+  }
+  
+  .auth-btn,
+  .email-btn,
+  .telegram-btn,
+  .connect-wallet-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+  }
+  
+  .send-email-btn,
+  button.email-btn {
+    padding: 8px var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .chat-buttons {
+    gap: var(--spacing-xs);
+  }
+  
+  .chat-buttons button {
+    padding: 8px var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+  
+  .header-wallet-btn {
+    margin-left: var(--spacing-xs);
+    width: 32px;
+    height: 32px;
+    padding: 8px;
+  }
+
+  .header-wallet-btn::before,
+  .header-wallet-btn::after,
+  .header-wallet-btn .hamburger-line {
+    width: 18px;
+    height: 2px;
+  }
+  
+  .header-wallet-btn::before {
+    top: 10px;
+  }
+  
+  .header-wallet-btn::after {
+    bottom: 10px;
+  }
+
+  .auth-buttons-container {
+    padding: var(--spacing-sm);
+  }
+
+  .auth-buttons-container button.auth-btn,
+  .auth-buttons-container button.email-btn,
+  .auth-buttons-container button.telegram-btn,
+  .auth-buttons-container button.connect-wallet-btn {
+    height: 42px;
+    font-size: var(--font-size-sm);
+  }
 }
 
-.debug-item code {
-  background-color: #e0e0e0;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-family: monospace;
-  color: #333;
-}
+@media screen and (max-width: 360px) {
+  .wallet-sidebar {
+    padding: 8px 3px;
+  }
 
-.debug-buttons {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.small-button {
-  padding: 5px 10px;
-  background-color: #5e5e5e;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.8em;
-}
-
-.small-button:hover {
-  background-color: #444;
-}
-
-/* Стили для блоков информации о пользователе и баланса токенов */
-.user-info, .token-balances {
-  background: #fff;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.user-info h3, .token-balances h3 {
-  margin: 0 0 15px 0;
+  .wallet-header {
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .wallet-connect-btn-header,
+  .wallet-disconnect-btn-header,
+  .auth-btn.disconnect-wallet-btn {
+    font-size: var(--font-size-xs);
+    padding: 0 8px;
+  }
+  
+  .close-wallet-sidebar {
   font-size: 16px;
-  color: #333;
 }
 
-.user-info-item, .token-balance {
+  .identifiers-block {
+    padding: var(--spacing-sm);
+  }
+  
+  .identifiers-block h3 {
+    font-size: var(--font-size-md);
+    padding-bottom: var(--spacing-xs);
+  }
+}
+
+/* Анимации */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Стили для форм email и telegram */
+.auth-buttons-container .email-form,
+.auth-buttons-container .telegram-form,
+.auth-buttons-container .telegram-verification {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+/* Стили для инпутов */
+.auth-buttons-container input[type="email"],
+.auth-buttons-container input[type="text"] {
+  width: 100%;
+  height: 48px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-grey-light);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  margin: 0 0 var(--spacing-sm) 0;
+  box-sizing: border-box;
+  background-color: var(--color-white);
+}
+
+/* Стили для кнопок в формах */
+.auth-buttons-container .email-form button,
+.auth-buttons-container .telegram-form button,
+.auth-buttons-container .telegram-verification button,
+.auth-buttons-container .telegram-verification a {
+  width: 100%;
+  height: 48px;
+  margin: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  text-align: center;
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
-  font-size: 14px;
+  justify-content: center;
+  box-sizing: border-box;
+  text-decoration: none;
 }
 
-.user-info-label, .token-name {
-  min-width: 80px;
-  color: #666;
+/* Стили для основных кнопок */
+.auth-buttons-container button[type="submit"],
+.auth-buttons-container a[href*="telegram"] {
+  background-color: var(--color-primary);
+  color: var(--color-white);
 }
 
-.user-info-value, .token-amount {
-  flex: 1;
-  color: #333;
-  font-family: monospace;
+.auth-buttons-container button[type="submit"]:hover,
+.auth-buttons-container a[href*="telegram"]:hover {
+  background-color: var(--color-primary-dark);
 }
 
-.token-symbol {
-  margin-left: 5px;
-  color: #666;
-  font-size: 12px;
+/* Стили для кнопок отмены */
+.auth-buttons-container button:not([type="submit"]) {
+  background-color: var(--color-grey-light);
+  color: var(--color-dark);
 }
 
-/* Стили для правой панели */
-.right-sidebar {
-  width: 250px;
-  padding: 20px;
-  background: #f5f5f5;
-  border-left: 1px solid #ddd;
-  height: 100vh;
-  position: fixed;
-  right: 0;
-  top: 0;
-  overflow-y: auto;
+.auth-buttons-container button:not([type="submit"]):hover {
+  background-color: #d9d9d9;
 }
 
-.right-sidebar.collapsed {
-  width: 0;
-  padding: 0;
-  border-left: none;
+/* Стили для телеграм-ссылки */
+.auth-buttons-container a[href*="telegram"] {
+  background-color: var(--color-telegram);
 }
 
-/* Стили для кнопок в чате */
-.chat-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 5px;
-  padding-bottom: 0;
+.auth-buttons-container a[href*="telegram"]:hover {
+  background-color: #0077b3;
+}
+
+@media screen and (max-width: 480px) {
+  .auth-buttons-container .email-form button,
+  .auth-buttons-container .telegram-form button,
+  .auth-buttons-container .telegram-verification button,
+  .auth-buttons-container .telegram-verification a,
+  .auth-buttons-container input[type="email"],
+  .auth-buttons-container input[type="text"] {
+    height: 42px;
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Общие стили для форм */
+.auth-buttons-container .email-form,
+.auth-buttons-container .verification-block {
   width: 100%;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-sm) 0;
+}
+
+.auth-buttons-container .email-form-container {
+  display: flex;
+    flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+/* Стили для инпутов */
+.auth-buttons-container input[type="email"],
+.auth-buttons-container input[type="text"] {
+  width: 100%;
+  height: 48px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-grey-light);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  margin: 0 0 var(--spacing-sm) 0;
+  box-sizing: border-box;
+  background-color: var(--color-white);
+}
+
+/* Общие стили для всех кнопок в формах */
+.auth-buttons-container .email-form button,
+.auth-buttons-container .verification-block button,
+.auth-buttons-container .verification-block a.bot-link {
+  width: 100%;
+  height: 48px;
+  margin: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  border: none;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+/* Стили для кнопок отправки/подтверждения */
+.auth-buttons-container button[type="submit"],
+.auth-buttons-container .send-email-btn {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+/* Стили для кнопок отмены */
+.auth-buttons-container button:not([type="submit"]):not(.send-email-btn):not(.bot-link) {
+  background-color: #E8E8E8;
+  color: var(--color-dark);
+}
+
+/* Стили для ссылки Telegram */
+.auth-buttons-container .verification-block a.bot-link {
+  background-color: #0088cc;
+  color: var(--color-white);
+}
+
+/* Стили для блока с кодом верификации */
+.auth-buttons-container .verification-code {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-md);
+  width: 100%;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-white);
+  border: 1px solid var(--color-grey-light);
+  padding: 0 var(--spacing-md);
   box-sizing: border-box;
 }
 
-.chat-buttons button {
-  padding: 8px 16px;
-  border-radius: 4px;
+/* Стили для текста в формах */
+.auth-buttons-container p {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: var(--font-size-md);
+  color: var(--color-dark);
+}
+
+/* Эффекты при наведении */
+.auth-buttons-container button[type="submit"]:hover,
+.auth-buttons-container .send-email-btn:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.auth-buttons-container button:not([type="submit"]):not(.send-email-btn):hover {
+  background-color: #DADADA;
+}
+
+.auth-buttons-container .verification-block a.bot-link:hover {
+  background-color: #0077b3;
+}
+
+@media screen and (max-width: 480px) {
+  .auth-buttons-container .email-form button,
+  .auth-buttons-container .verification-block button,
+  .auth-buttons-container .verification-block a.bot-link,
+  .auth-buttons-container input[type="email"],
+  .auth-buttons-container input[type="text"] {
+    height: 42px;
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Общие стили для контейнера */
+.auth-buttons-container,
+.wallet-info-container {
+  width: 100%;
+  max-width: 450px;
+  margin-bottom: var(--spacing-lg);
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Стили для заголовка */
+.header-with-close {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--nav-btn-size);
+  margin-bottom: var(--spacing-lg);
+  position: relative;
+}
+
+/* Стили для кнопок в заголовке */
+.header-button {
+  height: var(--nav-btn-size);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all var(--transition-normal);
+}
+
+/* Кнопка отключения */
+.disconnect-btn {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  padding: 0 var(--spacing-md);
+  flex: 1;
+  margin-right: var(--spacing-sm);
+}
+
+.disconnect-btn:hover {
+  background-color: #ffebee;
+}
+
+/* Кнопка закрытия */
+  .close-wallet-sidebar {
+  width: var(--nav-btn-size);
+  height: var(--nav-btn-size);
+  min-width: var(--nav-btn-size);
+  background-color: var(--color-white);
+  color: var(--color-dark);
+  border: 1px solid var(--color-grey);
+  font-size: 20px;
+  padding: 0;
+  line-height: 1;
+}
+
+.close-wallet-sidebar:hover {
+  background-color: var(--color-grey-light);
+  border-color: var(--color-dark);
+}
+
+/* Стили для кнопок авторизации */
+.auth-buttons-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.auth-btn {
+  width: 100%;
+  height: var(--nav-btn-size);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-light);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--color-dark);
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0 var(--spacing-md);
+  box-sizing: border-box;
+  transition: all var(--transition-normal);
+  margin: 0;
+}
+
+.auth-btn:hover {
+  background-color: var(--color-grey-light);
+}
+
+/* Стили для блока идентификаторов */
+.identifiers-block {
+  margin-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-grey-light);
+  padding-top: var(--spacing-lg);
+}
+
+.identifiers-block h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-dark);
+}
+
+.identifier-item {
+    display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-md);
+}
+
+.identifier-item:last-child {
+  margin-bottom: 0;
+}
+
+.identifier-label {
+  min-width: 100px;
+  color: var(--color-grey);
+  font-weight: 500;
+}
+
+.identifier-value {
+  flex: 1;
+  font-family: monospace;
+  color: var(--color-dark);
+  word-break: break-all;
+}
+
+@media screen and (max-width: 480px) {
+  .auth-buttons-container,
+  .wallet-info-container {
+    padding: var(--spacing-md);
+  }
+
+  .header-with-close {
+    height: 32px;
+    margin-bottom: var(--spacing-md);
+  }
+
+  .header-button {
+    height: 32px;
+    font-size: var(--font-size-sm);
+  }
+
+  .disconnect-btn {
+    padding: 0 12px;
+  }
+
+  .close-wallet-sidebar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 18px;
+  }
+
+  .auth-btn {
+    height: 32px;
+    font-size: var(--font-size-sm);
+  }
+
+  .identifiers-block {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+  }
+
+  .identifier-item {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .identifier-label {
+    min-width: 80px;
+  }
+}
+
+@media screen and (max-width: 360px) {
+  .auth-buttons-container,
+  .wallet-info-container {
+    padding: var(--spacing-sm);
+  }
+
+  .header-button {
+    font-size: var(--font-size-xs);
+  }
+
+  .disconnect-btn {
+    padding: 0 8px;
+  }
+
+  .close-wallet-sidebar {
+  font-size: 16px;
+  }
+
+  .identifiers-block {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+  }
+}
+
+/* Общие стили для кнопок */
+.auth-btn,
+.disconnect-btn,
+.close-wallet-sidebar,
+.send-email-btn,
+.chat-buttons button,
+.header-button,
+.connect-btn,
+.cancel-btn,
+.bot-link {
+  height: var(--button-height);
+  padding: 0 var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  font-weight: 500;
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
-  white-space: nowrap;
-  flex-shrink: 0;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  background: var(--color-primary);
+  color: var(--color-white);
+  width: 100%;
+  margin: 0;
+  text-decoration: none;
 }
 
-.chat-buttons button:first-child {
-  background-color: #4CAF50;
-  color: white;
+/* Стили для квадратных кнопок (close) */
+.close-wallet-sidebar {
+  width: var(--button-height);
+  padding: 0;
+  position: absolute;
+  top: var(--block-padding);
+  right: var(--block-padding);
+  background: var(--color-grey-light);
+  color: var(--color-dark);
+  font-size: var(--font-size-xl);
 }
 
-.chat-buttons button:first-child:hover:not(:disabled) {
-  background-color: #45a049;
+/* Общие стили для форм */
+.email-form,
+.verification-block,
+.auth-buttons-wrapper,
+.email-verification-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  width: 100%;
+  margin-bottom: var(--block-margin);
 }
 
-.chat-buttons .clear-btn {
-  background-color: #f44336;
-  color: white;
+/* Контейнер формы email */
+.email-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
 }
 
-.chat-buttons .clear-btn:hover:not(:disabled) {
-  background-color: #da190b;
+/* Общие стили для инпутов */
+input[type="email"],
+input[type="text"],
+.email-input {
+  height: var(--input-height);
+  padding: 0 var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light);
+  font-size: var(--font-size-md);
+  width: 100%;
+  background: var(--color-white);
 }
 
-.chat-buttons button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
+/* Общие стили для контейнеров */
+.auth-container,
+.wallet-info-container,
+.identifiers-block,
+.token-balances,
+.user-info {
+  width: 100%;
+  max-width: 450px;
+  padding: var(--block-padding);
+  margin-bottom: var(--block-margin);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Адаптивность для маленьких экранов */
-@media (max-width: 480px) {
-  .chat-buttons button {
-    padding: 8px 12px;
-    font-size: 13px;
+/* Заголовки в блоках */
+.identifiers-block h3,
+.token-balances h3,
+.user-info h3 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-dark);
+  border-bottom: 1px solid var(--color-grey-light);
+  padding-bottom: var(--spacing-sm);
+}
+
+/* Элементы списков */
+.identifier-item,
+.token-balance,
+.user-info-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-md);
+}
+
+.identifier-label,
+.token-name,
+.user-info-label {
+  min-width: 100px;
+  color: var(--color-grey);
+  font-weight: 500;
+}
+
+.identifier-value,
+.token-amount,
+.user-info-value {
+  flex: 1;
+  font-family: monospace;
+  color: var(--color-dark);
+  word-break: break-all;
+}
+
+/* Код верификации */
+.verification-code {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-light);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.verification-code code {
+  font-family: monospace;
+  color: var(--color-dark);
+  font-weight: bold;
+}
+
+.copied-message {
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+}
+
+/* Сообщения об ошибках */
+.error-message {
+  color: var(--color-error);
+  padding: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  background: #ffebee;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.close-error {
+  background: none;
+  border: none;
+  color: var(--color-error);
+  cursor: pointer;
+  font-size: var(--font-size-xl);
+  padding: 0 var(--spacing-xs);
+}
+
+/* Медиа-запросы */
+@media screen and (max-width: 480px) {
+  :root {
+    --button-height: var(--button-height-mobile);
+    --input-height: var(--input-height-mobile);
+    --block-padding: var(--block-padding-mobile);
+    --block-margin: var(--block-margin-mobile);
   }
-  
-  .chat-buttons {
-    gap: 5px;
+
+  /* Общие стили для кнопок на мобильных */
+  .auth-btn,
+  .disconnect-btn,
+  .close-wallet-sidebar,
+  .send-email-btn,
+  .chat-buttons button,
+  .header-button,
+  .connect-btn,
+  .cancel-btn,
+  .bot-link {
+    font-size: var(--font-size-sm);
   }
+
+  .close-wallet-sidebar {
+    width: var(--button-height);
+    font-size: 18px;
+  }
+
+  /* Адаптация размеров текста */
+  .verification-code,
+  .identifier-item,
+  .token-balance,
+  .user-info-item {
+    font-size: var(--font-size-sm);
+  }
+
+  .identifier-label,
+  .token-name,
+  .user-info-label {
+    min-width: 80px;
+  }
+}
+
+@media screen and (max-width: 360px) {
+  :root {
+    --block-padding: var(--spacing-sm);
+    --block-margin: var(--spacing-sm);
+  }
+
+  .close-wallet-sidebar {
+    font-size: 16px;
+  }
+
+  .auth-btn,
+  .disconnect-btn,
+  .send-email-btn,
+  .chat-buttons button,
+  .header-button,
+  .connect-btn,
+  .cancel-btn,
+  .bot-link {
+    font-size: var(--font-size-xs);
+    padding: 0 var(--spacing-sm);
+  }
+
+  .verification-code {
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* Анимации */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Анимации для боковой панели */
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: all var(--transition-normal);
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.sidebar-slide-enter-to,
+.sidebar-slide-leave-from {
+  transform: translateX(0);
+  opacity: 1;
 }

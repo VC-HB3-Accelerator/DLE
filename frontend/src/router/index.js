@@ -8,13 +8,13 @@ const routes = [
   {
     path: '/',
     name: 'home',
-    component: HomeView
-  }
+    component: HomeView,
+  },
 ];
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 });
 
 console.log('router/index.js: Router created');
@@ -25,9 +25,9 @@ router.beforeEach(async (to, from, next) => {
   if (!to.matched.length) {
     return next({ name: 'home' });
   }
-  
+
   // Проверяем аутентификацию, если маршрут требует авторизации
-  if (to.matched.some(record => record.meta.requiresAuth)) {
+  if (to.matched.some((record) => record.meta.requiresAuth)) {
     try {
       const response = await axios.get('/api/auth/check');
       if (response.data.authenticated) {

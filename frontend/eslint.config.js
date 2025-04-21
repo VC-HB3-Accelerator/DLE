@@ -1,7 +1,8 @@
 import globals from 'globals';
+import * as vueParser from 'vue-eslint-parser';
 import vuePlugin from 'eslint-plugin-vue';
 import prettierPlugin from 'eslint-plugin-prettier';
-import prettierConfig from '@vue/eslint-config-prettier';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
   {
@@ -35,29 +36,37 @@ export default [
         ...globals.browser,
         ...globals.es2021,
       },
-      parser: vuePlugin.parser,
+      parser: vueParser,
       parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
+        sourceType: 'module',
+        ecmaVersion: 2022,
       },
     },
     plugins: {
       vue: vuePlugin,
       prettier: prettierPlugin,
     },
-    processor: vuePlugin.processors['.vue'],
     rules: {
-      ...prettierConfig.rules,
+      ...vuePlugin.configs.base.rules,
+      ...vuePlugin.configs['vue3-essential'].rules,
+      ...vuePlugin.configs['vue3-strongly-recommended'].rules,
+      ...vuePlugin.configs['vue3-recommended'].rules,
+      ...eslintConfigPrettier.rules,
+      'prettier/prettier': 'warn',
+      'vue/comment-directive': 'off',
       'vue/multi-word-component-names': 'off',
       'vue/no-unused-vars': 'warn',
-      'vue/html-self-closing': ['warn', {
-        html: {
-          void: 'always',
-          normal: 'always',
-          component: 'always'
-        }
-      }],
+      'vue/no-v-html': 'off',
+      'vue/html-self-closing': [
+        'warn',
+        {
+          html: {
+            void: 'always',
+            normal: 'always',
+            component: 'always',
+          },
+        },
+      ],
       'vue/component-name-in-template-casing': ['warn', 'PascalCase'],
     },
   },
