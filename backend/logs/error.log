@@ -19,3 +19,21 @@
 {"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x4B294265720B09ca39BFBA18c7E368413c0f68eB","error":"Unknown error","level":"error","message":"Error getting balance for bsc:","timestamp":"2025-04-21T08:02:13.552Z"}
 {"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0xdce769b847a0a697239777d0b1c7dd33b6012ba0","error":"Unknown error","level":"error","message":"Error getting balance for arbitrum:","timestamp":"2025-04-21T08:02:13.567Z"}
 {"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","error":"Unknown error","level":"error","message":"Error getting balance for polygon:","timestamp":"2025-04-21T08:02:13.580Z"}
+{"level":"error","message":"Provider for eth is not available: Network check timeout","timestamp":"2025-04-21T08:39:48.816Z"}
+{"level":"error","message":"Provider for bsc is not available: Network check timeout","timestamp":"2025-04-21T08:39:48.817Z"}
+{"level":"error","message":"Provider for arbitrum is not available: Network check timeout","timestamp":"2025-04-21T08:39:48.817Z"}
+{"level":"error","message":"Provider for polygon is not available: Network check timeout","timestamp":"2025-04-21T08:39:48.817Z"}
+{"level":"error","message":"All network checks for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b failed. Cannot verify admin status.","timestamp":"2025-04-21T08:39:48.818Z"}
+{"level":"error","message":"Provider for arbitrum is not available: Network check timeout","timestamp":"2025-04-21T08:39:51.831Z"}
+{"level":"error","message":"Provider for polygon is not available: Network check timeout","timestamp":"2025-04-21T08:40:02.425Z"}
+{"level":"error","message":"Provider for eth is not available: Network check timeout","timestamp":"2025-04-21T08:40:05.437Z"}
+{"level":"error","message":"Provider for polygon is not available: Network check timeout","timestamp":"2025-04-21T11:54:11.804Z"}
+{"level":"error","message":"Provider for polygon is not available: Network check timeout","timestamp":"2025-04-21T12:08:10.148Z"}
+{"level":"error","message":"Provider for bsc is not available: Network check timeout","timestamp":"2025-04-21T12:13:07.439Z"}
+{"level":"error","message":"Provider for arbitrum is not available: Network check timeout","timestamp":"2025-04-21T12:13:12.799Z"}
+{"level":"error","message":"Provider for eth is not available: Network check timeout","timestamp":"2025-04-21T12:23:30.146Z"}
+{"level":"error","message":"Provider for bsc is not available: Network check timeout","timestamp":"2025-04-21T12:23:30.147Z"}
+{"level":"error","message":"Provider for arbitrum is not available: Network check timeout","timestamp":"2025-04-21T12:23:30.147Z"}
+{"level":"error","message":"Provider for polygon is not available: Network check timeout","timestamp":"2025-04-21T12:36:03.317Z"}
+{"level":"error","message":"Provider for bsc is not available: Network check timeout","timestamp":"2025-04-21T13:48:41.033Z"}
+{"level":"error","message":"Provider for polygon is not available: Network check timeout","timestamp":"2025-04-21T13:48:48.026Z"}

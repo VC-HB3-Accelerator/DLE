@@ -15,15 +15,15 @@ const api = axios.create({
   baseURL: getBaseUrl(),
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Перехватчик запросов
 api.interceptors.request.use(
   (config) => {
     config.withCredentials = true; // Важно для каждого запроса
-    
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -50,7 +50,7 @@ const sendGuestMessageToServer = async (messageText) => {
   try {
     await axios.post('/api/chat/guest-message', {
       message: messageText,
-      language: userLanguage.value
+      // language: userLanguage.value, // TODO: Реализовать получение языка пользователя
     });
   } catch (error) {
     console.error('Ошибка при отправке гостевого сообщения на сервер:', error);

@@ -45,8 +45,8 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         credentials: true,
-        rewrite: (path) => path
-      }
-    }
+        rewrite: (path) => path,
+      },
+    },
   },
 });
