@@ -13,6 +13,9 @@ class SessionService {
    */
   async saveSession(session) {
     try {
+      // Логируем содержимое сессии перед сохранением
+      logger.info('[SessionService] Saving session data:', session);
+
       return new Promise((resolve, reject) => {
         session.save((err) => {
           if (err) {

@@ -134,8 +134,11 @@ async function getBot() {
           }
         }
 
+        // Логируем guestId перед обновлением сессии
+        logger.info(`[telegramBot] Attempting to update session for guestId: ${providerId}`);
+
         // Обновляем сессию в базе данных
-        await db.query(
+        const updateResult = await db.query(
           `UPDATE session 
            SET sess = (sess::jsonb || $1::jsonb)::json
            WHERE sess::jsonb @> $2::jsonb`,
@@ -145,10 +148,22 @@ async function getBot() {
               authenticated: true,
               authType: 'telegram',
               telegramId: ctx.from.id.toString(),
+              // Добавляем имя и юзернейм из Telegram
+              telegramUsername: ctx.from.username,
+              telegramFirstName: ctx.from.first_name,
             }),
             JSON.stringify({ guestId: providerId }),
           ]
         );
+
+        // Логируем результат обновления сессии
+        if (updateResult.rowCount > 0) {
+          logger.info(`Session updated successfully for guestId: ${providerId}, userId: ${userId}`);
+        } else {
+          logger.warn(
+            `Session update failed: No session found or updated for guestId: ${providerId}. User ${userId} authenticated via Telegram, but web session might not reflect it.`
+          );
+        }
 
         // Отправляем сообщение об успешной аутентификации
         await ctx.reply('Аутентификация успешна! Можете вернуться в приложение.');
