@@ -431,7 +431,7 @@ router.post('/email/verify-code', async (req, res) => {
 });
 
 // Инициализация Telegram аутентификации
-router.post('/telegram/init', async (req, res) => {
+router.post('/telegram/init', requireAuth, async (req, res) => {
   try {
     const { userId } = req.session;
 

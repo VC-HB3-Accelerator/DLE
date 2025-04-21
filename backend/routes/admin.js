@@ -62,7 +62,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
 });
 
 // Маршрут для получения логов
-router.get('/logs', async (req, res) => {
+router.get('/logs', requireAdmin, async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
