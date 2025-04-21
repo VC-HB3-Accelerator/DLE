@@ -31,6 +31,10 @@ nano frontend/.env
 3. Запустите скрипт установки:
 ```bash
 ./setup.sh
+
+4. Выполните миграции изнутри контейнера backend:
+```
+docker exec dapp-backend yarn migrate
 ```
 
 Скрипт автоматически:
