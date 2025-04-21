@@ -7,7 +7,7 @@ const fetch = require('node-fetch');
 class AIAssistant {
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    this.defaultModel = process.env.OLLAMA_MODEL || 'mistral:7b-instruct-q4_K_M';
+    this.defaultModel = process.env.OLLAMA_MODEL || 'qwen2.5';
   }
 
   // Создание экземпляра ChatOllama с нужными параметрами

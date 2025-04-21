@@ -22,7 +22,7 @@ const tokensRouter = require('./routes/tokens');
 const app = express();
 
 // Указываем хост явно
-app.set('host', '127.0.0.1');
+app.set('host', '0.0.0.0');
 app.set('port', process.env.PORT || 8000);
 
 // Настройка CORS

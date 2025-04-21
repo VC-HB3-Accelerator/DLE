@@ -1,6 +1,14 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Выводим настройки подключения (без пароля)
+console.log('Настройки подключения к базе данных:');
+console.log('DATABASE_URL:', process.env.DATABASE_URL?.replace(/:([^:@]+)@/, ':***@'));
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_PORT:', process.env.DB_PORT);
+console.log('DB_NAME:', process.env.DB_NAME);
+console.log('DB_USER:', process.env.DB_USER);
+
 // Создаем пул соединений с базой данных
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -11,10 +19,30 @@ const pool = new Pool({
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('Ошибка подключения к базе данных:', err);
-    console.log('Переключение на временное хранилище данных в памяти...');
-
-    // Если не удалось подключиться к базе данных, используем временное хранилище
-    module.exports = createInMemoryStorage();
+    
+    // Пробуем альтернативное подключение
+    console.log('Попытка альтернативного подключения через прямые параметры...');
+    
+    const altPool = new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'dapp_db',
+      user: process.env.DB_USER || 'dapp_user',
+      password: process.env.DB_PASSWORD,
+    });
+    
+    altPool.query('SELECT NOW()', (altErr, altRes) => {
+      if (altErr) {
+        console.error('Альтернативное подключение тоже не удалось:', altErr);
+        console.log('Переключение на временное хранилище данных в памяти...');
+        module.exports = createInMemoryStorage();
+      } else {
+        console.log('Альтернативное подключение успешно:', altRes.rows[0]);
+        // Заменяем основной пул на альтернативный
+        module.exports.pool = altPool;
+        module.exports.query = (text, params) => altPool.query(text, params);
+      }
+    });
   } else {
     console.log('Успешное подключение к базе данных:', res.rows[0]);
   }

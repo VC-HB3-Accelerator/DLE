@@ -53,7 +53,7 @@ BEGIN
       content,
       role,
       channel,
-      guest_message_id,
+      user_id,
       created_at
     )
     SELECT 
@@ -63,14 +63,16 @@ BEGIN
       content,
       CASE WHEN is_ai THEN 'assistant' ELSE 'user' END,
       'chat',
-      id,  -- Сохраняем связь с гостевым сообщением
+      p_user_id,
       created_at
     FROM guest_messages
     WHERE guest_id = p_guest_id
-      -- Проверка, чтобы избежать дублирования сообщений
+      -- Проверка, чтобы избежать дублирования сообщений на основе содержимого и времени
       AND NOT EXISTS (
         SELECT 1 FROM messages m
-        WHERE m.guest_message_id = guest_messages.id
+        WHERE m.conversation_id = v_conversation_id
+        AND m.content = guest_messages.content
+        AND m.created_at = guest_messages.created_at
       )
     ORDER BY created_at
     RETURNING id

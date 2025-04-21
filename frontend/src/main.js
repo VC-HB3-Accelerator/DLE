@@ -7,7 +7,9 @@ import router from './router';
 import axios from 'axios';
 
 // Настройка axios
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
+// В Docker контейнере localhost:8000 не работает, поэтому используем явное значение
+const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:8000' : import.meta.env.VITE_API_URL;
+axios.defaults.baseURL = apiUrl;
 axios.defaults.withCredentials = true;
 
 // Создаем и монтируем приложение Vue
@@ -25,7 +27,7 @@ app.use(router);
 //   ]).catch(err => console.error('Failed to load API mocks:', err));
 // }
 
-console.log('API URL:', import.meta.env.VITE_API_URL);
+console.log('API URL:', apiUrl);
 console.log('main.js: Starting application with router');
 
 app.mount('#app');

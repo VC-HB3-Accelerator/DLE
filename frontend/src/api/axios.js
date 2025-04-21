@@ -1,8 +1,18 @@
 import axios from 'axios';
 
+// Определяем baseURL в зависимости от окружения
+const getBaseUrl = () => {
+  // В браузере используем localhost
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:8000';
+  }
+  // В других случаях используем переменную окружения
+  return import.meta.env.VITE_API_URL || '';
+};
+
 // Создаем экземпляр axios с базовым URL
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: getBaseUrl(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
