@@ -37,23 +37,8 @@ app.use(
   })
 );
 
-// Настройка сессии
-app.use(
-  session({
-    store: sessionMiddleware.store,
-    secret: process.env.SESSION_SECRET || 'hb3atoken',
-    name: 'sessionId',
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-    },
-  })
-);
+// Настройка сессии (ИСПОЛЬЗУЕМ ИМПОРТИРОВАННОЕ MIDDLEWARE)
+app.use(sessionMiddleware);
 
 // Добавим middleware для проверки сессии
 app.use(async (req, res, next) => {

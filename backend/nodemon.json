@@ -1,9 +1,10 @@
 {
   "verbose": true,
-  "ignore": [".git", "node_modules/**/node_modules", "sessions", "data/vector_store"],
-  "watch": ["*.js", "routes/", "services/", "utils/", "middleware/"],
+  "ignore": [".git", "node_modules/**/node_modules", "sessions", "data/vector_store", "logs"],
+  "watch": ["*.js", "routes/**/*", "services/**/*", "utils/**/*", "middleware/**/*"],
   "env": {
     "NODE_ENV": "development"
   },
-  "ext": "js,json,env"
+  "ext": "js,json,env",
+  "exec": "node server.js"
 }

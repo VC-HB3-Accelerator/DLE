@@ -431,15 +431,25 @@ router.post('/email/verify-code', async (req, res) => {
 });
 
 // Инициализация Telegram аутентификации
-router.post('/telegram/init', requireAuth, async (req, res) => {
+router.post('/telegram/init', async (req, res) => {
   try {
-    const { userId } = req.session;
+    // Инициализируем процесс аутентификации через Telegram, передавая сессию
+    // и получаем результат (код и ссылку на бота)
+    const result = await initTelegramAuth(req.session);
 
-    // Инициализируем процесс аутентификации через Telegram
-    await initTelegramAuth(userId);
+    // Логируем сессию перед сохранением
+    logger.info('[telegram/init] Session object before save:', req.session);
 
-    // Не возвращаем данные обратно, так как они отправляются ботом
-    res.json({ success: true, message: 'Проверьте вашего Telegram бота' });
+    // Сохраняем сессию, чтобы guestId точно записался в базу данных
+    await sessionService.saveSession(req.session);
+
+    // Возвращаем код и ссылку на бота на фронтенд
+    res.json({
+      success: true,
+      message: 'Проверьте вашего Telegram бота',
+      verificationCode: result.verificationCode,
+      botLink: result.botLink,
+    });
   } catch (error) {
     logger.error('Error initializing Telegram auth:', error);
 
