@@ -9,7 +9,10 @@ class VerificationService {
 
   // Генерация кода
   generateCode() {
-    const code = Math.random().toString(36).substring(2, 2 + this.codeLength).toUpperCase();
+    const code = Math.random()
+      .toString(36)
+      .substring(2, 2 + this.codeLength)
+      .toUpperCase();
     logger.info(`Generated verification code: ${code}`);
     return code;
   }
@@ -20,8 +23,10 @@ class VerificationService {
     const expiresAt = new Date(Date.now() + this.expirationMinutes * 60 * 1000);
 
     try {
-      logger.info(`Creating verification code for ${provider}:${providerId}, userId: ${userId || 'null'}`);
-      
+      logger.info(
+        `Creating verification code for ${provider}:${providerId}, userId: ${userId || 'null'}`
+      );
+
       // Если userId не указан, добавляем запись без ссылки на пользователя
       if (userId === null || userId === undefined) {
         await db.query(
@@ -46,7 +51,7 @@ class VerificationService {
         error: error.message,
         provider,
         providerId,
-        userId
+        userId,
       });
       throw error;
     }
@@ -56,11 +61,11 @@ class VerificationService {
   async verifyCode(code, provider, providerId) {
     try {
       logger.info(`Verifying code for ${provider}:${providerId}`);
-      
+
       // Преобразуем код в верхний регистр для сравнения
       const normalizedCode = code.toUpperCase();
       logger.info(`Normalized code: ${normalizedCode}`);
-      
+
       // Проверим, есть ли такой код в базе (для отладки)
       const checkResult = await db.query(
         `SELECT code FROM verification_codes 
@@ -70,13 +75,15 @@ class VerificationService {
          AND expires_at > NOW()`,
         [provider, providerId]
       );
-      
+
       if (checkResult.rows.length > 0) {
-        logger.info(`Found codes for ${provider}:${providerId}: ${JSON.stringify(checkResult.rows.map(r => r.code))}`);
+        logger.info(
+          `Found codes for ${provider}:${providerId}: ${JSON.stringify(checkResult.rows.map((r) => r.code))}`
+        );
       } else {
         logger.warn(`No active codes found for ${provider}:${providerId}`);
       }
-      
+
       const result = await db.query(
         `SELECT * FROM verification_codes 
          WHERE code = $1 
@@ -88,30 +95,29 @@ class VerificationService {
       );
 
       if (result.rows.length === 0) {
-        logger.warn(`Invalid or expired code for ${provider}:${providerId}. Input: ${normalizedCode}`);
+        logger.warn(
+          `Invalid or expired code for ${provider}:${providerId}. Input: ${normalizedCode}`
+        );
         return { success: false, error: 'Неверный или истекший код' };
       }
 
       const verification = result.rows[0];
 
       // Отмечаем код как использованный
-      await db.query(
-        'UPDATE verification_codes SET used = true WHERE id = $1',
-        [verification.id]
-      );
+      await db.query('UPDATE verification_codes SET used = true WHERE id = $1', [verification.id]);
 
       logger.info(`Code verified successfully for ${provider}:${providerId}`);
       return {
         success: true,
         userId: verification.user_id,
-        providerId: verification.provider_id
+        providerId: verification.provider_id,
       };
     } catch (error) {
       logger.error('Error verifying code:', {
         error: error.message,
         code,
         provider,
-        providerId
+        providerId,
       });
       throw error;
     }
@@ -131,4 +137,4 @@ class VerificationService {
 }
 
 const verificationService = new VerificationService();
-module.exports = verificationService; 
+module.exports = verificationService;

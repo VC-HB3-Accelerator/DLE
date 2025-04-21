@@ -12,9 +12,10 @@ class AIAssistant {
 
   // Создание экземпляра ChatOllama с нужными параметрами
   createChat(language = 'ru') {
-    const systemPrompt = language === 'ru' 
-      ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
-      : 'You are a helpful assistant. Respond in English.';
+    const systemPrompt =
+      language === 'ru'
+        ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
+        : 'You are a helpful assistant. Respond in English.';
 
     return new ChatOllama({
       baseUrl: this.baseUrl,
@@ -22,7 +23,7 @@ class AIAssistant {
       system: systemPrompt,
       temperature: 0.7,
       maxTokens: 1000,
-      timeout: 30000 // 30 секунд таймаут
+      timeout: 30000, // 30 секунд таймаут
     });
   }
 
@@ -36,14 +37,12 @@ class AIAssistant {
   async getResponse(message, language = 'auto') {
     try {
       console.log('getResponse called with:', { message, language });
-      
+
       // Определяем язык, если не указан явно
-      const detectedLanguage = language === 'auto' 
-        ? this.detectLanguage(message) 
-        : language;
+      const detectedLanguage = language === 'auto' ? this.detectLanguage(message) : language;
 
       console.log('Detected language:', detectedLanguage);
-      
+
       // Сначала пробуем прямой API запрос
       try {
         console.log('Trying direct API request...');
@@ -67,7 +66,7 @@ class AIAssistant {
       }
     } catch (error) {
       console.error('Error in getResponse:', error);
-      return "Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.";
+      return 'Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.';
     }
   }
 
@@ -75,10 +74,11 @@ class AIAssistant {
   async fallbackRequest(message, language) {
     try {
       console.log('Using fallback request method with:', { message, language });
-      
-      const systemPrompt = language === 'ru'
-        ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
-        : 'You are a helpful assistant. Respond in English.';
+
+      const systemPrompt =
+        language === 'ru'
+          ? 'Вы - полезный ассистент. Отвечайте на русском языке.'
+          : 'You are a helpful assistant. Respond in English.';
 
       console.log('Sending request to Ollama API...');
       const response = await fetch(`${this.baseUrl}/api/generate`, {
@@ -91,15 +91,15 @@ class AIAssistant {
           stream: false,
           options: {
             temperature: 0.7,
-            num_predict: 1000
-          }
+            num_predict: 1000,
+          },
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('Ollama API response:', data);
       return data.response;

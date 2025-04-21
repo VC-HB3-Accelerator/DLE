@@ -20,7 +20,7 @@ async function getBot() {
     // Обработка кодов верификации
     botInstance.on('text', async (ctx) => {
       const code = ctx.message.text.trim();
-      
+
       try {
         // Получаем код верификации для всех активных кодов с провайдером telegram
         const codeResult = await db.query(
@@ -31,25 +31,24 @@ async function getBot() {
            AND expires_at > NOW()`,
           [code]
         );
-        
+
         if (codeResult.rows.length === 0) {
           ctx.reply('Неверный код подтверждения');
           return;
         }
-        
+
         const verification = codeResult.rows[0];
         const providerId = verification.provider_id;
-        const linkedUserId = verification.user_id;  // Получаем связанный userId если он есть
+        const linkedUserId = verification.user_id; // Получаем связанный userId если он есть
         let userId;
-        
+
         // Отмечаем код как использованный
-        await db.query(
-          'UPDATE verification_codes SET used = true WHERE id = $1',
-          [verification.id]
-        );
-        
+        await db.query('UPDATE verification_codes SET used = true WHERE id = $1', [
+          verification.id,
+        ]);
+
         logger.info('Starting Telegram auth process for code:', code);
-        
+
         // Проверяем, существует ли уже пользователь с таким Telegram ID
         const existingTelegramUser = await db.query(
           `SELECT ui.user_id 
@@ -57,7 +56,7 @@ async function getBot() {
            WHERE ui.provider = 'telegram' AND ui.provider_id = $1`,
           [ctx.from.id.toString()]
         );
-        
+
         if (existingTelegramUser.rows.length > 0) {
           // Если пользователь с таким Telegram ID уже существует, используем его
           userId = existingTelegramUser.rows[0].user_id;
@@ -74,7 +73,9 @@ async function getBot() {
                VALUES ($1, $2, $3, NOW())`,
               [userId, 'telegram', ctx.from.id.toString()]
             );
-            logger.info(`Linked Telegram account ${ctx.from.id} to pre-authenticated user ${userId}`);
+            logger.info(
+              `Linked Telegram account ${ctx.from.id} to pre-authenticated user ${userId}`
+            );
           } else {
             // Проверяем, есть ли пользователь, связанный с гостевым идентификатором
             let existingUserWithGuestId = null;
@@ -85,10 +86,12 @@ async function getBot() {
               );
               if (guestUserResult.rows.length > 0) {
                 existingUserWithGuestId = guestUserResult.rows[0].user_id;
-                logger.info(`Found existing user ${existingUserWithGuestId} by guest ID ${providerId}`);
+                logger.info(
+                  `Found existing user ${existingUserWithGuestId} by guest ID ${providerId}`
+                );
               }
             }
-            
+
             if (existingUserWithGuestId) {
               // Используем существующего пользователя и добавляем ему Telegram идентификатор
               userId = existingUserWithGuestId;
@@ -106,7 +109,7 @@ async function getBot() {
                 ['user']
               );
               userId = userResult.rows[0].id;
-              
+
               // Связываем Telegram с новым пользователем
               await db.query(
                 `INSERT INTO user_identities 
@@ -114,7 +117,7 @@ async function getBot() {
                  VALUES ($1, $2, $3, NOW())`,
                 [userId, 'telegram', ctx.from.id.toString()]
               );
-              
+
               // Если был гостевой ID, связываем его с новым пользователем
               if (providerId) {
                 await db.query(
@@ -125,12 +128,12 @@ async function getBot() {
                   [userId, providerId]
                 );
               }
-              
+
               logger.info(`Created new user ${userId} with Telegram account ${ctx.from.id}`);
             }
           }
         }
-        
+
         // Обновляем сессию в базе данных
         await db.query(
           `UPDATE session 
@@ -140,23 +143,22 @@ async function getBot() {
             JSON.stringify({
               userId: userId.toString(),
               authenticated: true,
-              authType: "telegram",
-              telegramId: ctx.from.id.toString()
+              authType: 'telegram',
+              telegramId: ctx.from.id.toString(),
             }),
-            JSON.stringify({guestId: providerId})
+            JSON.stringify({ guestId: providerId }),
           ]
         );
-        
+
         // Отправляем сообщение об успешной аутентификации
         await ctx.reply('Аутентификация успешна! Можете вернуться в приложение.');
-        
+
         // Удаляем сообщение с кодом
         try {
           await ctx.deleteMessage(ctx.message.message_id);
         } catch (error) {
           logger.warn('Could not delete code message:', error);
         }
-        
       } catch (error) {
         logger.error('Error in Telegram auth:', error);
         await ctx.reply('Произошла ошибка при аутентификации. Попробуйте позже.');
@@ -166,7 +168,7 @@ async function getBot() {
     // Запускаем бота
     await botInstance.launch();
   }
-  
+
   return botInstance;
 }
 
@@ -190,12 +192,12 @@ async function initTelegramAuth(session) {
     // Используем временный идентификатор для создания кода верификации
     // Реальный пользователь будет создан или найден при проверке кода через бота
     const tempId = crypto.randomBytes(16).toString('hex');
-    
+
     // Если пользователь уже авторизован, сохраняем его userId в guest_user_mapping
     // чтобы потом при авторизации через бота этот пользователь был найден
     if (session && session.authenticated && session.userId) {
       const guestId = session.guestId || tempId;
-      
+
       // Связываем гостевой ID с текущим пользователем
       await db.query(
         `INSERT INTO guest_user_mapping (user_id, guest_id) 
@@ -203,22 +205,26 @@ async function initTelegramAuth(session) {
          ON CONFLICT (guest_id) DO UPDATE SET user_id = $1`,
         [session.userId, guestId]
       );
-      
-      logger.info(`[initTelegramAuth] Linked guestId ${guestId} to authenticated user ${session.userId}`);
+
+      logger.info(
+        `[initTelegramAuth] Linked guestId ${guestId} to authenticated user ${session.userId}`
+      );
     }
-    
+
     // Создаем код через сервис верификации с идентификатором
     const code = await verificationService.createVerificationCode(
       'telegram',
       session.guestId || tempId,
       session.authenticated ? session.userId : null
     );
-    
-    logger.info(`[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}${session.authenticated ? `, userId: ${session.userId}` : ''}`);
-    
+
+    logger.info(
+      `[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}${session.authenticated ? `, userId: ${session.userId}` : ''}`
+    );
+
     return {
       verificationCode: code,
-      botLink: `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}`
+      botLink: `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}`,
     };
   } catch (error) {
     logger.error('Error initializing Telegram auth:', error);
@@ -229,5 +235,5 @@ async function initTelegramAuth(session) {
 module.exports = {
   getBot,
   stopBot,
-  initTelegramAuth
+  initTelegramAuth,
 };

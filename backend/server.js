@@ -26,15 +26,15 @@ console.log('Используемый порт:', process.env.PORT || 8000);
 async function initServices() {
   try {
     console.log('Инициализация сервисов...');
-    
+
     // Останавливаем предыдущий экземпляр бота
     await stopBot();
-    
+
     // Добавляем обработку ошибок при запуске бота
     try {
       await getBot(); // getBot теперь асинхронный и сам запускает бота
       console.log('Telegram bot started');
-      
+
       // Добавляем graceful shutdown
       process.once('SIGINT', async () => {
         await stopBot();
@@ -46,14 +46,16 @@ async function initServices() {
       });
     } catch (error) {
       if (error.code === 409) {
-        logger.warn('Another instance of Telegram bot is running. This is normal during development with nodemon');
+        logger.warn(
+          'Another instance of Telegram bot is running. This is normal during development with nodemon'
+        );
         // Просто логируем ошибку и продолжаем работу
         // Бот будет запущен при следующем перезапуске
       } else {
         logger.error('Error launching Telegram bot:', error);
       }
     }
-    
+
     console.log('Все сервисы успешно инициализированы');
   } catch (error) {
     console.error('Ошибка при инициализации сервисов:', error);
@@ -61,20 +63,22 @@ async function initServices() {
 }
 
 // Настройка сессий
-app.use(session({
-  store: new pgSession({
-    pool: pool,
-    tableName: 'session'
-  }),
-  secret: process.env.SESSION_SECRET || 'hb3atoken',
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 дней
-  }
-}));
+app.use(
+  session({
+    store: new pgSession({
+      pool: pool,
+      tableName: 'session',
+    }),
+    secret: process.env.SESSION_SECRET || 'hb3atoken',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 дней
+    },
+  })
+);
 
 // Маршруты API
 app.use('/api/users', usersRouter);

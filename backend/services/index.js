@@ -31,5 +31,5 @@ module.exports = {
   getConversationHistory: aiAssistant.getConversationHistory,
 
   telegramBot,
-  aiAssistant
+  aiAssistant,
 };

@@ -37,7 +37,8 @@ async function addUserIdentity(userId, provider, providerId) {
     );
     return true;
   } catch (error) {
-    if (error.code === '23505') { // Уникальное ограничение нарушено
+    if (error.code === '23505') {
+      // Уникальное ограничение нарушено
       return false;
     }
     throw error;
@@ -49,5 +50,5 @@ module.exports = {
   isValidEmail,
   generateVerificationCode,
   checkUserIdentity,
-  addUserIdentity
+  addUserIdentity,
 };

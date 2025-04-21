@@ -47,10 +47,10 @@ CREATE TABLE IF NOT EXISTS example_table (
 );
 
 -- Добавление колонки, если она отсутствует
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
+    SELECT 1 FROM information_schema.columns
     WHERE table_name = 'example_table' AND column_name = 'new_column'
   ) THEN
     ALTER TABLE example_table ADD COLUMN new_column INTEGER;
@@ -69,6 +69,7 @@ END $$;
 - `verify_identity_system()` - проверка состояния системы идентификации пользователей
 
 Пример использования:
+
 ```sql
 SELECT * FROM verify_identity_system();
-``` 
+```

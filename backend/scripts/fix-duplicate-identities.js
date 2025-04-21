@@ -15,7 +15,7 @@ if (!fs.existsSync(logDir)) {
 
 const logFile = path.join(logDir, 'fix-duplicates.log');
 const logger = {
-  log: message => {
+  log: (message) => {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] ${message}\n`;
     console.log(message);
@@ -27,7 +27,7 @@ const logger = {
     const logMessage = `[${timestamp}] ERROR: ${message}${errorDetail}\n`;
     console.error(`ERROR: ${message}${errorDetail}`);
     fs.appendFileSync(logFile, logMessage);
-  }
+  },
 };
 
 // Создаем подключение к базе данных
@@ -54,10 +54,10 @@ function normalizeWalletAddress(address) {
  */
 async function findDuplicateWallets() {
   const client = await pool.connect();
-  
+
   try {
     logger.log('Поиск дубликатов wallet-идентификаторов...');
-    
+
     // Находим пары идентификаторов, которые отличаются только регистром
     const result = await client.query(`
       SELECT 
@@ -77,9 +77,9 @@ async function findDuplicateWallets() {
         LOWER(ui1.provider_id) = LOWER(ui2.provider_id) AND 
         ui1.provider_id <> ui2.provider_id
     `);
-    
+
     logger.log(`Найдено ${result.rows.length} потенциальных дубликатов wallet-идентификаторов`);
-    
+
     return result.rows;
   } catch (error) {
     logger.error('Ошибка при поиске дубликатов wallet-идентификаторов', error);
@@ -95,46 +95,52 @@ async function findDuplicateWallets() {
  */
 async function fixDuplicates(duplicates) {
   const client = await pool.connect();
-  
+
   try {
     logger.log('Исправление дубликатов идентификаторов...');
-    
+
     await client.query('BEGIN');
-    
+
     for (const dup of duplicates) {
       // Проверяем, принадлежат ли идентификаторы одному пользователю
       if (dup.user_id1 === dup.user_id2) {
         // Если да, удаляем один из дубликатов (не в нижнем регистре)
         const normalizedAddress = normalizeWalletAddress(dup.provider_id1);
-        
+
         // Определяем, какой идентификатор нужно удалить
         const idToDelete = dup.provider_id1 === normalizedAddress ? dup.id2 : dup.id1;
-        
+
         logger.log(`Удаление дубликата ID ${idToDelete} для адреса ${normalizedAddress}`);
-        
+
         await client.query('DELETE FROM user_identities WHERE id = $1', [idToDelete]);
-        
+
         // Проверяем, что второй идентификатор в нормализованной форме
         const remainingId = dup.provider_id1 === normalizedAddress ? dup.id1 : dup.id2;
-        const remainingAddress = dup.provider_id1 === normalizedAddress ? dup.provider_id1 : dup.provider_id2;
-        
+        const remainingAddress =
+          dup.provider_id1 === normalizedAddress ? dup.provider_id1 : dup.provider_id2;
+
         if (remainingAddress !== normalizedAddress) {
-          logger.log(`Обновление идентификатора ID ${remainingId} до нормализованного значения ${normalizedAddress}`);
-          
-          await client.query(
-            'UPDATE user_identities SET provider_id = $1 WHERE id = $2',
-            [normalizedAddress, remainingId]
+          logger.log(
+            `Обновление идентификатора ID ${remainingId} до нормализованного значения ${normalizedAddress}`
           );
+
+          await client.query('UPDATE user_identities SET provider_id = $1 WHERE id = $2', [
+            normalizedAddress,
+            remainingId,
+          ]);
         }
       } else {
         // Если идентификаторы принадлежат разным пользователям, нужно решить конфликт
         // Для определения какой пользователь является основным, можно использовать:
         // 1. Количество сообщений/активности
         // 2. Дату создания аккаунта
-        logger.log(`Конфликт: адрес ${dup.provider_id1}/${dup.provider_id2} привязан к разным пользователям: ${dup.user_id1} и ${dup.user_id2}`);
-        
+        logger.log(
+          `Конфликт: адрес ${dup.provider_id1}/${dup.provider_id2} привязан к разным пользователям: ${dup.user_id1} и ${dup.user_id2}`
+        );
+
         // Определяем, какой пользователь является основным
-        const userInfoResult = await client.query(`
+        const userInfoResult = await client.query(
+          `
           SELECT 
             id, 
             (SELECT COUNT(*) FROM messages WHERE user_id = users.id) as message_count,
@@ -145,45 +151,55 @@ async function fixDuplicates(duplicates) {
             id IN ($1, $2)
           ORDER BY 
             message_count DESC, created_at ASC
-        `, [dup.user_id1, dup.user_id2]);
-        
+        `,
+          [dup.user_id1, dup.user_id2]
+        );
+
         // Если нет пользователей, пропускаем
         if (userInfoResult.rows.length === 0) {
           logger.log(`Пропуск: не найдены пользователи ${dup.user_id1} и ${dup.user_id2}`);
           continue;
         }
-        
+
         // Выбираем первого пользователя как основного (с наибольшим количеством сообщений или самого старого)
         const mainUserId = userInfoResult.rows[0].id;
         const secondaryUserId = mainUserId === dup.user_id1 ? dup.user_id2 : dup.user_id1;
-        
-        logger.log(`Объединение пользователей: сохраняем ID ${mainUserId}, удаляем ID ${secondaryUserId}`);
-        
+
+        logger.log(
+          `Объединение пользователей: сохраняем ID ${mainUserId}, удаляем ID ${secondaryUserId}`
+        );
+
         // Переносим все идентификаторы от вторичного пользователя к основному
-        await client.query(`
+        await client.query(
+          `
           INSERT INTO user_identities (user_id, provider, provider_id)
           SELECT $1, provider, provider_id
           FROM user_identities
           WHERE user_id = $2
           ON CONFLICT DO NOTHING
-        `, [mainUserId, secondaryUserId]);
-        
+        `,
+          [mainUserId, secondaryUserId]
+        );
+
         // Переносим сообщения
-        await client.query(`
+        await client.query(
+          `
           UPDATE messages
           SET user_id = $1
           WHERE user_id = $2
-        `, [mainUserId, secondaryUserId]);
-        
+        `,
+          [mainUserId, secondaryUserId]
+        );
+
         // Переносим другие связанные данные...
         // ...
-        
+
         // Удаляем вторичного пользователя
         await client.query('DELETE FROM user_identities WHERE user_id = $1', [secondaryUserId]);
         await client.query('DELETE FROM users WHERE id = $1', [secondaryUserId]);
       }
     }
-    
+
     await client.query('COMMIT');
     logger.log('Исправление дубликатов успешно завершено');
   } catch (error) {
@@ -201,43 +217,43 @@ async function fixDuplicates(duplicates) {
 async function main() {
   try {
     logger.log('Запуск скрипта исправления дубликатов идентификаторов...');
-    
+
     // Шаг 1: Нормализация всех адресов кошельков (приведение к нижнему регистру)
     const client = await pool.connect();
-    
+
     try {
       logger.log('Нормализация всех существующих адресов кошельков...');
-      
+
       await client.query('BEGIN');
-      
+
       // Получаем все идентификаторы кошельков
       const walletsResult = await client.query(`
         SELECT id, provider_id
         FROM user_identities
         WHERE provider = 'wallet'
       `);
-      
+
       logger.log(`Найдено ${walletsResult.rows.length} идентификаторов кошельков`);
-      
+
       // Обновляем каждый адрес к нормализованной форме
       let updatedCount = 0;
-      
+
       for (const wallet of walletsResult.rows) {
         try {
           const normalizedAddress = normalizeWalletAddress(wallet.provider_id);
-          
+
           if (normalizedAddress !== wallet.provider_id) {
-            await client.query(
-              'UPDATE user_identities SET provider_id = $1 WHERE id = $2',
-              [normalizedAddress, wallet.id]
-            );
+            await client.query('UPDATE user_identities SET provider_id = $1 WHERE id = $2', [
+              normalizedAddress,
+              wallet.id,
+            ]);
             updatedCount++;
           }
         } catch (error) {
           logger.error(`Ошибка при нормализации адреса ${wallet.provider_id}`, error);
         }
       }
-      
+
       await client.query('COMMIT');
       logger.log(`Нормализовано ${updatedCount} адресов кошельков`);
     } catch (error) {
@@ -246,16 +262,16 @@ async function main() {
     } finally {
       client.release();
     }
-    
+
     // Шаг 2: Поиск и исправление дубликатов
     const duplicates = await findDuplicateWallets();
-    
+
     if (duplicates.length > 0) {
       await fixDuplicates(duplicates);
     } else {
       logger.log('Дубликатов wallet-идентификаторов не найдено');
     }
-    
+
     logger.log('Скрипт успешно завершил работу');
   } catch (error) {
     logger.error('Критическая ошибка при выполнении скрипта', error);
@@ -265,4 +281,4 @@ async function main() {
 }
 
 // Запускаем скрипт
-main(); 
+main();

@@ -19,7 +19,7 @@ async function runMigrations() {
 
     // Получаем список выполненных миграций
     const { rows } = await pool.query('SELECT name FROM migrations');
-    const executedMigrations = new Set(rows.map(row => row.name));
+    const executedMigrations = new Set(rows.map((row) => row.name));
 
     // Читаем файлы миграций
     const migrationsDir = path.join(__dirname, '../db/migrations');
@@ -27,7 +27,7 @@ async function runMigrations() {
 
     // Сортируем файлы по номеру
     const migrationFiles = files
-      .filter(f => f.endsWith('.sql'))
+      .filter((f) => f.endsWith('.sql'))
       .sort((a, b) => {
         const numA = parseInt(a.split('_')[0]);
         const numB = parseInt(b.split('_')[0]);
@@ -55,14 +55,19 @@ async function runMigrations() {
 
     // Выполняем SQL-функции
     const functionsDir = path.join(migrationsDir, 'functions');
-    if (await fs.stat(functionsDir).then(() => true).catch(() => false)) {
+    if (
+      await fs
+        .stat(functionsDir)
+        .then(() => true)
+        .catch(() => false)
+    ) {
       const functionFiles = await fs.readdir(functionsDir);
-      
+
       for (const file of functionFiles) {
         if (file.endsWith('.sql')) {
           const filePath = path.join(functionsDir, file);
           const sql = await fs.readFile(filePath, 'utf-8');
-          
+
           try {
             await pool.query(sql);
             logger.info(`Function ${file} executed successfully`);

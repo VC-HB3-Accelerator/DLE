@@ -11,7 +11,7 @@ function errorHandler(err, req, res, next) {
     url: req.originalUrl,
     method: req.method,
     ip: req.ip,
-    userId: req.session?.userId
+    userId: req.session?.userId,
   });
 
   // Определяем тип ошибки
@@ -39,17 +39,15 @@ function errorHandler(err, req, res, next) {
   }
 
   // В режиме разработки возвращаем стек ошибки
-  const devError = process.env.NODE_ENV === 'development' 
-    ? { stack: err.stack } 
-    : {};
+  const devError = process.env.NODE_ENV === 'development' ? { stack: err.stack } : {};
 
   // Отправляем ответ клиенту
   res.status(statusCode).json({
     error: {
       code: errorCode,
       message: errorMessage,
-      ...devError
-    }
+      ...devError,
+    },
   });
 }
 
@@ -67,5 +65,5 @@ function createError(message, status) {
 
 module.exports = {
   errorHandler,
-  createError
-}; 
+  createError,
+};

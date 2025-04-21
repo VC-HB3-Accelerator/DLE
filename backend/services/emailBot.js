@@ -19,8 +19,8 @@ const transporter = nodemailer.createTransport({
   maxConnections: 3,
   maxMessages: 5,
   tls: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
 // Конфигурация для получения писем
@@ -31,11 +31,11 @@ const imapConfig = {
   port: process.env.EMAIL_IMAP_PORT,
   tls: true,
   tlsOptions: { rejectUnauthorized: false },
-  keepalive: { 
+  keepalive: {
     interval: 10000,
     idleInterval: 300000,
-    forceNoop: true
-  }
+    forceNoop: true,
+  },
 };
 
 class EmailBotService {
@@ -66,7 +66,7 @@ class EmailBotService {
     try {
       // Отправляем код на email
       await this.sendVerificationCode(email, code);
-      
+
       return { success: true };
     } catch (error) {
       logger.error('Error initializing email verification:', error);
@@ -91,7 +91,7 @@ class EmailBotService {
             </div>
             <p style="font-size: 14px; color: #999;">Код действителен в течение 15 минут.</p>
           </div>
-        `
+        `,
       };
 
       await this.transporter.sendMail(mailOptions);
@@ -121,7 +121,7 @@ class EmailBotService {
             this.imap.end();
             return;
           }
-          
+
           // Ищем непрочитанные письма
           this.imap.search(['UNSEEN'], (err, results) => {
             if (err) {
@@ -129,16 +129,16 @@ class EmailBotService {
               this.imap.end();
               return;
             }
-            
+
             if (!results || results.length === 0) {
               logger.info('No new messages found');
               this.imap.end();
               return;
             }
-            
+
             try {
               const f = this.imap.fetch(results, { bodies: '' });
-              
+
               f.on('message', (msg, seqno) => {
                 msg.on('body', (stream, info) => {
                   simpleParser(stream, async (err, parsed) => {
@@ -149,11 +149,11 @@ class EmailBotService {
                   });
                 });
               });
-              
+
               f.once('error', (err) => {
                 logger.error(`Fetch error: ${err}`);
               });
-              
+
               f.once('end', () => {
                 try {
                   this.imap.end();
@@ -172,7 +172,7 @@ class EmailBotService {
           });
         });
       });
-      
+
       this.imap.connect();
     } catch (error) {
       logger.error(`Global error checking emails: ${error.message}`);
@@ -191,7 +191,7 @@ class EmailBotService {
         from: process.env.EMAIL_USER,
         to,
         subject,
-        text
+        text,
       };
 
       await this.transporter.sendMail(mailOptions);
