@@ -161,6 +161,31 @@ class EmailAuth {
       await authService.identityService.saveIdentity(finalUserId, 'email', email, true);
       logger.info(`[checkEmailVerification] Added email identity ${email} for user ${finalUserId}`);
 
+      // ----> НАЧАЛО: Проверка роли на основе привязанного кошелька
+      let userRole = 'user'; // Роль по умолчанию
+      try {
+        const linkedWallet = await authService.getLinkedWallet(finalUserId);
+        if (linkedWallet) {
+          logger.info(`[checkEmailVerification] Found linked wallet ${linkedWallet} for user ${finalUserId}. Checking admin role...`);
+          const isAdmin = await authService.checkAdminRole(linkedWallet);
+          userRole = isAdmin ? 'admin' : 'user';
+          logger.info(`[checkEmailVerification] Role for user ${finalUserId} determined as: ${userRole}`);
+
+          // Опционально: Обновить роль в таблице users, если она отличается
+          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [finalUserId]);
+          if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
+            await db.query('UPDATE users SET role = $1 WHERE id = $2', [userRole, finalUserId]);
+            logger.info(`[checkEmailVerification] Updated user role in DB to ${userRole}`);
+          }
+        } else {
+          logger.info(`[checkEmailVerification] No linked wallet found for user ${finalUserId}. Role remains 'user'.`);
+        }
+      } catch (roleCheckError) {
+        logger.error(`[checkEmailVerification] Error checking admin role for user ${finalUserId}:`, roleCheckError);
+        // В случае ошибки оставляем роль 'user'
+      }
+      // ----> КОНЕЦ: Проверка роли
+
       // Если есть гостевой ID, добавляем его тоже
       if (session.guestId) {
         await authService.identityService.saveIdentity(finalUserId, 'guest', session.guestId, true);
@@ -179,6 +204,7 @@ class EmailAuth {
         verified: true,
         userId: finalUserId,
         email: email,
+        role: userRole,
       };
     } catch (error) {
       logger.error('Error checking email verification:', error);

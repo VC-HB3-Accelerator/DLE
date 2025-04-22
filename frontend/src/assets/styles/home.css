@@ -300,7 +300,6 @@ input, textarea {
   display: flex;
   flex-direction: column;
   margin: var(--spacing-lg) 0 35px 0;
-  height: calc(100vh - 195px);
   min-height: 500px;
   position: relative;
 }
@@ -308,10 +307,8 @@ input, textarea {
 .chat-messages {
   display: flex;
   flex-direction: column;
-  flex: 1;
   overflow-y: auto;
   padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
   background: var(--color-white);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-grey-light);
@@ -319,19 +316,21 @@ input, textarea {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 135px;
+  bottom: 205px;
   transition: bottom var(--transition-normal);
 }
 
 /* Адаптация позиции при активации фокуса */
 .chat-container:has(.chat-input.focused) .chat-messages {
-  bottom: 235px;
+  bottom: 305px;
 }
 
 /* Реализуем программное изменение позиции через JS для браузеров без поддержки :has */
 @media (max-width: 100vw) {
+  /* Примечание: Этот блок @media может потребовать обновления в JS коде, */
+  /* если он используется для имитации :has. Сейчас изменяем только CSS. */
   .chat-input.focused ~ .messages-container {
-    bottom: 235px;
+    bottom: 305px;
   }
 }
 
@@ -435,7 +434,6 @@ input, textarea {
   min-height: var(--chat-input-min-height);
   max-height: var(--chat-input-max-height);
   transition: min-height var(--transition-normal), padding var(--transition-normal);
-  margin-bottom: var(--spacing-md);
   z-index: 10;
   box-shadow: none;
 }

@@ -4,6 +4,7 @@ const { ethers } = require('ethers');
 const crypto = require('crypto');
 const { processMessage } = require('./ai-assistant'); // Используем AI Assistant
 const verificationService = require('./verification-service'); // Используем сервис верификации
+const identityService = require('./identity-service'); // <-- ДОБАВЛЕН ИМПОРТ
 
 const ADMIN_CONTRACTS = [
   { address: '0xd95a45fc46a7300e6022885afec3d618d7d3f27c', network: 'eth' },
@@ -385,13 +386,22 @@ class AuthService {
 
   // Получение связанного кошелька
   async getLinkedWallet(userId) {
-    const result = await db.query(
-      `SELECT provider_id as address 
-       FROM user_identities 
-       WHERE user_id = $1 AND provider = 'wallet'`,
-      [userId]
-    );
-    return result.rows[0]?.address;
+    logger.info(`[getLinkedWallet] Called with userId: ${userId} (Type: ${typeof userId})`);
+    try {
+      const result = await db.query(
+        `SELECT provider_id as address 
+         FROM user_identities 
+         WHERE user_id = $1 AND provider = 'wallet'`,
+        [userId]
+      );
+      logger.info(`[getLinkedWallet] DB query result for userId ${userId}:`, result.rows);
+      const address = result.rows[0]?.address;
+      logger.info(`[getLinkedWallet] Returning address: ${address} for userId ${userId}`);
+      return address;
+    } catch (error) {
+      logger.error(`[getLinkedWallet] Error fetching linked wallet for userId ${userId}:`, error);
+      return undefined;
+    }
   }
 
   /**
@@ -772,6 +782,110 @@ class AuthService {
         error
       );
       throw error;
+    }
+  }
+
+  /**
+   * Обрабатывает успешную верификацию Email.
+   * Находит или создает пользователя, связывает email, проверяет роль админа.
+   * @param {string} email - Верифицированный email.
+   * @param {object} session - Объект сессии запроса.
+   * @returns {Promise<{userId: number, email: string, role: string, isNewUser: boolean}>}
+   */
+  async handleEmailVerification(email, session) {
+    const normalizedEmail = email.toLowerCase();
+    let userId;
+    let isNewUser = false;
+    let userRole = 'user'; // Роль по умолчанию
+
+    try {
+      // 1. Определить пользователя (существующий по email/сессии или новый)
+      if (session.authenticated && session.userId) {
+        // Используем уже аутентифицированного пользователя
+        userId = session.userId;
+        logger.info(`[handleEmailVerification] Using authenticated user ${userId}`);
+      } else {
+        // Ищем существующего пользователя по email
+        const existingUser = await identityService.findUserByIdentity('email', normalizedEmail);
+        if (existingUser) {
+          userId = existingUser.id;
+          logger.info(`[handleEmailVerification] Found existing user ${userId} by email ${normalizedEmail}`);
+        } else if (session.tempUserId) {
+          // Используем временного пользователя, если есть
+          userId = session.tempUserId;
+          logger.info(`[handleEmailVerification] Using temporary user ${userId}`);
+        } else {
+          // Создаем нового пользователя
+          const newUserResult = await db.query('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+            'user',
+          ]);
+          userId = newUserResult.rows[0].id;
+          isNewUser = true;
+          logger.info(`[handleEmailVerification] Created new user ${userId}`);
+        }
+      }
+
+      // 2. Связать email с пользователем (если еще не связан)
+      await identityService.saveIdentity(userId, 'email', normalizedEmail, true);
+      logger.info(`[handleEmailVerification] Ensured email identity ${normalizedEmail} for user ${userId}`);
+
+      // 3. Связать гостевые ID (если есть)
+      if (session.guestId) {
+        await identityService.saveIdentity(userId, 'guest', session.guestId, true);
+      }
+      if (session.previousGuestId && session.previousGuestId !== session.guestId) {
+        await identityService.saveIdentity(userId, 'guest', session.previousGuestId, true);
+      }
+
+      // 4. Проверить роль на основе привязанного кошелька
+      try {
+        const linkedWallet = await this.getLinkedWallet(userId);
+        if (linkedWallet && linkedWallet.provider_id) {
+          logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet.provider_id}. Checking role...`);
+          const isAdmin = await this.checkAdminRole(linkedWallet.provider_id);
+          userRole = isAdmin ? 'admin' : 'user';
+          logger.info(`[handleEmailVerification] Role determined as: ${userRole}`);
+
+          // Опционально: Обновить роль в таблице users
+          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+          if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
+            await db.query('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
+            logger.info(`[handleEmailVerification] Updated user role in DB to ${userRole}`);
+          }
+        } else {
+          logger.info(`[handleEmailVerification] No linked wallet found. Role remains 'user'.`);
+          // Если кошелька нет, проверяем текущую роль из базы (на случай, если она была admin ранее)
+          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+          if (currentUser.rows.length > 0) {
+            userRole = currentUser.rows[0].role;
+          }
+        }
+      } catch (roleCheckError) {
+        logger.error(`[handleEmailVerification] Error checking admin role:`, roleCheckError);
+        // В случае ошибки берем текущую роль из базы или оставляем 'user'
+        try {
+          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+          if (currentUser.rows.length > 0) {
+            userRole = currentUser.rows[0].role;
+          }
+        } catch (dbError) {
+          logger.error('Error fetching current user role after role check error:', dbError);
+        }
+      }
+
+      // Очистка временных данных из сессии
+      delete session.tempUserId;
+      delete session.pendingEmail;
+
+      return {
+        userId,
+        email: normalizedEmail,
+        role: userRole,
+        isNewUser,
+      };
+    } catch (error) {
+      logger.error('Error in handleEmailVerification:', error);
+      throw new Error('Ошибка обработки верификации Email');
     }
   }
 }

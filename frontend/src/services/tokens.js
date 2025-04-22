@@ -25,9 +25,16 @@ export const TOKEN_CONTRACTS = {
 };
 
 // Получение балансов токенов
-export const fetchTokenBalances = async () => {
+export const fetchTokenBalances = async (address = null) => {
   try {
-    const response = await api.get('/api/tokens/balances');
+    let url = '/api/tokens/balances';
+    if (address) {
+      url += `?address=${encodeURIComponent(address)}`;
+      console.log(`Fetching token balances for specific address: ${address}`);
+    } else {
+      console.log('Fetching token balances for session user');
+    }
+    const response = await api.get(url);
     return response.data;
   } catch (error) {
     console.error('Error fetching token balances:', error);
