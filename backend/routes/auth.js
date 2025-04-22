@@ -194,6 +194,38 @@ router.post('/telegram/verify', async (req, res) => {
       });
     }
 
+    // ---> ШАГ 4 И 5: ПОИСК ПРИВЯЗАННОГО КОШЕЛЬКА И ПРОВЕРКА БАЛАНСА <---
+    let linkedWalletAddress = null;
+    let finalIsAdmin = false; // Роль по умолчанию
+
+    try {
+        const walletIdentity = await identityService.findIdentity(verificationResult.userId, 'wallet');
+        if (walletIdentity) {
+            linkedWalletAddress = walletIdentity.provider_id;
+            logger.info(`[telegram/verify] Found linked wallet ${linkedWalletAddress} for user ${verificationResult.userId}`);
+
+            // Проверяем баланс токенов для определения роли
+            finalIsAdmin = await authService.checkAdminTokens(linkedWalletAddress);
+            logger.info(`[telegram/verify] Admin status based on token balance for ${linkedWalletAddress}: ${finalIsAdmin}`);
+
+            // Обновляем роль в БД, если она отличается от той, что была получена из verifyTelegramAuth
+            const currentRoleInDb = verificationResult.role === 'admin';
+            if (finalIsAdmin !== currentRoleInDb) {
+                await db.query('UPDATE users SET role = $1 WHERE id = $2', [finalIsAdmin ? 'admin' : 'user', verificationResult.userId]);
+                logger.info(`[telegram/verify] User role updated in DB for user ${verificationResult.userId} to ${finalIsAdmin ? 'admin' : 'user'}`);
+            }
+        } else {
+            logger.info(`[telegram/verify] No linked wallet found for user ${verificationResult.userId}. Role remains '${verificationResult.role}'`);
+            // Если кошелек не найден, используем роль из verificationResult (скорее всего 'user')
+            finalIsAdmin = verificationResult.role === 'admin';
+        }
+    } catch (error) {
+        logger.error(`[telegram/verify] Error finding linked wallet or checking tokens for user ${verificationResult.userId}:`, error);
+        // В случае ошибки, используем роль из verificationResult
+        finalIsAdmin = verificationResult.role === 'admin';
+    }
+    // ---> КОНЕЦ ШАГОВ 4 И 5 <---
+
     // Создаем новую сессию для этого telegramId
     req.session.regenerate(async (err) => {
       if (err) {
@@ -209,7 +241,13 @@ router.post('/telegram/verify', async (req, res) => {
       req.session.telegramId = telegramId;
       req.session.authType = 'telegram';
       req.session.authenticated = true;
-      req.session.role = verificationResult.role;
+      req.session.isAdmin = finalIsAdmin; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
+
+      // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ (ЕСЛИ НАЙДЕН) <---
+      if (linkedWalletAddress) {
+        req.session.address = linkedWalletAddress;
+      }
+      // ---> КОНЕЦ ДОБАВЛЕНИЯ АДРЕСА <---
 
       // Восстанавливаем гостевой ID, если он был
       if (guestId) {
@@ -227,9 +265,10 @@ router.post('/telegram/verify', async (req, res) => {
       return res.json({
         success: true,
         userId: verificationResult.userId,
-        role: verificationResult.role,
+        isAdmin: finalIsAdmin, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНУЮ РОЛЬ
         telegramId,
         isNewUser: verificationResult.isNewUser,
+        address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
       });
     });
   } catch (error) {
@@ -285,11 +324,12 @@ router.post('/email/verify-code', async (req, res) => {
       });
     }
 
-    // Если email передан в запросе, сохраняем его в сессии
+    // Если email передан в запросе, сохраняем его в сессии для проверки кода
     if (email && !req.session.pendingEmail) {
       req.session.pendingEmail = email.toLowerCase();
     }
 
+    // Нужен email в сессии для проверки кода
     if (!req.session.pendingEmail) {
       return res.status(400).json({
         success: false,
@@ -297,135 +337,115 @@ router.post('/email/verify-code', async (req, res) => {
       });
     }
 
-    // Сохраняем гостевой ID до проверки
+    // Сохраняем гостевые ID до обработки
     const guestId = req.session.guestId;
     const previousGuestId = req.session.previousGuestId;
 
-    // Проверяем код через сервис верификации
-    const verificationResult = await verificationService.verifyCode(
+    // 1. Проверяем сам код верификации
+    const codeVerificationResult = await verificationService.verifyCode(
       code,
       'email',
       req.session.pendingEmail
     );
 
-    if (!verificationResult.success) {
+    if (!codeVerificationResult.success) {
       return res.status(400).json({
         success: false,
-        error: verificationResult.error || 'Неверный код подтверждения',
+        error: codeVerificationResult.error || 'Неверный код подтверждения',
       });
     }
 
-    // Получаем или создаем пользователя
-    let userId;
-    let isNewAuth = false;
+    // 2. Обрабатываем аутентификацию/привязку и проверяем роль через AuthService
+    const authResult = await authService.handleEmailVerification(
+      req.session.pendingEmail, // Передаем email из сессии
+      req.session // Передаем всю сессию
+    );
 
-    // Проверяем, авторизован ли пользователь
-    if (req.session.authenticated && req.session.userId) {
-      // Связываем email с существующим пользователем
-      userId = req.session.userId;
-      logger.info(
-        `[email/verify-code] Linking email ${req.session.pendingEmail} to existing authenticated user ${userId}`
-      );
+    // ---> ДОБАВЛЯЕМ ПОЛУЧЕНИЕ И СОХРАНЕНИЕ АДРЕСА КОШЕЛЬКА В СЕССИЮ <---
+    let linkedWalletAddress = null;
+    if (authResult.userId) {
+      try {
+        const walletIdentity = await identityService.findIdentity(authResult.userId, 'wallet');
+        if (walletIdentity) {
+            linkedWalletAddress = walletIdentity.provider_id;
+        }
+      } catch (walletError) {
+        logger.warn(`[email/verify-code] Could not fetch linked wallet for user ${authResult.userId}:`, walletError);
+      }
+    }
+    // ---> КОНЕЦ ДОБАВЛЕНИЯ <---
 
-      // Связываем email с текущим аккаунтом
-      const linkResult = await authService.linkIdentity(userId, 'email', req.session.pendingEmail);
+    // ---> ОПРЕДЕЛЯЕМ РОЛЬ НА ОСНОВЕ БАЛАНСА ПРИВЯЗАННОГО КОШЕЛЬКА <---
+    let finalIsAdmin = false; // Роль по умолчанию
+    if (linkedWalletAddress) {
+        try {
+            finalIsAdmin = await authService.checkAdminTokens(linkedWalletAddress);
+            logger.info(`[email/verify-code] Admin status based on token balance for ${linkedWalletAddress}: ${finalIsAdmin}`);
 
-      // Сохраняем email в сессии
-      req.session.email = req.session.pendingEmail;
-
-      // Удаляем временные данные
-      delete req.session.pendingEmail;
-
-      // Сохраняем сессию
-      await sessionService.saveSession(req.session);
-
-      return res.json({
-        success: true,
-        userId,
-        email: req.session.email,
-        authenticated: true,
-        linked: true,
-      });
+            // Обновляем роль в БД, если она отличается от текущей
+            const currentRole = authResult.role === 'admin';
+            if (finalIsAdmin !== currentRole) {
+                await db.query('UPDATE users SET role = $1 WHERE id = $2', [finalIsAdmin ? 'admin' : 'user', authResult.userId]);
+                logger.info(`[email/verify-code] User role updated in DB for user ${authResult.userId} to ${finalIsAdmin ? 'admin' : 'user'}`);
+            }
+        } catch (tokenCheckError) {
+            logger.error(`[email/verify-code] Error checking admin tokens for ${linkedWalletAddress}:`, tokenCheckError);
+            // В случае ошибки проверки токенов, используем роль из authResult
+            finalIsAdmin = authResult.role === 'admin';
+        }
     } else {
-      // Если пользователь не авторизован, ищем существующего пользователя или создаем нового
-
-      // Ищем существующего пользователя по email
-      const existingUser = await identityService.findUserByIdentity(
-        'email',
-        req.session.pendingEmail
-      );
-
-      if (existingUser) {
-        // Используем существующего пользователя
-        userId = existingUser.id;
-        logger.info(
-          `[email/verify-code] Using existing user ${userId} with email ${req.session.pendingEmail}`
-        );
-      } else if (req.session.userId) {
-        // Используем текущего пользователя
-        userId = req.session.userId;
-        logger.info(
-          `[email/verify-code] Using current user ${userId} for email ${req.session.pendingEmail}`
-        );
-      } else if (req.session.tempUserId) {
-        // Используем временного пользователя
-        userId = req.session.tempUserId;
-        logger.info(
-          `[email/verify-code] Using temporary user ${userId} for email ${req.session.pendingEmail}`
-        );
-      } else {
-        // Создаем нового пользователя
-        const newUser = await db.query('INSERT INTO users (role) VALUES ($1) RETURNING id', [
-          'user',
-        ]);
-        userId = newUser.rows[0].id;
-        isNewAuth = true;
-        logger.info(
-          `[email/verify-code] Created new user ${userId} for email ${req.session.pendingEmail}`
-        );
-      }
-
-      // Сохраняем email как идентификатор
-      await identityService.saveIdentity(userId, 'email', req.session.pendingEmail, true);
-
-      // Сохраняем гостевые идентификаторы
-      if (guestId) {
-        await identityService.saveIdentity(userId, 'guest', guestId, true);
-      }
-
-      if (previousGuestId && previousGuestId !== guestId) {
-        await identityService.saveIdentity(userId, 'guest', previousGuestId, true);
-      }
-
-      // Устанавливаем сессию
-      req.session.userId = userId;
-      req.session.authenticated = true;
-      req.session.authType = 'email';
-      req.session.email = req.session.pendingEmail;
-
-      // Удаляем временные данные
-      delete req.session.tempUserId;
-      delete req.session.pendingEmail;
-
-      // Сохраняем сессию
-      await sessionService.saveSession(req.session);
-
-      // Связываем гостевые сообщения
-      await sessionService.linkGuestMessages(req.session, userId);
-
-      return res.json({
-        success: true,
-        userId,
-        email: req.session.email,
-        authenticated: true,
-        isNewAuth,
-      });
+        // Если кошелек не привязан, используем роль из authResult (вероятно, 'user')
+        finalIsAdmin = authResult.role === 'admin';
+        logger.info(`[email/verify-code] No linked wallet found for user ${authResult.userId}. Using role from authResult: ${authResult.role}`);
     }
+    // ---> КОНЕЦ ОПРЕДЕЛЕНИЯ РОЛИ <---
+
+    // 3. Устанавливаем сессию на основе результата
+    req.session.userId = authResult.userId;
+    req.session.authenticated = true;
+    req.session.authType = 'email';
+    req.session.email = authResult.email;
+    req.session.isAdmin = finalIsAdmin; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
+    // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ <---
+    if (linkedWalletAddress) {
+      req.session.address = linkedWalletAddress;
+    }
+    // ---> КОНЕЦ ДОБАВЛЕНИЯ <---
+
+    // Восстанавливаем/обновляем гостевые ID в сессии, если они были
+    if (guestId) req.session.guestId = guestId;
+    if (previousGuestId) req.session.previousGuestId = previousGuestId;
+
+    // Очищаем временные данные (authService уже должен был это сделать, но на всякий случай)
+    delete req.session.tempUserId;
+    delete req.session.pendingEmail;
+
+    // Сохраняем обновленную сессию
+    await sessionService.saveSession(req.session);
+
+    // Связываем гостевые сообщения
+    await sessionService.linkGuestMessages(req.session, authResult.userId);
+
+    // 4. Отправляем ответ
+    return res.json({
+      success: true,
+      userId: authResult.userId,
+      email: authResult.email,
+      isAdmin: finalIsAdmin, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНУЮ РОЛЬ
+      authenticated: true,
+      isNewAuth: authResult.isNewUser,
+      address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
+    });
+
   } catch (error) {
     logger.error('[email/verify-code] Error:', error);
+    // Проверяем, является ли ошибка созданной нами в authService
+    const errorMessage = error.message === 'Ошибка обработки верификации Email'
+      ? error.message
+      : 'Ошибка сервера';
     return res.status(500).json({
       success: false,
-      error: 'Ошибка сервера',
+      error: errorMessage,
     });
   }
 });

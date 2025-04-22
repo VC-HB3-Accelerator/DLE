@@ -239,6 +239,49 @@ class IdentityService {
   }
 
   /**
+   * Находит конкретный идентификатор пользователя по его типу.
+   * Возвращает первую найденную запись.
+   * @param {number} userId - ID пользователя
+   * @param {string} provider - Тип идентификатора (например, 'wallet', 'email')
+   * @returns {Promise<object|null>} - Объект идентификатора (содержит provider_id) или null
+   */
+  async findIdentity(userId, provider) {
+    try {
+      if (!userId || !provider) {
+        logger.warn(`[IdentityService] Missing parameters for findIdentity: userId=${userId}, provider=${provider}`);
+        return null;
+      }
+
+      // Нормализуем провайдера
+      const normalizedProvider = provider.toLowerCase();
+
+      const result = await db.query(
+        `SELECT provider, provider_id, created_at, updated_at 
+         FROM user_identities 
+         WHERE user_id = $1 AND provider = $2 
+         LIMIT 1`,
+        [userId, normalizedProvider]
+      );
+
+      if (result.rows.length === 0) {
+        logger.info(`[IdentityService] No ${normalizedProvider} identity found for user ${userId}`);
+        return null;
+      }
+
+      logger.info(
+        `[IdentityService] Found ${normalizedProvider} identity for user ${userId}: ${result.rows[0].provider_id}`
+      );
+      return result.rows[0]; // Возвращаем всю строку (включая provider_id)
+    } catch (error) {
+      logger.error(
+        `[IdentityService] Error finding ${provider} identity for user ${userId}:`,
+        error
+      );
+      return null;
+    }
+  }
+
+  /**
    * Сохраняет идентификаторы из сессии для пользователя
    * @param {object} session - Объект сессии
    * @param {number} userId - ID пользователя

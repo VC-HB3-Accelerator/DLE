@@ -32,8 +32,22 @@ export function useAuth() {
             return acc;
           }, []);
 
+        // Сравниваем новый отфильтрованный список с текущим значением
+        const currentProviders = identities.value.map(id => id.provider).sort();
+        const newProviders = filteredIdentities.map(id => id.provider).sort();
+        
+        const identitiesChanged = JSON.stringify(currentProviders) !== JSON.stringify(newProviders);
+
+        // Обновляем реактивное значение
         identities.value = filteredIdentities;
         console.log('User identities updated:', identities.value);
+
+        // Если список идентификаторов изменился, принудительно проверяем аутентификацию,
+        // чтобы обновить authType и другие связанные данные (например, telegramId)
+        if (identitiesChanged) {
+          console.log('Identities changed, forcing auth check.');
+          await checkAuth(); // Вызываем checkAuth для обновления полного состояния
+        }
       }
     } catch (error) {
       console.error('Error fetching user identities:', error);

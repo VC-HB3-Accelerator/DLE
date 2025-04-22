@@ -41,6 +41,7 @@ async function getBot() {
         const providerId = verification.provider_id;
         const linkedUserId = verification.user_id; // Получаем связанный userId если он есть
         let userId;
+        let userRole = 'user'; // Роль по умолчанию
 
         // Отмечаем код как использованный
         await db.query('UPDATE verification_codes SET used = true WHERE id = $1', [
@@ -134,35 +135,95 @@ async function getBot() {
           }
         }
 
-        // Логируем guestId перед обновлением сессии
-        logger.info(`[telegramBot] Attempting to update session for guestId: ${providerId}`);
+        // ----> НАЧАЛО: Проверка роли на основе привязанного кошелька <----
+        if (userId) { // Убедимся, что userId определен
+          logger.info(`[TelegramBot] Checking linked wallet for determined userId: ${userId} (Type: ${typeof userId})`);
+          try {
+            const linkedWallet = await authService.getLinkedWallet(userId);
+            if (linkedWallet) { 
+              logger.info(`[TelegramBot] Found linked wallet ${linkedWallet} for user ${userId}. Checking role...`);
+              const isAdmin = await authService.checkAdminRole(linkedWallet);
+              userRole = isAdmin ? 'admin' : 'user';
+              logger.info(`[TelegramBot] Role for user ${userId} determined as: ${userRole}`);
 
-        // Обновляем сессию в базе данных
-        const updateResult = await db.query(
-          `UPDATE session 
-           SET sess = (sess::jsonb || $1::jsonb)::json
-           WHERE sess::jsonb @> $2::jsonb`,
-          [
-            JSON.stringify({
-              userId: userId.toString(),
-              authenticated: true,
-              authType: 'telegram',
-              telegramId: ctx.from.id.toString(),
-              // Добавляем имя и юзернейм из Telegram
-              telegramUsername: ctx.from.username,
-              telegramFirstName: ctx.from.first_name,
-            }),
-            JSON.stringify({ guestId: providerId }),
-          ]
-        );
-
-        // Логируем результат обновления сессии
-        if (updateResult.rowCount > 0) {
-          logger.info(`Session updated successfully for guestId: ${providerId}, userId: ${userId}`);
+              // Опционально: Обновить роль в таблице users
+              const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+              if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
+                await db.query('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
+                logger.info(`[TelegramBot] Updated user role in DB to ${userRole}`);
+              }
+            } else {
+              logger.info(`[TelegramBot] No linked wallet found for user ${userId}. Checking current DB role.`);
+              // Если кошелька нет, берем текущую роль из базы
+              const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+              if (currentUser.rows.length > 0) {
+                userRole = currentUser.rows[0].role;
+              }
+            }
+          } catch (roleCheckError) {
+            logger.error(`[TelegramBot] Error checking admin role for user ${userId}:`, roleCheckError);
+            // В случае ошибки берем роль из базы или оставляем 'user'
+            try {
+                const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+                if (currentUser.rows.length > 0) { userRole = currentUser.rows[0].role; }
+            } catch (dbError) { /* ignore */ }
+          }
         } else {
-          logger.warn(
-            `Session update failed: No session found or updated for guestId: ${providerId}. User ${userId} authenticated via Telegram, but web session might not reflect it.`
+           logger.error('[TelegramBot] Cannot check role because userId is undefined!');
+        }
+        // ----> КОНЕЦ: Проверка роли <----
+
+        // Логируем userId перед обновлением сессии
+        logger.info(`[telegramBot] Attempting to update session for userId: ${userId}`);
+
+        // Находим последнюю активную сессию для данного userId
+        let activeSessionId = null;
+        try {
+          // Ищем сессию, где есть userId и она не истекла (проверка expires_at)
+          // Сортируем по expires_at DESC чтобы взять самую "свежую", если их несколько
+          const sessionResult = await db.query(
+             `SELECT sid FROM session 
+              WHERE sess ->> 'userId' = $1 
+              AND expire > NOW()
+              ORDER BY expire DESC 
+              LIMIT 1`, 
+             [userId?.toString()] // Используем optional chaining и преобразуем в строку
           );
+          
+          if (sessionResult.rows.length > 0) {
+            activeSessionId = sessionResult.rows[0].sid;
+            logger.info(`[telegramBot] Found active session ID ${activeSessionId} for user ${userId}`);
+
+            // Обновляем найденную сессию в базе данных, добавляя/перезаписывая данные Telegram
+            const updateResult = await db.query(
+              `UPDATE session 
+               SET sess = (sess::jsonb || $1::jsonb)::json
+               WHERE sid = $2`,
+              [
+                JSON.stringify({
+                  // authenticated: true, // Не перезаписываем, т.к. сессия уже должна быть аутентифицирована
+                  authType: 'telegram', // Обновляем тип аутентификации
+                  telegramId: ctx.from.id.toString(),
+                  telegramUsername: ctx.from.username,
+                  telegramFirstName: ctx.from.first_name,
+                  role: userRole, // Записываем определенную роль
+                  // userId: userId?.toString() // userId уже должен быть в сессии
+                }),
+                activeSessionId // Обновляем по найденному session ID
+              ]
+            );
+            
+            if (updateResult.rowCount > 0) {
+                logger.info(`[telegramBot] Session ${activeSessionId} updated successfully with Telegram data for user ${userId}`);
+            } else {
+                logger.warn(`[telegramBot] Session update query executed but did not update rows for sid: ${activeSessionId}. This might indicate a concurrency issue or incorrect sid.`);
+            }
+
+          } else {
+            logger.warn(`[telegramBot] No active web session found for userId: ${userId}. Telegram is linked, but the user might need to refresh their browser session.`);
+          }
+        } catch(sessionError) {
+           logger.error(`[telegramBot] Error finding or updating session for userId ${userId}:`, sessionError);
         }
 
         // Отправляем сообщение об успешной аутентификации

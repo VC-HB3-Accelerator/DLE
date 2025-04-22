@@ -207,18 +207,24 @@
           </div>
 
           <!-- Блок для авторизованных пользователей -->
-          <div v-if="isAuthenticated" class="auth-buttons-container">
-            <div class="wallet-header">
-              <div class="wallet-header-buttons">
-                <button class="auth-btn disconnect-wallet-btn" @click="disconnectWallet">
-                  Отключить
-                </button>
-                <button class="close-wallet-sidebar" @click="toggleWalletSidebar">×</button>
+          <div v-if="isAuthenticated">
+            <!-- Контейнер только для кнопок -->
+            <div class="auth-buttons-container">
+              <div class="wallet-header">
+                <div class="wallet-header-buttons">
+                  <button class="auth-btn disconnect-wallet-btn" @click="disconnectWallet">
+                    Отключить
+                  </button>
+                  <button class="close-wallet-sidebar" @click="toggleWalletSidebar">×</button>
+                </div>
               </div>
             </div>
+            <!-- Конец контейнера только для кнопок -->
 
-            <!-- Блок информации о пользователе -->
-            <div class="user-info">
+            <!-- Условный блок: Информация о пользователе ИЛИ формы подключения -->
+
+            <!-- Блок информации о пользователе (отображается, если не активна ни одна форма) -->
+            <div v-if="!emailAuth.showForm && !emailAuth.showVerification && !telegramAuth.showVerification" class="user-info">
               <h3>Идентификаторы:</h3>
               <div class="user-info-item">
                 <span class="user-info-label">Кошелек:</span>
@@ -248,17 +254,8 @@
                 </button>
               </div>
             </div>
-          </div>
 
-          <!-- Блок форм подключения для аутентифицированных пользователей -->
-          <div
-            v-if="
-              isAuthenticated &&
-              (emailAuth.showForm || telegramAuth.showVerification || emailAuth.showVerification)
-            "
-            class="connect-forms"
-          >
-            <!-- Форма для Email верификации -->
+            <!-- Форма для Email верификации (отображается вместо user-info) -->
             <div v-if="emailAuth.showForm" class="email-form">
               <p>Введите ваш email для получения кода подтверждения:</p>
               <div class="email-form-container">
@@ -285,7 +282,7 @@
               </div>
             </div>
 
-            <!-- Форма для ввода кода верификации Email -->
+            <!-- Форма для ввода кода верификации Email (отображается вместо user-info) -->
             <div v-if="emailAuth.showVerification" class="email-verification-form">
               <p>
                 На ваш email <strong>{{ emailAuth.verificationEmail }}</strong> отправлен код
@@ -310,24 +307,22 @@
               <button class="cancel-btn" @click="cancelEmailAuth">Отмена</button>
             </div>
 
-            <!-- Форма для Telegram верификации -->
+            <!-- Форма для Telegram верификации (отображается вместо user-info) -->
             <div v-if="telegramAuth.showVerification" class="verification-block">
               <div class="verification-code">
                 <span>Код верификации:</span>
-                <code @click="copyCode(telegramAuth.verificationCode)">{{
-                  telegramAuth.verificationCode
-                }}</code>
+                <code @click="copyCode(telegramAuth.verificationCode)">{{ telegramAuth.verificationCode }}</code>
                 <span v-if="codeCopied" class="copied-message">Скопировано!</span>
               </div>
-              <a :href="telegramAuth.botLink" target="_blank" class="bot-link"
-                >Открыть бота Telegram</a
-              >
+              <a :href="telegramAuth.botLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
               <button class="cancel-btn" @click="cancelTelegramAuth">Отмена</button>
             </div>
+
+            <!-- Конец условного блока -->
           </div>
 
           <!-- Блок баланса токенов -->
-          <div v-if="isAuthenticated && auth.address?.value" class="token-balances">
+          <div v-if="isAuthenticated && hasIdentityType('wallet')" class="token-balances">
             <h3>Баланс токенов:</h3>
             <div class="token-balance">
               <span class="token-name">ETH:</span>
@@ -1110,49 +1105,57 @@
         // Создаем интервал для проверки состояния авторизации
         telegramAuth.value.checkInterval = setInterval(async () => {
           try {
+            // ВАЖНО: Используем auth.checkAuth() из useAuth для получения актуального состояния
+            // Не нужно делать отдельный axios запрос здесь
             const checkResponse = await auth.checkAuth();
 
-            // Получаем Telegram ID из проверки аутентификации
-            const telegramId = checkResponse.telegramId;
+            // Получаем Telegram ID из состояния auth (которое обновилось через checkAuth)
+            const telegramId = auth.telegramId.value; // Используем реактивное значение
 
             if (auth.isAuthenticated.value && telegramId) {
+              console.log('[handleTelegramAuth] Telegram successfully linked/verified. Clearing interval and hiding form.');
+              clearTelegramInterval(); // <--- ДОБАВЛЕНО: Останавливаем интервал
+              telegramAuth.value.showVerification = false; // <--- ДОБАВЛЕНО: Скрываем форму верификации
+              telegramAuth.value.verificationCode = ''; // Очищаем код на всякий случай
+              telegramAuth.value.error = ''; // Очищаем ошибки
+
+              // ... остальная логика обработки успешной привязки ...
+              let roleUpdated = false; // Флаг для отслеживания обновления роли
+              // Сравниваем текущий authType с 'telegram'
               if (auth.authType.value !== 'telegram') {
                 // Если пользователь авторизован не через Telegram, связываем идентификаторы
-                console.log('Связывание Telegram с существующим аккаунтом:', telegramId);
-                const linkResult = await auth.linkIdentity('telegram', telegramId);
-
-                if (linkResult.success) {
-                  notifications.value.successMessage =
-                    'Telegram успешно подключен к вашему аккаунту!';
-                  notifications.value.showSuccess = true;
-
-                  setTimeout(() => {
-                    notifications.value.showSuccess = false;
-                  }, 3000);
-                } else {
-                  notifications.value.errorMessage =
-                    linkResult.error || 'Не удалось подключить Telegram';
-                  notifications.value.showError = true;
-
-                  setTimeout(() => {
-                    notifications.value.showError = false;
-                  }, 3000);
-                }
+                 // Эта логика может быть избыточной, если checkAuth уже обновил authType
+                 // Возможно, достаточно просто проверить authType после checkAuth
+                console.log('Связывание Telegram с существующим аккаунтом (проверка authType):', telegramId, auth.authType.value);
+                 // Уведомление об успехе
+                 notifications.value.successMessage = 'Telegram успешно подключен к вашему аккаунту!';
+                 notifications.value.showSuccess = true;
+                 setTimeout(() => { notifications.value.showSuccess = false; }, 3000);
               } else {
-                // Если новая аутентификация через Telegram
-                console.log('Telegram аутентификация успешна');
-
-                // Загружаем сообщения после аутентификации
-                await loadMessages({ authType: 'telegram' });
+                // Если новая аутентификация через Telegram или authType уже telegram
+                console.log('Telegram аутентификация/привязка успешна (authType="telegram")');
+                // await loadMessages({ authType: 'telegram' }); // Загрузка сообщений уже обрабатывается watch(isAuthenticated)
+                roleUpdated = true; // Роль могла обновиться при этой аутентификации
               }
 
-              // Очищаем интервал и скрываем окно верификации
-              clearTelegramInterval();
-              telegramAuth.value.showVerification = false;
-              telegramAuth.value.verificationCode = '';
+              // Проверяем роль еще раз после возможной привязки/аутентификации
+              // await auth.checkAuth(); // Дополнительный checkAuth, возможно, не нужен, т.к. он вызывается в начале интервала
+
+              if (hasIdentityType('wallet')) {
+                console.log('[handleTelegramAuth] Wallet linked, updating balances...');
+                await updateBalances(); // Вызываем обновление баланса
+                startBalanceUpdates(); // Запускаем интервал обновления, если еще не запущен
+              }
+              // Нет необходимости продолжать интервал после успеха
+              return; // Выходим из колбека setInterval
+            } else {
+              console.log('[handleTelegramAuth] Still waiting for Telegram verification...');
             }
           } catch (error) {
-            console.error('Ошибка при проверке аутентификации:', error);
+            console.error('Ошибка при проверке аутентификации в интервале:', error);
+            // Очищать ли интервал при ошибке? Возможно, да, чтобы не спамить ошибками.
+            // clearTelegramInterval();
+            // telegramAuth.value.error = 'Ошибка проверки статуса Telegram.';
           }
         }, 2000); // Проверяем каждые 2 секунды
       } else {
@@ -1290,6 +1293,7 @@
 
         // Получаем текущее состояние аутентификации
         const authResponse = await auth.checkAuth();
+        let roleUpdated = false; // Флаг для отслеживания обновления роли
 
         if (auth.isAuthenticated.value && emailAuth.value.verificationEmail) {
           // Если пользователь уже авторизован, связываем email
@@ -1304,45 +1308,40 @@
               // Показываем сообщение об успехе
               notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подключен к вашему аккаунту!`;
               notifications.value.showSuccess = true;
-
-              // Скрываем сообщение через 3 секунды
-              setTimeout(() => {
-                notifications.value.showSuccess = false;
-              }, 3000);
+              setTimeout(() => { notifications.value.showSuccess = false; }, 3000);
             } else {
               notifications.value.errorMessage = linkResult.error || 'Не удалось подключить Email';
               notifications.value.showError = true;
-
-              setTimeout(() => {
-                notifications.value.showError = false;
-              }, 3000);
+              setTimeout(() => { notifications.value.showError = false; }, 3000);
             }
           } else {
-            // Показываем сообщение об успехе
+            // Показываем сообщение об успехе, если просто подтвердили email
             notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подтвержден!`;
             notifications.value.showSuccess = true;
+            setTimeout(() => { notifications.value.showSuccess = false; }, 3000);
 
-            // Скрываем сообщение через 3 секунды
-            setTimeout(() => {
-              notifications.value.showSuccess = false;
-            }, 3000);
-
-            // Загружаем сообщения после аутентификации
             await loadMessages({ authType: 'email' });
+            roleUpdated = true; // Роль могла обновиться
           }
         } else {
           // Если пользователь не был авторизован до этого
-          // Показываем сообщение об успехе
           notifications.value.successMessage = `Email ${emailAuth.value.verificationEmail} успешно подтвержден!`;
           notifications.value.showSuccess = true;
+          setTimeout(() => { notifications.value.showSuccess = false; }, 3000);
 
-          // Скрываем сообщение через 3 секунды
-          setTimeout(() => {
-            notifications.value.showSuccess = false;
-          }, 3000);
-
-          // Загружаем сообщения после аутентификации
           await loadMessages({ authType: 'email' });
+          roleUpdated = true; // Роль могла обновиться при новой аутентификации
+        }
+
+        // Проверяем роль еще раз после возможной привязки/аутентификации
+        if (!roleUpdated) {
+          await auth.checkAuth(); // Перепроверяем auth состояние, чтобы получить актуальную роль
+        }
+
+        if (hasIdentityType('wallet')) {
+          console.log('[verifyEmailCode] Wallet linked, updating balances...');
+          await updateBalances(); // Вызываем обновление баланса
+          startBalanceUpdates(); // Запускаем интервал обновления, если еще не запущен
         }
       } else {
         emailAuth.value.error = response.data.message || 'Неверный код верификации';
@@ -1542,26 +1541,41 @@
    * Обновляет балансы токенов
    */
   const updateBalances = async () => {
-    if (auth.isAuthenticated.value && auth.address?.value) {
-      try {
-        console.log('Запрос балансов для адреса:', auth.address.value);
-        const balances = await fetchTokenBalances();
-        console.log('Полученные балансы:', balances);
+    if (auth.isAuthenticated.value) {
+      // Пытаемся получить адрес сначала из прямого значения, потом из идентификаторов
+      const walletAddress = auth.address?.value || getIdentityValue('wallet');
 
-        // Обновляем каждый баланс отдельно для реактивности
-        tokenBalances.value = {
-          eth: balances.eth || '0',
-          bsc: balances.bsc || '0',
-          arbitrum: balances.arbitrum || '0',
-          polygon: balances.polygon || '0',
-        };
+      if (walletAddress) {
+        try {
+          console.log('Запрос балансов для адреса:', walletAddress);
+          // Важно: Убедитесь, что fetchTokenBalances использует переданный адрес
+          // Если fetchTokenBalances неявно использует auth.address.value,
+          // его нужно будет модифицировать или передавать адрес явно.
+          // ПРЕДПОЛАГАЕМ, что fetchTokenBalances работает корректно или будет исправлен.
+          const balances = await fetchTokenBalances(walletAddress); // Передаем адрес явно, если нужно
+          console.log('Полученные балансы:', balances);
 
-        console.log('Обновленные балансы в интерфейсе:', tokenBalances.value);
-      } catch (error) {
-        console.error('Ошибка при обновлении балансов:', error);
+          // Обновляем каждый баланс отдельно для реактивности
+          tokenBalances.value = {
+            eth: balances.eth || '0',
+            bsc: balances.bsc || '0',
+            arbitrum: balances.arbitrum || '0',
+            polygon: balances.polygon || '0',
+          };
+
+          console.log('Обновленные балансы в интерфейсе:', tokenBalances.value);
+        } catch (error) {
+          console.error('Ошибка при обновлении балансов:', error);
+        }
+      } else {
+        console.log('Не найден адрес кошелька для запроса балансов.');
+        // Можно обнулить балансы, если адрес не найден
+        tokenBalances.value = { eth: '0', bsc: '0', arbitrum: '0', polygon: '0' };
       }
     } else {
-      console.log('Пользователь не аутентифицирован или адрес не доступен');
+      console.log('Пользователь не аутентифицирован.');
+      // Также обнуляем балансы, если не аутентифицирован
+      tokenBalances.value = { eth: '0', bsc: '0', arbitrum: '0', polygon: '0' };
     }
   };
 
