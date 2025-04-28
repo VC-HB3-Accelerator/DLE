@@ -38,16 +38,48 @@ async function runMigrations() {
     for (const file of migrationFiles) {
       if (!executedMigrations.has(file)) {
         const filePath = path.join(migrationsDir, file);
-        const sql = await fs.readFile(filePath, 'utf-8');
+        const fileContent = await fs.readFile(filePath, 'utf-8');
 
+        // Ищем начало UP секции (или начало файла)
+        const upMarker = '-- UP Migration';
+        const downMarker = '-- DOWN Migration';
+        let upSqlStartIndex = fileContent.indexOf(upMarker);
+        if (upSqlStartIndex !== -1) {
+          // Ищем перевод строки после маркера
+          let newlineIndex = fileContent.indexOf('\n', upSqlStartIndex);
+          if (newlineIndex === -1) { // Если маркер в последней строке
+             newlineIndex = fileContent.length;
+          }
+          upSqlStartIndex = newlineIndex + 1; // Начинаем со следующей строки
+        } else {
+          upSqlStartIndex = 0; // Если маркера нет, берем все с начала
+        }
+
+        // Ищем конец UP секции (начало DOWN секции)
+        let upSqlEndIndex = fileContent.indexOf(downMarker);
+        if (upSqlEndIndex === -1) {
+          upSqlEndIndex = fileContent.length; // Если маркера DOWN нет, берем все до конца
+        }
+
+        // Извлекаем только UP SQL
+        const sqlToExecute = fileContent.substring(upSqlStartIndex, upSqlEndIndex).trim();
+
+        if (!sqlToExecute) {
+          logger.warn(`Migration file ${file} has no executable UP SQL content. Skipping.`);
+          continue; // Пропускаем пустые миграции
+        }
+
+        logger.info(`Executing UP migration from ${file}...`);
         await pool.query('BEGIN');
         try {
-          await pool.query(sql);
+          // Выполняем только извлеченный UP SQL
+          await pool.query(sqlToExecute);
           await pool.query('INSERT INTO migrations (name) VALUES ($1)', [file]);
           await pool.query('COMMIT');
           logger.info(`Migration ${file} executed successfully`);
         } catch (error) {
           await pool.query('ROLLBACK');
+          logger.error(`Error executing migration ${file}:`, error); // Логируем ошибку перед пробросом
           throw error;
         }
       }

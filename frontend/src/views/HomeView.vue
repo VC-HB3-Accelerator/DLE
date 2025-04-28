@@ -21,335 +21,29 @@
         </div>
       </div>
 
-      <div class="chat-container">
-        <div ref="messagesContainer" class="chat-messages">
-          <div
-            v-for="message in messages"
-            :key="message.id"
-            :class="[
-              'message',
-              message.sender_type === 'assistant' || message.role === 'assistant'
-                ? 'ai-message'
-                : message.sender_type === 'system' || message.role === 'system'
-                  ? 'system-message'
-                  : 'user-message',
-              message.isLocal ? 'is-local' : '',
-              message.hasError ? 'has-error' : '',
-            ]"
-          >
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="message-content" v-html="formatMessage(message.content)" />
-            <div class="message-meta">
-              <div class="message-time">
-                {{ formatTime(message.timestamp || message.created_at) }}
-              </div>
-              <div v-if="message.isLocal" class="message-status">
-                <span class="sending-indicator">Отправка...</span>
-              </div>
-              <div v-if="message.hasError" class="message-status">
-                <span class="error-indicator">Ошибка отправки</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <ChatInterface 
+        :messages="messages" 
+        :is-loading="isLoading" 
+        :has-more-messages="messageLoading.hasMoreMessages"
+        v-model:newMessage="newMessage"
+        v-model:attachments="attachments"
+        @send-message="handleSendMessage"
+        @load-more="loadMessages"
+      />
 
-        <div class="chat-input">
-          <textarea
-            ref="messageInput"
-            v-model="newMessage"
-            placeholder="Введите сообщение..."
-            :disabled="isLoading"
-            rows="3"
-            autofocus
-            @keydown.enter.prevent="handleMessage(newMessage)"
-            @focus="handleFocus"
-            @blur="handleBlur"
-          />
-          <div class="chat-buttons">
-            <button :disabled="isLoading || !newMessage.trim()" @click="handleMessage(newMessage)">
-              {{ isLoading ? 'Отправка...' : 'Отправить' }}
-            </button>
-            <button class="clear-btn" :disabled="isLoading" @click="clearGuestMessages">
-              Очистить
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+            </div>
 
     <!-- Правая панель с информацией о кошельке -->
-    <transition name="sidebar-slide">
-      <div v-if="showWalletSidebar" class="wallet-sidebar">
-        <div class="wallet-sidebar-content">
-          <!-- Блок для неавторизованных пользователей -->
-          <div v-if="!isAuthenticated" class="auth-container">
-            <div class="wallet-header">
-              <div class="wallet-header-buttons">
-                <button class="close-wallet-sidebar" @click="toggleWalletSidebar">×</button>
-              </div>
-            </div>
-
-            <div class="auth-buttons-wrapper">
-              <button
-                v-if="
-                  !telegramAuth.showVerification &&
-                  !emailAuth.showForm &&
-                  !emailAuth.showVerification
-                "
-                class="auth-btn connect-wallet-btn"
-                @click="handleWalletAuth"
-              >
-                Подключить кошелек
-              </button>
-
-              <button
-                v-if="
-                  !telegramAuth.showVerification &&
-                  !emailAuth.showForm &&
-                  !emailAuth.showVerification
-                "
-                class="auth-btn telegram-btn"
-                @click="handleTelegramAuth"
-              >
-                Подключить Telegram
-              </button>
-
-              <button
-                v-if="
-                  !telegramAuth.showVerification &&
-                  !emailAuth.showForm &&
-                  !emailAuth.showVerification
-                "
-                class="auth-btn email-btn"
-                @click="handleEmailAuth"
-              >
-                Подключить Email
-              </button>
-            </div>
-
-            <div v-if="telegramAuth.showVerification" class="verification-block">
-              <div class="verification-code">
-                <span>Код верификации:</span>
-                <code @click="copyCode(telegramAuth.verificationCode)">{{
-                  telegramAuth.verificationCode
-                }}</code>
-                <span v-if="codeCopied" class="copied-message">Скопировано!</span>
-              </div>
-              <a :href="telegramAuth.botLink" target="_blank" class="bot-link"
-                >Открыть бота Telegram</a
-              >
-              <button class="cancel-btn" @click="cancelTelegramAuth">Отмена</button>
-            </div>
-
-            <!-- Сообщение об ошибке в Telegram -->
-            <div v-if="telegramAuth.error" class="error-message">
-              {{ telegramAuth.error }}
-              <button class="close-error" @click="telegramAuth.error = ''">×</button>
-            </div>
-
-            <!-- Форма для Email верификации -->
-            <div v-if="emailAuth.showForm" class="email-form">
-              <p>Введите ваш email для получения кода подтверждения:</p>
-              <div class="email-form-container">
-                <input
-                  v-model="emailAuth.email"
-                  type="email"
-                  placeholder="Ваш email"
-                  class="email-input"
-                  :class="{ 'email-input-error': emailAuth.formatError }"
-                />
-                <button
-                  class="send-email-btn"
-                  :disabled="emailAuth.isLoading"
-                  @click="sendEmailVerification"
-                >
-                  {{ emailAuth.isLoading ? 'Отправка...' : 'Отправить код' }}
-                </button>
-              </div>
-              <div class="form-actions">
-                <button class="cancel-btn" @click="cancelEmailAuth">Отмена</button>
-                <p v-if="emailAuth.formatError" class="email-format-error">
-                  Пожалуйста, введите корректный email
-                </p>
-              </div>
-            </div>
-
-            <!-- Форма для ввода кода верификации Email -->
-            <div v-if="emailAuth.showVerification" class="email-verification-form">
-              <p>
-                На ваш email <strong>{{ emailAuth.verificationEmail }}</strong> отправлен код
-                подтверждения.
-              </p>
-              <div class="email-form-container">
-                <input
-                  v-model="emailAuth.verificationCode"
-                  type="text"
-                  placeholder="Введите код верификации"
-                  maxlength="6"
-                  class="email-input"
-                />
-                <button
-                  class="send-email-btn"
-                  :disabled="emailAuth.isVerifying"
-                  @click="verifyEmailCode"
-                >
-                  {{ emailAuth.isVerifying ? 'Проверка...' : 'Подтвердить' }}
-                </button>
-              </div>
-              <button class="cancel-btn" @click="cancelEmailAuth">Отмена</button>
-            </div>
-
-            <!-- Сообщение об ошибке в Email -->
-            <div v-if="emailAuth.error" class="error-message">
-              {{ emailAuth.error }}
-              <button class="close-error" @click="emailAuth.error = ''">×</button>
-            </div>
-          </div>
-
-          <!-- Блок для авторизованных пользователей -->
-          <div v-if="isAuthenticated">
-            <!-- Контейнер только для кнопок -->
-            <div class="auth-buttons-container">
-              <div class="wallet-header">
-                <div class="wallet-header-buttons">
-                  <button class="auth-btn disconnect-wallet-btn" @click="disconnectWallet">
-                    Отключить
-                  </button>
-                  <button class="close-wallet-sidebar" @click="toggleWalletSidebar">×</button>
-                </div>
-              </div>
-            </div>
-            <!-- Конец контейнера только для кнопок -->
-
-            <!-- Условный блок: Информация о пользователе ИЛИ формы подключения -->
-
-            <!-- Блок информации о пользователе (отображается, если не активна ни одна форма) -->
-            <div v-if="!emailAuth.showForm && !emailAuth.showVerification && !telegramAuth.showVerification" class="user-info">
-              <h3>Идентификаторы:</h3>
-              <div class="user-info-item">
-                <span class="user-info-label">Кошелек:</span>
-                <span v-if="hasIdentityType('wallet')" class="user-info-value">
-                  {{ truncateAddress(getIdentityValue('wallet')) }}
-                </span>
-                <button v-else class="connect-btn" @click="handleWalletAuth">
-                  Подключить кошелек
-                </button>
-              </div>
-              <div class="user-info-item">
-                <span class="user-info-label">Telegram:</span>
-                <span v-if="hasIdentityType('telegram')" class="user-info-value">
-                  {{ getIdentityValue('telegram') }}
-                </span>
-                <button v-else class="connect-btn" @click="handleTelegramAuth">
-                  Подключить Telegram
-                </button>
-              </div>
-              <div class="user-info-item">
-                <span class="user-info-label">Email:</span>
-                <span v-if="hasIdentityType('email')" class="user-info-value">
-                  {{ getIdentityValue('email') }}
-                </span>
-                <button v-else class="connect-btn" @click="handleEmailAuth">
-                  Подключить Email
-                </button>
-              </div>
-            </div>
-
-            <!-- Форма для Email верификации (отображается вместо user-info) -->
-            <div v-if="emailAuth.showForm" class="email-form">
-              <p>Введите ваш email для получения кода подтверждения:</p>
-              <div class="email-form-container">
-                <input
-                  v-model="emailAuth.email"
-                  type="email"
-                  placeholder="Ваш email"
-                  class="email-input"
-                  :class="{ 'email-input-error': emailAuth.formatError }"
-                />
-                <button
-                  class="send-email-btn"
-                  :disabled="emailAuth.isLoading"
-                  @click="sendEmailVerification"
-                >
-                  {{ emailAuth.isLoading ? 'Отправка...' : 'Отправить код' }}
-                </button>
-              </div>
-              <div class="form-actions">
-                <button class="cancel-btn" @click="cancelEmailAuth">Отмена</button>
-                <p v-if="emailAuth.formatError" class="email-format-error">
-                  Пожалуйста, введите корректный email
-                </p>
-              </div>
-            </div>
-
-            <!-- Форма для ввода кода верификации Email (отображается вместо user-info) -->
-            <div v-if="emailAuth.showVerification" class="email-verification-form">
-              <p>
-                На ваш email <strong>{{ emailAuth.verificationEmail }}</strong> отправлен код
-                подтверждения.
-              </p>
-              <div class="email-form-container">
-                <input
-                  v-model="emailAuth.verificationCode"
-                  type="text"
-                  placeholder="Введите код верификации"
-                  maxlength="6"
-                  class="email-input"
-                />
-                <button
-                  class="send-email-btn"
-                  :disabled="emailAuth.isVerifying"
-                  @click="verifyEmailCode"
-                >
-                  {{ emailAuth.isVerifying ? 'Проверка...' : 'Подтвердить' }}
-                </button>
-              </div>
-              <button class="cancel-btn" @click="cancelEmailAuth">Отмена</button>
-            </div>
-
-            <!-- Форма для Telegram верификации (отображается вместо user-info) -->
-            <div v-if="telegramAuth.showVerification" class="verification-block">
-              <div class="verification-code">
-                <span>Код верификации:</span>
-                <code @click="copyCode(telegramAuth.verificationCode)">{{ telegramAuth.verificationCode }}</code>
-                <span v-if="codeCopied" class="copied-message">Скопировано!</span>
-              </div>
-              <a :href="telegramAuth.botLink" target="_blank" class="bot-link">Открыть бота Telegram</a>
-              <button class="cancel-btn" @click="cancelTelegramAuth">Отмена</button>
-            </div>
-
-            <!-- Конец условного блока -->
-          </div>
-
-          <!-- Блок баланса токенов -->
-          <div v-if="isAuthenticated && hasIdentityType('wallet')" class="token-balances">
-            <h3>Баланс токенов:</h3>
-            <div class="token-balance">
-              <span class="token-name">ETH:</span>
-              <span class="token-amount">{{ Number(tokenBalances.eth).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.eth.symbol }}</span>
-            </div>
-            <div class="token-balance">
-              <span class="token-name">BSC:</span>
-              <span class="token-amount">{{ Number(tokenBalances.bsc).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
-            </div>
-            <div class="token-balance">
-              <span class="token-name">ARB:</span>
-              <span class="token-amount">{{
-                Number(tokenBalances.arbitrum).toLocaleString()
-              }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.arbitrum.symbol }}</span>
-            </div>
-            <div class="token-balance">
-              <span class="token-name">POL:</span>
-              <span class="token-amount">{{ Number(tokenBalances.polygon).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.polygon.symbol }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <Sidebar 
+      v-model="showWalletSidebar" 
+      :is-authenticated="isAuthenticated"
+      :telegram-auth="telegramAuth"
+      :email-auth="emailAuth"
+      :token-balances="tokenBalances" 
+      :identities="auth.identities?.value"
+      @wallet-auth="handleWalletAuth"
+      @disconnect-wallet="disconnectWallet"
+    />
   </div>
 </template>
 
@@ -359,10 +53,11 @@
   import { connectWithWallet } from '../services/wallet';
   import axios from 'axios';
   import api from '../api/axios';
-  import DOMPurify from 'dompurify';
-  import { marked } from 'marked';
   import '../assets/styles/home.css';
   import { fetchTokenBalances, TOKEN_CONTRACTS } from '../services/tokens';
+  import Sidebar from '../components/Sidebar.vue';
+  import Message from '../components/Message.vue'; // Импортируем новый компонент
+  import ChatInterface from '../components/ChatInterface.vue'; // Импортируем интерфейс чата
 
   console.log('HomeView.vue: Оптимизированная версия с чатом');
 
@@ -500,8 +195,7 @@
   // Основные состояния
   const auth = useAuth();
   const messages = ref([]);
-  const newMessage = ref('');
-  const messagesContainer = ref(null);
+  const newMessage = ref(''); // Управляется через v-model с ChatInterface
   const userLanguage = ref('ru');
   const isLoading = ref(false);
   const isConnecting = ref(false);
@@ -535,6 +229,8 @@
   const notifications = ref({
     successMessage: '',
     showSuccess: false,
+    errorMessage: '', // Добавлено для ошибок
+    showError: false // Добавлено для ошибок
   });
 
   // Состояния для пагинации и загрузки сообщений
@@ -546,6 +242,9 @@
     isInProgress: false,
     isLinkingGuest: false,
   });
+
+  // Состояние для прикрепленных файлов (управляется через v-model с ChatInterface)
+  const attachments = ref([]);
 
   // Состояние для балансов токенов
   const tokenBalances = ref({
@@ -759,10 +458,6 @@
             })
           );
         }
-
-        // Прокручиваем к последнему сообщению
-        await nextTick();
-        scrollToBottom();
       }
     } catch (error) {
       console.error('Ошибка загрузки истории сообщений:', error);
@@ -775,128 +470,133 @@
 
   /**
    * Обрабатывает отправку сообщения
-   * @param {string} text - Текст сообщения
+   * @param {object} payload - Данные из ChatInterface { message: string, attachments: File[] }
    */
-  const handleMessage = async (text) => {
-    if (!text.trim()) return;
-
-    try {
-      // Создаем сообщение пользователя
+  const handleSendMessage = async (payload) => {
+    const { message: text, attachments: files } = payload;
       const userMessageContent = text.trim();
-      const tempId = generateUniqueId();
 
-      const userMessage = {
-        id: tempId,
-        content: userMessageContent,
-        sender_type: 'user',
-        role: 'user',
-        isLocal: true,
-        isGuest: !auth.isAuthenticated.value,
-        timestamp: new Date().toISOString(),
-      };
+    // Определяем контент для локального отображения
+    let displayContent = userMessageContent;
+    if (!displayContent && files && files.length > 0) {
+      displayContent = `[Файл: ${files[0].name}]`; // Используем имя первого файла для отображения
+    }
 
-      // Добавляем сообщение в чат
-      messages.value.push(userMessage);
+    const tempId = generateUniqueId();
+    const userMessage = {
+      id: tempId,
+      content: displayContent, // Используем displayContent
+      sender_type: 'user',
+      role: 'user',
+      isLocal: true,
+      isGuest: !auth.isAuthenticated.value,
+      timestamp: new Date().toISOString(),
+      // Передаем attachments в формате, который понимает Message.vue
+      attachments: files ? files.map(f => ({
+        originalname: f.name, // Используем name из File объекта
+        size: f.size,
+        mimetype: f.type
+      })) : []
+    };
 
-      // Очищаем поле ввода
-      newMessage.value = '';
+    messages.value.push(userMessage);
+    // newMessage и attachments очищаются внутри ChatInterface после emit('send-message')
 
-      // Прокручиваем к последнему сообщению
-      scrollToBottom();
+    // TODO: Реализовать прокрутку к последнему сообщению, возможно через emit из ChatInterface
+    // scrollToBottom(); 
 
-      // Устанавливаем состояние загрузки
       isLoading.value = true;
 
       try {
-        if (auth.isAuthenticated.value) {
-          // Отправляем сообщение как авторизованный пользователь
-          const response = await axios.post('/api/chat/message', {
-            message: userMessageContent,
-            language: userLanguage.value,
-          });
+      const formData = new FormData();
+      formData.append('message', userMessageContent);
+      formData.append('language', userLanguage.value);
+      
+      // Добавляем файлы в FormData
+      if (files && files.length > 0) {
+        files.forEach((file, index) => {
+          formData.append('attachments', file);
+        });
+      }
 
-          if (response.data.success) {
-            // Обновляем ID сообщения пользователя
-            const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
-            if (userMsgIndex !== -1) {
-              messages.value[userMsgIndex].id = response.data.userMessage.id;
-              messages.value[userMsgIndex].isLocal = false;
-            }
-
-            // Добавляем ответ ИИ
-            messages.value.push({
-              id: response.data.aiMessage.id,
-              content: response.data.aiMessage.content,
-              sender_type: 'assistant',
-              role: 'assistant',
-              timestamp: response.data.aiMessage.created_at,
-            });
-
-            // Прокручиваем к последнему сообщению
-            scrollToBottom();
-          }
-        } else {
-          // Отправляем сообщение как гость
-          console.log('Отправка гостевого сообщения:', userMessageContent);
-
-          // Получаем или создаем идентификатор гостя
+      let apiUrl = '/api/chat/message';
+      if (!auth.isAuthenticated.value) {
           let guestId = getFromStorage('guestId');
           if (!guestId) {
             guestId = generateUniqueId();
             setToStorage('guestId', guestId);
           }
+        formData.append('guestId', guestId);
+        apiUrl = '/api/chat/guest-message';
+      }
 
-          const response = await axios.post('/api/chat/guest-message', {
-            content: userMessageContent,
-            guestId,
-            language: userLanguage.value,
+      const response = await axios.post(apiUrl, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data' // Важно для отправки файлов
+        }
           });
 
           if (response.data.success) {
-            console.log('Гостевое сообщение отправлено:', response.data);
-
             // Обновляем ID сообщения пользователя
             const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
             if (userMsgIndex !== -1) {
-              messages.value[userMsgIndex].id = response.data.messageId;
+          messages.value[userMsgIndex].id = response.data.userMessage?.id || response.data.messageId;
               messages.value[userMsgIndex].isLocal = false;
+          messages.value[userMsgIndex].timestamp = response.data.userMessage?.created_at || new Date().toISOString(); // Обновляем время
             }
 
-            // Сохраняем сообщение в localStorage
+        // Добавляем ответ ИИ, если есть
+        if (response.data.aiMessage) {
+          messages.value.push({
+            id: response.data.aiMessage.id,
+            content: response.data.aiMessage.content,
+            sender_type: 'assistant',
+            role: 'assistant',
+            timestamp: response.data.aiMessage.created_at,
+          });
+        }
+
+        // Если было гостевое сообщение, сохраняем
+        if (!auth.isAuthenticated.value) {
             try {
               const storedMessages = JSON.parse(getFromStorage('guestMessages', '[]'));
+            // Добавляем только сообщение пользователя, так как ИИ ответ не приходит для гостя сразу
               storedMessages.push({
-                id: response.data.messageId,
+                id: response.data.messageId, // Используем ID, полученный от сервера
                 content: userMessageContent,
                 sender_type: 'user',
                 role: 'user',
                 isGuest: true,
-                timestamp: new Date().toISOString(),
+                timestamp: messages.value[userMsgIndex]?.timestamp || new Date().toISOString(),
+                attachmentsInfo: userMessage.attachmentsInfo // Сохраняем инфо о файлах
               });
               setToStorage('guestMessages', JSON.stringify(storedMessages));
               setToStorage('hasUserSentMessage', 'true');
               hasUserSentMessage.value = true;
             } catch (storageError) {
-              console.error('Ошибка сохранения сообщения в localStorage:', storageError);
+            console.error('Ошибка сохранения гостевого сообщения в localStorage:', storageError);
             }
-
-            // Показываем правую панель, если она скрыта
+          // Показываем правую панель для гостя
             if (!showWalletSidebar.value) {
               showWalletSidebar.value = true;
               setToStorage('showWalletSidebar', 'true');
             }
           }
+
+      } else {
+          // Обработка ошибки от API
+          throw new Error(response.data.error || 'Ошибка отправки сообщения от API');
         }
+
       } catch (error) {
         console.error('Ошибка отправки сообщения:', error);
-
         // Помечаем сообщение как ошибочное
         const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
         if (userMsgIndex !== -1) {
           messages.value[userMsgIndex].hasError = true;
+        messages.value[userMsgIndex].isLocal = false; // Перестаем показывать "Отправка..."
         }
-
-        // Добавляем сообщение об ошибке в чат
+      // Добавляем системное сообщение об ошибке
         messages.value.push({
           id: `error-${Date.now()}`,
           content: 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте еще раз.',
@@ -904,59 +604,23 @@
           role: 'system',
           timestamp: new Date().toISOString(),
         });
-        scrollToBottom();
       } finally {
         isLoading.value = false;
-      }
-
-      // После отправки сообщения возвращаем нормальный размер
-      setTimeout(() => {
-        const chatInput = document.querySelector('.chat-input');
-        const chatMessages = document.querySelector('.chat-messages');
-        if (chatInput) {
-          chatInput.classList.remove('focused');
-          if (!CSS.supports('selector(:has(div))') && chatMessages) {
-            chatMessages.style.bottom = '135px';
-          }
-        }
-      }, 100);
-    } catch (error) {
-      console.error('Непредвиденная ошибка в handleMessage:', error);
-      isLoading.value = false;
+      // TODO: Прокрутка к последнему сообщению после получения ответа или ошибки
+      // scrollToBottom(); 
     }
   };
 
   /**
-   * Прокручивает контейнер с сообщениями к последнему сообщению
+   * Очищает гостевые сообщения (только из localStorage)
    */
-  const scrollToBottom = () => {
-    if (messagesContainer.value) {
-      setTimeout(() => {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-      }, 100);
-    }
-  };
-
-  /**
-   * Очищает гостевые сообщения
-   */
-  const clearGuestMessages = () => {
+  const clearGuestLocalMessages = () => {
     removeFromStorage('guestMessages');
-    console.log('Гостевые сообщения очищены');
-    messages.value = messages.value.filter((m) => !m.isGuest);
-  };
-
-  /**
-   * Обрабатывает прокрутку контейнера с сообщениями
-   */
-  const handleScroll = async () => {
-    const element = messagesContainer.value;
-    if (
-      !messageLoading.value.isLoadingMore &&
-      messageLoading.value.hasMoreMessages &&
-      element.scrollTop === 0
-    ) {
-      await loadMessages();
+    console.log('Гостевые сообщения из localStorage очищены');
+    // Фильтруем текущие сообщения, если они были загружены из localStorage
+    // Осторожно: не удалять сообщения, которые пришли с сервера после аутентификации
+    if (!auth.isAuthenticated.value) {
+        messages.value = messages.value.filter(m => !m.isGuest);
     }
   };
 
@@ -1621,37 +1285,6 @@
     setToStorage('showWalletSidebar', showWalletSidebar.value.toString());
   };
 
-  /**
-   * Обрабатывает получение фокуса полем ввода
-   */
-  const handleFocus = () => {
-    const chatInput = document.querySelector('.chat-input');
-    const chatMessages = document.querySelector('.chat-messages');
-    if (chatInput) {
-      chatInput.classList.add('focused');
-      if (!CSS.supports('selector(:has(div))') && chatMessages) {
-        chatMessages.style.bottom = '235px';
-      }
-    }
-  };
-
-  /**
-   * Обрабатывает потерю фокуса полем ввода
-   */
-  const handleBlur = () => {
-    // Если сообщение непустое, оставляем расширенный вид
-    if (!newMessage.value.trim()) {
-      const chatInput = document.querySelector('.chat-input');
-      const chatMessages = document.querySelector('.chat-messages');
-      if (chatInput) {
-        chatInput.classList.remove('focused');
-        if (!CSS.supports('selector(:has(div))') && chatMessages) {
-          chatMessages.style.bottom = '135px';
-        }
-      }
-    }
-  };
-
   // =====================================================================
   // 7. НАБЛЮДАТЕЛИ (WATCHERS)
   // =====================================================================
@@ -1679,12 +1312,13 @@
           return dateA - dateB;
         });
 
-        // Прокручиваем к последнему сообщению
-        nextTick(() => {
-          scrollToBottom();
-        });
+        // Прокрутка теперь обрабатывается в ChatInterface
+        // nextTick(() => {
+        //   scrollToBottom();
+        // });
       }
-    }
+    },
+    { deep: true } // Добавим deep: true на случай сложных изменений в массиве
   );
 
   // =====================================================================
@@ -1715,11 +1349,6 @@
     // Запускаем отслеживание изменений аутентификации
     watchAuthChanges();
 
-    // Устанавливаем обработчик скролла
-    if (messagesContainer.value) {
-      messagesContainer.value.addEventListener('scroll', handleScroll);
-    }
-
     // Загружаем историю сообщений
     if (shouldLoadHistory.value) {
       // Проверяем сессию пользователя
@@ -1740,19 +1369,14 @@
                 messages.value = [...messages.value, ...parsedMessages];
                 hasUserSentMessage.value = true;
                 setToStorage('hasUserSentMessage', 'true');
-              } else {
-                // Если пользователь аутентифицирован, удаляем гостевые сообщения
-                removeFromStorage('guestMessages');
               }
             }
           }
         } catch (e) {
           console.error('Ошибка загрузки сообщений из localStorage:', e);
         }
-      }
-
-      // Загружаем историю сообщений, если пользователь аутентифицирован
-      if (isAuthenticated.value) {
+      } else if (isAuthenticated.value) {
+          // Если пользователь аутентифицирован, загружаем с сервера
         await loadMessages({ initial: true });
       }
     }
@@ -1782,17 +1406,16 @@
         startBalanceUpdates();
       }
     }
-
-    // Прокручиваем к последнему сообщению
-    scrollToBottom();
   });
 
   // При размонтировании компонента
   onBeforeUnmount(() => {
+    /* Удалено, т.к. скролл теперь в ChatInterface
     // Очищаем обработчик скролла
     if (messagesContainer.value) {
       messagesContainer.value.removeEventListener('scroll', handleScroll);
     }
+    */
 
     // Удаляем слушатель события загрузки истории чата
     window.removeEventListener('load-chat-history', () => loadMessages({ initial: true }));
