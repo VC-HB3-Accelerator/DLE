@@ -1,0 +1,81 @@
+/* frontend/src/assets/styles/app-layout.css */
+
+/* Общий контейнер приложения */
+.app-layout {
+  display: flex;
+  flex-direction: column; /* Header сверху, остальное ниже */
+  height: 100vh;
+  overflow: hidden; /* Предотвращаем двойную прокрутку */
+}
+
+/* Обертка для основного контента и сайдбара */
+.app-content-wrapper {
+  display: flex;
+  flex-grow: 1; /* Занимает все доступное пространство под хедером */
+  overflow: hidden; /* Важно для предотвращения двойной прокрутки */
+}
+
+/* Контейнер для RouterView */
+.main-view {
+  flex-grow: 1;
+  overflow-y: auto; /* Позволяет прокручивать только контент страницы */
+  position: relative; /* Для позиционирования оверлея загрузки */
+  height: calc(100vh - var(--header-height, 65px)); /* Высота минус хедер (примерное значение) */
+}
+
+/* Оверлей загрузки для основного вида */
+.loading-overlay.main-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 1000; /* Выше контента, ниже хедера/сайдбара */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* Стили для сайдбара (возможно, нужно перенести из Sidebar.vue или home.css) */
+.wallet-sidebar {
+  width: var(--sidebar-width, 300px); /* Ширина сайдбара */
+  flex-shrink: 0;
+  background-color: var(--color-white);
+  border-left: 1px solid var(--color-grey-light);
+  transition: width 0.3s ease;
+  overflow-y: auto; /* Позволяет прокручивать сайдбар */
+  height: calc(100vh - var(--header-height, 65px)); /* Высота минус хедер */
+  position: relative; /* Или sticky, если нужно */
+}
+
+/* Анимация появления/скрытия сайдбара */
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* Адаптация */
+@media (max-width: 768px) {
+  /* На мобильных можно скрывать сайдбар по умолчанию 
+     и показывать его как оверлей или уменьшать ширину */
+  .wallet-sidebar {
+    width: var(--sidebar-width-mobile, 250px);
+    /* Можно добавить position: fixed; top: var(--header-height); right: 0; 
+       если нужен оверлей */
+  }
+}
+
+/* Определим переменную для высоты хедера, если нужно */
+:root {
+  --header-height: 65px; /* Примерная высота хедера из Header.vue */
+  --sidebar-width: 300px;
+  --sidebar-width-mobile: 250px;
+} 

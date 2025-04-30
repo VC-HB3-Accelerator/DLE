@@ -1,0 +1,58 @@
+/* frontend/src/assets/styles/base.css */
+
+/* Общие стили для всех элементов */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-white);
+  color: var(--color-dark);
+  font-size: var(--font-size-md); /* Добавим базовый размер шрифта */
+  line-height: 1.5; /* Добавим базовую высоту строки */
+}
+
+/* Стили для монопространственных шрифтов (код, верификация) */
+code, .verification-code code, .address {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* Унификация размеров шрифтов */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+  line-height: 1.3; /* Сделаем заголовки чуть плотнее */
+  margin-bottom: var(--spacing-md); /* Добавим отступ снизу по умолчанию */
+}
+
+h1 { font-size: var(--font-size-xxl); }
+h2 { font-size: var(--font-size-xl); }
+h3 { font-size: var(--font-size-lg); }
+/* h3 из home.css имел margin-bottom, убрали здесь, чтобы не дублировать */
+
+p {
+  /* font-size и line-height уже заданы для body */
+  margin-bottom: var(--spacing-md); /* Добавим отступ снизу */
+}
+
+input, textarea, button {
+  font-family: inherit; /* Наследуем шрифт */
+  font-size: inherit; /* Наследуем размер шрифта */
+}
+
+button {
+    cursor: pointer; /* Указатель для всех кнопок */
+}
+
+a {
+    color: var(--color-primary); /* Базовый цвет ссылок */
+    text-decoration: none; /* Убираем подчеркивание по умолчанию */
+}
+
+a:hover {
+    text-decoration: underline; /* Подчеркивание при наведении */
+} 

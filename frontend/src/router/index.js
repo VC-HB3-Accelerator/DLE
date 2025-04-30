@@ -10,6 +10,16 @@ const routes = [
     name: 'home',
     component: HomeView,
   },
+  {
+    path: '/crm',
+    name: 'crm',
+    component: () => import('../views/CrmView.vue'),
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('../views/SettingsView.vue'),
+  },
 ];
 
 const router = createRouter({

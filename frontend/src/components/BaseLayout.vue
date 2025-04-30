@@ -1,0 +1,214 @@
+<template>
+  <div class="app-container">
+    <!-- Основной контент -->
+    <div class="main-content" :class="{ 'no-right-sidebar': !showWalletSidebar }">
+      <!-- Шапка сайта -->
+      <Header 
+        :is-sidebar-open="showWalletSidebar" 
+        @toggle-sidebar="toggleWalletSidebar" 
+      />
+
+      <!-- Основной контент страницы (передается через слот) -->
+      <slot></slot>
+    </div>
+
+    <!-- Правая панель с информацией о кошельке -->
+    <Sidebar 
+      v-model="showWalletSidebar" 
+      :is-authenticated="auth.isAuthenticated.value"
+      :telegram-auth="telegramAuth"
+      :email-auth="emailAuth"
+      :token-balances="tokenBalances.value"
+      :identities="auth.identities?.value"
+      @wallet-auth="handleWalletAuth"
+      @disconnect-wallet="disconnectWallet"
+      @telegram-auth="handleTelegramAuth"
+      @cancel-telegram-auth="cancelTelegramAuth"
+      @email-auth="showEmailForm"
+      @send-email-verification="sendEmailVerification"
+      @verify-email-code="verifyEmailCode"
+      @cancel-email-auth="cancelEmailAuth"
+    />
+
+    <!-- Компонент для отображения уведомлений -->
+    <NotificationDisplay :notifications="notifications.value" />
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue';
+import { useAuth } from '../composables/useAuth';
+import { useTokenBalances } from '../composables/useTokenBalances';
+import { useAuthFlow } from '../composables/useAuthFlow';
+import { useNotifications } from '../composables/useNotifications';
+import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
+import { connectWithWallet } from '../services/wallet';
+import api from '../api/axios';
+import eventBus from '../utils/eventBus';
+import Header from './Header.vue';
+import Sidebar from './Sidebar.vue';
+import NotificationDisplay from './NotificationDisplay.vue';
+
+// =====================================================================
+// 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES
+// =====================================================================
+
+const auth = useAuth();
+const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
+const { tokenBalances } = useTokenBalances();
+
+// Callback после успешной аутентификации/привязки через Email/Telegram
+const handleAuthFlowSuccess = (authType) => {
+  console.log(`[BaseLayout] Auth flow success: ${authType}`);
+  // Отправляем событие для обновления данных на страницах
+  eventBus.emit('auth-success', { authType });
+};
+
+const {
+  telegramAuth,
+  handleTelegramAuth,
+  cancelTelegramAuth,
+  emailAuth,
+  showEmailForm,
+  sendEmailVerification,
+  verifyEmailCode,
+  cancelEmailAuth,
+} = useAuthFlow({ onAuthSuccess: handleAuthFlowSuccess });
+
+// =====================================================================
+// 2. СОСТОЯНИЯ КОМПОНЕНТА
+// =====================================================================
+
+const showWalletSidebar = ref(false);
+const isConnectingWallet = ref(false); // Флаг процесса подключения кошелька
+
+// =====================================================================
+// 3. ФУНКЦИИ
+// =====================================================================
+
+/**
+ * Обрабатывает аутентификацию через кошелек
+ */
+const handleWalletAuth = async () => {
+  if (isConnectingWallet.value) return;
+  isConnectingWallet.value = true;
+  try {
+    const result = await connectWithWallet();
+    console.log('[BaseLayout] Результат подключения кошелька:', result);
+
+    if (result.success) {
+      if (auth.isAuthenticated.value) {
+        // Связывание кошелька с существующим аккаунтом
+        const linkResult = await auth.linkIdentity('wallet', result.address);
+        if (linkResult.success) {
+          showSuccessMessage('Кошелек успешно подключен к вашему аккаунту!');
+          await auth.checkAuth(); // Обновить identities
+        } else {
+          showErrorMessage(linkResult.error || 'Не удалось подключить кошелек');
+        }
+      } else {
+        // Новая аутентификация через кошелек
+        const authResponse = await auth.checkAuth();
+        if (authResponse.authenticated && authResponse.authType === 'wallet') {
+          console.log('[BaseLayout] Кошелёк успешно подключен и аутентифицирован');
+          showSuccessMessage('Кошелёк успешно подключен!');
+          // Оповещаем компоненты об успешной авторизации
+          eventBus.emit('auth-state-changed', { 
+            isAuthenticated: true, 
+            authType: 'wallet', 
+            fromBaseLayout: true 
+          });
+        } else {
+           showErrorMessage('Не удалось завершить аутентификацию через кошелек.');
+        }
+      }
+    } else {
+      console.error('[BaseLayout] Не удалось подключить кошелёк:', result.error);
+      showErrorMessage(result.error || 'Не удалось подключить кошелёк');
+    }
+  } catch (error) {
+    console.error('[BaseLayout] Ошибка при подключении кошелька:', error);
+    showErrorMessage('Произошла ошибка при подключении кошелька');
+  } finally {
+    isConnectingWallet.value = false;
+  }
+};
+
+/**
+ * Выполняет выход из аккаунта
+ */
+const disconnectWallet = async () => {
+  console.log('[BaseLayout] Выполняется выход из системы...');
+  try {
+    await api.post('/api/auth/logout');
+    await auth.checkAuth(); 
+    showSuccessMessage('Вы успешно вышли из системы');
+    removeFromStorage('guestMessages');
+    removeFromStorage('hasUserSentMessage');
+    
+    // Оповещаем компоненты о выходе из системы
+    eventBus.emit('auth-state-changed', { 
+      isAuthenticated: false, 
+      fromBaseLayout: true 
+    });
+  } catch (error) {
+    console.error('[BaseLayout] Ошибка при выходе из системы:', error);
+    showErrorMessage('Произошла ошибка при выходе из системы');
+  }
+};
+
+/**
+ * Переключает отображение боковой панели
+ */
+const toggleWalletSidebar = () => {
+  showWalletSidebar.value = !showWalletSidebar.value;
+  setToStorage('showWalletSidebar', showWalletSidebar.value);
+};
+
+// =====================================================================
+// 4. ЖИЗНЕННЫЙ ЦИКЛ
+// =====================================================================
+
+onMounted(() => {
+  console.log('[BaseLayout] Компонент загружен');
+
+  // Загружаем сохраненное состояние боковой панели
+  const savedSidebarState = getFromStorage('showWalletSidebar');
+  if (savedSidebarState !== null) {
+    showWalletSidebar.value = savedSidebarState;
+  } else {
+    showWalletSidebar.value = true;
+    setToStorage('showWalletSidebar', true);
+  }
+});
+</script>
+
+<style scoped>
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+  background-color: var(--color-light);
+}
+
+.main-content {
+  flex-grow: 1;
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100% - 350px);
+  padding: 0 20px;
+  background-color: var(--color-white);
+}
+
+.main-content.no-right-sidebar {
+  max-width: 100%;
+}
+
+/* Адаптивный дизайн */
+@media (max-width: 768px) {
+  .main-content {
+    max-width: 100%;
+  }
+}
+</style> 

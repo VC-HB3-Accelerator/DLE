@@ -442,8 +442,11 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: var(--spacing-lg) 0 35px 0;
+  margin: var(--spacing-lg) auto;
+  padding: 0; /* Убираю padding, так как он теперь задается через .main-content */
   min-height: 500px; /* Или другая подходящая высота */
+  max-width: 1150px; /* Ограничиваем ширину чата */
+  width: 100%; /* Занимаем всю доступную ширину до максимума */
   position: relative;
 }
 
@@ -459,7 +462,7 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  bottom: var(--chat-input-height, 80px); /* 80px - запасной вариант */
+  bottom: calc(var(--chat-input-height, 80px) + 15px); /* Добавляем 15px отступа между сообщениями и полем ввода */
   transition: bottom var(--transition-normal);
 }
 
