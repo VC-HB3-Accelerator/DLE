@@ -45,7 +45,7 @@
         </div>
 
         <!-- Блок баланса токенов -->
-        <div v-if="isAuthenticated && hasIdentityType('wallet')" class="token-balances">
+        <div v-if="isAuthenticated && hasIdentityType('wallet') && tokenBalances && tokenBalances.eth !== undefined" class="token-balances">
           <h3>Баланс токенов:</h3>
           <div class="token-balance">
             <span class="token-name">ETH:</span>
