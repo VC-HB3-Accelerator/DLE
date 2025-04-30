@@ -28,47 +28,22 @@
             </button>
             <button class="close-sidebar-btn" @click="closeSidebar">×</button>
           </div>
-        
-          <!-- Блок информации о пользователе (отображается, если не активна ни одна форма) -->
-          <div v-if="!emailAuth.showForm && !emailAuth.showVerification && !telegramAuth.showVerification" class="user-info">
-            <h3>Идентификаторы:</h3>
-            <div class="user-info-item">
-              <span class="user-info-label">Кошелек:</span>
-              <span v-if="hasIdentityType('wallet')" class="user-info-value">
-                {{ truncateAddress(getIdentityValue('wallet')) }}
-              </span>
-              <button v-else class="connect-btn" @click="handleWalletAuth">
-                Подключить кошелек
-              </button>
-            </div>
-          </div>
         </div>
 
-        <!-- Блок баланса токенов -->
-        <div v-if="isAuthenticated && hasIdentityType('wallet') && tokenBalances && tokenBalances.eth !== undefined" class="token-balances">
-          <h3>Баланс токенов:</h3>
-          <div class="token-balance">
-            <span class="token-name">ETH:</span>
-            <span class="token-amount">{{ Number(tokenBalances.eth).toLocaleString() }}</span>
-            <span class="token-symbol">{{ TOKEN_CONTRACTS.eth.symbol }}</span>
-          </div>
-          <div class="token-balance">
-            <span class="token-name">BSC:</span>
-            <span class="token-amount">{{ Number(tokenBalances.bsc).toLocaleString() }}</span>
-            <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
-          </div>
-          <div class="token-balance">
-            <span class="token-name">ARB:</span>
-            <span class="token-amount">{{
-              Number(tokenBalances.arbitrum).toLocaleString()
-            }}</span>
-            <span class="token-symbol">{{ TOKEN_CONTRACTS.arbitrum.symbol }}</span>
-          </div>
-          <div class="token-balance">
-            <span class="token-name">POL:</span>
-            <span class="token-amount">{{ Number(tokenBalances.polygon).toLocaleString() }}</span>
-            <span class="token-symbol">{{ TOKEN_CONTRACTS.polygon.symbol }}</span>
-          </div>
+        <!-- Навигационные кнопки -->
+        <div class="navigation-buttons">
+          <router-link to="/" class="nav-link-btn" active-class="active">
+            <i class="nav-icon">💬</i>
+            <span>Чат</span>
+          </router-link>
+          <router-link to="/crm" class="nav-link-btn" active-class="active">
+            <i class="nav-icon">👥</i>
+            <span>CRM</span>
+          </router-link>
+          <router-link to="/settings" class="nav-link-btn" active-class="active">
+            <i class="nav-icon">⚙️</i>
+            <span>Настройки</span>
+          </router-link>
         </div>
       </div>
     </div>
@@ -76,9 +51,12 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits, ref, onMounted, onBeforeUnmount } from 'vue';
 import { TOKEN_CONTRACTS } from '../services/tokens';
+import { useRouter } from 'vue-router';
+import eventBus from '../utils/eventBus';
 
+const router = useRouter();
 const props = defineProps({
   modelValue: Boolean,
   isAuthenticated: Boolean,
@@ -103,6 +81,25 @@ const disconnectWallet = () => {
 const closeSidebar = () => {
   emit('update:modelValue', false);
 };
+
+// Обработка события изменения авторизации
+const handleAuthEvent = (event) => {
+  console.log('[Sidebar] Получено событие изменения авторизации:', event);
+  // Здесь можно обновить данные, если нужно дополнительное обновление
+};
+
+// Подписка на события
+let unsubscribe = null;
+onMounted(() => {
+  unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
+});
+
+// Очистка при размонтировании
+onBeforeUnmount(() => {
+  if (unsubscribe) {
+    unsubscribe();
+  }
+});
 
 // Вспомогательные функции
 const truncateAddress = (address) => {
@@ -159,12 +156,54 @@ const getIdentityValue = (type) => {
   border-color: var(--color-dark);
 }
 
+/* Стили для навигационных кнопок */
+.navigation-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.nav-link-btn {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-light);
+  color: var(--color-dark);
+  border: 1px solid var(--color-grey-light);
+  border-radius: var(--radius-lg);
+  padding: 12px 15px;
+  font-size: var(--font-size-md);
+  text-decoration: none;
+  transition: all var(--transition-normal);
+  cursor: pointer;
+}
+
+.nav-link-btn.active {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+}
+
+.nav-link-btn:hover:not(.active) {
+  background-color: var(--color-grey-light);
+}
+
+.nav-icon {
+  margin-right: 10px;
+  font-size: 1.2em;
+}
+
 @media screen and (max-width: 480px) {
   .close-sidebar-btn {
     width: 42px;
     height: 42px;
     min-width: 42px;
     font-size: 20px;
+  }
+  
+  .nav-link-btn {
+    padding: 10px 12px;
+    font-size: var(--font-size-sm);
   }
 }
 
@@ -174,6 +213,10 @@ const getIdentityValue = (type) => {
     height: 36px;
     min-width: 36px;
     font-size: 18px;
+  }
+  
+  .nav-link-btn {
+    padding: 8px 10px;
   }
 }
 </style> 

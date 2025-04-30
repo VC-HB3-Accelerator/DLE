@@ -51,7 +51,6 @@
   --transition-normal: 0.3s ease;
   
   /* Размеры компонентов */
-  --sidebar-width: 110px;
   --sidebar-expanded-width: 325px;
   --nav-btn-size: 40px;
   --chat-input-min-height: 100px;
@@ -130,16 +129,13 @@ input, textarea {
   display: flex;
   flex-direction: column;
   max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--spacing-lg);
+  margin: 0;
+  padding: 0 20px;
   width: 100%;
+  background-color: var(--color-white);
 }
 
 /* Адаптация контента при боковой панели */
-.sidebar-expanded ~ .main-content {
-  margin-left: 190px;
-}
-
 .main-content.no-right-sidebar {
   margin-right: 190px;
 }
@@ -148,159 +144,15 @@ input, textarea {
   margin-right: 190px;
 }
 
-/* Стили для боковой панели (sidebar) */
-.sidebar {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
-  background-color: var(--color-light);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: var(--spacing-lg);
-  position: fixed;
-  height: 100vh;
-  z-index: 2;
-  box-shadow: var(--shadow-md);
-}
-
-.sidebar.sidebar-expanded {
-  width: var(--sidebar-expanded-width);
-  min-width: var(--sidebar-expanded-width);
-}
-
-/* Кнопка меню в боковой панели */
-.menu-button {
-  width: var(--nav-btn-size);
-  height: var(--nav-btn-size);
-  background: var(--color-white);
-  border: 1px solid var(--color-dark);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 68px;
-  position: fixed;
-  left: 35px;
-}
-
-.hamburger {
-  width: 24px;
-  height: 3px;
-  background-color: var(--color-dark);
-  position: relative;
-}
-
-.hamburger::before,
-.hamburger::after {
-  content: '';
-  position: absolute;
-  width: 24px;
-  height: 3px;
-  background-color: var(--color-dark);
-  left: 0;
-}
-
-.hamburger::before {
-  top: -8px;
-}
-
-.hamburger::after {
-  bottom: -8px;
-}
-
-/* Навигационные кнопки */
-.nav-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
-  width: var(--sidebar-width);
-  padding: 0;
-  position: fixed;
-  left: 35px;
-  top: 108px;
-}
-
-.nav-btn {
-  width: var(--nav-btn-size);
-  height: var(--nav-btn-size);
-  border: 1px solid var(--color-dark);
-  border-radius: var(--radius-sm);
-  background: var(--color-white);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  padding: 0;
-  font-size: var(--font-size-lg);
-}
-
-.nav-btn-text {
-  font-size: var(--font-size-lg);
-  color: var(--color-dark);
-  opacity: 0;
-  visibility: hidden;
-  white-space: nowrap;
-  position: absolute;
-  left: 65px;
-}
-
-.sidebar-expanded .nav-btn-text {
-  opacity: 1;
-  visibility: visible;
-}
-
-.nav-btn-number {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sidebar-expanded .nav-btn {
-  width: auto;
-  min-width: 200px;
-  text-align: left;
-  padding-left: 40px;
-}
-
-/* Кнопка в нижней части боковой панели */
-.sidebar-bottom-btn {
-  position: fixed;
-  bottom: 30px;
-  left: 35px;
-  width: var(--nav-btn-size);
-  height: var(--nav-btn-size);
-  transition: width var(--transition-normal);
-}
-
-.sidebar-expanded .sidebar-bottom-btn {
-  width: auto;
-  min-width: 200px;
-  text-align: left;
-  padding-left: 40px;
-}
-
-.sidebar-expanded .nav-btn-number {
-  position: absolute;
-  left: 10px;
-}
-
-.sidebar-expanded .sidebar-bottom-btn .nav-btn-text {
-  opacity: 1;
-  visibility: visible;
-  position: static;
-  margin-left: 5px;
-  display: inline-block;
-}
-
 /* Стили для контейнера чата */
 .chat-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: var(--spacing-lg) 0 35px 0;
+  margin: var(--spacing-lg) auto;
   min-height: 500px;
+  max-width: 1150px;
+  width: 100%;
   position: relative;
 }
 
@@ -316,6 +168,7 @@ input, textarea {
   top: 0;
   left: 0;
   right: 0;
+  bottom: calc(var(--chat-input-height, 80px) + 15px); /* Добавляем 15px отступа между сообщениями и полем ввода */
   transition: bottom var(--transition-normal);
 }
 
@@ -632,7 +485,7 @@ input, textarea {
 }
 
 /* Стили для правой панели */
-  .wallet-sidebar {
+.wallet-sidebar {
   position: fixed;
   top: 0;
   right: 0;
@@ -660,382 +513,10 @@ input, textarea {
   gap: var(--spacing-lg);
 }
 
-/* Блок с кнопкой отключения */
-.disconnect-block {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-lg);
-  position: relative;
-}
-
-.disconnect-btn {
-  width: 100%;
-  height: 48px;
-  background-color: var(--color-white);
-  border: 1px solid var(--color-error);
-  color: var(--color-error);
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-}
-
-.disconnect-btn:hover {
-  background-color: #ffebee;
-}
-
-/* Кнопка закрытия */
-.close-wallet-sidebar {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  background-color: var(--color-white);
-  color: var(--color-dark);
-  border: 1px solid var(--color-grey);
-  border-radius: var(--radius-lg);
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  transition: all var(--transition-normal);
-  margin-left: var(--spacing-sm);
-}
-
-.close-wallet-sidebar:hover {
-  background-color: var(--color-grey-light);
-  border-color: var(--color-dark);
-}
-
-/* Блок идентификаторов */
-.identifiers-block {
-  width: 100%;
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: var(--spacing-lg);
-}
-
-.identifiers-block h3 {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: var(--font-size-xl);
-  color: var(--color-dark);
-  border-bottom: 1px solid var(--color-grey-light);
-  padding-bottom: var(--spacing-sm);
-}
-
-.identifier-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: var(--spacing-sm);
-  font-size: var(--font-size-md);
-}
-
-.identifier-item:last-child {
-  margin-bottom: 0;
-}
-
-.identifier-label {
-  min-width: 100px;
-  color: var(--color-grey);
-  font-weight: 500;
-}
-
-.identifier-value {
-  flex: 1;
-  font-family: monospace;
-  color: var(--color-dark);
-  word-break: break-all;
-}
-
-/* Медиа-запросы */
-@media screen and (min-width: 1200px) {
-  .wallet-sidebar {
-    width: 30%;
-    max-width: 550px;
-  }
-}
-
-@media screen and (min-width: 769px) and (max-width: 1199px) {
-  .wallet-sidebar {
-    width: 40%;
-    max-width: 500px;
-  }
-}
-
-@media screen and (max-width: 768px) {
-  .wallet-sidebar {
-    padding: var(--spacing-md);
-  }
-
-  .wallet-sidebar-content {
-    padding: 0;
-    gap: var(--spacing-md);
-  }
-
-  .disconnect-block {
-    margin-bottom: var(--spacing-md);
-  }
-
-  .disconnect-btn,
-  .close-wallet-sidebar {
-    height: 42px;
-  }
-
-  .close-wallet-sidebar {
-    width: 42px;
-    min-width: 42px;
-    font-size: 18px;
-  }
-
-  .identifiers-block {
-    padding: var(--spacing-md);
-  }
-
-  .identifier-item {
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--spacing-xs);
-  }
-
-  .identifier-label {
-    min-width: 80px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .wallet-sidebar {
-    padding: var(--spacing-sm);
-  }
-
-  .wallet-sidebar-content {
-    gap: var(--spacing-sm);
-  }
-
-  .disconnect-block {
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .disconnect-btn,
-  .close-wallet-sidebar {
-    height: 36px;
-    font-size: var(--font-size-sm);
-  }
-
-  .close-wallet-sidebar {
-    width: 36px;
-    min-width: 36px;
-  }
-
-  .identifiers-block {
-    padding: var(--spacing-sm);
-  }
-}
-
-/* Стили для блока кнопок авторизации */
-.auth-buttons-container {
-  width: 100%;
-  max-width: 450px;
-  margin-bottom: var(--spacing-lg);
-  background-color: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: var(--spacing-lg);
-  box-sizing: border-box;
-  position: relative;
-}
-
-/* Стили для заголовка */
-.header-with-close {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: var(--nav-btn-size);
-  margin-bottom: var(--spacing-lg);
-  position: relative;
-}
-
-/* Стили для кнопок в заголовке */
-.header-button {
-  height: var(--nav-btn-size);
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: all var(--transition-normal);
-}
-
-/* Стили для кнопок авторизации */
-.auth-buttons-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  width: 100%;
-}
-
-.auth-btn {
-  width: 100%;
-  height: var(--nav-btn-size);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-light);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  color: var(--color-dark);
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0 var(--spacing-md);
-  box-sizing: border-box;
-  transition: all var(--transition-normal);
-  margin: 0;
-}
-
-.auth-btn:hover {
-  background-color: var(--color-grey-light);
-}
-
-/* Стили для блока информации о пользователе и баланса токенов */
-.user-info, .token-balances {
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.user-info h3, .token-balances h3 {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: var(--font-size-xl);
-  color: var(--color-dark);
-  border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
-}
-
-.user-info-item, .token-balance {
-  display: flex;
-  align-items: center;
-  margin-bottom: var(--spacing-sm);
-  font-size: var(--font-size-md);
-}
-
-.user-info-label, .token-name {
-  min-width: 80px;
-  color: #666;
-  font-weight: 500;
-}
-
-.user-info-value, .token-amount {
-  flex: 1;
-  color: var(--color-dark);
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.token-symbol {
-  margin-left: var(--spacing-xs);
-  color: #666;
-  font-size: var(--font-size-xs);
-}
-
-/* Стили для кнопки бургера в шапке */
-.header-wallet-btn {
-  margin-left: var(--spacing-lg);
-  padding: var(--spacing-sm);
-  background: transparent;
-  color: var(--color-dark);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  transition: background-color var(--transition-normal);
-  position: relative;
-  width: var(--nav-btn-size);
-  height: var(--nav-btn-size);
-  justify-content: center;
-}
-
-.header-wallet-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.header-wallet-btn .nav-btn-number {
-  display: none;
-}
-
-.header-wallet-btn .nav-btn-text {
-  display: none;
-}
-
-.header-wallet-btn::before,
-.header-wallet-btn::after,
-.header-wallet-btn .hamburger-line {
-  content: '';
-  position: absolute;
-  width: 24px;
-  height: 2px;
-  background-color: var(--color-dark);
-  transition: all var(--transition-normal);
-}
-
-.header-wallet-btn::before {
-  top: 12px;
-}
-
-.header-wallet-btn::after {
-  bottom: 12px;
-}
-
-.header-wallet-btn .hamburger-line {
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-/* Анимация при наведении */
-.header-wallet-btn:hover::before {
-  top: 11px;
-}
-
-.header-wallet-btn:hover::after {
-  bottom: 11px;
-}
-
-/* Анимация при активном состоянии */
-.header-wallet-btn.active::before {
-  transform: rotate(45deg);
-  top: 50%;
-}
-
-.header-wallet-btn.active::after {
-  transform: rotate(-45deg);
-  bottom: 50%;
-}
-
-.header-wallet-btn.active .hamburger-line {
-  opacity: 0;
-}
-
 /* Стили для заголовка */
 .header {
   background: var(--color-white);
-  border-bottom: 1px solid var(--color-grey-light);
-  padding: var(--spacing-lg) 0;
+  padding: 15px 20px;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -1134,96 +615,42 @@ input, textarea {
   }
 }
 
-@media screen and (min-width: 481px) and (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .wallet-sidebar {
-    width: 100%;
     padding: var(--spacing-md);
   }
-  
+
   .wallet-sidebar-content {
     padding: 0;
     gap: var(--spacing-md);
   }
 
-  .sidebar-block {
-    padding: var(--spacing-md);
+  .disconnect-block {
     margin-bottom: var(--spacing-md);
   }
 
-  .sidebar-block h3 {
-    font-size: var(--font-size-lg);
-    margin-bottom: var(--spacing-sm);
+  .disconnect-btn,
+  .close-wallet-sidebar {
+    height: 42px;
   }
 
-  .identifier-item,
-  .token-balance {
+  .close-wallet-sidebar {
+    width: 42px;
+    min-width: 42px;
+    font-size: 18px;
+  }
+
+  .identifiers-block {
+    padding: var(--spacing-md);
+  }
+
+  .identifier-item {
     font-size: var(--font-size-sm);
     margin-bottom: var(--spacing-xs);
   }
 
-  .identifier-label,
-  .token-name {
+  .identifier-label {
     min-width: 80px;
-  }
-
-  .chat-container {
-    margin: var(--spacing-sm) 0 25px 0;
-    height: calc(100vh - 165px);
-  }
-
-  .chat-messages {
-    padding: var(--spacing-md);
-  }
-  
-  .message {
-    max-width: 85%;
-    padding: 8px var(--spacing-sm);
-  }
-
-  .ai-message {
-    max-width: 85%;
-  }
-  
-  .chat-input {
-    padding: var(--spacing-sm) var(--spacing-md);
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .chat-input textarea {
-    font-size: var(--font-size-md);
-  }
-  
-  .header-content {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-sm);
-  }
-
-  .header-text {
-    flex: 1;
-    margin-right: var(--spacing-sm);
-    min-width: 0;
-  }
-  
-  .title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 1.2rem;
-    margin: 0;
-  }
-
-  .subtitle {
-    white-space: normal;
-    font-size: 0.9rem;
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  .header-wallet-btn {
-    flex-shrink: 0;
-    margin-left: var(--spacing-sm);
   }
 }
 
@@ -1236,170 +663,23 @@ input, textarea {
     gap: var(--spacing-sm);
   }
 
-  .sidebar-block {
-    padding: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
-  }
-
   .disconnect-block {
     margin-bottom: var(--spacing-sm);
   }
 
-  .wallet-header {
-    height: 32px;
-    gap: var(--spacing-xs);
-  }
-  
-  .wallet-header-buttons {
-    gap: var(--spacing-xs);
-  }
-  
-  .wallet-connect-btn-header,
-  .wallet-disconnect-btn-header,
-  .auth-btn.disconnect-wallet-btn {
-    height: 32px;
-    font-size: var(--font-size-sm);
-    padding: 0 12px;
-  }
-  
+  .disconnect-btn,
   .close-wallet-sidebar {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-  font-size: 18px;
-}
-
-  .auth-buttons-container {
-    padding: var(--spacing-sm);
-  }
-  
-  .auth-btn {
-    height: 32px;
-    font-size: var(--font-size-sm);
-  }
-  
-  .chat-container {
-    margin: var(--spacing-xs) 0 var(--spacing-lg) 0;
-    height: calc(100vh - 150px);
-  }
-  
-  .message {
-    max-width: 90%;
-    margin-bottom: var(--spacing-sm);
+    height: 36px;
     font-size: var(--font-size-sm);
   }
 
-  .ai-message, .user-message {
-    max-width: 90%;
-  }
-
-  .message-time {
-    font-size: var(--font-size-xs);
-  }
-  
-  .header-content {
-    padding: 8px;
-  }
-
-  .title {
-    font-size: 1.1rem;
-  }
-
-  .subtitle {
-    font-size: 0.8rem;
-  }
-  
-  .chat-buttons button {
-    padding: 8px var(--spacing-sm);
-    font-size: var(--font-size-sm);
-    max-width: 120px;
-  }
-  
-  .auth-btn,
-  .email-btn,
-  .telegram-btn,
-  .connect-wallet-btn {
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-size: var(--font-size-sm);
-  }
-  
-  .send-email-btn,
-  button.email-btn {
-    padding: 8px var(--spacing-sm);
-    font-size: var(--font-size-xs);
-  }
-
-  .chat-buttons {
-    gap: var(--spacing-xs);
-  }
-  
-  .chat-buttons button {
-    padding: 8px var(--spacing-sm);
-    font-size: var(--font-size-sm);
-  }
-  
-  .header-wallet-btn {
-    margin-left: var(--spacing-xs);
-    width: 32px;
-    height: 32px;
-    padding: 8px;
-  }
-
-  .header-wallet-btn::before,
-  .header-wallet-btn::after,
-  .header-wallet-btn .hamburger-line {
-    width: 18px;
-    height: 2px;
-  }
-  
-  .header-wallet-btn::before {
-    top: 10px;
-  }
-  
-  .header-wallet-btn::after {
-    bottom: 10px;
-  }
-
-  .auth-buttons-container {
-    padding: var(--spacing-sm);
-  }
-
-  .auth-buttons-container button.auth-btn,
-  .auth-buttons-container button.email-btn,
-  .auth-buttons-container button.telegram-btn,
-  .auth-buttons-container button.connect-wallet-btn {
-    height: 42px;
-    font-size: var(--font-size-sm);
-  }
-}
-
-@media screen and (max-width: 360px) {
-  .wallet-sidebar {
-    padding: 8px 3px;
-  }
-
-  .wallet-header {
-    margin-bottom: var(--spacing-sm);
-  }
-  
-  .wallet-connect-btn-header,
-  .wallet-disconnect-btn-header,
-  .auth-btn.disconnect-wallet-btn {
-    font-size: var(--font-size-xs);
-    padding: 0 8px;
-  }
-  
   .close-wallet-sidebar {
-  font-size: 16px;
-}
+    width: 36px;
+    min-width: 36px;
+  }
 
   .identifiers-block {
     padding: var(--spacing-sm);
-  }
-  
-  .identifiers-block h3 {
-    font-size: var(--font-size-md);
-    padding-bottom: var(--spacing-xs);
   }
 }
 
@@ -1711,7 +991,7 @@ input, textarea {
 }
 
 /* Кнопка закрытия */
-  .close-wallet-sidebar {
+.close-wallet-sidebar {
   width: var(--nav-btn-size);
   height: var(--nav-btn-size);
   min-width: var(--nav-btn-size);
