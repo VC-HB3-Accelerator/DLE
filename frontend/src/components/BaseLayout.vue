@@ -15,11 +15,12 @@
     <!-- Правая панель с информацией о кошельке -->
     <Sidebar 
       v-model="showWalletSidebar" 
-      :is-authenticated="auth.isAuthenticated.value"
+      :is-authenticated="isAuthenticated"
       :telegram-auth="telegramAuth"
       :email-auth="emailAuth"
-      :token-balances="tokenBalances.value"
-      :identities="auth.identities?.value"
+      :token-balances="tokenBalances"
+      :identities="identities"
+      :is-loading-tokens="isLoadingTokens"
       @wallet-auth="handleWalletAuth"
       @disconnect-wallet="disconnectWallet"
       @telegram-auth="handleTelegramAuth"
@@ -36,9 +37,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onBeforeUnmount } from 'vue';
+import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
 import { useAuth } from '../composables/useAuth';
-import { useTokenBalances } from '../composables/useTokenBalances';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
@@ -55,7 +55,17 @@ import NotificationDisplay from './NotificationDisplay.vue';
 
 const auth = useAuth();
 const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
-const { tokenBalances } = useTokenBalances();
+
+// Определяем props, которые будут приходить от родительского View
+const props = defineProps({
+  isAuthenticated: Boolean,
+  identities: Array,
+  tokenBalances: Object,
+  isLoadingTokens: Boolean
+});
+
+// Определяем emits
+const emit = defineEmits(['auth-action-completed']);
 
 // Callback после успешной аутентификации/привязки через Email/Telegram
 const handleAuthFlowSuccess = (authType) => {
@@ -102,7 +112,7 @@ const handleWalletAuth = async () => {
         const linkResult = await auth.linkIdentity('wallet', result.address);
         if (linkResult.success) {
           showSuccessMessage('Кошелек успешно подключен к вашему аккаунту!');
-          await auth.checkAuth(); // Обновить identities
+          emit('auth-action-completed');
         } else {
           showErrorMessage(linkResult.error || 'Не удалось подключить кошелек');
         }
@@ -112,12 +122,7 @@ const handleWalletAuth = async () => {
         if (authResponse.authenticated && authResponse.authType === 'wallet') {
           console.log('[BaseLayout] Кошелёк успешно подключен и аутентифицирован');
           showSuccessMessage('Кошелёк успешно подключен!');
-          // Оповещаем компоненты об успешной авторизации
-          eventBus.emit('auth-state-changed', { 
-            isAuthenticated: true, 
-            authType: 'wallet', 
-            fromBaseLayout: true 
-          });
+          emit('auth-action-completed');
         } else {
            showErrorMessage('Не удалось завершить аутентификацию через кошелек.');
         }
@@ -141,16 +146,10 @@ const disconnectWallet = async () => {
   console.log('[BaseLayout] Выполняется выход из системы...');
   try {
     await api.post('/api/auth/logout');
-    await auth.checkAuth(); 
     showSuccessMessage('Вы успешно вышли из системы');
     removeFromStorage('guestMessages');
     removeFromStorage('hasUserSentMessage');
-    
-    // Оповещаем компоненты о выходе из системы
-    eventBus.emit('auth-state-changed', { 
-      isAuthenticated: false, 
-      fromBaseLayout: true 
-    });
+    emit('auth-action-completed');
   } catch (error) {
     console.error('[BaseLayout] Ошибка при выходе из системы:', error);
     showErrorMessage('Произошла ошибка при выходе из системы');
@@ -206,9 +205,31 @@ onMounted(() => {
 }
 
 /* Адаптивный дизайн */
+@media (max-width: 1199px) {
+  .main-content {
+    max-width: calc(100% - 320px);
+  }
+}
+
 @media (max-width: 768px) {
   .main-content {
     max-width: 100%;
+    padding-bottom: 20px; /* Убираем большой отступ, так как панель теперь полноэкранная */
+  }
+  
+  .main-content.no-right-sidebar {
+    padding-bottom: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0 10px;
+    padding-bottom: 10px; /* Убираем большой отступ */
+  }
+  
+  .main-content.no-right-sidebar {
+    padding-bottom: 10px;
   }
 }
 </style> 

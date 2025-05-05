@@ -1,5 +1,11 @@
 <template>
-  <BaseLayout>
+  <BaseLayout
+    :is-authenticated="isAuthenticated"
+    :identities="identities"
+    :token-balances="tokenBalances"
+    :is-loading-tokens="isLoadingTokens"
+    @auth-action-completed="$emit('auth-action-completed')"
+  >
     <ChatInterface 
       :messages="messages" 
       :is-loading="isLoading || isConnectingWallet"
@@ -13,16 +19,26 @@
 </template>
 
 <script setup>
-  import { ref, onMounted, watch, onBeforeUnmount } from 'vue';
+  import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
   import { useAuth } from '../composables/useAuth';
   import { useChat } from '../composables/useChat';
   import { connectWithWallet } from '../services/wallet';
   import eventBus from '../utils/eventBus';
-  import '../assets/styles/home.css';
   import BaseLayout from '../components/BaseLayout.vue';
   import ChatInterface from '../components/ChatInterface.vue';
 
   console.log('HomeView.vue: Using BaseLayout');
+
+  // Определяем props, переданные из App.vue через RouterView
+  const props = defineProps({
+    isAuthenticated: Boolean,
+    identities: Array,
+    tokenBalances: Object,
+    isLoadingTokens: Boolean
+  });
+
+  // Определяем emits
+  const emit = defineEmits(['auth-action-completed']);
 
   // =====================================================================
   // 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES

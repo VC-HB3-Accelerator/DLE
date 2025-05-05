@@ -1,0 +1,150 @@
+/* frontend/src/assets/styles/global.css */
+/* Общие глобальные стили, используемые во всем приложении */
+
+/* Контейнеры */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-white);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0;
+  padding: 0 20px;
+  width: 100%;
+  background-color: var(--color-white);
+}
+
+/* Стандартный контейнер для страниц */
+.page-container {
+  max-width: 1150px;
+  margin: 20px auto;
+  padding: var(--block-padding);
+  background-color: var(--color-white);
+  border-radius: var(--block-radius);
+  box-shadow: var(--shadow-md);
+}
+
+/* Общие стили для кнопок */
+.btn {
+  height: var(--button-height);
+  padding: 0 var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  margin: 0;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.btn-secondary {
+  background: var(--color-secondary);
+  color: var(--color-white);
+}
+
+.btn-secondary:hover {
+  background-color: #1976D2; /* Темнее синего */
+}
+
+.btn-accent {
+  background: var(--color-accent);
+  color: var(--color-white);
+}
+
+.btn-accent:hover {
+  background: var(--color-accent-dark);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: var(--color-white);
+}
+
+.btn-danger:hover {
+  background-color: #D32F2F; /* Темнее красного */
+}
+
+/* Общие стили для форм */
+.form-control {
+  height: var(--input-height);
+  padding: 0 var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light);
+  font-size: var(--font-size-md);
+  width: 100%;
+  background: var(--color-white);
+}
+
+.form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--color-text);
+}
+
+/* Общие стили для карточек/блоков */
+.card {
+  padding: var(--block-padding);
+  margin-bottom: var(--block-margin);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-xl);
+  color: var(--color-dark);
+  border-bottom: 1px solid var(--color-grey-light);
+  padding-bottom: var(--spacing-sm);
+}
+
+/* Общие утилиты */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.d-flex { display: flex; }
+.flex-column { flex-direction: column; }
+.align-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.mt-1 { margin-top: var(--spacing-xs); }
+.mt-2 { margin-top: var(--spacing-sm); }
+.mt-3 { margin-top: var(--spacing-md); }
+.mb-1 { margin-bottom: var(--spacing-xs); }
+.mb-2 { margin-bottom: var(--spacing-sm); }
+.mb-3 { margin-bottom: var(--spacing-md); }
+
+/* Адаптивные стили */
+@media (max-width: 768px) {
+  .page-container {
+    padding: var(--block-padding-mobile);
+  }
+  
+  .btn, .form-control {
+    height: var(--button-height-mobile);
+    font-size: var(--font-size-sm);
+  }
+} 

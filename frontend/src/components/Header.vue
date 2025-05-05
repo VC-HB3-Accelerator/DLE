@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .header {
   background-color: var(--color-white);
-  padding: 15px 20px;
+  padding: 15px 20px; /* Возвращаем горизонтальный padding */
   position: sticky;
   top: 0;
   z-index: 100; /* Ensure header stays on top */
@@ -75,8 +75,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1200px; /* Optional: limit max width */
-  margin: 0 auto; /* Optional: center content */
+  /* Убираем max-width, margin, padding */
 }
 
 .header-text {
@@ -144,8 +143,10 @@ onBeforeUnmount(() => {
   top: 6px;
 }
 
+/* Удаляем стили для трансформации бургера в крестик */
+/*
 .header-wallet-btn.active .hamburger-line {
-  background-color: transparent; /* Hide middle line */
+  background-color: transparent; 
 }
 
 .header-wallet-btn.active .hamburger-line::before {
@@ -157,6 +158,7 @@ onBeforeUnmount(() => {
   top: 0;
   transform: rotate(-45deg);
 }
+*/
 
 .nav-btn-text {
   font-size: 0.9rem;

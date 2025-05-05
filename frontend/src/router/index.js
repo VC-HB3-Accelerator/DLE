@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
+// Импортируем (пока не созданные) компоненты для подстраниц настроек
+const SettingsAiView = () => import('../views/settings/AiSettingsView.vue');
+const SettingsBlockchainView = () => import('../views/settings/BlockchainSettingsView.vue');
+const SettingsSecurityView = () => import('../views/settings/SecuritySettingsView.vue');
+const SettingsInterfaceView = () => import('../views/settings/InterfaceSettingsView.vue');
 import axios from 'axios';
 
 console.log('router/index.js: Script loaded');
@@ -19,6 +24,35 @@ const routes = [
     path: '/settings',
     name: 'settings',
     component: () => import('../views/SettingsView.vue'),
+    // Добавляем дочерние маршруты
+    children: [
+      {
+        path: 'ai',
+        name: 'settings-ai',
+        component: SettingsAiView,
+      },
+      {
+        path: 'blockchain',
+        name: 'settings-blockchain',
+        component: SettingsBlockchainView,
+      },
+      {
+        path: 'security',
+        name: 'settings-security',
+        component: SettingsSecurityView,
+      },
+      {
+        path: 'interface',
+        name: 'settings-interface',
+        component: SettingsInterfaceView,
+      },
+      // Опционально: перенаправление со /settings на первую подстраницу
+      {
+        path: '',
+        name: 'settings-index',
+        redirect: { name: 'settings-ai' }
+      }
+    ]
   },
 ];
 
