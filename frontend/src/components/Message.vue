@@ -171,7 +171,7 @@ const formatFileSize = (bytes) => {
 </script>
 
 <style scoped>
-/* Стили можно скопировать из home.css или оставить глобальными */
+/* Стили сообщений, полностью перенесенные из home.css */
 .message {
   margin-bottom: var(--spacing-md);
   padding: var(--spacing-sm) var(--spacing-md);
@@ -240,7 +240,7 @@ const formatFileSize = (bytes) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: var(--spacing-xs); /* Добавлен отступ сверху */
+  margin-top: var(--spacing-xs);
 }
 
 .message-time {
@@ -272,7 +272,7 @@ const formatFileSize = (bytes) => {
   border: 1px solid var(--color-danger);
 }
 
-/* --- НОВЫЕ СТИЛИ --- */
+/* Стили для вложений */
 .message-attachments {
   margin-top: var(--spacing-sm);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
@@ -281,19 +281,19 @@ const formatFileSize = (bytes) => {
 
 .attachment-item {
   display: flex;
-  flex-direction: column; /* Отображаем элементы в столбец */
-  align-items: flex-start; /* Выравниваем по левому краю */
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .attachment-preview {
   max-width: 100%;
-  max-height: 300px; /* Ограничение высоты для превью */
+  max-height: 300px;
   margin-bottom: var(--spacing-xs);
   border-radius: var(--radius-md);
 }
 
 .image-preview {
-  object-fit: cover; /* Сохраняем пропорции */
+  object-fit: cover;
 }
 
 .audio-preview {
@@ -301,7 +301,7 @@ const formatFileSize = (bytes) => {
 }
 
 .video-preview {
-   /* Стили для видео по умолчанию */
+  width: 100%;
 }
 
 .file-preview {
@@ -317,16 +317,47 @@ const formatFileSize = (bytes) => {
 .attachment-name {
   font-weight: 500;
   margin-right: var(--spacing-xs);
-  color: var(--color-primary); /* Делаем имя файла похожим на ссылку */
+  color: var(--color-primary);
   text-decoration: none;
 }
+
 .attachment-name:hover {
   text-decoration: underline;
 }
 
 .attachment-size {
   color: var(--color-grey);
-  font-size: var(--font-size-xs); /* Уменьшим размер */
+  font-size: var(--font-size-xs);
 }
-/* --- КОНЕЦ НОВЫХ СТИЛЕЙ --- */
+
+/* Адаптивные стили для разных экранов */
+@media (max-width: 768px) {
+  .message {
+    max-width: 85%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .ai-message {
+    max-width: 80%;
+  }
+}
+
+@media (max-width: 480px) {
+  .message {
+    max-width: 95%;
+    font-size: var(--font-size-sm);
+  }
+  
+  .ai-message {
+    max-width: 90%;
+  }
+  
+  .message-time {
+    font-size: calc(var(--font-size-xs) - 1px);
+  }
+  
+  .attachment-preview {
+    max-height: 200px;
+  }
+}
 </style> 

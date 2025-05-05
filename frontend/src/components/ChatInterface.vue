@@ -437,16 +437,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Стили здесь для инкапсуляции, можно вынести в home.css */
 .chat-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: var(--spacing-lg) auto;
-  padding: 0; /* Убираю padding, так как он теперь задается через .main-content */
-  min-height: 500px; /* Или другая подходящая высота */
-  max-width: 1150px; /* Ограничиваем ширину чата */
-  width: 100%; /* Занимаем всю доступную ширину до максимума */
+  margin: var(--spacing-lg) 0;
+  padding: 0;
+  min-height: 500px;
+  width: 100%;
   position: relative;
 }
 
@@ -462,7 +460,7 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  bottom: calc(var(--chat-input-height, 80px) + 15px); /* Добавляем 15px отступа между сообщениями и полем ввода */
+  bottom: calc(var(--chat-input-height, 80px) + 15px);
   transition: bottom var(--transition-normal);
 }
 
@@ -482,16 +480,32 @@ onUnmounted(() => {
   box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
 }
 
-/* Стили для textarea, связанные с авто-ресайзом (дублируют home.css, но можно оставить для явности) */
 .chat-input textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  resize: none;
+  outline: none;
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  padding: var(--spacing-sm);
+  min-height: var(--chat-input-min-height, 40px);
+  max-height: var(--chat-input-max-height, 120px);
+  transition: all var(--transition-fast);
+  color: var(--color-dark);
   overflow-y: hidden;
   height: auto;
+}
+
+.chat-input textarea:focus {
+  outline: none;
 }
 
 .input-area {
   display: flex;
   align-items: flex-end;
   gap: var(--spacing-sm);
+  width: 100%;
 }
 
 .chat-icons {
@@ -574,7 +588,7 @@ onUnmounted(() => {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--color-grey-light);
-  max-height: 100px; /* Можно увеличить, если нужно больше места */
+  max-height: 100px;
   overflow-y: auto;
 }
 
@@ -621,5 +635,58 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1;
   padding: 0;
+}
+
+/* Добавляем адаптивные стили для мобильных устройств */
+@media (max-width: 768px) {
+  .chat-container {
+    margin: var(--spacing-sm) auto;
+  }
+  
+  .chat-messages {
+    padding: var(--spacing-md);
+  }
+  
+  .chat-input {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .chat-icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .chat-icon-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-container {
+    margin: var(--spacing-xs) auto;
+  }
+  
+  .chat-messages {
+    padding: var(--spacing-sm);
+  }
+  
+  .input-area {
+    gap: 4px;
+  }
+  
+  .chat-icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .chat-icon-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .preview-item {
+    font-size: var(--font-size-xs);
+  }
 }
 </style> 

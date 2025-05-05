@@ -12,7 +12,8 @@
     "lint:style": "stylelint \"**/*.{vue,css}\"",
     "lint:style:fix": "stylelint \"**/*.{vue,css}\" --fix",
     "format": "prettier --write \"**/*.{js,vue,json,md}\"",
-    "format:check": "prettier --check \"**/*.{js,vue,json,md}\""
+    "format:check": "prettier --check \"**/*.{js,vue,json,md}\"",
+    "dev:styles": "node scripts/style-check.js && yarn dev"
   },
   "dependencies": {
     "axios": "^1.8.4",

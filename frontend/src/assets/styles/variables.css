@@ -1,79 +1,120 @@
 /* frontend/src/assets/styles/variables.css */
 :root {
-  /* Цвета */
-  --color-primary: #4CAF50;
-  --color-primary-dark: #45a049;
-  --color-secondary: #2196F3;
-  --color-danger: #F44336;
-  --color-warning: #FF9800;
-  --color-light: #f5f5f5;
-  --color-dark: #333333;
-  --color-grey: #777777;
-  --color-grey-light: #e0e0e0;
-  --color-white: #ffffff;
-  --color-black: #000000;
-  --color-telegram: #0088cc;
-  --color-error: #e74c3c;
+  /* 
+   * ЦВЕТОВАЯ СХЕМА 
+   * Основная палитра цветов приложения 
+   */
+  --color-primary: #4CAF50;       /* Основной цвет (зеленый) */
+  --color-primary-dark: #45a049;  /* Темно-зеленый для наведения и акцентов */
+  --color-secondary: #2196F3;     /* Второстепенный цвет (синий) */
+  --color-accent: #5E35B1;        /* Акцентный цвет (фиолетовый) */
+  --color-accent-dark: #4527A0;   /* Темно-фиолетовый для наведения */
+  
+  /* Статусные цвета */
+  --color-danger: #F44336;        /* Ошибки, удаление, опасные действия */
+  --color-warning: #FF9800;       /* Предупреждения */
+  --color-error: #e74c3c;         /* Текст ошибок */
+  
+  /* Нейтральные цвета */
+  --color-light: #f5f5f5;         /* Светлый фон, фон секций */
+  --color-dark: #333333;          /* Основной текст, заголовки */
+  --color-grey: #777777;          /* Второстепенный текст */
+  --color-grey-light: #e0e0e0;    /* Границы, разделители */
+  --color-white: #ffffff;         /* Белый */
+  --color-black: #000000;         /* Черный */
+  
+  /* Цвета текста */
+  --color-text: #333333;          /* Основной текст */
+  --color-text-light: #999999;    /* Неакцентированный текст */
+  --color-border: #e0e0e0;        /* Цвет рамок */
+  
+  /* Цвета брендов */
+  --color-telegram: #0088cc;      /* Фирменный цвет Telegram */
   
   /* Цвета сообщений */
-  --color-user-message: #EFFAFF;
-  --color-ai-message: #F8F8F8;
-  --color-system-message: #FFF3E0;
-  --color-system-text: #FF5722;
+  --color-user-message: #EFFAFF;  /* Фон сообщений пользователя */
+  --color-ai-message: #F8F8F8;    /* Фон сообщений ИИ */
+  --color-system-message: #FFF3E0; /* Фон системных сообщений */
+  --color-system-text: #FF5722;   /* Текст системных сообщений */
   
-  /* Тени */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  /* 
+   * ТЕНИ 
+   * Для создания эффекта глубины и иерархии элементов
+   */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);     /* Легкая тень */
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);     /* Средняя тень */
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);   /* Глубокая тень */
   
-  /* Отступы */
-  --spacing-xs: 5px;
-  --spacing-sm: 10px;
-  --spacing-md: 15px;
-  --spacing-lg: 20px;
-  --spacing-xl: 30px;
+  /* 
+   * ОТСТУПЫ 
+   * Для обеспечения консистентных интервалов и отступов
+   */
+  --spacing-xs: 5px;  /* Очень маленькие отступы (между близкими элементами) */
+  --spacing-sm: 10px; /* Маленькие отступы */
+  --spacing-md: 15px; /* Средние отступы */
+  --spacing-lg: 20px; /* Большие отступы */
+  --spacing-xl: 30px; /* Очень большие отступы (между крупными блоками) */
   
-  /* Размеры шрифтов */
-  --font-size-xs: 12px;
-  --font-size-sm: 13px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
-  --font-size-xl: 18px;
-  --font-size-xxl: 24px;
+  /* 
+   * РАЗМЕРЫ ШРИФТОВ 
+   * Типографическая шкала
+   */
+  --font-size-xs: 12px; /* Маленькие надписи, подписи к полям */
+  --font-size-sm: 13px; /* Второстепенный текст */
+  --font-size-md: 14px; /* Основной текст */
+  --font-size-lg: 16px; /* Подзаголовки */
+  --font-size-xl: 18px; /* Заголовки разделов */
+  --font-size-xxl: 24px; /* Главные заголовки */
   
-  /* Радиусы скругления */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* 
+   * РАДИУСЫ СКРУГЛЕНИЯ 
+   * Для элементов интерфейса
+   */
+  --radius-sm: 4px;  /* Небольшое скругление (кнопки, поля ввода) */
+  --radius-md: 6px;  /* Среднее скругление (карточки, панели) */
+  --radius-lg: 8px;  /* Большое скругление (модальные окна, боковые панели) */
   
-  /* Переходы */
-  --transition-fast: 0.2s ease;
-  --transition-normal: 0.3s ease;
+  /* 
+   * ПЕРЕХОДЫ 
+   * Для плавных анимаций
+   */
+  --transition-fast: 0.2s ease;   /* Быстрые переходы (ховеры, небольшие анимации) */
+  --transition-normal: 0.3s ease; /* Стандартные переходы (появление элементов) */
   
-  /* Размеры компонентов (Удаляем старые sidebar width) */
-  /* --sidebar-width: 110px; */
-  /* --sidebar-expanded-width: 325px; */
+  /* 
+   * РАЗМЕРЫ КОМПОНЕНТОВ 
+   * Стандартные размеры для элементов интерфейса
+   */
   --nav-btn-size: 40px;
   --chat-input-min-height: 100px;
   --chat-input-max-height: 200px;
   --chat-input-focus-min-height: 170px;
   --chat-input-focus-max-height: 300px;
   
-  /* Унифицированные размеры для кнопок и форм */
+  /* 
+   * УНИФИЦИРОВАННЫЕ РАЗМЕРЫ 
+   * Для кнопок и форм
+   */
   --button-height: 48px;
   --button-height-mobile: 42px;
   --button-padding: 0 var(--spacing-lg);
   --button-gap: var(--spacing-md);
+  
   --form-gap: var(--spacing-md);
+  
   --block-padding: 24px;
   --block-padding-mobile: 16px;
   --block-margin: 24px;
   --block-margin-mobile: 16px;
+  
   --input-height: 48px;
   --input-height-mobile: 42px;
   --input-padding: 0 var(--spacing-lg);
   
-  /* Общие стили */
+  /* 
+   * ОБЩИЕ СТИЛИ 
+   * Производные параметры для единого стиля
+   */
   --button-radius: var(--radius-lg);
   --input-radius: var(--radius-lg);
   --block-radius: var(--radius-lg);
