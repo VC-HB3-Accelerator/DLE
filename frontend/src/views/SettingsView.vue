@@ -14,7 +14,6 @@
         <p>Для доступа к настройкам необходимо <button @click="goToHomeAndShowSidebar">войти</button>.</p>
       </div>
       <div v-else class="settings-navigation-buttons">
-        <h3>Разделы настроек:</h3>
         <div class="buttons-grid">
           <router-link :to="{ name: 'settings-ai' }" class="btn btn-secondary">ИИ</router-link>
           <router-link :to="{ name: 'settings-blockchain' }" class="btn btn-secondary">Блокчейн</router-link>

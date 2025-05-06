@@ -17,6 +17,8 @@ const identitiesRoutes = require('./routes/identities');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
 const tokensRouter = require('./routes/tokens');
+const isicRoutes = require('./routes/isic'); // Добавленный импорт
+const geocodingRoutes = require('./routes/geocoding'); // Добавленный импорт
 
 const app = express();
 
@@ -114,6 +116,8 @@ app.use('/api/identities', identitiesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
+app.use('/api/isic', isicRoutes); // Добавленное использование роута
+app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 
