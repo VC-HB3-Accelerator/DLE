@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/data:/mnt/isic_csv_data
     environment:
       POSTGRES_DB: ${DB_NAME:-dapp_db}
       POSTGRES_USER: ${DB_USER:-dapp_user}
