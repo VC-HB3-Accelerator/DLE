@@ -7,27 +7,19 @@
       <div class="setting-form">
         <p>Настройка и деплой нового DLE (Digital Legal Entity) с токеном управления и контрактом Governor.</p>
         
-        <div class="form-group">
-          <label class="form-label" for="blockchainNetwork">Цепочка блокчейна для деплоя:</label>
-          <select id="blockchainNetwork" v-model="dleDeploymentSettings.blockchainNetwork" class="form-control">
-            <option value="polygon">Polygon (Matic)</option>
-            <option value="ethereum_mainnet">Ethereum Mainnet</option>
-            <option value="sepolia">Sepolia (Testnet)</option>
-            <option value="goerli">Goerli (Testnet)</option>
-            <!-- TODO: Добавить другие сети по мере необходимости -->
-          </select>
-        </div>
-
+        <!-- 1. Имя DLE -->
         <div class="form-group">
           <label class="form-label" for="dleName">Имя DLE (Digital Legal Entity) (и токена):</label>
           <input type="text" id="dleName" v-model="dleDeploymentSettings.name" class="form-control" placeholder="Например, My DLE">
         </div>
 
+        <!-- 2. Символ токена -->
         <div class="form-group">
           <label class="form-label" for="dleSymbol">Символ токена управления (GT):</label>
           <input type="text" id="dleSymbol" v-model="dleDeploymentSettings.symbol" class="form-control" placeholder="Например, MDGT (3-5 символов)">
         </div>
 
+        <!-- 3. Местонахождение -->
         <h4>Местонахождение</h4>
         <div class="address-grid">
             <div class="form-group address-index">
@@ -84,6 +76,8 @@
       </div>
     </div>
     
+        <!-- 4. Код деятельности -->
+        <h4>Код деятельности</h4>
         <div v-if="dleDeploymentSettings.selectedIsicCodes && dleDeploymentSettings.selectedIsicCodes.length > 0" class="isic-codes-list mt-3">
           <h5>Добавленные коды деятельности:</h5>
           <ul>
@@ -139,6 +133,7 @@
           <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">Добавить код деятельности</button>
         </div>
 
+        <!-- 5. Первоначальное распределение токенов -->
         <h4>Первоначальное распределение токенов управления</h4>
         <div v-for="(partner, index) in dleDeploymentSettings.partners" :key="index" class="partner-entry">
           <div class="form-group">
@@ -156,6 +151,7 @@
           <label class="form-label">Общее количество выпускаемых GT: {{ totalInitialSupply }}</label>
         </div>
 
+        <!-- 6. Настройки Governor -->
         <h4>Настройки Governor</h4>
         <div class="form-group">
           <label class="form-label" for="proposalThreshold">Порог для создания предложений (кол-во GT):</label>
@@ -177,13 +173,148 @@
           <input type="number" id="votingPeriod" v-model="dleDeploymentSettings.votingPeriodDays" min="1" class="form-control">
     </div>
     
-        <h4>Настройки Timelock (если используется)</h4>
         <div class="form-group">
           <label class="form-label" for="timelockMinDelay">Минимальная задержка Timelock (в днях):</label>
           <input type="number" id="timelockMinDelay" v-model="dleDeploymentSettings.timelockMinDelayDays" min="0" class="form-control">
         </div>
 
-        <button class="btn btn-primary btn-lg" @click="deployDLE">Создать и задеплоить DLE (Digital Legal Entity)</button>
+        <!-- 7. RPC Провайдеры -->
+        <h4>RPC Провайдеры</h4>
+        <p>Конфигурации RPC для сетей, которые будут использоваться в приложении.</p>
+        
+        <!-- Список добавленных RPC -->
+        <div v-if="securitySettings.rpcConfigs.length > 0" class="rpc-list">
+            <h5>Добавленные RPC конфигурации:</h5>
+            <div v-for="(rpc, index) in securitySettings.rpcConfigs" :key="index" class="rpc-entry">
+                <span><strong>ID Сети:</strong> {{ rpc.networkId }}</span>
+                <span><strong>URL:</strong> {{ rpc.rpcUrl }}</span>
+                <div class="rpc-actions">
+                  <button class="btn btn-info btn-sm" @click="testRpcHandler(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
+                    <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
+                    {{ testingRpc && testingRpcId === rpc.networkId ? 'Проверка...' : 'Тест' }}
+                  </button>
+                  <button class="btn btn-danger btn-sm" @click="removeRpcConfig(index)">
+                    <i class="fas fa-trash"></i> Удалить
+                  </button>
+                </div>
+            </div>
+        </div>
+        <p v-else>Нет добавленных RPC конфигураций.</p>
+
+        <!-- Форма добавления нового RPC -->
+        <div class="setting-form add-rpc-form">
+            <h5>Добавить новую RPC конфигурацию:</h5>
+            <div class="form-group">
+                <label class="form-label" for="newRpcNetworkId">ID Сети:</label>
+                <select id="newRpcNetworkId" v-model="networkEntry.networkId" class="form-control">
+                    <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
+                        <option v-for="option in group.options" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </optgroup>
+                </select>
+                <div v-if="networkEntry.networkId === 'custom'" class="mt-2">
+                    <label class="form-label" for="customNetworkId">Пользовательский ID:</label>
+                    <input type="text" id="customNetworkId" v-model="networkEntry.customNetworkId" class="form-control" placeholder="Введите ID сети">
+                    
+                    <label class="form-label mt-2" for="customChainId">Chain ID:</label>
+                    <input type="number" id="customChainId" v-model="networkEntry.customChainId" class="form-control" placeholder="Например, 1 для Ethereum">
+                    <small>Chain ID - уникальный идентификатор блокчейн-сети (целое число)</small>
+                </div>
+                <small>ID сети должен совпадать со значением в выпадающем списке сетей при создании DLE</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="newRpcUrl">RPC URL:</label>
+                <input type="text" id="newRpcUrl" v-model="networkEntry.rpcUrl" class="form-control" placeholder="https://...">
+                <!-- Предложение URL на основе выбранной сети -->
+                <small v-if="defaultRpcUrlSuggestion" class="suggestion">
+                    Предложение: {{ defaultRpcUrlSuggestion }}
+                    <button class="btn-link" @click="useDefaultRpcUrl">Использовать</button>
+                </small>
+            </div>
+            <button class="btn btn-secondary" @click="addRpcConfig">Добавить RPC</button>
+        </div>
+
+        <!-- Кнопка сохранения настроек RPC -->
+        <div class="save-rpc-actions mt-3">
+            <button class="btn btn-primary" @click="saveRpcSettingsWithFeedback" :disabled="isSavingRpc">
+                <i class="fas" :class="isSavingRpc ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                {{ isSavingRpc ? 'Сохранение...' : 'Сохранить RPC настройки' }}
+            </button>
+        </div>
+        
+        <!-- 8. Выбор сети для деплоя -->
+        <h4>Сеть для деплоя</h4>
+        <div class="form-group">
+          <label class="form-label" for="deployNetwork">Выберите сеть блокчейн для деплоя:</label>
+          <select id="deployNetwork" v-model="dleDeploymentSettings.blockchainNetwork" class="form-control">
+            <option v-for="network in networks" :key="network.value" :value="network.value">
+              {{ network.label }}
+            </option>
+          </select>
+          <small class="text-warning" v-if="!dleDeploymentSettings.blockchainNetwork.includes('testnet') && 
+              !['sepolia', 'goerli', 'mumbai'].includes(dleDeploymentSettings.blockchainNetwork)">
+            <i class="fas fa-exclamation-triangle"></i> 
+            Внимание! Для тестирования рекомендуется использовать тестовые сети (Sepolia, Goerli, Mumbai).
+          </small>
+        </div>
+
+        <!-- 9. Ключ Деплоера -->
+        <h4>Ключ Деплоера</h4>
+        <div class="form-group">
+            <label class="form-label" for="deployerKey">Приватный ключ для деплоя:</label>
+            <div class="input-group">
+                <input :type="showDeployerKey ? 'text' : 'password'" id="deployerKey" v-model="securitySettings.deployerPrivateKey" class="form-control">
+                <button class="btn btn-outline-secondary" @click="toggleShowDeployerKey">
+                    <i :class="showDeployerKey ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 10. Газовые настройки -->
+        <div class="form-group">
+          <h4>Газовые настройки</h4>
+          <div class="custom-control custom-checkbox">
+            <input type="checkbox" class="custom-control-input" id="customGas" v-model="useCustomGas">
+            <label class="custom-control-label" for="customGas">Использовать пользовательские настройки газа</label>
+          </div>
+          
+          <div v-if="useCustomGas" class="gas-settings mt-3">
+            <div class="form-group">
+              <label for="gasLimit">Лимит газа (Gas Limit):</label>
+              <input type="number" id="gasLimit" v-model="gasSettings.gasLimit" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="maxFeePerGas">Максимальная комиссия (Max Fee, gwei):</label>
+              <input type="number" id="maxFeePerGas" v-model="gasSettings.maxFeePerGas" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="maxPriorityFee">Приоритетная комиссия (Priority Fee, gwei):</label>
+              <input type="number" id="maxPriorityFee" v-model="gasSettings.maxPriorityFee" class="form-control">
+            </div>
+          </div>
+        </div>
+
+        <!-- 10. Кнопка деплоя DLE -->
+        <div class="deployment-actions mt-4">
+          <button class="btn btn-primary" @click="deployDLE" :disabled="isDeploying">
+            <i class="fas fa-rocket"></i> {{ isDeploying ? 'Создание DLE...' : 'Создать и задеплоить DLE (Digital Legal Entity)' }}
+          </button>
+          
+          <!-- Результат деплоя -->
+          <div v-if="deployResult" class="deploy-result mt-3 alert alert-success">
+            <h5>DLE успешно создано!</h5>
+            <p><strong>Адрес токена:</strong> {{ deployResult.data?.tokenAddress }}</p>
+            <p><strong>Адрес таймлока:</strong> {{ deployResult.data?.timelockAddress }}</p>
+            <p><strong>Адрес контракта Governor:</strong> {{ deployResult.data?.governorAddress }}</p>
+          </div>
+          
+          <!-- Ошибка деплоя -->
+          <div v-if="deployError" class="deploy-error mt-3 alert alert-danger">
+            <h5>Ошибка при создании DLE</h5>
+            <p>{{ deployError }}</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -193,7 +324,60 @@
 <script setup>
 import { reactive, onMounted, computed, ref, watch } from 'vue';
 import axios from 'axios'; // Предполагаем, что axios доступен
+import { useAuth } from '@/composables/useAuth'; // Импортируем composable useAuth
+import dleService from '@/services/dleService';
+import useBlockchainNetworks from '@/composables/useBlockchainNetworks'; // Импортируем composable для работы с сетями
 // TODO: Импортировать API
+
+const { address, isAdmin, auth, user } = useAuth(); // Получаем объект адреса и статус админа
+
+// Инициализация composable для работы с сетями блокчейн
+const { 
+  networkGroups, 
+  networkEntry, 
+  defaultRpcUrlSuggestion, 
+  useDefaultRpcUrl,
+  validateAndPrepareNetworkConfig,
+  resetNetworkEntry,
+  testRpcConnection,
+  testingRpc,
+  testingRpcId,
+  networks
+} = useBlockchainNetworks();
+
+// Добавляем настройки безопасности и подключения
+const securitySettings = reactive({
+  rpcConfigs: [], // Массив для хранения { networkId: string, rpcUrl: string, chainId: number }
+  deployerPrivateKey: '', 
+});
+
+// Функция добавления новой RPC конфигурации
+const addRpcConfig = () => {
+  const result = validateAndPrepareNetworkConfig();
+  
+  if (!result.valid) {
+    alert(result.error);
+    return;
+  }
+  
+  const { networkId, rpcUrl, chainId } = result.networkConfig;
+  
+  // Проверка на дубликат ID
+  if (securitySettings.rpcConfigs.some(rpc => rpc.networkId === networkId)) {
+    alert(`Ошибка: RPC конфигурация для сети с ID '${networkId}' уже существует.`);
+    return;
+  }
+  
+  securitySettings.rpcConfigs.push({ networkId, rpcUrl, chainId });
+  
+  // Очистка полей ввода
+  resetNetworkEntry();
+};
+
+// Функция удаления RPC конфигурации
+const removeRpcConfig = (index) => {
+  securitySettings.rpcConfigs.splice(index, 1);
+};
 
 const settings = reactive({
   // contractAddress: '', // Удалено
@@ -218,6 +402,16 @@ const dleDeploymentSettings = reactive({
   locationHouse: '',
   locationOffice: '',
   selectedIsicCodes: [], // <<< Для хранения массива выбранных кодов ISIC
+});
+
+// Добавляем переменную useCustomGas для управления отображением пользовательских настроек газа
+const useCustomGas = ref(false);
+
+// Объявляем gasSettings как ref для корректного реактивного доступа в шаблоне
+const gasSettings = reactive({
+  gasLimit: 3000000,
+  maxFeePerGas: 30,
+  maxPriorityFee: 2
 });
 
 // --- Состояние для загрузки и опций ISIC ---
@@ -360,8 +554,21 @@ watch(selectedClass, () => {
 // --- Начальная загрузка данных ---
 onMounted(() => {
   fetchIsicCodes({ level: 1 }, sectionOptions, isLoadingSections);
-  // TODO: Загрузить настройки блокчейна, если они есть
-  // loadBlockchainSettings(); // Эта функция пока не актуальна, так как settings пустой
+  
+  // Автоподстановка адреса авторизированного пользователя в первого партнера, если есть права админа
+  if (address.value && isAdmin.value && dleDeploymentSettings.partners.length > 0) {
+    dleDeploymentSettings.partners[0].address = address.value;
+  }
+  
+  // Слушаем изменения адреса авторизированного пользователя
+  watch(address, (newAddress) => {
+    if (newAddress && isAdmin.value && dleDeploymentSettings.partners.length > 0) {
+      dleDeploymentSettings.partners[0].address = newAddress;
+    }
+  });
+  
+  // Загрузка настроек RPC с сервера
+  loadRpcSettings();
 });
 
 const totalInitialSupply = computed(() => {
@@ -389,46 +596,112 @@ const saveSettings = async (section) => {
   // Если настройки DLE (dleDeploymentSettings) нужно сохранять без деплоя, нужна другая логика.
 };
 
-const deployDLE = async () => {
-  console.log('[BlockchainSettingsView] Попытка деплоя DLE (Digital Legal Entity) с настройками:', JSON.parse(JSON.stringify(dleDeploymentSettings)));
-  console.log('[BlockchainSettingsView] Выбранные коды ISIC:', JSON.parse(JSON.stringify(dleDeploymentSettings.selectedIsicCodes)));
-  console.log('[BlockchainSettingsView] Общее начальное количество токенов:', totalInitialSupply.value);
-  const addressString = [
+const isDeploying = ref(false);
+const deployResult = ref(null);
+const deployError = ref(null);
+
+const formattedDLEParams = computed(() => {
+  // Преобразуем партнеров в формат для API
+  const partners = dleDeploymentSettings.partners.map(p => p.address);
+  const amounts = dleDeploymentSettings.partners.map(p => p.amount.toString());
+  
+  // Формируем полный адрес
+  const location = [
     dleDeploymentSettings.locationIndex,
     dleDeploymentSettings.locationCountry,
     dleDeploymentSettings.locationCity,
     dleDeploymentSettings.locationStreet,
     dleDeploymentSettings.locationHouse,
     dleDeploymentSettings.locationOffice
-  ].filter(Boolean).join(', '); // Собираем строку адреса для alert/log
-  let finalIsicDisplay = 'Не выбраны';
-  if (dleDeploymentSettings.selectedIsicCodes && dleDeploymentSettings.selectedIsicCodes.length > 0) {
-    finalIsicDisplay = dleDeploymentSettings.selectedIsicCodes.map(c => c.code).join(', ');
+  ].filter(Boolean).join(', ');
+  
+  // Формируем коды ISIC
+  const isicCodes = dleDeploymentSettings.selectedIsicCodes.map(isic => isic.code);
+  
+  return {
+    name: dleDeploymentSettings.name,
+    symbol: dleDeploymentSettings.symbol,
+    location,
+    isicCodes,
+    partners,
+    amounts,
+    network: dleDeploymentSettings.blockchainNetwork, // Добавляем выбранную сеть в параметры
+    minTimelockDelay: dleDeploymentSettings.timelockMinDelayDays,
+    votingDelay: Math.round(dleDeploymentSettings.votingDelayDays * 24 * 60 * 60 / 13), // конвертируем дни в блоки (13 секунд на блок)
+    votingPeriod: Math.round(dleDeploymentSettings.votingPeriodDays * 24 * 60 * 60 / 13), // конвертируем дни в блоки
+    proposalThreshold: dleDeploymentSettings.proposalThreshold,
+    quorumPercentage: dleDeploymentSettings.quorumPercent
+  };
+});
+
+const deployDLE = async () => {
+  isDeploying.value = true;
+  deployResult.value = null;
+  deployError.value = null;
+  
+  try {
+    // Проверяем валидность формы
+    if (!validateDLEForm()) {
+      isDeploying.value = false;
+      return;
+    }
+
+    // Сначала сохраняем настройки RPC
+    const rpcSaved = await saveRpcSettings();
+    if (!rpcSaved) {
+      // Если не удалось сохранить, спрашиваем пользователя, хочет ли он продолжить
+      if (!confirm('Не удалось сохранить RPC настройки. Продолжить деплой DLE?')) {
+        isDeploying.value = false;
+        return;
+      }
+    }
+    
+    // Отправляем запрос на создание DLE
+    const result = await dleService.createDLE(formattedDLEParams.value);
+    
+    deployResult.value = result;
+    alert('DLE успешно создано!');
+  } catch (error) {
+    console.error('Ошибка при деплое DLE:', error);
+    deployError.value = error.response?.data?.message || error.message || 'Произошла ошибка при деплое DLE';
+    alert(deployError.value);
+  } finally {
+    isDeploying.value = false;
   }
-  alert(`Деплой DLE (Digital Legal Entity) инициирован (см. консоль). Имя: ${dleDeploymentSettings.name}, Символ: ${dleDeploymentSettings.symbol}, Сеть: ${dleDeploymentSettings.blockchainNetwork}, Коды деят: ${finalIsicDisplay}, Адрес: ${addressString || 'Не указан'}`);
-  // TODO: Вызвать API бэкенда для деплоя контрактов
-  // Передать dleDeploymentSettings.blockchainNetwork на бэкенд
-  // Передать выбранный dleDeploymentSettings.selectedIsicCodes и детали адреса (dleDeploymentSettings.location...) (возможно, для метаданных контракта или внесения в реестр)
-  // 1. Деплой ERC20Votes токена с параметрами:
-  //    - name: dleDeploymentSettings.name
-  //    - symbol: dleDeploymentSettings.symbol
-  //    - initialSupply: totalInitialSupply.value (или как решит бэкенд по партнерам)
-  //    - initialHolders: dleDeploymentSettings.partners (адреса и суммы)
-  // 2. Деплой TimelockController (если используется, получить его адрес)
-  //    - minDelay: dleDeploymentSettings.timelockMinDelayDays * 24 * 60 * 60 (конвертация в секунды)
-  //    - proposers: [адрес будущего Governor]
-  //    - executors: [0x0000...0000] (любой может исполнить) или [адрес будущего Governor]
-  // 3. Деплой Governor контракта:
-  //    - name: dleDeploymentSettings.name + " Governor" (или просто уникальное имя для Governor)
-  //    - tokenAddress: адрес задеплоенного ERC20Votes
-  //    - timelockAddress: адрес задеплоенного TimelockController (если используется)
-  //    - quorumPercent: dleDeploymentSettings.quorumPercent
-  //    - proposalThreshold: dleDeploymentSettings.proposalThreshold
-  //    - votingPeriod: dleDeploymentSettings.votingPeriodDays * 24 * 60 * 60 (конвертация в секунды или блоки на бэкенде)
-  //    - votingDelay: dleDeploymentSettings.votingDelayDays * 24 * 60 * 60 (конвертация в секунды или блоки на бэкенде)
-  // 4. (Если Timelock) Передать права администратора Timelock самому Timelock'у (или DLE)
-  // 5. (Опционально) Передать права на другие системные контракты Timelock'у
-  // TODO: Передать dleDeploymentSettings.selectedIsicCodes (массив объектов) на бэкенд
+};
+
+const validateDLEForm = () => {
+  // Проверяем обязательные поля
+  if (!dleDeploymentSettings.name) {
+    alert('Необходимо указать имя DLE');
+    return false;
+  }
+  
+  if (!dleDeploymentSettings.symbol) {
+    alert('Необходимо указать символ токена');
+    return false;
+  }
+  
+  // Проверяем выбрана ли сеть для деплоя
+  if (!dleDeploymentSettings.blockchainNetwork) {
+    alert('Необходимо выбрать сеть для деплоя');
+    return false;
+  }
+  
+  // Проверяем адреса партнеров
+  for (const partner of dleDeploymentSettings.partners) {
+    if (!partner.address || !partner.address.startsWith('0x') || partner.address.length !== 42) {
+      alert('Некорректный адрес партнера');
+      return false;
+    }
+    
+    if (!partner.amount || partner.amount <= 0) {
+      alert('Сумма токенов должна быть больше 0');
+      return false;
+    }
+  }
+  
+  return true;
 };
 
 // --- Функция для поиска адреса по индексу через Nominatim ---
@@ -636,6 +909,91 @@ const removeIsicCode = (index) => {
   dleDeploymentSettings.selectedIsicCodes.splice(index, 1);
 };
 
+const showDeployerKey = ref(false);
+const toggleShowDeployerKey = () => {
+  showDeployerKey.value = !showDeployerKey.value;
+};
+
+// Функция загрузки настроек RPC с сервера
+const loadRpcSettings = async () => {
+  try {
+    const response = await axios.get('/api/settings/rpc');
+    if (response.data && response.data.success) {
+      securitySettings.rpcConfigs = response.data.data || [];
+      console.log('[BlockchainSettingsView] RPC конфигурации успешно загружены:', securitySettings.rpcConfigs);
+    }
+  } catch (error) {
+    console.error('[BlockchainSettingsView] Ошибка при загрузке RPC конфигураций:', error);
+    // Если нужно, установить дефолтные RPC
+    // setDefaultRpcConfigs();
+  }
+};
+
+// Функция сохранения настроек RPC на сервер
+const saveRpcSettings = async () => {
+  try {
+    const response = await axios.post('/api/settings/rpc', { 
+      rpcConfigs: JSON.parse(JSON.stringify(securitySettings.rpcConfigs)) 
+    });
+    
+    if (response.data && response.data.success) {
+      console.log('[BlockchainSettingsView] RPC конфигурации успешно сохранены');
+      return true;
+    } else {
+      console.error('[BlockchainSettingsView] Ошибка при сохранении RPC конфигураций:', response.data);
+      return false;
+    }
+  } catch (error) {
+    console.error('[BlockchainSettingsView] Ошибка при сохранении RPC конфигураций:', error);
+    return false;
+  }
+};
+
+const isSavingRpc = ref(false);
+
+// Функция сохранения настроек RPC с обратной связью
+const saveRpcSettingsWithFeedback = async () => {
+  isSavingRpc.value = true;
+  try {
+    const success = await saveRpcSettings();
+    if (success) {
+      alert('RPC настройки успешно сохранены.');
+    } else {
+      alert('Ошибка при сохранении RPC настроек.');
+    }
+  } catch (error) {
+    console.error('[BlockchainSettingsView] Ошибка при сохранении RPC настроек:', error);
+    alert(`Ошибка при сохранении: ${error.message || 'Неизвестная ошибка'}`);
+  } finally {
+    isSavingRpc.value = false;
+  }
+};
+
+// Определяем группы сетей для деплоя (исключаем локальные и пользовательские)
+const deployNetworkGroups = computed(() => {
+  // Фильтруем группы, оставляя только основные и тестовые сети
+  return networkGroups.filter(group => 
+    group.label === 'Основные сети' || group.label === 'Тестовые сети'
+  );
+});
+
+const testingRpcIndex = ref(-1);
+
+// Функция-обработчик для тестирования RPC соединения
+const testRpcHandler = async (rpc) => {
+  try {
+    const result = await testRpcConnection(rpc.networkId, rpc.rpcUrl);
+    if (result.success) {
+      alert(result.message);
+    } else {
+      alert(`Ошибка при подключении к ${rpc.networkId}: ${result.error}`);
+    }
+  } catch (error) {
+    console.error('[BlockchainSettingsView] Ошибка при тестировании RPC:', error);
+    alert(`Ошибка при тестировании RPC: ${error.message || 'Неизвестная ошибка'}`);
+  }
+};
+
 </script>
 
 <style scoped>
@@ -814,5 +1172,118 @@ h3 {
 .btn-xs {
   padding: 0.2rem 0.4rem;
   font-size: 0.75rem;
+}
+
+.rpc-list {
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.rpc-entry {
+  background-color: var(--color-background);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-grey-light);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.rpc-entry span {
+  flex-grow: 1;
+}
+
+.add-rpc-form {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px dashed var(--color-grey-light);
+}
+
+.add-rpc-form h5 {
+  margin-bottom: var(--spacing-sm);
+}
+
+.deployment-actions {
+  margin-top: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.deploy-result {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-success-light);
+  color: var(--color-success-dark);
+  border: 1px solid var(--color-success-dark);
+}
+
+.deploy-error {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-danger-light);
+  color: var(--color-danger-dark);
+  border: 1px solid var(--color-danger-dark);
+}
+
+.suggestion {
+  background-color: rgba(76, 175, 80, 0.1);
+  border-left: 3px solid var(--color-primary, #4caf50);
+  padding: 6px 10px;
+  margin-top: 8px;
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary, #4caf50);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.btn-link:hover {
+  color: var(--color-primary-dark, #388e3c);
+  text-decoration: none;
+}
+
+.mt-2 {
+  margin-top: 10px;
+}
+
+.text-warning {
+  color: #f57c00; /* оранжевый для предупреждений */
+  margin-top: 5px;
+  display: block;
+}
+
+.rpc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background-color: #138496;
+}
+
+.btn-info:disabled {
+  background-color: #a0d2dc;
+  cursor: not-allowed;
 }
 </style> 

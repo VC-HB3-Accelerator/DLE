@@ -64,6 +64,9 @@ docker compose up -d
 # Запуск с логами
 docker compose up
 
+# Перезапуск контейнеров
+docker-compose restart
+
 # Остановка сервисов
 docker compose down
 

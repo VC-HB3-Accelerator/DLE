@@ -9,6 +9,44 @@ const { errorHandler } = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
 const pool = require('./db'); // Добавляем импорт pool
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
+const fs = require('fs');
+const path = require('path');
+
+// Проверка и создание директорий для хранения данных контрактов
+const ensureDirectoriesExist = () => {
+  const directories = [
+    path.join(__dirname, 'contracts-data'),
+    path.join(__dirname, 'contracts-data/dles'),
+    path.join(__dirname, 'temp')
+  ];
+  
+  for (const dir of directories) {
+    if (!fs.existsSync(dir)) {
+      try {
+        logger.info(`Создание директории: ${dir}`);
+        fs.mkdirSync(dir, { recursive: true });
+        logger.info(`Директория успешно создана: ${dir}`);
+      } catch (error) {
+        logger.error(`Ошибка при создании директории ${dir}: ${error.message}`);
+      }
+    } else {
+      logger.info(`Директория существует: ${dir}`);
+    }
+    
+    // Проверка прав на запись
+    try {
+      const testFile = path.join(dir, '.write-test');
+      fs.writeFileSync(testFile, 'test');
+      fs.unlinkSync(testFile);
+      logger.info(`Директория доступна для записи: ${dir}`);
+    } catch (error) {
+      logger.error(`Директория ${dir} недоступна для записи: ${error.message}`);
+    }
+  }
+};
+
+// Вызываем функцию проверки директорий при запуске сервера
+ensureDirectoriesExist();
 
 // Импорт маршрутов
 const authRoutes = require('./routes/auth');
@@ -19,6 +57,8 @@ const adminRoutes = require('./routes/admin');
 const tokensRouter = require('./routes/tokens');
 const isicRoutes = require('./routes/isic'); // Добавленный импорт
 const geocodingRoutes = require('./routes/geocoding'); // Добавленный импорт
+const dleRoutes = require('./routes/dle'); // Добавляем импорт DLE маршрутов
+const settingsRoutes = require('./routes/settings'); // Добавляем импорт маршрутов настроек
 
 const app = express();
 
@@ -118,6 +158,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/isic', isicRoutes); // Добавленное использование роута
 app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
+app.use('/api/dle', dleRoutes); // Добавляем маршрут DLE
+app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 
