@@ -7,7 +7,7 @@ const verificationService = require('./verification-service'); // Использ
 const identityService = require('./identity-service'); // <-- ДОБАВЛЕН ИМПОРТ
 
 const ADMIN_CONTRACTS = [
-  { address: '0xd95a45fc46a7300e6022885afec3d618d7d3f27c', network: 'eth' },
+  { address: '0xd95a45fc46a7300e6022885afec3d618d7d3f27c', network: 'ethereum' },
   { address: '0x4B294265720B09ca39BFBA18c7E368413c0f68eB', network: 'bsc' },
   { address: '0xdce769b847a0a697239777d0b1c7dd33b6012ba0', network: 'arbitrum' },
   { address: '0x351f59de4fedbdf7601f5592b93db3b9330c1c1d', network: 'polygon' },
@@ -17,8 +17,9 @@ const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
 class AuthService {
   constructor() {
+    // Используем существующие переменные окружения с префиксом RPC_URL_
     this.providers = {
-      eth: new ethers.JsonRpcProvider(process.env.RPC_URL_ETH),
+      ethereum: new ethers.JsonRpcProvider(process.env.RPC_URL_ETH), // Используем RPC_URL_ETH для ethereum
       polygon: new ethers.JsonRpcProvider(process.env.RPC_URL_POLYGON),
       bsc: new ethers.JsonRpcProvider(process.env.RPC_URL_BSC),
       arbitrum: new ethers.JsonRpcProvider(process.env.RPC_URL_ARBITRUM),
@@ -233,7 +234,7 @@ class AuthService {
     if (!address) {
       logger.error('No address provided for getTokenBalances');
       return {
-        eth: '0',
+        ethereum: '0',
         bsc: '0',
         arbitrum: '0',
         polygon: '0',

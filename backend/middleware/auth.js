@@ -195,9 +195,21 @@ async function checkRole(req, res, next) {
   }
 }
 
+/**
+ * Проверка аутентификации - алиас для requireAuth
+ */
+const isAuthenticated = requireAuth;
+
+/**
+ * Проверка прав администратора - алиас для requireAdmin
+ */
+const isAdmin = requireAdmin;
+
 module.exports = {
   requireAuth,
   requireAdmin,
   requireRole,
   checkRole,
+  isAuthenticated,
+  isAdmin
 };

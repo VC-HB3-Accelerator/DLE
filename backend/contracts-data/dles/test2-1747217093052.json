@@ -1,0 +1,14 @@
+{
+  "name": "test2",
+  "symbol": "test2",
+  "location": "245000, 中国, 黄山市",
+  "isicCodes": [
+    "6810"
+  ],
+  "tokenAddress": "0xef49261169B454f191678D2aFC5E91Ad2e85dfD8",
+  "timelockAddress": "0xd5Aea926fc023f11D7D1e762Ca4A11c87830D7ea",
+  "governorAddress": "0xe599F51CAF812E19666DDd6f3002665A2Ca83DaC",
+  "creationBlock": 8324324,
+  "creationTimestamp": 1747217076,
+  "deployedManually": true
+}

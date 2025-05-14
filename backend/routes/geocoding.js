@@ -60,11 +60,11 @@
         const nominatimUrl = `https://nominatim.openstreetmap.org/search?${queryParams.toString()}`;
 
         if (logger && typeof logger.info === 'function') {
-            logger.info(`[Geocoding] Proxying request to Nominatim: ${nominatimUrl}`);
+        logger.info(`[Geocoding] Proxying request to Nominatim: ${nominatimUrl}`);
         } else {
             console.log(`[Geocoding] Proxying request to Nominatim: ${nominatimUrl}`);
         }
-        
+
         const nominatimResponse = await axios.get(nominatimUrl);
         
         res.json(nominatimResponse.data);
