@@ -6,34 +6,6 @@ import axios from 'axios';
  * Предоставляет списки доступных сетей, URL RPC и функции для работы с ними
  */
 export default function useBlockchainNetworks() {
-  // Список стандартных URL для популярных сетей
-  const defaultRpcUrls = {
-    ethereum: 'https://mainnet.infura.io/v3/YOUR_API_KEY',
-    sepolia: 'https://sepolia.infura.io/v3/YOUR_API_KEY',
-    goerli: 'https://goerli.infura.io/v3/YOUR_API_KEY',
-    holesky: 'https://holesky.infura.io/v3/YOUR_API_KEY',
-    bsc: 'https://bsc-dataseed1.binance.org',
-    'bsc-testnet': 'https://data-seed-prebsc-1-s1.binance.org:8545',
-    polygon: 'https://polygon-rpc.com',
-    mumbai: 'https://rpc-mumbai.maticvigil.com',
-    arbitrum: 'https://arb1.arbitrum.io/rpc',
-    'arbitrum-goerli': 'https://goerli-rollup.arbitrum.io/rpc',
-    optimism: 'https://mainnet.optimism.io',
-    'optimism-goerli': 'https://goerli.optimism.io',
-    avalanche: 'https://api.avax.network/ext/bc/C/rpc',
-    'avalanche-fuji': 'https://api.avax-test.network/ext/bc/C/rpc',
-    gnosis: 'https://rpc.gnosischain.com',
-    celo: 'https://forno.celo.org',
-    fantom: 'https://rpc.ftm.tools',
-    'fantom-testnet': 'https://rpc.testnet.fantom.network',
-    harmony: 'https://api.harmony.one',
-    metis: 'https://andromeda.metis.io/?owner=1088',
-    aurora: 'https://mainnet.aurora.dev',
-    cronos: 'https://evm.cronos.org',
-    localhost: 'http://localhost:8545',
-    ganache: 'http://localhost:7545'
-  };
-
   // Группы сетей для отображения в интерфейсе
   const networkGroups = [
     {
@@ -95,21 +67,6 @@ export default function useBlockchainNetworks() {
     customNetworkId: '',
     customChainId: null
   });
-
-  // Вычисляемое свойство для предложения URL на основе выбранной сети
-  const defaultRpcUrlSuggestion = computed(() => {
-    if (networkEntry.value.networkId && defaultRpcUrls[networkEntry.value.networkId]) {
-      return defaultRpcUrls[networkEntry.value.networkId];
-    }
-    return '';
-  });
-
-  // Функция для использования предложенного URL
-  const useDefaultRpcUrl = () => {
-    if (defaultRpcUrlSuggestion.value) {
-      networkEntry.value.rpcUrl = defaultRpcUrlSuggestion.value;
-    }
-  };
 
   // Функция для получения chainId по networkId
   const getChainIdByNetworkId = (networkId) => {
@@ -215,16 +172,13 @@ export default function useBlockchainNetworks() {
 
   return {
     // Данные
-    defaultRpcUrls,
     networkGroups,
     networkEntry,
-    defaultRpcUrlSuggestion,
     testingRpc,
     testingRpcId,
     networks, // Экспортируем плоский список сетей
     
     // Методы
-    useDefaultRpcUrl,
     getChainIdByNetworkId,
     validateAndPrepareNetworkConfig,
     resetNetworkEntry,

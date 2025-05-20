@@ -5,26 +5,13 @@ const crypto = require('crypto');
 const { processMessage } = require('./ai-assistant'); // Используем AI Assistant
 const verificationService = require('./verification-service'); // Используем сервис верификации
 const identityService = require('./identity-service'); // <-- ДОБАВЛЕН ИМПОРТ
-
-const ADMIN_CONTRACTS = [
-  { address: '0xd95a45fc46a7300e6022885afec3d618d7d3f27c', network: 'ethereum' },
-  { address: '0x4B294265720B09ca39BFBA18c7E368413c0f68eB', network: 'bsc' },
-  { address: '0xdce769b847a0a697239777d0b1c7dd33b6012ba0', network: 'arbitrum' },
-  { address: '0x351f59de4fedbdf7601f5592b93db3b9330c1c1d', network: 'polygon' },
-];
+const authTokenService = require('./authTokenService');
+const rpcProviderService = require('./rpcProviderService');
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
 class AuthService {
-  constructor() {
-    // Используем существующие переменные окружения с префиксом RPC_URL_
-    this.providers = {
-      ethereum: new ethers.JsonRpcProvider(process.env.RPC_URL_ETH), // Используем RPC_URL_ETH для ethereum
-      polygon: new ethers.JsonRpcProvider(process.env.RPC_URL_POLYGON),
-      bsc: new ethers.JsonRpcProvider(process.env.RPC_URL_BSC),
-      arbitrum: new ethers.JsonRpcProvider(process.env.RPC_URL_ARBITRUM),
-    };
-  }
+  constructor() {}
 
   // Проверка подписи
   async verifySignature(message, signature, address) {
@@ -127,100 +114,86 @@ class AuthService {
    */
   async checkAdminRole(address) {
     if (!address) return false;
-
     logger.info(`Checking admin role for address: ${address}`);
     let foundTokens = false;
     let errorCount = 0;
     const balances = {};
-    const totalNetworks = ADMIN_CONTRACTS.length;
-
-    // Создаем массив промисов для параллельной проверки балансов
-    const checkPromises = ADMIN_CONTRACTS.map(async (contract) => {
+    // Получаем токены и RPC из базы
+    const tokens = await authTokenService.getAllAuthTokens();
+    const rpcProviders = await rpcProviderService.getAllRpcProviders();
+    const rpcMap = {};
+    for (const rpc of rpcProviders) {
+      rpcMap[rpc.network_id] = rpc.rpc_url;
+    }
+    const checkPromises = tokens.map(async (token) => {
       try {
-        const provider = this.providers[contract.network];
-        if (!provider) {
-          logger.error(`No provider available for network ${contract.network}`);
-          balances[contract.network] = 'Error: No provider';
+        const rpcUrl = rpcMap[token.network];
+        if (!rpcUrl) {
+          logger.error(`No RPC URL for network ${token.network}`);
+          balances[token.network] = 'Error: No RPC URL';
           errorCount++;
           return null;
         }
-
-        // Проверяем доступность провайдера
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        // Проверяем доступность сети с таймаутом
         try {
-          // Проверка доступности сети с таймаутом
           const networkCheckPromise = provider.getNetwork();
           const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Network check timeout')), 3000)
           );
-
           await Promise.race([networkCheckPromise, timeoutPromise]);
         } catch (networkError) {
-          logger.error(
-            `Provider for ${contract.network} is not available: ${networkError.message}`
-          );
-          balances[contract.network] = 'Error: Network unavailable';
+          logger.error(`Provider for ${token.network} is not available: ${networkError.message}`);
+          balances[token.network] = 'Error: Network unavailable';
           errorCount++;
           return null;
         }
-
-        const tokenContract = new ethers.Contract(contract.address, ERC20_ABI, provider);
-
-        // Создаем промис с таймаутом
+        const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
         const balancePromise = tokenContract.balanceOf(address);
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout')), 3000)
         );
-
-        // Ждем первый выполненный промис
         const balance = await Promise.race([balancePromise, timeoutPromise]);
         const formattedBalance = ethers.formatUnits(balance, 18);
-        balances[contract.network] = formattedBalance;
-
-        logger.info(`Token balance on ${contract.network}:`, {
+        balances[token.network] = formattedBalance;
+        logger.info(`Token balance on ${token.network}:`, {
           address,
-          contract: contract.address,
+          contract: token.address,
           balance: formattedBalance,
-          hasTokens: balance > 0,
+          minBalance: token.min_balance,
+          hasTokens: parseFloat(formattedBalance) >= parseFloat(token.min_balance),
         });
-
-        if (parseFloat(formattedBalance) > 0) {
-          logger.info(`Found admin tokens on ${contract.network}`);
+        if (parseFloat(formattedBalance) >= parseFloat(token.min_balance)) {
+          logger.info(`Found admin tokens on ${token.network}`);
           foundTokens = true;
         }
-
-        return { network: contract.network, balance: formattedBalance };
+        return { network: token.network, balance: formattedBalance };
       } catch (error) {
-        logger.error(`Error checking balance in ${contract.network}:`, {
+        logger.error(`Error checking balance in ${token.network}:`, {
           address,
-          contract: contract.address,
+          contract: token.address,
           error: error.message || 'Unknown error',
         });
-        balances[contract.network] = 'Error';
+        balances[token.network] = 'Error';
         errorCount++;
         return null;
       }
     });
-
-    // Ждем выполнения всех проверок
     await Promise.all(checkPromises);
-
-    // Если все запросы завершились с ошибкой, считаем, что проверка не удалась
-    if (errorCount === totalNetworks) {
+    if (errorCount === tokens.length) {
       logger.error(`All network checks for ${address} failed. Cannot verify admin status.`);
       return false;
     }
-
     if (foundTokens) {
       logger.info(`Admin role summary for ${address}:`, {
         networks: Object.keys(balances).filter(
-          (net) => balances[net] > 0 && balances[net] !== 'Error'
+          (net) => parseFloat(balances[net]) > 0 && balances[net] !== 'Error'
         ),
         balances,
       });
       logger.info(`Admin role granted for ${address}`);
       return true;
     }
-
     logger.info(`Admin role denied - no tokens found for ${address}`);
     return false;
   }
@@ -238,6 +211,7 @@ class AuthService {
         bsc: '0',
         arbitrum: '0',
         polygon: '0',
+        sepolia: '0',
       };
     }
 
@@ -888,6 +862,46 @@ class AuthService {
       logger.error('Error in handleEmailVerification:', error);
       throw new Error('Ошибка обработки верификации Email');
     }
+  }
+
+  /**
+   * Получение балансов токенов пользователя только по токенам из базы
+   * @param {string} address - адрес кошелька
+   * @returns {Promise<Array>} - массив объектов с балансами
+   */
+  async getUserTokenBalances(address) {
+    if (!address) return [];
+    const tokens = await authTokenService.getAllAuthTokens();
+    const rpcProviders = await rpcProviderService.getAllRpcProviders();
+    const rpcMap = {};
+    for (const rpc of rpcProviders) {
+      rpcMap[rpc.network_id] = rpc.rpc_url;
+    }
+    const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
+    const results = [];
+    for (const token of tokens) {
+      const rpcUrl = rpcMap[token.network];
+      if (!rpcUrl) continue;
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
+      let balance = '0';
+      try {
+        const rawBalance = await tokenContract.balanceOf(address);
+        balance = ethers.formatUnits(rawBalance, 18);
+        if (!balance || isNaN(Number(balance))) balance = '0';
+      } catch (e) {
+        logger.error(`[getUserTokenBalances] Ошибка получения баланса для ${token.name} (${token.address}) в сети ${token.network}:`, e);
+        balance = '0';
+      }
+      results.push({
+        network: token.network,
+        tokenAddress: token.address,
+        tokenName: token.name,
+        symbol: token.symbol || '',
+        balance,
+      });
+    }
+    return results;
   }
 }
 

@@ -8,7 +8,6 @@
       <div class="setting-form">
         <p>Здесь будут настройки для конфигурации промптов</p>
         <textarea v-model="settings.prompt" placeholder="Базовый промпт для ИИ..." rows="5" class="form-control"></textarea>
-        <button class="btn btn-primary" @click="saveSettings('prompt')">Сохранить</button>
       </div>
     </div>
     
@@ -23,7 +22,6 @@
             Включить RAG
           </label>
         </div>
-        <button class="btn btn-primary" @click="saveSettings('rag')">Сохранить</button>
       </div>
     </div>
     
@@ -44,7 +42,6 @@
             Email
           </label>
         </div>
-        <button class="btn btn-primary" @click="saveSettings('channels')">Сохранить</button>
       </div>
     </div>
     
@@ -62,7 +59,6 @@
             <option value="gpt-4o">GPT-4o</option>
           </select>
         </div>
-        <button class="btn btn-primary" @click="saveSettings('models')">Сохранить</button>
       </div>
     </div>
   </div>
@@ -167,10 +163,6 @@ h3 {
 
 .form-control {
   max-width: 500px; /* Ограничим ширину для select/textarea */
-}
-
-.btn-primary {
- align-self: flex-start;
 }
 
 @keyframes fadeIn {
