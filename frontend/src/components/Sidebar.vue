@@ -62,29 +62,16 @@
           <div v-if="isLoadingTokens" class="token-loading">
             Загрузка балансов...
           </div>
-          <div v-else-if="!tokenBalances || Object.keys(tokenBalances).length === 0" class="token-no-data">
+          <div v-else-if="!tokenBalances || tokenBalances.length === 0" class="token-no-data">
             Баланс не доступен
           </div>
           <div v-else>
-            <div v-if="tokenBalances.eth" class="token-balance">
-              <span class="token-name">ETH:</span>
-              <span class="token-amount">{{ Number(tokenBalances.eth).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.eth.symbol }}</span>
+            <div class="token-balance-header">
             </div>
-            <div v-if="tokenBalances.bsc" class="token-balance">
-              <span class="token-name">BSC:</span>
-              <span class="token-amount">{{ Number(tokenBalances.bsc).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.bsc.symbol }}</span>
-            </div>
-            <div v-if="tokenBalances.arbitrum" class="token-balance">
-              <span class="token-name">ARB:</span>
-              <span class="token-amount">{{ Number(tokenBalances.arbitrum).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.arbitrum.symbol }}</span>
-            </div>
-            <div v-if="tokenBalances.polygon" class="token-balance">
-              <span class="token-name">POL:</span>
-              <span class="token-amount">{{ Number(tokenBalances.polygon).toLocaleString() }}</span>
-              <span class="token-symbol">{{ TOKEN_CONTRACTS.polygon.symbol }}</span>
+            <div v-for="(token, index) in tokenBalances.data || []" :key="token.tokenAddress ? token.tokenAddress : 'token-' + index" class="token-balance-row">
+              <span class="token-name">{{ token.tokenName }}</span>
+              <span class="token-network">{{ token.network }}</span>
+              <span class="token-amount">{{ isNaN(Number(token.balance)) ? '—' : Number(token.balance).toLocaleString() }}</span>
             </div>
           </div>
         </div>
@@ -96,7 +83,6 @@
 
 <script setup>
 import { defineProps, defineEmits, ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import { TOKEN_CONTRACTS } from '../services/tokens';
 import { useRouter } from 'vue-router';
 import eventBus from '../utils/eventBus';
 
@@ -346,11 +332,6 @@ h3 {
   flex: 1;
 }
 
-.token-symbol {
-  color: var(--color-text-light);
-  margin-left: var(--spacing-xs);
-}
-
 .token-no-data,
 .user-info-empty {
   color: var(--color-text-light);
@@ -431,5 +412,32 @@ h3 {
     height: 36px;
     padding: 0 10px;
   }
+}
+
+.token-balance-header {
+  display: flex;
+  font-weight: bold;
+  color: var(--color-primary, #4caf50);
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.token-balance-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.token-name {
+  min-width: 80px;
+  font-weight: 500;
+}
+.token-network {
+  min-width: 70px;
+  color: var(--color-dark, #333);
+}
+.token-amount {
+  min-width: 80px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 </style> 

@@ -38,134 +38,27 @@
       </div>
     </div>
     
-    <!-- Раскрывающиеся настройки RPC -->
-    <div v-if="showRpcSettings" class="detail-panel">
-      <h3>Настройки RPC Провайдеров</h3>
-      <p class="env-note">Эти настройки сохраняются в .env файле на бэкенде.</p>
-      
-      <!-- Список добавленных RPC -->
-      <div v-if="securitySettings.rpcConfigs.length > 0" class="configs-list">
-        <h4>Добавленные RPC конфигурации:</h4>
-        <div v-for="(rpc, index) in securitySettings.rpcConfigs" :key="index" class="config-item">
-          <div class="config-details">
-            <div><strong>ID Сети:</strong> {{ rpc.networkId }}</div>
-            <div><strong>URL:</strong> {{ rpc.rpcUrl }}</div>
-            <div v-if="rpc.chainId"><strong>Chain ID:</strong> {{ rpc.chainId }}</div>
-          </div>
-          <div class="config-actions">
-            <button class="btn btn-info" @click="testRpcHandler(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
-              <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
-              {{ testingRpc && testingRpcId === rpc.networkId ? 'Проверка...' : 'Тест' }}
-            </button>
-            <button class="btn btn-danger" @click="removeRpcConfig(index)">
-              <i class="fas fa-trash"></i> Удалить
-            </button>
-          </div>
-        </div>
-      </div>
-      <p v-else>Нет добавленных RPC конфигураций.</p>
-
-      <!-- Форма добавления нового RPC -->
-      <div class="setting-form add-form">
-        <h4>Добавить новую RPC конфигурацию:</h4>
-        <div class="form-group">
-          <label class="form-label" for="newRpcNetworkId">ID Сети:</label>
-          <select id="newRpcNetworkId" v-model="networkEntry.networkId" class="form-control">
-            <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
-              <option v-for="option in group.options" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </optgroup>
-          </select>
-          <div v-if="networkEntry.networkId === 'custom'" class="mt-2">
-            <label class="form-label" for="customNetworkId">Пользовательский ID:</label>
-            <input type="text" id="customNetworkId" v-model="networkEntry.customNetworkId" class="form-control" placeholder="Введите ID сети">
-            
-            <label class="form-label mt-2" for="customChainId">Chain ID:</label>
-            <input type="number" id="customChainId" v-model="networkEntry.customChainId" class="form-control" placeholder="Например, 1 для Ethereum">
-            <small>Chain ID - уникальный идентификатор блокчейн-сети (целое число)</small>
-          </div>
-          <small>ID сети должен совпадать со значением в выпадающем списке сетей при создании DLE</small>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="newRpcUrl">RPC URL:</label>
-          <input type="text" id="newRpcUrl" v-model="networkEntry.rpcUrl" class="form-control" placeholder="https://...">
-          <!-- Предложение URL на основе выбранной сети -->
-          <small v-if="defaultRpcUrlSuggestion" class="suggestion">
-            Предложение: {{ defaultRpcUrlSuggestion }}
-            <button class="btn-link" @click="useDefaultRpcUrl">Использовать</button>
-          </small>
-        </div>
-        <button class="btn btn-secondary" @click="addRpcConfig">Добавить RPC</button>
-      </div>
-    </div>
-    
-    <!-- Раскрывающиеся настройки Аутентификации -->
-    <div v-if="showAuthSettings" class="detail-panel">
-      <h3>Настройки Аутентификации</h3>
-      <p class="env-note">Эти настройки сохраняются в .env файле на бэкенде.</p>
-      
-      <!-- Список токенов для проверки баланса -->
-      <div v-if="securitySettings.authTokens.length > 0" class="configs-list">
-        <h4>Токены для проверки при авторизации:</h4>
-        <div v-for="(token, index) in securitySettings.authTokens" :key="index" class="config-item">
-          <div class="config-details">
-            <div><strong>Название:</strong> {{ token.name }}</div>
-            <div><strong>Адрес:</strong> {{ token.address }}</div>
-            <div><strong>Сеть:</strong> {{ token.network }}</div>
-            <div><strong>Мин. баланс:</strong> {{ token.minBalance }}</div>
-          </div>
-          <button class="btn btn-danger" @click="removeAuthToken(index)">
-            <i class="fas fa-trash"></i> Удалить
-          </button>
-        </div>
-      </div>
-      <p v-else>Нет добавленных токенов для проверки при авторизации.</p>
-
-      <!-- Форма добавления нового токена для авторизации -->
-      <div class="setting-form add-form">
-        <h4>Добавить новый токен для проверки при авторизации:</h4>
-        <div class="form-group">
-          <label class="form-label" for="newTokenName">Название токена:</label>
-          <input type="text" id="newTokenName" v-model="newAuthToken.name" class="form-control" placeholder="Например, MyToken">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="newTokenAddress">Адрес контракта:</label>
-          <input type="text" id="newTokenAddress" v-model="newAuthToken.address" class="form-control" placeholder="0x...">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="newTokenNetwork">Сеть:</label>
-          <select id="newTokenNetwork" v-model="newAuthToken.network" class="form-control">
-            <option v-for="option in networkOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="newTokenMinBalance">Минимальный баланс:</label>
-          <input type="text" id="newTokenMinBalance" v-model="newAuthToken.minBalance" class="form-control" placeholder="1.0">
-          <small>Минимальный баланс токена для успешной авторизации</small>
-        </div>
-        <button class="btn btn-secondary" @click="addAuthToken">Добавить токен</button>
-      </div>
-    </div>
-    
-    <div class="sub-settings-panel save-panel">
-      <button class="btn btn-primary btn-lg" @click="saveSecuritySettings" :disabled="isSaving">
-        <span v-if="isSaving">
-          <i class="fas fa-spinner fa-spin"></i>
-          Сохранение...
-        </span>
-        <span v-else>Сохранить все настройки</span>
-      </button>
-    </div>
+    <RpcProvidersSettings
+      v-if="showRpcSettings"
+      :rpcConfigs="securitySettings.rpcConfigs"
+      @update="loadSettings"
+      @test="testRpcHandler"
+    />
+    <AuthTokensSettings
+      v-if="showAuthSettings"
+      :authTokens="securitySettings.authTokens"
+      @update="loadSettings"
+    />
   </div>
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, computed } from 'vue';
+import { reactive, ref, onMounted, computed, provide } from 'vue';
 import api from '@/api/axios';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
+import eventBus from '@/utils/eventBus';
+import RpcProvidersSettings from './RpcProvidersSettings.vue';
+import AuthTokensSettings from './AuthTokensSettings.vue';
 
 // Состояние для отображения/скрытия дополнительных настроек
 const showRpcSettings = ref(false);
@@ -183,8 +76,6 @@ const securitySettings = reactive({
 const { 
   networkGroups, 
   networkEntry, 
-  defaultRpcUrlSuggestion, 
-  useDefaultRpcUrl,
   validateAndPrepareNetworkConfig,
   resetNetworkEntry,
   testRpcConnection,
@@ -239,13 +130,22 @@ const loadSettings = async () => {
     // Загрузка RPC конфигураций
     const rpcResponse = await api.get('/api/settings/rpc');
     if (rpcResponse.data && rpcResponse.data.success) {
-      securitySettings.rpcConfigs = rpcResponse.data.data || [];
+      securitySettings.rpcConfigs = (rpcResponse.data.data || []).map(rpc => ({
+        networkId: rpc.network_id,
+        rpcUrl: rpc.rpc_url,
+        chainId: rpc.chain_id
+      }));
     }
     
     // Загрузка токенов для аутентификации
     const authResponse = await api.get('/api/settings/auth-tokens');
     if (authResponse.data && authResponse.data.success) {
-      securitySettings.authTokens = authResponse.data.data || [];
+      securitySettings.authTokens = (authResponse.data.data || []).map(token => ({
+        name: token.name,
+        address: token.address,
+        network: token.network,
+        minBalance: token.min_balance
+      }));
     }
     
     console.log('[SecuritySettingsView] Настройки успешно загружены с бэкенда');
@@ -263,79 +163,8 @@ const loadSettings = async () => {
 
 // Установка дефолтных значений
 const setDefaultSettings = () => {
-  securitySettings.rpcConfigs = [
-    { networkId: 'ethereum', rpcUrl: 'https://mainnet.infura.io/v3/YOUR_API_KEY' },
-    { networkId: 'sepolia', rpcUrl: 'https://sepolia.infura.io/v3/YOUR_API_KEY' },
-    { networkId: 'bsc', rpcUrl: 'https://bsc-dataseed1.binance.org' },
-    { networkId: 'arbitrum', rpcUrl: 'https://arb1.arbitrum.io/rpc' },
-    { networkId: 'polygon', rpcUrl: 'https://polygon-rpc.com' }
-  ];
-  
-  securitySettings.authTokens = [
-    { name: 'Ethereum Token', address: '0xd95a45fc46a7300e6022885afec3d618d7d3f27c', network: 'eth', minBalance: '1.0' },
-    { name: 'BSC Token', address: '0x4B294265720B09ca39BFBA18c7E368413c0f68eB', network: 'bsc', minBalance: '10.0' },
-    { name: 'Arbitrum Token', address: '0xdce769b847a0a697239777d0b1c7dd33b6012ba0', network: 'arbitrum', minBalance: '0.5' },
-    { name: 'Custom Token', address: '0x351f59de4fedbdf7601f5592b93db3b9330c1c1d', network: 'eth', minBalance: '5.0' }
-  ];
-};
-
-// Функция добавления новой RPC конфигурации
-const addRpcConfig = () => {
-  const result = validateAndPrepareNetworkConfig();
-  
-  if (!result.valid) {
-    alert(result.error);
-    return;
-  }
-  
-  const { networkId, rpcUrl, chainId } = result.networkConfig;
-  
-  // Проверка на дубликат ID
-  if (securitySettings.rpcConfigs.some(rpc => rpc.networkId === networkId)) {
-    alert(`Ошибка: RPC конфигурация для сети с ID '${networkId}' уже существует.`);
-    return;
-  }
-  
-  securitySettings.rpcConfigs.push({ networkId, rpcUrl, chainId });
-  
-  // Очистка полей ввода
-  resetNetworkEntry();
-};
-
-// Функция удаления RPC конфигурации
-const removeRpcConfig = (index) => {
-  securitySettings.rpcConfigs.splice(index, 1);
-};
-
-// Функция добавления нового токена для авторизации
-const addAuthToken = () => {
-  const name = newAuthToken.name.trim();
-  const address = newAuthToken.address.trim();
-  const minBalance = newAuthToken.minBalance.trim();
-  const network = newAuthToken.network;
-  
-  if (name && address) {
-    // Проверка на дубликат адреса
-    if (securitySettings.authTokens.some(token => token.address.toLowerCase() === address.toLowerCase())) {
-      alert(`Ошибка: Токен с адресом '${address}' уже добавлен.`);
-      return;
-    }
-    
-    securitySettings.authTokens.push({ name, address, minBalance, network });
-    
-    // Очистка полей ввода
-    newAuthToken.name = '';
-    newAuthToken.address = '';
-    newAuthToken.minBalance = '1.0';
-    newAuthToken.network = 'eth';
-  } else {
-    alert('Пожалуйста, заполните название и адрес токена.');
-  }
-};
-
-// Функция удаления токена авторизации
-const removeAuthToken = (index) => {
-  securitySettings.authTokens.splice(index, 1);
+  securitySettings.rpcConfigs = [];
+  securitySettings.authTokens = [];
 };
 
 // Сохранение всех настроек безопасности на бэкенд
@@ -343,8 +172,12 @@ const saveSecuritySettings = async () => {
   isSaving.value = true;
   try {
     // Подготовка данных для отправки
+    const validRpcConfigs = securitySettings.rpcConfigs.filter(
+      c => c.networkId && c.rpcUrl
+    );
+    
     const settingsData = {
-      rpcConfigs: JSON.parse(JSON.stringify(securitySettings.rpcConfigs)),
+      rpcConfigs: validRpcConfigs,
       authTokens: JSON.parse(JSON.stringify(securitySettings.authTokens))
     };
     
@@ -362,6 +195,8 @@ const saveSecuritySettings = async () => {
     
     if (rpcResponse.data.success && authResponse.data.success) {
       alert('Все настройки безопасности успешно сохранены.');
+      eventBus.emit('settings-updated');
+      eventBus.emit('auth-settings-saved', { tokens: settingsData.authTokens });
     } else {
       alert('Произошла ошибка при сохранении настроек. Проверьте консоль разработчика.');
     }
@@ -373,7 +208,31 @@ const saveSecuritySettings = async () => {
   }
 };
 
-// Функция-обработчик для тестирования RPC соединения
+// Загрузка настроек при монтировании компонента
+onMounted(() => {
+  loadSettings();
+});
+
+// --- Методы для RPC ---
+const addRpcConfig = () => {
+  const result = validateAndPrepareNetworkConfig();
+  if (!result.valid) {
+    alert(result.error);
+    return;
+  }
+  const { networkId, rpcUrl, chainId } = result.networkConfig;
+  if (securitySettings.rpcConfigs.some(rpc => rpc.networkId === networkId)) {
+    alert(`Ошибка: RPC конфигурация для сети с ID '${networkId}' уже существует.`);
+    return;
+  }
+  securitySettings.rpcConfigs.push({ networkId, rpcUrl, chainId });
+  resetNetworkEntry();
+};
+
+const removeRpcConfig = (index) => {
+  securitySettings.rpcConfigs.splice(index, 1);
+};
+
 const testRpcHandler = async (rpc) => {
   try {
     const result = await testRpcConnection(rpc.networkId, rpc.rpcUrl);
@@ -388,10 +247,47 @@ const testRpcHandler = async (rpc) => {
   }
 };
 
-// Загрузка настроек при монтировании компонента
-onMounted(() => {
-  loadSettings();
-});
+// --- Методы для токенов аутентификации ---
+const addAuthToken = () => {
+  const name = newAuthToken.name.trim();
+  const address = newAuthToken.address.trim();
+  const minBalance = newAuthToken.minBalance.trim();
+  const network = newAuthToken.network;
+  if (name && address) {
+    if (securitySettings.authTokens.some(token => token.address.toLowerCase() === address.toLowerCase())) {
+      alert(`Ошибка: Токен с адресом '${address}' уже добавлен.`);
+      return;
+    }
+    securitySettings.authTokens.push({ name, address, minBalance, network });
+    newAuthToken.name = '';
+    newAuthToken.address = '';
+    newAuthToken.minBalance = '1.0';
+    newAuthToken.network = 'eth';
+  } else {
+    alert('Пожалуйста, заполните название и адрес токена.');
+  }
+};
+
+const removeAuthToken = (index) => {
+  securitySettings.authTokens.splice(index, 1);
+};
+
+// provide для дочерних компонентов
+provide('rpcConfigs', securitySettings.rpcConfigs);
+provide('removeRpcConfig', removeRpcConfig);
+provide('addRpcConfig', addRpcConfig);
+provide('testRpcHandler', testRpcHandler);
+provide('testingRpc', testingRpc);
+provide('testingRpcId', testingRpcId);
+provide('networkGroups', networkGroups);
+provide('networkEntry', networkEntry);
+provide('validateAndPrepareNetworkConfig', validateAndPrepareNetworkConfig);
+provide('resetNetworkEntry', resetNetworkEntry);
+provide('authTokens', securitySettings.authTokens);
+provide('removeAuthToken', removeAuthToken);
+provide('addAuthToken', addAuthToken);
+provide('newAuthToken', newAuthToken);
+provide('networks', networks);
 </script>
 
 <style scoped>
@@ -607,14 +503,6 @@ small {
 .btn-link:hover {
   color: var(--color-primary-dark, #388e3c);
   text-decoration: none;
-}
-
-.save-panel {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--spacing-lg, 20px);
-  padding-top: var(--spacing-md, 15px);
-  border-top: 1px solid var(--color-grey-light, #eee);
 }
 
 .loading-overlay {

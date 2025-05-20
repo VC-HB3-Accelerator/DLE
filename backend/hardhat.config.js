@@ -14,7 +14,7 @@ module.exports = {
   },
   networks: {
     sepolia: {
-      url: process.env.ETHEREUM_NETWORK_URL,
+      url: process.env.RPC_URL_ETH,
       accounts: [process.env.PRIVATE_KEY],
     },
   },

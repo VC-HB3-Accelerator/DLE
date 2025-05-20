@@ -1,15 +1,12 @@
 import { ref, watch, onUnmounted } from 'vue';
 import { fetchTokenBalances } from '../services/tokens';
 import { useAuth } from './useAuth'; // Предполагаем, что useAuth предоставляет identities
+import eventBus from '../utils/eventBus';
 
 export function useTokenBalances() {
   const auth = useAuth(); // Получаем доступ к состоянию аутентификации
-  const tokenBalances = ref({
-    eth: '0',
-    bsc: '0',
-    arbitrum: '0',
-    polygon: '0',
-  });
+  const tokenBalances = ref([]); // теперь массив объектов
+  const isLoadingTokens = ref(false);
   let balanceUpdateInterval = null;
 
   const getIdentityValue = (type) => {
@@ -23,28 +20,25 @@ export function useTokenBalances() {
       const walletAddress = auth.address?.value || getIdentityValue('wallet');
       if (walletAddress) {
         try {
+          isLoadingTokens.value = true;
           console.log('[useTokenBalances] Запрос балансов для адреса:', walletAddress);
-          const balances = await fetchTokenBalances(walletAddress);
-          console.log('[useTokenBalances] Полученные балансы:', balances);
-          tokenBalances.value = {
-            eth: balances.eth || '0',
-            bsc: balances.bsc || '0',
-            arbitrum: balances.arbitrum || '0',
-            polygon: balances.polygon || '0',
-          };
+          const response = await fetchTokenBalances(walletAddress);
+          // Ожидаем, что response — это массив объектов
+          tokenBalances.value = Array.isArray(response) ? response : (response?.data || []);
           console.log('[useTokenBalances] Обновленные балансы:', tokenBalances.value);
         } catch (error) {
           console.error('[useTokenBalances] Ошибка при обновлении балансов:', error);
-          // Возможно, стоит сбросить балансы при ошибке
-          tokenBalances.value = { eth: '0', bsc: '0', arbitrum: '0', polygon: '0' };
+          tokenBalances.value = [];
+        } finally {
+          isLoadingTokens.value = false;
         }
       } else {
         console.log('[useTokenBalances] Не найден адрес кошелька для запроса балансов.');
-        tokenBalances.value = { eth: '0', bsc: '0', arbitrum: '0', polygon: '0' };
+        tokenBalances.value = [];
       }
     } else {
       console.log('[useTokenBalances] Пользователь не аутентифицирован, сброс балансов.');
-      tokenBalances.value = { eth: '0', bsc: '0', arbitrum: '0', polygon: '0' };
+      tokenBalances.value = [];
     }
   };
 
@@ -79,21 +73,31 @@ export function useTokenBalances() {
         // Если пользователь вышел, отвязал кошелек, или не аутентифицирован
         stopBalanceUpdates();
         // Сбрасываем балансы
-        tokenBalances.value = { eth: '0', bsc: '0', arbitrum: '0', polygon: '0' };
+        tokenBalances.value = [];
       }
     },
     { immediate: true } // Запустить проверку сразу при инициализации
   );
 
-  // Остановка интервала при размонтировании
+  // Подписываемся на событие для обновления баланса после сохранения настроек
+  const unsubscribe = eventBus.on('auth-settings-saved', () => {
+    console.log('[useTokenBalances] Получено событие сохранения настроек, обновляем балансы');
+    updateBalances();
+  });
+
+  // Остановка интервала и отписки при размонтировании
   onUnmounted(() => {
     stopBalanceUpdates();
+    if (unsubscribe) {
+      unsubscribe();
+    }
   });
 
   return {
     tokenBalances,
+    isLoadingTokens,
     updateBalances,
-    startBalanceUpdates, // Можно не экспортировать, если управление полностью автоматическое
-    stopBalanceUpdates, // Можно не экспортировать
+    startBalanceUpdates,
+    stopBalanceUpdates,
   };
 } 

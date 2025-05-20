@@ -15,7 +15,6 @@
             <!-- Добавить другие языки по необходимости -->
           </select>
         </div>
-        <button class="btn btn-primary" @click="saveLanguageSetting">Сохранить язык</button>
       </div>
     </div>
 

@@ -235,14 +235,6 @@
             <button class="btn btn-secondary" @click="addRpcConfig">Добавить RPC</button>
         </div>
 
-        <!-- Кнопка сохранения настроек RPC -->
-        <div class="save-rpc-actions mt-3">
-            <button class="btn btn-primary" @click="saveRpcSettingsWithFeedback" :disabled="isSavingRpc">
-                <i class="fas" :class="isSavingRpc ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-                {{ isSavingRpc ? 'Сохранение...' : 'Сохранить RPC настройки' }}
-            </button>
-        </div>
-        
         <!-- 8. Выбор сети для деплоя -->
         <h4>Сеть для деплоя</h4>
         <div class="form-group">
@@ -918,20 +910,24 @@ const toggleShowDeployerKey = () => {
 const loadRpcSettings = async () => {
   try {
     const response = await axios.get('/api/settings/rpc');
+    console.log('Ответ сервера на /api/settings/rpc:', response.data);
     if (response.data && response.data.success) {
-      securitySettings.rpcConfigs = response.data.data || [];
+      securitySettings.rpcConfigs = (response.data.data || []).map(rpc => ({
+        networkId: rpc.network_id,
+        rpcUrl: rpc.rpc_url,
+        chainId: rpc.chain_id
+      }));
       console.log('[BlockchainSettingsView] RPC конфигурации успешно загружены:', securitySettings.rpcConfigs);
     }
   } catch (error) {
     console.error('[BlockchainSettingsView] Ошибка при загрузке RPC конфигураций:', error);
-    // Если нужно, установить дефолтные RPC
-    // setDefaultRpcConfigs();
   }
 };
 
 // Функция сохранения настроек RPC на сервер
 const saveRpcSettings = async () => {
   try {
+    console.log('Отправляемые RPC:', securitySettings.rpcConfigs);
     const response = await axios.post('/api/settings/rpc', { 
       rpcConfigs: JSON.parse(JSON.stringify(securitySettings.rpcConfigs)) 
     });

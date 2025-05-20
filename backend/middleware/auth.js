@@ -104,7 +104,7 @@ async function requireAdmin(req, res, next) {
 
     // Проверка через кошелек
     if (req.session.address) {
-      const isAdmin = await authService.checkAdminToken(req.session.address);
+      const isAdmin = await authService.checkAdminTokens(req.session.address);
       if (isAdmin) {
         // Обновляем сессию
         req.session.isAdmin = true;

@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-  import { ref, watch, onMounted, computed } from 'vue';
+  import { ref, watch, onMounted, computed, onUnmounted } from 'vue';
   import { RouterView } from 'vue-router';
   import { useAuth } from './composables/useAuth';
   import { fetchTokenBalances } from './services/tokens';
@@ -142,6 +142,21 @@
     if (auth.isAuthenticated.value) {
       refreshTokenBalances();
     }
+    
+    // Подписываемся на событие изменения настроек аутентификации
+    const unsubscribe = eventBus.on('auth-settings-saved', () => {
+      console.log('[App] Получено событие сохранения настроек аутентификации, обновляем балансы');
+      if (auth.isAuthenticated.value) {
+        refreshTokenBalances();
+      }
+    });
+    
+    // Отписываемся при размонтировании компонента
+    onUnmounted(() => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    });
   });
 </script>
 
