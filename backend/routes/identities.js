@@ -107,4 +107,21 @@ router.get('/token-balances', requireAuth, async (req, res) => {
   }
 });
 
+// Удаление идентификатора пользователя
+router.delete('/:provider/:providerId', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const { provider, providerId } = req.params;
+    const result = await require('../services/identity-service').deleteIdentity(userId, provider, providerId);
+    if (result.success) {
+      res.json({ success: true, deleted: result.deleted });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    logger.error('Error deleting identity:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

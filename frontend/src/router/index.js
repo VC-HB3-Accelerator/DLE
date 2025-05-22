@@ -46,6 +46,16 @@ const routes = [
         name: 'settings-interface',
         component: SettingsInterfaceView,
       },
+      {
+        path: 'telegram',
+        name: 'settings-telegram',
+        component: () => import('../views/settings/TelegramSettingsView.vue'),
+      },
+      {
+        path: 'email',
+        name: 'settings-email',
+        component: () => import('../views/settings/EmailSettingsView.vue'),
+      },
       // Опционально: перенаправление со /settings на первую подстраницу
       {
         path: '',

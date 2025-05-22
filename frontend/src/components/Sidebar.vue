@@ -43,18 +43,60 @@
           </router-link>
         </div>
         
-        <!-- Блок информации о пользователе -->
-        <div v-if="isAuthenticated" class="user-info-section sidebar-section">
-          <h3>Ваши идентификаторы:</h3>
-          <div class="user-info-item">
-            <span class="user-info-label">Кошелек:</span>
-            <span v-if="hasIdentityType('wallet')" class="user-info-value">
-              {{ truncateAddress(getIdentityValue('wallet')) }}
-            </span>
-            <span v-else class="user-info-value">Не подключен</span>
+        <!-- Блок информации о пользователе или формы подключения -->
+        <template v-if="isAuthenticated">
+          <div v-if="emailAuth.showForm || emailAuth.showVerification" class="auth-modal-panel">
+            <EmailConnect @success="$emit('cancel-email-auth')">
+              <template #actions>
+                <button class="close-btn" @click="$emit('cancel-email-auth')">Отмена</button>
+              </template>
+            </EmailConnect>
           </div>
-          <!-- Можно добавить другие идентификаторы по аналогии -->
-        </div>
+          <div v-else-if="telegramAuth.showVerification" class="auth-modal-panel">
+            <TelegramConnect
+              :bot-link="telegramAuth.botLink"
+              :verification-code="telegramAuth.verificationCode"
+              :error="telegramAuth.error"
+              @cancel="$emit('cancel-telegram-auth')"
+            />
+          </div>
+          <div v-else class="user-info-section sidebar-section">
+            <h3>Ваши идентификаторы:</h3>
+            <div class="user-info-item">
+              <span class="user-info-label">Кошелек:</span>
+              <span v-if="hasIdentityType('wallet')" class="user-info-value">
+                {{ truncateAddress(getIdentityValue('wallet')) }}
+                <button class="delete-identity-btn" @click="handleDeleteIdentity('wallet', getIdentityValue('wallet'))" title="Удалить">✕</button>
+              </span>
+              <span v-else class="user-info-value">
+                Не подключен
+                <button class="connect-btn" @click="handleWalletAuth">Подключить</button>
+              </span>
+            </div>
+            <div class="user-info-item">
+              <span class="user-info-label">Telegram:</span>
+              <span v-if="hasIdentityType('telegram')" class="user-info-value">
+                {{ getIdentityValue('telegram') }}
+                <button class="delete-identity-btn" @click="handleDeleteIdentity('telegram', getIdentityValue('telegram'))" title="Удалить">✕</button>
+              </span>
+              <span v-else class="user-info-value">
+                Не подключен
+                <button class="connect-btn" @click="$emit('telegram-auth')">Подключить</button>
+              </span>
+            </div>
+            <div class="user-info-item">
+              <span class="user-info-label">Email:</span>
+              <span v-if="hasIdentityType('email')" class="user-info-value">
+                {{ getIdentityValue('email') }}
+                <button class="delete-identity-btn" @click="handleDeleteIdentity('email', getIdentityValue('email'))" title="Удалить">✕</button>
+              </span>
+              <span v-else class="user-info-value">
+                Не подключен
+                <button class="connect-btn" @click="$emit('email-auth')">Подключить</button>
+              </span>
+            </div>
+          </div>
+        </template>
 
         <!-- Блок баланса токенов -->
         <div v-if="isAuthenticated" class="token-balances-section sidebar-section">
@@ -85,6 +127,9 @@
 import { defineProps, defineEmits, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import eventBus from '../utils/eventBus';
+import EmailConnect from './identity/EmailConnect.vue';
+import TelegramConnect from './identity/TelegramConnect.vue';
+import { useAuth } from '@/composables/useAuth';
 
 const router = useRouter();
 const props = defineProps({
@@ -97,7 +142,9 @@ const props = defineProps({
   isLoadingTokens: Boolean
 });
 
-const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet']);
+const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth']);
+
+const { deleteIdentity } = useAuth();
 
 // Обработчики событий
 const handleWalletAuth = () => {
@@ -147,6 +194,12 @@ const getIdentityValue = (type) => {
   if (!props.identities) return null;
   const identity = props.identities.find((identity) => identity.provider === type);
   return identity ? identity.provider_id : null;
+};
+
+const handleDeleteIdentity = async (provider, providerId) => {
+  if (confirm('Удалить идентификатор?')) {
+    await deleteIdentity(provider, providerId);
+  }
 };
 
 // Добавляем watch для отслеживания props
@@ -439,5 +492,48 @@ h3 {
   min-width: 80px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.connect-btn {
+  margin-left: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.2rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.2s;
+}
+.connect-btn:hover {
+  background: var(--color-primary-dark);
+}
+
+.auth-modal-panel {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+  padding: 2rem 2.5rem;
+  max-width: 400px;
+  width: 100%;
+  margin: 2rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.delete-identity-btn {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  color: #d32f2f;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.delete-identity-btn:hover {
+  background: #ffeaea;
 }
 </style> 

@@ -495,6 +495,32 @@ class IdentityService {
       return [];
     }
   }
+
+  /**
+   * Удаляет идентификатор пользователя
+   * @param {number} userId - ID пользователя
+   * @param {string} provider - Тип идентификатора
+   * @param {string} providerId - Значение идентификатора
+   * @returns {Promise<object>} - Результат операции
+   */
+  async deleteIdentity(userId, provider, providerId) {
+    try {
+      if (!userId || !provider || !providerId) {
+        logger.warn(`[IdentityService] Missing parameters for deleteIdentity: userId=${userId}, provider=${provider}, providerId=${providerId}`);
+        return { success: false, error: 'Missing required parameters' };
+      }
+      const { provider: normalizedProvider, providerId: normalizedProviderId } = this.normalizeIdentity(provider, providerId);
+      const result = await db.query(
+        `DELETE FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3`,
+        [userId, normalizedProvider, normalizedProviderId]
+      );
+      logger.info(`[IdentityService] Deleted identity ${normalizedProvider}:${normalizedProviderId} for user ${userId}`);
+      return { success: true, deleted: result.rowCount };
+    } catch (error) {
+      logger.error(`[IdentityService] Error deleting identity ${provider}:${providerId} for user ${userId}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 module.exports = new IdentityService();
