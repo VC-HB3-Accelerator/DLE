@@ -6,49 +6,49 @@ const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
 
 // Роли
-router.get('/roles', requireAdmin, async (req, res) => {
+router.get('/roles', requireAdmin, async (req, res, next) => {
   try {
     const roles = await authService.getAllRoles();
     res.json({ success: true, roles });
   } catch (error) {
     logger.error('Error getting roles:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    next(error);
   }
 });
 
-router.post('/roles', requireAdmin, async (req, res) => {
+router.post('/roles', requireAdmin, async (req, res, next) => {
   try {
     const { name, permissions } = req.body;
     const role = await authService.createRole(name, permissions);
     res.json({ success: true, role });
   } catch (error) {
     logger.error('Error creating role:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    next(error);
   }
 });
 
 // Админ функции
-router.get('/users', requireAdmin, async (req, res) => {
+router.get('/users', requireAdmin, async (req, res, next) => {
   try {
     const users = await authService.getAllUsers();
     res.json({ success: true, users });
   } catch (error) {
     logger.error('Error getting users:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    next(error);
   }
 });
 
 // Маршрут для получения статистики (защищен middleware requireAdmin)
-router.get('/stats', requireAdmin, async (req, res) => {
+router.get('/stats', requireAdmin, async (req, res, next) => {
   try {
     // Получаем количество пользователей
-    const usersCount = await db.query('SELECT COUNT(*) FROM users');
+    const usersCount = await db.getQuery()('SELECT COUNT(*) FROM users');
 
     // Получаем количество досок
-    const boardsCount = await db.query('SELECT COUNT(*) FROM kanban_boards');
+    const boardsCount = await db.getQuery()('SELECT COUNT(*) FROM kanban_boards');
 
     // Получаем количество задач
-    const tasksCount = await db.query('SELECT COUNT(*) FROM kanban_tasks');
+    const tasksCount = await db.getQuery()('SELECT COUNT(*) FROM kanban_tasks');
 
     res.json({
       userCount: parseInt(usersCount.rows[0].count),
@@ -57,18 +57,18 @@ router.get('/stats', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Ошибка при получении статистики:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    next(error);
   }
 });
 
 // Маршрут для получения логов
-router.get('/logs', requireAdmin, async (req, res) => {
+router.get('/logs', requireAdmin, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 100');
+    const result = await db.getQuery()('SELECT * FROM logs ORDER BY created_at DESC LIMIT 100');
     res.json(result.rows);
   } catch (error) {
     console.error('Ошибка при получении логов:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    next(error);
   }
 });
 

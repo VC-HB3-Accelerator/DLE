@@ -142,7 +142,7 @@ const props = defineProps({
   isLoadingTokens: Boolean
 });
 
-const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth']);
+const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth', 'cancel-email-auth']);
 
 const { deleteIdentity } = useAuth();
 

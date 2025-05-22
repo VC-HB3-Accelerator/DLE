@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../db'); // Убедитесь, что путь к вашему db-коннектору правильный
+const db = require('../db');
 const logger = require('../utils/logger'); // Если используете логгер
 
 /**
@@ -98,7 +98,7 @@ router.get('/codes', async (req, res) => {
 
   if (parent_code) {
     try {
-      const parentResult = await pool.query('SELECT code_level FROM isic_rev4_codes WHERE code = $1', [parent_code]);
+      const parentResult = await db.getQuery()('SELECT code_level FROM isic_rev4_codes WHERE code = $1', [parent_code]);
       if (parentResult.rows.length > 0) {
         const parentLevel = parentResult.rows[0].code_level;
         if (parentLevel >= 1 && parentLevel < 6) {
@@ -146,7 +146,7 @@ router.get('/codes', async (req, res) => {
     }
     if (parent_code) {
         // Предполагаем, что parent_code уже добавлен в countQueryParams
-        const parentLevelResult = await pool.query('SELECT code_level FROM isic_rev4_codes WHERE code = $1', [parent_code]); // Нужно будет передать parent_code в countQueryParams
+        const parentLevelResult = await db.getQuery()('SELECT code_level FROM isic_rev4_codes WHERE code = $1', [parent_code]); // Нужно будет передать parent_code в countQueryParams
         if (parentLevelResult.rows.length > 0) {
             const parentLevel = parentLevelResult.rows[0].code_level;
             if (parentLevel >=1 && parentLevel < 6) {
@@ -174,7 +174,7 @@ router.get('/codes', async (req, res) => {
       const queryWhereConditions = [];
       if (level) queryWhereConditions.push(`c.code_level = $${currentQueryParamIndex++}`);
       if (parent_code) {
-          const parentLevelResult = await pool.query('SELECT code_level FROM isic_rev4_codes WHERE code = $1', [parent_code]); // Это дублирование, лучше получить parentLevel один раз
+          const parentLevelResult = await db.getQuery()('SELECT code_level FROM isic_rev4_codes WHERE code = $1', [parent_code]); // Это дублирование, лучше получить parentLevel один раз
            if (parentLevelResult.rows.length > 0) {
                 const parentLevel = parentLevelResult.rows[0].code_level;
                 if (parentLevel >=1 && parentLevel < 6) {
@@ -193,12 +193,12 @@ router.get('/codes', async (req, res) => {
 
   try {
     logger.debug('Executing count query:', finalCountQuery, 'Params:', countQueryParams);
-    const totalItemsResult = await pool.query(finalCountQuery, countQueryParams);
+    const totalItemsResult = await db.getQuery()(finalCountQuery, countQueryParams);
     const totalItems = parseInt(totalItemsResult.rows[0].total, 10);
 
     // Параметры для основного запроса - это все, что в queryParams (включая limit и offset)
     logger.debug('Executing data query:', finalQuery, 'Params:', queryParams);
-    const result = await pool.query(finalQuery, queryParams);
+    const result = await db.getQuery()(finalQuery, queryParams);
     
     res.json({
       totalItems,
@@ -253,13 +253,13 @@ router.get('/tree', async (req, res) => {
   try {
     let items;
     if (!root_code) { // Если нет root_code, возвращаем секции (уровень 1)
-      const result = await pool.query(
+      const result = await db.getQuery()(
         "SELECT code, description, code_level FROM isic_rev4_codes WHERE code_level = 1 ORDER BY sort_order, code"
       );
       items = result.rows.map(row => ({ ...row, children: [] })); // Добавляем пустой массив children
     } else {
       // Получаем сам root_code
-      const rootResult = await pool.query(
+      const rootResult = await db.getQuery()(
         "SELECT code, description, code_level FROM isic_rev4_codes WHERE code = $1",
         [root_code]
       );
@@ -281,7 +281,7 @@ router.get('/tree', async (req, res) => {
 
 
       if (childrenQuery) {
-        const childrenResult = await pool.query(childrenQuery, childrenParams);
+        const childrenResult = await db.getQuery()(childrenQuery, childrenParams);
         rootNode.children = childrenResult.rows.map(row => ({ ...row, children: [] })); 
       }
       items = [rootNode]; 

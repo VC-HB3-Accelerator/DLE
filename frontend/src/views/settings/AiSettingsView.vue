@@ -1,26 +1,97 @@
 <template>
   <div class="ai-settings settings-panel">
     <h2>Интеграции</h2>
-    <div class="integration-blocks">
+    <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings">
+      <div class="integration-block">
+        <h3>OpenAI</h3>
+        <p>Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).</p>
+        <button class="details-btn" @click="showProvider = 'openai'">Подробнее</button>
+      </div>
+      <div class="integration-block">
+        <h3>Anthropic</h3>
+        <p>Интеграция с Anthropic Claude (Claude 3 и др.).</p>
+        <button class="details-btn" @click="showProvider = 'anthropic'">Подробнее</button>
+      </div>
+      <div class="integration-block">
+        <h3>Google Gemini</h3>
+        <p>Интеграция с Google Gemini (Gemini 1.5, 1.0 и др.).</p>
+        <button class="details-btn" @click="showProvider = 'google'">Подробнее</button>
+      </div>
+      <div class="integration-block">
+        <h3>Ollama</h3>
+        <p>Локальные open-source модели через Ollama.</p>
+        <button class="details-btn" @click="showProvider = 'ollama'">Подробнее</button>
+      </div>
       <div class="integration-block">
         <h3>Telegram</h3>
         <p>Интеграция с Telegram-ботом для уведомлений и авторизации.</p>
-        <button class="details-btn" @click="goToTelegram">Подробнее</button>
+        <button class="details-btn" @click="showTelegramSettings = true">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Email</h3>
         <p>Интеграция с Email для отправки писем и уведомлений.</p>
-        <button class="details-btn" @click="goToEmail">Подробнее</button>
+        <button class="details-btn" @click="showEmailSettings = true">Подробнее</button>
       </div>
     </div>
+    <AIProviderSettings
+      v-if="showProvider"
+      :provider="showProvider"
+      :label="providerLabels[showProvider].label"
+      :description="providerLabels[showProvider].description"
+      :apiKeyPlaceholder="providerLabels[showProvider].apiKeyPlaceholder"
+      :baseUrlPlaceholder="providerLabels[showProvider].baseUrlPlaceholder"
+      :showApiKey="providerLabels[showProvider].showApiKey"
+      :showBaseUrl="providerLabels[showProvider].showBaseUrl"
+      @cancel="showProvider = null"
+    />
+    <TelegramSettingsView v-if="showTelegramSettings" @cancel="showTelegramSettings = false" />
+    <EmailSettingsView v-if="showEmailSettings" @cancel="showEmailSettings = false" />
   </div>
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router';
-const router = useRouter();
-const goToTelegram = () => router.push({ name: 'settings-telegram' });
-const goToEmail = () => router.push({ name: 'settings-email' });
+import { ref } from 'vue';
+import AIProviderSettings from './AIProviderSettings.vue';
+import TelegramSettingsView from './TelegramSettingsView.vue';
+import EmailSettingsView from './EmailSettingsView.vue';
+const showProvider = ref(null);
+const showTelegramSettings = ref(false);
+const showEmailSettings = ref(false);
+
+const providerLabels = {
+  openai: {
+    label: 'OpenAI API Key',
+    description: 'Введите OpenAI API Key и (опционально) Base URL для кастомных endpoint.',
+    apiKeyPlaceholder: 'sk-...',
+    baseUrlPlaceholder: 'https://api.openai.com/v1',
+    showApiKey: true,
+    showBaseUrl: true,
+  },
+  anthropic: {
+    label: 'Anthropic API Key',
+    description: 'Введите Anthropic API Key и (опционально) Base URL.',
+    apiKeyPlaceholder: '...',
+    baseUrlPlaceholder: 'https://api.anthropic.com/v1',
+    showApiKey: true,
+    showBaseUrl: true,
+  },
+  google: {
+    label: 'Google Gemini API Key',
+    description: 'Введите Google Gemini API Key и (опционально) Base URL.',
+    apiKeyPlaceholder: '...',
+    baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
+    showApiKey: true,
+    showBaseUrl: true,
+  },
+  ollama: {
+    label: 'Ollama (локальные модели)',
+    description: 'Настройка Ollama для локальных open-source моделей. Ключ не требуется.',
+    apiKeyPlaceholder: '',
+    baseUrlPlaceholder: 'http://localhost:11434',
+    showApiKey: false,
+    showBaseUrl: true,
+  },
+};
 </script>
 
 <style scoped>

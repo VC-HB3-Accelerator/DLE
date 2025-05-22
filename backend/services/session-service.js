@@ -51,7 +51,7 @@ class SessionService {
       }
 
       // Получаем все гостевые ID для текущего пользователя из новой таблицы
-      const guestIdsResult = await db.query(
+      const guestIdsResult = await db.getQuery()(
         'SELECT guest_id FROM guest_user_mapping WHERE user_id = $1',
         [userId]
       );

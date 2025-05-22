@@ -17,7 +17,7 @@ async function processGuestMessages(userId, guestId) {
     logger.info(`Processing guest messages for user ${userId} with guest ID ${guestId}`);
 
     // Проверяем, обрабатывались ли уже эти сообщения
-    const mappingCheck = await db.query(
+    const mappingCheck = await db.getQuery()(
       'SELECT processed FROM guest_user_mapping WHERE guest_id = $1',
       [guestId]
     );
@@ -30,7 +30,7 @@ async function processGuestMessages(userId, guestId) {
 
     // Проверяем наличие mapping записи и создаем если нет
     if (mappingCheck.rows.length === 0) {
-      await db.query(
+      await db.getQuery()(
         'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
         [userId, guestId]
       );
@@ -38,7 +38,7 @@ async function processGuestMessages(userId, guestId) {
     }
 
     // Получаем все гостевые сообщения со всеми новыми полями
-    const guestMessagesResult = await db.query(
+    const guestMessagesResult = await db.getQuery()(
       `SELECT
          id, guest_id, content, language, is_ai, created_at,
          attachment_filename, attachment_mimetype, attachment_size, attachment_data
@@ -48,9 +48,9 @@ async function processGuestMessages(userId, guestId) {
 
     if (guestMessagesResult.rows.length === 0) {
       logger.info(`No guest messages found for guest ID ${guestId}`);
-      const checkResult = await db.query('SELECT 1 FROM guest_user_mapping WHERE guest_id = $1', [guestId]);
+      const checkResult = await db.getQuery()('SELECT 1 FROM guest_user_mapping WHERE guest_id = $1', [guestId]);
       if (checkResult.rows.length > 0) {
-        await db.query('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [guestId]);
+        await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [guestId]);
         logger.info(`Marked guest mapping as processed (no messages found) for guest ID ${guestId}`);
       } else {
         logger.warn(`Attempted to mark non-existent guest mapping as processed for guest ID ${guestId}`);
@@ -67,7 +67,7 @@ async function processGuestMessages(userId, guestId) {
       ? (firstMessage.content.length > 30 ? `${firstMessage.content.substring(0, 30)}...` : firstMessage.content)
       : (firstMessage.attachment_filename ? `Файл: ${firstMessage.attachment_filename}` : 'Новый диалог');
 
-    const newConversationResult = await db.query(
+    const newConversationResult = await db.getQuery()(
       'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
       [userId, title]
     );
@@ -84,7 +84,7 @@ async function processGuestMessages(userId, guestId) {
 
       try {
         // Сохраняем сообщение пользователя в таблицу messages, включая данные файла
-        const userMessageResult = await db.query(
+        const userMessageResult = await db.getQuery()(
           `INSERT INTO messages
             (conversation_id, content, sender_type, role, channel, created_at, user_id,
              attachment_filename, attachment_mimetype, attachment_size, attachment_data)
@@ -118,7 +118,7 @@ async function processGuestMessages(userId, guestId) {
 
           if (aiResponseContent) {
               // Сохраняем ответ от ИИ (у него нет вложений)
-              const aiMessageResult = await db.query(
+              const aiMessageResult = await db.getQuery()(
                 `INSERT INTO messages
                   (conversation_id, content, sender_type, role, channel, created_at, user_id)
                  VALUES
@@ -144,20 +144,20 @@ async function processGuestMessages(userId, guestId) {
 
     // Удаляем только успешно обработанные гостевые сообщения
     if (savedMessageIds.length > 0) {
-      await db.query('DELETE FROM guest_messages WHERE id = ANY($1::int[])', [savedMessageIds]);
+      await db.getQuery()('DELETE FROM guest_messages WHERE id = ANY($1::int[])', [savedMessageIds]);
       logger.info(
         `Deleted ${savedMessageIds.length} processed guest messages for guest ID ${guestId}`
       );
 
       // Помечаем гостевой ID как обработанный
-      await db.query('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [
+      await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [
         guestId,
       ]);
       logger.info(`Marked guest mapping as processed for guest ID ${guestId}`);
     } else {
       logger.warn(`No guest messages were successfully processed, skipping deletion for guest ID ${guestId}`);
       // Если не было успешных, все равно пометим как обработанные, чтобы не пытаться снова
-      await db.query('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [guestId]);
+      await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [guestId]);
       logger.info(`Marked guest mapping as processed (no successful messages) for guest ID ${guestId}`);
     }
 
@@ -221,7 +221,7 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     });
 
     // Сохраняем сообщение пользователя с текстом или файлом
-    const result = await db.query(
+    const result = await db.getQuery()(
       `INSERT INTO guest_messages
         (guest_id, content, language, is_ai,
          attachment_filename, attachment_mimetype, attachment_size, attachment_data)
@@ -293,7 +293,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
   try {
     // Найти или создать диалог
     if (conversationId) {
-      const convResult = await db.query(
+      const convResult = await db.getQuery()(
         'SELECT * FROM conversations WHERE id = $1 AND user_id = $2',
         [conversationId, userId]
       );
@@ -308,7 +308,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         ? (message.length > 50 ? `${message.substring(0, 50)}...` : message)
         : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
 
-      const newConvResult = await db.query(
+      const newConvResult = await db.getQuery()(
         'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
         [userId, title]
       );
@@ -325,7 +325,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     const attachmentData = file ? file.buffer : null;
 
     // Сохраняем сообщение пользователя
-    const userMessageResult = await db.query(
+    const userMessageResult = await db.getQuery()(
       `INSERT INTO messages
          (conversation_id, user_id, content, sender_type, role, channel,
           attachment_filename, attachment_mimetype, attachment_size, attachment_data)
@@ -354,7 +354,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         logger.info('AI response received' + (aiResponseContent ? '' : ' (empty)'), { conversationId });
 
         if (aiResponseContent) {
-          const aiMessageResult = await db.query(
+          const aiMessageResult = await db.getQuery()(
             `INSERT INTO messages
                (conversation_id, user_id, content, sender_type, role, channel)
              VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')
@@ -443,7 +443,7 @@ router.get('/history', requireAuth, async (req, res) => {
         countQuery += ' AND conversation_id = $2';
         countParams.push(conversationId);
       }
-      const countResult = await db.query(countQuery, countParams);
+      const countResult = await db.getQuery()(countQuery, countParams);
       const totalCount = parseInt(countResult.rows[0].count, 10);
       return res.json({ success: true, count: totalCount });
     }
@@ -481,7 +481,7 @@ router.get('/history', requireAuth, async (req, res) => {
 
     logger.debug('Executing history query:', { query, params });
 
-    const result = await db.query(query, params);
+    const result = await db.getQuery()(query, params);
 
     // Обрабатываем результаты для фронтенда
     const messages = result.rows.map(msg => {
@@ -522,7 +522,7 @@ router.get('/history', requireAuth, async (req, res) => {
       totalCountQuery += ' AND conversation_id = $2';
       totalCountParams.push(conversationId);
     }
-    const totalCountResult = await db.query(totalCountQuery, totalCountParams);
+    const totalCountResult = await db.getQuery()(totalCountQuery, totalCountParams);
     const totalMessages = parseInt(totalCountResult.rows[0].count, 10);
 
     logger.info(`Returning message history for user ${userId}`, { count: messages.length, offset, limit, total: totalMessages });

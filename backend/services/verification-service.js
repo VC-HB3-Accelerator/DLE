@@ -29,14 +29,14 @@ class VerificationService {
 
       // Если userId не указан, добавляем запись без ссылки на пользователя
       if (userId === null || userId === undefined) {
-        await db.query(
+        await db.getQuery()(
           `INSERT INTO verification_codes 
            (code, provider, provider_id, expires_at) 
            VALUES ($1, $2, $3, $4)`,
           [code, provider, providerId, expiresAt]
         );
       } else {
-        await db.query(
+        await db.getQuery()(
           `INSERT INTO verification_codes 
            (code, provider, provider_id, user_id, expires_at) 
            VALUES ($1, $2, $3, $4, $5)`,
@@ -67,7 +67,7 @@ class VerificationService {
       logger.info(`Normalized code: ${normalizedCode}`);
 
       // Проверим, есть ли такой код в базе (для отладки)
-      const checkResult = await db.query(
+      const checkResult = await db.getQuery()(
         `SELECT code FROM verification_codes 
          WHERE provider = $1 
          AND provider_id = $2 
@@ -84,7 +84,7 @@ class VerificationService {
         logger.warn(`No active codes found for ${provider}:${providerId}`);
       }
 
-      const result = await db.query(
+      const result = await db.getQuery()(
         `SELECT * FROM verification_codes 
          WHERE code = $1 
          AND provider = $2 
@@ -104,7 +104,10 @@ class VerificationService {
       const verification = result.rows[0];
 
       // Отмечаем код как использованный
-      await db.query('UPDATE verification_codes SET used = true WHERE id = $1', [verification.id]);
+      await db.getQuery()(
+        'UPDATE verification_codes SET used = true WHERE id = $1',
+        [verification.id]
+      );
 
       logger.info(`Code verified successfully for ${provider}:${providerId}`);
       return {
@@ -126,7 +129,7 @@ class VerificationService {
   // Очистка истекших кодов
   async cleanupExpiredCodes() {
     try {
-      const result = await db.query(
+      const result = await db.getQuery()(
         'DELETE FROM verification_codes WHERE expires_at <= NOW() RETURNING id'
       );
       logger.info(`Cleaned up ${result.rowCount} expired verification codes`);

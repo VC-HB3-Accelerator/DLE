@@ -11,7 +11,7 @@ const fs = require('fs');
  * @desc    Создать новое DLE (Digital Legal Entity)
  * @access  Private (только для авторизованных пользователей с ролью admin)
  */
-router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
   try {
     const dleParams = req.body;
     logger.info('Получен запрос на создание DLE:', dleParams);
@@ -44,11 +44,7 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error('Ошибка при создании DLE:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при создании DLE',
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    next(error);
   }
 });
 
@@ -57,7 +53,7 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res) => {
  * @desc    Получить список всех DLE
  * @access  Private (только для авторизованных пользователей)
  */
-router.get('/', auth.requireAuth, async (req, res) => {
+router.get('/', auth.requireAuth, async (req, res, next) => {
   try {
     const dles = await dleService.getAllDLEs();
     res.json({
@@ -66,11 +62,7 @@ router.get('/', auth.requireAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error('Ошибка при получении списка DLE:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при получении списка DLE',
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    next(error);
   }
 });
 
@@ -99,7 +91,7 @@ router.get('/settings', auth.requireAuth, (req, res) => {
  * @desc    Удалить DLE по адресу токена
  * @access  Private (только для авторизованных пользователей с ролью admin)
  */
-router.delete('/:tokenAddress', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.delete('/:tokenAddress', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
   try {
     const { tokenAddress } = req.params;
     logger.info(`Получен запрос на удаление DLE с адресом токена: ${tokenAddress}`);
@@ -142,11 +134,7 @@ router.delete('/:tokenAddress', auth.requireAuth, auth.requireAdmin, async (req,
     });
   } catch (error) {
     logger.error('Ошибка при удалении DLE:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при удалении DLE',
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    next(error);
   }
 });
 
@@ -155,7 +143,7 @@ router.delete('/:tokenAddress', auth.requireAuth, auth.requireAdmin, async (req,
  * @desc    Удалить пустое DLE по имени файла
  * @access  Private (только для авторизованных пользователей с ролью admin)
  */
-router.delete('/empty/:fileName', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+router.delete('/empty/:fileName', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
   try {
     const { fileName } = req.params;
     logger.info(`Получен запрос на удаление пустого DLE с именем файла: ${fileName}`);
@@ -180,11 +168,7 @@ router.delete('/empty/:fileName', auth.requireAuth, auth.requireAdmin, async (re
     });
   } catch (error) {
     logger.error('Ошибка при удалении пустого DLE:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при удалении пустого DLE',
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    next(error);
   }
 });
 

@@ -34,7 +34,7 @@ router.get('/nonce', async (req, res) => {
     const nonce = crypto.randomBytes(16).toString('hex');
 
     // Проверяем, существует ли уже nonce для этого адреса
-    const existingNonce = await db.query('SELECT id FROM nonces WHERE identity_value = $1', [
+    const existingNonce = await db.getQuery()('SELECT id FROM nonces WHERE identity_value = $1', [
       address.toLowerCase(),
     ]);
 

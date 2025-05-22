@@ -2,12 +2,12 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const session = require('express-session');
-const { sessionMiddleware } = require('./config/session');
+const sessionConfig = require('./config/session');
 const logger = require('./utils/logger');
 // const csurf = require('csurf'); // Закомментировано, так как не используется
-const { errorHandler } = require('./middleware/errorHandler');
+const errorHandler = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
-const pool = require('./db'); // Добавляем импорт pool
+const db = require('./db'); // Добавляем импорт db
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
 const fs = require('fs');
 const path = require('path');
@@ -48,6 +48,9 @@ const ensureDirectoriesExist = () => {
 // Вызываем функцию проверки директорий при запуске сервера
 ensureDirectoriesExist();
 
+// Регистрируем коллбек для пересоздания session middleware при смене пула
+db.setPoolChangeCallback(sessionConfig.reloadSessionMiddleware);
+
 // Импорт маршрутов
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
@@ -79,8 +82,8 @@ app.use(
   })
 );
 
-// Настройка сессии (ИСПОЛЬЗУЕМ ИМПОРТИРОВАННОЕ MIDDLEWARE)
-app.use(sessionMiddleware);
+// Настройка сессии (используем геттер, чтобы всегда был актуальный middleware)
+app.use((req, res, next) => sessionConfig.sessionMiddleware(req, res, next));
 
 // Добавим middleware для проверки сессии
 app.use(async (req, res, next) => {
@@ -89,7 +92,7 @@ app.use(async (req, res, next) => {
 
   // Проверяем сессию в базе данных
   if (req.sessionID) {
-    const result = await pool.query('SELECT sess FROM session WHERE sid = $1', [req.sessionID]);
+    const result = await db.getQuery()('SELECT sess FROM session WHERE sid = $1', [req.sessionID]);
     console.log('Session from DB:', result.rows[0]?.sess);
   }
 
@@ -104,7 +107,7 @@ app.use(async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     try {
       // Находим пользователя по токену
-      const { rows } = await pool.query(
+      const { rows } = await db.getQuery(
         `
         SELECT u.id, 
         (u.role = 'admin') as is_admin,
@@ -152,7 +155,7 @@ app.use((req, res, next) => {
 // Маршруты API
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api/identities', identitiesRoutes);
+app.use('/api', identitiesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
@@ -181,6 +184,8 @@ console.log('OPENAI_API_KEY:', redactedValue);
 console.log('EMAIL_USER:', process.env.EMAIL_USER);
 console.log('EMAIL_PASSWORD:', redactedValue);
 
+console.log('typeof errorHandler:', typeof errorHandler, errorHandler.name);
+
 // Добавляем обработчик ошибок последним
 app.use(errorHandler);
 
@@ -188,7 +193,7 @@ app.use(errorHandler);
 app.get('/api/health', async (req, res) => {
   try {
     // Проверяем подключение к БД
-    await pool.query('SELECT NOW()');
+    await db.getQuery('SELECT NOW()');
 
     // Проверяем AI сервис
     const aiStatus = await aiAssistant.checkHealth();
@@ -212,7 +217,7 @@ app.get('/api/health', async (req, res) => {
 setInterval(
   async () => {
     try {
-      await pool.query('DELETE FROM session WHERE expire < NOW()');
+      await db.getQuery('DELETE FROM session WHERE expire < NOW()');
     } catch (error) {
       console.error('Error cleaning old sessions:', error);
     }

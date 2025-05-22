@@ -21,7 +21,7 @@ function generateVerificationCode(length = 6) {
 
 // Проверка существования идентификатора пользователя
 async function checkUserIdentity(userId, provider, providerId) {
-  const result = await db.query(
+  const result = await db.getQuery()(
     'SELECT * FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3',
     [userId, provider, providerId]
   );
@@ -31,7 +31,7 @@ async function checkUserIdentity(userId, provider, providerId) {
 // Добавление новой идентификации
 async function addUserIdentity(userId, provider, providerId) {
   try {
-    await db.query(
+    await db.getQuery()(
       'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
       [userId, provider, providerId]
     );

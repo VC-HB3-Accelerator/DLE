@@ -1,7 +1,7 @@
 const db = require('../db');
 
 async function getAllAuthTokens() {
-  const { rows } = await db.query('SELECT * FROM auth_tokens ORDER BY id');
+  const { rows } = await db.getQuery()('SELECT * FROM auth_tokens ORDER BY id');
   return rows;
 }
 

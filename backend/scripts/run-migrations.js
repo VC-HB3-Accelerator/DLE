@@ -1,7 +1,8 @@
 const fs = require('fs').promises;
 const path = require('path');
 require('dotenv').config();
-const { pool } = require('../db');
+const { getPool } = require('../db');
+const pool = getPool();
 const logger = require('../utils/logger');
 
 async function runMigrations() {

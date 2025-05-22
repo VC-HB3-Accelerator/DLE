@@ -9,10 +9,14 @@ console.log('DB_PORT:', process.env.DB_PORT);
 console.log('DB_NAME:', process.env.DB_NAME);
 console.log('DB_USER:', process.env.DB_USER);
 
-// Создаем пул соединений с базой данных
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+// Первичное подключение по дефолтным значениям
+let pool = new Pool({
+  host: process.env.DB_HOST || 'postgres',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME || 'dapp_db',
+  user: process.env.DB_USER || 'dapp_user',
+  password: process.env.DB_PASSWORD,
+  ssl: false,
 });
 
 // Проверяем подключение к базе данных
@@ -21,36 +25,59 @@ pool.query('SELECT NOW()')
     console.log('Успешное подключение к базе данных:', res.rows[0]);
   })
   .catch(err => {
-    console.error('Failed to connect to the database using DATABASE_URL:', err);
-    console.log('Attempting alternative database connection...');
-
-    // Пробуем альтернативное подключение
-    const altPool = new Pool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'dapp_db',
-      user: process.env.DB_USER || 'dapp_user',
-      password: process.env.DB_PASSWORD,
-    });
-
-    altPool.query('SELECT NOW()')
-      .then(altRes => {
-        console.log('Альтернативное подключение успешно:', altRes.rows[0]);
-        // Заменяем основной пул на альтернативный
-        module.exports.pool = altPool;
-        module.exports.query = (text, params) => altPool.query(text, params);
-      })
-      .catch(altErr => {
-        console.error('Альтернативное подключение тоже не удалось:', altErr);
-        console.log('Переключение на временное хранилище данных в памяти...');
-        module.exports = createInMemoryStorage();
-      });
+    console.error('Ошибка подключения к базе данных:', err);
   });
 
-// Функция для выполнения SQL-запросов
-const query = (text, params) => {
-  return pool.query(text, params);
-};
+console.log('Пул создан:', pool.options || pool);
+
+function getPool() {
+  return pool;
+}
+
+function getQuery() {
+  return pool.query.bind(pool);
+}
+
+let poolChangeCallback = null;
+
+function setPoolChangeCallback(cb) {
+  poolChangeCallback = cb;
+}
+
+// Функция для пересоздания пула из db_settings
+async function reinitPoolFromDbSettings() {
+  try {
+    const res = await pool.query('SELECT * FROM db_settings ORDER BY id LIMIT 1');
+    if (!res.rows.length) throw new Error('DB settings not found');
+    const settings = res.rows[0];
+    // Закрываем старый пул
+    await pool.end();
+    // Создаём новый пул
+    pool = new Pool({
+      host: settings.db_host,
+      port: parseInt(settings.db_port),
+      database: settings.db_name,
+      user: settings.db_user,
+      password: settings.db_password,
+      ssl: false,
+    });
+    // Пересоздаём session middleware
+    if (poolChangeCallback) {
+      poolChangeCallback();
+    }
+    console.log('Пул пересоздан с новыми параметрами:', settings);
+  } catch (err) {
+    console.error('Ошибка пересоздания пула:', err);
+    throw err;
+  }
+}
+
+// При старте приложения — сразу пробуем инициализировать из db_settings
+if (process.env.NODE_ENV !== 'migration') {
+  reinitPoolFromDbSettings();
+}
+
+const query = (text, params) => pool.query(text, params);
 
 // Функция для сохранения гостевого сообщения в базе данных
 async function saveGuestMessageToDatabase(message, language, guestId) {
@@ -71,70 +98,9 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
 
 // Экспортируем функции для работы с базой данных
 module.exports = {
-  query,
-  pool,
+  getPool,
+  getQuery,
+  reinitPoolFromDbSettings,
   saveGuestMessageToDatabase,
+  setPoolChangeCallback,
 };
-
-// Функция для создания временного хранилища данных в памяти
-function createInMemoryStorage() {
-  console.log('Используется временное хранилище данных в памяти');
-
-  const users = [];
-  let userId = 1;
-
-  // Эмуляция функции query для работы с пользователями
-  const inMemoryQuery = async (text, params) => {
-    console.log('SQL query (in-memory):', text, 'Params:', params);
-
-    // Эмуляция запроса SELECT * FROM users WHERE address = $1
-    if (text.includes('SELECT * FROM users WHERE address = $1')) {
-      const address = params[0];
-      const user = users.find((u) => u.address === address);
-      return { rows: user ? [user] : [] };
-    }
-
-    // Эмуляция запроса SELECT * FROM users WHERE email = $1
-    if (text.includes('SELECT * FROM users WHERE email = $1')) {
-      const email = params[0];
-      const user = users.find((u) => u.email === email);
-      return { rows: user ? [user] : [] };
-    }
-
-    // Эмуляция запроса INSERT INTO users
-    if (text.includes('INSERT INTO users')) {
-      let newUser;
-
-      if (text.includes('address')) {
-        newUser = { id: userId++, address: params[0], created_at: new Date(), is_admin: false };
-      } else if (text.includes('email')) {
-        newUser = { id: userId++, email: params[0], created_at: new Date(), is_admin: false };
-      }
-
-      if (newUser) {
-        users.push(newUser);
-        return { rows: [newUser] };
-      }
-    }
-
-    return { rows: [] };
-  };
-
-  return {
-    query: inMemoryQuery,
-    pool: {
-      query: (text, params, callback) => {
-        if (callback) {
-          try {
-            const result = inMemoryQuery(text, params);
-            callback(null, result);
-          } catch (err) {
-            callback(err);
-          }
-        } else {
-          return inMemoryQuery(text, params);
-        }
-      },
-    },
-  };
-}
