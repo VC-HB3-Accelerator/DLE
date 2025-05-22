@@ -471,6 +471,25 @@ export function useAuth() {
     }
   };
 
+  /**
+   * Удаляет идентификатор пользователя
+   * @param {string} provider - Тип идентификатора (wallet, email, telegram)
+   * @param {string} providerId - Значение идентификатора
+   * @returns {Promise<Object>} - Результат операции
+   */
+  const deleteIdentity = async (provider, providerId) => {
+    try {
+      const response = await axios.delete(`/api/identities/${provider}/${encodeURIComponent(providerId)}`);
+      if (response.data.success) {
+        await updateIdentities();
+        return { success: true };
+      }
+      return { success: false, error: response.data.error };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.error || error.message };
+    }
+  };
+
   return {
     isAuthenticated,
     authType,
@@ -490,5 +509,6 @@ export function useAuth() {
     updateProcessedGuestIds,
     updateConnectionDisplay,
     linkIdentity,
+    deleteIdentity,
   };
 }
