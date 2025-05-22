@@ -20,53 +20,42 @@ router.get('/:address', (req, res) => {
 });
 
 // Маршрут для обновления языка пользователя
-router.post('/update-language', requireAuth, async (req, res) => {
+router.post('/update-language', requireAuth, async (req, res, next) => {
   try {
     const { language } = req.body;
     const userId = req.session.userId;
-
-    // Проверка валидности языка
     const validLanguages = ['ru', 'en'];
     if (!validLanguages.includes(language)) {
       return res.status(400).json({ error: 'Неподдерживаемый язык' });
     }
-
-    // Обновление языка в базе данных
-    await db.query('UPDATE users SET preferred_language = $1 WHERE id = $2', [language, userId]);
-
+    await db.getQuery()('UPDATE users SET preferred_language = $1 WHERE id = $2', [language, userId]);
     res.json({ success: true });
   } catch (error) {
     logger.error('Error updating language:', error);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    next(error);
   }
 });
 
 // Маршрут для обновления имени и фамилии пользователя
-router.post('/update-profile', requireAuth, async (req, res) => {
+router.post('/update-profile', requireAuth, async (req, res, next) => {
   try {
     const { firstName, lastName } = req.body;
     const userId = req.session.userId;
-
-    // Проверка валидности данных
     if (firstName && firstName.length > 255) {
       return res.status(400).json({ error: 'Имя слишком длинное (максимум 255 символов)' });
     }
-
     if (lastName && lastName.length > 255) {
       return res.status(400).json({ error: 'Фамилия слишком длинная (максимум 255 символов)' });
     }
-
-    // Обновление имени и фамилии в базе данных
-    await db.query('UPDATE users SET first_name = $1, last_name = $2 WHERE id = $3', [
+    await db.getQuery()('UPDATE users SET first_name = $1, last_name = $2 WHERE id = $3', [
       firstName || null,
       lastName || null,
       userId,
     ]);
-
     res.json({ success: true });
   } catch (error) {
     logger.error('Error updating user profile:', error);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    next(error);
   }
 });
 

@@ -34,8 +34,9 @@ nano frontend/.env
 
 4. Выполните миграции изнутри контейнера backend:
 ```
-docker exec dapp-backend yarn migrate
-```
+  docker exec -e NODE_ENV=migration dapp-backend yarn migrate
+  
+  ```
 
 Скрипт автоматически:
 - Проверит наличие Docker и Docker Compose

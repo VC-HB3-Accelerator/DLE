@@ -1,4 +1,4 @@
-const { pool } = require('../db');
+const db = require('../db');
 const nodemailer = require('nodemailer');
 const Imap = require('imap');
 const simpleParser = require('mailparser').simpleParser;
@@ -6,59 +6,45 @@ const { processMessage } = require('./ai-assistant');
 const { inspect } = require('util');
 const logger = require('../utils/logger');
 
-// Конфигурация для отправки писем
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_SMTP_HOST || 'smtp.hostland.ru',
-  port: process.env.EMAIL_SMTP_PORT || 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-  pool: true,
-  maxConnections: 3,
-  maxMessages: 5,
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
-
-// Конфигурация для получения писем
-const imapConfig = {
-  user: process.env.EMAIL_USER,
-  password: process.env.EMAIL_PASSWORD,
-  host: process.env.EMAIL_IMAP_HOST,
-  port: process.env.EMAIL_IMAP_PORT,
-  tls: true,
-  tlsOptions: { rejectUnauthorized: false },
-  keepalive: {
-    interval: 10000,
-    idleInterval: 300000,
-    forceNoop: true,
-  },
-};
-
 class EmailBotService {
-  constructor() {
-    this.transporter = transporter;
-    this.imap = new Imap(imapConfig);
-    this.initialize();
+  async getSettingsFromDb() {
+    const { rows } = await db.getQuery()('SELECT * FROM email_settings ORDER BY id LIMIT 1');
+    if (!rows.length) throw new Error('Email settings not found in DB');
+    return rows[0];
   }
 
-  initialize() {
-    this.imap.once('error', (err) => {
-      logger.error(`IMAP connection error: ${err.message}`);
-      setTimeout(() => {
-        try {
-          if (this.imap.state !== 'connected') {
-            this.imap = new Imap(imapConfig);
-            this.initialize();
-          }
-        } catch (e) {
-          logger.error(`Error reconnecting IMAP: ${e.message}`);
-        }
-      }, 60000);
+  async getTransporter() {
+    const settings = await this.getSettingsFromDb();
+    return nodemailer.createTransport({
+      host: settings.smtp_host,
+      port: settings.smtp_port,
+      secure: true,
+      auth: {
+        user: settings.smtp_user,
+        pass: settings.smtp_password,
+      },
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 5,
+      tls: { rejectUnauthorized: false },
     });
+  }
+
+  async getImapConfig() {
+    const settings = await this.getSettingsFromDb();
+    return {
+      user: settings.smtp_user,
+      password: settings.smtp_password,
+      host: settings.imap_host,
+      port: settings.imap_port,
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+      keepalive: {
+        interval: 10000,
+        idleInterval: 300000,
+        forceNoop: true,
+      },
+    };
   }
 
   // Метод для инициализации email верификации
@@ -77,24 +63,16 @@ class EmailBotService {
   // Отправка кода верификации
   async sendVerificationCode(email, code) {
     try {
+      const settings = await this.getSettingsFromDb();
+      const transporter = await this.getTransporter();
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: settings.from_email,
         to: email,
         subject: 'Код подтверждения',
         text: `Ваш код подтверждения: ${code}\n\nКод действителен в течение 15 минут.`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Код подтверждения</h2>
-            <p style="font-size: 16px; color: #666;">Ваш код подтверждения:</p>
-            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
-              <span style="font-size: 24px; font-weight: bold; color: #333;">${code}</span>
-            </div>
-            <p style="font-size: 14px; color: #999;">Код действителен в течение 15 минут.</p>
-          </div>
-        `,
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2 style="color: #333;">Код подтверждения</h2><p style="font-size: 16px; color: #666;">Ваш код подтверждения:</p><div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;"><span style="font-size: 24px; font-weight: bold; color: #333;">${code}</span></div><p style="font-size: 14px; color: #999;">Код действителен в течение 15 минут.</p></div>`,
       };
-
-      await this.transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
       logger.info(`Verification code sent to ${email}`);
     } catch (error) {
       logger.error('Error sending verification code:', error);
@@ -187,14 +165,15 @@ class EmailBotService {
   // Метод для отправки email
   async sendEmail(to, subject, text) {
     try {
+      const settings = await this.getSettingsFromDb();
+      const transporter = await this.getTransporter();
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: settings.from_email,
         to,
         subject,
         text,
       };
-
-      await this.transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
       logger.info(`Email sent to ${to}`);
       return true;
     } catch (error) {
@@ -204,5 +183,4 @@ class EmailBotService {
   }
 }
 
-// Экспортируем singleton instance
-module.exports = new EmailBotService();
+module.exports = EmailBotService;

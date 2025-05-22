@@ -1,13 +1,13 @@
 const { pool } = require('../db');
 const verificationService = require('./verification-service');
 const logger = require('../utils/logger');
-const emailBot = require('./emailBot');
+const EmailBotService = require('./emailBot');
 const db = require('../db');
 const authService = require('./auth-service');
 
 class EmailAuth {
   constructor() {
-    this.emailBot = emailBot;
+    this.emailBot = new EmailBotService();
   }
 
   async initEmailAuth(session, email) {
@@ -17,7 +17,7 @@ class EmailAuth {
       }
 
       // Проверяем, существует ли пользователь с таким email
-      const existingEmailUser = await db.query(
+      const existingEmailUser = await db.getQuery()(
         `SELECT u.id FROM users u 
          JOIN user_identities i ON u.id = i.user_id 
          WHERE i.provider = 'email' AND i.provider_id = $1`,

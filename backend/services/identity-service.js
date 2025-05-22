@@ -62,7 +62,7 @@ class IdentityService {
         );
 
         try {
-          await db.query(
+          await db.getQuery()(
             'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
             [userId, normalizedProviderId]
           );
@@ -91,7 +91,7 @@ class IdentityService {
       );
 
       // Проверяем, существует ли уже такой идентификатор
-      const existingResult = await db.query(
+      const existingResult = await db.getQuery()(
         `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
         [normalizedProvider, normalizedProviderId]
       );
@@ -116,7 +116,7 @@ class IdentityService {
         }
       } else {
         // Создаем новую запись
-        await db.query(
+        await db.getQuery()(
           `INSERT INTO user_identities (user_id, provider, provider_id) 
            VALUES ($1, $2, $3)`,
           [userId, normalizedProvider, normalizedProviderId]
@@ -148,7 +148,7 @@ class IdentityService {
         return [];
       }
 
-      const result = await db.query(
+      const result = await db.getQuery()(
         `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
         [userId]
       );
@@ -174,7 +174,7 @@ class IdentityService {
         return [];
       }
 
-      const result = await db.query(
+      const result = await db.getQuery()(
         `SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2`,
         [userId, provider]
       );
@@ -211,7 +211,7 @@ class IdentityService {
       const { provider: normalizedProvider, providerId: normalizedProviderId } =
         this.normalizeIdentity(provider, providerId);
 
-      const result = await db.query(
+      const result = await db.getQuery()(
         `SELECT u.id, u.role FROM users u 
          JOIN user_identities ui ON u.id = ui.user_id 
          WHERE ui.provider = $1 AND ui.provider_id = $2`,
@@ -255,7 +255,7 @@ class IdentityService {
       // Нормализуем провайдера
       const normalizedProvider = provider.toLowerCase();
 
-      const result = await db.query(
+      const result = await db.getQuery()(
         `SELECT provider, provider_id, created_at, updated_at 
          FROM user_identities 
          WHERE user_id = $1 AND provider = $2 
@@ -320,7 +320,7 @@ class IdentityService {
       // Сохраняем гостевые идентификаторы в guest_user_mapping
       if (session.guestId) {
         try {
-          await db.query(
+          await db.getQuery()(
             'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
             [userId, session.guestId]
           );
@@ -333,7 +333,7 @@ class IdentityService {
 
       if (session.previousGuestId && session.previousGuestId !== session.guestId) {
         try {
-          await db.query(
+          await db.getQuery()(
             'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
             [userId, session.previousGuestId]
           );
@@ -479,7 +479,7 @@ class IdentityService {
       for (const [provider, providerId] of Object.entries(identities)) {
         if (!providerId) continue;
 
-        const result = await db.query(
+        const result = await db.getQuery()(
           `SELECT DISTINCT user_id 
            FROM user_identities 
            WHERE provider = $1 AND provider_id = $2`,
@@ -510,7 +510,7 @@ class IdentityService {
         return { success: false, error: 'Missing required parameters' };
       }
       const { provider: normalizedProvider, providerId: normalizedProviderId } = this.normalizeIdentity(provider, providerId);
-      const result = await db.query(
+      const result = await db.getQuery()(
         `DELETE FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3`,
         [userId, normalizedProvider, normalizedProviderId]
       );

@@ -1,7 +1,7 @@
 const db = require('../db');
 
 async function getAllRpcProviders() {
-  const { rows } = await db.query('SELECT * FROM rpc_providers ORDER BY id');
+  const { rows } = await db.getQuery()('SELECT * FROM rpc_providers ORDER BY id');
   return rows;
 }
 

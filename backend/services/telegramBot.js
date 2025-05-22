@@ -6,11 +6,21 @@ const verificationService = require('./verification-service');
 const crypto = require('crypto');
 
 let botInstance = null;
+let telegramSettingsCache = null;
+
+async function getTelegramSettings() {
+  if (telegramSettingsCache) return telegramSettingsCache;
+  const { rows } = await db.getQuery()('SELECT * FROM telegram_settings ORDER BY id LIMIT 1');
+  if (!rows.length) throw new Error('Telegram settings not found in DB');
+  telegramSettingsCache = rows[0];
+  return telegramSettingsCache;
+}
 
 // Создание и настройка бота
 async function getBot() {
   if (!botInstance) {
-    botInstance = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+    const settings = await getTelegramSettings();
+    botInstance = new Telegraf(settings.bot_token);
 
     // Обработка команды /start
     botInstance.command('start', (ctx) => {
@@ -23,7 +33,7 @@ async function getBot() {
 
       try {
         // Получаем код верификации для всех активных кодов с провайдером telegram
-        const codeResult = await db.query(
+        const codeResult = await db.getQuery()(
           `SELECT * FROM verification_codes 
            WHERE code = $1 
            AND provider = 'telegram' 
@@ -44,14 +54,14 @@ async function getBot() {
         let userRole = 'user'; // Роль по умолчанию
 
         // Отмечаем код как использованный
-        await db.query('UPDATE verification_codes SET used = true WHERE id = $1', [
+        await db.getQuery()('UPDATE verification_codes SET used = true WHERE id = $1', [
           verification.id,
         ]);
 
         logger.info('Starting Telegram auth process for code:', code);
 
         // Проверяем, существует ли уже пользователь с таким Telegram ID
-        const existingTelegramUser = await db.query(
+        const existingTelegramUser = await db.getQuery()(
           `SELECT ui.user_id 
            FROM user_identities ui 
            WHERE ui.provider = 'telegram' AND ui.provider_id = $1`,
@@ -68,7 +78,7 @@ async function getBot() {
             // Используем userId из кода верификации
             userId = linkedUserId;
             // Связываем Telegram с этим пользователем
-            await db.query(
+            await db.getQuery()(
               `INSERT INTO user_identities 
                (user_id, provider, provider_id, created_at) 
                VALUES ($1, $2, $3, NOW())`,
@@ -81,7 +91,7 @@ async function getBot() {
             // Проверяем, есть ли пользователь, связанный с гостевым идентификатором
             let existingUserWithGuestId = null;
             if (providerId) {
-              const guestUserResult = await db.query(
+              const guestUserResult = await db.getQuery()(
                 `SELECT user_id FROM guest_user_mapping WHERE guest_id = $1`,
                 [providerId]
               );
@@ -96,7 +106,7 @@ async function getBot() {
             if (existingUserWithGuestId) {
               // Используем существующего пользователя и добавляем ему Telegram идентификатор
               userId = existingUserWithGuestId;
-              await db.query(
+              await db.getQuery()(
                 `INSERT INTO user_identities 
                  (user_id, provider, provider_id, created_at) 
                  VALUES ($1, $2, $3, NOW())`,
@@ -105,14 +115,14 @@ async function getBot() {
               logger.info(`Linked Telegram account ${ctx.from.id} to existing user ${userId}`);
             } else {
               // Создаем нового пользователя, если не нашли существующего
-              const userResult = await db.query(
+              const userResult = await db.getQuery()(
                 'INSERT INTO users (created_at, role) VALUES (NOW(), $1) RETURNING id',
                 ['user']
               );
               userId = userResult.rows[0].id;
 
               // Связываем Telegram с новым пользователем
-              await db.query(
+              await db.getQuery()(
                 `INSERT INTO user_identities 
                  (user_id, provider, provider_id, created_at) 
                  VALUES ($1, $2, $3, NOW())`,
@@ -121,7 +131,7 @@ async function getBot() {
 
               // Если был гостевой ID, связываем его с новым пользователем
               if (providerId) {
-                await db.query(
+                await db.getQuery()(
                   `INSERT INTO guest_user_mapping 
                    (user_id, guest_id) 
                    VALUES ($1, $2)
@@ -147,15 +157,15 @@ async function getBot() {
               logger.info(`[TelegramBot] Role for user ${userId} determined as: ${userRole}`);
 
               // Опционально: Обновить роль в таблице users
-              const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+              const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
               if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
-                await db.query('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
+                await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
                 logger.info(`[TelegramBot] Updated user role in DB to ${userRole}`);
               }
             } else {
               logger.info(`[TelegramBot] No linked wallet found for user ${userId}. Checking current DB role.`);
               // Если кошелька нет, берем текущую роль из базы
-              const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+              const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
               if (currentUser.rows.length > 0) {
                 userRole = currentUser.rows[0].role;
               }
@@ -164,7 +174,7 @@ async function getBot() {
             logger.error(`[TelegramBot] Error checking admin role for user ${userId}:`, roleCheckError);
             // В случае ошибки берем роль из базы или оставляем 'user'
             try {
-                const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+                const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
                 if (currentUser.rows.length > 0) { userRole = currentUser.rows[0].role; }
             } catch (dbError) { /* ignore */ }
           }
@@ -181,7 +191,7 @@ async function getBot() {
         try {
           // Ищем сессию, где есть userId и она не истекла (проверка expires_at)
           // Сортируем по expires_at DESC чтобы взять самую "свежую", если их несколько
-          const sessionResult = await db.query(
+          const sessionResult = await db.getQuery()(
              `SELECT sid FROM session 
               WHERE sess ->> 'userId' = $1 
               AND expire > NOW()
@@ -195,7 +205,7 @@ async function getBot() {
             logger.info(`[telegramBot] Found active session ID ${activeSessionId} for user ${userId}`);
 
             // Обновляем найденную сессию в базе данных, добавляя/перезаписывая данные Telegram
-            const updateResult = await db.query(
+            const updateResult = await db.getQuery()(
               `UPDATE session 
                SET sess = (sess::jsonb || $1::jsonb)::json
                WHERE sid = $2`,
@@ -275,7 +285,7 @@ async function initTelegramAuth(session) {
       const guestId = session.guestId || tempId;
 
       // Связываем гостевой ID с текущим пользователем
-      await db.query(
+      await db.getQuery()(
         `INSERT INTO guest_user_mapping (user_id, guest_id) 
          VALUES ($1, $2) 
          ON CONFLICT (guest_id) DO UPDATE SET user_id = $1`,
@@ -298,9 +308,10 @@ async function initTelegramAuth(session) {
       `[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}${session.authenticated ? `, userId: ${session.userId}` : ''}`
     );
 
+    const settings = await getTelegramSettings();
     return {
       verificationCode: code,
-      botLink: `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}`,
+      botLink: `https://t.me/${settings.bot_username}`,
     };
   } catch (error) {
     logger.error('Error initializing Telegram auth:', error);
@@ -308,8 +319,13 @@ async function initTelegramAuth(session) {
   }
 }
 
+function clearSettingsCache() {
+  telegramSettingsCache = null;
+}
+
 module.exports = {
   getBot,
   stopBot,
   initTelegramAuth,
+  clearSettingsCache,
 };

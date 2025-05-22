@@ -1,21 +1,36 @@
 <template>
-  <div class="telegram-settings settings-panel">
-    <h2>Настройки Telegram</h2>
-    <form v-if="editMode" @submit.prevent="saveTelegramSettings" class="settings-form">
+  <div class="db-settings settings-panel">
+    <h2>Настройки базы данных</h2>
+    <form v-if="editMode" @submit.prevent="saveDbSettings" class="settings-form">
       <div class="form-group">
-        <label for="botToken">Bot Token</label>
-        <input id="botToken" v-model="form.botToken" type="text" required />
+        <label for="dbHost">Host</label>
+        <input id="dbHost" v-model="form.dbHost" type="text" required />
       </div>
       <div class="form-group">
-        <label for="botUsername">Bot Username</label>
-        <input id="botUsername" v-model="form.botUsername" type="text" required />
+        <label for="dbPort">Port</label>
+        <input id="dbPort" v-model.number="form.dbPort" type="number" required />
+      </div>
+      <div class="form-group">
+        <label for="dbName">Database</label>
+        <input id="dbName" v-model="form.dbName" type="text" required />
+      </div>
+      <div class="form-group">
+        <label for="dbUser">User</label>
+        <input id="dbUser" v-model="form.dbUser" type="text" required />
+      </div>
+      <div class="form-group">
+        <label for="dbPassword">Password</label>
+        <input id="dbPassword" v-model="form.dbPassword" type="password" :placeholder="form.dbPassword ? 'Изменить пароль' : 'Введите пароль'" />
       </div>
       <button type="submit" class="save-btn">Сохранить</button>
       <button type="button" class="cancel-btn" @click="cancelEdit">Отмена</button>
     </form>
     <div v-else class="settings-view">
-      <div class="view-row"><span>Bot Token:</span> <b>••••••••••••••••••••••••••••••••</b></div>
-      <div class="view-row"><span>Bot Username:</span> <b>{{ form.botUsername }}</b></div>
+      <div class="view-row"><span>Host:</span> <b>{{ form.dbHost }}</b></div>
+      <div class="view-row"><span>Port:</span> <b>{{ form.dbPort }}</b></div>
+      <div class="view-row"><span>Database:</span> <b>{{ form.dbName }}</b></div>
+      <div class="view-row"><span>User:</span> <b>{{ form.dbUser }}</b></div>
+      <div class="view-row"><span>Password:</span> <b>••••••••••••••••••••••••••••••••</b></div>
       <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
       <button type="button" class="cancel-btn" @click="$emit('cancel')">Закрыть</button>
     </div>
@@ -27,19 +42,25 @@ import { reactive, ref, onMounted } from 'vue';
 import api from '@/api/axios';
 
 const form = reactive({
-  botToken: '',
-  botUsername: ''
+  dbHost: '',
+  dbPort: 5432,
+  dbName: '',
+  dbUser: '',
+  dbPassword: ''
 });
 const original = reactive({});
 const editMode = ref(false);
 
-const loadTelegramSettings = async () => {
+const loadDbSettings = async () => {
   try {
-    const res = await api.get('/api/telegram-settings');
+    const res = await api.get('/api/db-settings');
     if (res.data.success) {
       const s = res.data.settings;
-      form.botToken = '';
-      form.botUsername = s.bot_username;
+      form.dbHost = s.db_host;
+      form.dbPort = s.db_port;
+      form.dbName = s.db_name;
+      form.dbUser = s.db_user;
+      form.dbPassword = '';
       Object.assign(original, JSON.parse(JSON.stringify(form)));
     }
   } catch (e) {
@@ -48,28 +69,31 @@ const loadTelegramSettings = async () => {
 };
 
 onMounted(async () => {
-  await loadTelegramSettings();
+  await loadDbSettings();
   editMode.value = false;
 });
 
-const saveTelegramSettings = async () => {
+const saveDbSettings = async () => {
   try {
-    await api.put('/api/telegram-settings', {
-      bot_token: form.botToken,
-      bot_username: form.botUsername
+    await api.put('/api/db-settings', {
+      db_host: form.dbHost,
+      db_port: form.dbPort,
+      db_name: form.dbName,
+      db_user: form.dbUser,
+      db_password: form.dbPassword || undefined
     });
-    alert('Настройки Telegram сохранены');
-    form.botToken = '';
+    alert('Настройки базы данных сохранены');
+    form.dbPassword = '';
     Object.assign(original, JSON.parse(JSON.stringify(form)));
     editMode.value = false;
   } catch (e) {
-    alert('Ошибка сохранения telegram-настроек');
+    alert('Ошибка сохранения настроек базы данных');
   }
 };
 
 const cancelEdit = () => {
   Object.assign(form, JSON.parse(JSON.stringify(original)));
-  form.botToken = '';
+  form.dbPassword = '';
   editMode.value = false;
 };
 </script>

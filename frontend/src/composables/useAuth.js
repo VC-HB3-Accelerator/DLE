@@ -427,48 +427,16 @@ export function useAuth() {
 
   /**
    * Связывает новый идентификатор с текущим аккаунтом пользователя
-   * @param {string} provider - Тип идентификатора (wallet, email, telegram)
-   * @param {string} providerId - Значение идентификатора
+   * @param {string} type - Тип идентификатора (wallet, email, telegram)
+   * @param {string} value - Значение идентификатора
    * @returns {Promise<Object>} - Результат операции
    */
-  const linkIdentity = async (provider, providerId) => {
-    try {
-      if (!isAuthenticated.value) {
-        console.error('Невозможно связать идентификатор: пользователь не аутентифицирован');
-        return { success: false, error: 'Пользователь не аутентифицирован' };
-      }
-
-      const response = await axios.post('/api/auth/identities/link', {
-        type: provider,
-        value: providerId,
-      });
-
-      if (response.data.success) {
-        // Обновляем локальные данные при необходимости
-        if (provider === 'wallet') {
-          address.value = providerId;
-          isAdmin.value = response.data.isAdmin || false;
-        } else if (provider === 'telegram') {
-          telegramId.value = providerId;
-        } else if (provider === 'email') {
-          email.value = providerId;
-        }
-
-        // Обновляем список идентификаторов
-        await updateIdentities();
-
-        console.log(`Идентификатор ${provider} успешно связан с аккаунтом`);
-        return { success: true };
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Ошибка при связывании идентификатора:', error);
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message,
-      };
-    }
+  const linkIdentity = async (type, value) => {
+    const response = await axios.post('/api/link', {
+      type,
+      value,
+    });
+    return response.data;
   };
 
   /**
@@ -478,16 +446,8 @@ export function useAuth() {
    * @returns {Promise<Object>} - Результат операции
    */
   const deleteIdentity = async (provider, providerId) => {
-    try {
-      const response = await axios.delete(`/api/identities/${provider}/${encodeURIComponent(providerId)}`);
-      if (response.data.success) {
-        await updateIdentities();
-        return { success: true };
-      }
-      return { success: false, error: response.data.error };
-    } catch (error) {
-      return { success: false, error: error.response?.data?.error || error.message };
-    }
+    const response = await axios.delete(`/api/${provider}/${encodeURIComponent(providerId)}`);
+    return response.data;
   };
 
   return {
