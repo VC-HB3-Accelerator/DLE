@@ -18,14 +18,15 @@
       </div>
     </div>
 
-    <!-- Другие настройки интерфейса можно добавить сюда -->
+    <DomainConnectBlock />
 
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { getFromStorage, setToStorage } from '../../utils/storage'; // Путь к utils может отличаться
+import DomainConnectBlock from './DomainConnectBlock.vue';
 // TODO: Импортировать API для сохранения, если нужно
 
 const selectedLanguage = ref(getFromStorage('userLanguage', 'ru'));

@@ -43,7 +43,7 @@ class AuthService {
       const normalizedAddress = ethers.getAddress(address).toLowerCase();
 
       // Ищем пользователя по адресу в таблице user_identities
-      const userResult = await db.query(
+      const userResult = await db.getQuery()(
         `
         SELECT u.* FROM users u 
         JOIN user_identities ui ON u.id = ui.user_id 
@@ -60,11 +60,11 @@ class AuthService {
 
         // Если статус админа изменился, обновляем роль в базе данных
         if (user.role === 'admin' && !isAdmin) {
-          await db.query('UPDATE users SET role = $1 WHERE id = $2', ['user', user.id]);
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', user.id]);
           logger.info(`Updated user ${user.id} role to user (admin tokens no longer present)`);
           return { userId: user.id, isAdmin: false };
         } else if (user.role !== 'admin' && isAdmin) {
-          await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
           logger.info(`Updated user ${user.id} role to admin (admin tokens found)`);
           return { userId: user.id, isAdmin: true };
         }
@@ -76,14 +76,14 @@ class AuthService {
       }
 
       // Если пользователь не найден, создаем нового
-      const newUserResult = await db.query('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
         'user',
       ]);
 
       const userId = newUserResult.rows[0].id;
 
       // Добавляем идентификатор кошелька (всегда в нижнем регистре)
-      await db.query(
+      await db.getQuery()(
         'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
         [userId, 'wallet', normalizedAddress]
       );
@@ -94,7 +94,7 @@ class AuthService {
 
       // Если у пользователя есть админские токены, обновляем его роль
       if (isAdmin) {
-        await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
         logger.info(
           `New user ${userId} with wallet ${normalizedAddress} automatically granted admin role`
         );
@@ -301,7 +301,7 @@ class AuthService {
       }
 
       // Сохраняем сессию в БД
-      const result = await db.query(
+      const result = await db.getQuery()(
         `UPDATE session 
          SET sess = $1 
          WHERE sid = $2`,
@@ -351,7 +351,7 @@ class AuthService {
 
   async getSession(sessionId) {
     try {
-      const result = await db.query('SELECT * FROM session WHERE sid = $1', [sessionId]);
+      const result = await db.getQuery()('SELECT * FROM session WHERE sid = $1', [sessionId]);
       return result.rows[0];
     } catch (error) {
       console.error('Error getting session:', error);
@@ -363,7 +363,7 @@ class AuthService {
   async getLinkedWallet(userId) {
     logger.info(`[getLinkedWallet] Called with userId: ${userId} (Type: ${typeof userId})`);
     try {
-      const result = await db.query(
+      const result = await db.getQuery()(
         `SELECT provider_id as address 
          FROM user_identities 
          WHERE user_id = $1 AND provider = 'wallet'`,
@@ -422,7 +422,7 @@ class AuthService {
       const email = result.providerId;
 
       // Проверяем, существует ли пользователь с таким email
-      const userResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+      const userResult = await db.getQuery()('SELECT * FROM users WHERE id = $1', [userId]);
 
       if (userResult.rows.length === 0) {
         return { verified: false };
@@ -486,7 +486,7 @@ class AuthService {
 
       // Если в сессии нет авторизованного пользователя, проверяем существующие идентификаторы
       // Проверяем, существует ли уже пользователь с таким Telegram ID
-      const existingUserResult = await db.query(
+      const existingUserResult = await db.getQuery()(
         `SELECT u.*, ui.provider, ui.provider_id 
          FROM users u 
          JOIN user_identities ui ON u.id = ui.user_id 
@@ -503,14 +503,14 @@ class AuthService {
         );
       } else {
         // Создаем нового пользователя для нового telegramId
-        const newUserResult = await db.query('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+        const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
           'user',
         ]);
         userId = newUserResult.rows[0].id;
         isNewUser = true;
 
         // Добавляем Telegram идентификатор
-        await db.query(
+        await db.getQuery()(
           'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
           [userId, 'telegram', telegramId]
         );
@@ -522,7 +522,7 @@ class AuthService {
 
       // Если есть гостевой ID в сессии, сохраняем его для нового пользователя
       if (session.guestId && isNewUser) {
-        await db.query(
+        await db.getQuery()(
           'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
           [userId, session.guestId]
         );
@@ -555,7 +555,7 @@ class AuthService {
       if (isAdmin) {
         try {
           // Находим userId по адресу
-          const userResult = await db.query(
+          const userResult = await db.getQuery()(
             `
             SELECT u.id FROM users u 
             JOIN user_identities ui ON u.id = ui.user_id 
@@ -566,7 +566,7 @@ class AuthService {
           if (userResult.rows.length > 0) {
             const userId = userResult.rows[0].id;
             // Обновляем роль пользователя
-            await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
             logger.info(`Updated user ${userId} role to admin based on token holdings`);
           }
         } catch (error) {
@@ -576,7 +576,7 @@ class AuthService {
       } else {
         // Если пользователь не является администратором, сбрасываем роль на "user", если она была "admin"
         try {
-          const userResult = await db.query(
+          const userResult = await db.getQuery()(
             `
             SELECT u.id, u.role FROM users u 
             JOIN user_identities ui ON u.id = ui.user_id 
@@ -586,7 +586,7 @@ class AuthService {
 
           if (userResult.rows.length > 0 && userResult.rows[0].role === 'admin') {
             const userId = userResult.rows[0].id;
-            await db.query('UPDATE users SET role = $1 WHERE id = $2', ['user', userId]);
+            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', userId]);
             logger.info(`Reset user ${userId} role from admin to user (no tokens found)`);
           }
         } catch (error) {
@@ -624,7 +624,7 @@ class AuthService {
 
         // Удаляем старые идентификаторы
         for (const identity of identitiesToDelete) {
-          await db.query('DELETE FROM user_identities WHERE id = $1', [identity.id]);
+          await db.getQuery()('DELETE FROM user_identities WHERE id = $1', [identity.id]);
           logger.info(`Deleted old guest identity: ${identity.identity_value}`);
         }
       }
@@ -640,7 +640,7 @@ class AuthService {
    */
   async getUserIdentities(userId) {
     try {
-      const result = await db.query(
+      const result = await db.getQuery()(
         'SELECT * FROM user_identities WHERE user_id = $1 ORDER BY created_at DESC',
         [userId]
       );
@@ -705,7 +705,7 @@ class AuthService {
       );
 
       // Проверяем, существует ли уже такой идентификатор
-      const existingResult = await db.query(
+      const existingResult = await db.getQuery()(
         `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
         [provider, normalizedProviderId]
       );
@@ -729,7 +729,7 @@ class AuthService {
       }
 
       // Добавляем новый идентификатор для пользователя
-      await db.query(
+      await db.getQuery()(
         `INSERT INTO user_identities (user_id, provider, provider_id) 
          VALUES ($1, $2, $3)`,
         [userId, provider, normalizedProviderId]
@@ -742,7 +742,7 @@ class AuthService {
 
         // Обновляем роль пользователя в базе данных, если нужно
         if (isAdmin) {
-          await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
           logger.info(`[AuthService] Updated user ${userId} role to admin based on token holdings`);
         }
       }
@@ -791,7 +791,7 @@ class AuthService {
           logger.info(`[handleEmailVerification] Using temporary user ${userId}`);
         } else {
           // Создаем нового пользователя
-          const newUserResult = await db.query('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+          const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
             'user',
           ]);
           userId = newUserResult.rows[0].id;
@@ -822,15 +822,15 @@ class AuthService {
           logger.info(`[handleEmailVerification] Role determined as: ${userRole}`);
 
           // Опционально: Обновить роль в таблице users
-          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
           if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
-            await db.query('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
+            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
             logger.info(`[handleEmailVerification] Updated user role in DB to ${userRole}`);
           }
         } else {
           logger.info(`[handleEmailVerification] No linked wallet found. Role remains 'user'.`);
           // Если кошелька нет, проверяем текущую роль из базы (на случай, если она была admin ранее)
-          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
           if (currentUser.rows.length > 0) {
             userRole = currentUser.rows[0].role;
           }
@@ -839,7 +839,7 @@ class AuthService {
         logger.error(`[handleEmailVerification] Error checking admin role:`, roleCheckError);
         // В случае ошибки берем текущую роль из базы или оставляем 'user'
         try {
-          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
           if (currentUser.rows.length > 0) {
             userRole = currentUser.rows[0].role;
           }

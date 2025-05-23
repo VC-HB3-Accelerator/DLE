@@ -99,3 +99,18 @@ docker compose down -v
 
 - Загрузка модели qwen2.5:7b может занять некоторое время в зависимости от скорости интернета
 - Для использования GPU Ollama требуются установленные драйверы NVIDIA и nvidia-container-toolkit
+
+## Важно! Если в контейнерах нет доступа к интернету
+
+1. Откройте Docker Desktop → Settings → Docker Engine.
+2. Добавьте строку:
+   "dns": ["8.8.8.8", "1.1.1.1"]
+   Пример:
+   {
+     ...
+     "dns": ["8.8.8.8", "1.1.1.1"]
+   }
+3. Нажмите "Apply & Restart".
+4. Перезапустите приложение:
+   docker compose down
+   docker compose up -d

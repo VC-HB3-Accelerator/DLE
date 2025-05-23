@@ -36,7 +36,7 @@ const requireAuth = async (req, res, next) => {
       const address = authHeader.split(' ')[1];
 
       if (address.startsWith('0x')) {
-        const result = await db.query(
+        const result = await db.getQuery()(
           `
           SELECT u.id, u.is_admin 
           FROM users u
@@ -114,7 +114,7 @@ async function requireAdmin(req, res, next) {
 
     // Проверка через ID пользователя
     if (req.session.userId) {
-      const userResult = await db.query('SELECT role FROM users WHERE id = $1', [
+      const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
         req.session.userId,
       ]);
       if (userResult.rows.length > 0 && userResult.rows[0].role === USER_ROLES.ADMIN) {
@@ -151,7 +151,7 @@ function requireRole(role) {
 
       // Проверка через ID пользователя
       if (req.session.userId) {
-        const userResult = await db.query('SELECT role FROM users WHERE id = $1', [
+        const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
           req.session.userId,
         ]);
         if (userResult.rows.length > 0 && userResult.rows[0].role === role) {

@@ -6,7 +6,7 @@ async function getAllRpcProviders() {
 }
 
 async function saveAllRpcProviders(rpcConfigs) {
-  await db.query('DELETE FROM rpc_providers');
+  await db.getQuery()('DELETE FROM rpc_providers');
   for (const cfg of rpcConfigs) {
     await db.query(
       'INSERT INTO rpc_providers (network_id, rpc_url, chain_id) VALUES ($1, $2, $3)',
@@ -25,7 +25,7 @@ async function upsertRpcProvider(cfg) {
 }
 
 async function deleteRpcProvider(networkId) {
-  await db.query('DELETE FROM rpc_providers WHERE network_id = $1', [networkId]);
+  await db.getQuery()('DELETE FROM rpc_providers WHERE network_id = $1', [networkId]);
 }
 
 module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider }; 

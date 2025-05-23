@@ -40,13 +40,13 @@ router.get('/nonce', async (req, res) => {
 
     if (existingNonce.rows.length > 0) {
       // Обновляем существующий nonce
-      await db.query(
+      await db.getQuery()(
         "UPDATE nonces SET nonce = $1, expires_at = NOW() + INTERVAL '15 minutes' WHERE identity_value = $2",
         [nonce, address.toLowerCase()]
       );
     } else {
       // Создаем новый nonce
-      await db.query(
+      await db.getQuery()(
         "INSERT INTO nonces (identity_value, nonce, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')",
         [address.toLowerCase(), nonce]
       );
@@ -82,7 +82,7 @@ router.post('/verify', async (req, res) => {
     const normalizedAddress = ethers.getAddress(address).toLowerCase();
 
     // Проверяем nonce
-    const nonceResult = await db.query('SELECT nonce FROM nonces WHERE identity_value = $1', [
+    const nonceResult = await db.getQuery()('SELECT nonce FROM nonces WHERE identity_value = $1', [
       normalizedAddress,
     ]);
     if (
@@ -131,7 +131,7 @@ router.post('/verify', async (req, res) => {
     const adminStatus = await authService.checkAdminTokens(normalizedAddress);
 
     if (adminStatus) {
-      await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+      await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
       isAdmin = true;
     }
 
@@ -211,7 +211,7 @@ router.post('/telegram/verify', async (req, res) => {
             // Обновляем роль в БД, если она отличается от той, что была получена из verifyTelegramAuth
             const currentRoleInDb = verificationResult.role === 'admin';
             if (finalIsAdmin !== currentRoleInDb) {
-                await db.query('UPDATE users SET role = $1 WHERE id = $2', [finalIsAdmin ? 'admin' : 'user', verificationResult.userId]);
+                await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [finalIsAdmin ? 'admin' : 'user', verificationResult.userId]);
                 logger.info(`[telegram/verify] User role updated in DB for user ${verificationResult.userId} to ${finalIsAdmin ? 'admin' : 'user'}`);
             }
         } else {
@@ -385,7 +385,7 @@ router.post('/email/verify-code', async (req, res) => {
             // Обновляем роль в БД, если она отличается от текущей
             const currentRole = authResult.role === 'admin';
             if (finalIsAdmin !== currentRole) {
-                await db.query('UPDATE users SET role = $1 WHERE id = $2', [finalIsAdmin ? 'admin' : 'user', authResult.userId]);
+                await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [finalIsAdmin ? 'admin' : 'user', authResult.userId]);
                 logger.info(`[email/verify-code] User role updated in DB for user ${authResult.userId} to ${finalIsAdmin ? 'admin' : 'user'}`);
             }
         } catch (tokenCheckError) {
@@ -533,7 +533,7 @@ router.get('/check', async (req, res) => {
         identities = await identityService.getUserIdentities(req.session.userId);
 
         // Проверяем роль пользователя
-        const roleResult = await db.query('SELECT role FROM users WHERE id = $1', [
+        const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
           req.session.userId,
         ]);
 
@@ -739,7 +739,7 @@ router.post('/wallet', async (req, res) => {
 
     // Обновляем роль пользователя в базе данных, если нужно
     if (isAdmin) {
-      await db.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
+      await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
     }
 
     // Сохраняем идентификаторы
