@@ -7,6 +7,7 @@ const rpcProviderService = require('../services/rpcProviderService');
 const authTokenService = require('../services/authTokenService');
 const aiProviderSettingsService = require('../services/aiProviderSettingsService');
 const aiAssistant = require('../services/ai-assistant');
+const dns = require('node:dns').promises;
 
 // Логируем версию ethers для отладки
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);

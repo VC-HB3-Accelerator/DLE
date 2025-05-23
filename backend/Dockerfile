@@ -1,9 +1,9 @@
-FROM node:20-alpine
+FROM node:20-bullseye
 
 WORKDIR /app
 
 # Устанавливаем зависимости, включая Python для node-gyp
-RUN apk add --no-cache python3 make g++ 
+RUN apt-get update && apt-get install -y python3 make g++ cmake openssl libssl-dev
 
 # Копируем package.json и yarn.lock для установки зависимостей
 COPY package.json yarn.lock ./

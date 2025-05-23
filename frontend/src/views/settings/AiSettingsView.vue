@@ -1,7 +1,7 @@
 <template>
   <div class="ai-settings settings-panel">
     <h2>Интеграции</h2>
-    <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings">
+    <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings && !showDbSettings">
       <div class="integration-block">
         <h3>OpenAI</h3>
         <p>Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).</p>
@@ -32,6 +32,11 @@
         <p>Интеграция с Email для отправки писем и уведомлений.</p>
         <button class="details-btn" @click="showEmailSettings = true">Подробнее</button>
       </div>
+      <div class="integration-block">
+        <h3>База данных</h3>
+        <p>Интеграция с PostgreSQL для хранения данных приложения и управления настройками.</p>
+        <button class="details-btn" @click="showDbSettings = true">Подробнее</button>
+      </div>
     </div>
     <AIProviderSettings
       v-if="showProvider"
@@ -46,6 +51,7 @@
     />
     <TelegramSettingsView v-if="showTelegramSettings" @cancel="showTelegramSettings = false" />
     <EmailSettingsView v-if="showEmailSettings" @cancel="showEmailSettings = false" />
+    <DatabaseSettingsView v-if="showDbSettings" @cancel="showDbSettings = false" />
   </div>
 </template>
 
@@ -54,9 +60,11 @@ import { ref } from 'vue';
 import AIProviderSettings from './AIProviderSettings.vue';
 import TelegramSettingsView from './TelegramSettingsView.vue';
 import EmailSettingsView from './EmailSettingsView.vue';
+import DatabaseSettingsView from './DatabaseSettingsView.vue';
 const showProvider = ref(null);
 const showTelegramSettings = ref(false);
 const showEmailSettings = ref(false);
+const showDbSettings = ref(false);
 
 const providerLabels = {
   openai: {

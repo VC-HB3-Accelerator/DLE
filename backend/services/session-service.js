@@ -65,7 +65,7 @@ class SessionService {
         guestIdsToProcess.add(session.guestId);
 
         // Записываем связь с пользователем в новую таблицу
-        await db.query(
+        await db.getQuery()(
           'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
           [userId, session.guestId]
         );
@@ -76,7 +76,7 @@ class SessionService {
         guestIdsToProcess.add(session.previousGuestId);
 
         // Записываем связь с пользователем в новую таблицу
-        await db.query(
+        await db.getQuery()(
           'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
           [userId, session.previousGuestId]
         );
@@ -95,9 +95,10 @@ class SessionService {
         session.processedGuestIds.push(guestId);
 
         // Помечаем guestId как обработанный в базе данных
-        await db.query('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [
-          guestId,
-        ]);
+        await db.getQuery()(
+          'UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1',
+          [guestId]
+        );
       }
 
       // Сохраняем сессию
@@ -182,7 +183,10 @@ class SessionService {
 
       logger.info(`[SessionService] Attempting to retrieve session ${sessionId}`);
 
-      const result = await db.query('SELECT sess FROM session WHERE sid = $1', [sessionId]);
+      const result = await db.getQuery()(
+        'SELECT sess FROM session WHERE sid = $1',
+        [sessionId]
+      );
 
       if (result.rows.length === 0) {
         logger.info(`[SessionService] No session found with ID ${sessionId}`);

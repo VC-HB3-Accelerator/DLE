@@ -32,4 +32,6 @@ module.exports = {
 
   telegramBot,
   aiAssistant,
+
+  interfaceService: require('./interfaceService'),
 };

@@ -39,7 +39,7 @@ class EmailAuth {
         logger.info(`[initEmailAuth] Found existing user ${userId} with email ${email}`);
       } else {
         // Создаем временного пользователя, если нужно будет создать нового
-        const userResult = await db.query('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+        const userResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
           'user',
         ]);
         userId = userResult.rows[0].id;
@@ -148,7 +148,7 @@ class EmailAuth {
           finalUserId = session.tempUserId;
           logger.info(`[checkEmailVerification] Using temporary user ${finalUserId}`);
         } else {
-          const newUserResult = await db.query(
+          const newUserResult = await db.getQuery()(
             'INSERT INTO users (role) VALUES ($1) RETURNING id',
             ['user']
           );
@@ -172,9 +172,9 @@ class EmailAuth {
           logger.info(`[checkEmailVerification] Role for user ${finalUserId} determined as: ${userRole}`);
 
           // Опционально: Обновить роль в таблице users, если она отличается
-          const currentUser = await db.query('SELECT role FROM users WHERE id = $1', [finalUserId]);
+          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [finalUserId]);
           if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
-            await db.query('UPDATE users SET role = $1 WHERE id = $2', [userRole, finalUserId]);
+            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [userRole, finalUserId]);
             logger.info(`[checkEmailVerification] Updated user role in DB to ${userRole}`);
           }
         } else {
