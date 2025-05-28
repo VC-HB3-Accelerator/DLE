@@ -20,7 +20,8 @@
           <i class="fas fa-address-book"></i> Подробнее
         </button>
       </div>
-      <ContactTable v-if="showContacts" :contacts="contacts" @close="showContacts = false" />
+      <ContactTable v-if="showContacts" :contacts="contacts" @close="showContacts = false" @show-details="openContactDetails" />
+      <ContactDetails v-if="showContactDetails" :contact="selectedContact" @close="showContactDetails = false" @contact-deleted="onContactDeleted" />
     </div>
   </BaseLayout>
 </template>
@@ -36,6 +37,7 @@ import dleService from '../services/dleService';
 import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
 import DleManagement from '../components/DleManagement.vue';
+import ContactDetails from '../components/ContactDetails.vue';
 
 // Определяем props
 const props = defineProps({
@@ -58,6 +60,8 @@ const showDleManagement = ref(false);
 const showContacts = ref(false);
 const contacts = ref([]);
 const isLoadingContacts = ref(false);
+const selectedContact = ref(null);
+const showContactDetails = ref(false);
 
 // Функция для перехода на домашнюю страницу и открытия боковой панели
 const goToHomeAndShowSidebar = () => {
@@ -135,6 +139,16 @@ async function loadContacts() {
 watch(showContacts, (val) => {
   if (val) loadContacts();
 });
+
+function openContactDetails(contact) {
+  selectedContact.value = contact;
+  showContactDetails.value = true;
+}
+
+function onContactDeleted() {
+  showContactDetails.value = false;
+  loadContacts();
+}
 </script>
 
 <style scoped>

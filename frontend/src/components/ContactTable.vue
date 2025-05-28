@@ -12,6 +12,7 @@
           <th>Telegram</th>
           <th>Кошелек</th>
           <th>Дата создания</th>
+          <th>Действие</th>
         </tr>
       </thead>
       <tbody>
@@ -21,6 +22,9 @@
           <td>{{ contact.telegram || '-' }}</td>
           <td>{{ contact.wallet || '-' }}</td>
           <td>{{ formatDate(contact.created_at) }}</td>
+          <td>
+            <button class="details-btn" @click="showDetails(contact)">Подробнее</button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -28,13 +32,17 @@
 </template>
 
 <script setup>
-import { defineProps } from 'vue';
+import { defineProps, defineEmits } from 'vue';
 const props = defineProps({
   contacts: { type: Array, required: true }
 });
+const emit = defineEmits(['show-details']);
 function formatDate(date) {
   if (!date) return '-';
   return new Date(date).toLocaleString();
+}
+function showDetails(contact) {
+  emit('show-details', contact);
 }
 </script>
 
@@ -118,5 +126,18 @@ function formatDate(date) {
   .contact-table-header h2 {
     font-size: 1.1rem;
   }
+}
+.details-btn {
+  background: #17a2b8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 0.98rem;
+  transition: background 0.2s;
+}
+.details-btn:hover {
+  background: #138496;
 }
 </style> 
