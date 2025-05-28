@@ -1,7 +1,7 @@
 const { pool } = require('../db');
 const verificationService = require('./verification-service');
 const logger = require('../utils/logger');
-const EmailBotService = require('./emailBot');
+const EmailBotService = require('./emailBot.js');
 const db = require('../db');
 const authService = require('./auth-service');
 

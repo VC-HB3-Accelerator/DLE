@@ -7,6 +7,7 @@ const verificationService = require('./verification-service'); // Использ
 const identityService = require('./identity-service'); // <-- ДОБАВЛЕН ИМПОРТ
 const authTokenService = require('./authTokenService');
 const rpcProviderService = require('./rpcProviderService');
+const { getLinkedWallet } = require('./wallet-service');
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
@@ -359,26 +360,6 @@ class AuthService {
     }
   }
 
-  // Получение связанного кошелька
-  async getLinkedWallet(userId) {
-    logger.info(`[getLinkedWallet] Called with userId: ${userId} (Type: ${typeof userId})`);
-    try {
-      const result = await db.getQuery()(
-        `SELECT provider_id as address 
-         FROM user_identities 
-         WHERE user_id = $1 AND provider = 'wallet'`,
-        [userId]
-      );
-      logger.info(`[getLinkedWallet] DB query result for userId ${userId}:`, result.rows);
-      const address = result.rows[0]?.address;
-      logger.info(`[getLinkedWallet] Returning address: ${address} for userId ${userId}`);
-      return address;
-    } catch (error) {
-      logger.error(`[getLinkedWallet] Error fetching linked wallet for userId ${userId}:`, error);
-      return undefined;
-    }
-  }
-
   /**
    * Проверяет роль пользователя Telegram
    * @param {number} userId - ID пользователя
@@ -387,7 +368,7 @@ class AuthService {
   async checkUserRole(userId) {
     try {
       // Проверяем наличие связанного кошелька
-      const wallet = await this.getLinkedWallet(userId);
+      const wallet = await getLinkedWallet(userId);
 
       // Если кошелек не привязан, пользователь получает роль user
       // с базовым доступом к чату и истории сообщений
@@ -429,7 +410,7 @@ class AuthService {
       }
 
       // Проверяем наличие кошелька и определяем роль
-      const wallet = await this.getLinkedWallet(userId);
+      const wallet = await getLinkedWallet(userId);
       let role = 'user'; // Базовая роль для доступа к чату
 
       if (wallet) {
@@ -814,7 +795,7 @@ class AuthService {
 
       // 4. Проверить роль на основе привязанного кошелька
       try {
-        const linkedWallet = await this.getLinkedWallet(userId);
+        const linkedWallet = await getLinkedWallet(userId);
         if (linkedWallet && linkedWallet.provider_id) {
           logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet.provider_id}. Checking role...`);
           const isAdmin = await this.checkAdminRole(linkedWallet.provider_id);

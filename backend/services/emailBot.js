@@ -5,6 +5,8 @@ const simpleParser = require('mailparser').simpleParser;
 const { processMessage } = require('./ai-assistant');
 const { inspect } = require('util');
 const logger = require('../utils/logger');
+const identityService = require('./identity-service');
+const aiAssistant = require('./ai-assistant');
 
 class EmailBotService {
   async getSettingsFromDb() {
@@ -124,6 +126,49 @@ class EmailBotService {
                       logger.error(`Error parsing message: ${err}`);
                       return;
                     }
+                    try {
+                      const fromEmail = parsed.from?.value?.[0]?.address;
+                      const subject = parsed.subject || '';
+                      const text = parsed.text || '';
+                      const html = parsed.html || '';
+                      // 1. Найти или создать пользователя
+                      const { userId, role } = await identityService.findOrCreateUserWithRole('email', fromEmail);
+                      // 2. Сохранить письмо и вложения в messages
+                      let hasAttachments = parsed.attachments && parsed.attachments.length > 0;
+                      if (hasAttachments) {
+                        for (const att of parsed.attachments) {
+                          await db.getQuery()(
+                            `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata)
+                             VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10, $11)`,
+                            [userId, 'user', text, 'email', role, 'in',
+                              att.filename,
+                              att.contentType,
+                              att.size,
+                              att.content,
+                              JSON.stringify({ subject, html })
+                            ]
+                          );
+                        }
+                      } else {
+                        await db.getQuery()(
+                          `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, metadata)
+                           VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
+                          [userId, 'user', text, 'email', role, 'in', JSON.stringify({ subject, html })]
+                        );
+                      }
+                      // 3. Получить ответ от ИИ
+                      const aiResponse = await aiAssistant.getResponse(text, 'auto');
+                      // 4. Сохранить ответ в БД
+                      await db.getQuery()(
+                        `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, metadata)
+                         VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
+                        [userId, 'assistant', aiResponse, 'email', role, 'out', JSON.stringify({ subject, html })]
+                      );
+                      // 5. Отправить ответ на email
+                      await this.sendEmail(fromEmail, 'Re: ' + subject, aiResponse);
+                    } catch (processErr) {
+                      logger.error('Error processing incoming email:', processErr);
+                    }
                   });
                 });
               });
@@ -180,6 +225,45 @@ class EmailBotService {
       logger.error('Error sending email:', error);
       throw error;
     }
+  }
+
+  async start() {
+    logger.info('[EmailBot] start() called');
+    const imapConfig = await this.getImapConfig();
+    // Логируем IMAP-конфиг (без пароля)
+    const safeConfig = { ...imapConfig };
+    if (safeConfig.password) safeConfig.password = '***';
+    logger.info('[EmailBot] IMAP config:', safeConfig);
+    let attempt = 0;
+    const maxAttempts = 3;
+    const tryConnect = () => {
+      attempt++;
+      logger.info(`[EmailBot] IMAP connect attempt ${attempt}`);
+      this.imap = new Imap(imapConfig);
+      this.imap.once('ready', () => {
+        logger.info('[EmailBot] IMAP connection ready');
+        this.imap.openBox('INBOX', false, (err, box) => {
+          if (err) {
+            logger.error(`[EmailBot] Error opening INBOX: ${err.message}`);
+            this.imap.end();
+            return;
+          }
+          logger.info('[EmailBot] INBOX opened successfully');
+        });
+        // После успешного подключения — обычная логика
+        this.checkEmails();
+        logger.info('[EmailBot] Email bot started and IMAP connection initiated');
+      });
+      this.imap.once('error', (err) => {
+        logger.error(`[EmailBot] IMAP connection error: ${err.message}`);
+        if (err.message && err.message.toLowerCase().includes('timed out') && attempt < maxAttempts) {
+          logger.warn(`[EmailBot] IMAP reconnecting in 10 seconds (attempt ${attempt + 1})...`);
+          setTimeout(tryConnect, 10000);
+        }
+      });
+      this.imap.connect();
+    };
+    tryConnect();
   }
 }
 

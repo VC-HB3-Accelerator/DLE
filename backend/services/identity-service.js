@@ -1,5 +1,6 @@
 const db = require('../db');
 const logger = require('../utils/logger');
+const { getLinkedWallet } = require('./wallet-service');
 
 /**
  * Сервис для работы с идентификаторами пользователей
@@ -520,6 +521,38 @@ class IdentityService {
       logger.error(`[IdentityService] Error deleting identity ${provider}:${providerId} for user ${userId}:`, error);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Универсальная функция: найти или создать пользователя по идентификатору, привязать идентификатор, проверить роль
+   * @param {string} provider - Тип идентификатора ('email' | 'telegram')
+   * @param {string} providerId - Значение идентификатора
+   * @param {object} [options] - Дополнительные опции
+   * @returns {Promise<{userId: number, role: string, isNew: boolean}>}
+   */
+  async findOrCreateUserWithRole(provider, providerId, options = {}) {
+    let user = await this.findUserByIdentity(provider, providerId);
+    let isNew = false;
+    if (!user) {
+      // Создаем пользователя
+      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', ['user']);
+      const userId = newUserResult.rows[0].id;
+      await this.saveIdentity(userId, provider, providerId, true);
+      user = { id: userId, role: 'user' };
+      isNew = true;
+    }
+    // Проверяем связь с кошельком
+    const wallet = await getLinkedWallet(user.id);
+    let role = 'user';
+    if (wallet) {
+      const isAdmin = await authService.checkAdminRole(wallet);
+      role = isAdmin ? 'admin' : 'user';
+      // Обновляем роль в users, если изменилась
+      if (user.role !== role) {
+        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, user.id]);
+      }
+    }
+    return { userId: user.id, role, isNew };
   }
 }
 
