@@ -40,8 +40,8 @@ async function initServices() {
 
       // Запуск email-бота
       console.log('Создаём экземпляр EmailBotService');
-      // const emailBot = new EmailBotService();
-      // await emailBot.start();
+      const emailBot = new EmailBotService();
+      await emailBot.start();
 
       // Добавляем graceful shutdown
       process.once('SIGINT', async () => {
