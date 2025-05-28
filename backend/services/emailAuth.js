@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const EmailBotService = require('./emailBot.js');
 const db = require('../db');
 const authService = require('./auth-service');
+const { checkAdminRole } = require('./admin-role');
 
 class EmailAuth {
   constructor() {
@@ -167,7 +168,7 @@ class EmailAuth {
         const linkedWallet = await authService.getLinkedWallet(finalUserId);
         if (linkedWallet) {
           logger.info(`[checkEmailVerification] Found linked wallet ${linkedWallet} for user ${finalUserId}. Checking admin role...`);
-          const isAdmin = await authService.checkAdminRole(linkedWallet);
+          const isAdmin = await checkAdminRole(linkedWallet);
           userRole = isAdmin ? 'admin' : 'user';
           logger.info(`[checkEmailVerification] Role for user ${finalUserId} determined as: ${userRole}`);
 

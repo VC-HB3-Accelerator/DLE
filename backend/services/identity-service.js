@@ -1,6 +1,7 @@
 const db = require('../db');
 const logger = require('../utils/logger');
 const { getLinkedWallet } = require('./wallet-service');
+const { checkAdminRole } = require('./admin-role');
 
 /**
  * Сервис для работы с идентификаторами пользователей
@@ -545,7 +546,7 @@ class IdentityService {
     const wallet = await getLinkedWallet(user.id);
     let role = 'user';
     if (wallet) {
-      const isAdmin = await authService.checkAdminRole(wallet);
+      const isAdmin = await checkAdminRole(wallet);
       role = isAdmin ? 'admin' : 'user';
       // Обновляем роль в users, если изменилась
       if (user.role !== role) {

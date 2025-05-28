@@ -8,6 +8,7 @@ const identityService = require('./identity-service'); // <-- ДОБАВЛЕН �
 const authTokenService = require('./authTokenService');
 const rpcProviderService = require('./rpcProviderService');
 const { getLinkedWallet } = require('./wallet-service');
+const { checkAdminRole } = require('./admin-role');
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
@@ -57,7 +58,7 @@ class AuthService {
         const user = userResult.rows[0];
 
         // Проверяем роль администратора при каждой аутентификации
-        const isAdmin = await this.checkAdminRole(normalizedAddress);
+        const isAdmin = await checkAdminRole(normalizedAddress);
 
         // Если статус админа изменился, обновляем роль в базе данных
         if (user.role === 'admin' && !isAdmin) {
@@ -90,7 +91,7 @@ class AuthService {
       );
 
       // Проверяем, есть ли у пользователя роль админа
-      const isAdmin = await this.checkAdminRole(normalizedAddress);
+      const isAdmin = await checkAdminRole(normalizedAddress);
       logger.info(`New user ${userId} role check result: ${isAdmin ? 'admin' : 'user'}`);
 
       // Если у пользователя есть админские токены, обновляем его роль
@@ -106,97 +107,6 @@ class AuthService {
       logger.error('Error finding or creating user:', error);
       throw error;
     }
-  }
-
-  /**
-   * Основной метод проверки роли админа
-   * @param {string} address - Адрес кошелька
-   * @returns {Promise<boolean>} - Является ли пользователь админом
-   */
-  async checkAdminRole(address) {
-    if (!address) return false;
-    logger.info(`Checking admin role for address: ${address}`);
-    let foundTokens = false;
-    let errorCount = 0;
-    const balances = {};
-    // Получаем токены и RPC из базы
-    const tokens = await authTokenService.getAllAuthTokens();
-    const rpcProviders = await rpcProviderService.getAllRpcProviders();
-    const rpcMap = {};
-    for (const rpc of rpcProviders) {
-      rpcMap[rpc.network_id] = rpc.rpc_url;
-    }
-    const checkPromises = tokens.map(async (token) => {
-      try {
-        const rpcUrl = rpcMap[token.network];
-        if (!rpcUrl) {
-          logger.error(`No RPC URL for network ${token.network}`);
-          balances[token.network] = 'Error: No RPC URL';
-          errorCount++;
-          return null;
-        }
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
-        // Проверяем доступность сети с таймаутом
-        try {
-          const networkCheckPromise = provider.getNetwork();
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Network check timeout')), 3000)
-          );
-          await Promise.race([networkCheckPromise, timeoutPromise]);
-        } catch (networkError) {
-          logger.error(`Provider for ${token.network} is not available: ${networkError.message}`);
-          balances[token.network] = 'Error: Network unavailable';
-          errorCount++;
-          return null;
-        }
-        const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
-        const balancePromise = tokenContract.balanceOf(address);
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout')), 3000)
-        );
-        const balance = await Promise.race([balancePromise, timeoutPromise]);
-        const formattedBalance = ethers.formatUnits(balance, 18);
-        balances[token.network] = formattedBalance;
-        logger.info(`Token balance on ${token.network}:`, {
-          address,
-          contract: token.address,
-          balance: formattedBalance,
-          minBalance: token.min_balance,
-          hasTokens: parseFloat(formattedBalance) >= parseFloat(token.min_balance),
-        });
-        if (parseFloat(formattedBalance) >= parseFloat(token.min_balance)) {
-          logger.info(`Found admin tokens on ${token.network}`);
-          foundTokens = true;
-        }
-        return { network: token.network, balance: formattedBalance };
-      } catch (error) {
-        logger.error(`Error checking balance in ${token.network}:`, {
-          address,
-          contract: token.address,
-          error: error.message || 'Unknown error',
-        });
-        balances[token.network] = 'Error';
-        errorCount++;
-        return null;
-      }
-    });
-    await Promise.all(checkPromises);
-    if (errorCount === tokens.length) {
-      logger.error(`All network checks for ${address} failed. Cannot verify admin status.`);
-      return false;
-    }
-    if (foundTokens) {
-      logger.info(`Admin role summary for ${address}:`, {
-        networks: Object.keys(balances).filter(
-          (net) => parseFloat(balances[net]) > 0 && balances[net] !== 'Error'
-        ),
-        balances,
-      });
-      logger.info(`Admin role granted for ${address}`);
-      return true;
-    }
-    logger.info(`Admin role denied - no tokens found for ${address}`);
-    return false;
   }
 
   /**
@@ -378,7 +288,7 @@ class AuthService {
       }
 
       // Если есть кошелек, проверяем админские токены
-      const isAdmin = await this.checkAdminRole(wallet);
+      const isAdmin = await checkAdminRole(wallet);
       logger.info(
         `Role check for user ${userId} with wallet ${wallet}: ${isAdmin ? 'admin' : 'user'}`
       );
@@ -415,7 +325,7 @@ class AuthService {
 
       if (wallet) {
         // Если есть кошелек, проверяем баланс токенов
-        const isAdmin = await this.checkAdminRole(wallet);
+        const isAdmin = await checkAdminRole(wallet);
         role = isAdmin ? 'admin' : 'user';
         logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
       } else {
@@ -530,7 +440,7 @@ class AuthService {
     logger.info(`Checking admin tokens for address: ${address}`);
 
     try {
-      const isAdmin = await this.checkAdminRole(address);
+      const isAdmin = await checkAdminRole(address);
 
       // Обновляем роль пользователя в базе данных, если есть админские токены
       if (isAdmin) {
@@ -798,7 +708,7 @@ class AuthService {
         const linkedWallet = await getLinkedWallet(userId);
         if (linkedWallet && linkedWallet.provider_id) {
           logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet.provider_id}. Checking role...`);
-          const isAdmin = await this.checkAdminRole(linkedWallet.provider_id);
+          const isAdmin = await checkAdminRole(linkedWallet.provider_id);
           userRole = isAdmin ? 'admin' : 'user';
           logger.info(`[handleEmailVerification] Role determined as: ${userRole}`);
 

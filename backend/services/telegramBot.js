@@ -6,6 +6,7 @@ const verificationService = require('./verification-service');
 const crypto = require('crypto');
 const identityService = require('./identity-service');
 const aiAssistant = require('./ai-assistant');
+const { checkAdminRole } = require('./admin-role');
 
 let botInstance = null;
 let telegramSettingsCache = null;
@@ -158,7 +159,7 @@ async function getBot() {
               const linkedWallet = await authService.getLinkedWallet(userId);
               if (linkedWallet) { 
                 logger.info(`[TelegramBot] Found linked wallet ${linkedWallet} for user ${userId}. Checking role...`);
-                const isAdmin = await authService.checkAdminRole(linkedWallet);
+                const isAdmin = await checkAdminRole(linkedWallet);
                 userRole = isAdmin ? 'admin' : 'user';
                 logger.info(`[TelegramBot] Role for user ${userId} determined as: ${userRole}`);
 

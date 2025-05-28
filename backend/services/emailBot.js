@@ -236,6 +236,7 @@ class EmailBotService {
     logger.info('[EmailBot] IMAP config:', safeConfig);
     let attempt = 0;
     const maxAttempts = 3;
+    this.isChecking = false;
     const tryConnect = () => {
       attempt++;
       logger.info(`[EmailBot] IMAP connect attempt ${attempt}`);
@@ -253,6 +254,17 @@ class EmailBotService {
         // После успешного подключения — обычная логика
         this.checkEmails();
         logger.info('[EmailBot] Email bot started and IMAP connection initiated');
+        // Периодическая проверка почты
+        setInterval(async () => {
+          if (this.isChecking) return;
+          this.isChecking = true;
+          try {
+            await this.checkEmails();
+          } catch (e) {
+            logger.error('[EmailBot] Error in periodic checkEmails:', e);
+          }
+          this.isChecking = false;
+        }, 60000); // 60 секунд
       });
       this.imap.once('error', (err) => {
         logger.error(`[EmailBot] IMAP connection error: ${err.message}`);
