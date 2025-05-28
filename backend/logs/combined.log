@@ -1,664 +1,754 @@
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:02:07.765Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:13.313Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:13.318Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:13.337Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:13.339Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:13.350Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:13.356Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:13.370Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:13.374Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:13.388Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:13.391Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:13.407Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:13.411Z"}
-{"level":"info","message":"PATCH /api/users/13","timestamp":"2025-05-28T13:02:23.168Z"}
-{"level":"info","message":"PATCH /api/users/13","timestamp":"2025-05-28T13:02:27.166Z"}
-{"level":"info","message":"PATCH /api/users/13","timestamp":"2025-05-28T13:02:29.854Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:43.540Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:43.545Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:43.560Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:43.563Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:43.573Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:43.576Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:43.591Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:43.597Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:43.614Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:43.617Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:02:43.636Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:02:43.639Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:02:53.678Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.859Z"}
-{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:03:13.521Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:03:13.531Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:03:13.557Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:03:13.560Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:03:13.593Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:03:13.598Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:03:13.634Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:03:13.642Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:03:13.660Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:03:13.665Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:03:13.683Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:03:13.685Z"}
-{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-05-28T13:03:16.868Z"}
-{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:03:17.471Z"}
-{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:03:17.473Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:03:23.798Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:03:48.341Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:03:57.375Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:04.340Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:04.362Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:04.379Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:04.383Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:04.402Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:04.409Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:04.435Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:04.438Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:04.457Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:04.460Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:04.482Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:04.485Z"}
-{"level":"info","message":"PATCH /api/users/13","timestamp":"2025-05-28T13:04:06.073Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:13.965Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:13.967Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:13.987Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:13.990Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:14.010Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:14.014Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:14.028Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:14.032Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:14.053Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:14.063Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:14.079Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:14.083Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.747Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.747Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.748Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.748Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.748Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:43.277Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:44.204Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:44.208Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:44.228Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:44.231Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:44.247Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:44.253Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:44.267Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:44.269Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:44.284Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:44.288Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:04:44.312Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:04:44.317Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:04:56.674Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:04:56.745Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:04:56.784Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:05:12.662Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:05:12.663Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:05:38.648Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:05:38.697Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:05:45.752Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:05:45.761Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:05:45.775Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:05:45.777Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:05:45.798Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:05:45.809Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:05:45.847Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:05:45.850Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:05:45.872Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:05:45.874Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:05:45.892Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:05:45.894Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:05:51.635Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:06:07.601Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:06:07.608Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:06:07.609Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:06:32.967Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:06:33.045Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:06:44.699Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:06:44.714Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:06:44.717Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:06:44.744Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:06:44.748Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:06:44.761Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:06:44.764Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:06:44.791Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:06:44.793Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:06:44.807Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:06:44.810Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:06:44.821Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:06:44.823Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:06:58.150Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:07:23.712Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.568Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.568Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.569Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.569Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.569Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:07:46.782Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:07:46.789Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:07:46.822Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:07:46.830Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:07:46.845Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:07:46.848Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:07:46.861Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:07:46.863Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:07:46.881Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:07:46.884Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:07:46.894Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:07:46.899Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:07:53.443Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:07:53.491Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:08:22.751Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:08:36.453Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:08:47.821Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:08:47.827Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:08:47.852Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:08:47.869Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:08:47.887Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:08:47.891Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:08:47.909Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:08:47.912Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:08:47.933Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:08:47.935Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:08:47.953Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:08:47.957Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:08:52.415Z"}
-{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T13:09:08.491Z"}
-{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T13:09:08.557Z"}
-{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T13:09:08.558Z"}
-{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T13:09:08.564Z"}
-{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T13:09:08.565Z"}
-{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T13:09:08.567Z"}
-{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T13:09:13.816Z"}
-{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T13:09:13.842Z"}
-{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T13:09:13.955Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
-{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T13:09:13.958Z"}
-{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:09:19.185Z"}
-{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:09:19.190Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:09:24.232Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:09:49.791Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:09:49.800Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:09:50.292Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:09:50.296Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:09:50.373Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:09:50.376Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:09:50.402Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:09:50.417Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:09:50.440Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:09:50.442Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:09:50.458Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:09:50.460Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:10:15.881Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:10:54.211Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:10:54.216Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:10:54.234Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:10:54.237Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:10:54.251Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:10:54.254Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:10:54.269Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:10:54.273Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:10:54.286Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:10:54.289Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:10:54.310Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:10:54.314Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:11:09.745Z"}
-{"level":"info","message":"Executing UP migration from 026_add_preferred_language_to_users.sql...","timestamp":"2025-05-28T13:11:42.195Z"}
-{"level":"info","message":"Migration 026_add_preferred_language_to_users.sql executed successfully","timestamp":"2025-05-28T13:11:42.217Z"}
-{"level":"info","message":"Function link_guest_messages.sql executed successfully","timestamp":"2025-05-28T13:11:42.971Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:11:49.604Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:11:49.608Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:11:49.619Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:11:49.621Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:11:51.449Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:11:51.470Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:11:51.495Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:11:51.497Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:11:51.508Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:11:51.510Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:11:51.520Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:11:51.522Z"}
-{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T13:12:00.418Z"}
-{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T13:12:00.423Z"}
-{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T13:12:00.424Z"}
-{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T13:12:00.426Z"}
-{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T13:12:00.427Z"}
-{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T13:12:00.429Z"}
-{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T13:12:07.330Z"}
-{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T13:12:07.358Z"}
-{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T13:12:07.447Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
-{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T13:12:07.452Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:12:13.523Z"}
-{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-05-28T13:12:13.524Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:13.901Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:13.908Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:18.961Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:18.969Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:19.012Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.014Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:19.052Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.056Z"}
-{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:12:19.088Z"}
-{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:12:19.090Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:19.115Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.126Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:19.256Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.259Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:19.626Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.629Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:19.653Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.669Z"}
-{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T13:12:19.692Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:19.733Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.744Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:19.827Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:19.834Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.837Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.841Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:19.889Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:19.895Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.794Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.803Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:20.810Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.813Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.831Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.835Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:20.839Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.842Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.873Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.878Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:20.888Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.890Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.905Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.909Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.924Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:20.929Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.932Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.935Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.947Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.955Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:12:20.963Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.974Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:20.993Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:20.996Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.016Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.021Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.040Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.042Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.061Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.068Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.085Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.087Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.103Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.107Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.127Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.129Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.145Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.148Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.174Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.178Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.196Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.198Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.214Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.217Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.236Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.240Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:21.257Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:21.261Z"}
-{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-05-28T13:12:21.082Z"}
-{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:12:22.374Z"}
-{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:12:22.378Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:12:23.844Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:12:27.308Z"}
-{"level":"info","message":"GET /api/messages?userId=90","timestamp":"2025-05-28T13:12:33.034Z"}
-{"level":"info","message":"PATCH /api/users/90","timestamp":"2025-05-28T13:12:41.021Z"}
-{"level":"info","message":"PATCH /api/users/90","timestamp":"2025-05-28T13:12:43.063Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:46.888Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:46.891Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:49.531Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:49.534Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:49.546Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:49.550Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:49.571Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:49.580Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:49.601Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:49.604Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:12:49.642Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:12:49.644Z"}
-{"level":"info","message":"PATCH /api/users/90","timestamp":"2025-05-28T13:13:18.947Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:21.855Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:21.859Z"}
-{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T13:13:23.756Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:13:24.400Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:29.681Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:29.700Z"}
-{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T13:13:29.723Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:29.747Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:29.753Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:29.773Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:29.779Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:29.800Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:29.803Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:29.814Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:29.819Z"}
-{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:13:33.171Z"}
-{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:13:33.550Z"}
-{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:13:34.571Z"}
-{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:13:36.772Z"}
-{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:13:39.354Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:48.297Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:48.299Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:48.491Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:48.494Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:48.517Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:48.519Z"}
-{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:13:48.554Z"}
-{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:13:48.555Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:48.559Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:48.562Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:49.641Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:52.382Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:13:52.400Z"}
-{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T13:13:52.402Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:52.418Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:52.423Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:52.443Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:52.448Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.680Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.683Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.687Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.692Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.709Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.719Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.728Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.732Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.748Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.763Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.782Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.787Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.802Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.813Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.833Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.840Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.864Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.867Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.898Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.906Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.908Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.911Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.936Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.938Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.941Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.947Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.956Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.959Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:13:54.978Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.982Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:54.987Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:54.994Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.014Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.018Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.051Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.053Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.070Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.073Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.092Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.094Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.111Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.114Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.131Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.134Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.151Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.154Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.168Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.171Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.198Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.202Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.225Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.228Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.245Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.250Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.271Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.273Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:13:55.287Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:13:55.289Z"}
-{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-05-28T13:14:06.836Z"}
-{"address":null,"authType":null,"authenticated":false,"cookie":{"expires":"2025-06-27T11:09:43.800Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"email":null,"guestId":null,"isAdmin":false,"level":"info","message":"[SessionService] Saving session data:","pendingEmail":null,"previousGuestId":null,"processedGuestIds":[],"telegramId":null,"timestamp":"2025-05-28T13:14:06.837Z","userId":null}
-{"level":"info","message":"Session saved successfully","timestamp":"2025-05-28T13:14:06.842Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:14:06.856Z"}
-{"cookie":{"expires":"2025-06-27T13:14:06.854Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"3fe8a3e22225b0e8b06d7b4b3098ecf9","level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-05-28T13:14:06.857Z"}
-{"level":"info","message":"Session saved successfully","timestamp":"2025-05-28T13:14:06.861Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.520Z"}
-{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-05-28T13:14:17.521Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.521Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.522Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.522Z"}
-{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-05-28T13:14:27.529Z"}
-{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:14:28.651Z"}
-{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:14:28.655Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:14:29.491Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:15:08.086Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:15:28.736Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:16:07.430Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:16:19.287Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:17:03.083Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:17:13.102Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:17:58.822Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:18:14.356Z"}
-{"level":"info","message":"GET /","timestamp":"2025-05-28T13:18:22.790Z"}
-{"level":"error","message":"Error: undefined","timestamp":"2025-05-28T13:18:22.803Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:18:47.896Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:48.634Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:48.648Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:48.658Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:48.670Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:48.720Z"}
-{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-05-28T13:18:52.434Z"}
-{"level":"info","message":"Nonce 0ca114de0a1d32e9e42068d34968e368 сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-05-28T13:18:52.441Z"}
-{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-05-28T13:18:55.064Z"}
-{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-05-28T13:18:55.065Z"}
-{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:55.132Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","minBalance":"10.000000000000000000","timestamp":"2025-05-28T13:18:55.711Z"}
-{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-05-28T13:18:55.712Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on ethereum:","minBalance":"10.000000000000000000","timestamp":"2025-05-28T13:18:56.141Z"}
-{"level":"info","message":"Found admin tokens on ethereum","timestamp":"2025-05-28T13:18:56.141Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdCe769b847a0a697239777D0B1C7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","minBalance":"100.000000000000000000","timestamp":"2025-05-28T13:18:56.266Z"}
-{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-05-28T13:18:56.266Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4b294265720b09ca39bfba18c7e368413c0f68eb","hasTokens":true,"level":"info","message":"Token balance on bsc:","minBalance":"10.000000000000000000","timestamp":"2025-05-28T13:18:56.268Z"}
-{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-05-28T13:18:56.268Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"110.0","contract":"0xef49261169B454f191678D2aFC5E91Ad2e85dfD8","hasTokens":true,"level":"info","message":"Token balance on sepolia:","minBalance":"50.000000000000000000","timestamp":"2025-05-28T13:18:56.276Z"}
-{"level":"info","message":"Found admin tokens on sepolia","timestamp":"2025-05-28T13:18:56.276Z"}
-{"balances":{"arbitrum":"499999.9","bsc":"500000.0","ethereum":"1500000.0","polygon":"454852.0","sepolia":"110.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["polygon","ethereum","arbitrum","bsc","sepolia"],"timestamp":"2025-05-28T13:18:56.277Z"}
-{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:56.278Z"}
-{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:56.278Z"}
-{"level":"info","message":"[IdentityService] Converting guest identity for user 1 to guest_user_mapping: 3fe8a3e22225b0e8b06d7b4b3098ecf9","timestamp":"2025-05-28T13:18:56.279Z"}
-{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:56.292Z"}
-{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:56.292Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4b294265720b09ca39bfba18c7e368413c0f68eb","hasTokens":true,"level":"info","message":"Token balance on bsc:","minBalance":"10.000000000000000000","timestamp":"2025-05-28T13:18:56.570Z"}
-{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-05-28T13:18:56.570Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"110.0","contract":"0xef49261169B454f191678D2aFC5E91Ad2e85dfD8","hasTokens":true,"level":"info","message":"Token balance on sepolia:","minBalance":"50.000000000000000000","timestamp":"2025-05-28T13:18:56.730Z"}
-{"level":"info","message":"Found admin tokens on sepolia","timestamp":"2025-05-28T13:18:56.731Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on ethereum:","minBalance":"10.000000000000000000","timestamp":"2025-05-28T13:18:56.742Z"}
-{"level":"info","message":"Found admin tokens on ethereum","timestamp":"2025-05-28T13:18:56.742Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","minBalance":"10.000000000000000000","timestamp":"2025-05-28T13:18:56.910Z"}
-{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-05-28T13:18:56.910Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdCe769b847a0a697239777D0B1C7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","minBalance":"100.000000000000000000","timestamp":"2025-05-28T13:18:56.928Z"}
-{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-05-28T13:18:56.928Z"}
-{"balances":{"arbitrum":"499999.9","bsc":"500000.0","ethereum":"1500000.0","polygon":"454852.0","sepolia":"110.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["bsc","sepolia","ethereum","polygon","arbitrum"],"timestamp":"2025-05-28T13:18:56.928Z"}
-{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:56.929Z"}
-{"level":"info","message":"Updated user 1 role to admin based on token holdings","timestamp":"2025-05-28T13:18:56.934Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","authType":"wallet","authenticated":true,"cookie":{"expires":"2025-06-27T13:14:06.854Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"3fe8a3e22225b0e8b06d7b4b3098ecf9","isAdmin":true,"level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-05-28T13:18:56.937Z","userId":1}
-{"level":"info","message":"Session saved successfully","timestamp":"2025-05-28T13:18:56.941Z"}
-{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=3fe8a3e22225b0e8b06d7b4b3098ecf9, previousGuestId=undefined","timestamp":"2025-05-28T13:18:56.943Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=3fe8a3e22225b0e8b06d7b4b3098ecf9","timestamp":"2025-05-28T13:18:56.949Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID 3fe8a3e22225b0e8b06d7b4b3098ecf9","timestamp":"2025-05-28T13:18:56.951Z"}
-{"level":"info","message":"No guest messages found for guest ID 3fe8a3e22225b0e8b06d7b4b3098ecf9","timestamp":"2025-05-28T13:18:56.961Z"}
-{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 3fe8a3e22225b0e8b06d7b4b3098ecf9","timestamp":"2025-05-28T13:18:56.965Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=22ffc8b90cb9797d120322ebfc24fb5f","timestamp":"2025-05-28T13:18:56.969Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID 22ffc8b90cb9797d120322ebfc24fb5f","timestamp":"2025-05-28T13:18:56.969Z"}
-{"level":"info","message":"Guest messages for guest ID 22ffc8b90cb9797d120322ebfc24fb5f were already processed.","timestamp":"2025-05-28T13:18:56.972Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d66e4157dfd0dd76e64369ee84bf4009","timestamp":"2025-05-28T13:18:56.977Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID d66e4157dfd0dd76e64369ee84bf4009","timestamp":"2025-05-28T13:18:56.977Z"}
-{"level":"info","message":"Guest messages for guest ID d66e4157dfd0dd76e64369ee84bf4009 were already processed.","timestamp":"2025-05-28T13:18:56.979Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dfb1bffd21993323e084091b0534ff4f","timestamp":"2025-05-28T13:18:56.985Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID dfb1bffd21993323e084091b0534ff4f","timestamp":"2025-05-28T13:18:56.985Z"}
-{"level":"info","message":"Guest messages for guest ID dfb1bffd21993323e084091b0534ff4f were already processed.","timestamp":"2025-05-28T13:18:56.987Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8f23022510a7d82d4724b6e69619a706","timestamp":"2025-05-28T13:18:56.994Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID 8f23022510a7d82d4724b6e69619a706","timestamp":"2025-05-28T13:18:56.994Z"}
-{"level":"info","message":"Guest messages for guest ID 8f23022510a7d82d4724b6e69619a706 were already processed.","timestamp":"2025-05-28T13:18:56.995Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=b2185db5534f63a29075ae66404db5c1","timestamp":"2025-05-28T13:18:56.999Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID b2185db5534f63a29075ae66404db5c1","timestamp":"2025-05-28T13:18:56.999Z"}
-{"level":"info","message":"Guest messages for guest ID b2185db5534f63a29075ae66404db5c1 were already processed.","timestamp":"2025-05-28T13:18:57.001Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=ec9893a230932ecc5abcd333d350876e","timestamp":"2025-05-28T13:18:57.004Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID ec9893a230932ecc5abcd333d350876e","timestamp":"2025-05-28T13:18:57.005Z"}
-{"level":"info","message":"Guest messages for guest ID ec9893a230932ecc5abcd333d350876e were already processed.","timestamp":"2025-05-28T13:18:57.006Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=dff2dcf575964f9437437d5fd1ff9c0a","timestamp":"2025-05-28T13:18:57.009Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID dff2dcf575964f9437437d5fd1ff9c0a","timestamp":"2025-05-28T13:18:57.010Z"}
-{"level":"info","message":"Guest messages for guest ID dff2dcf575964f9437437d5fd1ff9c0a were already processed.","timestamp":"2025-05-28T13:18:57.011Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=bf01418860b15404bd4a8576f2c71a92","timestamp":"2025-05-28T13:18:57.015Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID bf01418860b15404bd4a8576f2c71a92","timestamp":"2025-05-28T13:18:57.015Z"}
-{"level":"info","message":"Guest messages for guest ID bf01418860b15404bd4a8576f2c71a92 were already processed.","timestamp":"2025-05-28T13:18:57.017Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f2b6e1c8c2f5ed8ef53d5d1b6bf6e56e","timestamp":"2025-05-28T13:18:57.020Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID f2b6e1c8c2f5ed8ef53d5d1b6bf6e56e","timestamp":"2025-05-28T13:18:57.021Z"}
-{"level":"info","message":"Guest messages for guest ID f2b6e1c8c2f5ed8ef53d5d1b6bf6e56e were already processed.","timestamp":"2025-05-28T13:18:57.023Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=59fc98c0423c96b7a7ba11af5b873ba4","timestamp":"2025-05-28T13:18:57.027Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID 59fc98c0423c96b7a7ba11af5b873ba4","timestamp":"2025-05-28T13:18:57.029Z"}
-{"level":"info","message":"Guest messages for guest ID 59fc98c0423c96b7a7ba11af5b873ba4 were already processed.","timestamp":"2025-05-28T13:18:57.032Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=8a9ae1e5c07ba11c666e5974141e8f54","timestamp":"2025-05-28T13:18:57.035Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID 8a9ae1e5c07ba11c666e5974141e8f54","timestamp":"2025-05-28T13:18:57.036Z"}
-{"level":"info","message":"Guest messages for guest ID 8a9ae1e5c07ba11c666e5974141e8f54 were already processed.","timestamp":"2025-05-28T13:18:57.037Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d1db5bb388f00ecd1cf268492853c489","timestamp":"2025-05-28T13:18:57.040Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID d1db5bb388f00ecd1cf268492853c489","timestamp":"2025-05-28T13:18:57.040Z"}
-{"level":"info","message":"Guest messages for guest ID d1db5bb388f00ecd1cf268492853c489 were already processed.","timestamp":"2025-05-28T13:18:57.042Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=172cc69ec74cac73b96cfacdc2ebc94c","timestamp":"2025-05-28T13:18:57.044Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID 172cc69ec74cac73b96cfacdc2ebc94c","timestamp":"2025-05-28T13:18:57.045Z"}
-{"level":"info","message":"Guest messages for guest ID 172cc69ec74cac73b96cfacdc2ebc94c were already processed.","timestamp":"2025-05-28T13:18:57.046Z"}
-{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d2149d70299a2e847d19e783804bf71d","timestamp":"2025-05-28T13:18:57.049Z"}
-{"level":"info","message":"Processing guest messages for user 1 with guest ID d2149d70299a2e847d19e783804bf71d","timestamp":"2025-05-28T13:18:57.050Z"}
-{"level":"info","message":"Guest messages for guest ID d2149d70299a2e847d19e783804bf71d were already processed.","timestamp":"2025-05-28T13:18:57.051Z"}
-{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","authType":"wallet","authenticated":true,"cookie":{"expires":"2025-06-27T13:14:06.854Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"3fe8a3e22225b0e8b06d7b4b3098ecf9","isAdmin":true,"level":"info","message":"[SessionService] Saving session data:","processedGuestIds":["3fe8a3e22225b0e8b06d7b4b3098ecf9","22ffc8b90cb9797d120322ebfc24fb5f","d66e4157dfd0dd76e64369ee84bf4009","dfb1bffd21993323e084091b0534ff4f","8f23022510a7d82d4724b6e69619a706","b2185db5534f63a29075ae66404db5c1","ec9893a230932ecc5abcd333d350876e","dff2dcf575964f9437437d5fd1ff9c0a","bf01418860b15404bd4a8576f2c71a92","f2b6e1c8c2f5ed8ef53d5d1b6bf6e56e","59fc98c0423c96b7a7ba11af5b873ba4","8a9ae1e5c07ba11c666e5974141e8f54","d1db5bb388f00ecd1cf268492853c489","172cc69ec74cac73b96cfacdc2ebc94c","d2149d70299a2e847d19e783804bf71d"],"timestamp":"2025-05-28T13:18:57.054Z","userId":1}
-{"level":"info","message":"Session saved successfully","timestamp":"2025-05-28T13:18:57.058Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:57.276Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.278Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.294Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.297Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:57.311Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.313Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.324Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.326Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.338Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.339Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.352Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.354Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:57.370Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.371Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.389Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.391Z"}
-{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:18:57.417Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.420Z"}
-{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:57.442Z"}
-{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:57.443Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.454Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.458Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.476Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.477Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:18:57.491Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:18:57.494Z"}
-{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:58.785Z"}
-{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:18:58.786Z"}
-{"action":"call","code":"CALL_EXCEPTION","data":null,"info":{"error":{"code":19,"message":"Unable to perform request"},"payload":{"id":2,"jsonrpc":"2.0","method":"eth_call","params":[{"data":"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b","to":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d"},"latest"]}},"invocation":null,"level":"error","message":"[getUserTokenBalances] Ошибка получения баланса для HB3A (0x351f59de4fedbdf7601f5592b93db3b9330c1c1d) в сети polygon: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b\", \"to\": \"0x351F59dE4FEdBDf7601F5592B93db3B9330c1C1d\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.13.5)","reason":null,"revert":null,"shortMessage":"missing revert data","stack":"Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b\", \"to\": \"0x351F59dE4FEdBDf7601F5592B93db3B9330c1C1d\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.13.5)\n    at makeError (/app/node_modules/ethers/lib.commonjs/utils/errors.js:129:21)\n    at getBuiltinCallException (/app/node_modules/ethers/lib.commonjs/abi/abi-coder.js:105:37)\n    at AbiCoder.getBuiltinCallException (/app/node_modules/ethers/lib.commonjs/abi/abi-coder.js:206:16)\n    at JsonRpcProvider.getRpcError (/app/node_modules/ethers/lib.commonjs/providers/provider-jsonrpc.js:676:43)\n    at /app/node_modules/ethers/lib.commonjs/providers/provider-jsonrpc.js:302:45\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2025-05-28T13:19:00.049Z","transaction":{"data":"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b","to":"0x351F59dE4FEdBDf7601F5592B93db3B9330c1C1d"}}
-{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T13:19:00.417Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:19:02.102Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:19:04.148Z"}
-{"level":"info","message":"GET /api/messages?userId=90","timestamp":"2025-05-28T13:19:11.148Z"}
-{"level":"info","message":"GET /api/messages?userId=46","timestamp":"2025-05-28T13:19:22.150Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:19:27.570Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:19:27.572Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:19:27.705Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:19:27.707Z"}
-{"level":"info","message":"DELETE /api/users/46","timestamp":"2025-05-28T13:19:30.248Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:19:30.277Z"}
-{"level":"info","message":"GET /api/messages?userId=75","timestamp":"2025-05-28T13:19:33.467Z"}
-{"level":"info","message":"DELETE /api/users/75","timestamp":"2025-05-28T13:19:38.198Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:19:38.215Z"}
-{"level":"info","message":"GET /api/messages?userId=58","timestamp":"2025-05-28T13:19:41.268Z"}
-{"level":"info","message":"DELETE /api/users/58","timestamp":"2025-05-28T13:19:46.451Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:19:46.470Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:19:47.252Z"}
-{"level":"info","message":"GET /api/messages?userId=47","timestamp":"2025-05-28T13:19:50.970Z"}
-{"level":"info","message":"DELETE /api/users/47","timestamp":"2025-05-28T13:19:55.863Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:19:55.882Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:19:57.804Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:19:57.805Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:19:57.946Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:19:57.948Z"}
-{"level":"info","message":"GET /api/messages?userId=57","timestamp":"2025-05-28T13:19:59.198Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:19:59.208Z"}
-{"level":"info","message":"DELETE /api/users/57","timestamp":"2025-05-28T13:20:03.449Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:03.467Z"}
-{"level":"info","message":"GET /api/messages?userId=56","timestamp":"2025-05-28T13:20:07.240Z"}
-{"level":"info","message":"DELETE /api/users/56","timestamp":"2025-05-28T13:20:09.526Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:09.545Z"}
-{"level":"info","message":"GET /api/messages?userId=55","timestamp":"2025-05-28T13:20:14.152Z"}
-{"level":"info","message":"DELETE /api/users/55","timestamp":"2025-05-28T13:20:18.249Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:18.267Z"}
-{"level":"info","message":"GET /api/messages?userId=54","timestamp":"2025-05-28T13:20:21.980Z"}
-{"level":"info","message":"DELETE /api/users/54","timestamp":"2025-05-28T13:20:26.596Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:26.615Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:20:28.030Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:20:28.032Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:20:28.177Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:20:28.178Z"}
-{"level":"info","message":"GET /api/messages?userId=53","timestamp":"2025-05-28T13:20:29.804Z"}
-{"level":"info","message":"DELETE /api/users/53","timestamp":"2025-05-28T13:20:33.840Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:33.861Z"}
-{"level":"info","message":"GET /api/messages?userId=52","timestamp":"2025-05-28T13:20:36.940Z"}
-{"level":"info","message":"DELETE /api/users/52","timestamp":"2025-05-28T13:20:41.795Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:41.810Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:20:42.232Z"}
-{"level":"info","message":"GET /api/messages?userId=51","timestamp":"2025-05-28T13:20:46.479Z"}
-{"level":"info","message":"DELETE /api/users/51","timestamp":"2025-05-28T13:20:50.305Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:50.324Z"}
-{"level":"info","message":"GET /api/messages?userId=50","timestamp":"2025-05-28T13:20:53.902Z"}
-{"level":"info","message":"DELETE /api/users/50","timestamp":"2025-05-28T13:20:57.699Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:20:57.719Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:20:58.258Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:20:58.259Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:20:58.389Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:20:58.401Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:20:58.403Z"}
-{"level":"info","message":"GET /api/messages?userId=49","timestamp":"2025-05-28T13:21:03.118Z"}
-{"level":"info","message":"DELETE /api/users/49","timestamp":"2025-05-28T13:21:04.581Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:21:04.600Z"}
-{"level":"info","message":"GET /api/messages?userId=48","timestamp":"2025-05-28T13:21:08.081Z"}
-{"level":"info","message":"DELETE /api/users/48","timestamp":"2025-05-28T13:21:11.771Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:21:11.789Z"}
-{"level":"info","message":"GET /api/messages?userId=88","timestamp":"2025-05-28T13:21:21.666Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:21:28.491Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:21:28.493Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:21:28.634Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:21:28.636Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:21:32.657Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:21:53.446Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:21:58.743Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:21:58.746Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:21:58.873Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:21:58.875Z"}
-{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:22:12.041Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:22:26.447Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:22:26.450Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:22:26.570Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:22:26.572Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:22:28.172Z"}
-{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:22:48.242Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:22:56.975Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:22:56.978Z"}
-{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:22:56.990Z"}
-{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:22:56.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.102Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:47:34.707Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:47:34.753Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:48:05.417Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:48:05.422Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:48:05.448Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:48:05.450Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:48:05.489Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:48:05.491Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:48:05.508Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:48:05.510Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:48:05.524Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:48:05.526Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:48:05.538Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:48:05.541Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:48:13.489Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:48:29.618Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:49:06.964Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:49:06.966Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:49:06.975Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:49:06.978Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:49:06.988Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:49:06.990Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:49:07.002Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:49:07.005Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:49:07.015Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:49:07.017Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:49:07.026Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:49:07.028Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:49:12.913Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.092Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.092Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.093Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.093Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.093Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:50:05.996Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:50:05.998Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:50:06.008Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:50:06.010Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:50:06.021Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:50:06.023Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:50:06.033Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:50:06.035Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:50:06.045Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:50:06.048Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:50:06.061Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:50:06.063Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:50:07.773Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:50:07.816Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:50:23.859Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:50:58.482Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:51:07.530Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:51:07.533Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:51:07.545Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:51:07.547Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:51:07.557Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:51:07.559Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:51:07.568Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:51:07.570Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:51:07.581Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:51:07.583Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:51:07.593Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:51:07.596Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:51:14.544Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.934Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.934Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:52:09.114Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:52:09.119Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:52:09.134Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:52:09.136Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:52:09.149Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:52:09.151Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:52:09.169Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:52:09.171Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:52:09.194Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:52:09.197Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:52:09.208Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:52:09.210Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:52:09.477Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:52:09.528Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T13:52:46.005Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T13:52:46.014Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T13:52:46.014Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T13:52:46.015Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T13:52:46.016Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T13:52:46.016Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T13:52:46.285Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T13:52:46.297Z"}
+{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T13:52:46.382Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T13:52:46.383Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:52:49.080Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-05-28T13:52:49.081Z"}
+{"level":"info","message":"GET /api/messages?userId=1","timestamp":"2025-05-28T13:52:56.611Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-05-28T13:52:59.083Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:53:04.147Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:53:04.150Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:53:04.925Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:09.578Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:09.585Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:09.602Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:09.606Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:09.621Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:09.625Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:09.644Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:09.648Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:09.663Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:09.666Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:09.677Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:09.680Z"}
+{"level":"info","message":"PATCH /api/users/1","timestamp":"2025-05-28T13:53:26.988Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:33.472Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:33.476Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:33.579Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:33.582Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:33.600Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:33.603Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:33.619Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:33.623Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:33.962Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:33.964Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:53:34.228Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:53:34.231Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T13:53:44.684Z"}
+{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:53:48.056Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T13:53:53.325Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:53:59.931Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:04.559Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:04.562Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:04.574Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:04.577Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:04.589Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:04.592Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:04.604Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:04.607Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:04.618Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:04.621Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:04.633Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:04.635Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:34.791Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:34.795Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:34.805Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:34.807Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:34.820Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:34.823Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:34.833Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:34.836Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:34.847Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:34.849Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:54:34.860Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:54:34.863Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:54:59.078Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:07.965Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:07.969Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:07.984Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:07.986Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:08.003Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:08.005Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:08.017Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:08.020Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:08.031Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:08.035Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:08.045Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:08.047Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T13:55:27.492Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T13:55:27.496Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T13:55:27.497Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T13:55:27.498Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T13:55:27.498Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T13:55:27.499Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T13:55:27.815Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T13:55:27.831Z"}
+{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T13:55:27.904Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T13:55:27.905Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:55:30.373Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:55:30.375Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:55:35.472Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:54.056Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:54.064Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:54.089Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:54.095Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:54.111Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:54.118Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:54.133Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:54.136Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:54.151Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:54.154Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:55:54.167Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:55:54.169Z"}
+{"level":"info","message":"Executing UP migration from 027_fix_preferred_language_type.sql...","timestamp":"2025-05-28T13:56:02.622Z"}
+{"level":"info","message":"Migration 027_fix_preferred_language_type.sql executed successfully","timestamp":"2025-05-28T13:56:02.640Z"}
+{"level":"info","message":"Function link_guest_messages.sql executed successfully","timestamp":"2025-05-28T13:56:02.661Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:02.953Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:02.956Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:02.969Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:02.973Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:02.986Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:02.989Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:03.001Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:03.003Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:03.015Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:03.019Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:03.032Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:03.035Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:14.907Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:14.912Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:14.962Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:14.966Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.019Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.022Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.046Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.049Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.086Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.093Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.128Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:56:15.131Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T13:56:15.133Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.135Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.147Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T13:56:15.193Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.199Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.222Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.226Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.228Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.230Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.247Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.254Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.257Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.259Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.272Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.275Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.277Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.280Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.292Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.296Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.304Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.310Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.317Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.326Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.337Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.345Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.354Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.357Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.377Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.380Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.392Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.395Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T13:56:15.406Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.409Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.422Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.426Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.444Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.447Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.459Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.463Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.478Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.480Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.491Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.494Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.505Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.507Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.518Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.520Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.530Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.533Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.543Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.546Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.557Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.559Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.570Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.572Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.584Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.587Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.599Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.602Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.614Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.616Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:15.626Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:15.634Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T13:56:17.891Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T13:56:24.616Z"}
+{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T13:56:27.781Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:56:30.493Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T13:56:39.393Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:46.272Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:46.275Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:46.290Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:46.292Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:46.310Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:46.312Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:46.323Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:46.325Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:46.334Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:46.337Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:56:46.346Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:56:46.348Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:16.530Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:16.532Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:16.543Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:16.545Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:16.557Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:16.559Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:16.570Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:16.572Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:16.582Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:16.584Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:16.595Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:16.598Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:57:21.047Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:46.752Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:46.755Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:46.766Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:46.769Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:46.780Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:46.783Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:46.795Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:46.800Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:46.811Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:46.815Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:57:46.826Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:57:46.828Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:16.983Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:16.986Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:16.997Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:17.000Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:17.011Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:17.013Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:17.023Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:17.026Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:17.036Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:17.038Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:19.313Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:19.315Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:58:20.793Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:44.693Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:44.697Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:44.707Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:44.710Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:44.721Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:44.723Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:44.733Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:44.736Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:44.746Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:44.748Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:58:44.759Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:58:44.761Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:59:10.903Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:59:14.923Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:59:14.926Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:59:14.937Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:59:14.940Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:59:14.949Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:59:14.952Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:59:14.963Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:59:14.966Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:59:14.974Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:59:14.976Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T13:59:14.986Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T13:59:14.988Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T13:59:41.661Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T13:59:41.664Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T13:59:41.666Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T13:59:41.667Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T13:59:41.668Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T13:59:41.669Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T13:59:41.970Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T13:59:41.985Z"}
+{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T13:59:42.075Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T13:59:42.076Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T13:59:42.786Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T13:59:42.789Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T13:59:43.493Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:07.774Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:07.785Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:07.806Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:07.812Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:07.826Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:07.832Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:07.844Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:07.847Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:07.859Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:07.861Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:07.874Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:07.876Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T14:00:15.197Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T14:00:15.201Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T14:00:15.202Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T14:00:15.202Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T14:00:15.203Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T14:00:15.204Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T14:00:15.468Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T14:00:15.481Z"}
+{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T14:00:15.523Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T14:00:15.524Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:19.315Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:19.322Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:19.354Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:19.359Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:19.379Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:19.386Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:19.405Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:19.408Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:19.425Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:19.429Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:19.465Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:19.468Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T14:00:20.654Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T14:00:20.657Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T14:00:21.442Z"}
+{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T14:00:22.848Z"}
+{"body":{"language":["ru"]},"error":{"code":"22P02","detail":"Expected \":\", but found \"}\".","file":"jsonfuncs.c","length":193,"line":"646","name":"error","routine":"json_errsave_error","severity":"ERROR","where":"JSON data, line 1: {\"ru\"}\nunnamed portal parameter $1 = '...'"},"level":"error","message":"PATCH /api/users/:id error","stack":"error: invalid input syntax for type json\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async /app/routes/users.js:165:20","timestamp":"2025-05-28T14:00:22.853Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:25.798Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:25.803Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:25.849Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:25.852Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:25.877Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:25.882Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T14:00:25.917Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T14:00:25.919Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:25.968Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:25.972Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:25.991Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:25.996Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.014Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.017Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T14:00:26.025Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.050Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.054Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.075Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.078Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.082Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.085Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.100Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.108Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.111Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.114Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.136Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.146Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.152Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.154Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.166Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.169Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.179Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.181Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.196Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.199Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.205Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.207Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.221Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.224Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.242Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.246Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.249Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.252Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.266Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.270Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:00:26.278Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.281Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.289Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.292Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.306Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.309Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.319Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.323Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.334Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.336Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.350Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.352Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.364Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.368Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.380Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.383Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.400Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.402Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.415Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.418Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.433Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.435Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.446Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.449Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.461Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.463Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.475Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.477Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:26.487Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:26.490Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T14:00:28.211Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T14:00:34.087Z"}
+{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T14:00:37.771Z"}
+{"body":{"language":["ru","en"]},"error":{"code":"22P02","detail":"Expected \":\", but found \",\".","file":"jsonfuncs.c","length":196,"line":"646","name":"error","routine":"json_errsave_error","severity":"ERROR","where":"JSON data, line 1: {\"ru\",...\nunnamed portal parameter $1 = '...'"},"level":"error","message":"PATCH /api/users/:id error","stack":"error: invalid input syntax for type json\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async /app/routes/users.js:165:20","timestamp":"2025-05-28T14:00:37.773Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T14:00:46.008Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:56.527Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:56.531Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:57.600Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:57.603Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:57.615Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:57.617Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:57.630Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:57.632Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:57.648Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:57.651Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:00:57.663Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:00:57.665Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T14:01:16.411Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:26.759Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:26.762Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:27.840Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:27.842Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:27.854Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:27.856Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:27.867Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:27.869Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:27.881Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:27.883Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:27.893Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:27.896Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:59.267Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:54.477Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:54.488Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:54.490Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:55.537Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:55.539Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:55.552Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:55.555Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:55.569Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:55.572Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:01:55.583Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:01:55.585Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T14:02:11.393Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T14:02:24.532Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T14:02:24.534Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T14:02:24.535Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T14:02:24.536Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T14:02:24.536Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T14:02:24.537Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T14:02:24.810Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T14:02:24.825Z"}
+{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T14:02:24.909Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T14:02:24.910Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T14:02:25.503Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T14:02:25.505Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:25.787Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:25.791Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:25.809Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:25.813Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:25.828Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:25.833Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:25.846Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:25.849Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:25.861Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:25.863Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T14:02:26.137Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-05-28T14:02:33.177Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-05-28T14:02:33.180Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-05-28T14:02:33.181Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-05-28T14:02:33.182Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-05-28T14:02:33.183Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-05-28T14:02:33.184Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-05-28T14:02:33.462Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-05-28T14:02:33.481Z"}
+{"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-05-28T14:02:33.556Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-05-28T14:02:33.558Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-05-28T14:02:34.278Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-05-28T14:02:34.281Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T14:02:35.154Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:37.949Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:37.965Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.004Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.010Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.055Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.058Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.076Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.081Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.106Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.113Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.139Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.144Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T14:02:38.159Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T14:02:38.162Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T14:02:38.164Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.170Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.199Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.224Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.227Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.229Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.232Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.249Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.252Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.255Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.266Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.293Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.296Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.299Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.302Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.319Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.322Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.324Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.327Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.340Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.344Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.353Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.356Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.370Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.373Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.375Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.379Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.397Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.400Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.403Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.408Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.419Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.422Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:02:38.432Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.435Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.441Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.447Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.460Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.463Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.475Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.477Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.489Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.493Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.506Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.509Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.521Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.525Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.537Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.539Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.551Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.553Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.565Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.568Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.580Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.582Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.595Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.597Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.608Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.611Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:02:38.620Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:02:38.622Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T14:02:40.300Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T14:02:45.025Z"}
+{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T14:02:49.070Z"}
+{"level":"info","message":"PATCH /api/users/96","timestamp":"2025-05-28T14:02:51.162Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:00.819Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:00.821Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:00.865Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:00.868Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:00.895Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:00.901Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T14:03:00.937Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-05-28T14:03:00.938Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:00.972Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:00.981Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:00.982Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:00.986Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.005Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.007Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.023Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.030Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.036Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.045Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.068Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.072Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.076Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.081Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-05-28T14:03:01.090Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.095Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.106Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.110Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.114Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.125Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.129Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.138Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.141Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.150Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.154Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.162Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.165Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.190Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.193Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.211Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.214Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.218Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.224Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.243Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.247Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.250Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.252Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.264Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.271Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:01.281Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.285Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.291Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.296Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.312Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.317Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.330Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.332Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.345Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.348Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.358Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.361Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.371Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.374Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.383Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.386Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.397Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.399Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.411Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.414Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.424Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.427Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.441Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.445Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.458Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.461Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:01.474Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-05-28T14:03:01.479Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-05-28T14:03:02.560Z"}
+{"level":"info","message":"GET /api/messages?userId=96","timestamp":"2025-05-28T14:03:08.586Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-05-28T14:03:17.084Z"}
+{"address":null,"authType":null,"authenticated":false,"cookie":{"expires":"2025-06-27T13:40:53.254Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"email":null,"guestId":null,"isAdmin":false,"level":"info","message":"[SessionService] Saving session data:","pendingEmail":null,"previousGuestId":null,"processedGuestIds":[],"telegramId":null,"timestamp":"2025-05-28T14:03:17.085Z","userId":null}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-05-28T14:03:17.089Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:17.107Z"}
+{"cookie":{"expires":"2025-06-27T14:03:17.105Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"1aa6ad3dbe0e801e7f8737980fb33083","level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-05-28T14:03:17.109Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-05-28T14:03:17.114Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-05-28T14:03:30.036Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:31.707Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:31.717Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:31.760Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:31.783Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-05-28T14:03:31.790Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:32.700Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:32.747Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:32.764Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:32.778Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:32.793Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-05-28T14:03:32.808Z"}

@@ -91,7 +91,7 @@ const allLanguages = [
   { value: 'uk', label: 'Українська' },
   { value: 'other', label: 'Другое' }
 ];
-const selectedLanguages = ref(Array.isArray(props.contact.language) ? props.contact.language : (props.contact.language ? [props.contact.language] : []));
+const selectedLanguages = ref(Array.isArray(props.contact.preferred_language) ? props.contact.preferred_language : (props.contact.preferred_language ? [props.contact.preferred_language] : []));
 const langInput = ref('');
 const showLangDropdown = ref(false);
 const filteredLanguages = computed(() => {
@@ -169,6 +169,9 @@ async function loadMessages() {
 }
 onMounted(loadMessages);
 watch(() => props.contact, loadMessages);
+watch(() => props.contact.preferred_language, (newVal) => {
+  selectedLanguages.value = Array.isArray(newVal) ? newVal : (newVal ? [newVal] : []);
+});
 </script>
 
 <style scoped>

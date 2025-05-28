@@ -1,31 +1,27 @@
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.859Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.860Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:03:06.861Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.747Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.747Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.748Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.748Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:17.748Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:04:43.277Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:05:12.662Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:05:12.663Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:06:07.601Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:06:07.608Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:06:07.609Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.568Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.568Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.569Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.569Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:07:41.569Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:12:13.523Z"}
-{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.520Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.521Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.522Z"}
-{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:14:17.522Z"}
-{"level":"error","message":"Error: undefined","timestamp":"2025-05-28T13:18:22.803Z"}
-{"action":"call","code":"CALL_EXCEPTION","data":null,"info":{"error":{"code":19,"message":"Unable to perform request"},"payload":{"id":2,"jsonrpc":"2.0","method":"eth_call","params":[{"data":"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b","to":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d"},"latest"]}},"invocation":null,"level":"error","message":"[getUserTokenBalances] Ошибка получения баланса для HB3A (0x351f59de4fedbdf7601f5592b93db3b9330c1c1d) в сети polygon: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b\", \"to\": \"0x351F59dE4FEdBDf7601F5592B93db3B9330c1C1d\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.13.5)","reason":null,"revert":null,"shortMessage":"missing revert data","stack":"Error: missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b\", \"to\": \"0x351F59dE4FEdBDf7601F5592B93db3B9330c1C1d\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.13.5)\n    at makeError (/app/node_modules/ethers/lib.commonjs/utils/errors.js:129:21)\n    at getBuiltinCallException (/app/node_modules/ethers/lib.commonjs/abi/abi-coder.js:105:37)\n    at AbiCoder.getBuiltinCallException (/app/node_modules/ethers/lib.commonjs/abi/abi-coder.js:206:16)\n    at JsonRpcProvider.getRpcError (/app/node_modules/ethers/lib.commonjs/providers/provider-jsonrpc.js:676:43)\n    at /app/node_modules/ethers/lib.commonjs/providers/provider-jsonrpc.js:302:45\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2025-05-28T13:19:00.049Z","transaction":{"data":"0x70a08231000000000000000000000000f45aa4917b3775ba37f48aeb3dc1a943561e9e0b","to":"0x351F59dE4FEdBDf7601F5592B93db3B9330c1C1d"}}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.102Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.103Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:47:23.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.092Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.092Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.093Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.093Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:49:29.093Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.934Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-05-28T13:51:57.934Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-05-28T13:52:49.080Z"}
+{"body":{"language":["ru"]},"error":{"code":"22P02","detail":"Expected \":\", but found \"}\".","file":"jsonfuncs.c","length":193,"line":"646","name":"error","routine":"json_errsave_error","severity":"ERROR","where":"JSON data, line 1: {\"ru\"}\nunnamed portal parameter $1 = '...'"},"level":"error","message":"PATCH /api/users/:id error","stack":"error: invalid input syntax for type json\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async /app/routes/users.js:165:20","timestamp":"2025-05-28T14:00:22.853Z"}
+{"body":{"language":["ru","en"]},"error":{"code":"22P02","detail":"Expected \":\", but found \",\".","file":"jsonfuncs.c","length":196,"line":"646","name":"error","routine":"json_errsave_error","severity":"ERROR","where":"JSON data, line 1: {\"ru\",...\nunnamed portal parameter $1 = '...'"},"level":"error","message":"PATCH /api/users/:id error","stack":"error: invalid input syntax for type json\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async /app/routes/users.js:165:20","timestamp":"2025-05-28T14:00:37.773Z"}
