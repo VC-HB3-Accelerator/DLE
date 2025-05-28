@@ -6,9 +6,9 @@ const { requireAuth } = require('../middleware/auth');
 // const userService = require('../services/userService');
 
 // Получение списка пользователей
-router.get('/', (req, res) => {
-  res.json({ message: 'Users API endpoint' });
-});
+// router.get('/', (req, res) => {
+//   res.json({ message: 'Users API endpoint' });
+// });
 
 // Получение информации о пользователе
 router.get('/:address', (req, res) => {
@@ -91,6 +91,36 @@ router.put('/profile', requireAuth, async (req, res) => {
   }
 });
 */
+
+// Получение списка пользователей с контактами
+router.get('/', async (req, res, next) => {
+  try {
+    const usersResult = await db.getQuery()('SELECT id, first_name, last_name, created_at FROM users ORDER BY id');
+    const users = usersResult.rows;
+    // Получаем все user_identities разом
+    const identitiesResult = await db.getQuery()('SELECT user_id, provider, provider_id FROM user_identities');
+    const identities = identitiesResult.rows;
+    // Группируем идентификаторы по user_id
+    const identityMap = {};
+    for (const id of identities) {
+      if (!identityMap[id.user_id]) identityMap[id.user_id] = {};
+      if (!identityMap[id.user_id][id.provider]) identityMap[id.user_id][id.provider] = id.provider_id;
+    }
+    // Собираем контакты
+    const contacts = users.map(u => ({
+      id: u.id,
+      name: [u.first_name, u.last_name].filter(Boolean).join(' ') || null,
+      email: identityMap[u.id]?.email || null,
+      telegram: identityMap[u.id]?.telegram || null,
+      wallet: identityMap[u.id]?.wallet || null,
+      created_at: u.created_at
+    }));
+    res.json({ success: true, contacts });
+  } catch (error) {
+    logger.error('Error fetching contacts:', error);
+    next(error);
+  }
+});
 
 // GET /api/users - Получить список всех пользователей (пример, может требовать прав администратора)
 // В текущей реализации этот маршрут не используется и закомментирован

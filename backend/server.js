@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
-const emailBot = require('./services/emailBot');
 const session = require('express-session');
 const { app, nonceStore } = require('./app');
 const usersRouter = require('./routes/users');
@@ -15,6 +14,7 @@ const { getBot, stopBot } = require('./services/telegramBot');
 const pgSession = require('connect-pg-simple')(session);
 const authService = require('./services/auth-service');
 const logger = require('./utils/logger');
+const EmailBotService = require('./services/emailBot.js');
 
 const PORT = process.env.PORT || 8000;
 
@@ -28,12 +28,20 @@ async function initServices() {
     console.log('Инициализация сервисов...');
 
     // Останавливаем предыдущий экземпляр бота
+    console.log('Перед stopBot');
     await stopBot();
+    console.log('После stopBot, перед getBot');
+    getBot();
+    console.log('После getBot, перед созданием EmailBotService');
 
     // Добавляем обработку ошибок при запуске бота
     try {
-      await getBot(); // getBot теперь асинхронный и сам запускает бота
-      console.log('Telegram bot started');
+      console.log('Пробуем создать экземпляр EmailBotService');
+
+      // Запуск email-бота
+      console.log('Создаём экземпляр EmailBotService');
+      // const emailBot = new EmailBotService();
+      // await emailBot.start();
 
       // Добавляем graceful shutdown
       process.once('SIGINT', async () => {
@@ -53,6 +61,7 @@ async function initServices() {
         // Бот будет запущен при следующем перезапуске
       } else {
         logger.error('Error launching Telegram bot:', error);
+        console.error('Ошибка при запуске Telegram-бота:', error);
       }
     }
 
@@ -91,12 +100,13 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Запуск сервера
-const host = app.get('host');
-app.listen(PORT, host, async () => {
+// Для отладки
+// const host = app.get('host');
+// console.log('host:', host);
+app.listen(PORT, async () => {
   try {
     await initServices();
-    console.log(`Server is running on http://${host}:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
   } catch (error) {
     console.error('Error starting server:', error);
     process.exit(1);
