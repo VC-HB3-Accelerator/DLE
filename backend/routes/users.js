@@ -95,7 +95,7 @@ router.put('/profile', requireAuth, async (req, res) => {
 // Получение списка пользователей с контактами
 router.get('/', async (req, res, next) => {
   try {
-    const usersResult = await db.getQuery()('SELECT id, first_name, last_name, created_at FROM users ORDER BY id');
+    const usersResult = await db.getQuery()('SELECT id, first_name, last_name, created_at, preferred_language FROM users ORDER BY id');
     const users = usersResult.rows;
     // Получаем все user_identities разом
     const identitiesResult = await db.getQuery()('SELECT user_id, provider, provider_id FROM user_identities');
@@ -113,7 +113,8 @@ router.get('/', async (req, res, next) => {
       email: identityMap[u.id]?.email || null,
       telegram: identityMap[u.id]?.telegram || null,
       wallet: identityMap[u.id]?.wallet || null,
-      created_at: u.created_at
+      created_at: u.created_at,
+      preferred_language: u.preferred_language || []
     }));
     res.json({ success: true, contacts });
   } catch (error) {
@@ -157,13 +158,14 @@ router.patch('/:id', async (req, res) => {
     }
     if (language !== undefined) {
       fields.push(`preferred_language = $${idx++}`);
-      values.push(Array.isArray(language) ? JSON.stringify(language) : language);
+      values.push(JSON.stringify(language));
     }
     values.push(userId);
     const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
     const result = await db.getQuery()(sql, values);
     res.json(result.rows[0]);
   } catch (e) {
+    logger.error('PATCH /api/users/:id error', { error: e, body: req.body, stack: e.stack });
     res.status(500).json({ error: 'DB error', details: e.message });
   }
 });
