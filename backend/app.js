@@ -11,6 +11,7 @@ const db = require('./db'); // Добавляем импорт db
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
 const fs = require('fs');
 const path = require('path');
+const messagesRoutes = require('./routes/messages');
 
 // Проверка и создание директорий для хранения данных контрактов
 const ensureDirectoriesExist = () => {
@@ -77,7 +78,7 @@ app.use(
       'http://127.0.0.1:5173', // Добавляем альтернативный origin
     ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   })
 );
@@ -163,6 +164,7 @@ app.use('/api/isic', isicRoutes); // Добавленное использова
 app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
 app.use('/api/dle', dleRoutes); // Добавляем маршрут DLE
 app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
+app.use('/api/messages', messagesRoutes);
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

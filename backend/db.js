@@ -97,10 +97,4 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
 }
 
 // Экспортируем функции для работы с базой данных
-module.exports = {
-  getPool,
-  getQuery,
-  reinitPoolFromDbSettings,
-  saveGuestMessageToDatabase,
-  setPoolChangeCallback,
-};
+module.exports = { getQuery, pool, getPool, setPoolChangeCallback };

@@ -138,4 +138,54 @@ router.get('/', async (req, res) => {
 });
 */
 
+// PATCH /api/users/:id — обновить имя и язык
+router.patch('/:id', async (req, res) => {
+  const userId = req.params.id;
+  const { name, language } = req.body;
+  if (!name && !language) return res.status(400).json({ error: 'Nothing to update' });
+  try {
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    if (name !== undefined) {
+      // Разделяем имя на first_name и last_name (по пробелу)
+      const [firstName, ...lastNameArr] = name.split(' ');
+      fields.push(`first_name = $${idx++}`);
+      values.push(firstName);
+      fields.push(`last_name = $${idx++}`);
+      values.push(lastNameArr.join(' ') || null);
+    }
+    if (language !== undefined) {
+      fields.push(`preferred_language = $${idx++}`);
+      values.push(Array.isArray(language) ? JSON.stringify(language) : language);
+    }
+    values.push(userId);
+    const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const result = await db.getQuery()(sql, values);
+    res.json(result.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// DELETE /api/users/:id — удалить контакт и все связанные данные
+router.delete('/:id', async (req, res) => {
+  const userId = req.params.id;
+  const client = await db.getPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM user_identities WHERE user_id = $1', [userId]);
+    await client.query('DELETE FROM messages WHERE user_id = $1', [userId]);
+    // Добавьте другие связанные таблицы, если нужно
+    await client.query('DELETE FROM users WHERE id = $1', [userId]);
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: 'DB error', details: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
