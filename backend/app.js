@@ -63,6 +63,7 @@ const isicRoutes = require('./routes/isic'); // Добавленный импо�
 const geocodingRoutes = require('./routes/geocoding'); // Добавленный импорт
 const dleRoutes = require('./routes/dle'); // Добавляем импорт DLE маршрутов
 const settingsRoutes = require('./routes/settings'); // Добавляем импорт маршрутов настроек
+const tablesRoutes = require('./routes/tables'); // Добавляем импорт таблиц
 
 const app = express();
 
@@ -154,9 +155,10 @@ app.use((req, res, next) => {
 });
 
 // Маршруты API
+app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
+app.use('/api', identitiesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api', identitiesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);

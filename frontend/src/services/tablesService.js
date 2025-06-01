@@ -1,52 +1,52 @@
-import axios from 'axios';
+import api from '../api/axios';
 
-const api = '/api/tables';
+const tablesApi = '/api/tables';
 
 export default {
   async getTables() {
-    const res = await axios.get(`${api}?_t=${Date.now()}`);
+    const res = await api.get(`${tablesApi}?_t=${Date.now()}`);
     return res.data;
   },
   async createTable(data) {
-    const res = await axios.post(api, data);
+    const res = await api.post(tablesApi, data);
     return res.data;
   },
   async getTable(id) {
-    const res = await axios.get(`${api}/${id}`);
+    const res = await api.get(`${tablesApi}/${id}`);
     return res.data;
   },
   async addColumn(tableId, data) {
-    const res = await axios.post(`${api}/${tableId}/columns`, data);
+    const res = await api.post(`${tablesApi}/${tableId}/columns`, data);
     return res.data;
   },
   async addRow(tableId) {
-    const res = await axios.post(`${api}/${tableId}/rows`);
+    const res = await api.post(`${tablesApi}/${tableId}/rows`);
     return res.data;
   },
   async saveCell(data) {
-    const res = await axios.post(`${api}/cell`, data);
+    const res = await api.post(`${tablesApi}/cell`, data);
     return res.data;
   },
   async deleteColumn(columnId) {
-    const res = await axios.delete(`${api}/column/${columnId}`);
+    const res = await api.delete(`${tablesApi}/column/${columnId}`);
     return res.data;
   },
   async deleteRow(rowId) {
-    const res = await axios.delete(`${api}/row/${rowId}`);
+    const res = await api.delete(`${tablesApi}/row/${rowId}`);
     return res.data;
   },
   async updateColumn(columnId, data) {
-    const res = await axios.patch(`${api}/column/${columnId}`, data);
+    const res = await api.patch(`${tablesApi}/column/${columnId}`, data);
     return res.data;
   },
   async updateTable(id, data) {
-    const res = await axios.patch(`${api}/${id}`, data);
+    const res = await api.patch(`${tablesApi}/${id}`, data);
     return res.data;
   },
   async deleteTable(id) {
     console.log('tablesService.deleteTable called with id:', id);
     try {
-      const res = await axios.delete(`${api}/${id}`);
+      const res = await api.delete(`${tablesApi}/${id}`);
       console.log('Delete response:', res.data);
       return res.data;
     } catch (error) {

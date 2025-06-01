@@ -416,15 +416,6 @@ const updateConnectionDisplay = (isConnected, authType, authData = {}) => {
   }
 };
 
-onMounted(async () => {
-  await checkAuth();
-});
-
-// Очищаем интервал при размонтировании компонента
-onUnmounted(() => {
-  stopIdentitiesPolling();
-});
-
 /**
  * Связывает новый идентификатор с текущим аккаунтом пользователя
  * @param {string} type - Тип идентификатора (wallet, email, telegram)
@@ -488,5 +479,11 @@ export function useAuthContext() {
 
 // === useAuth теперь просто возвращает singleton ===
 export function useAuth() {
+  onMounted(async () => {
+    await checkAuth();
+  });
+  onUnmounted(() => {
+    stopIdentitiesPolling();
+  });
   return authApi;
 }

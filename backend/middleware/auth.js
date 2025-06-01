@@ -1,3 +1,5 @@
+console.log('[DIAG][auth.js] Файл загружен:', __filename);
+
 const { createError } = require('../utils/error');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
@@ -9,82 +11,12 @@ const { checkAdminTokens } = require('../services/auth-service');
  * Middleware для проверки аутентификации
  */
 const requireAuth = async (req, res, next) => {
-  try {
-    console.log('Session in requireAuth:', {
-      id: req.sessionID,
-      userId: req.session?.userId,
-      authenticated: req.session?.authenticated,
-    });
-
-    // Проверяем сессию
-    if (req.session?.authenticated && req.session?.userId) {
-      // Обновляем время жизни сессии
-      req.session.touch();
-
-      req.user = {
-        userId: req.session.userId,
-        address: req.session.address,
-        isAdmin: req.session.isAdmin,
-        authType: req.session.authType,
-      };
-      return next();
-    }
-
-    // Проверяем Bearer токен
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const address = authHeader.split(' ')[1];
-
-      if (address.startsWith('0x')) {
-        const result = await db.getQuery()(
-          `
-          SELECT u.id, u.is_admin 
-          FROM users u
-          JOIN user_identities ui ON u.id = ui.user_id
-          WHERE ui.identity_type = 'wallet' 
-          AND LOWER(ui.identity_value) = LOWER($1)
-        `,
-          [address]
-        );
-
-        if (result.rows.length > 0) {
-          const user = result.rows[0];
-
-          // Создаем новую сессию
-          req.session.regenerate(async (err) => {
-            if (err) {
-              console.error('Error regenerating session:', err);
-              return res.status(500).json({ error: 'Session error' });
-            }
-
-            // Устанавливаем данные сессии
-            req.session.authenticated = true;
-            req.session.userId = user.id;
-            req.session.address = address;
-            req.session.isAdmin = user.is_admin;
-            req.session.authType = 'wallet';
-
-            // Сохраняем сессию
-            await new Promise((resolve) => req.session.save(resolve));
-
-            req.user = {
-              userId: user.id,
-              address: address,
-              isAdmin: user.is_admin,
-              authType: 'wallet',
-            };
-            next();
-          });
-          return;
-        }
-      }
-    }
-
-    return res.status(401).json({ error: 'Unauthorized' });
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+  console.log('[DIAG][requireAuth] session:', req.session);
+  if (!req.session || !req.session.authenticated) {
+    return res.status(401).json({ error: 'Требуется аутентификация' });
   }
+  // Можно добавить проверку isAdmin здесь, если нужно
+  next();
 };
 
 /**
