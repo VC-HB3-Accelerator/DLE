@@ -1,3 +1,5 @@
+console.log('[DIAG][tables.js] Файл загружен:', __filename);
+
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
@@ -196,23 +198,37 @@ router.patch('/:id', async (req, res, next) => {
 
 // DELETE: удалить таблицу и каскадно все связанные строки/столбцы/ячейки (доступно всем)
 router.delete('/:id', requireAuth, async (req, res, next) => {
+  const dbModule = require('../db');
   try {
-    const tableId = Number(req.params.id);
-    console.log('Backend: typeof tableId:', typeof tableId, 'value:', tableId);
-    // Проверяем, существует ли таблица
-    const checkResult = await db.getQuery()('SELECT id, name FROM user_tables WHERE id = $1', [tableId]);
-    console.log('Backend: Table check result:', checkResult.rows);
-    if (checkResult.rows.length === 0) {
-      console.log('Backend: Table not found');
-      return res.status(404).json({ error: 'Table not found' });
+    // Логируем строку подключения и pool.options
+    console.log('[DIAG][DELETE] pool.options:', dbModule.pool.options);
+    console.log('[DIAG][DELETE] process.env.DATABASE_URL:', process.env.DATABASE_URL);
+    console.log('[DIAG][DELETE] process.env.DB_HOST:', process.env.DB_HOST);
+    console.log('[DIAG][DELETE] process.env.DB_NAME:', process.env.DB_NAME);
+    console.log('=== [DIAG] Попытка удаления таблицы ===');
+    console.log('Сессия пользователя:', req.session);
+    if (!req.session.isAdmin) {
+      console.log('[DIAG] Нет прав администратора');
+      return res.status(403).json({ error: 'Удаление доступно только администраторам' });
     }
-    // Удаляем только основную таблицу - каскадное удаление сработает автоматически
-    console.log('Backend: Executing DELETE query for table_id:', tableId);
-    const result = await db.getQuery()('DELETE FROM user_tables WHERE id = $1', [tableId]);
-    console.log('Backend: Delete result - rowCount:', result.rowCount);
+    const tableId = Number(req.params.id);
+    console.log('[DIAG] id из запроса:', req.params.id, 'Преобразованный id:', tableId, 'typeof:', typeof tableId);
+
+    // Проверяем наличие таблицы перед удалением
+    const checkBefore = await db.getQuery()('SELECT * FROM user_tables WHERE id = $1', [tableId]);
+    console.log('[DIAG] Таблица перед удалением:', checkBefore.rows);
+
+    // Пытаемся удалить
+    const result = await db.getQuery()('DELETE FROM user_tables WHERE id = $1 RETURNING *', [tableId]);
+    console.log('[DIAG] Результат удаления (rowCount):', result.rowCount, 'rows:', result.rows);
+
+    // Проверяем наличие таблицы после удаления
+    const checkAfter = await db.getQuery()('SELECT * FROM user_tables WHERE id = $1', [tableId]);
+    console.log('[DIAG] Таблица после удаления:', checkAfter.rows);
+
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
-    console.error('Backend: Error deleting table:', err);
+    console.error('[DIAG] Ошибка при удалении таблицы:', err);
     next(err);
   }
 });

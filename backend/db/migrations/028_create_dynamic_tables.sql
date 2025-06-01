@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS user_tables (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
 CREATE TABLE IF NOT EXISTS user_columns (
   id SERIAL PRIMARY KEY,
   table_id INTEGER NOT NULL REFERENCES user_tables(id) ON DELETE CASCADE,
@@ -15,7 +16,8 @@ CREATE TABLE IF NOT EXISTS user_columns (
   type VARCHAR(50) NOT NULL, -- text, number, select, multiselect, date, etc.
   options JSONB DEFAULT NULL, -- для select/multiselect
   "order" INTEGER DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_rows (

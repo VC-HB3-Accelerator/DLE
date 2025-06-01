@@ -2,30 +2,31 @@
   <div class="dynamic-tables-modal">
     <div class="modal-header">
       <h2>Пользовательские таблицы</h2>
-      <button class="close-btn" @click="$emit('close')">×</button>
+      <button class="close-btn" @click="closeModal">×</button>
     </div>
-    <UserTablesList @open-table="openTable" @table-deleted="onTableDeleted" />
-    <DynamicTableEditor v-if="selectedTable" :table-id="selectedTable.id" @close="closeEditor" />
+    <UserTablesList
+      :selected-table-id="selectedTableId"
+      @update:selected-table-id="val => selectedTableId = val"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import UserTablesList from './UserTablesList.vue';
-import DynamicTableEditor from './DynamicTableEditor.vue';
 
-const selectedTable = ref(null);
-function openTable(table) {
-  selectedTable.value = table;
+const selectedTableId = ref(null);
+
+function closeModal() {
+  selectedTableId.value = null;
+  // эмитим наружу, чтобы закрыть модалку
+  // (если используется <DynamicTablesModal @close=... />)
+  // иначе просто убираем модалку
+  // eslint-disable-next-line vue/custom-event-name-casing
+  // $emit('close') не работает в <script setup>, используем defineEmits
+  emit('close');
 }
-function closeEditor() {
-  selectedTable.value = null;
-}
-function onTableDeleted(deletedTableId) {
-  if (selectedTable.value && selectedTable.value.id === deletedTableId) {
-    selectedTable.value = null;
-  }
-}
+const emit = defineEmits(['close']);
 </script>
 
 <style scoped>

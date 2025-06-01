@@ -1,167 +1,236 @@
 <template>
-  <div class="user-tables-list">
-    <div class="header-block">
-      <h2>Пользовательские таблицы</h2>
-      <button class="btn btn-success" @click="showCreateTable = true">Создать таблицу</button>
+  <div class="tables-container">
+    <header class="tables-header">
+      <!-- <h2>Пользовательские таблицы</h2> -->
+      <button class="create-btn" @click="createTable">Создать таблицу</button>
+    </header>
+    <div class="tables-list">
+      <div
+        v-for="table in tables"
+        :key="table.id"
+        class="table-card"
+        :class="{ selected: table.id === props.selectedTableId }"
+        @click="selectTable(table)"
+      >
+        <div class="table-info">
+          <div class="table-title">{{ table.name }}</div>
+          <div class="table-desc">{{ table.description }}</div>
+        </div>
+        <div class="table-actions">
+          <button @click.stop="renameTable(table)">Переименовать</button>
+          <button class="danger" @click.stop="confirmDelete(table)">Удалить</button>
+        </div>
+      </div>
+      <div v-if="!tables.length" class="empty-state">
+        <span>Нет таблиц. Создайте первую!</span>
+      </div>
     </div>
-    <div v-if="isLoading" class="loading">Загрузка...</div>
-    <div v-else>
-      <div v-if="tables.length === 0" class="empty-block">Нет таблиц. Создайте первую!</div>
-      <div v-else class="tables-cards">
-        <div v-for="table in tables" :key="table.id" class="table-card">
-          <div class="table-card-header">
-            <input v-if="editingTableId === table.id" v-model="editName" @blur="saveName(table)" @keyup.enter="saveName(table)" class="table-name-input" />
-            <h3 v-else @dblclick="startEditName(table)">{{ table.name }}</h3>
-            <div class="table-card-actions">
-              <button class="btn btn-info btn-sm" @click="$emit('open-table', table)">Открыть</button>
-              <button class="btn btn-warning btn-sm" @click="startEditName(table)">Переименовать</button>
-              <button class="btn btn-danger btn-sm" @click="deleteTable(table)">Удалить</button>
-            </div>
-          </div>
-          <div class="table-card-desc">
-            <textarea v-if="editingDescId === table.id" v-model="editDesc" @blur="saveDesc(table)" @keyup.enter="saveDesc(table)" class="table-desc-input" />
-            <p v-else @dblclick="startEditDesc(table)">{{ table.description || 'Без описания' }}</p>
-          </div>
+    <div v-if="showDeleteModal" class="modal-backdrop">
+      <div class="modal">
+        <p>Удалить таблицу <b>{{ selectedTable?.name }}</b>?</p>
+        <div class="modal-actions">
+          <button class="danger" @click="deleteTable(selectedTable)">Удалить</button>
+          <button @click="showDeleteModal = false">Отмена</button>
         </div>
       </div>
     </div>
-    <CreateTableModal v-if="showCreateTable" @close="showCreateTable = false" @table-created="onTableCreated" />
+    <UserTableView
+      v-if="props.selectedTableId"
+      :table-id="props.selectedTableId"
+      @close="emit('update:selected-table-id', null)"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
+import UserTableView from './UserTableView.vue';
 import tablesService from '../../services/tablesService';
-import CreateTableModal from './CreateTableModal.vue';
 
-const emit = defineEmits(['open-table', 'table-deleted']);
+const props = defineProps({
+  selectedTableId: Number
+});
+const emit = defineEmits(['update:selected-table-id']);
+
 const tables = ref([]);
-const isLoading = ref(false);
-const showCreateTable = ref(false);
-const editingTableId = ref(null);
-const editName = ref('');
-const editingDescId = ref(null);
-const editDesc = ref('');
+const showDeleteModal = ref(false);
+const selectedTable = ref(null);
 
-function loadTables() {
-  isLoading.value = true;
-  tablesService.getTables()
-    .then(res => { 
-      tables.value = [...res]; // Создаем новый массив для принудительного обновления
-    })
-    .finally(() => { isLoading.value = false; });
+async function fetchTables() {
+  tables.value = await tablesService.getTables();
 }
-function onTableCreated() {
-  showCreateTable.value = false;
-  loadTables();
-}
-function startEditName(table) {
-  editingTableId.value = table.id;
-  editName.value = table.name;
-}
-function saveName(table) {
-  if (editName.value && editName.value !== table.name) {
-    tablesService.updateTable(table.id, { name: editName.value })
-      .then(loadTables);
+onMounted(fetchTables);
+
+function selectTable(table) {
+  if (props.selectedTableId === table.id) return;
+  if (props.selectedTableId) {
+    emit('update:selected-table-id', null);
+    nextTick(() => {
+      emit('update:selected-table-id', table.id);
+    });
+  } else {
+    emit('update:selected-table-id', table.id);
   }
-  editingTableId.value = null;
 }
-function startEditDesc(table) {
-  editingDescId.value = table.id;
-  editDesc.value = table.description || '';
+function createTable() {
+  const name = prompt('Название таблицы');
+  if (name) {
+    tablesService.createTable({ name }).then(fetchTables);
+  }
 }
-function saveDesc(table) {
-  tablesService.updateTable(table.id, { description: editDesc.value })
-    .then(loadTables);
-  editingDescId.value = null;
+function renameTable(table) {
+  const name = prompt('Новое имя', table.name);
+  if (name && name !== table.name) {
+    tablesService.updateTable(table.id, { name }).then(fetchTables);
+  }
+}
+function confirmDelete(table) {
+  selectedTable.value = table;
+  showDeleteModal.value = true;
 }
 function deleteTable(table) {
-  console.log('deleteTable called with:', table);
-  
-  if (!confirm(`Удалить таблицу "${table.name}"?`)) {
-    console.log('User cancelled deletion');
-    return;
-  }
-  
-  console.log('User confirmed deletion, proceeding...');
-  
-  // Немедленно удаляем из локального списка для быстрой реакции UI
-  tables.value = tables.value.filter(t => t.id !== table.id);
-  console.log('Removed from local list, making API call...');
-  
-  tablesService.deleteTable(table.id)
-    .then((result) => {
-      console.log('Таблица удалена:', result);
-      // Уведомляем родительский компонент об удалении
-      emit('table-deleted', table.id);
-      // Принудительно обновляем список с сервера для синхронизации
-      loadTables();
-    })
-    .catch((error) => {
-      console.error('Ошибка удаления таблицы:', error);
-      alert('Ошибка при удалении таблицы');
-      // При ошибке восстанавливаем список с сервера
-      loadTables();
-    });
+  tablesService.deleteTable(table.id).then(() => {
+    showDeleteModal.value = false;
+    fetchTables();
+    if (props.selectedTableId === table.id) emit('update:selected-table-id', null);
+  });
 }
-onMounted(loadTables);
 </script>
 
 <style scoped>
-.user-tables-list {
-  padding: 18px 8px;
+.tables-container {
+  max-width: 600px;
+  margin: 2rem auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  padding: 2rem 1.5rem;
 }
-.header-block {
+.tables-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 1.5rem;
 }
-.tables-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
+.create-btn {
+  background: #2ecc40;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5em 1.2em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
 }
-.table-card {
-  background: #f8fafc;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 16px 18px;
-  min-width: 260px;
-  max-width: 340px;
-  flex: 1 1 260px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+.create-btn:hover {
+  background: #27ae38;
+}
+.tables-list {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 1rem;
 }
-.table-card-header {
+.table-card {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border 0.2s;
+}
+.table-card.selected {
+  border: 2px solid #2ecc40;
+}
+.table-info {
+  flex: 1 1 200px;
+}
+.table-title {
+  font-weight: 600;
+  font-size: 1.1em;
+}
+.table-desc {
+  color: #888;
+  font-size: 0.95em;
+  margin-top: 0.2em;
+}
+.table-actions {
+  display: flex;
+  gap: 0.5em;
+  margin-top: 0.5em;
+}
+.table-actions button {
+  background: #eaeaea;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4em 1em;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.table-actions button:hover {
+  background: #d5d5d5;
+}
+.table-actions .danger {
+  background: #ff4d4f;
+  color: #fff;
+}
+.table-actions .danger:hover {
+  background: #d9363e;
+}
+.empty-state {
+  text-align: center;
+  color: #aaa;
+  margin: 2em 0;
+  font-size: 1.1em;
+}
+
+/* Модалка */
+.modal-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.18);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: center;
+  z-index: 1000;
 }
-.table-card-actions {
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2em 1.5em;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.13);
+  min-width: 260px;
+}
+.modal-actions {
   display: flex;
-  gap: 6px;
+  gap: 1em;
+  margin-top: 1.5em;
+  justify-content: flex-end;
 }
-.table-card-desc {
-  margin-top: 10px;
-}
-.table-name-input, .table-desc-input {
-  width: 100%;
-  font-size: 1.1em;
-  border: 1px solid #b0b0b0;
-  border-radius: 6px;
-  padding: 4px 8px;
-}
-.empty-block {
-  color: #888;
-  text-align: center;
-  margin: 32px 0;
-}
-.loading {
-  color: #888;
-  margin: 16px 0;
+
+/* Адаптивность */
+@media (max-width: 600px) {
+  .tables-container {
+    padding: 1em 0.3em;
+  }
+  .table-card {
+    flex-direction: column;
+    gap: 0.7em;
+    padding: 0.7em;
+  }
+  .tables-header {
+    flex-direction: column;
+    gap: 0.7em;
+    align-items: flex-start;
+  }
+  .table-actions {
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
 }
 </style> 
