@@ -22,13 +22,20 @@
       </div>
       <ContactTable v-if="showContacts" :contacts="contacts" @close="showContacts = false" @show-details="openContactDetails" />
       <ContactDetails v-if="showContactDetails" :contact="selectedContact" @close="showContactDetails = false" @contact-deleted="onContactDeleted" />
+      <div class="crm-tables-block">
+        <h2>Таблицы</h2>
+        <button class="btn btn-info" @click="showTables = true">
+          <i class="fas fa-table"></i> Подробнее
+        </button>
+      </div>
+      <DynamicTablesModal v-if="showTables" @close="showTables = false" />
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, defineProps, defineEmits, computed, watch } from 'vue';
-import { useAuth } from '../composables/useAuth';
+import { useAuthContext } from '../composables/useAuth';
 import { useRouter } from 'vue-router';
 import { setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
@@ -38,6 +45,7 @@ import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
 import DleManagement from '../components/DleManagement.vue';
 import ContactDetails from '../components/ContactDetails.vue';
+import DynamicTablesModal from '../components/tables/DynamicTablesModal.vue';
 
 // Определяем props
 const props = defineProps({
@@ -50,7 +58,7 @@ const props = defineProps({
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
 
-const auth = useAuth();
+const auth = useAuthContext();
 const router = useRouter();
 const isLoading = ref(true);
 const dleList = ref([]);
@@ -62,6 +70,7 @@ const contacts = ref([]);
 const isLoadingContacts = ref(false);
 const selectedContact = ref(null);
 const showContactDetails = ref(false);
+const showTables = ref(false);
 
 // Функция для перехода на домашнюю страницу и открытия боковой панели
 const goToHomeAndShowSidebar = () => {
@@ -278,6 +287,26 @@ strong {
   font-weight: 600;
 }
 .crm-contacts-block .btn {
+  font-size: 1rem;
+  padding: 8px 18px;
+}
+
+.crm-tables-block {
+  margin: 32px 0 24px 0;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.crm-tables-block h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.crm-tables-block .btn {
   font-size: 1rem;
   padding: 8px 18px;
 }

@@ -129,7 +129,7 @@ import { useRouter } from 'vue-router';
 import eventBus from '../utils/eventBus';
 import EmailConnect from './identity/EmailConnect.vue';
 import TelegramConnect from './identity/TelegramConnect.vue';
-import { useAuth } from '@/composables/useAuth';
+import { useAuthContext } from '@/composables/useAuth';
 
 const router = useRouter();
 const props = defineProps({
@@ -144,7 +144,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth', 'cancel-email-auth']);
 
-const { deleteIdentity } = useAuth();
+const { deleteIdentity } = useAuthContext();
 
 // Обработчики событий
 const handleWalletAuth = () => {

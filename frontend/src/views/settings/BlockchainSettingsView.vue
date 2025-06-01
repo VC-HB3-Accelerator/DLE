@@ -316,12 +316,12 @@
 <script setup>
 import { reactive, onMounted, computed, ref, watch } from 'vue';
 import axios from 'axios'; // Предполагаем, что axios доступен
-import { useAuth } from '@/composables/useAuth'; // Импортируем composable useAuth
+import { useAuthContext } from '@/composables/useAuth'; // Импортируем composable useAuth
 import dleService from '@/services/dleService';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks'; // Импортируем composable для работы с сетями
 // TODO: Импортировать API
 
-const { address, isAdmin, auth, user } = useAuth(); // Получаем объект адреса и статус админа
+const { address, isAdmin, auth, user } = useAuthContext(); // Получаем объект адреса и статус админа
 
 // Инициализация composable для работы с сетями блокчейн
 const { 

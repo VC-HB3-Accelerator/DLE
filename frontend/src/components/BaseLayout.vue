@@ -38,7 +38,7 @@
 
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
-import { useAuth } from '../composables/useAuth';
+import { useAuthContext } from '../composables/useAuth';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
@@ -53,7 +53,7 @@ import NotificationDisplay from './NotificationDisplay.vue';
 // 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES
 // =====================================================================
 
-const auth = useAuth();
+const auth = useAuthContext();
 const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
 
 // Определяем props, которые будут приходить от родительского View

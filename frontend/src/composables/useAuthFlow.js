@@ -1,12 +1,12 @@
 import { ref, onUnmounted } from 'vue';
 import api from '../api/axios';
-import { useAuth } from './useAuth';
+import { useAuthContext } from './useAuth';
 import { useNotifications } from './useNotifications';
 
 export function useAuthFlow(options = {}) {
   const { onAuthSuccess } = options; // Callback после успешной аутентификации/привязки
 
-  const auth = useAuth();
+  const auth = useAuthContext();
   const { showSuccessMessage, showErrorMessage } = useNotifications();
 
   // Состояния Telegram

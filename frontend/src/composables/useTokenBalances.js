@@ -1,10 +1,10 @@
 import { ref, watch, onUnmounted } from 'vue';
 import { fetchTokenBalances } from '../services/tokens';
-import { useAuth } from './useAuth'; // Предполагаем, что useAuth предоставляет identities
+import { useAuthContext } from './useAuth'; // Предполагаем, что useAuth предоставляет identities
 import eventBus from '../utils/eventBus';
 
 export function useTokenBalances() {
-  const auth = useAuth(); // Получаем доступ к состоянию аутентификации
+  const auth = useAuthContext(); // Получаем доступ к состоянию аутентификации
   const tokenBalances = ref([]); // теперь массив объектов
   const isLoadingTokens = ref(false);
   let balanceUpdateInterval = null;

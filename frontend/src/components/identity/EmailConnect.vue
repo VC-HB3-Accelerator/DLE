@@ -38,10 +38,10 @@
 <script setup>
   import { ref, computed } from 'vue';
   import axios from '@/api/axios';
-  import { useAuth } from '@/composables/useAuth';
+  import { useAuthContext } from '@/composables/useAuth';
 
 const emit = defineEmits(['close', 'success']);
-  const { linkIdentity } = useAuth();
+  const { linkIdentity } = useAuthContext();
 
   const email = ref('');
   const code = ref('');
