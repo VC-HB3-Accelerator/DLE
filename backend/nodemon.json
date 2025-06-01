@@ -5,6 +5,5 @@
   "env": {
     "NODE_ENV": "development"
   },
-  "ext": "js,json,env",
-  "exec": "node server.js"
+  "ext": "js,json,env"
 }

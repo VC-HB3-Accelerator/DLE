@@ -20,7 +20,7 @@
 <script setup>
   import { ref, watch, onMounted, computed, onUnmounted } from 'vue';
   import { RouterView } from 'vue-router';
-  import { useAuth } from './composables/useAuth';
+  import { useAuth, provideAuth } from './composables/useAuth';
   import { fetchTokenBalances } from './services/tokens';
   import eventBus from './utils/eventBus';
   
@@ -158,6 +158,8 @@
       }
     });
   });
+
+  provideAuth();
 </script>
 
 <style>

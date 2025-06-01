@@ -31,7 +31,7 @@
 
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, computed, defineProps, defineEmits } from 'vue';
-import { useAuth } from '../composables/useAuth';
+import { useAuthContext } from '../composables/useAuth';
 import { useRouter } from 'vue-router';
 import { getFromStorage, setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
@@ -48,7 +48,7 @@ const props = defineProps({
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
 
-const auth = useAuth();
+const auth = useAuthContext();
 const router = useRouter();
 const isLoading = ref(true);
 

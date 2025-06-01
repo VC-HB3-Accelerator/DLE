@@ -17,11 +17,11 @@
 
 <script setup>
   import { ref, computed } from 'vue';
-  import { useAuth } from '@/composables/useAuth';
+  import { useAuthContext } from '@/composables/useAuth';
   import { connectWithWallet } from '@/services/wallet';
 
   const emit = defineEmits(['close']);
-  const { linkIdentity } = useAuth();
+  const { linkIdentity } = useAuthContext();
 
   const isLoading = ref(false);
   const error = ref('');

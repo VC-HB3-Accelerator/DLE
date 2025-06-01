@@ -18,7 +18,7 @@
 
 <script setup>
 import { defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
-import { useAuth } from '../composables/useAuth';
+import { useAuthContext } from '../composables/useAuth';
 import eventBus from '../utils/eventBus';
 
 const props = defineProps({
@@ -35,7 +35,7 @@ const toggleSidebar = () => {
 };
 
 // Обработка аутентификации
-const auth = useAuth();
+const auth = useAuthContext();
 const { isAuthenticated } = auth;
 
 // Мониторинг изменений статуса аутентификации

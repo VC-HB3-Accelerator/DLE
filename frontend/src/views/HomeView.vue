@@ -20,7 +20,7 @@
 
 <script setup>
   import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
-  import { useAuth } from '../composables/useAuth';
+  import { useAuthContext } from '../composables/useAuth';
   import { useChat } from '../composables/useChat';
   import { connectWithWallet } from '../services/wallet';
   import eventBus from '../utils/eventBus';
@@ -44,7 +44,7 @@
   // 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES
   // =====================================================================
 
-  const auth = useAuth();
+  const auth = useAuthContext();
 
   // =====================================================================
   // 2. СОСТОЯНИЯ КОМПОНЕНТА

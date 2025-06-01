@@ -15,6 +15,8 @@ const pgSession = require('connect-pg-simple')(session);
 const authService = require('./services/auth-service');
 const logger = require('./utils/logger');
 const EmailBotService = require('./services/emailBot.js');
+const tablesRouter = require('./routes/tables');
+const errorHandler = require('./middleware/errorHandler');
 
 const PORT = process.env.PORT || 8000;
 
@@ -94,6 +96,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/identities', identitiesRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/tables', tablesRouter);
 
 // Эндпоинт для проверки состояния сервера
 app.get('/api/health', (req, res) => {
@@ -121,5 +124,7 @@ process.on('unhandledRejection', (err) => {
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
 });
+
+app.use(errorHandler);
 
 module.exports = app;
