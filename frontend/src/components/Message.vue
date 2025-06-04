@@ -15,6 +15,12 @@
     <!-- eslint-disable-next-line vue/no-v-html -->
     <div v-if="message.content" class="message-content" v-html="formattedContent" />
 
+    <!-- Кнопки для системного сообщения -->
+    <div v-if="message.sender_type === 'system' && (message.telegramBotUrl || message.supportEmail)" class="system-actions">
+      <button v-if="message.telegramBotUrl" @click="openTelegram(message.telegramBotUrl)" class="system-btn">Перейти в Telegram-бот</button>
+      <button v-if="message.supportEmail" @click="copyEmail(message.supportEmail)" class="system-btn">Скопировать email</button>
+    </div>
+
     <!-- Блок для отображения прикрепленного файла (теперь с плеерами/изображением/ссылкой) -->
     <div v-if="attachment" class="message-attachments">
       <div class="attachment-item">
@@ -167,6 +173,14 @@ const formatFileSize = (bytes) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
+
+function openTelegram(url) {
+  window.open(url, '_blank');
+}
+function copyEmail(email) {
+  navigator.clipboard.writeText(email);
+  // Можно добавить уведомление "Email скопирован"
+}
 
 </script>
 
@@ -359,5 +373,24 @@ const formatFileSize = (bytes) => {
   .attachment-preview {
     max-height: 200px;
   }
+}
+
+.system-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+.system-btn {
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background 0.2s;
+}
+.system-btn:hover {
+  background: var(--color-primary-dark, #2563eb);
 }
 </style> 

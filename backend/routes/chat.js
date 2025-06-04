@@ -6,6 +6,8 @@ const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const crypto = require('crypto');
+const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
+const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
@@ -61,19 +63,28 @@ async function processGuestMessages(userId, guestId) {
     const guestMessages = guestMessagesResult.rows;
     logger.info(`Found ${guestMessages.length} guest messages for guest ID ${guestId}`);
 
-    // Создаем новый диалог для этих сообщений
-    const firstMessage = guestMessages[0];
-    const title = firstMessage.content
-      ? (firstMessage.content.length > 30 ? `${firstMessage.content.substring(0, 30)}...` : firstMessage.content)
-      : (firstMessage.attachment_filename ? `Файл: ${firstMessage.attachment_filename}` : 'Новый диалог');
-
-    const newConversationResult = await db.getQuery()(
-      'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-      [userId, title]
+    // --- Новый порядок: ищем последний диалог пользователя ---
+    let conversation = null;
+    const lastConvResult = await db.getQuery()(
+      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+      [userId]
     );
-
-    const conversation = newConversationResult.rows[0];
-    logger.info(`Created new conversation ${conversation.id} for guest messages`);
+    if (lastConvResult.rows.length > 0) {
+      conversation = lastConvResult.rows[0];
+    } else {
+      // Если нет ни одного диалога, создаём новый
+      const firstMessage = guestMessages[0];
+      const title = firstMessage.content
+        ? (firstMessage.content.length > 30 ? `${firstMessage.content.substring(0, 30)}...` : firstMessage.content)
+        : (firstMessage.attachment_filename ? `Файл: ${firstMessage.attachment_filename}` : 'Новый диалог');
+      const newConversationResult = await db.getQuery()(
+        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
+        [userId, title]
+      );
+      conversation = newConversationResult.rows[0];
+      logger.info(`Created new conversation ${conversation.id} for guest messages`);
+    }
+    // --- КОНЕЦ блока поиска/создания диалога ---
 
     // Отслеживаем успешные сохранения сообщений
     const savedMessageIds = [];
@@ -81,7 +92,6 @@ async function processGuestMessages(userId, guestId) {
     // Обрабатываем каждое гостевое сообщение
     for (const guestMessage of guestMessages) {
       logger.info(`Processing guest message ID ${guestMessage.id}: ${guestMessage.content || guestMessage.attachment_filename || '(empty)'}`);
-
       try {
         // Сохраняем сообщение пользователя в таблицу messages, включая данные файла
         const userMessageResult = await db.getQuery()(
@@ -103,39 +113,59 @@ async function processGuestMessages(userId, guestId) {
             guestMessage.attachment_data // BYTEA
           ]
         );
-
         const savedUserMessage = userMessageResult.rows[0];
         logger.info(`Saved user message with ID ${savedUserMessage.id}`);
         savedMessageIds.push(guestMessage.id);
-
-        // Получаем ответ от ИИ только для текстовых сообщений
-        if (!guestMessage.is_ai && guestMessage.content) {
-          logger.info('Getting AI response for:', guestMessage.content);
-          const language = guestMessage.language || 'auto';
-          // Предполагаем, что aiAssistant.getResponse принимает только текст
-          const aiResponseContent = await aiAssistant.getResponse(guestMessage.content, language);
-          logger.info('AI response received' + (aiResponseContent ? '' : ' (empty)'), 'for conversation', conversation.id);
-
-          if (aiResponseContent) {
-              // Сохраняем ответ от ИИ (у него нет вложений)
-              const aiMessageResult = await db.getQuery()(
-                `INSERT INTO messages
-                  (conversation_id, content, sender_type, role, channel, created_at, user_id)
-                 VALUES
-                  ($1, $2, 'assistant', 'assistant', 'web', $3, $4)
-                 RETURNING *`,
-                [
-                  conversation.id,
-                  aiResponseContent,
-                  new Date(),
-                  userId
-                ]
+        // --- Генерируем ответ ИИ на гостевое сообщение, если это текст ---
+        if (guestMessage.content) {
+          // Проверяем, что на это сообщение ещё нет ответа ассистента
+          const aiReplyExists = await db.getQuery()(
+            `SELECT 1 FROM messages WHERE conversation_id = $1 AND sender_type = 'assistant' AND created_at > $2 LIMIT 1`,
+            [conversation.id, guestMessage.created_at]
+          );
+          if (!aiReplyExists.rows.length) {
+            try {
+              // Получаем настройки ассистента
+              const aiSettings = await aiAssistantSettingsService.getSettings();
+              let rules = null;
+              if (aiSettings && aiSettings.rules_id) {
+                rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
+              }
+              // Получаем историю сообщений до этого guestMessage (до created_at)
+              const historyResult = await db.getQuery()(
+                'SELECT sender_type, content FROM messages WHERE conversation_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT 10',
+                [conversation.id, guestMessage.created_at]
               );
-              logger.info(`Saved AI response with ID ${aiMessageResult.rows[0].id}`);
+              const history = historyResult.rows.reverse().map(msg => ({
+                role: msg.sender_type === 'user' ? 'user' : 'assistant',
+                content: msg.content
+              }));
+              // Язык guestMessage.language или auto
+              const detectedLanguage = guestMessage.language === 'auto' ? aiAssistant.detectLanguage(guestMessage.content) : guestMessage.language;
+              logger.info('Getting AI response for guest message:', guestMessage.content);
+              const aiResponseContent = await aiAssistant.getResponse(
+                guestMessage.content,
+                detectedLanguage,
+                history,
+                aiSettings ? aiSettings.system_prompt : '',
+                rules ? rules.rules : null
+              );
+              logger.info('AI response for guest message received' + (aiResponseContent ? '' : ' (empty)'), { conversationId: conversation.id });
+              if (aiResponseContent) {
+                await db.getQuery()(
+                  `INSERT INTO messages
+                     (conversation_id, user_id, content, sender_type, role, channel)
+                   VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')`,
+                  [conversation.id, userId, aiResponseContent]
+                );
+                logger.info('AI response for guest message saved', { conversationId: conversation.id });
+              }
+            } catch (aiError) {
+              logger.error('Error getting or saving AI response for guest message:', aiError);
+            }
           }
-        } else {
-          logger.info(`Skipping AI response for guest message ID ${guestMessage.id} (is_ai: ${guestMessage.is_ai}, hasContent: ${!!guestMessage.content})`);
         }
+        // --- конец блока генерации ответа ИИ ---
       } catch (error) {
         logger.error(`Error processing guest message ${guestMessage.id}: ${error.message}`, { stack: error.stack });
         // Продолжаем с другими сообщениями в случае ошибки
@@ -254,10 +284,28 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       // Не прерываем ответ пользователю из-за ошибки сессии
     }
 
+    // Получаем настройки ассистента для systemMessage
+    let telegramBotUrl = null;
+    let supportEmailAddr = null;
+    try {
+      const aiSettings = await aiAssistantSettingsService.getSettings();
+      if (aiSettings && aiSettings.telegramBot && aiSettings.telegramBot.bot_username) {
+        telegramBotUrl = `https://t.me/${aiSettings.telegramBot.bot_username}`;
+      }
+      if (aiSettings && aiSettings.supportEmail && aiSettings.supportEmail.from_email) {
+        supportEmailAddr = aiSettings.supportEmail.from_email;
+      }
+    } catch (e) {
+      logger.error('Ошибка получения настроек ассистента для systemMessage:', e);
+    }
+
     res.json({
       success: true,
       messageId: savedMessageId, // Возвращаем ID сохраненного сообщения
-      guestId: guestId // Возвращаем использованный guestId
+      guestId: guestId, // Возвращаем использованный guestId
+      systemMessage: 'Для продолжения диалога авторизуйтесь: подключите кошелек, перейдите в чат-бот Telegram или отправьте письмо на email.',
+      telegramBotUrl,
+      supportEmail: supportEmailAddr
     });
   } catch (error) {
     logger.error('Error saving guest message:', error);
@@ -303,18 +351,27 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       }
       conversation = convResult.rows[0];
     } else {
-      // Создаем новый диалог, если ID не предоставлен
-      const title = message
-        ? (message.length > 50 ? `${message.substring(0, 50)}...` : message)
-        : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
-
-      const newConvResult = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-        [userId, title]
+      // Ищем последний диалог пользователя
+      const lastConvResult = await db.getQuery()(
+        'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+        [userId]
       );
-      conversation = newConvResult.rows[0];
-      conversationId = conversation.id;
-      logger.info('Created new conversation', { conversationId, userId });
+      if (lastConvResult.rows.length > 0) {
+        conversation = lastConvResult.rows[0];
+        conversationId = conversation.id;
+      } else {
+        // Создаем новый диалог, если нет ни одного
+        const title = message
+          ? (message.length > 50 ? `${message.substring(0, 50)}...` : message)
+          : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
+        const newConvResult = await db.getQuery()(
+          'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
+          [userId, title]
+        );
+        conversation = newConvResult.rows[0];
+        conversationId = conversation.id;
+        logger.info('Created new conversation', { conversationId, userId });
+      }
     }
 
     // Подготавливаем данные для вставки сообщения пользователя
@@ -348,9 +405,32 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     let aiMessage = null;
     if (messageContent) { // Только для текстовых сообщений
       try {
+        // Получаем настройки ассистента
+        const aiSettings = await aiAssistantSettingsService.getSettings();
+        let rules = null;
+        if (aiSettings && aiSettings.rules_id) {
+          rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
+        }
+        logger.info('AI System Prompt:', aiSettings ? aiSettings.system_prompt : 'not set');
+        logger.info('AI Rules:', rules ? JSON.stringify(rules.rules) : 'not set');
+        // Получаем последние 10 сообщений из диалога для истории (до текущего сообщения)
+        const historyResult = await db.getQuery()(
+          'SELECT sender_type, content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
+          [conversationId, userMessage.id]
+        );
+        const history = historyResult.rows.reverse().map(msg => ({
+          role: msg.sender_type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
         const detectedLanguage = language === 'auto' ? aiAssistant.detectLanguage(messageContent) : language;
         logger.info('Getting AI response for:', messageContent);
-        const aiResponseContent = await aiAssistant.getResponse(messageContent, detectedLanguage);
+        const aiResponseContent = await aiAssistant.getResponse(
+          messageContent,
+          detectedLanguage,
+          history,
+          aiSettings ? aiSettings.system_prompt : '',
+          rules ? rules.rules : null
+        );
         logger.info('AI response received' + (aiResponseContent ? '' : ' (empty)'), { conversationId });
 
         if (aiResponseContent) {
@@ -395,6 +475,12 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       }
       return formatted;
     };
+
+    // Обновляем updated_at у диалога
+    await db.getQuery()(
+      'UPDATE conversations SET updated_at = NOW() WHERE id = $1',
+      [conversationId]
+    );
 
     res.json({
       success: true,
@@ -538,6 +624,26 @@ router.get('/history', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error(`Error fetching message history for user ${userId}: ${error.message}`, { stack: error.stack });
     res.status(500).json({ success: false, error: 'Ошибка получения истории сообщений' });
+  }
+});
+
+// --- Новый роут для связывания гостя после аутентификации ---
+router.post('/process-guest', requireAuth, async (req, res) => {
+  const userId = req.session.userId;
+  const { guestId } = req.body;
+  if (!guestId) {
+    return res.status(400).json({ success: false, error: 'guestId is required' });
+  }
+  try {
+    const result = await module.exports.processGuestMessages(userId, guestId);
+    if (result && result.conversationId) {
+      return res.json({ success: true, conversationId: result.conversationId });
+    } else {
+      return res.json({ success: false, error: result.error || 'No conversation created' });
+    }
+  } catch (error) {
+    logger.error('Error in /process-guest:', error);
+    return res.status(500).json({ success: false, error: 'Internal error' });
   }
 });
 

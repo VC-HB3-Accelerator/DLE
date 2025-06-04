@@ -64,6 +64,7 @@
     messageLoading,
     loadMessages,
     handleSendMessage,
+    linkGuestMessagesAfterAuth,
   } = useChat(auth);
 
   // =====================================================================
@@ -91,10 +92,12 @@
   // =====================================================================
 
   // Функция обновления сообщений после авторизации
-  const handleAuthEvent = (eventData) => {
+  const handleAuthEvent = async (eventData) => {
     console.log('[HomeView] Получено событие изменения авторизации:', eventData);
     if (eventData.isAuthenticated) {
-      // Пользователь только что авторизовался - загрузим сообщения
+      // Сначала связываем гостевые сообщения, если есть
+      await linkGuestMessagesAfterAuth();
+      // Затем загружаем сообщения (если не было гостя, просто загрузка)
       loadMessages({ initial: true, authType: eventData.authType || 'wallet' });
     } else {
       // Пользователь вышел из системы - можно очистить или обновить данные
