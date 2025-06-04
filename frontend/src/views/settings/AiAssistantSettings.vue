@@ -9,11 +9,13 @@
       <label>Модель</label>
       <input v-model="settings.model" placeholder="qwen2.5" />
       <label>Выбранные RAG-таблицы</label>
-      <select v-model="settings.selected_rag_tables" multiple>
-        <option v-for="table in userTables" :key="table.id" :value="table.id">
-          {{ table.name }}
-        </option>
-      </select>
+      <ul class="rag-table-list">
+        <li v-for="table in ragTables" :key="table.id">
+          <router-link :to="{ name: 'user-table-view', params: { id: table.id } }" class="rag-table-link">
+            {{ table.name }}
+          </router-link>
+        </li>
+      </ul>
       <label>Набор правил</label>
       <div class="rules-row">
         <select v-model="settings.rules_id">
@@ -57,6 +59,7 @@ const emit = defineEmits(['cancel']);
 const settings = ref({ system_prompt: '', model: '', selected_rag_tables: [], languages: [], rules_id: null });
 const languagesInput = ref('');
 const userTables = ref([]);
+const ragTables = computed(() => userTables.value.filter(t => t.is_rag_source_id === 1));
 const rulesList = ref([]);
 const showRuleEditor = ref(false);
 const editingRule = ref(null);
@@ -207,5 +210,19 @@ button[type="button"] {
 .error {
   color: #c00;
   margin-top: 0.5rem;
+}
+.rag-table-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1em 0;
+}
+.rag-table-link {
+  color: #2ecc40;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+}
+.rag-table-link:hover {
+  color: #27ae38;
 }
 </style> 
