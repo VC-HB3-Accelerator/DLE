@@ -73,16 +73,16 @@ async function processGuestMessages(userId, guestId) {
       conversation = lastConvResult.rows[0];
     } else {
       // Если нет ни одного диалога, создаём новый
-      const firstMessage = guestMessages[0];
-      const title = firstMessage.content
-        ? (firstMessage.content.length > 30 ? `${firstMessage.content.substring(0, 30)}...` : firstMessage.content)
-        : (firstMessage.attachment_filename ? `Файл: ${firstMessage.attachment_filename}` : 'Новый диалог');
-      const newConversationResult = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-        [userId, title]
-      );
+    const firstMessage = guestMessages[0];
+    const title = firstMessage.content
+      ? (firstMessage.content.length > 30 ? `${firstMessage.content.substring(0, 30)}...` : firstMessage.content)
+      : (firstMessage.attachment_filename ? `Файл: ${firstMessage.attachment_filename}` : 'Новый диалог');
+    const newConversationResult = await db.getQuery()(
+      'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
+      [userId, title]
+    );
       conversation = newConversationResult.rows[0];
-      logger.info(`Created new conversation ${conversation.id} for guest messages`);
+    logger.info(`Created new conversation ${conversation.id} for guest messages`);
     }
     // --- КОНЕЦ блока поиска/создания диалога ---
 
@@ -151,18 +151,18 @@ async function processGuestMessages(userId, guestId) {
                 rules ? rules.rules : null
               );
               logger.info('AI response for guest message received' + (aiResponseContent ? '' : ' (empty)'), { conversationId: conversation.id });
-              if (aiResponseContent) {
+          if (aiResponseContent) {
                 await db.getQuery()(
-                  `INSERT INTO messages
+                `INSERT INTO messages
                      (conversation_id, user_id, content, sender_type, role, channel)
                    VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')`,
                   [conversation.id, userId, aiResponseContent]
-                );
+              );
                 logger.info('AI response for guest message saved', { conversationId: conversation.id });
-              }
+          }
             } catch (aiError) {
               logger.error('Error getting or saving AI response for guest message:', aiError);
-            }
+        }
           }
         }
         // --- конец блока генерации ответа ИИ ---
@@ -361,16 +361,16 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         conversationId = conversation.id;
       } else {
         // Создаем новый диалог, если нет ни одного
-        const title = message
-          ? (message.length > 50 ? `${message.substring(0, 50)}...` : message)
-          : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
-        const newConvResult = await db.getQuery()(
-          'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-          [userId, title]
-        );
-        conversation = newConvResult.rows[0];
-        conversationId = conversation.id;
-        logger.info('Created new conversation', { conversationId, userId });
+      const title = message
+        ? (message.length > 50 ? `${message.substring(0, 50)}...` : message)
+        : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
+      const newConvResult = await db.getQuery()(
+        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
+        [userId, title]
+      );
+      conversation = newConvResult.rows[0];
+      conversationId = conversation.id;
+      logger.info('Created new conversation', { conversationId, userId });
       }
     }
 

@@ -24,11 +24,10 @@
       <ContactDetails v-if="showContactDetails" :contact="selectedContact" @close="showContactDetails = false" @contact-deleted="onContactDeleted" />
       <div class="crm-tables-block">
         <h2>Таблицы</h2>
-        <button class="btn btn-info" @click="showTables = true">
+        <button class="btn btn-info" @click="goToTables">
           <i class="fas fa-table"></i> Подробнее
         </button>
       </div>
-      <DynamicTablesModal v-if="showTables" @close="showTables = false" />
     </div>
   </BaseLayout>
 </template>
@@ -45,7 +44,6 @@ import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
 import DleManagement from '../components/DleManagement.vue';
 import ContactDetails from '../components/ContactDetails.vue';
-import DynamicTablesModal from '../components/tables/DynamicTablesModal.vue';
 
 // Определяем props
 const props = defineProps({
@@ -157,6 +155,10 @@ function openContactDetails(contact) {
 function onContactDeleted() {
   showContactDetails.value = false;
   loadContacts();
+}
+
+function goToTables() {
+  router.push({ name: 'tables-list' });
 }
 </script>
 

@@ -44,6 +44,7 @@
 
 <script setup>
 import { ref, onMounted, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import UserTableView from './UserTableView.vue';
 import tablesService from '../../services/tablesService';
 
@@ -51,6 +52,8 @@ const props = defineProps({
   selectedTableId: Number
 });
 const emit = defineEmits(['update:selected-table-id']);
+
+const router = useRouter();
 
 const tables = ref([]);
 const showDeleteModal = ref(false);
@@ -62,22 +65,12 @@ async function fetchTables() {
 onMounted(fetchTables);
 
 function selectTable(table) {
-  if (props.selectedTableId === table.id) return;
-  if (props.selectedTableId) {
-    emit('update:selected-table-id', null);
-    nextTick(() => {
-      emit('update:selected-table-id', table.id);
-    });
-  } else {
-    emit('update:selected-table-id', table.id);
-  }
+  router.push({ name: 'user-table-view', params: { id: table.id } });
 }
 function createTable() {
-  const name = prompt('Название таблицы');
-  if (name) {
-    tablesService.createTable({ name }).then(fetchTables);
-  }
+  router.push({ name: 'create-table' });
 }
+
 function renameTable(table) {
   const name = prompt('Новое имя', table.name);
   if (name && name !== table.name) {

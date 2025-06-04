@@ -1,4 +1,8 @@
 <template>
+  <div class="user-table-header" v-if="tableMeta">
+    <h2>{{ tableMeta.name }}</h2>
+    <div class="table-desc">{{ tableMeta.description }}</div>
+  </div>
   <div class="notion-table-wrapper">
     <table class="notion-table">
       <thead>
@@ -50,6 +54,7 @@ const props = defineProps({ tableId: Number });
 const columns = ref([]);
 const rows = ref([]);
 const cellValues = ref([]);
+const tableMeta = ref(null);
 
 // Для редактирования ячеек
 const editing = ref({ rowId: null, colId: null });
@@ -62,7 +67,7 @@ function startEdit(row, col) {
   editValue.value = getCellValue(row, col) || '';
 }
 function saveEdit(row, col) {
-  tablesService.saveCell({ rowId: row.id, columnId: col.id, value: editValue.value }).then(fetchTable);
+  tablesService.saveCell({ row_id: row.id, column_id: col.id, value: editValue.value }).then(fetchTable);
   editing.value = { rowId: null, colId: null };
 }
 function cancelEdit() {
@@ -104,6 +109,7 @@ async function fetchTable() {
   columns.value = data.columns;
   rows.value = data.rows;
   cellValues.value = data.cellValues;
+  tableMeta.value = { name: data.name, description: data.description };
 }
 fetchTable();
 </script>
@@ -151,5 +157,21 @@ fetchTable();
   border: 1px solid #2ecc40;
   border-radius: 4px;
   padding: 0.2em 0.4em;
+}
+.user-table-header {
+  margin-bottom: 1.2em;
+  padding: 1em 1.2em 0.5em 1.2em;
+  background: #f8f9fa;
+  border-radius: 10px 10px 0 0;
+  border-bottom: 1px solid #ececec;
+}
+.user-table-header h2 {
+  margin: 0 0 0.2em 0;
+  font-size: 1.3em;
+  font-weight: 700;
+}
+.table-desc {
+  color: #888;
+  font-size: 1em;
 }
 </style> 

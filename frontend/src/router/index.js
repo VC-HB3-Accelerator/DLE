@@ -64,6 +64,34 @@ const routes = [
       }
     ]
   },
+  {
+    path: '/tables',
+    name: 'tables-list',
+    component: () => import('../views/tables/TablesListView.vue')
+  },
+  {
+    path: '/tables/create',
+    name: 'create-table',
+    component: () => import('../views/tables/CreateTableView.vue')
+  },
+  {
+    path: '/tables/:id',
+    name: 'user-table-view',
+    component: () => import('../views/tables/TableView.vue'),
+    props: true
+  },
+  {
+    path: '/tables/:id/edit',
+    name: 'edit-table',
+    component: () => import('../views/tables/EditTableView.vue'),
+    props: true
+  },
+  {
+    path: '/tables/:id/delete',
+    name: 'delete-table',
+    component: () => import('../views/tables/DeleteTableView.vue'),
+    props: true
+  },
 ];
 
 const router = createRouter({

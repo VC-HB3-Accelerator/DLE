@@ -23,10 +23,10 @@ router.get('/', async (req, res, next) => {
 // Создать новую таблицу (доступно всем)
 router.post('/', async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, isRagSourceId } = req.body;
     const result = await db.getQuery()(
-      'INSERT INTO user_tables (name, description) VALUES ($1, $2) RETURNING *',
-      [name, description || null]
+      'INSERT INTO user_tables (name, description, is_rag_source_id) VALUES ($1, $2, $3) RETURNING *',
+      [name, description || null, isRagSourceId || 2]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -38,10 +38,12 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const tableId = req.params.id;
+    const tableMetaResult = await db.getQuery()('SELECT name, description FROM user_tables WHERE id = $1', [tableId]);
+    const tableMeta = tableMetaResult.rows[0] || { name: '', description: '' };
     const columns = (await db.getQuery()('SELECT * FROM user_columns WHERE table_id = $1 ORDER BY "order" ASC, id ASC', [tableId])).rows;
     const rows = (await db.getQuery()('SELECT * FROM user_rows WHERE table_id = $1 ORDER BY id', [tableId])).rows;
     const cellValues = (await db.getQuery()('SELECT * FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId])).rows;
-    res.json({ columns, rows, cellValues });
+    res.json({ name: tableMeta.name, description: tableMeta.description, columns, rows, cellValues });
   } catch (err) {
     next(err);
   }
@@ -181,14 +183,15 @@ router.patch('/column/:columnId', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const tableId = req.params.id;
-    const { name, description } = req.body;
+    const { name, description, isRagSourceId } = req.body;
     const result = await db.getQuery()(
       `UPDATE user_tables SET 
         name = COALESCE($1, name),
         description = COALESCE($2, description),
+        is_rag_source_id = COALESCE($3, is_rag_source_id),
         updated_at = NOW()
-      WHERE id = $3 RETURNING *`,
-      [name, description, tableId]
+      WHERE id = $4 RETURNING *`,
+      [name, description, isRagSourceId, tableId]
     );
     res.json(result.rows[0]);
   } catch (err) {
