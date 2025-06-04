@@ -8,6 +8,8 @@ const authTokenService = require('../services/authTokenService');
 const aiProviderSettingsService = require('../services/aiProviderSettingsService');
 const aiAssistant = require('../services/ai-assistant');
 const dns = require('node:dns').promises;
+const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
+const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 
 // Логируем версию ethers для отладки
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
@@ -236,6 +238,94 @@ router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next
   } catch (error) {
     logger.error('Ошибка при проверке AI-ключа:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/ai-assistant', requireAdmin, async (req, res, next) => {
+  try {
+    const settings = await aiAssistantSettingsService.getSettings();
+    res.json({ success: true, settings });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/ai-assistant', requireAdmin, async (req, res, next) => {
+  try {
+    const updated = await aiAssistantSettingsService.upsertSettings({ ...req.body, updated_by: req.session.userId || null });
+    res.json({ success: true, settings: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Получить все наборы правил
+router.get('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
+  try {
+    const rules = await aiAssistantRulesService.getAllRules();
+    res.json({ success: true, rules });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Получить набор правил по id
+router.get('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const rule = await aiAssistantRulesService.getRuleById(req.params.id);
+    res.json({ success: true, rule });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Создать набор правил
+router.post('/ai-assistant-rules', requireAdmin, async (req, res, next) => {
+  try {
+    const created = await aiAssistantRulesService.createRule(req.body);
+    res.json({ success: true, rule: created });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Обновить набор правил
+router.put('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const updated = await aiAssistantRulesService.updateRule(req.params.id, req.body);
+    res.json({ success: true, rule: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Удалить набор правил
+router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
+  try {
+    await aiAssistantRulesService.deleteRule(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Получить все email_settings для выпадающего списка
+router.get('/email-settings', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await require('../db').getQuery()('SELECT id, from_email FROM email_settings ORDER BY id');
+    res.json({ success: true, items: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Получить все telegram_settings для выпадающего списка
+router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await require('../db').getQuery()('SELECT id, bot_username FROM telegram_settings ORDER BY id');
+    res.json({ success: true, items: rows });
+  } catch (error) {
+    next(error);
   }
 });
 

@@ -37,6 +37,11 @@
         <p>Интеграция с PostgreSQL для хранения данных приложения и управления настройками.</p>
         <button class="details-btn" @click="showDbSettings = true">Подробнее</button>
       </div>
+      <div class="integration-block">
+        <h3>ИИ-ассистент</h3>
+        <p>Настройки поведения, языков, моделей и правил работы ассистента.</p>
+        <button class="details-btn" @click="showAiAssistantSettings = true">Подробнее</button>
+      </div>
     </div>
     <AIProviderSettings
       v-if="showProvider"
@@ -52,6 +57,7 @@
     <TelegramSettingsView v-if="showTelegramSettings" @cancel="showTelegramSettings = false" />
     <EmailSettingsView v-if="showEmailSettings" @cancel="showEmailSettings = false" />
     <DatabaseSettingsView v-if="showDbSettings" @cancel="showDbSettings = false" />
+    <AiAssistantSettings v-if="showAiAssistantSettings" @cancel="showAiAssistantSettings = false" />
   </div>
 </template>
 
@@ -61,10 +67,13 @@ import AIProviderSettings from './AIProviderSettings.vue';
 import TelegramSettingsView from './TelegramSettingsView.vue';
 import EmailSettingsView from './EmailSettingsView.vue';
 import DatabaseSettingsView from './DatabaseSettingsView.vue';
+import AiAssistantSettings from './AiAssistantSettings.vue';
+
 const showProvider = ref(null);
 const showTelegramSettings = ref(false);
 const showEmailSettings = ref(false);
 const showDbSettings = ref(false);
+const showAiAssistantSettings = ref(false);
 
 const providerLabels = {
   openai: {

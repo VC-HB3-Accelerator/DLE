@@ -3,6 +3,15 @@ import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
 
+function initGuestId() {
+  let id = getFromStorage('guestId', '');
+  if (!id) {
+    id = generateUniqueId();
+    setToStorage('guestId', id);
+  }
+  return id;
+}
+
 export function useChat(auth) {
   const messages = ref([]);
   const newMessage = ref('');
@@ -20,7 +29,7 @@ export function useChat(auth) {
     isLinkingGuest: false, // Флаг для процесса связывания гостевых сообщений (пока не используется активно)
   });
 
-  const guestId = ref(getFromStorage('guestId', ''));
+  const guestId = ref(initGuestId());
 
   const shouldLoadHistory = computed(() => {
     return auth.isAuthenticated.value || !!guestId.value;
@@ -133,7 +142,7 @@ export function useChat(auth) {
             // Очищаем гостевые данные после успешной аутентификации и загрузки
             if (authType) {
                 removeFromStorage('guestMessages');
-                removeFromStorage('guestId');
+                // removeFromStorage('guestId'); // Удаление guestId теперь только после успешного связывания
                 guestId.value = '';
             }
 
@@ -219,7 +228,7 @@ export function useChat(auth) {
         let apiUrl = '/api/chat/message';
         if (isGuestMessage) {
             if (!guestId.value) {
-                guestId.value = generateUniqueId();
+                guestId.value = initGuestId();
                 setToStorage('guestId', guestId.value);
             }
             formData.append('guestId', guestId.value);
@@ -251,6 +260,20 @@ export function useChat(auth) {
                     ...response.data.aiMessage,
                     sender_type: 'assistant', // Убедимся, что тип правильный
                     role: 'assistant',
+                });
+            }
+
+            // Добавляем системное сообщение для гостя (только на клиенте, не сохраняется в истории)
+            if (isGuestMessage && response.data.systemMessage) {
+                messages.value.push({
+                    id: `system-${Date.now()}`,
+                    content: response.data.systemMessage,
+                    sender_type: 'system',
+                    role: 'system',
+                    timestamp: new Date().toISOString(),
+                    isSystem: true,
+                    telegramBotUrl: response.data.telegramBotUrl,
+                    supportEmail: response.data.supportEmail
                 });
             }
 
@@ -325,6 +348,23 @@ export function useChat(auth) {
       }
   };
 
+  // --- Связывание гостевых сообщений после аутентификации ---
+  const linkGuestMessagesAfterAuth = async () => {
+    if (!guestId.value) return;
+    try {
+      const response = await api.post('/api/chat/process-guest', { guestId: guestId.value });
+      if (response.data.success && response.data.conversationId) {
+        // Можно сразу загрузить историю по этому диалогу, если нужно
+        await loadMessages({ initial: true });
+        // Удаляем guestId только после успешного связывания
+        removeFromStorage('guestId');
+        guestId.value = '';
+      }
+    } catch (error) {
+      console.error('[useChat] Ошибка связывания гостевых сообщений:', error);
+    }
+  };
+
   // --- Watchers --- 
   // Сортировка сообщений при изменении
   watch(messages, (newMessages) => {
@@ -379,5 +419,6 @@ export function useChat(auth) {
     loadMessages,
     handleSendMessage,
     loadGuestMessagesFromStorage, // Экспортируем на всякий случай
+    linkGuestMessagesAfterAuth,   // Экспортируем для вызова после авторизации
   };
 } 
