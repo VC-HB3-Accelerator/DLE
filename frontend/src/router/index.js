@@ -92,6 +92,18 @@ const routes = [
     component: () => import('../views/tables/DeleteTableView.vue'),
     props: true
   },
+  {
+    path: '/contacts/:id',
+    name: 'contact-details',
+    component: () => import('../views/contacts/ContactDetailsView.vue'),
+    props: true
+  },
+  {
+    path: '/contacts/:id/delete',
+    name: 'contact-delete-confirm',
+    component: () => import('../views/contacts/ContactDeleteConfirm.vue'),
+    props: true
+  },
 ];
 
 const router = createRouter({

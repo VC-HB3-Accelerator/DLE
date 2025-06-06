@@ -1,0 +1,22 @@
+const WebSocket = require('ws');
+
+let wss = null;
+const wsClients = new Set();
+
+function initWSS(server) {
+  wss = new WebSocket.Server({ server });
+  wss.on('connection', (ws) => {
+    wsClients.add(ws);
+    ws.on('close', () => wsClients.delete(ws));
+  });
+}
+
+function broadcastContactsUpdate() {
+  for (const ws of wsClients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'contacts-updated' }));
+    }
+  }
+}
+
+module.exports = { initWSS, broadcastContactsUpdate }; 

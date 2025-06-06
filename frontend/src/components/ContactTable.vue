@@ -32,17 +32,18 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { defineProps } from 'vue';
+import { useRouter } from 'vue-router';
 const props = defineProps({
   contacts: { type: Array, required: true }
 });
-const emit = defineEmits(['show-details']);
+const router = useRouter();
 function formatDate(date) {
   if (!date) return '-';
   return new Date(date).toLocaleString();
 }
 function showDetails(contact) {
-  emit('show-details', contact);
+  router.push({ name: 'contact-details', params: { id: contact.id } });
 }
 </script>
 

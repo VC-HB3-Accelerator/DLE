@@ -97,4 +97,4 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
 }
 
 // Экспортируем функции для работы с базой данных
-module.exports = { getQuery, pool, getPool, setPoolChangeCallback };
+module.exports = { query: pool.query.bind(pool), getQuery, pool, getPool, setPoolChangeCallback };
