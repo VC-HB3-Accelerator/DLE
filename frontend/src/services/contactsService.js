@@ -13,7 +13,20 @@ export default {
     return res.data;
   },
   async deleteContact(id) {
-    const res = await api.delete(`/api/users/${id}`);
-    return res.data;
+    try {
+      const res = await api.delete(`/api/users/${id}`);
+      console.log('Ответ на удаление контакта:', res.status, res.data);
+      return res.data;
+    } catch (err) {
+      console.error('Ошибка при удалении контакта:', err.response?.status, err.response?.data, err);
+      throw err;
+    }
+  },
+  async getContactById(id) {
+    const res = await api.get(`/api/users/${id}`);
+    if (res.data && res.data.id) {
+      return res.data;
+    }
+    return null;
   }
 }; 

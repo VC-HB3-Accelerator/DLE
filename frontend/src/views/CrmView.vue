@@ -21,7 +21,6 @@
         </button>
       </div>
       <ContactTable v-if="showContacts" :contacts="contacts" @close="showContacts = false" @show-details="openContactDetails" />
-      <ContactDetails v-if="showContactDetails" :contact="selectedContact" @close="showContactDetails = false" @contact-deleted="onContactDeleted" />
       <div class="crm-tables-block">
         <h2>Таблицы</h2>
         <button class="btn btn-info" @click="goToTables">
@@ -43,7 +42,6 @@ import dleService from '../services/dleService';
 import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
 import DleManagement from '../components/DleManagement.vue';
-import ContactDetails from '../components/ContactDetails.vue';
 
 // Определяем props
 const props = defineProps({
@@ -69,6 +67,33 @@ const isLoadingContacts = ref(false);
 const selectedContact = ref(null);
 const showContactDetails = ref(false);
 const showTables = ref(false);
+
+let ws = null;
+
+function connectWebSocket() {
+  if (ws) ws.close();
+  ws = new WebSocket('ws://localhost:8000');
+  ws.onopen = () => {
+    console.log('[CRM] WebSocket соединение установлено');
+  };
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'contacts-updated') {
+        console.log('[CRM] Получено событие contacts-updated, обновляем контакты');
+        loadContacts();
+      }
+    } catch (e) {
+      console.error('[CRM] Ошибка обработки сообщения WebSocket:', e);
+    }
+  };
+  ws.onclose = () => {
+    console.log('[CRM] WebSocket соединение закрыто');
+  };
+  ws.onerror = (e) => {
+    console.error('[CRM] WebSocket ошибка:', e);
+  };
+}
 
 // Функция для перехода на домашнюю страницу и открытия боковой панели
 const goToHomeAndShowSidebar = () => {
@@ -122,6 +147,8 @@ onMounted(() => {
   
   // Подписка на события авторизации
   unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
+  
+  connectWebSocket();
 });
 
 onBeforeUnmount(() => {
@@ -129,6 +156,8 @@ onBeforeUnmount(() => {
   if (unsubscribe) {
     unsubscribe();
   }
+  
+  if (ws) ws.close();
 });
 
 async function loadContacts() {

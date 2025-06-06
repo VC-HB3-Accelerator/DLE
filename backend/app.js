@@ -12,6 +12,9 @@ const aiAssistant = require('./services/ai-assistant'); // Добавляем и
 const fs = require('fs');
 const path = require('path');
 const messagesRoutes = require('./routes/messages');
+const userTagsRoutes = require('./routes/userTags');
+const tagsInitRoutes = require('./routes/tagsInit');
+const tagsRoutes = require('./routes/tags');
 
 // Проверка и создание директорий для хранения данных контрактов
 const ensureDirectoriesExist = () => {
@@ -100,7 +103,8 @@ app.use(async (req, res, next) => {
 
   // Если сессия уже есть, используем её
   if (req.session.authenticated) {
-    return next();
+    next();
+    return;
   }
 
   // Проверяем заголовок авторизации
@@ -150,14 +154,16 @@ app.use(
 
 // Логирование запросов
 app.use((req, res, next) => {
+  console.log('[APP] Глобальный лог:', req.method, req.originalUrl);
   logger.info(`${req.method} ${req.url}`);
   next();
 });
 
 // Маршруты API
 app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
-app.use('/api', identitiesRoutes);
+// app.use('/api', identitiesRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users/:userId/tags', userTagsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
@@ -167,6 +173,9 @@ app.use('/api/geocoding', geocodingRoutes); // Добавленное испол
 app.use('/api/dle', dleRoutes); // Добавляем маршрут DLE
 app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
 app.use('/api/messages', messagesRoutes);
+app.use('/api/tags', tagsInitRoutes);
+app.use('/api/tags', tagsRoutes);
+app.use('/api/identities', identitiesRoutes);
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

@@ -3,61 +3,21 @@ const router = express.Router();
 const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
+const { deleteUserById } = require('../services/userDeleteService');
+const { broadcastContactsUpdate } = require('../wsHub');
 // const userService = require('../services/userService');
+
+console.log('[users.js] ROUTER LOADED');
+
+router.use((req, res, next) => {
+  console.log('[users.js] ROUTER REQUEST:', req.method, req.originalUrl);
+  next();
+});
 
 // Получение списка пользователей
 // router.get('/', (req, res) => {
 //   res.json({ message: 'Users API endpoint' });
 // });
-
-// Получение информации о пользователе
-router.get('/:address', (req, res) => {
-  const { address } = req.params;
-  res.json({
-    address,
-    message: 'User details endpoint',
-  });
-});
-
-// Маршрут для обновления языка пользователя
-router.post('/update-language', requireAuth, async (req, res, next) => {
-  try {
-    const { language } = req.body;
-    const userId = req.session.userId;
-    const validLanguages = ['ru', 'en'];
-    if (!validLanguages.includes(language)) {
-      return res.status(400).json({ error: 'Неподдерживаемый язык' });
-    }
-    await db.getQuery()('UPDATE users SET preferred_language = $1 WHERE id = $2', [language, userId]);
-    res.json({ success: true });
-  } catch (error) {
-    logger.error('Error updating language:', error);
-    next(error);
-  }
-});
-
-// Маршрут для обновления имени и фамилии пользователя
-router.post('/update-profile', requireAuth, async (req, res, next) => {
-  try {
-    const { firstName, lastName } = req.body;
-    const userId = req.session.userId;
-    if (firstName && firstName.length > 255) {
-      return res.status(400).json({ error: 'Имя слишком длинное (максимум 255 символов)' });
-    }
-    if (lastName && lastName.length > 255) {
-      return res.status(400).json({ error: 'Фамилия слишком длинная (максимум 255 символов)' });
-    }
-    await db.getQuery()('UPDATE users SET first_name = $1, last_name = $2 WHERE id = $3', [
-      firstName || null,
-      lastName || null,
-      userId,
-    ]);
-    res.json({ success: true });
-  } catch (error) {
-    logger.error('Error updating user profile:', error);
-    next(error);
-  }
-});
 
 // Получить профиль текущего пользователя
 /*
@@ -172,21 +132,51 @@ router.patch('/:id', async (req, res) => {
 
 // DELETE /api/users/:id — удалить контакт и все связанные данные
 router.delete('/:id', async (req, res) => {
-  const userId = req.params.id;
-  const client = await db.getPool().connect();
+  console.log('[users.js] DELETE HANDLER', req.params.id);
+  const userId = Number(req.params.id);
+  console.log('[ROUTER] Перед вызовом deleteUserById для userId:', userId);
   try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM user_identities WHERE user_id = $1', [userId]);
-    await client.query('DELETE FROM messages WHERE user_id = $1', [userId]);
-    // Добавьте другие связанные таблицы, если нужно
-    await client.query('DELETE FROM users WHERE id = $1', [userId]);
-    await client.query('COMMIT');
-    res.json({ success: true });
+    const deletedCount = await deleteUserById(userId);
+    console.log('[ROUTER] deleteUserById вернул:', deletedCount);
+    if (deletedCount === 0) {
+      return res.status(404).json({ success: false, deleted: 0, error: 'User not found' });
+    }
+    broadcastContactsUpdate();
+    res.json({ success: true, deleted: deletedCount });
   } catch (e) {
-    await client.query('ROLLBACK');
+    console.error('[DELETE] Ошибка при удалении пользователя:', e);
     res.status(500).json({ error: 'DB error', details: e.message });
-  } finally {
-    client.release();
+  }
+});
+
+// Получить пользователя по id
+router.get('/:id', async (req, res, next) => {
+  const userId = req.params.id;
+  try {
+    const query = db.getQuery();
+    // Получаем пользователя
+    const userResult = await query('SELECT id, first_name, last_name, created_at, preferred_language FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = userResult.rows[0];
+    // Получаем идентификаторы
+    const identitiesResult = await query('SELECT provider, provider_id FROM user_identities WHERE user_id = $1', [userId]);
+    const identityMap = {};
+    for (const id of identitiesResult.rows) {
+      identityMap[id.provider] = id.provider_id;
+    }
+    res.json({
+      id: user.id,
+      name: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+      email: identityMap.email || null,
+      telegram: identityMap.telegram || null,
+      wallet: identityMap.wallet || null,
+      created_at: user.created_at,
+      preferred_language: user.preferred_language || []
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

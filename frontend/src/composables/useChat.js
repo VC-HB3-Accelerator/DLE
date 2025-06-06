@@ -362,7 +362,7 @@ export function useChat(auth) {
       }
     } catch (error) {
       console.error('[useChat] Ошибка связывания гостевых сообщений:', error);
-    }
+      }
   };
 
   // --- Watchers --- 
