@@ -34,8 +34,12 @@ function getPool() {
   return pool;
 }
 
+function query(text, params) {
+  return pool.query(text, params);
+}
+
 function getQuery() {
-  return pool.query.bind(pool);
+  return (...args) => pool.query(...args);
 }
 
 let poolChangeCallback = null;
@@ -77,8 +81,6 @@ if (process.env.NODE_ENV !== 'migration') {
   reinitPoolFromDbSettings();
 }
 
-const query = (text, params) => pool.query(text, params);
-
 // Функция для сохранения гостевого сообщения в базе данных
 async function saveGuestMessageToDatabase(message, language, guestId) {
   try {
@@ -97,4 +99,4 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
 }
 
 // Экспортируем функции для работы с базой данных
-module.exports = { query: pool.query.bind(pool), getQuery, pool, getPool, setPoolChangeCallback };
+module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback };

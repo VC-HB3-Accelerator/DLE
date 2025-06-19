@@ -59,7 +59,6 @@ const handleAuthEvent = (eventData) => {
 };
 
 const goToHomeAndShowSidebar = () => {
-  setToStorage('showWalletSidebar', true);
   router.push({ name: 'home' });
 };
 

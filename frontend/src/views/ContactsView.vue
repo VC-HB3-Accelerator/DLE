@@ -1,19 +1,11 @@
 <template>
   <BaseLayout>
-    <div class="contacts-tabs">
-      <button :class="{active: tab==='all'}" @click="tab='all'">Все контакты</button>
-      <button :class="{active: tab==='newContacts'}" @click="tab='newContacts'; markContactsAsRead()">
-        Новые контакты
-        <span v-if="newContacts.length" class="badge">{{ newContacts.length }}</span>
-      </button>
-      <button :class="{active: tab==='newMessages'}" @click="tab='newMessages'; markMessagesAsRead()">
-        Новые сообщения
-        <span v-if="newMessages.length" class="badge">{{ newMessages.length }}</span>
-      </button>
+    <div class="contacts-header">
+      <span>Контакты</span>
+      <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
     </div>
-    <ContactTable v-if="tab==='all'" :contacts="contacts" />
-    <ContactTable v-if="tab==='newContacts'" :contacts="newContacts" />
-    <MessagesTable v-if="tab==='newMessages'" :messages="newMessages" />
+    <ContactTable :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markContactsAsRead" 
+      :markMessagesAsReadForUser="markMessagesAsReadForUser" :markContactAsRead="markContactAsRead" />
   </BaseLayout>
 </template>
 
@@ -22,13 +14,11 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import ContactTable from '../components/ContactTable.vue';
-import MessagesTable from '../components/MessagesTable.vue';
 import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
 
-const tab = ref('all');
 const {
   contacts, newContacts, newMessages,
-  markContactsAsRead, markMessagesAsRead
+  markContactsAsRead, markMessagesAsReadForUser, markContactAsRead
 } = useContactsAndMessagesWebSocket();
 const router = useRouter();
 
@@ -42,26 +32,13 @@ function goBack() {
 </script>
 
 <style scoped>
-.contacts-tabs {
+.contacts-header {
   display: flex;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
-}
-.contacts-tabs button {
-  background: #f5f7fa;
-  border: none;
-  border-radius: 8px 8px 0 0;
-  padding: 10px 22px;
-  font-size: 1.08rem;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.18s, color 0.18s;
-}
-.contacts-tabs button.active {
-  background: #fff;
-  color: #17a2b8;
+  font-size: 1.2rem;
   font-weight: 600;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  margin-bottom: 24px;
 }
 .badge {
   background: #dc3545;

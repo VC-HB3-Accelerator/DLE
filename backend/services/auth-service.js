@@ -9,6 +9,7 @@ const authTokenService = require('./authTokenService');
 const rpcProviderService = require('./rpcProviderService');
 const { getLinkedWallet } = require('./wallet-service');
 const { checkAdminRole } = require('./admin-role');
+const { broadcastContactsUpdate } = require('../wsHub');
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
@@ -101,6 +102,8 @@ class AuthService {
           `New user ${userId} with wallet ${normalizedAddress} automatically granted admin role`
         );
       }
+
+      broadcastContactsUpdate();
 
       return { userId, isAdmin };
     } catch (error) {
@@ -742,6 +745,8 @@ class AuthService {
       // Очистка временных данных из сессии
       delete session.tempUserId;
       delete session.pendingEmail;
+
+      broadcastContactsUpdate();
 
       return {
         userId,

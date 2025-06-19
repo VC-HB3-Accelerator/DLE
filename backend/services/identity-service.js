@@ -544,6 +544,7 @@ class IdentityService {
       await this.saveIdentity(userId, provider, providerId, true);
       user = { id: userId, role: 'user' };
       isNew = true;
+      logger.info('[WS] broadcastContactsUpdate after new user created');
       broadcastContactsUpdate();
     }
     // Проверяем связь с кошельком

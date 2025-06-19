@@ -2,8 +2,8 @@
   <BaseLayout>
     <div class="tables-list-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>Список таблиц</h2>
-      <UserTablesList />
+    <h2>Список таблиц</h2>
+    <UserTablesList />
     </div>
   </BaseLayout>
 </template>
@@ -21,7 +21,7 @@ function goBack() {
     router.push({ name: 'crm' });
   }
 }
-</script>
+</script> 
 
 <style scoped>
 .tables-list-block {

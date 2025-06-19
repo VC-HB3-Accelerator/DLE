@@ -8,6 +8,7 @@ const { inspect } = require('util');
 const logger = require('../utils/logger');
 const identityService = require('./identity-service');
 const aiAssistant = require('./ai-assistant');
+const { broadcastContactsUpdate } = require('../wsHub');
 
 class EmailBotService {
   constructor() {
@@ -172,6 +173,8 @@ class EmailBotService {
                       );
                       // 5. Отправить ответ на email
                       await this.sendEmail(fromEmail, 'Re: ' + subject, aiResponse);
+                      // После каждого успешного создания пользователя:
+                      broadcastContactsUpdate();
                     } catch (processErr) {
                       logger.error('Error processing incoming email:', processErr);
                     }

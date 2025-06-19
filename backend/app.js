@@ -141,6 +141,18 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Middleware для подстановки req.user из сессии
+app.use((req, res, next) => {
+  if (req.session && req.session.userId) {
+    req.user = {
+      id: req.session.userId,
+      isAdmin: req.session.isAdmin,
+      address: req.session.address,
+    };
+  }
+  next();
+});
+
 // Настройка парсеров
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

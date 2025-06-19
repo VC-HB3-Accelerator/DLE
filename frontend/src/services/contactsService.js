@@ -29,7 +29,7 @@ export default {
     }
     return null;
   }
-};
+}; 
 
 export async function getContacts() {
   const res = await fetch('/api/users');

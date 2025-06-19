@@ -1,14 +1,14 @@
 <template>
   <BaseLayout>
     <div class="table-block-wrapper">
-      <div class="tableview-header-row">
-        <button class="nav-btn" @click="goToTables">Таблицы</button>
-        <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
-        <button class="close-btn" @click="closeTable">Закрыть</button>
-        <button class="action-btn" @click="goToEdit">Редактировать</button>
-        <button class="danger-btn" @click="goToDelete">Удалить</button>
-      </div>
-      <UserTableView :table-id="Number($route.params.id)" />
+    <div class="tableview-header-row">
+      <button class="nav-btn" @click="goToTables">Таблицы</button>
+      <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
+      <button class="close-btn" @click="closeTable">Закрыть</button>
+      <button class="action-btn" @click="goToEdit">Редактировать</button>
+      <button class="danger-btn" @click="goToDelete">Удалить</button>
+    </div>
+    <UserTableView :table-id="Number($route.params.id)" />
     </div>
   </BaseLayout>
 </template>
