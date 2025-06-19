@@ -5,7 +5,7 @@
       <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
     </div>
     <ContactTable :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markContactsAsRead" 
-      :markMessagesAsReadForUser="markMessagesAsReadForUser" :markContactAsRead="markContactAsRead" />
+      :markMessagesAsReadForUser="markMessagesAsReadForUser" :markContactAsRead="markContactAsRead" @close="goBack" />
   </BaseLayout>
 </template>
 
