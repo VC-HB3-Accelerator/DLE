@@ -5,6 +5,7 @@ const EmailBotService = require('./emailBot.js');
 const db = require('../db');
 const authService = require('./auth-service');
 const { checkAdminRole } = require('./admin-role');
+const { broadcastContactsUpdate } = require('../wsHub');
 
 class EmailAuth {
   constructor() {
@@ -64,6 +65,9 @@ class EmailAuth {
       logger.info(
         `Generated verification code for Email auth for ${email} and sent to user's email`
       );
+
+      // После каждого успешного создания пользователя:
+      broadcastContactsUpdate();
 
       return { success: true, verificationCode };
     } catch (error) {
@@ -200,6 +204,9 @@ class EmailAuth {
       if (session.tempUserId) {
         delete session.tempUserId;
       }
+
+      // После каждого успешного создания пользователя:
+      broadcastContactsUpdate();
 
       return {
         verified: true,

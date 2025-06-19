@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const identityService = require('./identity-service');
 const aiAssistant = require('./ai-assistant');
 const { checkAdminRole } = require('./admin-role');
+const { broadcastContactsUpdate } = require('../wsHub');
 
 let botInstance = null;
 let telegramSettingsCache = null;
@@ -252,6 +253,9 @@ async function getBot() {
           } catch (error) {
             logger.warn('Could not delete code message:', error);
           }
+
+          // После каждого успешного создания пользователя:
+          broadcastContactsUpdate();
         } catch (error) {
           logger.error('Error in Telegram auth:', error);
           await ctx.reply('Произошла ошибка при аутентификации. Попробуйте позже.');

@@ -19,4 +19,12 @@ function broadcastContactsUpdate() {
   }
 }
 
-module.exports = { initWSS, broadcastContactsUpdate }; 
+function broadcastMessagesUpdate() {
+  for (const ws of wsClients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'messages-updated' }));
+    }
+  }
+}
+
+module.exports = { initWSS, broadcastContactsUpdate, broadcastMessagesUpdate }; 

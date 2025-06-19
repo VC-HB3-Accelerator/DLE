@@ -4,6 +4,17 @@
       <h2>Контакты</h2>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
+    <div class="filters-panel">
+      <input v-model="filterName" placeholder="Имя" />
+      <input v-model="filterEmail" placeholder="Email" />
+      <input v-model="filterTelegram" placeholder="Telegram" />
+      <input v-model="filterWallet" placeholder="Кошелек" />
+      <input v-model="filterDateFrom" type="date" placeholder="Дата от" />
+      <input v-model="filterDateTo" type="date" placeholder="Дата до" />
+      <label class="checkbox-label">
+        <input type="checkbox" v-model="filterOnlyNewMessages" /> Только с новыми сообщениями
+      </label>
+    </div>
     <table class="contact-table">
       <thead>
         <tr>
@@ -16,13 +27,14 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="contact in contacts" :key="contact.id">
+        <tr v-for="contact in filteredContactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
           <td>{{ contact.name || '-' }}</td>
           <td>{{ contact.email || '-' }}</td>
           <td>{{ contact.telegram || '-' }}</td>
           <td>{{ contact.wallet || '-' }}</td>
-          <td>{{ formatDate(contact.created_at) }}</td>
+          <td>{{ contact.created_at ? new Date(contact.created_at).toLocaleString() : '-' }}</td>
           <td>
+            <span v-if="newMsgUserIds.includes(String(contact.id))" class="new-msg-icon" title="Новое сообщение">✉️</span>
             <button class="details-btn" @click="showDetails(contact)">Подробнее</button>
           </td>
         </tr>
@@ -32,17 +44,58 @@
 </template>
 
 <script setup>
-import { defineProps } from 'vue';
+import { defineProps, computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 const props = defineProps({
-  contacts: { type: Array, required: true }
+  contacts: { type: Array, default: () => [] },
+  newContacts: { type: Array, default: () => [] },
+  newMessages: { type: Array, default: () => [] },
+  markMessagesAsReadForUser: { type: Function, default: null },
+  markContactAsRead: { type: Function, default: null }
 });
+const contactsArray = computed(() => Array.from(props.contacts || []));
+const newIds = computed(() => props.newContacts.map(c => c.id));
+const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
+
+// Фильтры
+const filterName = ref('');
+const filterEmail = ref('');
+const filterTelegram = ref('');
+const filterWallet = ref('');
+const filterDateFrom = ref('');
+const filterDateTo = ref('');
+const filterOnlyNewMessages = ref(false);
+
+const filteredContactsArray = computed(() => {
+  return contactsArray.value.filter(contact => {
+    const nameMatch = !filterName.value || (contact.name || '').toLowerCase().includes(filterName.value.toLowerCase());
+    const emailMatch = !filterEmail.value || (contact.email || '').toLowerCase().includes(filterEmail.value.toLowerCase());
+    const telegramMatch = !filterTelegram.value || (contact.telegram || '').toLowerCase().includes(filterTelegram.value.toLowerCase());
+    const walletMatch = !filterWallet.value || (contact.wallet || '').toLowerCase().includes(filterWallet.value.toLowerCase());
+    let dateFromMatch = true, dateToMatch = true;
+    if (filterDateFrom.value && contact.created_at) {
+      dateFromMatch = new Date(contact.created_at) >= new Date(filterDateFrom.value);
+    }
+    if (filterDateTo.value && contact.created_at) {
+      dateToMatch = new Date(contact.created_at) <= new Date(filterDateTo.value);
+    }
+    const newMsgMatch = !filterOnlyNewMessages.value || newMsgUserIds.value.includes(String(contact.id));
+    return nameMatch && emailMatch && telegramMatch && walletMatch && dateFromMatch && dateToMatch && newMsgMatch;
+  });
+});
+
 function formatDate(date) {
   if (!date) return '-';
   return new Date(date).toLocaleString();
 }
-function showDetails(contact) {
+async function showDetails(contact) {
+  if (props.markContactAsRead) {
+    await props.markContactAsRead(contact.id);
+  }
+  if (props.markMessagesAsReadForUser) {
+    props.markMessagesAsReadForUser(contact.id);
+  }
   router.push({ name: 'contact-details', params: { id: contact.id } });
 }
 </script>
@@ -143,5 +196,36 @@ function showDetails(contact) {
 }
 .details-btn:hover {
   background: #138496;
+}
+.new-contact-row {
+  background: #e6ffe6 !important;
+  transition: background 0.3s;
+}
+.filters-panel {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  align-items: center;
+}
+.filters-panel input {
+  padding: 6px 10px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-size: 1em;
+  min-width: 110px;
+}
+.filters-panel input[type="checkbox"] {
+  margin-right: 4px;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.98em;
+  user-select: none;
+}
+.new-msg-icon {
+  color: #ff9800;
+  font-size: 1.2em;
+  margin-left: 4px;
 }
 </style> 

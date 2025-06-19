@@ -99,6 +99,43 @@ router.get('/', async (req, res) => {
 });
 */
 
+// Получить просмотренные контакты
+router.get('/read-contacts-status', async (req, res) => {
+  try {
+    const adminId = req.user && req.user.id;
+    if (!adminId) {
+      return res.status(401).json({ error: 'Unauthorized: adminId missing' });
+    }
+    const result = await db.query(
+      'SELECT contact_id FROM admin_read_contacts WHERE admin_id = $1',
+      [adminId]
+    );
+    res.json(result.rows.map(r => r.contact_id));
+  } catch (e) {
+    console.error('[ERROR] /read-contacts-status:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Пометить контакт как просмотренный
+router.post('/mark-contact-read', async (req, res) => {
+  try {
+    const adminId = req.user && req.user.id;
+    const { contactId } = req.body;
+    if (!adminId || !contactId) {
+      return res.status(400).json({ error: 'adminId and contactId required' });
+    }
+    await db.query(
+      'INSERT INTO admin_read_contacts (admin_id, contact_id, read_at) VALUES ($1, $2, NOW()) ON CONFLICT (admin_id, contact_id) DO UPDATE SET read_at = NOW()',
+      [adminId, contactId]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[ERROR] /mark-contact-read:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // PATCH /api/users/:id — обновить имя и язык
 router.patch('/:id', async (req, res) => {
   const userId = req.params.id;
@@ -177,6 +214,22 @@ router.get('/:id', async (req, res, next) => {
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/users
+router.post('/', async (req, res) => {
+  const { first_name, last_name, preferred_language } = req.body;
+  try {
+    const result = await db.getQuery()(
+      `INSERT INTO users (first_name, last_name, preferred_language, created_at)
+       VALUES ($1, $2, $3, NOW()) RETURNING *`,
+      [first_name, last_name, JSON.stringify(preferred_language || [])]
+    );
+    broadcastContactsUpdate();
+    res.json({ success: true, user: result.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
   }
 });
 

@@ -176,8 +176,8 @@ onMounted(() => {
   if (savedSidebarState !== null) {
     showWalletSidebar.value = savedSidebarState;
   } else {
-    showWalletSidebar.value = true;
-    setToStorage('showWalletSidebar', true);
+    showWalletSidebar.value = false; // по умолчанию закрыт
+    setToStorage('showWalletSidebar', false);
   }
 });
 </script>

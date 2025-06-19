@@ -1,103 +1,103 @@
 <template>
   <BaseLayout>
-    <div class="contact-details-page">
-      <div v-if="isLoading">Загрузка...</div>
-      <div v-else-if="!contact">Контакт не найден</div>
-      <div v-else class="contact-details-content">
-        <div class="contact-details-header">
-          <h2>Детали контакта</h2>
+  <div class="contact-details-page">
+    <div v-if="isLoading">Загрузка...</div>
+    <div v-else-if="!contact">Контакт не найден</div>
+    <div v-else class="contact-details-content">
+      <div class="contact-details-header">
+        <h2>Детали контакта</h2>
           <button class="close-btn" @click="goBack">×</button>
-        </div>
-        <div class="contact-info-block">
-          <div>
-            <strong>Имя:</strong>
-            <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
-            <span v-if="isSavingName" class="saving">Сохранение...</span>
-          </div>
-          <div><strong>Email:</strong> {{ contact.email || '-' }}</div>
-          <div><strong>Telegram:</strong> {{ contact.telegram || '-' }}</div>
-          <div><strong>Кошелек:</strong> {{ contact.wallet || '-' }}</div>
-          <div>
-            <strong>Язык:</strong>
-            <div class="multi-select">
-              <div class="selected-langs">
-                <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
-                  {{ getLanguageLabel(lang) }}
-                  <span class="remove-tag" @click="removeLanguage(lang)">×</span>
-                </span>
-                <input
-                  v-model="langInput"
-                  @focus="showLangDropdown = true"
-                  @input="showLangDropdown = true"
-                  @keydown.enter.prevent="addLanguageFromInput"
-                  class="lang-input"
-                  placeholder="Добавить язык..."
-                />
-              </div>
-              <ul v-if="showLangDropdown" class="lang-dropdown">
-                <li
-                  v-for="lang in filteredLanguages"
-                  :key="lang.value"
-                  @mousedown.prevent="addLanguage(lang.value)"
-                  :class="{ selected: selectedLanguages.includes(lang.value) }"
-                >
-                  {{ lang.label }}
-                </li>
-              </ul>
-            </div>
-            <span v-if="isSavingLangs" class="saving">Сохранение...</span>
-          </div>
-          <div><strong>Дата создания:</strong> {{ formatDate(contact.created_at) }}</div>
-          <div><strong>Дата последнего сообщения:</strong> {{ formatDate(lastMessageDate) }}</div>
-          <div class="user-tags-block">
-            <strong>Теги пользователя:</strong>
-            <span v-for="tag in userTags" :key="tag.id" class="user-tag">
-              {{ tag.name }}
-              <span class="remove-tag" @click="removeUserTag(tag.id)">×</span>
-            </span>
-            <button class="add-tag-btn" @click="openTagModal">Добавить тег</button>
-          </div>
-          <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
-        </div>
-        <div class="messages-block">
-          <h3>История сообщений</h3>
-          <div v-if="isLoadingMessages" class="loading">Загрузка...</div>
-          <div v-else-if="messages.length === 0" class="empty">Нет сообщений</div>
-          <div v-else class="messages-list">
-            <Message v-for="msg in messages" :key="msg.id" :message="msg" />
-          </div>
-        </div>
-        <el-dialog v-model="showTagModal" title="Добавить тег пользователю">
-          <div v-if="allTags.length">
-            <el-select
-              v-model="selectedTags"
-              multiple
-              filterable
-              placeholder="Выберите теги"
-              @change="addTagsToUser"
-            >
-              <el-option
-                v-for="tag in allTags"
-                :key="tag.id"
-                :label="tag.name"
-                :value="tag.id"
-              />
-            </el-select>
-            <div style="margin-top: 1em; color: #888; font-size: 0.95em;">
-              <strong>Существующие теги:</strong>
-              <span v-for="tag in allTags" :key="'list-' + tag.id" style="margin-right: 0.7em;">
-                {{ tag.name }}<span v-if="tag.description"> ({{ tag.description }})</span>
-              </span>
-            </div>
-          </div>
-          <div style="margin-top: 1em;">
-            <el-input v-model="newTagName" placeholder="Новый тег" />
-            <el-input v-model="newTagDescription" placeholder="Описание" />
-            <el-button type="primary" @click="createTag">Создать тег</el-button>
-          </div>
-        </el-dialog>
       </div>
+      <div class="contact-info-block">
+        <div>
+          <strong>Имя:</strong>
+          <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
+          <span v-if="isSavingName" class="saving">Сохранение...</span>
+        </div>
+        <div><strong>Email:</strong> {{ contact.email || '-' }}</div>
+        <div><strong>Telegram:</strong> {{ contact.telegram || '-' }}</div>
+        <div><strong>Кошелек:</strong> {{ contact.wallet || '-' }}</div>
+        <div>
+          <strong>Язык:</strong>
+          <div class="multi-select">
+            <div class="selected-langs">
+              <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
+                {{ getLanguageLabel(lang) }}
+                <span class="remove-tag" @click="removeLanguage(lang)">×</span>
+              </span>
+              <input
+                v-model="langInput"
+                @focus="showLangDropdown = true"
+                @input="showLangDropdown = true"
+                @keydown.enter.prevent="addLanguageFromInput"
+                class="lang-input"
+                placeholder="Добавить язык..."
+              />
+            </div>
+            <ul v-if="showLangDropdown" class="lang-dropdown">
+              <li
+                v-for="lang in filteredLanguages"
+                :key="lang.value"
+                @mousedown.prevent="addLanguage(lang.value)"
+                :class="{ selected: selectedLanguages.includes(lang.value) }"
+              >
+                {{ lang.label }}
+              </li>
+            </ul>
+          </div>
+          <span v-if="isSavingLangs" class="saving">Сохранение...</span>
+        </div>
+        <div><strong>Дата создания:</strong> {{ formatDate(contact.created_at) }}</div>
+        <div><strong>Дата последнего сообщения:</strong> {{ formatDate(lastMessageDate) }}</div>
+        <div class="user-tags-block">
+          <strong>Теги пользователя:</strong>
+          <span v-for="tag in userTags" :key="tag.id" class="user-tag">
+            {{ tag.name }}
+            <span class="remove-tag" @click="removeUserTag(tag.id)">×</span>
+          </span>
+          <button class="add-tag-btn" @click="openTagModal">Добавить тег</button>
+        </div>
+        <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
+      </div>
+      <div class="messages-block">
+        <h3>История сообщений</h3>
+        <div v-if="isLoadingMessages" class="loading">Загрузка...</div>
+        <div v-else-if="messages.length === 0" class="empty">Нет сообщений</div>
+        <div v-else class="messages-list">
+          <Message v-for="msg in messages" :key="msg.id" :message="msg" />
+        </div>
+      </div>
+      <el-dialog v-model="showTagModal" title="Добавить тег пользователю">
+        <div v-if="allTags.length">
+          <el-select
+            v-model="selectedTags"
+            multiple
+            filterable
+            placeholder="Выберите теги"
+            @change="addTagsToUser"
+          >
+            <el-option
+              v-for="tag in allTags"
+              :key="tag.id"
+              :label="tag.name"
+              :value="tag.id"
+            />
+          </el-select>
+          <div style="margin-top: 1em; color: #888; font-size: 0.95em;">
+            <strong>Существующие теги:</strong>
+            <span v-for="tag in allTags" :key="'list-' + tag.id" style="margin-right: 0.7em;">
+              {{ tag.name }}<span v-if="tag.description"> ({{ tag.description }})</span>
+            </span>
+          </div>
+        </div>
+        <div style="margin-top: 1em;">
+          <el-input v-model="newTagName" placeholder="Новый тег" />
+          <el-input v-model="newTagDescription" placeholder="Описание" />
+          <el-button type="primary" @click="createTag">Создать тег</el-button>
+        </div>
+      </el-dialog>
     </div>
+  </div>
   </BaseLayout>
 </template>
 

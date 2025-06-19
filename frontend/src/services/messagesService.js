@@ -6,7 +6,7 @@ export default {
     const { data } = await axios.get(`/api/messages?userId=${userId}`);
     return data;
   }
-};
+}; 
 
 export async function getAllMessages() {
   const { data } = await axios.get('/api/messages');

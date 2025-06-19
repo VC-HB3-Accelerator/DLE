@@ -95,7 +95,6 @@ function connectWebSocket() {
 
 // Функция для перехода на домашнюю страницу и открытия боковой панели
 const goToHomeAndShowSidebar = () => {
-  setToStorage('showWalletSidebar', true);
   router.push({ name: 'home' });
 };
 
