@@ -1,13 +1,15 @@
 <template>
   <BaseLayout>
-    <div class="tableview-header-row">
-      <button class="nav-btn" @click="goToTables">Таблицы</button>
-      <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
-      <button class="close-btn" @click="closeTable">Закрыть</button>
-      <button class="action-btn" @click="goToEdit">Редактировать</button>
-      <button class="danger-btn" @click="goToDelete">Удалить</button>
+    <div class="table-block-wrapper">
+      <div class="tableview-header-row">
+        <button class="nav-btn" @click="goToTables">Таблицы</button>
+        <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
+        <button class="close-btn" @click="closeTable">Закрыть</button>
+        <button class="action-btn" @click="goToEdit">Редактировать</button>
+        <button class="danger-btn" @click="goToDelete">Удалить</button>
+      </div>
+      <UserTableView :table-id="Number($route.params.id)" />
     </div>
-    <UserTableView :table-id="Number($route.params.id)" />
   </BaseLayout>
 </template>
 
@@ -44,6 +46,16 @@ function goToCreate() {
 </script>
 
 <style scoped>
+.table-block-wrapper {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.12);
+  padding: 32px 24px 24px 24px;
+  max-width: 950px;
+  margin: 40px auto;
+  position: relative;
+  overflow-x: auto;
+}
 .tableview-header-row {
   display: flex;
   justify-content: flex-end;

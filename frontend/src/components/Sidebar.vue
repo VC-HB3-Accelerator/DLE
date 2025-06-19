@@ -402,15 +402,15 @@ h3 {
 /* Медиа-запросы для адаптивности */
 @media screen and (min-width: 1200px) {
   .wallet-sidebar {
-    width: 30%;
-    max-width: 350px;
+    width: 420px;
+    max-width: 420px;
   }
 }
 
 @media screen and (min-width: 769px) and (max-width: 1199px) {
   .wallet-sidebar {
-    width: 40%;
-    max-width: 320px;
+    width: 350px;
+    max-width: 350px;
   }
 }
 

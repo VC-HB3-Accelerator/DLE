@@ -1,7 +1,10 @@
+console.log('[identity-service] loaded');
+
 const db = require('../db');
 const logger = require('../utils/logger');
 const { getLinkedWallet } = require('./wallet-service');
 const { checkAdminRole } = require('./admin-role');
+const { broadcastContactsUpdate } = require('../wsHub');
 
 /**
  * Сервис для работы с идентификаторами пользователей
@@ -541,6 +544,7 @@ class IdentityService {
       await this.saveIdentity(userId, provider, providerId, true);
       user = { id: userId, role: 'user' };
       isNew = true;
+      broadcastContactsUpdate();
     }
     // Проверяем связь с кошельком
     const wallet = await getLinkedWallet(user.id);

@@ -1,7 +1,6 @@
 const db = require('../db');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
-const { GoogleGenAI } = require('@google/genai');
 
 const TABLE = 'ai_providers_settings';
 
@@ -48,6 +47,7 @@ async function getProviderModels(provider, { api_key, base_url } = {}) {
       return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
     }
     if (provider === 'google') {
+      const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({ apiKey: api_key, baseUrl: base_url });
       const pager = await ai.models.list();
       const models = [];
@@ -79,6 +79,7 @@ async function verifyProviderKey(provider, { api_key, base_url } = {}) {
       return { success: true };
     }
     if (provider === 'google') {
+      const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({ apiKey: api_key, baseUrl: base_url });
       const pager = await ai.models.list();
       for await (const _ of pager) {

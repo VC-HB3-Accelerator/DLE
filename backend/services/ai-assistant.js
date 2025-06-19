@@ -1,3 +1,5 @@
+console.log('[ai-assistant] loaded');
+
 const { ChatOllama } = require('@langchain/ollama');
 const { HNSWLib } = require('@langchain/community/vectorstores/hnswlib');
 const { OpenAIEmbeddings } = require('@langchain/openai');
