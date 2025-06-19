@@ -29,4 +29,13 @@ export default {
     }
     return null;
   }
-}; 
+};
+
+export async function getContacts() {
+  const res = await fetch('/api/users');
+  const data = await res.json();
+  if (data && data.success) {
+    return data.contacts;
+  }
+  return [];
+} 

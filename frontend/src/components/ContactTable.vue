@@ -53,8 +53,8 @@ function showDetails(contact) {
   border-radius: 16px;
   box-shadow: 0 4px 32px rgba(0,0,0,0.12);
   padding: 32px 24px 24px 24px;
-  max-width: 950px;
-  margin: 40px auto;
+  width: 100%;
+  margin-top: 40px;
   position: relative;
   overflow-x: auto;
 }
@@ -65,6 +65,9 @@ function showDetails(contact) {
   margin-bottom: 24px;
 }
 .close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
   background: none;
   border: none;
   font-size: 2rem;

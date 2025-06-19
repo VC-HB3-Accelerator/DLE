@@ -332,8 +332,9 @@ async function getBot() {
       }
     });
 
-    // Запускаем бота
+    // Запуск бота
     await botInstance.launch();
+    logger.info('[TelegramBot] Бот запущен');
   }
 
   return botInstance;

@@ -93,6 +93,11 @@ const routes = [
     props: true
   },
   {
+    path: '/tables/tags',
+    name: 'tags-table-view',
+    component: () => import('../views/tables/TagsTableViewPage.vue')
+  },
+  {
     path: '/contacts/:id',
     name: 'contact-details',
     component: () => import('../views/contacts/ContactDetailsView.vue'),
@@ -103,6 +108,16 @@ const routes = [
     name: 'contact-delete-confirm',
     component: () => import('../views/contacts/ContactDeleteConfirm.vue'),
     props: true
+  },
+  {
+    path: '/contacts-list',
+    name: 'contacts-list',
+    component: () => import('../views/ContactsView.vue')
+  },
+  {
+    path: '/dle-management',
+    name: 'dle-management',
+    component: () => import('../views/DleManagementView.vue')
   },
 ];
 

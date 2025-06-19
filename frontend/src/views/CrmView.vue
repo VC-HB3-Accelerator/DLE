@@ -9,18 +9,16 @@
     <div class="crm-view-container">
       <div class="dle-management-block">
         <h2>Управление DLE</h2>
-        <button class="btn btn-info" @click="showDleManagement = true">
+        <button class="btn btn-info" @click="goToDleManagement">
           <i class="fas fa-cogs"></i> Подробнее
         </button>
       </div>
-      <DleManagement v-if="showDleManagement" :dle-list="dleList" :selected-dle-index="selectedDleIndex" @close="showDleManagement = false" />
       <div class="crm-contacts-block">
         <h2>Контакты</h2>
-        <button class="btn btn-info" @click="showContacts = true">
+        <button class="btn btn-info" @click="goToContactsList">
           <i class="fas fa-address-book"></i> Подробнее
         </button>
       </div>
-      <ContactTable v-if="showContacts" :contacts="contacts" @close="showContacts = false" @show-details="openContactDetails" />
       <div class="crm-tables-block">
         <h2>Таблицы</h2>
         <button class="btn btn-info" @click="goToTables">
@@ -188,6 +186,14 @@ function onContactDeleted() {
 
 function goToTables() {
   router.push({ name: 'tables-list' });
+}
+
+function goToDleManagement() {
+  router.push({ name: 'dle-management' });
+}
+
+function goToContactsList() {
+  router.push({ name: 'contacts-list' });
 }
 </script>
 

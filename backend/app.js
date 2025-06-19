@@ -163,7 +163,7 @@ app.use((req, res, next) => {
 app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
 // app.use('/api', identitiesRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/users/:userId/tags', userTagsRoutes);
+app.use('/api/users', userTagsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
