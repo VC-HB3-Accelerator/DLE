@@ -60,12 +60,18 @@
         <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
       </div>
       <div class="messages-block">
-        <h3>История сообщений</h3>
-        <div v-if="isLoadingMessages" class="loading">Загрузка...</div>
-        <div v-else-if="messages.length === 0" class="empty">Нет сообщений</div>
-        <div v-else class="messages-list">
-          <Message v-for="msg in messages" :key="msg.id" :message="msg" />
-        </div>
+        <h3>Чат с пользователем</h3>
+        <ChatInterface
+          :messages="messages"
+          :isLoading="isLoadingMessages"
+          :attachments="chatAttachments"
+          :newMessage="chatNewMessage"
+          :isAdmin="isAdmin"
+          @send-message="handleSendMessage"
+          @update:newMessage="val => chatNewMessage = val"
+          @update:attachments="val => chatAttachments = val"
+          @ai-reply="handleAiReply"
+        />
       </div>
       <el-dialog v-model="showTagModal" title="Добавить тег пользователю">
         <div v-if="allTags.length">
@@ -106,8 +112,10 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import Message from '../../components/Message.vue';
+import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
+import { useAuth } from '../../composables/useAuth';
 
 const route = useRoute();
 const router = useRouter();
@@ -126,6 +134,11 @@ const showTagModal = ref(false);
 const newTagName = ref('');
 const newTagDescription = ref('');
 const messages = ref([]);
+const chatAttachments = ref([]);
+const chatNewMessage = ref('');
+const { isAdmin } = useAuth();
+const isAiLoading = ref(false);
+const conversationId = ref(null);
 
 function toggleSidebar() {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -207,10 +220,18 @@ async function loadMessages() {
   if (!contact.value || !contact.value.id) return;
   isLoadingMessages.value = true;
   try {
-    messages.value = await messagesService.getMessagesByUserId(contact.value.id);
-    if (messages.value.length > 0) {
-      lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
+    // Получаем conversationId для контакта
+    const conv = await messagesService.getConversationByUserId(contact.value.id);
+    conversationId.value = conv?.id || null;
+    if (conversationId.value) {
+      messages.value = await messagesService.getMessagesByConversationId(conversationId.value);
+      if (messages.value.length > 0) {
+        lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
+      } else {
+        lastMessageDate.value = null;
+      }
     } else {
+      messages.value = [];
       lastMessageDate.value = null;
     }
   } catch (e) {
@@ -293,6 +314,63 @@ function goBack() {
     router.back();
   } else {
     router.push({ name: 'crm' });
+  }
+}
+
+async function handleSendMessage({ message, attachments }) {
+  console.log('handleSendMessage', message, attachments);
+  if (!contact.value || !contact.value.id || !conversationId.value) return;
+  const tempId = 'local-' + Date.now();
+  const optimisticMsg = {
+    id: tempId,
+    conversation_id: conversationId.value,
+    user_id: null,
+    content: message,
+    sender_type: 'user',
+    role: 'user',
+    channel: 'web',
+    created_at: new Date().toISOString(),
+    attachments: [],
+    isLocal: true
+  };
+  messages.value.push(optimisticMsg);
+  try {
+    await messagesService.sendMessage({
+      message,
+      conversationId: conversationId.value,
+      attachments,
+      toUserId: contact.value.id
+    });
+  } finally {
+    await loadMessages();
+  }
+}
+
+async function handleAiReply(selectedMessages = []) {
+  console.log('[AI-ASSISTANT] Кнопка нажата, messages:', messages.value);
+  if (isAiLoading.value) {
+    console.log('[AI-ASSISTANT] Уже идёт генерация, выход');
+    return;
+  }
+  if (!Array.isArray(selectedMessages) || selectedMessages.length === 0) {
+    alert('Выберите хотя бы одно сообщение пользователя для генерации ответа.');
+    return;
+  }
+  isAiLoading.value = true;
+  try {
+    // Генерируем черновик ответа через новый endpoint
+    const draftResp = await messagesService.generateAiDraft(conversationId.value, selectedMessages);
+    if (draftResp && draftResp.success && draftResp.aiMessage) {
+      chatNewMessage.value = draftResp.aiMessage;
+      console.log('[AI-ASSISTANT] Черновик сгенерирован:', draftResp.aiMessage);
+    } else {
+      alert('Не удалось сгенерировать ответ ИИ.');
+    }
+  } catch (e) {
+    alert('Ошибка генерации ответа ИИ: ' + (e?.message || e));
+  } finally {
+    isAiLoading.value = false;
+    console.log('[AI-ASSISTANT] Генерация завершена');
   }
 }
 

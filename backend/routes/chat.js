@@ -341,10 +341,20 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
   try {
     // Найти или создать диалог
     if (conversationId) {
-      const convResult = await db.getQuery()(
-        'SELECT * FROM conversations WHERE id = $1 AND user_id = $2',
-        [conversationId, userId]
-      );
+      let convResult;
+      if (req.session.isAdmin) {
+        // Админ может писать в любой диалог
+        convResult = await db.getQuery()(
+          'SELECT * FROM conversations WHERE id = $1',
+          [conversationId]
+        );
+      } else {
+        // Обычный пользователь — только в свой диалог
+        convResult = await db.getQuery()(
+          'SELECT * FROM conversations WHERE id = $1 AND user_id = $2',
+          [conversationId, userId]
+        );
+      }
       if (convResult.rows.length === 0) {
         logger.warn('Conversation not found or access denied', { conversationId, userId });
         return res.status(404).json({ success: false, error: 'Диалог не найден или доступ запрещен' });
@@ -381,17 +391,29 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     const attachmentSize = file ? file.size : null;
     const attachmentData = file ? file.buffer : null;
 
-    // Сохраняем сообщение пользователя
+    // Определяем user_id для сообщения: всегда user_id диалога (контакта)
+    const recipientId = conversation.user_id;
+    // Определяем sender_type
+    let senderType = 'user';
+    let role = 'user';
+    if (req.session.isAdmin) {
+      senderType = 'admin';
+      role = 'admin';
+    }
+
+    // Сохраняем сообщение
     const userMessageResult = await db.getQuery()(
       `INSERT INTO messages
          (conversation_id, user_id, content, sender_type, role, channel,
           attachment_filename, attachment_mimetype, attachment_size, attachment_data)
-       VALUES ($1, $2, $3, 'user', 'user', 'web', $4, $5, $6, $7)
+       VALUES ($1, $2, $3, $4, $5, 'web', $6, $7, $8, $9)
        RETURNING *`,
       [
         conversationId,
-        userId,
+        recipientId, // user_id контакта
         messageContent,
+        senderType,
+        role,
         attachmentFilename,
         attachmentMimetype,
         attachmentSize,
@@ -403,7 +425,15 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
 
     // Получаем ответ от ИИ, только если это было текстовое сообщение
     let aiMessage = null;
-    if (messageContent) { // Только для текстовых сообщений
+    // --- Новая логика автоответа ИИ ---
+    let shouldGenerateAiReply = true;
+    if (senderType === 'admin') {
+      // Если админ пишет не себе, не отвечаем
+      if (userId !== recipientId) {
+        shouldGenerateAiReply = false;
+      }
+    }
+    if (messageContent && shouldGenerateAiReply) { // Только для текстовых сообщений и если разрешено
       try {
         // Получаем настройки ассистента
         const aiSettings = await aiAssistantSettingsService.getSettings();
@@ -644,6 +674,46 @@ router.post('/process-guest', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error('Error in /process-guest:', error);
     return res.status(500).json({ success: false, error: 'Internal error' });
+  }
+});
+
+// POST /api/chat/ai-draft — генерация черновика ответа ИИ
+router.post('/ai-draft', requireAuth, async (req, res) => {
+  const userId = req.session.userId;
+  const { conversationId, messages, language } = req.body;
+  if (!conversationId || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ success: false, error: 'conversationId и messages обязательны' });
+  }
+  try {
+    // Получаем настройки ассистента
+    const aiSettings = await aiAssistantSettingsService.getSettings();
+    let rules = null;
+    if (aiSettings && aiSettings.rules_id) {
+      rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
+    }
+    // Формируем prompt из выбранных сообщений
+    const promptText = messages.map(m => m.content).join('\n\n');
+    // Получаем последние 10 сообщений из диалога для истории
+    const historyResult = await db.getQuery()(
+      'SELECT sender_type, content FROM messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 10',
+      [conversationId]
+    );
+    const history = historyResult.rows.reverse().map(msg => ({
+      role: msg.sender_type === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
+    const detectedLanguage = language === 'auto' ? aiAssistant.detectLanguage(promptText) : language;
+    const aiResponseContent = await aiAssistant.getResponse(
+      promptText,
+      detectedLanguage,
+      history,
+      aiSettings ? aiSettings.system_prompt : '',
+      rules ? rules.rules : null
+    );
+    res.json({ success: true, aiMessage: aiResponseContent });
+  } catch (error) {
+    logger.error('Error generating AI draft:', error);
+    res.status(500).json({ success: false, error: 'Ошибка генерации черновика' });
   }
 });
 

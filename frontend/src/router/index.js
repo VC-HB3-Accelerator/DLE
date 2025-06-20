@@ -6,6 +6,7 @@ const SettingsBlockchainView = () => import('../views/settings/BlockchainSetting
 const SettingsSecurityView = () => import('../views/settings/SecuritySettingsView.vue');
 const SettingsInterfaceView = () => import('../views/settings/InterfaceSettingsView.vue');
 import axios from 'axios';
+import { setToStorage } from '../utils/storage.js';
 
 console.log('router/index.js: Script loaded');
 
@@ -150,6 +151,11 @@ router.beforeEach(async (to, from, next) => {
   } else {
     next();
   }
+});
+
+router.afterEach(() => {
+  // Всегда закрываем сайдбар при переходе на любую страницу
+  setToStorage('showWalletSidebar', false);
 });
 
 export default router;
