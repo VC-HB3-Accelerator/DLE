@@ -1,11 +1,12 @@
 <template>
   <div class="chat-container" :style="{ '--chat-input-height': chatInputHeight + 'px' }">
     <div ref="messagesContainer" class="chat-messages" @scroll="handleScroll">
-      <Message 
-        v-for="message in messages"
-        :key="message.id"
-        :message="message"
-      />
+      <div v-for="message in messages" :key="message.id" :class="['message-wrapper', { 'selected-message': selectedMessageIds.includes(message.id) }]">
+        <template v-if="isAdmin">
+          <input type="checkbox" class="admin-select-checkbox" :checked="selectedMessageIds.includes(message.id)" @change="() => toggleSelectMessage(message.id)" />
+        </template>
+        <Message :message="message" />
+      </div>
     </div>
 
     <div ref="chatInputRef" class="chat-input">
@@ -68,6 +69,14 @@
               <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" fill="currentColor"/>
             </svg>
           </button>
+          <button v-if="props.isAdmin" class="chat-icon-btn ai-reply-btn" title="Сгенерировать ответ ИИ" @click="handleAiReply" :disabled="isAiLoading">
+            <template v-if="isAiLoading">
+              <svg class="ai-spinner" width="22" height="22" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
+            </template>
+            <template v-else>
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="8" r="4"/><path d="M8 16v2M16 16v2"/></svg>
+            </template>
+          </button>
         </div>
       </div>
       <div class="attachment-preview" v-if="localAttachments.length > 0">
@@ -92,6 +101,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import Message from './Message.vue';
+import messagesService from '../services/messagesService.js';
 
 const props = defineProps({
   messages: {
@@ -103,6 +113,7 @@ const props = defineProps({
   attachments: Array, // Для v-model
   // Добавляем пропс для проверки, есть ли еще сообщения для загрузки
   hasMoreMessages: Boolean,
+  isAdmin: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([
@@ -110,6 +121,7 @@ const emit = defineEmits([
   'update:attachments',
   'send-message',
   'load-more', // Событие для загрузки старых сообщений
+  'ai-reply',
 ]);
 
 const messagesContainer = ref(null);
@@ -434,6 +446,45 @@ onUnmounted(() => {
   }
 });
 
+const isAiLoading = ref(false);
+
+const selectedMessageIds = ref([]);
+
+function toggleSelectMessage(id) {
+  if (selectedMessageIds.value.includes(id)) {
+    selectedMessageIds.value = selectedMessageIds.value.filter(mid => mid !== id);
+  } else {
+    selectedMessageIds.value.push(id);
+  }
+}
+
+async function handleAiReply() {
+  if (isAiLoading.value) return;
+  // Если выбраны сообщения — отправляем их, иначе старое поведение
+  if (emit) {
+    const selectedMessages = props.messages.filter(m => selectedMessageIds.value.includes(m.id));
+    emit('ai-reply', selectedMessages);
+    return;
+  }
+  isAiLoading.value = true;
+  try {
+    const response = await messagesService.sendMessage({
+      message: props.newMessage,
+      attachments: []
+    });
+    if (response && response.aiMessage && response.aiMessage.content) {
+      emit('update:newMessage', response.aiMessage.content);
+    } else {
+      emit('update:newMessage', '');
+    }
+  } catch (e) {
+    console.error('Ошибка генерации ответа ИИ:', e);
+    alert('Ошибка генерации ответа ИИ');
+  } finally {
+    isAiLoading.value = false;
+  }
+}
+
 </script>
 
 <style scoped>
@@ -688,5 +739,20 @@ onUnmounted(() => {
   .preview-item {
     font-size: var(--font-size-xs);
   }
+}
+
+.ai-spinner {
+  animation: ai-spin 1s linear infinite;
+}
+@keyframes ai-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.selected-message {
+  background: #e6f7ff;
+}
+.admin-select-checkbox {
+  margin-right: 8px;
 }
 </style> 

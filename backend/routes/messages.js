@@ -6,9 +6,18 @@ const { broadcastMessagesUpdate } = require('../wsHub');
 // GET /api/messages?userId=123
 router.get('/', async (req, res) => {
   const userId = req.query.userId;
+  const conversationId = req.query.conversationId;
   try {
     let result;
-    if (userId) {
+    if (conversationId) {
+      result = await db.getQuery()(
+        `SELECT id, user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata
+         FROM messages
+         WHERE conversation_id = $1
+         ORDER BY created_at ASC`,
+        [conversationId]
+      );
+    } else if (userId) {
       result = await db.getQuery()(
         `SELECT id, user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata
          FROM messages
@@ -93,6 +102,24 @@ router.get('/read-status', async (req, res) => {
   } catch (e) {
     console.error('[ERROR] /read-status:', e);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/conversations?userId=123
+router.get('/conversations', async (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    const result = await db.getQuery()(
+      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
   }
 });
 
