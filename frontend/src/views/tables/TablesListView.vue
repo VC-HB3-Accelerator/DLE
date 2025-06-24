@@ -15,11 +15,7 @@ import { useRouter } from 'vue-router';
 // import TagsTableView from '../../components/tables/TagsTableView.vue'; // больше не используется
 const router = useRouter();
 function goBack() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: 'crm' });
-  }
+  router.push({ name: 'crm' });
 }
 </script> 
 

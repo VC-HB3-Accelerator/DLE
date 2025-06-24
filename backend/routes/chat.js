@@ -351,9 +351,9 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       } else {
         // Обычный пользователь — только в свой диалог
         convResult = await db.getQuery()(
-          'SELECT * FROM conversations WHERE id = $1 AND user_id = $2',
-          [conversationId, userId]
-        );
+        'SELECT * FROM conversations WHERE id = $1 AND user_id = $2',
+        [conversationId, userId]
+      );
       }
       if (convResult.rows.length === 0) {
         logger.warn('Conversation not found or access denied', { conversationId, userId });
