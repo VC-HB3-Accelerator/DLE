@@ -116,6 +116,7 @@ import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
 import { useAuth } from '../../composables/useAuth';
+import { ElMessageBox } from 'element-plus';
 
 const route = useRoute();
 const router = useRouter();
@@ -225,9 +226,9 @@ async function loadMessages() {
     conversationId.value = conv?.id || null;
     if (conversationId.value) {
       messages.value = await messagesService.getMessagesByConversationId(conversationId.value);
-      if (messages.value.length > 0) {
-        lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
-      } else {
+    if (messages.value.length > 0) {
+      lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
+    } else {
         lastMessageDate.value = null;
       }
     } else {
@@ -318,31 +319,45 @@ function goBack() {
 }
 
 async function handleSendMessage({ message, attachments }) {
-  console.log('handleSendMessage', message, attachments);
-  if (!contact.value || !contact.value.id || !conversationId.value) return;
-  const tempId = 'local-' + Date.now();
-  const optimisticMsg = {
-    id: tempId,
-    conversation_id: conversationId.value,
-    user_id: null,
-    content: message,
-    sender_type: 'user',
-    role: 'user',
-    channel: 'web',
-    created_at: new Date().toISOString(),
-    attachments: [],
-    isLocal: true
-  };
-  messages.value.push(optimisticMsg);
+  if (!contact.value || !contact.value.id) return;
+  // Проверка наличия хотя бы одного идентификатора
+  const hasAnyId = contact.value.email || contact.value.telegram || contact.value.wallet;
+  if (!hasAnyId) {
+    if (typeof ElMessageBox === 'function') {
+      ElMessageBox.alert('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.', 'Ошибка', { type: 'warning' });
+    } else {
+      alert('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.');
+    }
+    return;
+  }
   try {
-    await messagesService.sendMessage({
+    const result = await messagesService.broadcastMessage({
+      userId: contact.value.id,
       message,
-      conversationId: conversationId.value,
-      attachments,
-      toUserId: contact.value.id
+      attachments
     });
-  } finally {
+    // Формируем текст результата для отображения админу
+    let resultText = '';
+    if (result && Array.isArray(result.results)) {
+      resultText = 'Результат рассылки по каналам:';
+      for (const r of result.results) {
+        resultText += `\n${r.channel}: ${(r.status === 'sent' || r.status === 'saved') ? 'Успех' : 'Ошибка'}${r.error ? ' (' + r.error + ')' : ''}`;
+      }
+    } else {
+      resultText = 'Не удалось получить подробный ответ от сервера.';
+    }
+    if (typeof ElMessageBox === 'function') {
+      ElMessageBox.alert(resultText, 'Результат рассылки', { type: 'info' });
+    } else {
+      alert(resultText);
+    }
     await loadMessages();
+  } catch (e) {
+    if (typeof ElMessageBox === 'function') {
+      ElMessageBox.alert('Ошибка отправки: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
+    } else {
+      alert('Ошибка отправки: ' + (e?.response?.data?.error || e?.message || e));
+    }
   }
 }
 

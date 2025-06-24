@@ -52,30 +52,126 @@ router.put('/profile', requireAuth, async (req, res) => {
 });
 */
 
-// Получение списка пользователей с контактами
-router.get('/', async (req, res, next) => {
+// Получение списка пользователей с фильтрацией
+router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const usersResult = await db.getQuery()('SELECT id, first_name, last_name, created_at, preferred_language FROM users ORDER BY id');
-    const users = usersResult.rows;
-    // Получаем все user_identities разом
-    const identitiesResult = await db.getQuery()('SELECT user_id, provider, provider_id FROM user_identities');
-    const identities = identitiesResult.rows;
-    // Группируем идентификаторы по user_id
-    const identityMap = {};
-    for (const id of identities) {
-      if (!identityMap[id.user_id]) identityMap[id.user_id] = {};
-      if (!identityMap[id.user_id][id.provider]) identityMap[id.user_id][id.provider] = id.provider_id;
+    const {
+      tagIds = '',
+      dateFrom = '',
+      dateTo = '',
+      contactType = 'all',
+      search = '',
+      newMessages = ''
+    } = req.query;
+    const adminId = req.user && req.user.id;
+
+    // --- Формируем условия ---
+    const where = [];
+    const params = [];
+    let idx = 1;
+
+    // Фильтр по дате
+    if (dateFrom) {
+      where.push(`DATE(u.created_at) >= $${idx++}`);
+      params.push(dateFrom);
     }
-    // Собираем контакты
+    if (dateTo) {
+      where.push(`DATE(u.created_at) <= $${idx++}`);
+      params.push(dateTo);
+    }
+
+    // Фильтр по типу контакта
+    if (contactType !== 'all') {
+      where.push(`EXISTS (
+        SELECT 1 FROM user_identities ui
+        WHERE ui.user_id = u.id AND ui.provider = $${idx++}
+      )`);
+      params.push(contactType);
+    }
+
+    // Фильтр по поиску
+    if (search) {
+      where.push(`(
+        LOWER(u.first_name) LIKE $${idx} OR
+        LOWER(u.last_name) LIKE $${idx} OR
+        EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND LOWER(ui.provider_id) LIKE $${idx})
+      )`);
+      params.push(`%${search.toLowerCase()}%`);
+      idx++;
+    }
+
+    // --- Основной SQL ---
+    let sql = `
+      SELECT u.id, u.first_name, u.last_name, u.created_at, u.preferred_language,
+        (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'email' LIMIT 1) AS email,
+        (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'telegram' LIMIT 1) AS telegram,
+        (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'wallet' LIMIT 1) AS wallet
+      FROM users u
+    `;
+
+    // Фильтрация по тегам
+    if (tagIds) {
+      const tagIdArr = tagIds.split(',').map(Number).filter(Boolean);
+      if (tagIdArr.length > 0) {
+        sql += `
+          JOIN user_tags ut ON ut.user_id = u.id
+          WHERE ut.tag_id = ANY($${idx++})
+          GROUP BY u.id
+          HAVING COUNT(DISTINCT ut.tag_id) = $${idx++}
+        `;
+        params.push(tagIdArr);
+        params.push(tagIdArr.length);
+      }
+    } else if (where.length > 0) {
+      sql += ` WHERE ${where.join(' AND ')} `;
+    }
+
+    if (!tagIds) {
+      sql += ' ORDER BY u.id ';
+    }
+
+    // --- Выполняем запрос ---
+    const usersResult = await db.getQuery()(sql, params);
+    let users = usersResult.rows;
+
+    // --- Фильтрация по новым сообщениям ---
+    if (newMessages === 'yes' && adminId) {
+      // Получаем время последнего прочтения для каждого пользователя
+      const readRes = await db.getQuery()(
+        'SELECT user_id, last_read_at FROM admin_read_messages WHERE admin_id = $1',
+        [adminId]
+      );
+      const readMap = {};
+      for (const row of readRes.rows) {
+        readMap[row.user_id] = row.last_read_at;
+      }
+      // Получаем последнее сообщение для каждого пользователя
+      const msgRes = await db.getQuery()(
+        `SELECT user_id, MAX(created_at) as last_msg_at FROM messages GROUP BY user_id`
+      );
+      const msgMap = {};
+      for (const row of msgRes.rows) {
+        msgMap[row.user_id] = row.last_msg_at;
+      }
+      // Оставляем только тех, у кого есть новые сообщения
+      users = users.filter(u => {
+        const lastRead = readMap[u.id];
+        const lastMsg = msgMap[u.id];
+        return lastMsg && (!lastRead || new Date(lastMsg) > new Date(lastRead));
+      });
+    }
+
+    // --- Формируем ответ ---
     const contacts = users.map(u => ({
       id: u.id,
       name: [u.first_name, u.last_name].filter(Boolean).join(' ') || null,
-      email: identityMap[u.id]?.email || null,
-      telegram: identityMap[u.id]?.telegram || null,
-      wallet: identityMap[u.id]?.wallet || null,
+      email: u.email || null,
+      telegram: u.telegram || null,
+      wallet: u.wallet || null,
       created_at: u.created_at,
       preferred_language: u.preferred_language || []
     }));
+
     res.json({ success: true, contacts });
   } catch (error) {
     logger.error('Error fetching contacts:', error);

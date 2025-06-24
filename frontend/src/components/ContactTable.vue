@@ -4,17 +4,52 @@
       <h2>Контакты</h2>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
-    <div class="filters-panel">
-      <input v-model="filterName" placeholder="Имя" />
-      <input v-model="filterEmail" placeholder="Email" />
-      <input v-model="filterTelegram" placeholder="Telegram" />
-      <input v-model="filterWallet" placeholder="Кошелек" />
-      <input v-model="filterDateFrom" type="date" placeholder="Дата от" />
-      <input v-model="filterDateTo" type="date" placeholder="Дата до" />
-      <label class="checkbox-label">
-        <input type="checkbox" v-model="filterOnlyNewMessages" /> Только с новыми сообщениями
-      </label>
-    </div>
+    <el-form :inline="true" class="filters-form" label-position="top">
+      <el-form-item label="Поиск">
+        <el-input v-model="filterSearch" placeholder="Поиск по имени, email, telegram, кошельку" clearable @input="onAnyFilterChange" />
+      </el-form-item>
+      <el-form-item label="Тип контакта">
+        <el-select v-model="filterContactType" placeholder="Все" style="min-width:120px;" @change="onAnyFilterChange">
+          <el-option label="Все" value="all" />
+          <el-option label="Email" value="email" />
+          <el-option label="Telegram" value="telegram" />
+          <el-option label="Кошелек" value="wallet" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Дата от">
+        <el-date-picker v-model="filterDateFrom" type="date" placeholder="Дата от" clearable style="width: 100%;" @change="onAnyFilterChange" />
+      </el-form-item>
+      <el-form-item label="Дата до">
+        <el-date-picker v-model="filterDateTo" type="date" placeholder="Дата до" clearable style="width: 100%;" @change="onAnyFilterChange" />
+      </el-form-item>
+      <el-form-item label="Только с новыми сообщениями">
+        <el-select v-model="filterNewMessages" placeholder="Нет" style="min-width:110px;" @change="onAnyFilterChange">
+          <el-option label="Нет" :value="''" />
+          <el-option label="Да" value="yes" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Теги">
+        <el-select
+          v-model="selectedTagIds"
+          multiple
+          filterable
+          collapse-tags
+          placeholder="Выберите теги"
+          style="min-width:180px;"
+          @change="onAnyFilterChange"
+        >
+          <el-option
+            v-for="tag in allTags"
+            :key="tag.id"
+            :label="tag.name"
+            :value="tag.id"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="resetFilters" type="default">Сбросить фильтры</el-button>
+      </el-form-item>
+    </el-form>
     <table class="contact-table">
       <thead>
         <tr>
@@ -27,7 +62,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="contact in filteredContactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
+        <tr v-for="contact in contactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
           <td>{{ contact.name || '-' }}</td>
           <td>{{ contact.email || '-' }}</td>
           <td>{{ contact.telegram || '-' }}</td>
@@ -44,8 +79,9 @@
 </template>
 
 <script setup>
-import { defineProps, computed, ref } from 'vue';
+import { defineProps, computed, ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckbox, ElButton } from 'element-plus';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -53,37 +89,78 @@ const props = defineProps({
   markMessagesAsReadForUser: { type: Function, default: null },
   markContactAsRead: { type: Function, default: null }
 });
-const contactsArray = computed(() => Array.from(props.contacts || []));
+const contactsArray = ref([]); // теперь управляем вручную
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
 
 // Фильтры
-const filterName = ref('');
-const filterEmail = ref('');
-const filterTelegram = ref('');
-const filterWallet = ref('');
+const filterSearch = ref('');
+const filterContactType = ref('all');
 const filterDateFrom = ref('');
 const filterDateTo = ref('');
-const filterOnlyNewMessages = ref(false);
+const filterNewMessages = ref('');
 
-const filteredContactsArray = computed(() => {
-  return contactsArray.value.filter(contact => {
-    const nameMatch = !filterName.value || (contact.name || '').toLowerCase().includes(filterName.value.toLowerCase());
-    const emailMatch = !filterEmail.value || (contact.email || '').toLowerCase().includes(filterEmail.value.toLowerCase());
-    const telegramMatch = !filterTelegram.value || (contact.telegram || '').toLowerCase().includes(filterTelegram.value.toLowerCase());
-    const walletMatch = !filterWallet.value || (contact.wallet || '').toLowerCase().includes(filterWallet.value.toLowerCase());
-    let dateFromMatch = true, dateToMatch = true;
-    if (filterDateFrom.value && contact.created_at) {
-      dateFromMatch = new Date(contact.created_at) >= new Date(filterDateFrom.value);
-    }
-    if (filterDateTo.value && contact.created_at) {
-      dateToMatch = new Date(contact.created_at) <= new Date(filterDateTo.value);
-    }
-    const newMsgMatch = !filterOnlyNewMessages.value || newMsgUserIds.value.includes(String(contact.id));
-    return nameMatch && emailMatch && telegramMatch && walletMatch && dateFromMatch && dateToMatch && newMsgMatch;
-  });
+// Теги
+const allTags = ref([]);
+const selectedTagIds = ref([]);
+
+onMounted(async () => {
+  await loadTags();
+  await fetchContacts();
 });
+
+async function loadTags() {
+  const res = await fetch('/api/tags');
+  allTags.value = await res.json();
+}
+
+function buildQuery() {
+  const params = new URLSearchParams();
+  if (selectedTagIds.value.length > 0) params.append('tagIds', selectedTagIds.value.join(','));
+  if (filterDateFrom.value) params.append('dateFrom', formatDateOnly(filterDateFrom.value));
+  if (filterDateTo.value) params.append('dateTo', formatDateOnly(filterDateTo.value));
+  if (filterContactType.value && filterContactType.value !== 'all') params.append('contactType', filterContactType.value);
+  if (filterSearch.value) params.append('search', filterSearch.value);
+  if (filterNewMessages.value) params.append('newMessages', filterNewMessages.value);
+  return params.toString();
+}
+
+async function fetchContacts() {
+  let url = '/api/users';
+  const query = buildQuery();
+  if (query) url += '?' + query;
+  const res = await fetch(url);
+  const data = await res.json();
+  contactsArray.value = data.contacts || [];
+}
+
+function onTagsFilterChange() {
+  onAnyFilterChange();
+}
+
+function onAnyFilterChange() {
+  fetchContacts();
+}
+
+function resetFilters() {
+  filterSearch.value = '';
+  filterContactType.value = 'all';
+  filterDateFrom.value = '';
+  filterDateTo.value = '';
+  filterNewMessages.value = '';
+  selectedTagIds.value = [];
+  fetchContacts();
+}
+
+function formatDateOnly(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function formatDate(date) {
   if (!date) return '-';
@@ -201,27 +278,21 @@ async function showDetails(contact) {
   background: #e6ffe6 !important;
   transition: background 0.3s;
 }
-.filters-panel {
+.filters-form {
   display: flex;
-  gap: 10px;
-  margin-bottom: 18px;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.2em 1.5em;
+  align-items: flex-end;
+  background: #f7f9fa;
+  border-radius: 12px;
+  padding: 1.2em 1em 0.7em 1em;
+  margin-bottom: 1.2em;
 }
-.filters-panel input {
-  padding: 6px 10px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  font-size: 1em;
-  min-width: 110px;
-}
-.filters-panel input[type="checkbox"] {
-  margin-right: 4px;
-}
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  font-size: 0.98em;
-  user-select: none;
+@media (max-width: 900px) {
+  .filters-form {
+    flex-direction: column;
+    gap: 0.7em 0;
+  }
 }
 .new-msg-icon {
   color: #ff9800;

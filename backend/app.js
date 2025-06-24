@@ -15,6 +15,7 @@ const messagesRoutes = require('./routes/messages');
 const userTagsRoutes = require('./routes/userTags');
 const tagsInitRoutes = require('./routes/tagsInit');
 const tagsRoutes = require('./routes/tags');
+const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 
 // Проверка и создание директорий для хранения данных контрактов
 const ensureDirectoriesExist = () => {
@@ -188,6 +189,7 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/tags', tagsInitRoutes);
 app.use('/api/tags', tagsRoutes);
 app.use('/api/identities', identitiesRoutes);
+app.use('/api/rag', ragRoutes); // Подключаем роут
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

@@ -140,14 +140,30 @@ class EmailBotService {
                       const html = parsed.html || '';
                       // 1. Найти или создать пользователя
                       const { userId, role } = await identityService.findOrCreateUserWithRole('email', fromEmail);
-                      // 2. Сохранить письмо и вложения в messages
+                      // 1.1 Найти или создать беседу
+                      let conversationResult = await db.getQuery()(
+                        'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+                        [userId]
+                      );
+                      let conversation;
+                      if (conversationResult.rows.length === 0) {
+                        const title = `Чат с пользователем ${userId}`;
+                        const newConv = await db.getQuery()(
+                          'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
+                          [userId, title]
+                        );
+                        conversation = newConv.rows[0];
+                      } else {
+                        conversation = conversationResult.rows[0];
+                      }
+                      // 2. Сохранять все сообщения с conversation_id
                       let hasAttachments = parsed.attachments && parsed.attachments.length > 0;
                       if (hasAttachments) {
                         for (const att of parsed.attachments) {
                           await db.getQuery()(
-                            `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata)
-                             VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10, $11)`,
-                            [userId, 'user', text, 'email', role, 'in',
+                            `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12)`,
+                            [userId, conversation.id, 'user', text, 'email', role, 'in',
                               att.filename,
                               att.contentType,
                               att.size,
@@ -158,18 +174,18 @@ class EmailBotService {
                         }
                       } else {
                         await db.getQuery()(
-                          `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, metadata)
-                           VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
-                          [userId, 'user', text, 'email', role, 'in', JSON.stringify({ subject, html })]
+                          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
+                          [userId, conversation.id, 'user', text, 'email', role, 'in', JSON.stringify({ subject, html })]
                         );
                       }
                       // 3. Получить ответ от ИИ
                       const aiResponse = await aiAssistant.getResponse(text, 'auto');
-                      // 4. Сохранить ответ в БД
+                      // 4. Сохранить ответ в БД с conversation_id
                       await db.getQuery()(
-                        `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, metadata)
-                         VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
-                        [userId, 'assistant', aiResponse, 'email', role, 'out', JSON.stringify({ subject, html })]
+                        `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
+                        [userId, conversation.id, 'assistant', aiResponse, 'email', role, 'out', JSON.stringify({ subject, html })]
                       );
                       // 5. Отправить ответ на email
                       await this.sendEmail(fromEmail, 'Re: ' + subject, aiResponse);

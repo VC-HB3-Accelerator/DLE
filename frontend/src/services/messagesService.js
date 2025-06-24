@@ -33,6 +33,15 @@ export default {
   async generateAiDraft(conversationId, messages, language = 'auto') {
     const { data } = await axios.post('/api/chat/ai-draft', { conversationId, messages, language });
     return data;
+  },
+  async broadcastMessage({ userId, message }) {
+    const { data } = await axios.post('/api/messages/broadcast', {
+      user_id: userId,
+      content: message
+    }, {
+      withCredentials: true
+    });
+    return data;
   }
 };
 

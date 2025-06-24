@@ -53,10 +53,19 @@ router.get('/:id', async (req, res, next) => {
 router.post('/:id/columns', async (req, res, next) => {
   try {
     const tableId = req.params.id;
-    const { name, type, options, order } = req.body;
+    const { name, type, options, order, tagIds, purpose } = req.body;
+    let finalOptions = options;
+    // Собираем options
+    finalOptions = finalOptions || {};
+    if (type === 'tags' && Array.isArray(tagIds)) {
+      finalOptions.tagIds = tagIds;
+    }
+    if (purpose) {
+      finalOptions.purpose = purpose;
+    }
     const result = await db.getQuery()(
       'INSERT INTO user_columns (table_id, name, type, options, "order") VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [tableId, name, type, options ? JSON.stringify(options) : null, order || 0]
+      [tableId, name, type, finalOptions ? JSON.stringify(finalOptions) : null, order || 0]
     );
     res.json(result.rows[0]);
   } catch (err) {

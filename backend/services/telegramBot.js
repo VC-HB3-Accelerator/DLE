@@ -267,8 +267,23 @@ async function getBot() {
         const telegramId = ctx.from.id.toString();
         // 1. Найти или создать пользователя
         const { userId, role } = await identityService.findOrCreateUserWithRole('telegram', telegramId);
-
-        // 2. Сохранить входящее сообщение в messages
+        // 1.1 Найти или создать беседу
+        let conversationResult = await db.getQuery()(
+          'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+          [userId]
+        );
+        let conversation;
+        if (conversationResult.rows.length === 0) {
+          const title = `Чат с пользователем ${userId}`;
+          const newConv = await db.getQuery()(
+            'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
+            [userId, title]
+          );
+          conversation = newConv.rows[0];
+        } else {
+          conversation = conversationResult.rows[0];
+        }
+        // 2. Сохранять все сообщения с conversation_id
         let content = text;
         let attachmentMeta = {};
         // Проверяем вложения (фото, документ, аудио, видео)
@@ -310,9 +325,9 @@ async function getBot() {
         }
         // Сохраняем сообщение в БД
         await db.getQuery()(
-          `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10)`,
-          [userId, 'user', content, 'telegram', role, 'in',
+          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11)`,
+          [userId, conversation.id, 'user', content, 'telegram', role, 'in',
             attachmentMeta.attachment_filename || null,
             attachmentMeta.attachment_mimetype || null,
             attachmentMeta.attachment_size || null,
@@ -322,11 +337,11 @@ async function getBot() {
 
         // 3. Получить ответ от ИИ
         const aiResponse = await aiAssistant.getResponse(content, 'auto');
-        // 4. Сохранить ответ в БД
+        // 4. Сохранить ответ в БД с conversation_id
         await db.getQuery()(
-          `INSERT INTO messages (user_id, sender_type, content, channel, role, direction, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-          [userId, 'assistant', aiResponse, 'telegram', role, 'out']
+          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          [userId, conversation.id, 'assistant', aiResponse, 'telegram', role, 'out']
         );
         // 5. Отправить ответ пользователю
         await ctx.reply(aiResponse);
