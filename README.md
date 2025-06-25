@@ -13,15 +13,18 @@
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/yourusername/DApp-for-Business.git
+git clone https://github.com/DAO-HB3-Accelerator/DLE.git
 cd DApp-for-Business
 ```
 
 2. Запустите скрипт установки:
 ```bash
 ./setup.sh
+```
 
-3. Выполните миграции изнутри контейнера backend: docker exec -e NODE_ENV=migration dapp-backend yarn migrate
+3. После запуска контейнеров выполните миграции изнутри контейнера backend:
+```bash
+docker exec -e NODE_ENV=migration dapp-backend yarn migrate
 ```
 
 Скрипт автоматически:
