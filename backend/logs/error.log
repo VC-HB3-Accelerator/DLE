@@ -1577,3 +1577,6 @@
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:39:25.966Z"}
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:39:25.966Z"}
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:39:25.967Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:40:21.224Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:40:21.225Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:40:21.225Z"}

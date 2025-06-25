@@ -9259,3 +9259,12 @@
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:39:25.966Z"}
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:39:25.966Z"}
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:39:25.967Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:39:58.674Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:39:58.783Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:39:58.881Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:40:21.224Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:40:21.225Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-06-25T08:40:21.225Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:40:55.966Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:40:56.134Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:40:56.245Z"}
