@@ -21,11 +21,8 @@ cd DApp-for-Business
 ```bash
 ./setup.sh
 
-3. Выполните миграции изнутри контейнера backend:
+3. Выполните миграции изнутри контейнера backend: docker exec -e NODE_ENV=migration dapp-backend yarn migrate
 ```
-  docker exec -e NODE_ENV=migration dapp-backend yarn migrate
-  
-  ```
 
 Скрипт автоматически:
 - Проверит наличие Docker и Docker Compose
