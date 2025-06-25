@@ -47,7 +47,7 @@
     "interface-store": "^6.0.2",
     "langchain": "^0.3.19",
     "mailparser": "^3.7.2",
-    "multer": "^1.4.5-lts.2",
+    "multer": "^2.0.1",
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.66.0",
     "nodemailer": "^6.10.0",
@@ -92,7 +92,12 @@
     "ws": "^8.18.1",
     "cookie": "^1.0.2",
     "semver": "^7.7.1",
-    "**/utf7/semver": "^7.7.1"
+    "**/utf7/semver": "^7.7.1",
+    "tar-fs": "^3.0.0",
+    "parse-duration": "^1.0.0",
+    "pbkdf2": "^3.1.2",
+    "nanoid": "^5.0.0",
+    "brace-expansion": "^2.0.1"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
