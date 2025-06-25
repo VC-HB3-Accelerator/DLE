@@ -9268,3 +9268,290 @@
 {"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:40:55.966Z"}
 {"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:40:56.134Z"}
 {"level":"info","message":"No new messages found","timestamp":"2025-06-25T08:40:56.245Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-06-25T11:31:06.178Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-06-25T11:31:06.185Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-06-25T11:31:06.186Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-06-25T11:31:06.189Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-06-25T11:31:06.190Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-06-25T11:31:06.192Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-06-25T11:31:06.461Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-06-25T11:31:06.481Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-06-25T11:31:06.569Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-06-25T11:31:06.570Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-06-25T11:31:07.302Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-06-25T11:31:07.305Z"}
+{"level":"info","message":"[IdentityService] No user found with identity email:arianna@thevervehealthsolutionsllc.com","timestamp":"2025-06-25T11:31:08.251Z"}
+{"level":"info","message":"[IdentityService] Saving identity for user 130: email:arianna@thevervehealthsolutionsllc.com","timestamp":"2025-06-25T11:31:08.260Z"}
+{"level":"info","message":"[IdentityService] Created new identity email:arianna@thevervehealthsolutionsllc.com for user 130","timestamp":"2025-06-25T11:31:08.276Z"}
+{"level":"info","message":"[WS] broadcastContactsUpdate after new user created","timestamp":"2025-06-25T11:31:08.276Z"}
+{"level":"info","message":"[getLinkedWallet] Called with userId: 130 (Type: number)","timestamp":"2025-06-25T11:31:08.277Z"}
+{"level":"info","message":"[getLinkedWallet] DB query result for userId 130:","timestamp":"2025-06-25T11:31:08.279Z"}
+{"level":"info","message":"[getLinkedWallet] Returning address: undefined for userId 130","timestamp":"2025-06-25T11:31:08.280Z"}
+{"level":"info","message":"[IdentityService] Found user 130 with identity email:arianna@thevervehealthsolutionsllc.com","timestamp":"2025-06-25T11:32:03.908Z"}
+{"level":"info","message":"[getLinkedWallet] Called with userId: 130 (Type: number)","timestamp":"2025-06-25T11:32:03.914Z"}
+{"level":"info","message":"[getLinkedWallet] DB query result for userId 130:","timestamp":"2025-06-25T11:32:03.918Z"}
+{"level":"info","message":"[getLinkedWallet] Returning address: undefined for userId 130","timestamp":"2025-06-25T11:32:03.920Z"}
+{"level":"info","message":"Email sent to arianna@thevervehealthsolutionsllc.com","timestamp":"2025-06-25T11:32:58.046Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T11:33:03.211Z"}
+{"level":"info","message":"Email sent to arianna@thevervehealthsolutionsllc.com","timestamp":"2025-06-25T11:33:06.316Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T11:33:58.535Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:34:04.509Z"}
+{"level":"info","message":"GET /api/auth/nonce?address=0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-06-25T11:34:16.527Z"}
+{"level":"info","message":"Nonce dccbf22346a2406f557bb4d39887701d сохранен для адреса 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-06-25T11:34:16.733Z"}
+{"level":"info","message":"POST /api/auth/verify","timestamp":"2025-06-25T11:34:17.322Z"}
+{"level":"info","message":"[verify] Verifying signature for address: 0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B","timestamp":"2025-06-25T11:34:17.323Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:17.455Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","minBalance":"10.000000000000000000","timestamp":"2025-06-25T11:34:18.130Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-06-25T11:34:18.131Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdCe769b847a0a697239777D0B1C7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","minBalance":"100.000000000000000000","timestamp":"2025-06-25T11:34:18.451Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-06-25T11:34:18.452Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on ethereum:","minBalance":"10.000000000000000000","timestamp":"2025-06-25T11:34:18.605Z"}
+{"level":"info","message":"Found admin tokens on ethereum","timestamp":"2025-06-25T11:34:18.606Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"110.0","contract":"0xef49261169B454f191678D2aFC5E91Ad2e85dfD8","hasTokens":true,"level":"info","message":"Token balance on sepolia:","minBalance":"50.000000000000000000","timestamp":"2025-06-25T11:34:18.888Z"}
+{"level":"info","message":"Found admin tokens on sepolia","timestamp":"2025-06-25T11:34:18.888Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4b294265720b09ca39bfba18c7e368413c0f68eb","hasTokens":true,"level":"info","message":"Token balance on bsc:","minBalance":"10.000000000000000000","timestamp":"2025-06-25T11:34:18.934Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-06-25T11:34:18.934Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","ethereum":"1500000.0","polygon":"454852.0","sepolia":"110.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["polygon","arbitrum","ethereum","sepolia","bsc"],"timestamp":"2025-06-25T11:34:18.935Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:18.935Z"}
+{"level":"info","message":"[verify] Found or created user 1 for wallet 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:18.936Z"}
+{"level":"info","message":"[IdentityService] Converting guest identity for user 1 to guest_user_mapping: 0c8585859a567c3b2c67e877823f04e9","timestamp":"2025-06-25T11:34:18.936Z"}
+{"level":"info","message":"Checking admin tokens for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:18.950Z"}
+{"level":"info","message":"Checking admin role for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:18.951Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"454852.0","contract":"0x351f59de4fedbdf7601f5592b93db3b9330c1c1d","hasTokens":true,"level":"info","message":"Token balance on polygon:","minBalance":"10.000000000000000000","timestamp":"2025-06-25T11:34:19.169Z"}
+{"level":"info","message":"Found admin tokens on polygon","timestamp":"2025-06-25T11:34:19.169Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"500000.0","contract":"0x4b294265720b09ca39bfba18c7e368413c0f68eb","hasTokens":true,"level":"info","message":"Token balance on bsc:","minBalance":"10.000000000000000000","timestamp":"2025-06-25T11:34:19.284Z"}
+{"level":"info","message":"Found admin tokens on bsc","timestamp":"2025-06-25T11:34:19.286Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"499999.9","contract":"0xdCe769b847a0a697239777D0B1C7dd33b6012ba0","hasTokens":true,"level":"info","message":"Token balance on arbitrum:","minBalance":"100.000000000000000000","timestamp":"2025-06-25T11:34:19.393Z"}
+{"level":"info","message":"Found admin tokens on arbitrum","timestamp":"2025-06-25T11:34:19.394Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"110.0","contract":"0xef49261169B454f191678D2aFC5E91Ad2e85dfD8","hasTokens":true,"level":"info","message":"Token balance on sepolia:","minBalance":"50.000000000000000000","timestamp":"2025-06-25T11:34:19.399Z"}
+{"level":"info","message":"Found admin tokens on sepolia","timestamp":"2025-06-25T11:34:19.399Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","balance":"1500000.0","contract":"0xd95a45fc46a7300e6022885afec3d618d7d3f27c","hasTokens":true,"level":"info","message":"Token balance on ethereum:","minBalance":"10.000000000000000000","timestamp":"2025-06-25T11:34:19.433Z"}
+{"level":"info","message":"Found admin tokens on ethereum","timestamp":"2025-06-25T11:34:19.434Z"}
+{"balances":{"arbitrum":"499999.9","bsc":"500000.0","ethereum":"1500000.0","polygon":"454852.0","sepolia":"110.0"},"level":"info","message":"Admin role summary for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b:","networks":["polygon","bsc","arbitrum","sepolia","ethereum"],"timestamp":"2025-06-25T11:34:19.434Z"}
+{"level":"info","message":"Admin role granted for 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:19.434Z"}
+{"level":"info","message":"Updated user 1 role to admin based on token holdings","timestamp":"2025-06-25T11:34:19.441Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","authType":"wallet","authenticated":true,"cookie":{"expires":"2025-07-25T07:34:47.330Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"0c8585859a567c3b2c67e877823f04e9","isAdmin":true,"level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-06-25T11:34:19.445Z","userId":1}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-06-25T11:34:19.451Z"}
+{"level":"info","message":"[linkGuestMessages] Starting for user 1 with guestId=0c8585859a567c3b2c67e877823f04e9, previousGuestId=undefined","timestamp":"2025-06-25T11:34:19.453Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=0c8585859a567c3b2c67e877823f04e9","timestamp":"2025-06-25T11:34:19.461Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 0c8585859a567c3b2c67e877823f04e9","timestamp":"2025-06-25T11:34:19.463Z"}
+{"level":"info","message":"No guest messages found for guest ID 0c8585859a567c3b2c67e877823f04e9","timestamp":"2025-06-25T11:34:19.473Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 0c8585859a567c3b2c67e877823f04e9","timestamp":"2025-06-25T11:34:19.479Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750770941508-5f1wol4qg","timestamp":"2025-06-25T11:34:19.483Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750770941508-5f1wol4qg","timestamp":"2025-06-25T11:34:19.483Z"}
+{"level":"info","message":"Guest messages for guest ID 1750770941508-5f1wol4qg were already processed.","timestamp":"2025-06-25T11:34:19.486Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750770963924-f361ylu3o","timestamp":"2025-06-25T11:34:19.492Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750770963924-f361ylu3o","timestamp":"2025-06-25T11:34:19.493Z"}
+{"level":"info","message":"Guest messages for guest ID 1750770963924-f361ylu3o were already processed.","timestamp":"2025-06-25T11:34:19.495Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=7c737e9edc4b4f8df98af1cd19f6fe31","timestamp":"2025-06-25T11:34:19.499Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 7c737e9edc4b4f8df98af1cd19f6fe31","timestamp":"2025-06-25T11:34:19.499Z"}
+{"level":"info","message":"Guest messages for guest ID 7c737e9edc4b4f8df98af1cd19f6fe31 were already processed.","timestamp":"2025-06-25T11:34:19.501Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=c468d847f518642666898a1c7a7d9c15","timestamp":"2025-06-25T11:34:19.505Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID c468d847f518642666898a1c7a7d9c15","timestamp":"2025-06-25T11:34:19.506Z"}
+{"level":"info","message":"Guest messages for guest ID c468d847f518642666898a1c7a7d9c15 were already processed.","timestamp":"2025-06-25T11:34:19.509Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750772552636-bxl1slj9a","timestamp":"2025-06-25T11:34:19.513Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750772552636-bxl1slj9a","timestamp":"2025-06-25T11:34:19.513Z"}
+{"level":"info","message":"Guest messages for guest ID 1750772552636-bxl1slj9a were already processed.","timestamp":"2025-06-25T11:34:19.515Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750772667419-ki0n6un0c","timestamp":"2025-06-25T11:34:19.520Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750772667419-ki0n6un0c","timestamp":"2025-06-25T11:34:19.521Z"}
+{"level":"info","message":"Guest messages for guest ID 1750772667419-ki0n6un0c were already processed.","timestamp":"2025-06-25T11:34:19.523Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1748971995627-i4wduj6v0","timestamp":"2025-06-25T11:34:19.527Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1748971995627-i4wduj6v0","timestamp":"2025-06-25T11:34:19.528Z"}
+{"level":"info","message":"Guest messages for guest ID 1748971995627-i4wduj6v0 were already processed.","timestamp":"2025-06-25T11:34:19.531Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1748971772605-2176ii4p8","timestamp":"2025-06-25T11:34:19.534Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1748971772605-2176ii4p8","timestamp":"2025-06-25T11:34:19.534Z"}
+{"level":"info","message":"Guest messages for guest ID 1748971772605-2176ii4p8 were already processed.","timestamp":"2025-06-25T11:34:19.536Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749047037557-ffbhn7w2e","timestamp":"2025-06-25T11:34:19.540Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749047037557-ffbhn7w2e","timestamp":"2025-06-25T11:34:19.540Z"}
+{"level":"info","message":"Guest messages for guest ID 1749047037557-ffbhn7w2e were already processed.","timestamp":"2025-06-25T11:34:19.544Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749047450809-2v3599neb","timestamp":"2025-06-25T11:34:19.549Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749047450809-2v3599neb","timestamp":"2025-06-25T11:34:19.549Z"}
+{"level":"info","message":"Guest messages for guest ID 1749047450809-2v3599neb were already processed.","timestamp":"2025-06-25T11:34:19.551Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749197693965-cumdt5ym3","timestamp":"2025-06-25T11:34:19.555Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749197693965-cumdt5ym3","timestamp":"2025-06-25T11:34:19.556Z"}
+{"level":"info","message":"Guest messages for guest ID 1749197693965-cumdt5ym3 were already processed.","timestamp":"2025-06-25T11:34:19.558Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750414678688-i9z0kljkk","timestamp":"2025-06-25T11:34:19.563Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750414678688-i9z0kljkk","timestamp":"2025-06-25T11:34:19.563Z"}
+{"level":"info","message":"Guest messages for guest ID 1750414678688-i9z0kljkk were already processed.","timestamp":"2025-06-25T11:34:19.566Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=0a99fc1abc598f50aa7f9bb4ad0ed58f","timestamp":"2025-06-25T11:34:19.570Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 0a99fc1abc598f50aa7f9bb4ad0ed58f","timestamp":"2025-06-25T11:34:19.571Z"}
+{"level":"info","message":"Guest messages for guest ID 0a99fc1abc598f50aa7f9bb4ad0ed58f were already processed.","timestamp":"2025-06-25T11:34:19.573Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749199741958-wplc2viy5","timestamp":"2025-06-25T11:34:19.577Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749199741958-wplc2viy5","timestamp":"2025-06-25T11:34:19.578Z"}
+{"level":"info","message":"Guest messages for guest ID 1749199741958-wplc2viy5 were already processed.","timestamp":"2025-06-25T11:34:19.580Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749215605031-e36tfrsg7","timestamp":"2025-06-25T11:34:19.584Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749215605031-e36tfrsg7","timestamp":"2025-06-25T11:34:19.585Z"}
+{"level":"info","message":"Guest messages for guest ID 1749215605031-e36tfrsg7 were already processed.","timestamp":"2025-06-25T11:34:19.587Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749219734273-z8cjo614o","timestamp":"2025-06-25T11:34:19.590Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749219734273-z8cjo614o","timestamp":"2025-06-25T11:34:19.590Z"}
+{"level":"info","message":"Guest messages for guest ID 1749219734273-z8cjo614o were already processed.","timestamp":"2025-06-25T11:34:19.592Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=9f076c84ee0fb82e662195c7008d3cdd","timestamp":"2025-06-25T11:34:19.596Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 9f076c84ee0fb82e662195c7008d3cdd","timestamp":"2025-06-25T11:34:19.596Z"}
+{"level":"info","message":"Guest messages for guest ID 9f076c84ee0fb82e662195c7008d3cdd were already processed.","timestamp":"2025-06-25T11:34:19.599Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749051277025-x5jj8ymr3","timestamp":"2025-06-25T11:34:19.602Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749051277025-x5jj8ymr3","timestamp":"2025-06-25T11:34:19.603Z"}
+{"level":"info","message":"Guest messages for guest ID 1749051277025-x5jj8ymr3 were already processed.","timestamp":"2025-06-25T11:34:19.605Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750248718038-bupg3zyvb","timestamp":"2025-06-25T11:34:19.609Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750248718038-bupg3zyvb","timestamp":"2025-06-25T11:34:19.610Z"}
+{"level":"info","message":"Guest messages for guest ID 1750248718038-bupg3zyvb were already processed.","timestamp":"2025-06-25T11:34:19.612Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750335451213-yitdeo8jv","timestamp":"2025-06-25T11:34:19.616Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750335451213-yitdeo8jv","timestamp":"2025-06-25T11:34:19.617Z"}
+{"level":"info","message":"Guest messages for guest ID 1750335451213-yitdeo8jv were already processed.","timestamp":"2025-06-25T11:34:19.618Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=43688588ddbdd3d97d95044707e01deb","timestamp":"2025-06-25T11:34:19.622Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 43688588ddbdd3d97d95044707e01deb","timestamp":"2025-06-25T11:34:19.623Z"}
+{"level":"info","message":"Guest messages for guest ID 43688588ddbdd3d97d95044707e01deb were already processed.","timestamp":"2025-06-25T11:34:19.625Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=e3f276c739780f7f79e50905cb900155","timestamp":"2025-06-25T11:34:19.629Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID e3f276c739780f7f79e50905cb900155","timestamp":"2025-06-25T11:34:19.629Z"}
+{"level":"info","message":"Guest messages for guest ID e3f276c739780f7f79e50905cb900155 were already processed.","timestamp":"2025-06-25T11:34:19.632Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=468571bcf6944db390ebc215dedd3a55","timestamp":"2025-06-25T11:34:19.636Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 468571bcf6944db390ebc215dedd3a55","timestamp":"2025-06-25T11:34:19.637Z"}
+{"level":"info","message":"Guest messages for guest ID 468571bcf6944db390ebc215dedd3a55 were already processed.","timestamp":"2025-06-25T11:34:19.639Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f845253ebf432c9e990e460bbf8d6d51","timestamp":"2025-06-25T11:34:19.642Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID f845253ebf432c9e990e460bbf8d6d51","timestamp":"2025-06-25T11:34:19.646Z"}
+{"level":"info","message":"Guest messages for guest ID f845253ebf432c9e990e460bbf8d6d51 were already processed.","timestamp":"2025-06-25T11:34:19.649Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=fc7552c52eaee0ffc8787ad6d34a072c","timestamp":"2025-06-25T11:34:19.652Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID fc7552c52eaee0ffc8787ad6d34a072c","timestamp":"2025-06-25T11:34:19.653Z"}
+{"level":"info","message":"Guest messages for guest ID fc7552c52eaee0ffc8787ad6d34a072c were already processed.","timestamp":"2025-06-25T11:34:19.655Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=a329b8732cc9083fdb55894a2d1814f7","timestamp":"2025-06-25T11:34:19.659Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID a329b8732cc9083fdb55894a2d1814f7","timestamp":"2025-06-25T11:34:19.659Z"}
+{"level":"info","message":"Guest messages for guest ID a329b8732cc9083fdb55894a2d1814f7 were already processed.","timestamp":"2025-06-25T11:34:19.661Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=5d3fa01a03251b27ec7c9d3683957fe1","timestamp":"2025-06-25T11:34:19.664Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 5d3fa01a03251b27ec7c9d3683957fe1","timestamp":"2025-06-25T11:34:19.664Z"}
+{"level":"info","message":"Guest messages for guest ID 5d3fa01a03251b27ec7c9d3683957fe1 were already processed.","timestamp":"2025-06-25T11:34:19.666Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750416593902-e298ho4si","timestamp":"2025-06-25T11:34:19.669Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750416593902-e298ho4si","timestamp":"2025-06-25T11:34:19.670Z"}
+{"level":"info","message":"Guest messages for guest ID 1750416593902-e298ho4si were already processed.","timestamp":"2025-06-25T11:34:19.672Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=c669dd30c7c2f8f2bef3e71e48852bf3","timestamp":"2025-06-25T11:34:19.675Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID c669dd30c7c2f8f2bef3e71e48852bf3","timestamp":"2025-06-25T11:34:19.676Z"}
+{"level":"info","message":"Guest messages for guest ID c669dd30c7c2f8f2bef3e71e48852bf3 were already processed.","timestamp":"2025-06-25T11:34:19.679Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=cf443b86b4dcfd92f235965d83483763","timestamp":"2025-06-25T11:34:19.682Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID cf443b86b4dcfd92f235965d83483763","timestamp":"2025-06-25T11:34:19.683Z"}
+{"level":"info","message":"Guest messages for guest ID cf443b86b4dcfd92f235965d83483763 were already processed.","timestamp":"2025-06-25T11:34:19.685Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749215412677-039rqj55c","timestamp":"2025-06-25T11:34:19.688Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749215412677-039rqj55c","timestamp":"2025-06-25T11:34:19.688Z"}
+{"level":"info","message":"Guest messages for guest ID 1749215412677-039rqj55c were already processed.","timestamp":"2025-06-25T11:34:19.690Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750355588881-80dk1w9pa","timestamp":"2025-06-25T11:34:19.695Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750355588881-80dk1w9pa","timestamp":"2025-06-25T11:34:19.696Z"}
+{"level":"info","message":"Guest messages for guest ID 1750355588881-80dk1w9pa were already processed.","timestamp":"2025-06-25T11:34:19.699Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=836ef0c256afc6fe709014bea3d5e6ad","timestamp":"2025-06-25T11:34:19.702Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 836ef0c256afc6fe709014bea3d5e6ad","timestamp":"2025-06-25T11:34:19.703Z"}
+{"level":"info","message":"Guest messages for guest ID 836ef0c256afc6fe709014bea3d5e6ad were already processed.","timestamp":"2025-06-25T11:34:19.705Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f9b7b943a81ea4ba7eee39a6f7fc9669","timestamp":"2025-06-25T11:34:19.708Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID f9b7b943a81ea4ba7eee39a6f7fc9669","timestamp":"2025-06-25T11:34:19.709Z"}
+{"level":"info","message":"Guest messages for guest ID f9b7b943a81ea4ba7eee39a6f7fc9669 were already processed.","timestamp":"2025-06-25T11:34:19.710Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=fa3ab057f8e1f3ee3d5e34ef07b26059","timestamp":"2025-06-25T11:34:19.714Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID fa3ab057f8e1f3ee3d5e34ef07b26059","timestamp":"2025-06-25T11:34:19.714Z"}
+{"level":"info","message":"Guest messages for guest ID fa3ab057f8e1f3ee3d5e34ef07b26059 were already processed.","timestamp":"2025-06-25T11:34:19.716Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=d4f09e790d0a9952bcfda6d839fb50bf","timestamp":"2025-06-25T11:34:19.720Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID d4f09e790d0a9952bcfda6d839fb50bf","timestamp":"2025-06-25T11:34:19.721Z"}
+{"level":"info","message":"Guest messages for guest ID d4f09e790d0a9952bcfda6d839fb50bf were already processed.","timestamp":"2025-06-25T11:34:19.723Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1749036910052-j7dxek19b","timestamp":"2025-06-25T11:34:19.727Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1749036910052-j7dxek19b","timestamp":"2025-06-25T11:34:19.727Z"}
+{"level":"info","message":"Guest messages for guest ID 1749036910052-j7dxek19b were already processed.","timestamp":"2025-06-25T11:34:19.729Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1748976356629-5bgeyaaf1","timestamp":"2025-06-25T11:34:19.733Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1748976356629-5bgeyaaf1","timestamp":"2025-06-25T11:34:19.733Z"}
+{"level":"info","message":"Guest messages for guest ID 1748976356629-5bgeyaaf1 were already processed.","timestamp":"2025-06-25T11:34:19.735Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1748973405272-q3zeztpki","timestamp":"2025-06-25T11:34:19.738Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1748973405272-q3zeztpki","timestamp":"2025-06-25T11:34:19.739Z"}
+{"level":"info","message":"Guest messages for guest ID 1748973405272-q3zeztpki were already processed.","timestamp":"2025-06-25T11:34:19.741Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=999d65f7f770da796f88c8cbd3664f55","timestamp":"2025-06-25T11:34:19.745Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 999d65f7f770da796f88c8cbd3664f55","timestamp":"2025-06-25T11:34:19.746Z"}
+{"level":"info","message":"Guest messages for guest ID 999d65f7f770da796f88c8cbd3664f55 were already processed.","timestamp":"2025-06-25T11:34:19.750Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=f847e3846984359dd853b3164ae2dee4","timestamp":"2025-06-25T11:34:19.753Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID f847e3846984359dd853b3164ae2dee4","timestamp":"2025-06-25T11:34:19.754Z"}
+{"level":"info","message":"Guest messages for guest ID f847e3846984359dd853b3164ae2dee4 were already processed.","timestamp":"2025-06-25T11:34:19.756Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750422829327-pz30oiqdx","timestamp":"2025-06-25T11:34:19.759Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750422829327-pz30oiqdx","timestamp":"2025-06-25T11:34:19.759Z"}
+{"level":"info","message":"Guest messages for guest ID 1750422829327-pz30oiqdx were already processed.","timestamp":"2025-06-25T11:34:19.761Z"}
+{"level":"info","message":"[processGuestMessagesWrapper] Processing messages: userId=1, guestId=1750770422364-iftjkyerp","timestamp":"2025-06-25T11:34:19.766Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750770422364-iftjkyerp","timestamp":"2025-06-25T11:34:19.767Z"}
+{"level":"info","message":"Guest messages for guest ID 1750770422364-iftjkyerp were already processed.","timestamp":"2025-06-25T11:34:19.769Z"}
+{"address":"0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","authType":"wallet","authenticated":true,"cookie":{"expires":"2025-07-25T07:34:47.330Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"0c8585859a567c3b2c67e877823f04e9","isAdmin":true,"level":"info","message":"[SessionService] Saving session data:","processedGuestIds":["0c8585859a567c3b2c67e877823f04e9","1750770941508-5f1wol4qg","1750770963924-f361ylu3o","7c737e9edc4b4f8df98af1cd19f6fe31","c468d847f518642666898a1c7a7d9c15","1750772552636-bxl1slj9a","1750772667419-ki0n6un0c","1748971995627-i4wduj6v0","1748971772605-2176ii4p8","1749047037557-ffbhn7w2e","1749047450809-2v3599neb","1749197693965-cumdt5ym3","1750414678688-i9z0kljkk","0a99fc1abc598f50aa7f9bb4ad0ed58f","1749199741958-wplc2viy5","1749215605031-e36tfrsg7","1749219734273-z8cjo614o","9f076c84ee0fb82e662195c7008d3cdd","1749051277025-x5jj8ymr3","1750248718038-bupg3zyvb","1750335451213-yitdeo8jv","43688588ddbdd3d97d95044707e01deb","e3f276c739780f7f79e50905cb900155","468571bcf6944db390ebc215dedd3a55","f845253ebf432c9e990e460bbf8d6d51","fc7552c52eaee0ffc8787ad6d34a072c","a329b8732cc9083fdb55894a2d1814f7","5d3fa01a03251b27ec7c9d3683957fe1","1750416593902-e298ho4si","c669dd30c7c2f8f2bef3e71e48852bf3","cf443b86b4dcfd92f235965d83483763","1749215412677-039rqj55c","1750355588881-80dk1w9pa","836ef0c256afc6fe709014bea3d5e6ad","f9b7b943a81ea4ba7eee39a6f7fc9669","fa3ab057f8e1f3ee3d5e34ef07b26059","d4f09e790d0a9952bcfda6d839fb50bf","1749036910052-j7dxek19b","1748976356629-5bgeyaaf1","1748973405272-q3zeztpki","999d65f7f770da796f88c8cbd3664f55","f847e3846984359dd853b3164ae2dee4","1750422829327-pz30oiqdx","1750770422364-iftjkyerp"],"timestamp":"2025-06-25T11:34:19.773Z","userId":1}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-06-25T11:34:19.779Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:34:20.074Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.077Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:20.107Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.114Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:34:20.147Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.152Z"}
+{"level":"info","message":"POST /api/chat/process-guest","timestamp":"2025-06-25T11:34:20.165Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1750836891567-oqvkw626f","timestamp":"2025-06-25T11:34:20.170Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:20.180Z"}
+{"level":"info","message":"Created mapping for guest ID 1750836891567-oqvkw626f to user 1","timestamp":"2025-06-25T11:34:20.183Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.188Z"}
+{"level":"info","message":"No guest messages found for guest ID 1750836891567-oqvkw626f","timestamp":"2025-06-25T11:34:20.191Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 1750836891567-oqvkw626f","timestamp":"2025-06-25T11:34:20.198Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:20.213Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:20.216Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:20.218Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.223Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:20.247Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.251Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:34:20.270Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.274Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:20.293Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.296Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:20.317Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:20.320Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:21.276Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T11:34:21.277Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-06-25T11:34:21.847Z"}
+{"level":"info","message":"GET /api/chat/history?offset=114&limit=30","timestamp":"2025-06-25T11:34:22.114Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":114,"timestamp":"2025-06-25T11:34:22.221Z","total":144}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-06-25T11:34:25.370Z"}
+{"level":"info","message":"GET /api/chat/history?offset=114&limit=30","timestamp":"2025-06-25T11:34:25.839Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":114,"timestamp":"2025-06-25T11:34:25.845Z","total":144}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-06-25T11:34:26.429Z"}
+{"level":"info","message":"GET /api/users/read-contacts-status","timestamp":"2025-06-25T11:34:28.484Z"}
+{"level":"info","message":"GET /api/tags","timestamp":"2025-06-25T11:34:28.506Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-06-25T11:34:28.557Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-06-25T11:34:28.603Z"}
+{"level":"info","message":"GET /api/messages/read-status","timestamp":"2025-06-25T11:34:28.609Z"}
+{"level":"info","message":"GET /api/messages","timestamp":"2025-06-25T11:34:28.635Z"}
+{"level":"info","message":"POST /api/users/mark-contact-read","timestamp":"2025-06-25T11:34:37.935Z"}
+{"level":"info","message":"POST /api/messages/mark-read","timestamp":"2025-06-25T11:34:37.958Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:34:38.224Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:38.227Z"}
+{"level":"info","message":"GET /api/users/130","timestamp":"2025-06-25T11:34:38.239Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:38.257Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:38.265Z"}
+{"level":"info","message":"GET /api/messages/conversations?userId=130","timestamp":"2025-06-25T11:34:38.318Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:38.337Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:38.342Z"}
+{"level":"info","message":"GET /api/messages?conversationId=13","timestamp":"2025-06-25T11:34:38.358Z"}
+{"level":"info","message":"GET /api/users/130/tags","timestamp":"2025-06-25T11:34:38.392Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:34:49.586Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:34:49.592Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T11:34:50.722Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:35:19.765Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:35:19.769Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T11:35:46.318Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:35:49.971Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:35:49.981Z"}
+{"level":"info","message":"GET /api/users/read-contacts-status","timestamp":"2025-06-25T11:35:58.115Z"}
+{"level":"info","message":"GET /api/tags","timestamp":"2025-06-25T11:35:58.142Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-06-25T11:35:58.183Z"}
+{"level":"info","message":"GET /api/messages/read-status","timestamp":"2025-06-25T11:35:58.226Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-06-25T11:35:58.232Z"}
+{"level":"info","message":"GET /api/messages","timestamp":"2025-06-25T11:35:58.251Z"}
+{"level":"info","message":"POST /api/users/mark-contact-read","timestamp":"2025-06-25T11:36:01.138Z"}
+{"level":"info","message":"POST /api/messages/mark-read","timestamp":"2025-06-25T11:36:01.165Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:36:01.189Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:36:01.199Z"}
+{"level":"info","message":"GET /api/users/129","timestamp":"2025-06-25T11:36:01.206Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:36:01.224Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:36:01.227Z"}
+{"level":"info","message":"GET /api/messages/conversations?userId=129","timestamp":"2025-06-25T11:36:01.244Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T11:36:01.255Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T11:36:01.259Z"}
+{"level":"info","message":"GET /api/messages?conversationId=12","timestamp":"2025-06-25T11:36:01.278Z"}
+{"level":"info","message":"GET /api/users/129/tags","timestamp":"2025-06-25T11:36:01.306Z"}
+{"level":"info","message":"GET /api/users/129","timestamp":"2025-06-25T11:36:04.145Z"}
+{"level":"info","message":"DELETE /api/users/129","timestamp":"2025-06-25T11:36:05.334Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-06-25T11:36:05.389Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-06-25T11:36:10.370Z"}
+{"address":null,"authType":null,"authenticated":false,"cookie":{"expires":"2025-07-25T07:34:47.330Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"email":null,"guestId":null,"isAdmin":false,"level":"info","message":"[SessionService] Saving session data:","pendingEmail":null,"previousGuestId":null,"processedGuestIds":[],"telegramId":null,"timestamp":"2025-06-25T11:36:10.371Z","userId":null}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-06-25T11:36:10.376Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T11:36:10.391Z"}
+{"cookie":{"expires":"2025-07-25T11:36:10.389Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"3753d18eeb66a2c7247a9d7df1f21aa6","level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-06-25T11:36:10.392Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-06-25T11:36:10.395Z"}
