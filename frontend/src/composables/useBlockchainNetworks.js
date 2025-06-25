@@ -6,6 +6,28 @@ import axios from 'axios';
  * Предоставляет списки доступных сетей, URL RPC и функции для работы с ними
  */
 export default function useBlockchainNetworks() {
+  // Список сетей, получаемый с бэкенда
+  const networks = ref([]);
+  const loadingNetworks = ref(false);
+
+  // Загрузка сетей с бэкенда
+  const fetchNetworks = async () => {
+    loadingNetworks.value = true;
+    try {
+      const { data } = await axios.get('/api/settings/rpc');
+      const networksArr = data.data || [];
+      networks.value = networksArr.map(n => ({
+        value: n.network_id,
+        label: n.network_id, // Можно заменить на красивое имя, если появится
+        url: n.rpc_url
+      }));
+    } catch (e) {
+      networks.value = [];
+    } finally {
+      loadingNetworks.value = false;
+    }
+  };
+
   // Группы сетей для отображения в интерфейсе
   const networkGroups = [
     {
@@ -56,7 +78,7 @@ export default function useBlockchainNetworks() {
   ];
   
   // Создаем плоский список всех сетей для удобного использования в компонентах
-  const networks = computed(() => {
+  const networksComputed = computed(() => {
     return networkGroups.flatMap(group => group.options);
   });
 
@@ -122,12 +144,12 @@ export default function useBlockchainNetworks() {
 
   // Функция получения списка всех доступных сетей в плоском формате
   const getAllNetworks = () => {
-    return networks.value;
+    return networksComputed.value;
   };
 
   // Функция получения метаданных сети по ID
   const getNetworkMetadata = (networkId) => {
-    return networks.value.find(network => network.value === networkId) || null;
+    return networksComputed.value.find(network => network.value === networkId) || null;
   };
 
   // Состояние для тестирования RPC
@@ -171,12 +193,15 @@ export default function useBlockchainNetworks() {
   };
 
   return {
+    networks,
+    fetchNetworks,
+    loadingNetworks,
     // Данные
     networkGroups,
     networkEntry,
     testingRpc,
     testingRpcId,
-    networks, // Экспортируем плоский список сетей
+    networksComputed, // Экспортируем плоский список сетей
     
     // Методы
     getChainIdByNetworkId,

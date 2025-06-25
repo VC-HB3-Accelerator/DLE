@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { ethers } = require('ethers');
 const logger = require('../utils/logger');
+const { getRpcUrlByNetworkId } = require('./rpcProviderService');
 
 /**
  * Сервис для управления DLE (Digital Legal Entity)
@@ -36,8 +37,22 @@ class DLEService {
       fs.copyFileSync(paramsFile, tempParamsFile);
       logger.info(`Файл параметров скопирован успешно`);
 
-      // Запускаем скрипт без передачи аргументов командной строки
-      const result = await this.runDeployScript(paramsFile);
+      // Получаем rpc_url из базы по выбранной сети
+      const rpcUrl = await getRpcUrlByNetworkId(deployParams.network);
+      if (!rpcUrl) {
+        throw new Error(`RPC URL для сети ${deployParams.network} не найден в базе данных`);
+      }
+      if (!dleParams.privateKey) {
+        throw new Error('Приватный ключ для деплоя не передан');
+      }
+
+      // Запускаем скрипт деплоя с нужными переменными окружения
+      const result = await this.runDeployScript(paramsFile, {
+        rpcUrl,
+        privateKey: dleParams.privateKey,
+        networkId: deployParams.network,
+        envNetworkKey: deployParams.network.toUpperCase()
+      });
 
       logger.info('DLE успешно создано:', result);
       return result;
@@ -129,21 +144,23 @@ class DLEService {
    * @param {string} paramsFile - Путь к файлу с параметрами
    * @returns {Promise<Object>} - Результат деплоя
    */
-  runDeployScript(paramsFile) {
+  runDeployScript(paramsFile, extraEnv = {}) {
     return new Promise((resolve, reject) => {
-      // Путь к новому скрипту для ручного деплоя (без фабрики)
       const scriptPath = path.join(__dirname, '../scripts/deploy/create-dle-manual.js');
-      
-      // Проверяем, существует ли скрипт
       if (!fs.existsSync(scriptPath)) {
         reject(new Error('Скрипт деплоя не найден: ' + scriptPath));
         return;
       }
-      
-      // Запускаем скрипт без передачи аргументов командной строки
-      const hardhatProcess = spawn('npx', ['hardhat', 'run', scriptPath, '--network', 'sepolia'], {
+      // Формируем универсальные переменные окружения
+      const envVars = {
+        ...process.env,
+        [`${extraEnv.envNetworkKey}_RPC_URL`]: extraEnv.rpcUrl,
+        [`${extraEnv.envNetworkKey}_PRIVATE_KEY`]: extraEnv.privateKey
+      };
+      // Запускаем скрипт с нужной сетью
+      const hardhatProcess = spawn('npx', ['hardhat', 'run', scriptPath, '--network', extraEnv.networkId], {
         cwd: path.join(__dirname, '..'),
-        env: { ...process.env },
+        env: envVars,
         stdio: 'pipe'
       });
 

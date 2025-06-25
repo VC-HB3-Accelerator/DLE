@@ -1,0 +1,14 @@
+{
+  "name": "ест3",
+  "symbol": "тест3",
+  "location": "07522, United States, Paterson",
+  "isicCodes": [
+    "0111"
+  ],
+  "tokenAddress": "0xFcF1304FAe013d52e09a1497a47988d125a9e2Ed",
+  "timelockAddress": "0xbcF1daCB040b681129Df122f67a0D2eC23DA99B6",
+  "governorAddress": "0xC8aC4c9431B57934eEccac6322352abfcE8a994a",
+  "creationBlock": 8626309,
+  "creationTimestamp": 1750859640,
+  "deployedManually": true
+}
