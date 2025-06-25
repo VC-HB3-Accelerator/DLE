@@ -10801,3 +10801,50 @@
 {"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:55:01.495Z"}
 {"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T13:55:31.691Z"}
 {"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:55:31.696Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T13:55:53.715Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T13:55:59.545Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:55:59.551Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-06-25T13:58:11.346Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-06-25T13:58:11.349Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-06-25T13:58:11.351Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-06-25T13:58:11.352Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-06-25T13:58:11.352Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-06-25T13:58:11.353Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-06-25T13:58:11.457Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-06-25T13:58:11.470Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-06-25T13:58:11.538Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-06-25T13:58:11.538Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-06-25T13:58:12.246Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-06-25T13:58:12.249Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-06-25T13:58:13.048Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T13:58:16.903Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:58:16.927Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T13:58:16.980Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:58:16.987Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T13:58:17.023Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:58:17.041Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-06-25T13:58:17.075Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T13:58:17.102Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-06-25T13:58:17.103Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T13:58:17.119Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:58:17.168Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T13:58:17.206Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:58:17.209Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-06-25T13:58:17.230Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-06-25T13:58:17.232Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-06-25T13:58:20.785Z"}
+{"level":"info","message":"POST /api/auth/logout","timestamp":"2025-06-25T13:58:23.379Z"}
+{"address":null,"authType":null,"authenticated":false,"cookie":{"expires":"2025-07-25T11:36:10.389Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"email":null,"guestId":null,"isAdmin":false,"level":"info","message":"[SessionService] Saving session data:","pendingEmail":null,"previousGuestId":null,"processedGuestIds":[],"telegramId":null,"timestamp":"2025-06-25T13:58:23.381Z","userId":null}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-06-25T13:58:23.386Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-06-25T13:58:23.400Z"}
+{"cookie":{"expires":"2025-07-25T13:58:23.398Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"015dd716a2fded1fc045c72c1a60575e","level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-06-25T13:58:23.401Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-06-25T13:58:23.405Z"}
+{"level":"info","message":"Директория существует: /home/alex/DApp-for-Business/backend/contracts-data","timestamp":"2025-06-25T14:06:22.398Z"}
+{"level":"info","message":"Директория доступна для записи: /home/alex/DApp-for-Business/backend/contracts-data","timestamp":"2025-06-25T14:06:22.401Z"}
+{"level":"info","message":"Директория существует: /home/alex/DApp-for-Business/backend/contracts-data/dles","timestamp":"2025-06-25T14:06:22.401Z"}
+{"level":"info","message":"Директория доступна для записи: /home/alex/DApp-for-Business/backend/contracts-data/dles","timestamp":"2025-06-25T14:06:22.403Z"}
+{"level":"info","message":"Директория существует: /home/alex/DApp-for-Business/backend/temp","timestamp":"2025-06-25T14:06:22.403Z"}
+{"level":"error","message":"Директория /home/alex/DApp-for-Business/backend/temp недоступна для записи: EACCES: permission denied, open '/home/alex/DApp-for-Business/backend/temp/.write-test'","timestamp":"2025-06-25T14:06:22.403Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-06-25T14:06:22.652Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-06-25T14:06:22.662Z"}
+{"code":"EAI_AGAIN","errno":-3001,"hostname":"postgres","level":"error","message":"Unhandled Rejection: getaddrinfo EAI_AGAIN postgres","stack":"Error: getaddrinfo EAI_AGAIN postgres\n    at /home/alex/DApp-for-Business/backend/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async reinitPoolFromDbSettings (/home/alex/DApp-for-Business/backend/db.js:54:17)","syscall":"getaddrinfo","timestamp":"2025-06-25T14:06:29.950Z"}
