@@ -1,0 +1,23 @@
+{
+  "name": "тест3 ",
+  "symbol": "тест3",
+  "location": "07852, United States, Roxbury Township",
+  "isicCodes": [
+    "6411"
+  ],
+  "partners": [
+    "0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b",
+    "0x0a98c54327253bb51f99c8218e5a7a01933d5f57"
+  ],
+  "amounts": [
+    "1000000000000000000",
+    "5000000000000000000"
+  ],
+  "network": "sepolia",
+  "minTimelockDelay": 1,
+  "votingDelay": 6646,
+  "votingPeriod": 6646,
+  "proposalThreshold": "5",
+  "quorumPercentage": 51,
+  "privateKey": "7de38b2ada1d23581342f106c8587ce26068797b3bc06656e24b9dcd1810c7b1"
+}

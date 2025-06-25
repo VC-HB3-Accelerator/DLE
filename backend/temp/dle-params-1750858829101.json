@@ -1,0 +1,23 @@
+{
+  "name": "тест3",
+  "symbol": "3тест",
+  "location": "07885, United States, Rockaway Township",
+  "isicCodes": [
+    "8411"
+  ],
+  "partners": [
+    "0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b",
+    "0x15a4ed4759e5762174b300a4cf51cc17ad967f4d"
+  ],
+  "amounts": [
+    "1000000000000000000",
+    "100000000000000000000"
+  ],
+  "network": "sepolia",
+  "minTimelockDelay": 1,
+  "votingDelay": 6646,
+  "votingPeriod": 6646,
+  "proposalThreshold": "2",
+  "quorumPercentage": 51,
+  "privateKey": "7de38b2ada1d23581342f106c8587ce26068797b3bc06656e24b9dcd1810c7b1"
+}

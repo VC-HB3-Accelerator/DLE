@@ -28,4 +28,9 @@ async function deleteRpcProvider(networkId) {
   await db.getQuery()('DELETE FROM rpc_providers WHERE network_id = $1', [networkId]);
 }
 
-module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider }; 
+async function getRpcUrlByNetworkId(networkId) {
+  const { rows } = await db.getQuery()('SELECT rpc_url FROM rpc_providers WHERE network_id = $1', [networkId]);
+  return rows[0]?.rpc_url || null;
+}
+
+module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId }; 

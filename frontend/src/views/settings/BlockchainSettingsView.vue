@@ -240,6 +240,7 @@
         <div class="form-group">
           <label class="form-label" for="deployNetwork">Выберите сеть блокчейн для деплоя:</label>
           <select id="deployNetwork" v-model="dleDeploymentSettings.blockchainNetwork" class="form-control">
+            <option v-if="loadingNetworks" disabled>Загрузка сетей...</option>
             <option v-for="network in networks" :key="network.value" :value="network.value">
               {{ network.label }}
             </option>
@@ -334,7 +335,9 @@ const {
   testRpcConnection,
   testingRpc,
   testingRpcId,
-  networks
+  networks,
+  fetchNetworks,
+  loadingNetworks
 } = useBlockchainNetworks();
 
 // Добавляем настройки безопасности и подключения
@@ -546,6 +549,7 @@ watch(selectedClass, () => {
 // --- Начальная загрузка данных ---
 onMounted(() => {
   fetchIsicCodes({ level: 1 }, sectionOptions, isLoadingSections);
+  fetchNetworks(); // Загружаем список сетей для деплоя
   
   // Автоподстановка адреса авторизированного пользователя в первого партнера, если есть права админа
   if (address.value && isAdmin.value && dleDeploymentSettings.partners.length > 0) {
@@ -622,7 +626,8 @@ const formattedDLEParams = computed(() => {
     votingDelay: Math.round(dleDeploymentSettings.votingDelayDays * 24 * 60 * 60 / 13), // конвертируем дни в блоки (13 секунд на блок)
     votingPeriod: Math.round(dleDeploymentSettings.votingPeriodDays * 24 * 60 * 60 / 13), // конвертируем дни в блоки
     proposalThreshold: dleDeploymentSettings.proposalThreshold,
-    quorumPercentage: dleDeploymentSettings.quorumPercent
+    quorumPercentage: dleDeploymentSettings.quorumPercent,
+    privateKey: securitySettings.deployerPrivateKey
   };
 });
 
