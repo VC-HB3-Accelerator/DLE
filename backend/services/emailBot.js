@@ -309,6 +309,11 @@ class EmailBotService {
       throw err;
     }
   }
+
+  async getAllEmailSettings() {
+    const { rows } = await db.getQuery()('SELECT id, from_email FROM email_settings ORDER BY id');
+    return rows;
+  }
 }
 
 console.log('[EmailBot] module.exports = EmailBotService');

@@ -8,23 +8,12 @@
   >
     <div class="settings-view-container">
       <h1>Настройки</h1>
-      
       <div v-if="isLoading">Загрузка данных пользователя...</div>
       <div v-else-if="!auth.isAuthenticated.value">
         <p>Для доступа к настройкам необходимо <button @click="goToHomeAndShowSidebar">войти</button>.</p>
       </div>
-      <div v-else class="settings-navigation-buttons">
-        <div class="buttons-grid">
-          <router-link :to="{ name: 'settings-ai' }" class="btn btn-secondary">ИИ</router-link>
-          <router-link :to="{ name: 'settings-blockchain' }" class="btn btn-secondary">Блокчейн</router-link>
-          <router-link :to="{ name: 'settings-security' }" class="btn btn-secondary">Безопасность</router-link>
-          <router-link :to="{ name: 'settings-interface' }" class="btn btn-secondary">Интерфейс</router-link>
-        </div>
-      </div>
-
       <!-- Router view для отображения дочерних компонентов настроек -->
       <router-view></router-view>
-
     </div>
   </BaseLayout>
 </template>
@@ -32,7 +21,7 @@
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, computed, defineProps, defineEmits } from 'vue';
 import { useAuthContext } from '../composables/useAuth';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { getFromStorage, setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
 import eventBus from '../utils/eventBus';
@@ -50,6 +39,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const auth = useAuthContext();
 const router = useRouter();
+const route = useRoute();
 const isLoading = ref(true);
 
 // Обработчик события изменения авторизации
@@ -130,23 +120,7 @@ strong {
 }
 
 /* Новые стили для кнопок навигации */
-.settings-navigation-buttons {
-  margin-top: var(--spacing-lg);
-  padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-grey-light);
-}
-
-.buttons-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--spacing-md);
-}
-
-.buttons-grid .btn {
-  width: 100%;
-  text-align: center;
-  justify-content: center;
-}
+/* Удалено: .settings-navigation-buttons, .buttons-grid, .buttons-grid .btn */
 
 /* Анимации */
 @keyframes fadeIn {

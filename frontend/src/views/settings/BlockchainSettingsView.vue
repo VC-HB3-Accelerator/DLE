@@ -1,5 +1,6 @@
 <template>
-  <div class="blockchain-settings settings-panel">
+  <div class="blockchain-settings settings-panel" style="position:relative">
+    <button class="close-btn" @click="goBack">×</button>
     
     <!-- Панель Создать новое DLE (Digital Legal Entity) -->
     <div class="sub-settings-panel">
@@ -320,6 +321,7 @@ import axios from 'axios'; // Предполагаем, что axios досту�
 import { useAuthContext } from '@/composables/useAuth'; // Импортируем composable useAuth
 import dleService from '@/services/dleService';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks'; // Импортируем composable для работы с сетями
+import { useRouter } from 'vue-router';
 // TODO: Импортировать API
 
 const { address, isAdmin, auth, user } = useAuthContext(); // Получаем объект адреса и статус админа
@@ -339,6 +341,8 @@ const {
   fetchNetworks,
   loadingNetworks
 } = useBlockchainNetworks();
+
+const router = useRouter();
 
 // Добавляем настройки безопасности и подключения
 const securitySettings = reactive({
@@ -995,6 +999,8 @@ const testRpcHandler = async (rpc) => {
   }
 };
 
+const goBack = () => router.push('/settings');
+
 </script>
 
 <style scoped>
@@ -1286,5 +1292,21 @@ h3 {
 .btn-info:disabled {
   background-color: #a0d2dc;
   cursor: not-allowed;
+}
+
+.close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #bbb;
+  transition: color 0.2s;
+  z-index: 10;
+}
+.close-btn:hover {
+  color: #333;
 }
 </style> 

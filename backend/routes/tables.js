@@ -54,9 +54,7 @@ router.post('/:id/columns', async (req, res, next) => {
   try {
     const tableId = req.params.id;
     const { name, type, options, order, tagIds, purpose } = req.body;
-    let finalOptions = options;
-    // Собираем options
-    finalOptions = finalOptions || {};
+    let finalOptions = options || {};
     if (type === 'tags' && Array.isArray(tagIds)) {
       finalOptions.tagIds = tagIds;
     }

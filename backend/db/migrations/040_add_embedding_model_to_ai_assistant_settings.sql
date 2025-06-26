@@ -1,0 +1,1 @@
+ALTER TABLE ai_assistant_settings ADD COLUMN embedding_model VARCHAR(128); 

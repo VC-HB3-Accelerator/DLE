@@ -129,11 +129,16 @@ function closeAddColModal() {
 async function handleAddColumn() {
   if (!newColName.value) return;
   const data = { name: newColName.value, type: newColType.value };
+  const options = {};
   if (newColType.value === 'tags') {
     data.tagIds = selectedTagIds.value;
+    options.tagIds = selectedTagIds.value;
   }
   if (newColPurpose.value) {
-    data.purpose = newColPurpose.value;
+    options.purpose = newColPurpose.value;
+  }
+  if (Object.keys(options).length > 0) {
+    data.options = options;
   }
   await tablesService.addColumn(props.tableId, data);
   closeAddColModal();

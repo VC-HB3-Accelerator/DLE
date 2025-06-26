@@ -1,46 +1,37 @@
 <template>
-  <div class="ai-settings settings-panel">
+  <div class="ai-settings settings-panel" style="position:relative">
+    <button class="close-btn" @click="$router.push('/settings')">×</button>
     <h2>Интеграции</h2>
     <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings && !showDbSettings">
       <div class="integration-block">
         <h3>OpenAI</h3>
         <p>Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).</p>
-        <button class="details-btn" @click="showProvider = 'openai'">Подробнее</button>
-      </div>
-      <div class="integration-block">
-        <h3>Anthropic</h3>
-        <p>Интеграция с Anthropic Claude (Claude 3 и др.).</p>
-        <button class="details-btn" @click="showProvider = 'anthropic'">Подробнее</button>
-      </div>
-      <div class="integration-block">
-        <h3>Google Gemini</h3>
-        <p>Интеграция с Google Gemini (Gemini 1.5, 1.0 и др.).</p>
-        <button class="details-btn" @click="showProvider = 'google'">Подробнее</button>
+        <button class="details-btn" @click="$router.push('/settings/ai/openai')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Ollama</h3>
         <p>Локальные open-source модели через Ollama.</p>
-        <button class="details-btn" @click="showProvider = 'ollama'">Подробнее</button>
+        <button class="details-btn" @click="$router.push('/settings/ai/ollama')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Telegram</h3>
         <p>Интеграция с Telegram-ботом для уведомлений и авторизации.</p>
-        <button class="details-btn" @click="showTelegramSettings = true">Подробнее</button>
+        <button class="details-btn" @click="$router.push('/settings/ai/telegram')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Email</h3>
         <p>Интеграция с Email для отправки писем и уведомлений.</p>
-        <button class="details-btn" @click="showEmailSettings = true">Подробнее</button>
+        <button class="details-btn" @click="$router.push('/settings/ai/email')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>База данных</h3>
         <p>Интеграция с PostgreSQL для хранения данных приложения и управления настройками.</p>
-        <button class="details-btn" @click="showDbSettings = true">Подробнее</button>
+        <button class="details-btn" @click="$router.push('/settings/ai/database')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>ИИ-ассистент</h3>
         <p>Настройки поведения, языков, моделей и правил работы ассистента.</p>
-        <button class="details-btn" @click="showAiAssistantSettings = true">Подробнее</button>
+        <button class="details-btn" @click="$router.push('/settings/ai/assistant')">Подробнее</button>
       </div>
     </div>
     <AIProviderSettings
@@ -54,20 +45,12 @@
       :showBaseUrl="providerLabels[showProvider].showBaseUrl"
       @cancel="showProvider = null"
     />
-    <TelegramSettingsView v-if="showTelegramSettings" @cancel="showTelegramSettings = false" />
-    <EmailSettingsView v-if="showEmailSettings" @cancel="showEmailSettings = false" />
-    <DatabaseSettingsView v-if="showDbSettings" @cancel="showDbSettings = false" />
-    <AiAssistantSettings v-if="showAiAssistantSettings" @cancel="showAiAssistantSettings = false" />
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import AIProviderSettings from './AIProviderSettings.vue';
-import TelegramSettingsView from './TelegramSettingsView.vue';
-import EmailSettingsView from './EmailSettingsView.vue';
-import DatabaseSettingsView from './DatabaseSettingsView.vue';
-import AiAssistantSettings from './AiAssistantSettings.vue';
 
 const showProvider = ref(null);
 const showTelegramSettings = ref(false);
@@ -152,5 +135,20 @@ const providerLabels = {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+.close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #bbb;
+  transition: color 0.2s;
+  z-index: 10;
+}
+.close-btn:hover {
+  color: #333;
 }
 </style> 

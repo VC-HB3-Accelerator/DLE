@@ -1,5 +1,6 @@
 <template>
-  <div class="interface-settings settings-panel">
+  <div class="interface-settings settings-panel" style="position:relative;min-height:120px">
+    <button class="close-btn" @click="goBack">×</button>
     <h2>Настройки Интерфейса</h2>
 
     <!-- Панель Язык -->
@@ -27,9 +28,13 @@
 import { ref } from 'vue';
 import { getFromStorage, setToStorage } from '../../utils/storage'; // Путь к utils может отличаться
 import DomainConnectBlock from './DomainConnectBlock.vue';
+import { useRouter } from 'vue-router';
 // TODO: Импортировать API для сохранения, если нужно
 
 const selectedLanguage = ref(getFromStorage('userLanguage', 'ru'));
+const router = useRouter();
+
+const goBack = () => router.push('/settings');
 
 // Функция сохранения
 const saveLanguageSetting = () => {
@@ -86,6 +91,21 @@ h3 {
 }
 .btn-primary {
  align-self: flex-start;
+}
+.close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #bbb;
+  transition: color 0.2s;
+  z-index: 10;
+}
+.close-btn:hover {
+  color: #333;
 }
 @keyframes fadeIn {
   from { opacity: 0; }

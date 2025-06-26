@@ -423,9 +423,8 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     const userMessage = userMessageResult.rows[0];
     logger.info('User message saved', { messageId: userMessage.id, conversationId });
 
-    // Получаем ответ от ИИ, только если это было текстовое сообщение
+    // --- Новая логика автоответа ИИ по RAG ---
     let aiMessage = null;
-    // --- Новая логика автоответа ИИ ---
     let shouldGenerateAiReply = true;
     if (senderType === 'admin') {
       // Если админ пишет не себе, не отвечаем
@@ -441,41 +440,70 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         if (aiSettings && aiSettings.rules_id) {
           rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
         }
-        logger.info('AI System Prompt:', aiSettings ? aiSettings.system_prompt : 'not set');
-        logger.info('AI Rules:', rules ? JSON.stringify(rules.rules) : 'not set');
-        // Получаем последние 10 сообщений из диалога для истории (до текущего сообщения)
-        const historyResult = await db.getQuery()(
-          'SELECT sender_type, content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
-          [conversationId, userMessage.id]
-        );
-        const history = historyResult.rows.reverse().map(msg => ({
-          role: msg.sender_type === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        }));
-        const detectedLanguage = language === 'auto' ? aiAssistant.detectLanguage(messageContent) : language;
-        logger.info('Getting AI response for:', messageContent);
-        const aiResponseContent = await aiAssistant.getResponse(
-          messageContent,
-          detectedLanguage,
-          history,
-          aiSettings ? aiSettings.system_prompt : '',
-          rules ? rules.rules : null
-        );
-        logger.info('AI response received' + (aiResponseContent ? '' : ' (empty)'), { conversationId });
-
-        if (aiResponseContent) {
-          const aiMessageResult = await db.getQuery()(
-            `INSERT INTO messages
-               (conversation_id, user_id, content, sender_type, role, channel)
-             VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')
-             RETURNING *`,
-            [conversationId, userId, aiResponseContent]
-          );
-          aiMessage = aiMessageResult.rows[0];
-          logger.info('AI response saved', { messageId: aiMessage.id, conversationId });
+        // --- RAG автоответ ---
+        let ragTableId = null;
+        if (aiSettings && aiSettings.selected_rag_tables) {
+          ragTableId = Array.isArray(aiSettings.selected_rag_tables)
+            ? aiSettings.selected_rag_tables[0]
+            : aiSettings.selected_rag_tables;
         }
+        let ragResult = null;
+        if (ragTableId) {
+          const { ragAnswer, generateLLMResponse } = require('../services/ragService');
+          const threshold = 0.3;
+          logger.info(`[RAG] Запуск поиска по RAG: tableId=${ragTableId}, вопрос="${messageContent}", threshold=${threshold}`);
+          const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: messageContent, threshold });
+          logger.info(`[RAG] Результат поиска по RAG:`, ragResult);
+          if (ragResult && ragResult.answer && ragResult.score && ragResult.score > threshold) {
+            logger.info(`[RAG] Найден confident-ответ (score=${ragResult.score}), отправляем ответ из базы.`);
+            // Прямой ответ из RAG
+            const aiMessageResult = await db.getQuery()(
+              `INSERT INTO messages
+                 (conversation_id, user_id, content, sender_type, role, channel)
+               VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')
+               RETURNING *`,
+              [conversationId, userId, ragResult.answer]
+            );
+            aiMessage = aiMessageResult.rows[0];
+          } else if (ragResult) {
+            logger.info(`[RAG] Нет confident-ответа (score=${ragResult.score}), переходим к генерации через LLM.`);
+            // Генерация через LLM с подстановкой значений из RAG
+            const historyResult = await db.getQuery()(
+              'SELECT sender_type, content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
+              [conversationId, userMessage.id]
+            );
+            const history = historyResult.rows.reverse().map(msg => ({
+              role: msg.sender_type === 'user' ? 'user' : 'assistant',
+              content: msg.content
+            }));
+            const llmResponse = await generateLLMResponse({
+              userQuestion: messageContent,
+              context: ragResult.context,
+              answer: ragResult.answer,
+              clarifyingAnswer: ragResult.clarifyingAnswer,
+              objectionAnswer: ragResult.objectionAnswer,
+              systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+              history,
+              model: aiSettings ? aiSettings.model : undefined,
+              language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+            });
+            if (llmResponse) {
+              const aiMessageResult = await db.getQuery()(
+                `INSERT INTO messages
+                   (conversation_id, user_id, content, sender_type, role, channel)
+                 VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')
+                 RETURNING *`,
+                [conversationId, userId, llmResponse]
+              );
+              aiMessage = aiMessageResult.rows[0];
+            } else {
+              logger.info(`[RAG] Нет ни одного результата, прошедшего порог (${threshold}).`);
+            }
+          }
+        }
+        // --- конец RAG автоответа ---
       } catch (aiError) {
-        logger.error('Error getting or saving AI response:', aiError);
+        logger.error('Error getting or saving AI response (RAG):', aiError);
         // Не прерываем основной ответ, но логируем ошибку
       }
     }
@@ -702,14 +730,32 @@ router.post('/ai-draft', requireAuth, async (req, res) => {
       role: msg.sender_type === 'user' ? 'user' : 'assistant',
       content: msg.content
     }));
+    // --- RAG draft ---
+    let ragTableId = null;
+    if (aiSettings && aiSettings.selected_rag_tables) {
+      ragTableId = Array.isArray(aiSettings.selected_rag_tables)
+        ? aiSettings.selected_rag_tables[0]
+        : aiSettings.selected_rag_tables;
+    }
+    let ragResult = null;
+    if (ragTableId) {
+      const { ragAnswer } = require('../services/ragService');
+      logger.info(`[RAG] [DRAFT] Запуск поиска по RAG: tableId=${ragTableId}, draft prompt="${promptText}"`);
+      ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: promptText });
+      logger.info(`[RAG] [DRAFT] Результат поиска по RAG:`, ragResult);
+    }
+    const { generateLLMResponse } = require('../services/ragService');
     const detectedLanguage = language === 'auto' ? aiAssistant.detectLanguage(promptText) : language;
-    const aiResponseContent = await aiAssistant.getResponse(
-      promptText,
-      detectedLanguage,
+    const aiResponseContent = await generateLLMResponse({
+      userQuestion: promptText,
+      context: ragResult && ragResult.context ? ragResult.context : '',
+      answer: ragResult && ragResult.answer ? ragResult.answer : '',
+      systemPrompt: aiSettings ? aiSettings.system_prompt : '',
       history,
-      aiSettings ? aiSettings.system_prompt : '',
-      rules ? rules.rules : null
-    );
+      model: aiSettings ? aiSettings.model : undefined,
+      language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru',
+      rules: rules ? rules.rules : null
+    });
     res.json({ success: true, aiMessage: aiResponseContent });
   } catch (error) {
     logger.error('Error generating AI draft:', error);

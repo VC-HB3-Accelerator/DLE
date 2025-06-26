@@ -12,17 +12,18 @@ async function getProviderSettings(provider) {
   return rows[0] || null;
 }
 
-async function upsertProviderSettings({ provider, api_key, base_url, selected_model }) {
+async function upsertProviderSettings({ provider, api_key, base_url, selected_model, embedding_model }) {
   const { rows } = await db.getQuery()(
-    `INSERT INTO ${TABLE} (provider, api_key, base_url, selected_model, updated_at)
-     VALUES ($1, $2, $3, $4, NOW())
+    `INSERT INTO ${TABLE} (provider, api_key, base_url, selected_model, embedding_model, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())
      ON CONFLICT (provider) DO UPDATE SET
        api_key = EXCLUDED.api_key,
        base_url = EXCLUDED.base_url,
        selected_model = EXCLUDED.selected_model,
+       embedding_model = EXCLUDED.embedding_model,
        updated_at = NOW()
      RETURNING *`,
-    [provider, api_key, base_url, selected_model]
+    [provider, api_key, base_url, selected_model, embedding_model]
   );
   return rows[0];
 }
@@ -97,10 +98,28 @@ async function verifyProviderKey(provider, { api_key, base_url } = {}) {
   }
 }
 
+async function getAllLLMModels() {
+  const { rows } = await db.getQuery()(
+    `SELECT provider, selected_model FROM ${TABLE} WHERE selected_model IS NOT NULL AND selected_model <> ''`
+  );
+  // Возвращаем массив объектов { id, provider }
+  return rows.map(r => ({ id: r.selected_model, provider: r.provider }));
+}
+
+async function getAllEmbeddingModels() {
+  const { rows } = await db.getQuery()(
+    `SELECT provider, embedding_model FROM ${TABLE} WHERE embedding_model IS NOT NULL AND embedding_model <> ''`
+  );
+  // Возвращаем массив объектов { id, provider }
+  return rows.map(r => ({ id: r.embedding_model, provider: r.provider }));
+}
+
 module.exports = {
   getProviderSettings,
   upsertProviderSettings,
   deleteProviderSettings,
   getProviderModels,
   verifyProviderKey,
+  getAllLLMModels,
+  getAllEmbeddingModels,
 }; 
