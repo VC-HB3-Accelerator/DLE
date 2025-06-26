@@ -10,6 +10,10 @@ const aiAssistant = require('../services/ai-assistant');
 const dns = require('node:dns').promises;
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
+const telegramBot = require('../services/telegramBot');
+const EmailBotService = require('../services/emailBot');
+const emailBotService = new EmailBotService();
+const dbSettingsService = require('../services/dbSettingsService');
 
 // Логируем версию ethers для отладки
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
@@ -185,8 +189,8 @@ router.get('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
 router.put('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
   try {
     const { provider } = req.params;
-    const { api_key, base_url, selected_model } = req.body;
-    const updated = await aiProviderSettingsService.upsertProviderSettings({ provider, api_key, base_url, selected_model });
+    const { api_key, base_url, selected_model, embedding_model } = req.body;
+    const updated = await aiProviderSettingsService.upsertProviderSettings({ provider, api_key, base_url, selected_model, embedding_model });
     res.json({ success: true, settings: updated });
   } catch (error) {
     logger.error('Ошибка при сохранении AI-настроек:', error);
@@ -252,7 +256,25 @@ router.get('/ai-assistant', requireAdmin, async (req, res, next) => {
 
 router.put('/ai-assistant', requireAdmin, async (req, res, next) => {
   try {
-    const updated = await aiAssistantSettingsService.upsertSettings({ ...req.body, updated_by: req.session.userId || null });
+    let { selected_rag_tables, ...rest } = req.body;
+    // Приведение к массиву чисел
+    if (typeof selected_rag_tables === 'string') {
+      try {
+        selected_rag_tables = JSON.parse(selected_rag_tables);
+      } catch {
+        selected_rag_tables = [Number(selected_rag_tables)];
+      }
+    }
+    if (!Array.isArray(selected_rag_tables)) {
+      selected_rag_tables = [Number(selected_rag_tables)];
+    }
+    selected_rag_tables = selected_rag_tables.map(Number);
+
+    const updated = await aiAssistantSettingsService.upsertSettings({
+      ...rest,
+      selected_rag_tables,
+      updated_by: req.session.userId || null
+    });
     res.json({ success: true, settings: updated });
   } catch (error) {
     next(error);
@@ -309,23 +331,101 @@ router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) =>
   }
 });
 
-// Получить все email_settings для выпадающего списка
-router.get('/email-settings', requireAdmin, async (req, res, next) => {
+// Получить текущие настройки Email (для страницы Email)
+router.get('/email-settings', requireAdmin, async (req, res) => {
   try {
-    const { rows } = await require('../db').getQuery()('SELECT id, from_email FROM email_settings ORDER BY id');
-    res.json({ success: true, items: rows });
+    const settings = await emailBotService.getSettingsFromDb();
+    res.json({ success: true, settings });
+  } catch (error) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Получить список всех email (для ассистента)
+router.get('/email-settings/list', requireAdmin, async (req, res) => {
+  try {
+    const emails = await emailBotService.getAllEmailSettings();
+    res.json({ success: true, items: emails });
+  } catch (error) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Получить текущие настройки Telegram-бота (для страницы Telegram)
+router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
+  try {
+    const settings = await telegramBot.getTelegramSettings();
+    res.json({ success: true, settings });
+  } catch (error) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Получить список всех Telegram-ботов (для ассистента)
+router.get('/telegram-settings/list', requireAdmin, async (req, res, next) => {
+  try {
+    const bots = await telegramBot.getAllBots();
+    res.json({ success: true, items: bots });
+  } catch (error) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Получение списка моделей для выбранного AI-провайдера
+router.get('/ai-provider-models', requireAdmin, async (req, res, next) => {
+  try {
+    const provider = req.query.provider;
+    if (!provider) return res.status(400).json({ error: 'provider is required' });
+    const settings = await aiProviderSettingsService.getProviderSettings(provider);
+    if (!settings) return res.status(404).json({ error: 'Provider not found' });
+    const models = await aiProviderSettingsService.getProviderModels(provider, {
+      api_key: settings.api_key,
+      base_url: settings.base_url,
+    });
+    res.json({ models });
   } catch (error) {
     next(error);
   }
 });
 
-// Получить все telegram_settings для выпадающего списка
-router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
+// Получить настройки базы данных
+router.get('/db-settings', requireAdmin, async (req, res) => {
   try {
-    const { rows } = await require('../db').getQuery()('SELECT id, bot_username FROM telegram_settings ORDER BY id');
-    res.json({ success: true, items: rows });
+    const settings = await dbSettingsService.getSettings();
+    res.json({ success: true, settings });
   } catch (error) {
-    next(error);
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Обновить настройки базы данных
+router.put('/db-settings', requireAdmin, async (req, res) => {
+  try {
+    const { db_host, db_port, db_name, db_user, db_password } = req.body;
+    const updated = await dbSettingsService.upsertSettings({ db_host, db_port, db_name, db_user, db_password });
+    res.json({ success: true, settings: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Получить все LLM-модели
+router.get('/llm-models', requireAdmin, async (req, res) => {
+  try {
+    const models = await aiProviderSettingsService.getAllLLMModels();
+    res.json({ success: true, models });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Получить все embedding-модели
+router.get('/embedding-models', requireAdmin, async (req, res) => {
+  try {
+    const models = await aiProviderSettingsService.getAllEmbeddingModels();
+    res.json({ success: true, models });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

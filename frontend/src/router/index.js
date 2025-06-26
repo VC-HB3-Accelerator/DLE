@@ -28,6 +28,11 @@ const routes = [
     // Добавляем дочерние маршруты
     children: [
       {
+        path: '',
+        name: 'settings-index',
+        component: () => import('@/views/settings/SettingsIndexView.vue'),
+      },
+      {
         path: 'ai',
         name: 'settings-ai',
         component: SettingsAiView,
@@ -50,20 +55,34 @@ const routes = [
       {
         path: 'telegram',
         name: 'settings-telegram',
-        component: () => import('../views/settings/TelegramSettingsView.vue'),
+        component: () => import('../views/settings/AI/TelegramSettingsView.vue'),
       },
       {
         path: 'email',
         name: 'settings-email',
-        component: () => import('../views/settings/EmailSettingsView.vue'),
+        component: () => import('../views/settings/AI/EmailSettingsView.vue'),
       },
-      // Опционально: перенаправление со /settings на первую подстраницу
-      {
-        path: '',
-        name: 'settings-index',
-        redirect: { name: 'settings-ai' }
-      }
     ]
+  },
+  {
+    path: '/settings/ai/openai',
+    name: 'openai-settings',
+    component: () => import('@/views/settings/AI/OpenAISettingsView.vue'),
+  },
+  {
+    path: '/settings/ai/ollama',
+    name: 'ollama-settings',
+    component: () => import('@/views/settings/AI/OllamaSettingsView.vue'),
+  },
+  {
+    path: '/settings/ai/database',
+    name: 'database-settings',
+    component: () => import('@/views/settings/AI/DatabaseSettingsView.vue'),
+  },
+  {
+    path: '/settings/ai/assistant',
+    name: 'ai-assistant-settings',
+    component: () => import('@/views/settings/AI/AiAssistantSettings.vue'),
   },
   {
     path: '/tables',
@@ -119,6 +138,16 @@ const routes = [
     path: '/dle-management',
     name: 'dle-management',
     component: () => import('../views/DleManagementView.vue')
+  },
+  {
+    path: '/settings/ai/telegram',
+    name: 'telegram-settings',
+    component: () => import('@/views/settings/AI/TelegramSettingsView.vue'),
+  },
+  {
+    path: '/settings/ai/email',
+    name: 'email-settings',
+    component: () => import('@/views/settings/AI/EmailSettingsView.vue'),
   },
 ];
 

@@ -15,10 +15,18 @@
         <input type="text" v-model="baseUrl" :placeholder="baseUrlPlaceholder" />
       </div>
       <div v-if="models.length">
-        <label>Модель:</label>
+        <label>Модель (LLM):</label>
         <select v-model="selectedModel">
-          <option v-for="model in models" :key="model.id || model" :value="model.id || model">
-            {{ model.id || model }}
+          <option v-for="model in models" :key="model.id || model.name || model" :value="model.id || model.name || model">
+            {{ model.id || model.name || model }}
+          </option>
+        </select>
+      </div>
+      <div v-if="embeddingModels.length">
+        <label>Embeddings-модель:</label>
+        <select v-model="selectedEmbeddingModel">
+          <option v-for="model in embeddingModels" :key="model.id || model.name || model" :value="model.id || model.name || model">
+            {{ model.id || model.name || model }}
           </option>
         </select>
       </div>
@@ -49,7 +57,9 @@ const props = defineProps({
 const apiKey = ref('');
 const baseUrl = ref('');
 const selectedModel = ref('');
+const selectedEmbeddingModel = ref('');
 const models = ref([]);
+const embeddingModels = ref([]);
 const hasSettings = ref(false);
 const verifying = ref(false);
 const verifyStatus = ref(null);
@@ -65,9 +75,11 @@ async function loadSettings() {
       apiKey.value = data.settings.api_key || '';
       baseUrl.value = data.settings.base_url || '';
       selectedModel.value = data.settings.selected_model || '';
+      selectedEmbeddingModel.value = data.settings.embedding_model || '';
       hasSettings.value = true;
       if (apiKey.value || props.provider === 'ollama') {
         await loadModels();
+        await loadEmbeddingModels();
       }
     } else {
       hasSettings.value = false;
@@ -82,10 +94,27 @@ async function loadModels() {
     const { data } = await axios.get(`/api/settings/ai-settings/${props.provider}/models`);
     models.value = data.models || [];
     if (!selectedModel.value && models.value.length) {
-      selectedModel.value = models.value[0].id || models.value[0];
+      const first = models.value[0];
+      selectedModel.value = first.id || first.name || first;
     }
   } catch (e) {
     models.value = [];
+  }
+}
+
+async function loadEmbeddingModels() {
+  try {
+    const { data } = await axios.get(`/api/settings/ai-settings/${props.provider}/models`);
+    embeddingModels.value = (data.models || []).filter(m => {
+      const name = m.id || m.name || m;
+      return name && name.toLowerCase().includes('embed');
+    });
+    if (!selectedEmbeddingModel.value && embeddingModels.value.length) {
+      const first = embeddingModels.value[0];
+      selectedEmbeddingModel.value = first.id || first.name || first;
+    }
+  } catch (e) {
+    embeddingModels.value = [];
   }
 }
 
@@ -119,6 +148,7 @@ async function onSave() {
       api_key: apiKey.value,
       base_url: baseUrl.value,
       selected_model: selectedModel.value,
+      embedding_model: selectedEmbeddingModel.value,
     });
     saveStatus.value = true;
     hasSettings.value = true;
@@ -135,7 +165,9 @@ async function onDelete() {
   apiKey.value = '';
   baseUrl.value = '';
   selectedModel.value = '';
+  selectedEmbeddingModel.value = '';
   models.value = [];
+  embeddingModels.value = [];
   hasSettings.value = false;
 }
 
@@ -151,8 +183,9 @@ watch([apiKey, baseUrl], () => {
 <style scoped>
 .ai-provider-settings.settings-panel {
   padding: var(--block-padding);
-  background-color: var(--color-light);
-  border-radius: var(--radius-md);
+  /* background-color: var(--color-light); */
+  /* border-radius: var(--radius-md); */
+  /* box-shadow: 0 2px 8px rgba(0,0,0,0.08); */
   margin-top: var(--spacing-lg);
   max-width: 500px;
 }

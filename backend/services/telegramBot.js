@@ -424,9 +424,16 @@ function clearSettingsCache() {
   telegramSettingsCache = null;
 }
 
+async function getAllBots() {
+  const { rows } = await db.getQuery()('SELECT id, bot_username FROM telegram_settings ORDER BY id');
+  return rows;
+}
+
 module.exports = {
+  getTelegramSettings,
   getBot,
   stopBot,
   initTelegramAuth,
   clearSettingsCache,
+  getAllBots,
 };

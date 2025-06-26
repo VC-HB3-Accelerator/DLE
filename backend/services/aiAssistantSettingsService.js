@@ -20,19 +20,21 @@ async function getSettings() {
   return {
     ...settings,
     telegramBot,
-    supportEmail
+    supportEmail,
+    embedding_model: settings.embedding_model
   };
 }
 
-async function upsertSettings({ system_prompt, selected_rag_tables, languages, model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {
+async function upsertSettings({ system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {
   const { rows } = await db.getQuery()(
-    `INSERT INTO ${TABLE} (id, system_prompt, selected_rag_tables, languages, model, rules, updated_at, updated_by, telegram_settings_id, email_settings_id, system_message)
-     VALUES (1, $1, $2, $3, $4, $5, NOW(), $6, $7, $8, $9)
+    `INSERT INTO ${TABLE} (id, system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_at, updated_by, telegram_settings_id, email_settings_id, system_message)
+     VALUES (1, $1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10)
      ON CONFLICT (id) DO UPDATE SET
        system_prompt = EXCLUDED.system_prompt,
        selected_rag_tables = EXCLUDED.selected_rag_tables,
        languages = EXCLUDED.languages,
        model = EXCLUDED.model,
+       embedding_model = EXCLUDED.embedding_model,
        rules = EXCLUDED.rules,
        updated_at = NOW(),
        updated_by = EXCLUDED.updated_by,
@@ -40,7 +42,7 @@ async function upsertSettings({ system_prompt, selected_rag_tables, languages, m
        email_settings_id = EXCLUDED.email_settings_id,
        system_message = EXCLUDED.system_message
      RETURNING *`,
-    [system_prompt, selected_rag_tables, languages, model, rules, updated_by, telegram_settings_id, email_settings_id, system_message]
+    [system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message]
   );
   return rows[0];
 }

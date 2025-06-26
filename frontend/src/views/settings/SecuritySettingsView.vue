@@ -1,5 +1,6 @@
 <template>
   <div class="security-settings settings-panel">
+    <button class="close-btn" @click="goBack">×</button>
     <h2>Настройки безопасности и подключения к блокчейну</h2>
 
     <!-- Индикатор загрузки -->
@@ -59,6 +60,7 @@ import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import eventBus from '@/utils/eventBus';
 import RpcProvidersSettings from './RpcProvidersSettings.vue';
 import AuthTokensSettings from './AuthTokensSettings.vue';
+import { useRouter } from 'vue-router';
 
 // Состояние для отображения/скрытия дополнительных настроек
 const showRpcSettings = ref(false);
@@ -288,6 +290,9 @@ provide('removeAuthToken', removeAuthToken);
 provide('addAuthToken', addAuthToken);
 provide('newAuthToken', newAuthToken);
 provide('networks', networks);
+
+const router = useRouter();
+const goBack = () => router.push('/settings');
 </script>
 
 <style scoped>
@@ -572,5 +577,21 @@ small {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #bbb;
+  transition: color 0.2s;
+  z-index: 10;
+}
+.close-btn:hover {
+  color: #333;
 }
 </style> 
