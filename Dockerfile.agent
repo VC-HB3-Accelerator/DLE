@@ -1,0 +1,6 @@
+FROM node:18-alpine
+WORKDIR /app
+COPY cloudflared-agent.js .
+RUN yarn add express
+RUN apk add --no-cache docker-cli docker-compose
+CMD ["node", "cloudflared-agent.js"] 
