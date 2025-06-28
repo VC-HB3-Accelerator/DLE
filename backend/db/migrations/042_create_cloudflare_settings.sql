@@ -1,0 +1,1 @@
+  ALTER TABLE cloudflare_settings ADD COLUMN account_id TEXT;

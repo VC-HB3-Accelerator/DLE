@@ -1,5 +1,3 @@
-# version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,13 +11,14 @@ services:
       POSTGRES_USER: ${DB_USER:-dapp_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dapp_password}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dapp_user} -d ${DB_NAME:-dapp_db}"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${DB_USER:-dapp_user} -d ${DB_NAME:-dapp_db}
       interval: 5s
       timeout: 5s
       retries: 5
-
   ollama:
     image: ollama/ollama:latest
     container_name: dapp-ollama
@@ -27,9 +26,8 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     ports:
-      - "11434:11434"
+      - '11434:11434'
     command: serve
-
   backend:
     build:
       context: ./backend
@@ -44,6 +42,8 @@ services:
     volumes:
       - ./backend:/app
       - ./frontend/dist:/app/frontend_dist:ro
+      - ./cloudflared.env:/cloudflared.env
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=${PORT:-8000}
@@ -52,18 +52,16 @@ services:
       - DB_NAME=${DB_NAME:-dapp_db}
       - DB_USER=${DB_USER:-dapp_user}
       - DB_PASSWORD=${DB_PASSWORD:-dapp_password}
-      - DATABASE_URL=postgresql://${DB_USER:-dapp_user}:${DB_PASSWORD:-dapp_password}@postgres:5432/${DB_NAME:-dapp_db}
+      - >-
+        DATABASE_URL=postgresql://${DB_USER:-dapp_user}:${DB_PASSWORD:-dapp_password}@postgres:5432/${DB_NAME:-dapp_db}
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-qwen2.5:7b}
       - FRONTEND_URL=http://localhost:5173
     ports:
-      - "8000:8000"
+      - '8000:8000'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # command: sh -c "yarn run dev" # Временно комментируем эту строку
-    # command: nodemon server.js      # Запускаем через nodemon
-
+      - host.docker.internal:host-gateway
   frontend:
     build:
       context: ./frontend
@@ -76,9 +74,8 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     ports:
-      - "5173:5173"
+      - '5173:5173'
     command: yarn run dev -- --host 0.0.0.0
-
   ollama-setup:
     image: curlimages/curl:latest
     container_name: dapp-ollama-setup
@@ -95,9 +92,42 @@ services:
         curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_MODEL:-qwen2.5:7b}\"}' -H 'Content-Type: application/json'
         echo 'Done!'
       "
-
+  cloudflared:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloudflared
+    restart: unless-stopped
+    volumes:
+      - ./start-cloudflared.sh:/start-cloudflared.sh
+      - ./cloudflared.env:/cloudflared.env
+      - ./.cloudflared:/etc/cloudflared
+    depends_on:
+      - backend
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:39693/metrics", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    environment:
+      - TUNNEL_METRICS=0.0.0.0:39693
+  cloudflared-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: dapp-cloudflared-agent
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "9000:9000"
+    depends_on:
+      - cloudflared
 volumes:
-  postgres_data:
-  ollama_data:
-  backend_node_modules:
-  frontend_node_modules: 
+  postgres_data: null
+  ollama_data: null
+  backend_node_modules: null
+  frontend_node_modules: null
