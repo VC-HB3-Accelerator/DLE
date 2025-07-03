@@ -51,13 +51,16 @@ function goToCreate() {
 <style scoped>
 .table-block-wrapper {
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-  padding: 32px 24px 24px 24px;
-  max-width: 950px;
-  margin: 40px auto;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  width: 100%;
   position: relative;
   overflow-x: auto;
+  margin-left: 0;
+  margin-right: 0;
 }
 .tableview-header-row {
   display: flex;

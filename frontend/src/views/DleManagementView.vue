@@ -4,6 +4,7 @@
       :dle-list="dleList"
       :selected-dle-index="selectedDleIndex"
       @close="goBack"
+      @dle-updated="reloadDleList"
       class="dle-management-root"
     />
   </BaseLayout>
@@ -28,8 +29,19 @@ function goBack() {
   }
 }
 
+async function reloadDleList() {
+  dleList.value = await dleService.getAllDLEs() || [];
+  // Сбросить выбранный индекс, если список изменился
+  if (dleList.value.length === 0) {
+    selectedDleIndex.value = 0;
+  } else if (selectedDleIndex.value >= dleList.value.length) {
+    selectedDleIndex.value = 0;
+  }
+}
+
 onMounted(async () => {
   dleList.value = await dleService.getAllDLEs() || [];
+  onMounted(reloadDleList);
 });
 </script>
 

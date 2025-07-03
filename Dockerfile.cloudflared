@@ -1,9 +1,0 @@
-FROM alpine:3.20 as base
-RUN apk add --no-cache bash curl wget
-
-FROM cloudflare/cloudflared:2025.6.1 as src
-
-FROM base
-COPY --from=src /usr/local/bin/cloudflared /usr/local/bin/cloudflared
-USER nobody
-ENTRYPOINT ["bash", "/start-cloudflared.sh"] 

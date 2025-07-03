@@ -36,38 +36,67 @@ class VectorStore:
         self.index_cache[table_id] = (index, meta)
 
     def upsert(self, table_id, rows: List[Dict]):
+        print(f"[DEBUG] VectorStore.upsert called: table_id={table_id}, rows_count={len(rows)}")
         # rows: [{row_id, embedding, metadata}]
         index, meta = self.load(table_id)
+        print(f"[DEBUG] Loaded existing index: {index is not None}, existing meta count: {len(meta) if meta else 0}")
+        
         if index is None:
             dim = len(rows[0]['embedding'])
+            print(f"[DEBUG] Creating new index with dimension: {dim}")
             index = faiss.IndexFlatL2(dim)
             meta = []
+        else:
+            print(f"[DEBUG] Using existing index")
+            
         # Удаляем дубликаты row_id
         existing_ids = {m['row_id'] for m in meta}
         new_rows = [r for r in rows if r['row_id'] not in existing_ids]
+        print(f"[DEBUG] Found {len(new_rows)} new rows to add (out of {len(rows)} total)")
+        
         if not new_rows:
+            print(f"[DEBUG] No new rows to add")
             return
+            
         vectors = np.array([r['embedding'] for r in new_rows]).astype('float32')
+        print(f"[DEBUG] Adding {len(vectors)} vectors to index")
         index.add(vectors)
         meta.extend(new_rows)
+        print(f"[DEBUG] Total meta count after upsert: {len(meta)}")
         self.save(table_id, index, meta)
+        print(f"[DEBUG] Index saved successfully")
 
     def search(self, table_id, query_embedding, top_k=3):
+        print(f"[DEBUG] VectorStore.search called: table_id={table_id}, top_k={top_k}")
         index, meta = self.load(table_id)
+        print(f"[DEBUG] Loaded index: {index is not None}, meta count: {len(meta) if meta else 0}")
+        
         if index is None or not meta:
+            print(f"[DEBUG] No index or meta found, returning empty results")
             return []
+            
         query = np.array([query_embedding]).astype('float32')
+        print(f"[DEBUG] Query shape: {query.shape}")
+        
         D, I = index.search(query, top_k)
+        print(f"[DEBUG] FAISS search results - D: {D}, I: {I}")
+        
         results = []
         for idx, dist in zip(I[0], D[0]):
+            print(f"[DEBUG] Processing result: idx={idx}, dist={dist}")
             if idx < 0 or idx >= len(meta):
+                print(f"[DEBUG] Invalid index {idx}, skipping")
                 continue
             m = meta[idx]
+            score = float(-dist)  # FAISS: чем меньше dist, тем ближе
+            print(f"[DEBUG] Valid result: row_id={m['row_id']}, score={score}, metadata={m['metadata']}")
             results.append({
                 'row_id': m['row_id'],
-                'score': float(-dist),  # FAISS: чем меньше dist, тем ближе
+                'score': score,
                 'metadata': m['metadata']
             })
+        
+        print(f"[DEBUG] Returning {len(results)} results")
         return results
 
     def delete(self, table_id, row_ids: List[str]):

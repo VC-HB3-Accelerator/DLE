@@ -13,7 +13,12 @@
           <div v-for="(dle, index) in dleList" :key="index" class="dle-card"
                :class="{ 'active': selectedDleIndex === index }"
                @click="selectDle(index)">
-            <h3>{{ dle.name }} ({{ dle.symbol }})</h3>
+            <div class="dle-card-header">
+              <h3>{{ dle.name }} ({{ dle.symbol }})</h3>
+              <button v-if="isAdmin" class="delete-dle-btn" @click.stop="deleteDle(dle, index)" title="Удалить DLE">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
             <p><strong>Адрес:</strong> {{ shortenAddress(dle.tokenAddress) }}</p>
             <p><strong>Местонахождение:</strong> {{ dle.location }}</p>
           </div>
@@ -195,11 +200,23 @@
             <div v-for="(module, index) in availableModules" :key="index" class="module-card">
               <h4>{{ module.name }}</h4>
               <p>{{ module.description }}</p>
-              <div class="module-status" :class="{ 'installed': module.installed }">
-                {{ module.installed ? 'Установлен' : 'Доступен' }}
+              <div class="module-status" :class="{ 'installed': isModuleInstalled(module) }">
+                {{ isModuleInstalled(module) ? 'Установлен' : 'Доступен' }}
+              </div>
+              <div v-if="module.name === 'Прием платежей' && paymentModuleTokens.length > 0" class="payment-tokens-list">
+                <div v-for="token in paymentModuleTokens" :key="token.address + token.network" class="payment-token-entry">
+                  <span><b>{{ token.name }}</b> ({{ token.network }})</span>
+                  <span style="font-size:0.95em;color:#888">{{ token.address }}</span>
+                </div>
               </div>
               <div class="module-actions">
-                <button v-if="!module.installed" class="btn btn-success" @click="installModule(module)">
+                <button v-if="module.name === 'Прием платежей' && !isModuleInstalled(module)" class="btn btn-success" @click="openPaymentTokensModal">
+                  <i class="fas fa-plus"></i> Настроить
+                </button>
+                <button v-else-if="module.name === 'Прием платежей' && isModuleInstalled(module)" class="btn btn-danger" @click="uninstallPaymentModule">
+                  <i class="fas fa-trash"></i> Удалить
+                </button>
+                <button v-else-if="!isModuleInstalled(module)" class="btn btn-success" @click="installModule(module)">
                   <i class="fas fa-plus"></i> Установить
                 </button>
                 <button v-else class="btn btn-danger" @click="uninstallModule(module)">
@@ -211,12 +228,58 @@
         </div>
       </div>
     </div>
+    <BaseModal
+      :show="showDeleteModal"
+      :title="deleteSuccess ? 'Готово' : 'Подтвердите удаление DLE'"
+      @close="closeDeleteModal"
+    >
+      <template #default>
+        <div style="margin-bottom:18px;">
+          <span v-if="!deleteSuccess">Удалить DLE <b>«{{ dleToDelete?.name }}»</b>? Это действие необратимо.</span>
+          <span v-else>DLE успешно удалён</span>
+        </div>
+      </template>
+      <template #actions>
+        <template v-if="!deleteSuccess">
+          <button class="modal-ok-btn delete-btn" @click="confirmDeleteDle" :disabled="isDeletingDle">
+            {{ isDeletingDle ? 'Удаление...' : 'Удалить' }}
+          </button>
+          <button class="modal-ok-btn cancel-btn" @click="closeDeleteModal" :disabled="isDeletingDle">Отмена</button>
+        </template>
+        <template v-else>
+          <button class="modal-ok-btn" @click="closeDeleteModal">OK</button>
+        </template>
+      </template>
+    </BaseModal>
+    <BaseModal
+      :show="showPaymentTokensModal"
+      title="Выберите токены для приема платежей"
+      @close="closePaymentTokensModal"
+    >
+      <template #default>
+        <div v-if="authTokens.length === 0">Нет доступных токенов. Добавьте токены в настройках безопасности.</div>
+        <div v-else>
+          <div v-for="token in authTokens" :key="token.address + token.network" class="token-select-row">
+            <label>
+              <input type="checkbox" :value="token" v-model="paymentModuleTokens.value" />
+              <b>{{ token.name }}</b> ({{ token.network }}) <span style="font-size:0.95em;color:#888">{{ token.address }}</span>
+            </label>
+          </div>
+        </div>
+      </template>
+      <template #actions>
+        <button class="modal-ok-btn" @click="closePaymentTokensModal">Отмена</button>
+        <button class="modal-ok-btn btn-success" @click="closePaymentTokensModal">Сохранить</button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup>
-import { ref, defineProps, computed } from 'vue';
+import { ref, defineProps, computed, inject } from 'vue';
 import { useAuthContext } from '@/composables/useAuth';
+import dleService from '@/services/dleService';
+import BaseModal from './NoAccessModal.vue';
 
 const props = defineProps({
   dleList: { type: Array, required: true },
@@ -353,6 +416,62 @@ function uninstallModule(module) {
   module.installed = false;
   alert(`Модуль "${module.name}" удален.`);
 }
+function isModuleInstalled(module) {
+  if (typeof module.installed === 'function') return module.installed();
+  return !!module.installed;
+}
+const emit = defineEmits(['close', 'dle-updated']);
+const showDeleteModal = ref(false);
+const dleToDelete = ref(null);
+const isDeletingDle = ref(false);
+const deleteSuccess = ref(false);
+function deleteDle(dle, idx) {
+  if (!isAdmin.value) return;
+  dleToDelete.value = dle;
+  showDeleteModal.value = true;
+  deleteSuccess.value = false;
+}
+function closeDeleteModal() {
+  showDeleteModal.value = false;
+  dleToDelete.value = null;
+  isDeletingDle.value = false;
+  deleteSuccess.value = false;
+}
+async function confirmDeleteDle() {
+  if (!dleToDelete.value) return;
+  isDeletingDle.value = true;
+  try {
+    await dleService.deleteDLE(dleToDelete.value.tokenAddress);
+    deleteSuccess.value = true;
+    emit('dle-updated');
+    isDeletingDle.value = false;
+  } catch (e) {
+    alert('Ошибка при удалении DLE: ' + (e?.message || e));
+    isDeletingDle.value = false;
+  }
+}
+const authTokens = inject('authTokens', ref([]));
+const paymentModuleTokens = ref([]);
+const showPaymentTokensModal = ref(false);
+function openPaymentTokensModal() {
+  showPaymentTokensModal.value = true;
+}
+function closePaymentTokensModal() {
+  showPaymentTokensModal.value = false;
+}
+function savePaymentTokens(selected) {
+  paymentModuleTokens.value = selected;
+  closePaymentTokensModal();
+  // Можно добавить сохранение в API, если потребуется
+}
+function uninstallPaymentModule() {
+  paymentModuleTokens.value = [];
+}
+availableModules.value.push({
+  name: 'Прием платежей',
+  description: 'Позволяет принимать оплату в выбранных токенах. Можно выбрать один или несколько токенов для приема платежей.',
+  installed: computed(() => paymentModuleTokens.value.length > 0)
+});
 </script>
 
 <style scoped>
@@ -405,6 +524,12 @@ function uninstallModule(module) {
 .dle-card.active {
   border-color: #17a2b8;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+.dle-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
 }
 .dle-card h3 {
   margin-top: 0;
@@ -623,5 +748,82 @@ function uninstallModule(module) {
   margin-top: 10px;
   display: flex;
   gap: 10px;
+}
+.delete-dle-btn {
+  background: none;
+  border: none;
+  color: #dc3545;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.delete-dle-btn:hover {
+  background: #ffeaea;
+  color: #a71d2a;
+}
+.delete-btn {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 2rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+.delete-btn:disabled {
+  background: #e6a6ad;
+  cursor: not-allowed;
+}
+.delete-btn:hover:not(:disabled) {
+  background: #b52a37;
+}
+.cancel-btn {
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.5rem 2rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+.cancel-btn:disabled {
+  background: #eee;
+  color: #aaa;
+  cursor: not-allowed;
+}
+.cancel-btn:hover:not(:disabled) {
+  background: #e0e0e0;
+}
+.payment-tokens-list {
+  margin: 10px 0 0 0;
+  padding: 8px 0 0 0;
+  border-top: 1px solid #e5e7eb;
+}
+.payment-token-entry {
+  font-size: 1.02em;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.token-select-row {
+  margin-bottom: 8px;
+  text-align: left;
+}
+.btn-success {
+  background: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 2rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+.btn-success:hover {
+  background: #218838;
 }
 </style> 

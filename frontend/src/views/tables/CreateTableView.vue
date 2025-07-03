@@ -51,12 +51,17 @@ function goBack() {
 
 <style scoped>
 .create-table-container {
-  max-width: 500px;
-  margin: 2rem auto;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-  padding: 2rem 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  width: 100%;
+  position: relative;
+  overflow-x: auto;
+  margin-left: 0;
+  margin-right: 0;
 }
 .create-table-form {
   display: flex;

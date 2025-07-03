@@ -5,9 +5,16 @@ const { getProviderSettings } = require('./aiProviderSettingsService');
 console.log('[RAG] ragService.js loaded');
 
 async function getTableData(tableId) {
+  console.log(`[RAG] getTableData called for tableId: ${tableId}`);
+  
   const columns = (await db.query('SELECT * FROM user_columns WHERE table_id = $1', [tableId])).rows;
+  console.log(`[RAG] Found ${columns.length} columns:`, columns.map(col => ({ id: col.id, name: col.name, purpose: col.options?.purpose })));
+  
   const rows = (await db.query('SELECT * FROM user_rows WHERE table_id = $1', [tableId])).rows;
+  console.log(`[RAG] Found ${rows.length} rows:`, rows.map(row => ({ id: row.id, name: row.name })));
+  
   const cellValues = (await db.query('SELECT * FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId])).rows;
+  console.log(`[RAG] Found ${cellValues.length} cell values`);
 
   const getColId = purpose => columns.find(col => col.options?.purpose === purpose)?.id;
   const questionColId = getColId('question');
@@ -17,10 +24,20 @@ async function getTableData(tableId) {
   const productColId = getColId('product');
   const priorityColId = getColId('priority');
   const dateColId = getColId('date');
+  
+  console.log(`[RAG] Column IDs:`, {
+    question: questionColId,
+    answer: answerColId,
+    userTags: userTagsColId,
+    context: contextColId,
+    product: productColId,
+    priority: priorityColId,
+    date: dateColId
+  });
 
   const data = rows.map(row => {
     const cells = cellValues.filter(cell => cell.row_id === row.id);
-    return {
+    const result = {
       id: row.id,
       question: cells.find(c => c.column_id === questionColId)?.value,
       answer: cells.find(c => c.column_id === answerColId)?.value,
@@ -30,15 +47,28 @@ async function getTableData(tableId) {
       priority: cells.find(c => c.column_id === priorityColId)?.value,
       date: cells.find(c => c.column_id === dateColId)?.value,
     };
+    console.log(`[RAG] Processed row ${row.id}:`, result);
+    return result;
   });
   return data;
 }
 
-async function ragAnswer({ tableId, userQuestion, userTags = [], product = null, threshold = 0.3 }) {
+async function ragAnswer({ tableId, userQuestion, userTags = [], product = null, threshold = 10 }) {
   console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
   
   const data = await getTableData(tableId);
   console.log(`[RAG] Got ${data.length} rows from database`);
+  
+  // Подробное логирование данных
+  data.forEach((row, index) => {
+    console.log(`[RAG] Row ${index}:`, {
+      id: row.id,
+      question: row.question,
+      answer: row.answer,
+      userTags: row.userTags,
+      product: row.product
+    });
+  });
   
   const questions = data.map(row => row.question && typeof row.question === 'string' ? row.question.trim() : row.question);
   const rowsForUpsert = data.map(row => ({
@@ -70,22 +100,52 @@ async function ragAnswer({ tableId, userQuestion, userTags = [], product = null,
   if (rowsForUpsert.length > 0) {
     results = await vectorSearch.search(tableId, userQuestion, 3);
     console.log(`[RAG] Search completed, got ${results.length} results`);
+    
+    // Подробное логирование результатов поиска
+    results.forEach((result, index) => {
+      console.log(`[RAG] Search result ${index}:`, {
+        row_id: result.row_id,
+        score: result.score,
+        metadata: result.metadata
+      });
+    });
   } else {
     console.log(`[RAG] No data in table, skipping search`);
   }
   
   // Фильтрация по тегам/продукту
   let filtered = results;
+  console.log(`[RAG] Before filtering: ${filtered.length} results`);
+  
   if (userTags.length) {
+    console.log(`[RAG] Filtering by userTags:`, userTags);
     filtered = filtered.filter(row => row.metadata.userTags && userTags.some(tag => row.metadata.userTags.includes(tag)));
-  }
-  if (product) {
-    filtered = filtered.filter(row => row.metadata.product === product);
+    console.log(`[RAG] After userTags filtering: ${filtered.length} results`);
   }
   
-  // Берём лучший результат с учётом порога
-  const best = filtered.find(row => row.score >= threshold);
+  if (product) {
+    console.log(`[RAG] Filtering by product:`, product);
+    filtered = filtered.filter(row => row.metadata.product === product);
+    console.log(`[RAG] After product filtering: ${filtered.length} results`);
+  }
+  
+  // Берём ближайший результат с учётом порога (по модулю)
+  console.log(`[RAG] Looking for best result with abs(threshold): ${threshold}`);
+  const best = filtered.reduce((acc, row) => {
+    if (Math.abs(row.score) <= threshold && (acc === null || Math.abs(row.score) < Math.abs(acc.score))) {
+      return row;
+    }
+    return acc;
+  }, null);
   console.log(`[RAG] Best result:`, best);
+  
+  // Логируем все результаты с их score для диагностики
+  if (filtered.length > 0) {
+    console.log(`[RAG] All filtered results with scores:`);
+    filtered.forEach((result, index) => {
+      console.log(`[RAG]   ${index}: score=${result.score}, meets_threshold=${Math.abs(result.score) <= threshold}`);
+    });
+  }
   
   return {
     answer: best?.metadata?.answer,

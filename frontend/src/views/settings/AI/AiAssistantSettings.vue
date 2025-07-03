@@ -55,6 +55,9 @@
         </form>
         <RuleEditor v-if="showRuleEditor" :rule="editingRule" @close="onRuleEditorClose" />
       </div>
+      
+      <!-- Системный мониторинг -->
+      <SystemMonitoring />
     </div>
   </BaseLayout>
 </template>
@@ -64,6 +67,7 @@ import { useRouter } from 'vue-router';
 import { ref, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
 import RuleEditor from '@/components/ai-assistant/RuleEditor.vue';
+import SystemMonitoring from '@/components/ai-assistant/SystemMonitoring.vue';
 const router = useRouter();
 const goBack = () => router.push('/settings/ai');
 const settings = ref({ system_prompt: '', model: '', selected_rag_tables: [], rules_id: null });
@@ -149,11 +153,11 @@ async function onRuleEditorClose(updated) {
 <style scoped>
 .ai-assistant-settings-block {
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-  padding: 32px 24px 24px 24px;
-  max-width: 1200px;
-  margin: 32px auto 0 auto;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-top: 20px;
+  margin-bottom: 20px;
   width: 100%;
   position: relative;
   overflow-x: auto;

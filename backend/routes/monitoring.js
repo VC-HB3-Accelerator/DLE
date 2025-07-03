@@ -10,9 +10,12 @@ router.get('/', async (req, res) => {
 
   // Vector Search
   try {
-    const vs = await axios.get(process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001/health', { timeout: 2000 });
+    const baseUrl = process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
+    const healthUrl = baseUrl.replace(/\/$/, '') + '/health';
+    const vs = await axios.get(healthUrl, { timeout: 2000 });
     results.vectorSearch = { status: 'ok', ...vs.data };
   } catch (e) {
+    console.log('Vector Search error:', e.message, 'Status:', e.response?.status);
     results.vectorSearch = { status: 'error', error: e.message };
   }
 

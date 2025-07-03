@@ -1,60 +1,59 @@
 <template>
   <div class="blockchain-settings settings-panel" style="position:relative">
     <button class="close-btn" @click="goBack">×</button>
-    
-    <!-- Панель Создать новое DLE (Digital Legal Entity) -->
-    <div class="sub-settings-panel">
-      <h3>Создать новое DLE (Digital Legal Entity)</h3>
+
+    <div class="settings-block">
+      <h2>Создать новое DLE (Digital Legal Entity)</h2>
+      
+      <!-- 1. Создание DLE -->
       <div class="setting-form">
-        <p>Настройка и деплой нового DLE (Digital Legal Entity) с токеном управления и контрактом Governor.</p>
         
-        <!-- 1. Имя DLE -->
+        <!-- Имя DLE -->
         <div class="form-group">
-          <label class="form-label" for="dleName">Имя DLE (Digital Legal Entity) (и токена):</label>
+          <label class="form-label" for="dleName">Имя DLE (Digital Legal Entity):</label>
           <input type="text" id="dleName" v-model="dleDeploymentSettings.name" class="form-control" placeholder="Например, My DLE">
         </div>
 
-        <!-- 2. Символ токена -->
+        <!-- Символ токена -->
         <div class="form-group">
           <label class="form-label" for="dleSymbol">Символ токена управления (GT):</label>
           <input type="text" id="dleSymbol" v-model="dleDeploymentSettings.symbol" class="form-control" placeholder="Например, MDGT (3-5 символов)">
         </div>
 
-        <!-- 3. Местонахождение -->
-        <h4>Местонахождение</h4>
+        <!-- Местонахождение -->
         <div class="address-grid">
-            <div class="form-group address-index">
-                <label class="form-label" for="locIndex">Индекс:</label>
-                <div class="input-group">
-                    <input type="text" id="locIndex" v-model="dleDeploymentSettings.locationIndex" @input="checkIndexInput" class="form-control">
-                    <button class="btn btn-outline-secondary btn-sm" type="button" @click="fetchAddressByZipcode" :disabled="isFetchingByZipcode || !dleDeploymentSettings.locationIndex">
-                        <i class="fas fa-search"></i> {{ isFetchingByZipcode ? 'Поиск...' : 'Найти по индексу' }}
-                    </button>
-                </div>
+          <div class="form-group address-index">
+            <label class="form-label" for="locIndex">Местонахождение</label>
+            <div class="input-icon-wrapper">
+              <input type="text" id="locIndex" v-model="dleDeploymentSettings.locationIndex" @input="checkIndexInput" class="form-control" placeholder="Индекс">
+              <span class="input-icon" :class="{disabled: !isAdmin || isFetchingByZipcode}" @click="isAdmin && !isFetchingByZipcode && fetchAddressByZipcode()">
+                <i class="fas fa-search"></i>
+              </span>
             </div>
+          </div>
 
-            <template v-if="addressFieldsVisible">
-                 <div class="form-group address-country">
-                     <label class="form-label" for="locCountry">Страна:</label>
-                     <input type="text" id="locCountry" v-model="dleDeploymentSettings.locationCountry" class="form-control">
-                 </div>
-                <div class="form-group address-city">
-                     <label class="form-label" for="locCity">Населенный пункт:</label>
-                     <input type="text" id="locCity" v-model="dleDeploymentSettings.locationCity" class="form-control">
-                 </div>
-                 <div class="form-group address-street">
-                     <label class="form-label" for="locStreet">Улица:</label>
-                     <input type="text" id="locStreet" v-model="dleDeploymentSettings.locationStreet" class="form-control">
-                 </div>
-                  <div class="form-group address-house">
-                     <label class="form-label" for="locHouse">Дом:</label>
-                     <input type="text" id="locHouse" v-model="dleDeploymentSettings.locationHouse" class="form-control">
-                 </div>
-                 <div class="form-group address-office">
-                      <label class="form-label" for="locOffice">Офис/Кв.:</label>
-                      <input type="text" id="locOffice" v-model="dleDeploymentSettings.locationOffice" class="form-control">
-                 </div>
-            </template>
+          <template v-if="addressFieldsVisible">
+             <div class="form-group address-country">
+                 <label class="form-label" for="locCountry">Страна:</label>
+                 <input type="text" id="locCountry" v-model="dleDeploymentSettings.locationCountry" class="form-control">
+             </div>
+            <div class="form-group address-city">
+                 <label class="form-label" for="locCity">Населенный пункт:</label>
+                 <input type="text" id="locCity" v-model="dleDeploymentSettings.locationCity" class="form-control">
+             </div>
+             <div class="form-group address-street">
+                 <label class="form-label" for="locStreet">Улица:</label>
+                 <input type="text" id="locStreet" v-model="dleDeploymentSettings.locationStreet" class="form-control">
+             </div>
+              <div class="form-group address-house">
+                 <label class="form-label" for="locHouse">Дом:</label>
+                 <input type="text" id="locHouse" v-model="dleDeploymentSettings.locationHouse" class="form-control">
+             </div>
+             <div class="form-group address-office">
+                  <label class="form-label" for="locOffice">Офис/Кв.:</label>
+                  <input type="text" id="locOffice" v-model="dleDeploymentSettings.locationOffice" class="form-control">
+             </div>
+          </template>
         </div>
         
         <div class="address-verification-section" v-if="addressFieldsVisible">
@@ -74,257 +73,228 @@
               <summary>Детали от Nominatim</summary>
               <pre class="code-block">{{ JSON.stringify(verifiedAddressDetails, null, 2) }}</pre>
             </details>
-      </div>
-    </div>
-    
-        <!-- 4. Код деятельности -->
-        <h4>Код деятельности</h4>
-        <div v-if="dleDeploymentSettings.selectedIsicCodes && dleDeploymentSettings.selectedIsicCodes.length > 0" class="isic-codes-list mt-3">
-          <h5>Добавленные коды деятельности:</h5>
-          <ul>
-            <li v-for="(isic, index) in dleDeploymentSettings.selectedIsicCodes" :key="index" class="d-flex justify-content-between align-items-center mb-1">
-              <span>{{ isic.text }} ({{ isic.code }})</span>
-              <button @click="removeIsicCode(index)" class="btn btn-danger btn-xs">Удалить</button>
-            </li>
-          </ul>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="isicSection">Выберите код деятельности:</label>
-          <select id="isicSection" v-model="selectedSection" class="form-control" :disabled="isLoadingSections">
-              <option value="">-- {{ isLoadingSections ? 'Загрузка секций...' : 'Выберите секцию' }} --</option>
-              <option v-for="option in sectionOptions" :key="option.value" :value="option.value">
-                  {{ option.text }}
-              </option>
-          </select>
-        </div>
-
-        <div class="form-group" v-if="selectedSection">
-           <label class="form-label" for="isicDivision">Раздел:</label>
-           <select id="isicDivision" v-model="selectedDivision" class="form-control" :disabled="isLoadingDivisions">
-               <option value="">-- {{ isLoadingDivisions ? 'Загрузка разделов...' : 'Выберите раздел' }} --</option>
-               <option v-for="option in divisionOptions" :key="option.value" :value="option.value">
-                   {{ option.text }}
-               </option>
-           </select>
-        </div>
-
-        <div class="form-group" v-if="selectedDivision">
-           <label class="form-label" for="isicGroup">Группа:</label>
-           <select id="isicGroup" v-model="selectedGroup" class="form-control" :disabled="isLoadingGroups">
-               <option value="">-- {{ isLoadingGroups ? 'Загрузка групп...' : 'Выберите группу' }} --</option>
-               <option v-for="option in groupOptions" :key="option.value" :value="option.value">
-                   {{ option.text }}
-               </option>
-           </select>
-        </div>
-
-        <div class="form-group" v-if="selectedGroup">
-           <label class="form-label" for="isicClass">Класс:</label>
-           <select id="isicClass" v-model="selectedClass" class="form-control" :disabled="isLoadingClasses">
-               <option value="">-- {{ isLoadingClasses ? 'Загрузка классов...' : 'Выберите класс' }} --</option>
-               <option v-for="option in classOptions" :key="option.value" :value="option.value">
-                   {{ option.text }}
-               </option>
-           </select>
-        </div>
-
-        <div v-if="currentSelectedIsicText" class="current-isic-selection">
-          <p><strong>Выбранный код:</strong> {{ currentSelectedIsicText }}</p>
-          <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">Добавить код деятельности</button>
-        </div>
-
-        <!-- 5. Первоначальное распределение токенов -->
-        <h4>Первоначальное распределение токенов управления</h4>
-        <div v-for="(partner, index) in dleDeploymentSettings.partners" :key="index" class="partner-entry">
-          <div class="form-group">
-            <label class="form-label">Адрес партнера {{ index + 1 }}:</label>
-            <input type="text" v-model="partner.address" class="form-control" placeholder="0x...">
           </div>
-          <div class="form-group">
-            <label class="form-label">Сумма GT для партнера {{ index + 1 }}:</label>
-            <input type="number" v-model="partner.amount" min="1" class="form-control">
-          </div>
-          <button class="btn btn-danger btn-sm" @click="removePartner(index)" :disabled="!isAdmin">Удалить партнера</button>
         </div>
-        <button class="btn btn-secondary" @click="addPartner" :disabled="!isAdmin">Добавить партнера</button>
-        <div class="form-group">
-          <label class="form-label">Общее количество выпускаемых GT: {{ totalInitialSupply }}</label>
-        </div>
-
-        <!-- 6. Настройки Governor -->
-        <h4>Настройки Governor</h4>
-        <div class="form-group">
-          <label class="form-label" for="proposalThreshold">Порог для создания предложений (кол-во GT):</label>
-          <input type="number" id="proposalThreshold" v-model="dleDeploymentSettings.proposalThreshold" min="0" class="form-control">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="quorumPercentGovernor">Кворум (% от общего числа голосов):</label>
-          <input type="number" id="quorumPercentGovernor" v-model="dleDeploymentSettings.quorumPercent" min="1" max="100" class="form-control">
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label" for="votingDelay">Задержка перед голосованием (в днях):</label>
-          <input type="number" id="votingDelay" v-model="dleDeploymentSettings.votingDelayDays" min="0" class="form-control">
       </div>
 
-        <div class="form-group">
-          <label class="form-label" for="votingPeriod">Период голосования (в днях):</label>
-          <input type="number" id="votingPeriod" v-model="dleDeploymentSettings.votingPeriodDays" min="1" class="form-control">
-    </div>
-    
-        <div class="form-group">
-          <label class="form-label" for="timelockMinDelay">Минимальная задержка Timelock (в днях):</label>
-          <input type="number" id="timelockMinDelay" v-model="dleDeploymentSettings.timelockMinDelayDays" min="0" class="form-control">
-        </div>
-
-        <!-- 7. RPC Провайдеры -->
-        <h4>RPC Провайдеры</h4>
-        <p>Конфигурации RPC для сетей, которые будут использоваться в приложении.</p>
-        
-        <!-- Список добавленных RPC -->
-        <div v-if="securitySettings.rpcConfigs.length > 0" class="rpc-list">
-            <h5>Добавленные RPC конфигурации:</h5>
-            <div v-for="(rpc, index) in securitySettings.rpcConfigs" :key="index" class="rpc-entry">
-                <span><strong>ID Сети:</strong> {{ rpc.networkId }}</span>
-                <span><strong>URL:</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
-                <div class="rpc-actions">
-                  <button class="btn btn-info btn-sm" @click="testRpcHandler(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
-                    <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
-                    {{ testingRpc && testingRpcId === rpc.networkId ? 'Проверка...' : 'Тест' }}
-                  </button>
-                  <button 
-                    class="btn btn-sm" 
-                    :class="isAdmin ? 'btn-danger' : 'btn-secondary'" 
-                    @click="isAdmin ? removeRpcConfig(index) : null"
-                    :disabled="!isAdmin"
-                  >
-                    <i class="fas fa-trash"></i> Удалить
-                  </button>
-                </div>
-            </div>
-        </div>
-        <p v-else>Нет добавленных RPC конфигураций.</p>
-
-        <!-- Форма добавления нового RPC -->
-        <div class="setting-form add-rpc-form">
-            <h5>Добавить новую RPC конфигурацию:</h5>
-            <div class="form-group">
-                <label class="form-label" for="newRpcNetworkId">ID Сети:</label>
-                <select id="newRpcNetworkId" v-model="networkEntry.networkId" class="form-control">
-                    <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
-                        <option v-for="option in group.options" :key="option.value" :value="option.value">
-                            {{ option.label }}
-                        </option>
-                    </optgroup>
-                </select>
-                <div v-if="networkEntry.networkId === 'custom'" class="mt-2">
-                    <label class="form-label" for="customNetworkId">Пользовательский ID:</label>
-                    <input type="text" id="customNetworkId" v-model="networkEntry.customNetworkId" class="form-control" placeholder="Введите ID сети">
-                    
-                    <label class="form-label mt-2" for="customChainId">Chain ID:</label>
-                    <input type="number" id="customChainId" v-model="networkEntry.customChainId" class="form-control" placeholder="Например, 1 для Ethereum">
-                    <small>Chain ID - уникальный идентификатор блокчейн-сети (целое число)</small>
-                </div>
-                <small>ID сети должен совпадать со значением в выпадающем списке сетей при создании DLE</small>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="newRpcUrl">RPC URL:</label>
-                <input type="text" id="newRpcUrl" v-model="networkEntry.rpcUrl" class="form-control" placeholder="https://...">
-                <!-- Предложение URL на основе выбранной сети -->
-                <small v-if="defaultRpcUrlSuggestion" class="suggestion">
-                    Предложение: {{ defaultRpcUrlSuggestion }}
-                    <button class="btn-link" @click="useDefaultRpcUrl">Использовать</button>
-                </small>
-            </div>
-            <button class="btn btn-secondary" @click="addRpcConfig" :disabled="!isAdmin">Добавить RPC</button>
-        </div>
-
-        <!-- 8. Выбор сети для деплоя -->
-        <h4>Сеть для деплоя</h4>
-        <div class="form-group">
-          <label class="form-label" for="deployNetwork">Выберите сеть блокчейн для деплоя:</label>
-          <select id="deployNetwork" v-model="dleDeploymentSettings.blockchainNetwork" class="form-control">
-            <option v-if="loadingNetworks" disabled>Загрузка сетей...</option>
-            <option v-for="network in networks" :key="network.value" :value="network.value">
-              {{ network.label }}
+      <!-- 2. Коды деятельности (ISIC) -->
+      <div class="form-group">
+        <label class="form-label" for="isicSection">Выберите код деятельности:</label>
+        <select id="isicSection" v-model="selectedSection" class="form-control" :disabled="isLoadingSections">
+            <option value="">-- {{ isLoadingSections ? 'Загрузка секций...' : 'Выберите секцию' }} --</option>
+            <option v-for="option in sectionOptions" :key="option.value" :value="option.value">
+                {{ option.text }}
             </option>
-          </select>
-          <small class="text-warning" v-if="!dleDeploymentSettings.blockchainNetwork.includes('testnet') && 
-              !['sepolia', 'goerli', 'mumbai'].includes(dleDeploymentSettings.blockchainNetwork)">
-            <i class="fas fa-exclamation-triangle"></i> 
-            Внимание! Для тестирования рекомендуется использовать тестовые сети (Sepolia, Goerli, Mumbai).
-          </small>
-        </div>
+        </select>
+      </div>
 
-        <!-- 9. Ключ Деплоера -->
-        <h4>Ключ Деплоера</h4>
+      <div class="form-group" v-if="selectedSection">
+         <label class="form-label" for="isicDivision">Раздел:</label>
+         <select id="isicDivision" v-model="selectedDivision" class="form-control" :disabled="isLoadingDivisions">
+             <option value="">-- {{ isLoadingDivisions ? 'Загрузка разделов...' : 'Выберите раздел' }} --</option>
+             <option v-for="option in divisionOptions" :key="option.value" :value="option.value">
+                 {{ option.text }}
+             </option>
+         </select>
+      </div>
+
+      <div class="form-group" v-if="selectedDivision">
+         <label class="form-label" for="isicGroup">Группа:</label>
+         <select id="isicGroup" v-model="selectedGroup" class="form-control" :disabled="isLoadingGroups">
+             <option value="">-- {{ isLoadingGroups ? 'Загрузка групп...' : 'Выберите группу' }} --</option>
+             <option v-for="option in groupOptions" :key="option.value" :value="option.value">
+                 {{ option.text }}
+             </option>
+         </select>
+      </div>
+
+      <div class="form-group" v-if="selectedGroup">
+         <label class="form-label" for="isicClass">Класс:</label>
+         <select id="isicClass" v-model="selectedClass" class="form-control" :disabled="isLoadingClasses">
+             <option value="">-- {{ isLoadingClasses ? 'Загрузка классов...' : 'Выберите класс' }} --</option>
+             <option v-for="option in classOptions" :key="option.value" :value="option.value">
+                 {{ option.text }}
+             </option>
+         </select>
+      </div>
+
+      <div v-if="currentSelectedIsicText" class="current-isic-selection">
+        <p><strong>Выбранный код:</strong> {{ currentSelectedIsicText }}</p>
+        <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">Добавить код деятельности</button>
+      </div>
+
+      <!-- 3. Партнёры -->
+      <div v-for="(partner, index) in dleDeploymentSettings.partners" :key="index" class="partner-entry">
         <div class="form-group">
-            <label class="form-label" for="deployerKey">Приватный ключ для деплоя:</label>
-            <div class="input-group">
-                <input :type="showDeployerKey ? 'text' : 'password'" id="deployerKey" v-model="securitySettings.deployerPrivateKey" class="form-control">
-                <button class="btn btn-outline-secondary" @click="toggleShowDeployerKey">
-                    <i :class="showDeployerKey ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          <label class="form-label">Адрес партнера {{ index + 1 }}:</label>
+          <input type="text" v-model="partner.address" class="form-control" placeholder="0x...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Сумма GT для партнера {{ index + 1 }}:</label>
+          <input type="number" v-model="partner.amount" min="1" class="form-control">
+        </div>
+        <div class="partner-actions-row">
+          <button class="btn btn-danger btn-sm" @click="removePartner(index)" :disabled="!isAdmin">Удалить партнера</button>
+          <button class="btn btn-secondary" @click="addPartner" :disabled="!isAdmin">Добавить партнера</button>
+        </div>
+      </div>
+      <div class="form-group mb-gt-total">
+        <label class="form-label">Общее количество выпускаемых GT: {{ totalInitialSupply }}</label>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="proposalThreshold">Порог для создания предложений (кол-во GT):</label>
+        <input type="number" id="proposalThreshold" v-model="dleDeploymentSettings.proposalThreshold" min="0" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="quorumPercentGovernor">Кворум (% от общего числа голосов):</label>
+        <input type="number" id="quorumPercentGovernor" v-model="dleDeploymentSettings.quorumPercent" min="1" max="100" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="votingDelay">Задержка перед голосованием (в днях):</label>
+        <input type="number" id="votingDelay" v-model="dleDeploymentSettings.votingDelayDays" min="0" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="votingPeriod">Период голосования (в днях):</label>
+        <input type="number" id="votingPeriod" v-model="dleDeploymentSettings.votingPeriodDays" min="1" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="timelockMinDelay">Минимальная задержка Timelock (в днях):</label>
+        <input type="number" id="timelockMinDelay" v-model="dleDeploymentSettings.timelockMinDelayDays" min="0" class="form-control">
+      </div>
+
+      <!-- 4. RPC Провайдеры -->
+      <!-- <h3>RPC Провайдеры</h3> -->
+      
+      <!-- Список добавленных RPC -->
+      <div v-if="securitySettings.rpcConfigs.length > 0" class="rpc-list">
+          <h5>Добавленные RPC конфигурации:</h5>
+          <div v-for="(rpc, index) in securitySettings.rpcConfigs" :key="index" class="rpc-entry">
+              <span><strong>ID Сети:</strong> {{ rpc.networkId }}</span>
+              <span><strong>URL:</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
+              <div class="rpc-actions">
+                <button class="btn btn-info btn-sm" @click="testRpcHandler(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
+                  <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
+                  {{ testingRpc && testingRpcId === rpc.networkId ? 'Проверка...' : 'Тест' }}
                 </button>
-            </div>
+                <button 
+                  class="btn btn-sm" 
+                  :class="isAdmin ? 'btn-danger' : 'btn-secondary'" 
+                  @click="isAdmin ? removeRpcConfig(index) : null"
+                  :disabled="!isAdmin"
+                >
+                  <i class="fas fa-trash"></i> Удалить
+                </button>
+              </div>
+          </div>
+      </div>
+      <p v-else>Нет добавленных RPC конфигураций.</p>
+
+      <!-- Форма добавления нового RPC -->
+      <div class="setting-form add-rpc-form">
+          <h5>Добавить новую RPC конфигурацию:</h5>
+          <div class="form-group">
+              <label class="form-label" for="newRpcNetworkId">ID Сети:</label>
+              <select id="newRpcNetworkId" v-model="networkEntry.networkId" class="form-control">
+                  <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
+                      <option v-for="option in group.options" :key="option.value" :value="option.value">
+                          {{ option.label }}
+                      </option>
+                  </optgroup>
+              </select>
+              <div v-if="networkEntry.networkId === 'custom'" class="mt-2">
+                  <label class="form-label" for="customNetworkId">Пользовательский ID:</label>
+                  <input type="text" id="customNetworkId" v-model="networkEntry.customNetworkId" class="form-control" placeholder="Введите ID сети">
+                  
+                  <label class="form-label mt-2" for="customChainId">Chain ID:</label>
+                  <input type="number" id="customChainId" v-model="networkEntry.customChainId" class="form-control" placeholder="Например, 1 для Ethereum">
+                  <small>Chain ID - уникальный идентификатор блокчейн-сети (целое число)</small>
+              </div>
+              <small>ID сети должен совпадать со значением в выпадающем списке сетей при создании DLE</small>
+          </div>
+          <div class="form-group">
+              <label class="form-label" for="newRpcUrl">RPC URL:</label>
+              <input type="text" id="newRpcUrl" v-model="networkEntry.rpcUrl" class="form-control" placeholder="https://...">
+              <!-- Предложение URL на основе выбранной сети -->
+              <small v-if="defaultRpcUrlSuggestion" class="suggestion">
+                  Предложение: {{ defaultRpcUrlSuggestion }}
+                  <button class="btn-link" @click="useDefaultRpcUrl">Использовать</button>
+              </small>
+          </div>
+          <button class="btn btn-secondary" @click="addRpcConfig" :disabled="!isAdmin">Добавить RPC</button>
+      </div>
+
+      <!-- 5. Настройки деплоя -->
+      <!-- <h3>Настройки деплоя</h3> -->
+      <!-- <h4>Сеть для деплоя</h4> -->
+      <div class="form-group">
+        <label class="form-label" for="deployNetwork">Выберите сеть блокчейн для деплоя:</label>
+        <select id="deployNetwork" v-model="dleDeploymentSettings.blockchainNetwork" class="form-control">
+          <option v-if="loadingNetworks" disabled>Загрузка сетей...</option>
+          <option v-for="network in networks" :key="network.value" :value="network.value">
+            {{ network.label }}
+          </option>
+        </select>
+      </div>
+      <!-- <h4>Ключ Деплоера</h4> -->
+      <div class="form-group">
+        <label class="form-label" for="deployerKey">Приватный ключ для деплоя:</label>
+        <div class="input-icon-wrapper">
+          <input :type="showDeployerKey ? 'text' : 'password'" id="deployerKey" v-model="securitySettings.deployerPrivateKey" class="form-control">
+          <span class="input-icon" @click="toggleShowDeployerKey">
+            <i :class="showDeployerKey ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </span>
+        </div>
+      </div>
+      <!-- <h4>Газовые настройки</h4> -->
+      <div class="form-group">
+        <div class="custom-control custom-checkbox">
+          <input type="checkbox" class="custom-control-input" id="customGas" v-model="useCustomGas">
+          <label class="custom-control-label" for="customGas">Использовать пользовательские настройки газа</label>
+        </div>
+        <div v-if="useCustomGas" class="gas-settings mt-3">
+          <div class="form-group">
+            <label for="gasLimit">Лимит газа (Gas Limit):</label>
+            <input type="number" id="gasLimit" v-model="gasSettings.gasLimit" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="maxFeePerGas">Максимальная комиссия (Max Fee, gwei):</label>
+            <input type="number" id="maxFeePerGas" v-model="gasSettings.maxFeePerGas" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="maxPriorityFee">Приоритетная комиссия (Priority Fee, gwei):</label>
+            <input type="number" id="maxPriorityFee" v-model="gasSettings.maxPriorityFee" class="form-control">
+          </div>
+        </div>
+      </div>
+      
+      <!-- Кнопка деплоя, результат, ошибки -->
+      <div class="deployment-actions mt-4">
+        <button class="btn btn-primary" @click="deployDLE" :disabled="!isAdmin || isDeploying">
+          <i class="fas fa-rocket"></i> {{ isDeploying ? 'Создание DLE...' : 'Создать и задеплоить DLE (Digital Legal Entity)' }}
+        </button>
+        
+        <!-- Результат деплоя -->
+        <div v-if="deployResult" class="deploy-result mt-3 alert alert-success">
+          <h5>DLE успешно создано!</h5>
+          <p><strong>Адрес токена:</strong> {{ deployResult.data?.tokenAddress }}</p>
+          <p><strong>Адрес таймлока:</strong> {{ deployResult.data?.timelockAddress }}</p>
+          <p><strong>Адрес контракта Governor:</strong> {{ deployResult.data?.governorAddress }}</p>
         </div>
         
-        <!-- 10. Газовые настройки -->
-        <div class="form-group">
-          <h4>Газовые настройки</h4>
-          <div class="custom-control custom-checkbox">
-            <input type="checkbox" class="custom-control-input" id="customGas" v-model="useCustomGas">
-            <label class="custom-control-label" for="customGas">Использовать пользовательские настройки газа</label>
-          </div>
-          
-          <div v-if="useCustomGas" class="gas-settings mt-3">
-            <div class="form-group">
-              <label for="gasLimit">Лимит газа (Gas Limit):</label>
-              <input type="number" id="gasLimit" v-model="gasSettings.gasLimit" class="form-control">
-            </div>
-            <div class="form-group">
-              <label for="maxFeePerGas">Максимальная комиссия (Max Fee, gwei):</label>
-              <input type="number" id="maxFeePerGas" v-model="gasSettings.maxFeePerGas" class="form-control">
-            </div>
-            <div class="form-group">
-              <label for="maxPriorityFee">Приоритетная комиссия (Priority Fee, gwei):</label>
-              <input type="number" id="maxPriorityFee" v-model="gasSettings.maxPriorityFee" class="form-control">
-            </div>
-          </div>
-        </div>
-
-        <!-- 10. Кнопка деплоя DLE -->
-        <div class="deployment-actions mt-4">
-          <button class="btn btn-primary" @click="deployDLE" :disabled="!isAdmin || isDeploying">
-            <i class="fas fa-rocket"></i> {{ isDeploying ? 'Создание DLE...' : 'Создать и задеплоить DLE (Digital Legal Entity)' }}
-          </button>
-          
-          <!-- Результат деплоя -->
-          <div v-if="deployResult" class="deploy-result mt-3 alert alert-success">
-            <h5>DLE успешно создано!</h5>
-            <p><strong>Адрес токена:</strong> {{ deployResult.data?.tokenAddress }}</p>
-            <p><strong>Адрес таймлока:</strong> {{ deployResult.data?.timelockAddress }}</p>
-            <p><strong>Адрес контракта Governor:</strong> {{ deployResult.data?.governorAddress }}</p>
-          </div>
-          
-          <!-- Ошибка деплоя -->
-          <div v-if="deployError" class="deploy-error mt-3 alert alert-danger">
-            <h5>Ошибка при создании DLE</h5>
-            <p>{{ deployError }}</p>
-          </div>
+        <!-- Ошибка деплоя -->
+        <div v-if="deployError" class="deploy-error mt-3 alert alert-danger">
+          <h5>Ошибка при создании DLE</h5>
+          <p>{{ deployError }}</p>
         </div>
       </div>
     </div>
 
+    <RpcTestModal 
+      :show="showRpcTestModal" 
+      :result="rpcTestResult" 
+      @close="closeRpcTestModal" 
+    />
   </div>
-  
-  <!-- Модальное окно для результатов тестирования RPC -->
-  <RpcTestModal 
-    :show="showRpcTestModal" 
-    :result="rpcTestResult" 
-    @close="closeRpcTestModal" 
-  />
 </template>
 
 <script setup>
@@ -1043,11 +1013,16 @@ const goBack = () => router.push('/settings');
 </script>
 
 <style scoped>
-.settings-panel {
-  padding: var(--block-padding);
-  background-color: var(--color-light);
-  border-radius: var(--radius-md);
-  margin-top: var(--spacing-lg);
+.settings-block {
+  background: #fff;
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  padding: 20px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  width: 100%;
+  position: relative;
+  overflow-x: auto;
   animation: fadeIn var(--transition-normal);
 }
 h3 {
@@ -1070,7 +1045,7 @@ h3 {
   gap: var(--spacing-md);
 }
 .form-group {
-  margin-bottom: 0;
+  margin-bottom: var(--spacing-md);
 }
 .form-label {
   display: flex;
@@ -1078,7 +1053,7 @@ h3 {
   gap: var(--spacing-sm);
 }
 .form-control {
-  max-width: 500px;
+  /* max-width: 500px; */
 }
 .btn-primary {
  align-self: flex-start;
@@ -1089,10 +1064,11 @@ h3 {
 }
 
 .partner-entry {
-  border: 1px solid var(--color-grey-light);
-  padding: var(--spacing-md);
+  border: none;
+  padding: 0;
   margin-bottom: var(--spacing-md);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
+  background: none;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
@@ -1119,15 +1095,15 @@ h3 {
 }
 
 .address-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Адаптивная сетка */
-    gap: var(--spacing-md);
-    /* margin-bottom: var(--spacing-lg); Убрано, т.к. есть блок верификации */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
 }
-
-/* Можно добавить специфичные стили для полей адреса, если нужно */
-.address-grid .form-group {
-    margin-bottom: 0; /* Убрать лишний отступ у полей в сетке */
+.address-grid .form-group:first-child {
+  margin-top: 0 !important;
+}
+.address-grid .form-control {
+  /* max-width: 100%; */
 }
 
 .code-list {
@@ -1355,5 +1331,56 @@ h3 {
   border-color: #ccc !important;
   cursor: not-allowed !important;
   opacity: 1 !important;
+}
+
+.index-inline-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+}
+.index-inline-group .form-control {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.index-inline-group .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.input-icon-wrapper {
+  position: relative;
+  width: 100%;
+}
+.input-icon-wrapper .form-control {
+  padding-right: 2.5rem;
+}
+.input-icon {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  color: #2196f3;
+  font-size: 1.2em;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.input-icon.disabled {
+  color: #bdbdbd;
+  pointer-events: none;
+  cursor: default;
+}
+
+.partner-actions-row {
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-md);
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.mb-gt-total {
+  margin-bottom: 2.5rem;
 }
 </style> 

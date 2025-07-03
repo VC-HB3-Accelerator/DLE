@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { ragAnswer, generateLLMResponse } = require('../services/ragService');
 
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'RAG service is running' });
+});
+
 router.post('/answer', async (req, res) => {
   const { tableId, question, userTags, product, systemPrompt, priority, date, rules, history, model, language } = req.body;
   try {
@@ -24,6 +28,7 @@ router.post('/answer', async (req, res) => {
     });
     res.json({ ...ragResult, llmResponse });
   } catch (e) {
+    console.error('[RAG] Error in /answer route:', e);
     res.status(500).json({ error: e.message });
   }
 });

@@ -1,9 +1,15 @@
 <template>
   <div v-if="show" class="modal-backdrop">
     <div class="modal-window">
-      <div class="modal-title">{{ title }}</div>
-      <div class="modal-body">{{ message }}</div>
-      <button class="modal-ok-btn" @click="$emit('close')">OK</button>
+      <div v-if="title" class="modal-title">{{ title }}</div>
+      <div class="modal-body">
+        <slot>{{ message }}</slot>
+      </div>
+      <div class="modal-actions">
+        <slot name="actions">
+          <button class="modal-ok-btn" @click="$emit('close')">OK</button>
+        </slot>
+      </div>
     </div>
   </div>
 </template>
@@ -11,8 +17,8 @@
 <script setup>
 defineProps({
   show: Boolean,
-  title: { type: String, default: 'Нет доступа' },
-  message: { type: String, default: 'Доступ к этим данным разрешён только администраторам.' }
+  title: { type: String, default: '' },
+  message: { type: String, default: '' }
 });
 </script>
 
@@ -42,6 +48,11 @@ defineProps({
 .modal-body {
   margin-bottom: 1.5rem;
   color: #444;
+}
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
 }
 .modal-ok-btn {
   background: var(--color-primary);
