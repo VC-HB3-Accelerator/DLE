@@ -3,6 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: dapp-postgres
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/data:/mnt/isic_csv_data
@@ -23,6 +28,11 @@ services:
     image: ollama/ollama:latest
     container_name: dapp-ollama
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -34,6 +44,11 @@ services:
       dockerfile: Dockerfile
     container_name: dapp-backend
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +83,11 @@ services:
       dockerfile: Dockerfile
     container_name: dapp-frontend
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - backend
     volumes:
@@ -79,6 +99,11 @@ services:
   ollama-setup:
     image: curlimages/curl:latest
     container_name: dapp-ollama-setup
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
     depends_on:
       - ollama
     restart: on-failure
