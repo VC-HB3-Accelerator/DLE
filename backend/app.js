@@ -17,6 +17,7 @@ const tagsInitRoutes = require('./routes/tagsInit');
 const tagsRoutes = require('./routes/tags');
 const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 const cloudflareRoutes = require('./routes/cloudflare');
+const monitoringRoutes = require('./routes/monitoring');
 
 // Проверка и создание директорий для хранения данных контрактов
 const ensureDirectoriesExist = () => {
@@ -192,6 +193,7 @@ app.use('/api/tags', tagsRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/cloudflare', cloudflareRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 
@@ -221,18 +223,48 @@ app.use(errorHandler);
 // Эндпоинт для проверки состояния
 app.get('/api/health', async (req, res) => {
   try {
-    // Проверяем подключение к БД
-    await db.getQuery('SELECT NOW()');
-
-    // Проверяем AI сервис
-    const aiStatus = await aiAssistant.checkHealth();
-
-    res.json({
+    const healthStatus = {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      database: 'connected',
-      ai: aiStatus,
-    });
+      services: {}
+    };
+
+    // Проверяем подключение к БД
+    try {
+      await db.query('SELECT NOW()');
+      healthStatus.services.database = { status: 'ok' };
+    } catch (error) {
+      healthStatus.services.database = { status: 'error', error: error.message };
+      healthStatus.status = 'error';
+    }
+
+    // Проверяем AI сервис
+    try {
+      const aiStatus = await aiAssistant.checkHealth();
+      healthStatus.services.ai = aiStatus;
+      if (aiStatus.status === 'error') {
+        healthStatus.status = 'error';
+      }
+    } catch (error) {
+      healthStatus.services.ai = { status: 'error', error: error.message };
+      healthStatus.status = 'error';
+    }
+
+    // Проверяем Vector Search сервис
+    try {
+      const vectorSearchClient = require('./services/vectorSearchClient');
+      const vectorStatus = await vectorSearchClient.health();
+      healthStatus.services.vectorSearch = vectorStatus;
+      if (vectorStatus.status === 'error') {
+        healthStatus.status = 'error';
+      }
+    } catch (error) {
+      healthStatus.services.vectorSearch = { status: 'error', error: error.message };
+      healthStatus.status = 'error';
+    }
+
+    const statusCode = healthStatus.status === 'ok' ? 200 : 503;
+    res.status(statusCode).json(healthStatus);
   } catch (error) {
     logger.error('Health check failed:', error);
     res.status(500).json({

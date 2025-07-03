@@ -152,12 +152,10 @@ async function onRuleEditorClose(updated) {
   border-radius: 16px;
   box-shadow: 0 4px 32px rgba(0,0,0,0.12);
   padding: 32px 24px 24px 24px;
-  width: 100vw;
-  max-width: none;
-  margin: 0;
+  max-width: 1200px;
+  margin: 32px auto 0 auto;
+  width: 100%;
   position: relative;
-  left: 50%;
-  transform: translateX(-50%);
   overflow-x: auto;
 }
 .close-btn {

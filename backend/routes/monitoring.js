@@ -1,0 +1,38 @@
+const express = require('express');
+const router = express.Router();
+const axios = require('axios');
+const db = require('../db');
+
+router.get('/', async (req, res) => {
+  const results = {};
+  // Backend
+  results.backend = { status: 'ok' };
+
+  // Vector Search
+  try {
+    const vs = await axios.get(process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001/health', { timeout: 2000 });
+    results.vectorSearch = { status: 'ok', ...vs.data };
+  } catch (e) {
+    results.vectorSearch = { status: 'error', error: e.message };
+  }
+
+  // Ollama
+  try {
+    const ollama = await axios.get(process.env.OLLAMA_BASE_URL ? process.env.OLLAMA_BASE_URL + '/api/tags' : 'http://ollama:11434/api/tags', { timeout: 2000 });
+    results.ollama = { status: 'ok', models: ollama.data.models?.length || 0 };
+  } catch (e) {
+    results.ollama = { status: 'error', error: e.message };
+  }
+
+  // PostgreSQL
+  try {
+    await db.query('SELECT 1');
+    results.postgres = { status: 'ok' };
+  } catch (e) {
+    results.postgres = { status: 'error', error: e.message };
+  }
+
+  res.json({ status: 'ok', services: results, timestamp: new Date().toISOString() });
+});
+
+module.exports = router; 

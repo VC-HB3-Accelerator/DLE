@@ -138,6 +138,29 @@ class AIAssistant {
     }
   }
 
+  // Проверка здоровья AI сервиса
+  async checkHealth() {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama API returned ${response.status}`);
+      }
+      const data = await response.json();
+      return {
+        status: 'ok',
+        models: data.models?.length || 0,
+        baseUrl: this.baseUrl
+      };
+    } catch (error) {
+      logger.error('AI health check failed:', error);
+      return {
+        status: 'error',
+        error: error.message,
+        baseUrl: this.baseUrl
+      };
+    }
+  }
+
   // Добавляем методы из vectorStore.js
   async initVectorStore() {
     // ... код инициализации ...
