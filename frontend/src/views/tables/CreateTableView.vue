@@ -2,7 +2,7 @@
   <BaseLayout>
     <div class="create-table-container">
       <h2>Создать новую таблицу</h2>
-      <form @submit.prevent="handleCreateTable" class="create-table-form">
+      <form v-if="isAdmin" @submit.prevent="handleCreateTable" class="create-table-form">
         <label>Название таблицы</label>
         <input v-model="newTableName" required placeholder="Введите название" />
         <label>Описание</label>
@@ -17,6 +17,7 @@
           <button type="button" @click="goBack">Отмена</button>
         </div>
       </form>
+      <div v-else class="empty-table-placeholder">Нет прав для создания таблицы</div>
     </div>
   </BaseLayout>
 </template>
@@ -26,11 +27,13 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import tablesService from '../../services/tablesService';
+import { useAuthContext } from '@/composables/useAuth';
 
 const router = useRouter();
 const newTableName = ref('');
 const newTableDescription = ref('');
 const newTableIsRagSourceId = ref(2);
+const { isAdmin } = useAuthContext();
 
 async function handleCreateTable() {
   if (!newTableName.value) return;

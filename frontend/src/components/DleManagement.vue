@@ -216,10 +216,14 @@
 
 <script setup>
 import { ref, defineProps, computed } from 'vue';
+import { useAuthContext } from '@/composables/useAuth';
+
 const props = defineProps({
   dleList: { type: Array, required: true },
   selectedDleIndex: { type: Number, default: null }
 });
+
+const { isAdmin } = useAuthContext();
 const selectedDleIndex = ref(props.selectedDleIndex ?? 0);
 const activeTab = ref('info');
 const showCreateProposalForm = ref(false);

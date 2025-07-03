@@ -3,7 +3,8 @@
     <div class="tables-list-block">
       <button class="close-btn" @click="goBack">×</button>
     <h2>Список таблиц</h2>
-    <UserTablesList />
+    <UserTablesList v-if="isAdmin" />
+    <div v-else class="empty-table-placeholder">Нет данных для отображения</div>
     </div>
   </BaseLayout>
 </template>
@@ -12,8 +13,10 @@
 import BaseLayout from '../../components/BaseLayout.vue';
 import UserTablesList from '../../components/tables/UserTablesList.vue';
 import { useRouter } from 'vue-router';
+import { useAuthContext } from '@/composables/useAuth';
 // import TagsTableView from '../../components/tables/TagsTableView.vue'; // больше не используется
 const router = useRouter();
+const { isAdmin } = useAuthContext();
 function goBack() {
   router.push({ name: 'crm' });
 }

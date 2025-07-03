@@ -1,6 +1,7 @@
 <template>
   <BaseLayout>
-  <div class="contact-details-page">
+    <div v-if="!isAdmin" class="empty-table-placeholder">Нет доступа</div>
+    <div v-else class="contact-details-page">
     <div v-if="isLoading">Загрузка...</div>
     <div v-else-if="!contact">Контакт не найден</div>
     <div v-else class="contact-details-content">
@@ -11,8 +12,13 @@
       <div class="contact-info-block">
         <div>
           <strong>Имя:</strong>
+            <template v-if="isAdmin">
           <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
           <span v-if="isSavingName" class="saving">Сохранение...</span>
+            </template>
+            <template v-else>
+              {{ contact.name }}
+            </template>
         </div>
         <div><strong>Email:</strong> {{ contact.email || '-' }}</div>
         <div><strong>Telegram:</strong> {{ contact.telegram || '-' }}</div>
@@ -115,7 +121,7 @@ import Message from '../../components/Message.vue';
 import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
-import { useAuth } from '../../composables/useAuth';
+import { useAuthContext } from '@/composables/useAuth';
 import { ElMessageBox } from 'element-plus';
 
 const route = useRoute();
@@ -137,7 +143,7 @@ const newTagDescription = ref('');
 const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
-const { isAdmin } = useAuth();
+const { isAdmin } = useAuthContext();
 const isAiLoading = ref(false);
 const conversationId = ref(null);
 

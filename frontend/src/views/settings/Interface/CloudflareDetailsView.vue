@@ -52,12 +52,28 @@ sudo apt install cloudflared</pre>
         {{ step.message }}
       </div>
     </div>
+
+    <!-- Кнопка управления DNS записями -->
+    <div v-if="appUrl || (accounts.length && selectedAccountId && domain)" class="dns-management-section">
+      <button class="btn-primary" @click="showDnsManager = !showDnsManager">
+        <i class="fas fa-cog"></i> {{ showDnsManager ? 'Скрыть' : 'Управлять' }} DNS записями
+      </button>
+    </div>
+
+    <!-- Компонент управления DNS записями -->
+    <CloudflareDnsManager 
+      v-if="showDnsManager" 
+      @dns-updated="onDnsUpdated"
+      ref="dnsManager"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import CloudflareDnsManager from '@/components/CloudflareDnsManager.vue';
+
 const router = useRouter();
 const goBack = () => router.push('/settings/interface');
 
@@ -72,6 +88,8 @@ const autoSetupSteps = ref([]);
 const accounts = ref([]);
 const selectedAccountId = ref('');
 const accountStatusMsg = ref('');
+const showDnsManager = ref(false);
+const dnsManager = ref(null);
 
 async function loadSettings() {
   try {
@@ -150,6 +168,16 @@ async function connectDomain() {
       statusMsg.value = data.message || 'Готово!';
       appUrl.value = data.app_url || '';
       autoSetupSteps.value = data.steps || [];
+      
+      // Автоматически показываем DNS менеджер после успешного создания туннеля
+      showDnsManager.value = true;
+      
+      // Обновляем DNS записи в менеджере, если он уже загружен
+      setTimeout(() => {
+        if (dnsManager.value && dnsManager.value.loadDnsRecords) {
+          dnsManager.value.loadDnsRecords();
+        }
+      }, 1000);
     } else {
       statusMsg.value = data.error || 'Ошибка автоматической настройки';
       autoSetupSteps.value = data.steps || [];
@@ -175,6 +203,12 @@ async function getStatus() {
     domainStatusMsg.value = 'Ошибка';
     tunnelStatusMsg.value = 'Ошибка';
   }
+}
+
+function onDnsUpdated() {
+  console.log('[CloudflareDetails] DNS records updated');
+  // Обновляем статус после изменения DNS
+  getStatus();
 }
 
 onMounted(() => {
@@ -303,5 +337,10 @@ h2 {
 }
 .auto-setup-step.error {
   color: #c62828;
+}
+.dns-management-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-grey-light);
 }
 </style> 

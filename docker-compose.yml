@@ -92,40 +92,11 @@ services:
         curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_MODEL:-qwen2.5:7b}\"}' -H 'Content-Type: application/json'
         echo 'Done!'
       "
-  cloudflared:
-    build:
-      context: .
-      dockerfile: Dockerfile.cloudflared
-    restart: unless-stopped
-    volumes:
-      - ./start-cloudflared.sh:/start-cloudflared.sh
-      - ./cloudflared.env:/cloudflared.env
-      - ./.cloudflared:/etc/cloudflared
-    depends_on:
-      - backend
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:39693/metrics", "||", "exit", "1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    environment:
-      - TUNNEL_METRICS=0.0.0.0:39693
-  cloudflared-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    container_name: dapp-cloudflared-agent
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "9000:9000"
-    depends_on:
-      - cloudflared
+  # cloudflared теперь запускается на хосте через start-dapp.sh
+  # Это решает проблемы с Docker networking + v2rayN в WSL2
+  # Чтобы запустить только Docker сервисы: docker compose up postgres backend frontend
+  # Чтобы запустить весь стек: make up или ./start-dapp.sh
+  # Туннельные сервисы удалены - переход на Pinata IPFS для Web3 хостинга
 volumes:
   postgres_data: null
   ollama_data: null

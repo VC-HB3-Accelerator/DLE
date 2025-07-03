@@ -51,9 +51,9 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
 /**
  * @route   GET /api/dle
  * @desc    Получить список всех DLE
- * @access  Private (только для авторизованных пользователей)
+ * @access  Public (доступно всем пользователям, включая гостевых)
  */
-router.get('/', auth.requireAuth, async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const dles = await dleService.getAllDLEs();
     res.json({

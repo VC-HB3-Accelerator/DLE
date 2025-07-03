@@ -5,10 +5,11 @@
       <button class="nav-btn" @click="goToTables">Таблицы</button>
       <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
       <button class="close-btn" @click="closeTable">Закрыть</button>
-      <button class="action-btn" @click="goToEdit">Редактировать</button>
-      <button class="danger-btn" @click="goToDelete">Удалить</button>
+      <button v-if="isAdmin" class="action-btn" @click="goToEdit">Редактировать</button>
+      <button v-if="isAdmin" class="danger-btn" @click="goToDelete">Удалить</button>
     </div>
-    <UserTableView :table-id="Number($route.params.id)" />
+    <UserTableView v-if="isAdmin" :table-id="Number($route.params.id)" />
+    <div v-else class="empty-table-placeholder">Нет данных для отображения</div>
     </div>
   </BaseLayout>
 </template>
@@ -17,8 +18,10 @@
 import BaseLayout from '../../components/BaseLayout.vue';
 import UserTableView from '../../components/tables/UserTableView.vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useAuthContext } from '@/composables/useAuth';
 const $route = useRoute();
 const router = useRouter();
+const { isAdmin } = useAuthContext();
 
 function closeTable() {
   if (window.history.length > 1) {

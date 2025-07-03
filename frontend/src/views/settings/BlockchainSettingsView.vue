@@ -145,9 +145,9 @@
             <label class="form-label">Сумма GT для партнера {{ index + 1 }}:</label>
             <input type="number" v-model="partner.amount" min="1" class="form-control">
           </div>
-          <button class="btn btn-danger btn-sm" @click="removePartner(index)">Удалить партнера</button>
+          <button class="btn btn-danger btn-sm" @click="removePartner(index)" :disabled="!isAdmin">Удалить партнера</button>
         </div>
-        <button class="btn btn-secondary" @click="addPartner">Добавить партнера</button>
+        <button class="btn btn-secondary" @click="addPartner" :disabled="!isAdmin">Добавить партнера</button>
         <div class="form-group">
           <label class="form-label">Общее количество выпускаемых GT: {{ totalInitialSupply }}</label>
         </div>
@@ -188,13 +188,18 @@
             <h5>Добавленные RPC конфигурации:</h5>
             <div v-for="(rpc, index) in securitySettings.rpcConfigs" :key="index" class="rpc-entry">
                 <span><strong>ID Сети:</strong> {{ rpc.networkId }}</span>
-                <span><strong>URL:</strong> {{ rpc.rpcUrl }}</span>
+                <span><strong>URL:</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
                 <div class="rpc-actions">
                   <button class="btn btn-info btn-sm" @click="testRpcHandler(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
                     <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
                     {{ testingRpc && testingRpcId === rpc.networkId ? 'Проверка...' : 'Тест' }}
                   </button>
-                  <button class="btn btn-danger btn-sm" @click="removeRpcConfig(index)">
+                  <button 
+                    class="btn btn-sm" 
+                    :class="isAdmin ? 'btn-danger' : 'btn-secondary'" 
+                    @click="isAdmin ? removeRpcConfig(index) : null"
+                    :disabled="!isAdmin"
+                  >
                     <i class="fas fa-trash"></i> Удалить
                   </button>
                 </div>
@@ -233,7 +238,7 @@
                     <button class="btn-link" @click="useDefaultRpcUrl">Использовать</button>
                 </small>
             </div>
-            <button class="btn btn-secondary" @click="addRpcConfig">Добавить RPC</button>
+            <button class="btn btn-secondary" @click="addRpcConfig" :disabled="!isAdmin">Добавить RPC</button>
         </div>
 
         <!-- 8. Выбор сети для деплоя -->
@@ -291,7 +296,7 @@
 
         <!-- 10. Кнопка деплоя DLE -->
         <div class="deployment-actions mt-4">
-          <button class="btn btn-primary" @click="deployDLE" :disabled="isDeploying">
+          <button class="btn btn-primary" @click="deployDLE" :disabled="!isAdmin || isDeploying">
             <i class="fas fa-rocket"></i> {{ isDeploying ? 'Создание DLE...' : 'Создать и задеплоить DLE (Digital Legal Entity)' }}
           </button>
           
@@ -313,6 +318,13 @@
     </div>
 
   </div>
+  
+  <!-- Модальное окно для результатов тестирования RPC -->
+  <RpcTestModal 
+    :show="showRpcTestModal" 
+    :result="rpcTestResult" 
+    @close="closeRpcTestModal" 
+  />
 </template>
 
 <script setup>
@@ -322,6 +334,7 @@ import { useAuthContext } from '@/composables/useAuth'; // Импортируе�
 import dleService from '@/services/dleService';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks'; // Импортируем composable для работы с сетями
 import { useRouter } from 'vue-router';
+import RpcTestModal from '@/components/RpcTestModal.vue';
 // TODO: Импортировать API
 
 const { address, isAdmin, auth, user } = useAuthContext(); // Получаем объект адреса и статус админа
@@ -923,7 +936,8 @@ const loadRpcSettings = async () => {
     if (response.data && response.data.success) {
       securitySettings.rpcConfigs = (response.data.data || []).map(rpc => ({
         networkId: rpc.network_id,
-        rpcUrl: rpc.rpc_url,
+        rpcUrl: rpc.rpc_url, // Реальный URL для функциональности
+        rpcUrlDisplay: rpc.rpc_url_display, // Маскированный URL для отображения (если есть)
         chainId: rpc.chain_id
       }));
       console.log('[BlockchainSettingsView] RPC конфигурации успешно загружены:', securitySettings.rpcConfigs);
@@ -955,6 +969,10 @@ const saveRpcSettings = async () => {
 };
 
 const isSavingRpc = ref(false);
+
+// Состояние для модального окна тестирования RPC
+const showRpcTestModal = ref(false);
+const rpcTestResult = ref({});
 
 // Функция сохранения настроек RPC с обратной связью
 const saveRpcSettingsWithFeedback = async () => {
@@ -988,15 +1006,36 @@ const testingRpcIndex = ref(-1);
 const testRpcHandler = async (rpc) => {
   try {
     const result = await testRpcConnection(rpc.networkId, rpc.rpcUrl);
-    if (result.success) {
-      alert(result.message);
-    } else {
-      alert(`Ошибка при подключении к ${rpc.networkId}: ${result.error}`);
-    }
+    
+    // Подготавливаем данные для модального окна
+    rpcTestResult.value = {
+      success: result.success,
+      networkId: rpc.networkId,
+      message: result.message,
+      blockNumber: result.blockNumber,
+      error: result.error
+    };
+    
+    // Показываем модальное окно
+    showRpcTestModal.value = true;
   } catch (error) {
     console.error('[BlockchainSettingsView] Ошибка при тестировании RPC:', error);
-    alert(`Ошибка при тестировании RPC: ${error.message || 'Неизвестная ошибка'}`);
+    
+    // Показываем ошибку в модальном окне
+    rpcTestResult.value = {
+      success: false,
+      networkId: rpc.networkId,
+      error: error.message || 'Неизвестная ошибка'
+    };
+    
+    showRpcTestModal.value = true;
   }
+};
+
+// Функция для закрытия модального окна тестирования RPC
+const closeRpcTestModal = () => {
+  showRpcTestModal.value = false;
+  rpcTestResult.value = {};
 };
 
 const goBack = () => router.push('/settings');
@@ -1308,5 +1347,13 @@ h3 {
 }
 .close-btn:hover {
   color: #333;
+}
+
+.btn[disabled], .btn:disabled {
+  background: #e0e0e0 !important;
+  color: #aaa !important;
+  border-color: #ccc !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
 }
 </style> 

@@ -4,7 +4,7 @@
     <div v-if="Array.isArray(rpcConfigs) && rpcConfigs.length > 0" class="rpc-list">
       <div v-for="(rpc, index) in rpcConfigs" :key="rpc.networkId" class="rpc-entry">
         <span><strong>ID Сети:</strong> {{ rpc.networkId }}</span>
-        <span><strong>URL:</strong> {{ rpc.rpcUrl }}</span>
+        <span><strong>URL:</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
         <span v-if="rpc.chainId"><strong>Chain ID:</strong> {{ rpc.chainId }}</span>
         <button class="btn btn-info btn-sm" @click="testRpc(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
           <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>

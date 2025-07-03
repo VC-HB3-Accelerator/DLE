@@ -39,7 +39,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '0.0.0.0',
-    allowedHosts: ['dapp-frontend', 'localhost', '127.0.0.1', 'hb3-accelerator.com', 'dapp.hb3-accelerator.com'],
+    allowedHosts: ['dapp-frontend', 'localhost', '127.0.0.1', 'hb3-accelerator.com'],
     proxy: {
       '/api': {
         target: 'http://dapp-backend:8000',

@@ -6,6 +6,18 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
+    <template v-if="auth.isAdmin.value">
+      <ChatInterface 
+        :messages="messages" 
+        :is-loading="isLoading || isConnectingWallet"
+        :has-more-messages="messageLoading.hasMoreMessages"
+        v-model:newMessage="newMessage"
+        v-model:attachments="attachments"
+        @send-message="handleSendMessage"
+        @load-more="loadMessages"
+      />
+    </template>
+    <template v-else>
     <ChatInterface 
       :messages="messages" 
       :is-loading="isLoading || isConnectingWallet"
@@ -15,6 +27,9 @@
       @send-message="handleSendMessage"
       @load-more="loadMessages"
     />
+      <!-- Можно добавить заглушку или пояснение -->
+      <div class="empty-table-placeholder">Вы видите только свои сообщения. Данные других пользователей недоступны.</div>
+    </template>
   </BaseLayout>
 </template>
 

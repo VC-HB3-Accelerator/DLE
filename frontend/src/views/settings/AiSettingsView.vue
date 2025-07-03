@@ -6,32 +6,32 @@
       <div class="integration-block">
         <h3>OpenAI</h3>
         <p>Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).</p>
-        <button class="details-btn" @click="$router.push('/settings/ai/openai')">Подробнее</button>
+        <button class="details-btn" @click="goTo('/settings/ai/openai')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Ollama</h3>
         <p>Локальные open-source модели через Ollama.</p>
-        <button class="details-btn" @click="$router.push('/settings/ai/ollama')">Подробнее</button>
+        <button class="details-btn" @click="goTo('/settings/ai/ollama')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Telegram</h3>
         <p>Интеграция с Telegram-ботом для уведомлений и авторизации.</p>
-        <button class="details-btn" @click="$router.push('/settings/ai/telegram')">Подробнее</button>
+        <button class="details-btn" @click="goTo('/settings/ai/telegram')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>Email</h3>
         <p>Интеграция с Email для отправки писем и уведомлений.</p>
-        <button class="details-btn" @click="$router.push('/settings/ai/email')">Подробнее</button>
+        <button class="details-btn" @click="goTo('/settings/ai/email')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>База данных</h3>
         <p>Интеграция с PostgreSQL для хранения данных приложения и управления настройками.</p>
-        <button class="details-btn" @click="$router.push('/settings/ai/database')">Подробнее</button>
+        <button class="details-btn" @click="goTo('/settings/ai/database')">Подробнее</button>
       </div>
       <div class="integration-block">
         <h3>ИИ-ассистент</h3>
         <p>Настройки поведения, языков, моделей и правил работы ассистента.</p>
-        <button class="details-btn" @click="$router.push('/settings/ai/assistant')">Подробнее</button>
+        <button class="details-btn" @click="goTo('/settings/ai/assistant')">Подробнее</button>
       </div>
     </div>
     <AIProviderSettings
@@ -45,18 +45,24 @@
       :showBaseUrl="providerLabels[showProvider].showBaseUrl"
       @cancel="showProvider = null"
     />
+    <NoAccessModal :show="showNoAccessModal" @close="closeNoAccessModal" />
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import AIProviderSettings from './AIProviderSettings.vue';
+import { useAuthContext } from '@/composables/useAuth';
+import NoAccessModal from '@/components/NoAccessModal.vue';
 
 const showProvider = ref(null);
 const showTelegramSettings = ref(false);
 const showEmailSettings = ref(false);
 const showDbSettings = ref(false);
 const showAiAssistantSettings = ref(false);
+const showNoAccessModal = ref(false);
+
+const { isAdmin } = useAuthContext();
 
 const providerLabels = {
   openai: {
@@ -92,6 +98,18 @@ const providerLabels = {
     showBaseUrl: true,
   },
 };
+
+function goTo(path) {
+  if (!isAdmin.value) {
+    showNoAccessModal.value = true;
+    return;
+  }
+  window.location.href = path;
+}
+
+function closeNoAccessModal() {
+  showNoAccessModal.value = false;
+}
 </script>
 
 <style scoped>

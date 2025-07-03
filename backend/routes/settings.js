@@ -19,10 +19,37 @@ const dbSettingsService = require('../services/dbSettingsService');
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
 
 // Получение RPC настроек
-router.get('/rpc', requireAdmin, async (req, res, next) => {
+router.get('/rpc', async (req, res, next) => {
   try {
+    let isAdmin = false;
+    
+    // Проверяем, авторизован ли пользователь и является ли он админом
+    if (req.session && req.session.authenticated) {
+      if (req.session.address) {
+        const authService = require('../services/auth-service');
+        isAdmin = await authService.checkAdminTokens(req.session.address);
+      } else {
+        isAdmin = req.session.isAdmin || false;
+      }
+    }
+    
     const rpcConfigs = await rpcProviderService.getAllRpcProviders();
-    res.json({ success: true, data: rpcConfigs });
+    
+    if (isAdmin) {
+      // Для админов возвращаем полные данные
+      res.json({ success: true, data: rpcConfigs });
+    } else {
+      // Для обычных пользователей и гостей возвращаем ограниченные данные для ОТОБРАЖЕНИЯ,
+      // но с полными данными для функциональности (тестирование RPC)
+      const limitedConfigs = rpcConfigs.map(config => ({
+        network_id: config.network_id,
+        rpc_url: config.rpc_url, // Передаем реальный URL для функциональности
+        rpc_url_display: 'Скрыто', // Для отображения в UI
+        chain_id: config.chain_id,
+        _isLimited: true
+      }));
+      res.json({ success: true, data: limitedConfigs });
+    }
   } catch (error) {
     logger.error('Ошибка при получении RPC настроек:', error);
     next(error);
@@ -67,9 +94,11 @@ router.delete('/rpc/:networkId', requireAdmin, async (req, res, next) => {
 });
 
 // Получение токенов для аутентификации
-router.get('/auth-tokens', requireAdmin, async (req, res, next) => {
+router.get('/auth-tokens', async (req, res, next) => {
   try {
     const authTokens = await authTokenService.getAllAuthTokens();
+    
+    // Возвращаем полные данные для всех пользователей (включая гостевых)
     res.json({ success: true, data: authTokens });
   } catch (error) {
     logger.error('Ошибка при получении токенов аутентификации:', error);
@@ -120,7 +149,7 @@ router.delete('/auth-token/:address/:network', requireAdmin, async (req, res, ne
 });
 
 // Тестирование RPC соединения
-router.post('/rpc-test', requireAdmin, async (req, res, next) => {
+router.post('/rpc-test', async (req, res, next) => {
   try {
     const { rpcUrl, networkId } = req.body;
     
@@ -174,11 +203,28 @@ router.post('/rpc-test', requireAdmin, async (req, res, next) => {
 });
 
 // Получить настройки AI-провайдера
-router.get('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
+router.get('/ai-settings/:provider', async (req, res, next) => {
   try {
-    const { provider } = req.params;
-    const settings = await aiProviderSettingsService.getProviderSettings(provider);
-    res.json({ success: true, settings });
+    let isAdmin = false;
+    
+    // Проверяем, авторизован ли пользователь и является ли он админом
+    if (req.session && req.session.authenticated) {
+      if (req.session.address) {
+        const authService = require('../services/auth-service');
+        isAdmin = await authService.checkAdminTokens(req.session.address);
+      } else {
+        isAdmin = req.session.isAdmin || false;
+      }
+    }
+    
+    if (isAdmin) {
+      const { provider } = req.params;
+      const settings = await aiProviderSettingsService.getProviderSettings(provider);
+      res.json({ success: true, settings });
+    } else {
+      // Для обычных пользователей и гостей возвращаем пустые настройки
+      res.json({ success: true, settings: null });
+    }
   } catch (error) {
     logger.error('Ошибка при получении AI-настроек:', error);
     next(error);
@@ -389,7 +435,7 @@ router.get('/ai-provider-models', requireAdmin, async (req, res, next) => {
 });
 
 // Получить настройки базы данных
-router.get('/db-settings', requireAdmin, async (req, res) => {
+router.get('/db-settings', async (req, res) => {
   try {
     const settings = await dbSettingsService.getSettings();
     res.json({ success: true, settings });

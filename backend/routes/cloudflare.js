@@ -4,6 +4,7 @@ let Cloudflare;
 try {
   Cloudflare = require('cloudflare');
 } catch (e) {
+  console.warn('[Cloudflare] Cloudflare package not available:', e.message);
   Cloudflare = null;
 }
 const db = require('../db');
@@ -19,10 +20,17 @@ const tunnelName = 'hb3-accelerator'; // или из настроек
 
 // --- Вспомогательные функции ---
 async function getSettings() {
+  try {
   const { rows } = await db.query('SELECT * FROM cloudflare_settings ORDER BY id DESC LIMIT 1');
   return rows[0] || {};
+  } catch (e) {
+    console.error('[Cloudflare] Error getting settings:', e);
+    return {};
+  }
 }
+
 async function upsertSettings(fields) {
+  try {
   const current = await getSettings();
   if (current.id) {
     const updates = [];
@@ -39,8 +47,13 @@ async function upsertSettings(fields) {
     const keys = Object.keys(fields);
     const values = Object.values(fields);
     await db.query(`INSERT INTO cloudflare_settings (${keys.join(',')}) VALUES (${keys.map((_,i)=>`$${i+1}`).join(',')})` , values);
+    }
+  } catch (e) {
+    console.error('[Cloudflare] Error upserting settings:', e);
+    throw e;
   }
 }
+
 function generateDockerCompose(tunnelToken) {
   return `version: '3.8'
 services:
@@ -52,6 +65,7 @@ services:
     restart: unless-stopped
 `;
 }
+
 function runDockerCompose() {
   return new Promise((resolve, reject) => {
     exec(`docker-compose -f ${dockerComposePath} up -d cloudflared`, (err, stdout, stderr) => {
@@ -60,6 +74,7 @@ function runDockerCompose() {
     });
   });
 }
+
 function checkCloudflaredStatus() {
   return new Promise((resolve) => {
     exec('docker ps --filter "name=cloudflared" --format "{{.Status}}"', (err, stdout) => {
@@ -119,15 +134,22 @@ router.post('/account-id', async (req, res) => {
 router.post('/domain', async (req, res) => {
   const steps = [];
   try {
+    console.log('[Cloudflare /domain] Starting domain connection process');
+    
     // 1. Сохраняем домен, если он пришёл с фронта
     const { domain: domainFromBody } = req.body;
     if (domainFromBody) {
+      console.log('[Cloudflare /domain] Saving domain:', domainFromBody);
       await upsertSettings({ domain: domainFromBody });
     }
+    
     // 2. Получаем актуальные настройки
     const settings = await getSettings();
+    console.log('[Cloudflare /domain] Current settings:', { ...settings, api_token: settings.api_token ? '[HIDDEN]' : 'null' });
+    
     const { api_token, domain, account_id, tunnel_id, tunnel_token } = settings;
     if (!api_token || !domain || !account_id) {
+      console.error('[Cloudflare /domain] Missing required parameters:', { api_token: !!api_token, domain: !!domain, account_id: !!account_id });
       return res.json({ success: false, error: 'Не все параметры Cloudflare заданы (api_token, domain, account_id)' });
     }
     let tunnelId = tunnel_id;
@@ -169,7 +191,7 @@ router.post('/domain', async (req, res) => {
         {
           config: {
             ingress: [
-              { hostname: domain, service: 'http://dapp-frontend:5173' },
+              { hostname: domain, service: 'http://localhost:5173' },
               { service: 'http_status:404' }
             ]
           }
@@ -185,13 +207,172 @@ router.post('/domain', async (req, res) => {
       steps.push({ step: 'create_route', status: 'error', message: 'Ошибка создания маршрута: ' + errorMsg });
       return res.json({ success: false, steps, error: errorMsg });
     }
-    // 4. Перезапуск cloudflared через cloudflared-agent
+
+    // 3.5. Автоматическое создание DNS записей для туннеля
     try {
-      await axios.post('http://cloudflared-agent:9000/cloudflared/restart');
+      console.log('[Cloudflare /domain] Creating DNS records automatically...');
+      
+      // Получаем зону для домена
+      const zonesResp = await axios.get('https://api.cloudflare.com/client/v4/zones', {
+        headers: { Authorization: `Bearer ${api_token}` },
+        params: { name: domain }
+      });
+
+      const zones = zonesResp.data.result;
+      if (!zones || zones.length === 0) {
+        steps.push({ step: 'create_dns', status: 'error', message: 'Домен не найден в Cloudflare аккаунте для создания DNS записей' });
+        console.log('[Cloudflare /domain] Domain not found in Cloudflare account, skipping DNS creation');
+      } else {
+        const zoneId = zones[0].id;
+        
+        // Получаем существующие DNS записи
+        const recordsResp = await axios.get(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
+          headers: { Authorization: `Bearer ${api_token}` }
+        });
+        
+        const existingRecords = recordsResp.data.result || [];
+        
+        // Проверяем, есть ли уже запись для основного домена, указывающая на туннель
+        const tunnelCnamePattern = new RegExp(`${tunnelId}\.cfargotunnel\.com`);
+        const hasMainRecord = existingRecords.some(record => 
+          record.name === domain && 
+          (
+            (record.type === 'CNAME' && tunnelCnamePattern.test(record.content)) ||
+            (record.type === 'CNAME' && record.content.includes('cfargotunnel.com'))
+          )
+        );
+        
+        if (!hasMainRecord) {
+          // Удаляем конфликтующие записи для основного домена (A, AAAA, CNAME)
+          const conflictingRecords = existingRecords.filter(record => 
+            record.name === domain && ['A', 'AAAA', 'CNAME'].includes(record.type)
+          );
+          
+          for (const conflictRecord of conflictingRecords) {
+            try {
+              await axios.delete(
+                `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${conflictRecord.id}`,
+                { headers: { Authorization: `Bearer ${api_token}` } }
+              );
+              console.log('[Cloudflare /domain] Removed conflicting record:', conflictRecord.type, conflictRecord.name, conflictRecord.content);
+            } catch (delErr) {
+              console.warn('[Cloudflare /domain] Failed to delete conflicting record:', delErr.message);
+            }
+          }
+          
+          // Создаем CNAME запись для основного домена
+          const cnameRecord = {
+            type: 'CNAME',
+            name: domain,
+            content: `${tunnelId}.cfargotunnel.com`,
+            ttl: 1,
+            proxied: true
+          };
+          
+          const createResp = await axios.post(
+            `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+            cnameRecord,
+            { headers: { Authorization: `Bearer ${api_token}` } }
+          );
+          
+          console.log('[Cloudflare /domain] Main CNAME record created:', createResp.data.result);
+          steps.push({ step: 'create_dns', status: 'ok', message: `DNS запись создана: ${domain} -> ${tunnelId}.cfargotunnel.com (проксирована)` });
+        } else {
+          console.log('[Cloudflare /domain] Main record already exists and points to tunnel');
+          steps.push({ step: 'create_dns', status: 'ok', message: 'DNS запись для основного домена уже существует и настроена правильно' });
+        }
+        
+        // Создаем www поддомен только для корневых доменов (не для поддоменов)
+        const domainParts = domain.split('.');
+        const isRootDomain = domainParts.length === 2; // example.com, а не subdomain.example.com
+        
+        if (isRootDomain) {
+          // Обновляем список записей после возможных изменений
+          const updatedRecordsResp = await axios.get(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
+            headers: { Authorization: `Bearer ${api_token}` }
+          });
+          const updatedRecords = updatedRecordsResp.data.result || [];
+          
+          // Проверяем, есть ли уже запись для www поддомена
+          const hasWwwRecord = updatedRecords.some(record => 
+            record.name === `www.${domain}` && 
+            (
+              (record.type === 'CNAME' && tunnelCnamePattern.test(record.content)) ||
+              (record.type === 'CNAME' && record.content.includes('cfargotunnel.com'))
+            )
+          );
+          
+          if (!hasWwwRecord) {
+            // Удаляем конфликтующие записи для www поддомена
+            const conflictingWwwRecords = updatedRecords.filter(record => 
+              record.name === `www.${domain}` && ['A', 'AAAA', 'CNAME'].includes(record.type)
+            );
+            
+            for (const conflictRecord of conflictingWwwRecords) {
+    try {
+                await axios.delete(
+                  `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${conflictRecord.id}`,
+                  { headers: { Authorization: `Bearer ${api_token}` } }
+                );
+                console.log('[Cloudflare /domain] Removed conflicting www record:', conflictRecord.type, conflictRecord.name, conflictRecord.content);
+              } catch (delErr) {
+                console.warn('[Cloudflare /domain] Failed to delete conflicting www record:', delErr.message);
+              }
+            }
+            
+            // Создаем CNAME запись для www поддомена
+            const wwwCnameRecord = {
+              type: 'CNAME',
+              name: `www.${domain}`,
+              content: `${tunnelId}.cfargotunnel.com`,
+              ttl: 1,
+              proxied: true
+            };
+            
+            const createWwwResp = await axios.post(
+              `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+              wwwCnameRecord,
+              { headers: { Authorization: `Bearer ${api_token}` } }
+            );
+            
+            console.log('[Cloudflare /domain] WWW CNAME record created:', createWwwResp.data.result);
+            steps.push({ step: 'create_dns_www', status: 'ok', message: `DNS запись создана: www.${domain} -> ${tunnelId}.cfargotunnel.com (проксирована)` });
+          } else {
+            console.log('[Cloudflare /domain] WWW record already exists and points to tunnel');
+            steps.push({ step: 'create_dns_www', status: 'ok', message: 'DNS запись для www поддомена уже существует и настроена правильно' });
+          }
+        } else {
+          console.log('[Cloudflare /domain] Skipping www subdomain creation for non-root domain');
+        }
+      }
+    } catch (e) {
+      console.error('[Cloudflare /domain] Error creating DNS records:', e);
+      steps.push({ step: 'create_dns', status: 'error', message: 'Ошибка создания DNS записей: ' + (e.response?.data?.errors?.[0]?.message || e.message) });
+      // Не прерываем процесс, DNS можно настроить вручную
+    }
+    // 4. Перезапуск cloudflared через docker compose
+    try {
+      console.log('[Cloudflare /domain] Restarting cloudflared via docker compose...');
+      const { exec } = require('child_process');
+      
+      await new Promise((resolve, reject) => {
+        exec('cd /app && docker compose restart cloudflared', (err, stdout, stderr) => {
+          if (err) {
+            console.error('[Cloudflare /domain] Docker compose restart error:', stderr || err.message);
+            reject(new Error(stderr || err.message));
+          } else {
+            console.log('[Cloudflare /domain] Docker compose restart success:', stdout);
+            resolve(stdout);
+          }
+        });
+      });
+      
       steps.push({ step: 'restart_cloudflared', status: 'ok', message: 'cloudflared перезапущен.' });
     } catch (e) {
+      console.error('[Cloudflare /domain] Error restarting cloudflared:', e.message);
       steps.push({ step: 'restart_cloudflared', status: 'error', message: 'Ошибка перезапуска cloudflared: ' + e.message });
-      return res.json({ success: false, steps, error: e.message });
+      // Не возвращаем ошибку, так как туннель создан
+      console.log('[Cloudflare /domain] Continuing despite restart error...');
     }
     // 5. Возврат app_url
     res.json({
@@ -283,28 +464,28 @@ router.get('/status', async (req, res) => {
       domainMsg = 'Ошибка Cloudflare API: ' + e.message;
     }
   }
-  if (settings.api_token && settings.tunnel_token && Cloudflare) {
+  if (settings.api_token && settings.tunnel_id && settings.account_id) {
     try {
-      const cf = new Cloudflare({ apiToken: settings.api_token });
-      const zonesResp = await cf.zones.list();
-      const zones = zonesResp.result;
-      const zone = zones.find(z => settings.domain.endsWith(z.name));
-      if (!zone) throw new Error('Зона для домена не найдена в Cloudflare');
-      const accountId = zone.account.id;
+      console.log('[Cloudflare /status] Checking tunnel status...');
       const tunnelsResp = await axios.get(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/cfd_tunnel`,
+        `https://api.cloudflare.com/client/v4/accounts/${settings.account_id}/cfd_tunnel`,
         { headers: { Authorization: `Bearer ${settings.api_token}` } }
       );
-      const tunnels = tunnelsResp.data.result;
-      const foundTunnel = tunnels.find(t => settings.tunnel_token.includes(t.id));
+      const tunnels = tunnelsResp.data.result || [];
+      console.log('[Cloudflare /status] Found tunnels:', tunnels.map(t => ({ id: t.id, name: t.name, status: t.status })));
+      
+      const foundTunnel = tunnels.find(t => t.id === settings.tunnel_id);
       if (foundTunnel) {
         tunnelStatus = foundTunnel.status || 'active';
         tunnelMsg = `Туннель найден: ${foundTunnel.name || foundTunnel.id}, статус: ${foundTunnel.status}`;
+        console.log('[Cloudflare /status] Tunnel found:', foundTunnel);
       } else {
         tunnelStatus = 'not_found';
         tunnelMsg = 'Туннель не найден в Cloudflare аккаунте';
+        console.log('[Cloudflare /status] Tunnel not found. Looking for tunnel_id:', settings.tunnel_id);
       }
     } catch (e) {
+      console.error('[Cloudflare /status] Error checking tunnel:', e);
       tunnelStatus = 'error';
       tunnelMsg = 'Ошибка Cloudflare API (туннель): ' + e.message;
     }
@@ -318,6 +499,202 @@ router.get('/status', async (req, res) => {
     tunnelMsg,
     message: `Cloudflared статус: ${status}, домен: ${domainStatus}, туннель: ${tunnelStatus}`
   });
+});
+
+// --- DNS Управление ---
+
+// Получить список DNS записей для домена
+router.get('/dns-records', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const { api_token, domain } = settings;
+    
+    if (!api_token || !domain) {
+      return res.json({ 
+        success: false, 
+        message: 'API Token и домен должны быть настроены' 
+      });
+    }
+
+    // Получаем зону для домена
+    const zonesResp = await axios.get('https://api.cloudflare.com/client/v4/zones', {
+      headers: { Authorization: `Bearer ${api_token}` },
+      params: { name: domain }
+    });
+
+    const zones = zonesResp.data.result;
+    if (!zones || zones.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: 'Домен не найден в Cloudflare аккаунте' 
+      });
+    }
+
+    const zoneId = zones[0].id;
+
+    // Получаем DNS записи для зоны
+    const recordsResp = await axios.get(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
+      headers: { Authorization: `Bearer ${api_token}` }
+    });
+
+    const records = recordsResp.data.result || [];
+    
+    res.json({ 
+      success: true, 
+      records: records.map(record => ({
+        id: record.id,
+        type: record.type,
+        name: record.name,
+        content: record.content,
+        ttl: record.ttl,
+        proxied: record.proxied,
+        zone_id: record.zone_id,
+        zone_name: record.zone_name,
+        created_on: record.created_on,
+        modified_on: record.modified_on
+      })),
+      zone_id: zoneId
+    });
+  } catch (e) {
+    console.error('[Cloudflare /dns-records] Error:', e);
+    res.json({ 
+      success: false, 
+      message: 'Ошибка получения DNS записей: ' + (e.response?.data?.errors?.[0]?.message || e.message)
+    });
+  }
+});
+
+// Создать/обновить DNS запись
+router.post('/dns-records', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const { api_token, domain } = settings;
+    const { type, name, content, ttl = 1, proxied = false, recordId } = req.body;
+    
+    if (!api_token || !domain) {
+      return res.json({ 
+        success: false, 
+        message: 'API Token и домен должны быть настроены' 
+      });
+    }
+
+    if (!type || !name || !content) {
+      return res.json({ 
+        success: false, 
+        message: 'Обязательные поля: type, name, content' 
+      });
+    }
+
+    // Получаем зону для домена
+    const zonesResp = await axios.get('https://api.cloudflare.com/client/v4/zones', {
+      headers: { Authorization: `Bearer ${api_token}` },
+      params: { name: domain }
+    });
+
+    const zones = zonesResp.data.result;
+    if (!zones || zones.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: 'Домен не найден в Cloudflare аккаунте' 
+      });
+    }
+
+    const zoneId = zones[0].id;
+    const recordData = { type, name, content, ttl };
+    
+    // Добавляем proxied только для типов записей, которые поддерживают прокси
+    if (['A', 'AAAA', 'CNAME'].includes(type)) {
+      recordData.proxied = proxied;
+    }
+
+    let result;
+    if (recordId) {
+      // Обновляем существующую запись
+      const updateResp = await axios.put(
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`,
+        recordData,
+        { headers: { Authorization: `Bearer ${api_token}` } }
+      );
+      result = updateResp.data.result;
+    } else {
+      // Создаем новую запись
+      const createResp = await axios.post(
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+        recordData,
+        { headers: { Authorization: `Bearer ${api_token}` } }
+      );
+      result = createResp.data.result;
+    }
+
+    res.json({ 
+      success: true, 
+      message: recordId ? 'DNS запись обновлена' : 'DNS запись создана',
+      record: {
+        id: result.id,
+        type: result.type,
+        name: result.name,
+        content: result.content,
+        ttl: result.ttl,
+        proxied: result.proxied,
+        zone_id: result.zone_id
+      }
+    });
+  } catch (e) {
+    console.error('[Cloudflare /dns-records POST] Error:', e);
+    res.json({ 
+      success: false, 
+      message: 'Ошибка создания/обновления DNS записи: ' + (e.response?.data?.errors?.[0]?.message || e.message)
+    });
+  }
+});
+
+// Удалить DNS запись
+router.delete('/dns-records/:recordId', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const { api_token, domain } = settings;
+    const { recordId } = req.params;
+    
+    if (!api_token || !domain) {
+      return res.json({ 
+        success: false, 
+        message: 'API Token и домен должны быть настроены' 
+      });
+    }
+
+    // Получаем зону для домена
+    const zonesResp = await axios.get('https://api.cloudflare.com/client/v4/zones', {
+      headers: { Authorization: `Bearer ${api_token}` },
+      params: { name: domain }
+    });
+
+    const zones = zonesResp.data.result;
+    if (!zones || zones.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: 'Домен не найден в Cloudflare аккаунте' 
+      });
+    }
+
+    const zoneId = zones[0].id;
+
+    // Удаляем DNS запись
+    await axios.delete(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`,
+      { headers: { Authorization: `Bearer ${api_token}` } }
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'DNS запись удалена'
+    });
+  } catch (e) {
+    console.error('[Cloudflare /dns-records DELETE] Error:', e);
+    res.json({ 
+      success: false, 
+      message: 'Ошибка удаления DNS записи: ' + (e.response?.data?.errors?.[0]?.message || e.message)
+    });
+  }
 });
 
 module.exports = router; 

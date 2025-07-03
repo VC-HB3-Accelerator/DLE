@@ -3,13 +3,7 @@
     <button class="close-btn" @click="goBack">×</button>
     <h2>Настройки безопасности и подключения к блокчейну</h2>
 
-    <!-- Индикатор загрузки -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="loading-spinner"></div>
-      <div>Загрузка настроек...</div>
-    </div>
-
-    <div v-else class="settings-cards">
+    <div class="settings-cards">
       <!-- Блок RPC Провайдеры -->
       <div class="info-card">
         <h3>RPC Провайдеры</h3>
@@ -18,7 +12,7 @@
           <span class="info-value">{{ securitySettings.rpcConfigs.length > 0 ? `${securitySettings.rpcConfigs.length} настроено` : 'Не настроено' }}</span>
         </div>
         <div class="card-actions">
-          <button class="btn btn-info" @click="showRpcSettings = !showRpcSettings">
+          <button class="btn btn-info" @click="handleRpcDetailsClick">
             <i class="fas fa-info-circle"></i> Подробнее
           </button>
         </div>
@@ -50,6 +44,14 @@
       :authTokens="securitySettings.authTokens"
       @update="loadSettings"
     />
+    
+    <!-- Модальное окно "Нет доступа" -->
+    <NoAccessModal 
+      :show="showNoAccessModal" 
+      title="Доступ ограничен"
+      message="Детальные настройки RPC провайдеров доступны только администраторам."
+      @close="closeNoAccessModal" 
+    />
   </div>
 </template>
 
@@ -61,12 +63,18 @@ import eventBus from '@/utils/eventBus';
 import RpcProvidersSettings from './RpcProvidersSettings.vue';
 import AuthTokensSettings from './AuthTokensSettings.vue';
 import { useRouter } from 'vue-router';
+import { useAuthContext } from '@/composables/useAuth';
+import NoAccessModal from '@/components/NoAccessModal.vue';
 
 // Состояние для отображения/скрытия дополнительных настроек
 const showRpcSettings = ref(false);
 const showAuthSettings = ref(false);
 const isLoading = ref(true);
 const isSaving = ref(false);
+const showNoAccessModal = ref(false);
+
+// Получаем контекст авторизации
+const { isAdmin } = useAuthContext();
 
 // Настройки безопасности
 const securitySettings = reactive({
@@ -134,7 +142,8 @@ const loadSettings = async () => {
     if (rpcResponse.data && rpcResponse.data.success) {
       securitySettings.rpcConfigs = (rpcResponse.data.data || []).map(rpc => ({
         networkId: rpc.network_id,
-        rpcUrl: rpc.rpc_url,
+        rpcUrl: rpc.rpc_url, // Реальный URL для функциональности
+        rpcUrlDisplay: rpc.rpc_url_display, // Маскированный URL для отображения (если есть)
         chainId: rpc.chain_id
       }));
     }
@@ -290,6 +299,22 @@ provide('removeAuthToken', removeAuthToken);
 provide('addAuthToken', addAuthToken);
 provide('newAuthToken', newAuthToken);
 provide('networks', networks);
+
+// Функция для обработки клика по кнопке "Подробнее" для RPC провайдеров
+const handleRpcDetailsClick = () => {
+  if (isAdmin.value) {
+    // Если администратор - показываем детали RPC
+    showRpcSettings.value = !showRpcSettings.value;
+  } else {
+    // Если обычный пользователь - показываем модальное окно с ограничением доступа
+    showNoAccessModal.value = true;
+  }
+};
+
+// Функция для закрытия модального окна "Нет доступа"
+const closeNoAccessModal = () => {
+  showNoAccessModal.value = false;
+};
 
 const router = useRouter();
 const goBack = () => router.push('/settings');

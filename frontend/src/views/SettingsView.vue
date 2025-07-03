@@ -8,10 +8,6 @@
   >
     <div class="settings-view-container">
       <h1>Настройки</h1>
-      <div v-if="isLoading">Загрузка данных пользователя...</div>
-      <div v-else-if="!auth.isAuthenticated.value">
-        <p>Для доступа к настройкам необходимо <button @click="goToHomeAndShowSidebar">войти</button>.</p>
-      </div>
       <!-- Router view для отображения дочерних компонентов настроек -->
       <router-view></router-view>
     </div>
