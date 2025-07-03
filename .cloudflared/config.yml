@@ -1,0 +1,7 @@
+tunnel: a765a217-5312-48f8-9bb7-5a7ef56602b8
+credentials-file: /etc/cloudflared/a765a217-5312-48f8-9bb7-5a7ef56602b8.json
+
+ingress:
+  - hostname: hb3-accelerator.com
+    service: http://dapp-frontend:5173
+  - service: http_status:404
