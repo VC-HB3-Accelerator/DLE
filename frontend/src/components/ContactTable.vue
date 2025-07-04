@@ -1,7 +1,9 @@
 <template>
   <div class="contact-table-modal">
     <div class="contact-table-header">
-      <h2>Контакты</h2>
+      <el-button type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
+      <el-button type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
+      <el-button type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
     <el-form :inline="true" class="filters-form" label-position="top">
@@ -26,6 +28,13 @@
         <el-select v-model="filterNewMessages" placeholder="Нет" style="min-width:110px;" @change="onAnyFilterChange">
           <el-option label="Нет" :value="''" />
           <el-option label="Да" value="yes" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Блокировка">
+        <el-select v-model="filterBlocked" placeholder="Все" style="min-width:120px;" @change="onAnyFilterChange">
+          <el-option label="Все" value="all" />
+          <el-option label="Только заблокированные" value="blocked" />
+          <el-option label="Только не заблокированные" value="unblocked" />
         </el-select>
       </el-form-item>
       <el-form-item label="Теги">
@@ -53,6 +62,7 @@
     <table class="contact-table">
       <thead>
         <tr>
+          <th><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
           <th>Имя</th>
           <th>Email</th>
           <th>Telegram</th>
@@ -63,6 +73,7 @@
       </thead>
       <tbody>
         <tr v-for="contact in contactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
+          <td><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
           <td>{{ contact.name || '-' }}</td>
           <td>{{ contact.email || '-' }}</td>
           <td>{{ contact.telegram || '-' }}</td>
@@ -75,13 +86,17 @@
         </tr>
       </tbody>
     </table>
+    <ImportContactsModal v-if="showImportModal" @close="showImportModal = false" @imported="onImported" />
+    <BroadcastModal v-if="showBroadcastModal" :user-ids="selectedIds" @close="showBroadcastModal = false" />
   </div>
 </template>
 
 <script setup>
 import { defineProps, computed, ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckbox, ElButton } from 'element-plus';
+import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckbox, ElButton, ElMessageBox, ElMessage } from 'element-plus';
+import ImportContactsModal from './ImportContactsModal.vue';
+import BroadcastModal from './BroadcastModal.vue';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -100,10 +115,17 @@ const filterContactType = ref('all');
 const filterDateFrom = ref('');
 const filterDateTo = ref('');
 const filterNewMessages = ref('');
+const filterBlocked = ref('all');
 
 // Теги
 const allTags = ref([]);
 const selectedTagIds = ref([]);
+
+const showImportModal = ref(false);
+const showBroadcastModal = ref(false);
+
+const selectedIds = ref([]);
+const selectAll = ref(false);
 
 onMounted(async () => {
   await loadTags();
@@ -123,6 +145,7 @@ function buildQuery() {
   if (filterContactType.value && filterContactType.value !== 'all') params.append('contactType', filterContactType.value);
   if (filterSearch.value) params.append('search', filterSearch.value);
   if (filterNewMessages.value) params.append('newMessages', filterNewMessages.value);
+  if (filterBlocked.value && filterBlocked.value !== 'all') params.append('blocked', filterBlocked.value);
   return params.toString();
 }
 
@@ -149,6 +172,7 @@ function resetFilters() {
   filterDateFrom.value = '';
   filterDateTo.value = '';
   filterNewMessages.value = '';
+  filterBlocked.value = 'all';
   selectedTagIds.value = [];
   fetchContacts();
 }
@@ -175,6 +199,45 @@ async function showDetails(contact) {
   }
   router.push({ name: 'contact-details', params: { id: contact.id } });
 }
+
+function onImported() {
+  showImportModal.value = false;
+  fetchContacts();
+}
+
+function toggleSelectAll() {
+  if (selectAll.value) {
+    selectedIds.value = contactsArray.value.map(c => c.id);
+  } else {
+    selectedIds.value = [];
+  }
+}
+
+watch(contactsArray, () => {
+  // Сбросить выбор при обновлении данных
+  selectedIds.value = [];
+  selectAll.value = false;
+});
+
+async function deleteSelected() {
+  if (!selectedIds.value.length) return;
+  try {
+    await ElMessageBox.confirm(
+      `Вы действительно хотите удалить ${selectedIds.value.length} контакт(ов)?`,
+      'Подтверждение удаления',
+      { type: 'warning' }
+    );
+    for (const id of selectedIds.value) {
+      await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    }
+    ElMessage.success('Контакты удалены');
+    fetchContacts();
+    selectedIds.value = [];
+    selectAll.value = false;
+  } catch (e) {
+    // Отмена
+  }
+}
 </script>
 
 <style scoped>
@@ -190,9 +253,9 @@ async function showDetails(contact) {
 }
 .contact-table-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  position: relative;
 }
 .close-btn {
   position: absolute;

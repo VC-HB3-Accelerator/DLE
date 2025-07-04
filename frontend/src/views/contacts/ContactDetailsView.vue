@@ -63,6 +63,27 @@
           </span>
           <button class="add-tag-btn" @click="openTagModal">Добавить тег</button>
         </div>
+        <div class="block-user-section">
+          <strong>Статус блокировки:</strong>
+          <span v-if="contact.is_blocked" class="blocked-status">Заблокирован</span>
+          <span v-else class="unblocked-status">Не заблокирован</span>
+          <template v-if="isAdmin">
+            <el-button
+              v-if="!contact.is_blocked"
+              type="danger"
+              size="small"
+              @click="blockUser"
+              style="margin-left: 1em;"
+            >Заблокировать</el-button>
+            <el-button
+              v-else
+              type="success"
+              size="small"
+              @click="unblockUser"
+              style="margin-left: 1em;"
+            >Разблокировать</el-button>
+          </template>
+        </div>
         <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
       </div>
       <div class="messages-block">
@@ -326,6 +347,14 @@ function goBack() {
 
 async function handleSendMessage({ message, attachments }) {
   if (!contact.value || !contact.value.id) return;
+  if (contact.value.is_blocked) {
+    if (typeof ElMessageBox === 'function') {
+      ElMessageBox.alert('Пользователь заблокирован. Отправка сообщений невозможна.', 'Ошибка', { type: 'error' });
+    } else {
+      alert('Пользователь заблокирован. Отправка сообщений невозможна.');
+    }
+    return;
+  }
   // Проверка наличия хотя бы одного идентификатора
   const hasAnyId = contact.value.email || contact.value.telegram || contact.value.wallet;
   if (!hasAnyId) {
@@ -392,6 +421,36 @@ async function handleAiReply(selectedMessages = []) {
   } finally {
     isAiLoading.value = false;
     console.log('[AI-ASSISTANT] Генерация завершена');
+  }
+}
+
+function showBlockStatusMessage(msg, type = 'info') {
+  if (typeof ElMessageBox === 'function') {
+    ElMessageBox.alert(msg, 'Статус блокировки', { type });
+  } else {
+    alert(msg);
+  }
+}
+
+async function blockUser() {
+  if (!contact.value) return;
+  try {
+    await contactsService.blockContact(contact.value.id);
+    contact.value.is_blocked = true;
+    showBlockStatusMessage('Пользователь заблокирован', 'success');
+  } catch (e) {
+    showBlockStatusMessage('Ошибка блокировки пользователя', 'error');
+  }
+}
+
+async function unblockUser() {
+  if (!contact.value) return;
+  try {
+    await contactsService.unblockContact(contact.value.id);
+    contact.value.is_blocked = false;
+    showBlockStatusMessage('Пользователь разблокирован', 'success');
+  } catch (e) {
+    showBlockStatusMessage('Ошибка разблокировки пользователя', 'error');
   }
 }
 
@@ -581,5 +640,17 @@ watch(userId, async () => {
 }
 .add-tag-btn:hover {
   background: #27ae38;
+}
+.block-user-section {
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+.blocked-status {
+  color: #d32f2f;
+  font-weight: bold;
+}
+.unblocked-status {
+  color: #388e3c;
+  font-weight: bold;
 }
 </style> 

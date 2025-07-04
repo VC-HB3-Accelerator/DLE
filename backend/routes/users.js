@@ -61,7 +61,8 @@ router.get('/', requireAuth, async (req, res, next) => {
       dateTo = '',
       contactType = 'all',
       search = '',
-      newMessages = ''
+      newMessages = '',
+      blocked = 'all'
     } = req.query;
     const adminId = req.user && req.user.id;
 
@@ -100,9 +101,16 @@ router.get('/', requireAuth, async (req, res, next) => {
       idx++;
     }
 
+    // Фильтр по блокировке
+    if (blocked === 'blocked') {
+      where.push(`u.is_blocked = true`);
+    } else if (blocked === 'unblocked') {
+      where.push(`u.is_blocked = false`);
+    }
+
     // --- Основной SQL ---
     let sql = `
-      SELECT u.id, u.first_name, u.last_name, u.created_at, u.preferred_language,
+      SELECT u.id, u.first_name, u.last_name, u.created_at, u.preferred_language, u.is_blocked,
         (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'email' LIMIT 1) AS email,
         (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'telegram' LIMIT 1) AS telegram,
         (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'wallet' LIMIT 1) AS wallet
@@ -169,7 +177,8 @@ router.get('/', requireAuth, async (req, res, next) => {
       telegram: u.telegram || null,
       wallet: u.wallet || null,
       created_at: u.created_at,
-      preferred_language: u.preferred_language || []
+      preferred_language: u.preferred_language || [],
+      is_blocked: u.is_blocked || false
     }));
 
     res.json({ success: true, contacts });
@@ -232,34 +241,58 @@ router.post('/mark-contact-read', async (req, res) => {
   }
 });
 
-// PATCH /api/users/:id — обновить имя и язык
-router.patch('/:id', async (req, res) => {
-  const userId = req.params.id;
-  const { name, language } = req.body;
-  if (!name && !language) return res.status(400).json({ error: 'Nothing to update' });
+// Заблокировать пользователя
+router.patch('/:id/block', requireAuth, async (req, res) => {
   try {
+    const userId = req.params.id;
+    await db.query('UPDATE users SET is_blocked = true, blocked_at = NOW() WHERE id = $1', [userId]);
+    res.json({ success: true, message: 'Пользователь заблокирован' });
+  } catch (e) {
+    logger.error('Ошибка блокировки пользователя:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Разблокировать пользователя
+router.patch('/:id/unblock', requireAuth, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    await db.query('UPDATE users SET is_blocked = false, blocked_at = NULL WHERE id = $1', [userId]);
+    res.json({ success: true, message: 'Пользователь разблокирован' });
+  } catch (e) {
+    logger.error('Ошибка разблокировки пользователя:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Обновить пользователя (в том числе is_blocked)
+router.patch('/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { first_name, last_name, preferred_language, is_blocked } = req.body;
     const fields = [];
     const values = [];
     let idx = 1;
-    if (name !== undefined) {
-      // Разделяем имя на first_name и last_name (по пробелу)
-      const [firstName, ...lastNameArr] = name.split(' ');
-      fields.push(`first_name = $${idx++}`);
-      values.push(firstName);
-      fields.push(`last_name = $${idx++}`);
-      values.push(lastNameArr.join(' ') || null);
+    if (first_name !== undefined) { fields.push(`first_name = $${idx++}`); values.push(first_name); }
+    if (last_name !== undefined) { fields.push(`last_name = $${idx++}`); values.push(last_name); }
+    if (preferred_language !== undefined) { fields.push(`preferred_language = $${idx++}`); values.push(JSON.stringify(preferred_language)); }
+    if (is_blocked !== undefined) {
+      fields.push(`is_blocked = $${idx++}`);
+      values.push(is_blocked);
+      if (is_blocked) {
+        fields.push(`blocked_at = NOW()`);
+      } else {
+        fields.push(`blocked_at = NULL`);
+      }
     }
-    if (language !== undefined) {
-      fields.push(`preferred_language = $${idx++}`);
-      values.push(JSON.stringify(language));
-    }
+    if (!fields.length) return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
+    const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`;
     values.push(userId);
-    const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
-    const result = await db.getQuery()(sql, values);
-    res.json(result.rows[0]);
+    await db.query(sql, values);
+    res.json({ success: true, message: 'Пользователь обновлен' });
   } catch (e) {
-    logger.error('PATCH /api/users/:id error', { error: e, body: req.body, stack: e.stack });
-    res.status(500).json({ error: 'DB error', details: e.message });
+    logger.error('Ошибка обновления пользователя:', e);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -326,6 +359,76 @@ router.post('/', async (req, res) => {
     res.json({ success: true, user: result.rows[0] });
   } catch (e) {
     res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// Массовый импорт контактов
+router.post('/import', requireAuth, async (req, res) => {
+  try {
+    const contacts = req.body;
+    if (!Array.isArray(contacts)) {
+      return res.status(400).json({ success: false, error: 'Ожидается массив контактов' });
+    }
+    const dbq = db.getQuery();
+    let added = 0, updated = 0, errors = [];
+    for (const [i, c] of contacts.entries()) {
+      try {
+        // Имя
+        let first_name = null, last_name = null;
+        if (c.name) {
+          const parts = c.name.trim().split(' ');
+          first_name = parts[0] || null;
+          last_name = parts.slice(1).join(' ') || null;
+        }
+        // Проверка на существование по email/telegram/wallet
+        let userId = null;
+        let foundUser = null;
+        if (c.email) {
+          const r = await dbq('SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2', ['email', c.email.toLowerCase()]);
+          if (r.rows.length) foundUser = r.rows[0].user_id;
+        }
+        if (!foundUser && c.telegram) {
+          const r = await dbq('SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2', ['telegram', c.telegram]);
+          if (r.rows.length) foundUser = r.rows[0].user_id;
+        }
+        if (!foundUser && c.wallet) {
+          const r = await dbq('SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2', ['wallet', c.wallet]);
+          if (r.rows.length) foundUser = r.rows[0].user_id;
+        }
+        if (foundUser) {
+          userId = foundUser;
+          updated++;
+          // Обновляем имя, если нужно
+          if (first_name || last_name) {
+            await dbq('UPDATE users SET first_name = COALESCE($1, first_name), last_name = COALESCE($2, last_name) WHERE id = $3', [first_name, last_name, userId]);
+          }
+        } else {
+          // Создаём нового пользователя
+          const ins = await dbq('INSERT INTO users (first_name, last_name, created_at) VALUES ($1, $2, NOW()) RETURNING id', [first_name, last_name]);
+          userId = ins.rows[0].id;
+          added++;
+        }
+        // Добавляем идентификаторы (email, telegram, wallet)
+        const identities = [
+          c.email ? { provider: 'email', provider_id: c.email.toLowerCase() } : null,
+          c.telegram ? { provider: 'telegram', provider_id: c.telegram } : null,
+          c.wallet ? { provider: 'wallet', provider_id: c.wallet } : null
+        ].filter(Boolean);
+        for (const idn of identities) {
+          // Проверяем, есть ли уже такой идентификатор у пользователя
+          const exists = await dbq('SELECT 1 FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3', [userId, idn.provider, idn.provider_id]);
+          if (!exists.rows.length) {
+            await dbq('INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [userId, idn.provider, idn.provider_id]);
+          }
+        }
+      } catch (e) {
+        errors.push({ row: i + 1, error: e.message });
+      }
+    }
+    broadcastContactsUpdate();
+    res.json({ success: true, added, updated, errors });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

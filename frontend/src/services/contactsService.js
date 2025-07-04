@@ -28,6 +28,14 @@ export default {
       return res.data;
     }
     return null;
+  },
+  async blockContact(id) {
+    const res = await api.patch(`/api/users/${id}/block`);
+    return res.data;
+  },
+  async unblockContact(id) {
+    const res = await api.patch(`/api/users/${id}/unblock`);
+    return res.data;
   }
 }; 
 
