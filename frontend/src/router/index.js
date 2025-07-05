@@ -5,7 +5,7 @@ const SettingsAiView = () => import('../views/settings/AiSettingsView.vue');
 const SettingsBlockchainView = () => import('../views/settings/BlockchainSettingsView.vue');
 const SettingsSecurityView = () => import('../views/settings/SecuritySettingsView.vue');
 const SettingsInterfaceView = () => import('../views/settings/Interface/InterfaceSettingsView.vue');
-const SettingsInterfaceCloudflareDetailsView = () => import('../views/settings/Interface/CloudflareDetailsView.vue');
+
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
 
@@ -53,11 +53,7 @@ const routes = [
         name: 'settings-interface',
         component: SettingsInterfaceView,
       },
-      {
-        path: 'interface/cloudflare-details',
-        name: 'settings-interface-cloudflare-details',
-        component: SettingsInterfaceCloudflareDetailsView,
-      },
+
       {
         path: 'telegram',
         name: 'settings-telegram',

@@ -2116,3 +2116,300 @@
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T13:45:08.332Z"}
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T13:45:08.332Z"}
 {"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T13:45:08.333Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:13:45.482Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.495Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:24:28.352Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:27:02.147Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:27:02.148Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:27:02.149Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.860Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.860Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.861Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.861Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:43.060Z"}
+{"level":"error","message":"Uncaught Exception: Not authenticated","stack":"Error: Not authenticated\n    at Connection.openBox (/app/node_modules/imap/lib/Connection.js:409:11)\n    at Connection.<anonymous> (/app/services/emailBot.js:105:19)\n    at Object.onceWrapper (node:events:638:28)\n    at Connection.emit (node:events:536:35)\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:1623:12)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)","timestamp":"2025-07-04T21:29:10.790Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-04T21:30:17.484Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:30:30.493Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:30:30.494Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:30:45.693Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.254Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T08:53:24.175Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.719Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:32.829Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:32.829Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:32.829Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:53.116Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:05:58.665Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:05:58.666Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:06:43.823Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.492Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.492Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.430Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.431Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.432Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.432Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.929Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.930Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.930Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.933Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.935Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.935Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.937Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:33.976Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:33.977Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:33.977Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.678Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.678Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:48.278Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:59:11.087Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:59:11.087Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.557Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.558Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.558Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.558Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:20.679Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:20.679Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:02:08.281Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:02:27.341Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:02:27.342Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:03:14.921Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:03:34.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:03:34.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:04:40.711Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:04:40.712Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:04:40.712Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:05:46.917Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:05:47.002Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:05:47.493Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:05:47.494Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:05:47.494Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.642Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:07.514Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:07.515Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:07.515Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:55.004Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:10:14.238Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:10:14.239Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:11:24.583Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:11:24.587Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:11:24.588Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:12:27.512Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:12:27.512Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:12:27.513Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.485Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.486Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.487Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.487Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:16:54.457Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:16:54.458Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:16:54.458Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:17:41.916Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:18:00.784Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:18:00.784Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:19:07.422Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:19:07.423Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:19:07.423Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.991Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.993Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.993Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:22:27.568Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:22:27.568Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:22:27.569Z"}
+{"level":"error","message":"IMAP connection error during check: write after end","timestamp":"2025-07-05T19:23:29.108Z"}
+{"level":"error","message":"IMAP connection error during check: write after end","timestamp":"2025-07-05T19:23:29.108Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:24:40.124Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:24:40.309Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.889Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.890Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.890Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.890Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:25:28.668Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:29:06.521Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:29:06.612Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.497Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.497Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.499Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.683Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.683Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:32:31.089Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:32:31.090Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:32:31.090Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:33:33.543Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:33:34.415Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:33:34.415Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:33:34.416Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:34:40.859Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:34:40.861Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:34:40.861Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.004Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.008Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:54.176Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:54.177Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:37:59.957Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:38:00.033Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:38:00.883Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:38:00.884Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:38:00.886Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:40:14.258Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:40:14.259Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.418Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.419Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.419Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.419Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:27.622Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:27.623Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:43:34.383Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:43:34.385Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:43:34.385Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:44:21.795Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:44:44.785Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:44:44.786Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:45:47.637Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:45:47.638Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:45:47.638Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:46:35.188Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:47:41.684Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:47:41.684Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:47:41.685Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:50:13.481Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:50:13.727Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.449Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.451Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.451Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.318Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.319Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:53:33.130Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:53:33.218Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:53:34.200Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:53:34.201Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:53:34.201Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.670Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:40.553Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:40.555Z"}
+{"level":"error","message":"[SessionService] Error cleaning session NNzFlSqL-TP1U2wa0GL9tgqO7QsdgZVB: Cannot use a pool after calling end on the pool","stack":"Error: Cannot use a pool after calling end on the pool\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:295:13)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:26:16.251Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.952Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.955Z"}
+{"level":"error","message":"[SessionService] Error preparing update for session NNzFlSqL-TP1U2wa0GL9tgqO7QsdgZVB: Cannot use a pool after calling end on the pool","stack":"Error: Cannot use a pool after calling end on the pool\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async /app/services/session-service.js:303:34\n    at async Promise.allSettled (index 0)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:319:29)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:28:03.634Z"}
+{"code":"42883","file":"parse_func.c","hint":"No function matches the given name and argument types. You might need to add explicit type casts.","length":224,"level":"error","line":"629","message":"[SessionService] Error during cleanup: function jsonb_set(json, unknown, jsonb) does not exist","name":"error","position":"37","routine":"ParseFuncOrColumn","severity":"ERROR","stack":"error: function jsonb_set(json, unknown, jsonb) does not exist\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:285:22)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:28:50.654Z"}
+{"code":"42883","file":"parse_oper.c","hint":"No operator matches the given name and argument types. You might need to add explicit type casts.","length":199,"level":"error","line":"647","message":"[SessionService] Error during cleanup: operator does not exist: json - unknown","name":"error","position":"42","routine":"op_error","severity":"ERROR","stack":"error: operator does not exist: json - unknown\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:285:22)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:29:17.406Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.008Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.010Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.010Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.010Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.211Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.212Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.212Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.213Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:50.053Z"}

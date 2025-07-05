@@ -13,16 +13,12 @@ class SessionService {
    */
   async saveSession(session) {
     try {
-      // Логируем содержимое сессии перед сохранением
-      logger.info('[SessionService] Saving session data:', session);
-
       return new Promise((resolve, reject) => {
         session.save((err) => {
           if (err) {
             logger.error('Error saving session:', err);
             reject(err);
           } else {
-            logger.info('Session saved successfully');
             resolve(true);
           }
         });
@@ -41,16 +37,7 @@ class SessionService {
    */
   async linkGuestMessages(session, userId) {
     try {
-      logger.info(
-        `[linkGuestMessages] Starting for user ${userId} with guestId=${session.guestId}, previousGuestId=${session.previousGuestId}`
-      );
-
-      // Инициализируем массив обработанных гостевых ID, если его нет
-      if (!session.processedGuestIds) {
-        session.processedGuestIds = [];
-      }
-
-      // Получаем все гостевые ID для текущего пользователя из новой таблицы
+      // Получаем все гостевые ID для текущего пользователя из таблицы
       const guestIdsResult = await db.getQuery()(
         'SELECT guest_id FROM guest_user_mapping WHERE user_id = $1',
         [userId]
@@ -60,39 +47,52 @@ class SessionService {
       // Собираем все гостевые ID, которые нужно обработать
       const guestIdsToProcess = new Set();
 
-      // Добавляем текущий гостевой ID
-      if (session.guestId && !session.processedGuestIds.includes(session.guestId)) {
-        guestIdsToProcess.add(session.guestId);
+      // Добавляем текущий гостевой ID, если он есть и не обработан в БД
+      if (session.guestId) {
+        const isProcessed = await this.isGuestIdProcessed(session.guestId);
+        if (!isProcessed) {
+          guestIdsToProcess.add(session.guestId);
 
-        // Записываем связь с пользователем в новую таблицу
-        await db.getQuery()(
-          'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-          [userId, session.guestId]
-        );
+          // Записываем связь с пользователем в новую таблицу
+          await db.getQuery()(
+            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+            [userId, session.guestId]
+          );
+        }
       }
 
-      // Добавляем предыдущий гостевой ID
-      if (session.previousGuestId && !session.processedGuestIds.includes(session.previousGuestId)) {
-        guestIdsToProcess.add(session.previousGuestId);
+      // Добавляем предыдущий гостевой ID, если он есть и не обработан в БД
+      if (session.previousGuestId) {
+        const isProcessed = await this.isGuestIdProcessed(session.previousGuestId);
+        if (!isProcessed) {
+          guestIdsToProcess.add(session.previousGuestId);
 
-        // Записываем связь с пользователем в новую таблицу
-        await db.getQuery()(
-          'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-          [userId, session.previousGuestId]
-        );
+          // Записываем связь с пользователем в новую таблицу
+          await db.getQuery()(
+            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
+            [userId, session.previousGuestId]
+          );
+        }
       }
 
-      // Добавляем все гостевые ID пользователя из таблицы
+      // Добавляем все гостевые ID пользователя из таблицы, которые еще не обработаны
       for (const guestId of userGuestIds) {
-        if (!session.processedGuestIds.includes(guestId)) {
+        const isProcessed = await this.isGuestIdProcessed(guestId);
+        if (!isProcessed) {
           guestIdsToProcess.add(guestId);
         }
+      }
+
+      // Логируем только если есть что обрабатывать
+      if (guestIdsToProcess.size > 0) {
+        logger.info(
+          `[linkGuestMessages] Processing ${guestIdsToProcess.size} guest IDs for user ${userId}`
+        );
       }
 
       // Обрабатываем все собранные гостевые ID
       for (const guestId of guestIdsToProcess) {
         await this.processGuestMessagesWrapper(userId, guestId);
-        session.processedGuestIds.push(guestId);
 
         // Помечаем guestId как обработанный в базе данных
         await db.getQuery()(
@@ -101,13 +101,29 @@ class SessionService {
         );
       }
 
-      // Сохраняем сессию
-      await this.saveSession(session);
-
       return { success: true };
     } catch (error) {
       logger.error('[linkGuestMessages] Error:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Проверяет, был ли guest ID уже обработан
+   * @param {string} guestId - ID гостя
+   * @returns {Promise<boolean>} - Был ли guest ID обработан
+   */
+  async isGuestIdProcessed(guestId) {
+    try {
+      const result = await db.getQuery()(
+        'SELECT processed FROM guest_user_mapping WHERE guest_id = $1',
+        [guestId]
+      );
+      
+      return result.rows.length > 0 && result.rows[0].processed === true;
+    } catch (error) {
+      logger.error(`[isGuestIdProcessed] Error checking guest ID ${guestId}:`, error);
+      return false;
     }
   }
 
@@ -119,9 +135,6 @@ class SessionService {
    */
   async processGuestMessagesWrapper(userId, guestId) {
     try {
-      logger.info(
-        `[processGuestMessagesWrapper] Processing messages: userId=${userId}, guestId=${guestId}`
-      );
       return await processGuestMessages(userId, guestId);
     } catch (error) {
       logger.error(`[processGuestMessagesWrapper] Error: ${error.message}`, error);
@@ -261,6 +274,29 @@ class SessionService {
   }
 
   /**
+   * Очищает все массивы processedGuestIds из сессий в базе данных
+   * @returns {Promise<boolean>} - Результат операции
+   */
+  async cleanupProcessedGuestIds() {
+    try {
+      logger.info('[SessionService] Starting cleanup of processedGuestIds from sessions');
+      
+      // Используем один SQL-запрос для обновления всех сессий
+      const result = await db.getQuery()(
+        `UPDATE session 
+         SET sess = (sess::jsonb - 'processedGuestIds')::json
+         WHERE sess::text LIKE '%"processedGuestIds"%'`
+      );
+      
+      logger.info(`[SessionService] Cleaned processedGuestIds from ${result.rowCount} sessions`);
+      return true;
+    } catch (error) {
+      logger.error('[SessionService] Error during cleanup:', error);
+      return false;
+    }
+  }
+
+  /**
    * Очищает данные аутентификации в сессии
    * @param {object} session - Объект сессии
    * @returns {Promise<boolean>} - Результат операции
@@ -285,6 +321,11 @@ class SessionService {
       delete session.telegramId;
       delete session.telegramUsername;
       delete session.telegramFirstName;
+
+      // Очищаем массив processedGuestIds для экономии места
+      if (session.processedGuestIds) {
+        delete session.processedGuestIds;
+      }
 
       // Восстанавливаем гостевой ID для продолжения работы
       if (guestId) {

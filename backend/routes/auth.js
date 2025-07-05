@@ -457,8 +457,7 @@ router.post('/telegram/init', async (req, res) => {
     // и получаем результат (код и ссылку на бота)
     const result = await initTelegramAuth(req.session);
 
-    // Логируем сессию перед сохранением
-    logger.info('[telegram/init] Session object before save:', req.session);
+
 
     // Сохраняем сессию, чтобы guestId точно записался в базу данных
     await sessionService.saveSession(req.session);

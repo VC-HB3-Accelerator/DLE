@@ -15437,3 +15437,1566 @@
 {"level":"info","message":"GET /api/dle","timestamp":"2025-07-04T13:48:08.926Z"}
 {"level":"info","message":"No new messages found","timestamp":"2025-07-04T13:48:23.769Z"}
 {"level":"info","message":"No new messages found","timestamp":"2025-07-04T13:48:24.475Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-04T21:13:40.151Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-04T21:13:40.154Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-04T21:13:40.154Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-04T21:13:40.155Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-04T21:13:40.155Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-04T21:13:40.156Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-04T21:13:40.187Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-04T21:13:40.208Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-04T21:13:40.264Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-04T21:13:40.266Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:13:41.211Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:13:41.218Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:13:41.343Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:13:41.355Z"}
+{"level":"info","message":"POST /api/chat/process-guest","timestamp":"2025-07-04T21:13:41.416Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1751663617418-gdc7qdpf8","timestamp":"2025-07-04T21:13:41.419Z"}
+{"level":"info","message":"Created mapping for guest ID 1751663617418-gdc7qdpf8 to user 1","timestamp":"2025-07-04T21:13:41.450Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:13:41.461Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:13:41.462Z"}
+{"level":"info","message":"No guest messages found for guest ID 1751663617418-gdc7qdpf8","timestamp":"2025-07-04T21:13:41.464Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:13:41.493Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:13:41.498Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 1751663617418-gdc7qdpf8","timestamp":"2025-07-04T21:13:41.498Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:13:41.521Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:13:41.523Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:13:41.535Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:13:41.537Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:13:41.552Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:13:41.557Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-04T21:13:43.622Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-04T21:13:43.646Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-04T21:13:43.654Z","total":158}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:13:45.482Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-04T21:13:45.483Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-04T21:13:58.811Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:13:59.334Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:13:59.336Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:14:03.550Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:14:12.170Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:14:12.175Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:14:42.233Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:14:42.239Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:15:06.570Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:15:12.845Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:15:12.849Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:15:43.173Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:15:43.176Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:16:13.279Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:16:13.537Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:16:13.544Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:16:43.834Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:16:43.839Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:17:19.858Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:17:20.297Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:17:20.305Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:17:44.513Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:17:44.533Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:18:11.508Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:11.512Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:18:30.223Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:18:36.231Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:36.234Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:18:36.263Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:36.267Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:18:36.288Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:36.292Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:18:36.313Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:36.316Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:18:36.329Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:36.331Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:18:36.343Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:18:36.344Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:18:36.348Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:18:36.351Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:19:06.710Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:19:06.713Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:19:36.844Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:19:37.012Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:19:37.018Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:20:07.431Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:20:07.434Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-04T21:20:31.379Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-04T21:20:31.401Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-04T21:20:31.406Z","total":158}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:20:37.683Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:20:37.686Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.495Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-07-04T21:20:44.495Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:20:44.496Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-04T21:20:53.571Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-04T21:20:53.588Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-04T21:20:53.594Z","total":158}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-07-04T21:20:54.495Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:20:54.967Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:20:54.969Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:20:55.543Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:21:08.095Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:08.101Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:21:19.742Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:19.758Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:21:19.813Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:19.821Z"}
+{"level":"info","message":"POST /api/chat/process-guest","timestamp":"2025-07-04T21:21:19.848Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1751664025118-tazkv68ya","timestamp":"2025-07-04T21:21:19.855Z"}
+{"level":"info","message":"Created mapping for guest ID 1751664025118-tazkv68ya to user 1","timestamp":"2025-07-04T21:21:19.877Z"}
+{"level":"info","message":"No guest messages found for guest ID 1751664025118-tazkv68ya","timestamp":"2025-07-04T21:21:19.888Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 1751664025118-tazkv68ya","timestamp":"2025-07-04T21:21:19.895Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:21:19.900Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:19.913Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:21:19.926Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:21:19.927Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:21:19.935Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:19.939Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:21:19.953Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:19.957Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:21:19.969Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:19.971Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-04T21:21:21.287Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-04T21:21:21.335Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-04T21:21:21.366Z","total":158}
+{"level":"info","message":"GET /api/ipfs-caddy/status","timestamp":"2025-07-04T21:21:31.960Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:21:46.530Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:21:50.971Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:21:50.975Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:22:02.227Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:22:21.365Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:22:21.369Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:22:51.707Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:22:51.714Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:22:53.298Z"}
+{"level":"info","message":"POST /api/ipfs-caddy/install","timestamp":"2025-07-04T21:23:06.757Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:23:08.919Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:23:22.028Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:23:22.031Z"}
+{"level":"info","message":"POST /api/ipfs-caddy/install","timestamp":"2025-07-04T21:23:38.518Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:23:52.307Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:23:52.309Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-04T21:24:05.723Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-04T21:24:05.727Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-04T21:24:05.728Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-04T21:24:05.730Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-04T21:24:05.731Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-04T21:24:05.731Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-04T21:24:05.764Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-04T21:24:05.775Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-04T21:24:05.826Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-04T21:24:05.826Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:24:09.970Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:24:09.974Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:24:10.543Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-04T21:24:13.247Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-04T21:24:13.250Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-04T21:24:13.250Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-04T21:24:13.251Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-04T21:24:13.251Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-04T21:24:13.252Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-04T21:24:13.273Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-04T21:24:13.281Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-04T21:24:13.329Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-04T21:24:13.330Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:24:13.898Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:24:13.900Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-04T21:24:19.689Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-04T21:24:19.694Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-04T21:24:19.694Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-04T21:24:19.695Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-04T21:24:19.695Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-04T21:24:19.696Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-04T21:24:19.720Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-04T21:24:19.731Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-04T21:24:19.776Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-04T21:24:19.777Z"}
+{"level":"info","message":"GET /api/ipfs-caddy/status","timestamp":"2025-07-04T21:24:28.338Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:24:28.352Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-04T21:24:28.353Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:24:37.029Z"}
+{"cookie":{"expires":"2025-08-03T21:24:37.022Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"fab2b10236b712e62c37725adf0c245f","level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-07-04T21:24:37.031Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-07-04T21:24:37.036Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-04T21:24:38.353Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:24:38.839Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:24:38.842Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:24:39.453Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:25:17.007Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:17.018Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:25:19.225Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:19.227Z"}
+{"level":"info","message":"POST /api/ipfs-caddy/install","timestamp":"2025-07-04T21:25:23.580Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-04T21:25:49.625Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-04T21:25:49.631Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-04T21:25:49.632Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-04T21:25:49.633Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-04T21:25:49.633Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-04T21:25:49.634Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-04T21:25:49.664Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-04T21:25:49.682Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-04T21:25:49.736Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-04T21:25:49.736Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:25:50.305Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:25:50.308Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:25:50.460Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:50.464Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:25:50.495Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:50.499Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:25:50.524Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:50.531Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:25:50.573Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:50.578Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:25:50.590Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:25:50.592Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:25:50.622Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:50.626Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:25:50.650Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:25:50.656Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:25:50.852Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:26:21.529Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:26:21.537Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:26:51.936Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:26:51.942Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:27:02.147Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-04T21:27:02.148Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:27:02.148Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:27:02.149Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-04T21:27:15.487Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:27:15.984Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:27:15.985Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:27:16.553Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:27:22.258Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:27:22.261Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:27:52.541Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:27:52.545Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:28:04.206Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:28:22.926Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:22.930Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.860Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-07-04T21:28:27.860Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.860Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.861Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:27.861Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:28:35.683Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:35.688Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:28:35.714Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:35.719Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:28:35.739Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:35.743Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:28:35.757Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:35.759Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:28:35.773Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:28:35.778Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:28:35.779Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:35.779Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:28:35.791Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:28:35.795Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-07-04T21:28:37.861Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:28:43.060Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:29:06.767Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:29:06.771Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:29:10.786Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:29:10.788Z"}
+{"level":"error","message":"Uncaught Exception: Not authenticated","stack":"Error: Not authenticated\n    at Connection.openBox (/app/node_modules/imap/lib/Connection.js:409:11)\n    at Connection.<anonymous> (/app/services/emailBot.js:105:19)\n    at Object.onceWrapper (node:events:638:28)\n    at Connection.emit (node:events:536:35)\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:1623:12)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)","timestamp":"2025-07-04T21:29:10.790Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:29:14.994Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:29:29.821Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:29:37.095Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:29:37.099Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:30:07.427Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:30:07.429Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-04T21:30:17.484Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-04T21:30:21.482Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-04T21:30:21.484Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-04T21:30:21.485Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-04T21:30:21.485Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-04T21:30:21.485Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-04T21:30:21.486Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-04T21:30:21.503Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-04T21:30:21.510Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-04T21:30:21.539Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-04T21:30:21.540Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:30:22.071Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:30:22.073Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:30:30.493Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-04T21:30:30.493Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:30:30.494Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:30:37.708Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:30:37.712Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-04T21:30:40.496Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:30:45.693Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-07-04T21:30:45.694Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-07-04T21:30:55.695Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-04T21:30:56.147Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-04T21:30:56.150Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:30:56.782Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:31:08.038Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:08.042Z"}
+{"level":"info","message":"GET /api/ipfs-caddy/site-cid","timestamp":"2025-07-04T21:31:28.794Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:31:32.842Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:31:38.411Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:38.415Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:31:57.650Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:57.656Z"}
+{"level":"info","message":"GET /api/ipfs-caddy/site-cid","timestamp":"2025-07-04T21:31:57.686Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:31:57.710Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:57.714Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-04T21:31:57.728Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:57.731Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:31:57.732Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-04T21:31:57.733Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:31:57.767Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:57.771Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:31:57.787Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:57.790Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:31:57.804Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:31:57.805Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:32:10.336Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:32:28.490Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:32:28.493Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:32:35.918Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:32:58.885Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:32:58.895Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:33:17.089Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:33:29.223Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:33:29.226Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:33:42.580Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:33:59.560Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:33:59.566Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:34:16.817Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:34:29.475Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:34:29.478Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.254Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-04T21:34:57.255Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:35:00.217Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:35:00.221Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:35:23.509Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:35:23.549Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:35:30.556Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:35:30.559Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:35:55.972Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:35:57.137Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:35:57.141Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:36:27.829Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:36:27.837Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:36:30.052Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:36:58.169Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:36:58.175Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:37:02.567Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:37:43.711Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-04T21:37:59.789Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-04T21:37:59.791Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-04T21:38:12.896Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T08:53:14.861Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T08:53:14.864Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T08:53:14.864Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T08:53:14.865Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T08:53:14.865Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T08:53:14.865Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T08:53:14.906Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T08:53:14.917Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T08:53:14.984Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T08:53:14.985Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T08:53:24.175Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-05T08:53:24.176Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-05T08:53:28.104Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T08:53:35.086Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T08:53:35.088Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T08:53:39.968Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T08:54:39.172Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T08:55:45.126Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T08:56:54.465Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T08:57:23.270Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:23.318Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:57:23.381Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:23.388Z"}
+{"level":"info","message":"POST /api/chat/process-guest","timestamp":"2025-07-05T08:57:23.444Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1751705837366-mlyaejjdg","timestamp":"2025-07-05T08:57:23.448Z"}
+{"level":"info","message":"Created mapping for guest ID 1751705837366-mlyaejjdg to user 1","timestamp":"2025-07-05T08:57:23.472Z"}
+{"level":"info","message":"No guest messages found for guest ID 1751705837366-mlyaejjdg","timestamp":"2025-07-05T08:57:23.487Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 1751705837366-mlyaejjdg","timestamp":"2025-07-05T08:57:23.492Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T08:57:23.527Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T08:57:23.535Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T08:57:23.536Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:23.552Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:57:23.701Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:23.708Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:57:23.730Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:23.737Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:57:23.761Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:23.765Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-05T08:57:24.896Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-05T08:57:24.950Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-05T08:57:24.966Z","total":158}
+{"level":"info","message":"GET /api/ipfs-caddy/site-cid","timestamp":"2025-07-05T08:57:31.723Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:57:54.185Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:57:54.189Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T08:57:59.370Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:58:21.471Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:58:21.474Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:58:51.942Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:58:51.947Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T08:59:05.289Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:59:22.179Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:59:22.182Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T08:59:52.199Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T08:59:52.202Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:00:10.462Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:00:22.501Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:00:22.505Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:00:52.868Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:00:52.875Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:01:12.150Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:01:54.205Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:01:54.207Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:02:21.504Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:02:55.586Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:02:55.605Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.719Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-07-05T09:03:27.719Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:03:27.720Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-07-05T09:03:37.725Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T09:03:42.383Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T09:03:42.385Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:03:43.509Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:03:56.920Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:03:56.939Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:32.829Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:32.829Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:32.829Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:04:53.116Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:04:55.757Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:04:55.760Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:05:24.892Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:05:24.899Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:05:34.330Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:05:34.424Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:05:34.518Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:05:54.571Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:05:54.578Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:05:58.665Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:05:58.666Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:06:22.587Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:06:22.590Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:06:43.823Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:06:52.857Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:06:52.875Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:07:03.898Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:07:03.996Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:07:04.082Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:07:23.011Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:07:23.014Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:07:48.919Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:07:53.269Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:07:53.272Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:08:05.628Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:08:23.531Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:08:23.535Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:08:53.771Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:08:53.775Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:08:54.498Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:09:10.923Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:09:23.990Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:09:23.994Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:09:59.716Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:10:19.864Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:10:19.868Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.491Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.492Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:10:20.492Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:11:01.574Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:11:01.705Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:11:20.340Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:11:20.344Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:11:25.271Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:12:06.907Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:12:20.759Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:12:20.764Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.430Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.431Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.432Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T09:12:31.432Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:13:06.474Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:13:06.481Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:13:12.239Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T09:13:12.306Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T09:13:23.092Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T09:13:23.096Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T18:40:55.556Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T18:40:55.560Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T18:40:55.561Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T18:40:55.563Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T18:40:55.563Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T18:40:55.564Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T18:40:55.619Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T18:40:55.633Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T18:40:55.705Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T18:40:55.707Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T18:40:56.389Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T18:40:56.396Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:40:56.999Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:42:07.336Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:43:10.335Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:44:16.975Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:45:27.430Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.929Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-05T18:46:34.930Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.930Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.930Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:46:34.931Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-05T18:46:48.277Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T18:46:52.477Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T18:46:52.479Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:46:56.786Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:47:37.041Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:48:03.414Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:48:47.447Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:49:10.081Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:49:50.324Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:50:16.800Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:51:00.605Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:51:19.898Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:52:03.705Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:52:26.486Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.933Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-07-05T18:53:14.934Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.935Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.935Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.936Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:14.937Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-07-05T18:53:28.269Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T18:53:28.775Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T18:53:28.776Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:53:33.202Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:53:33.242Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:33.976Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:33.977Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:53:33.977Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:54:17.042Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:54:36.117Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:54:43.379Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:55:23.790Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:55:42.774Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:55:50.093Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:56:30.374Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:56:49.363Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:56:56.775Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:57:40.572Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:57:59.836Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:57:59.874Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.676Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.677Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.678Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:00.678Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:58:48.278Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:59:02.762Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:59:02.797Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:59:11.087Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T18:59:11.087Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T18:59:33.709Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T18:59:33.734Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T18:59:33.789Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T18:59:33.795Z"}
+{"level":"info","message":"POST /api/chat/process-guest","timestamp":"2025-07-05T18:59:33.841Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1751741967562-q98lrxw5d","timestamp":"2025-07-05T18:59:33.842Z"}
+{"level":"info","message":"Created mapping for guest ID 1751741967562-q98lrxw5d to user 1","timestamp":"2025-07-05T18:59:33.863Z"}
+{"level":"info","message":"No guest messages found for guest ID 1751741967562-q98lrxw5d","timestamp":"2025-07-05T18:59:33.871Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 1751741967562-q98lrxw5d","timestamp":"2025-07-05T18:59:33.876Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T18:59:33.882Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T18:59:33.883Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T18:59:33.889Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T18:59:33.893Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T18:59:33.932Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T18:59:33.935Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T18:59:33.947Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T18:59:33.949Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T18:59:33.962Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T18:59:33.964Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-05T18:59:35.400Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-05T18:59:35.431Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-05T18:59:35.441Z","total":158}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:59:53.968Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T18:59:54.006Z"}
+{"level":"info","message":"GET /api/ipfs-caddy/site-cid","timestamp":"2025-07-05T18:59:58.489Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:00:04.297Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:00:04.300Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:00:09.419Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:00:16.789Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:00:31.315Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:00:31.317Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.557Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.558Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.558Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:01.558Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:01:01.877Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:01:01.881Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:01:19.881Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:01:19.921Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:01:19.966Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:20.679Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:01:20.679Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:01:32.214Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:01:32.217Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:02:02.546Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:02:02.549Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:02:08.281Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:02:27.341Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:02:27.342Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:02:32.885Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:02:32.888Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:03:03.433Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:03:03.486Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:03:14.921Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:03:33.555Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:03:33.593Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:03:33.633Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:03:33.673Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:03:33.711Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:03:33.749Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:03:34.104Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:03:34.104Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:03:44.198Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:03:44.216Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:04:03.882Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:04:03.886Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:04:17.094Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:04:34.224Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:04:34.228Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:04:40.182Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:04:40.226Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:04:40.711Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:04:40.712Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:04:40.712Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:05:14.434Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:05:14.438Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:05:24.137Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:05:46.917Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:05:47.002Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:05:47.493Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:05:47.494Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:05:47.494Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:06:15.076Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:06:15.082Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:06:34.498Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:06:49.925Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:06:53.796Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:07:12.422Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:07:12.426Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:07:37.609Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:07:56.884Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.642Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:08:04.643Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:08:13.097Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:08:13.103Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:08:48.023Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:08:48.072Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:09:07.145Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:09:07.198Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:07.514Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:07.515Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:07.515Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:09:13.783Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:09:13.793Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:09:55.004Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:10:14.238Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:10:14.239Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:10:14.384Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:10:14.389Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:10:57.765Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:10:57.801Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:10:57.855Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:10:57.921Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:11:15.073Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:11:15.077Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:11:16.657Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:11:24.583Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:11:24.587Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:11:24.588Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:12:04.353Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:12:04.442Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:12:12.434Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:12:12.438Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:12:27.413Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:12:27.510Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:12:27.512Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:12:27.512Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:12:27.513Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:13:10.856Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:13:13.093Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:13:13.096Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:13:30.047Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:13:37.637Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:14:13.774Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:14:13.777Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:14:20.976Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:14:36.595Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:14:43.467Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:15:14.440Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:15:14.447Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:15:27.335Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.485Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.486Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.487Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.487Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:15:47.488Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:16:15.101Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:16:15.107Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:16:30.919Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:16:31.011Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:16:31.064Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:16:53.668Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:16:53.726Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:16:54.457Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:16:54.458Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:16:54.458Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:17:12.438Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:17:12.441Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:17:41.916Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:17:45.239Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:17:45.244Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:18:00.784Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:18:00.784Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:18:03.201Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:18:03.206Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:18:33.543Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:18:33.549Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:18:44.807Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:18:44.899Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:18:44.991Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:18:45.083Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:19:03.819Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:19:03.824Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:19:07.422Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:19:07.423Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:19:07.423Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:19:50.918Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:20:05.431Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:20:05.436Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:20:10.126Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:20:17.463Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:20:57.008Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:21:03.658Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:21:03.670Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.991Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.992Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.993Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:21:20.993Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:22:05.203Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:22:05.209Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:22:08.085Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:22:08.121Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:22:08.156Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:22:27.243Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:22:27.280Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:22:27.568Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:22:27.568Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:22:27.569Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:23:07.346Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:23:07.350Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:23:10.628Z"}
+{"level":"error","message":"IMAP connection error during check: write after end","timestamp":"2025-07-05T19:23:29.108Z"}
+{"level":"error","message":"IMAP connection error during check: write after end","timestamp":"2025-07-05T19:23:29.108Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:23:33.743Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:23:33.824Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:24:08.347Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:24:08.356Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:24:21.217Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:24:40.124Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:24:40.309Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.889Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.890Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.890Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:24:40.890Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:25:09.926Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:25:09.929Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:25:28.668Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:25:42.955Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:25:43.002Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:25:50.177Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:26:11.491Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:26:11.498Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:26:33.918Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:26:49.859Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:26:57.186Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:27:09.746Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:27:09.758Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:27:40.726Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:27:56.649Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:28:00.238Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:28:11.498Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:28:11.501Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:28:47.732Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:29:06.521Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:29:06.612Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.497Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.497Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.498Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:29:07.499Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:29:12.829Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:29:12.833Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:29:54.538Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:30:10.165Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:30:14.111Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:30:14.402Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:30:14.413Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:30:57.652Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:31:15.078Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:31:15.081Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:31:16.911Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.682Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.683Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:31:24.683Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:32:04.366Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:32:04.458Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:32:12.393Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:32:12.397Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:32:23.316Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:32:31.089Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:32:31.090Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:32:31.090Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:33:13.104Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:33:13.122Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:33:14.523Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:33:14.667Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:33:33.543Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:33:33.652Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:33:34.415Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:33:34.415Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:33:34.416Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:34:13.732Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:34:13.736Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:34:21.303Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:34:40.859Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:34:40.861Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:34:40.861Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:35:14.408Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:35:14.412Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:35:24.471Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:35:24.568Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:35:24.664Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:35:43.350Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:35:47.182Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:35:57.471Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:35:57.477Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:36:01.610Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:36:01.628Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:36:32.174Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:36:32.180Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.004Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.008Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:35.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:54.176Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:36:54.177Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:37:12.435Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:37:12.438Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:37:40.788Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:37:40.826Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:37:40.865Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:37:40.906Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:37:44.165Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:37:44.170Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:37:59.957Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:38:00.033Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:38:00.883Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:38:00.884Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:38:00.886Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:38:03.186Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:38:03.189Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:38:33.534Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:38:33.538Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:38:47.804Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:39:03.742Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:39:07.138Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:39:13.742Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:39:13.746Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:39:55.053Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:40:14.258Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:40:14.259Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:40:14.390Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:40:14.394Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:40:57.888Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:40:57.931Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:40:57.971Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:40:58.010Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:41:15.077Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:41:15.081Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:41:16.984Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:41:20.578Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.418Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.419Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.419Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:08.419Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:42:12.372Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:42:12.388Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:27.622Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:42:27.623Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:43:11.230Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:43:11.321Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:43:11.413Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:43:11.504Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:43:13.080Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:43:13.085Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:43:34.383Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:43:34.385Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:43:34.385Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:44:13.755Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:44:13.761Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:44:21.795Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:44:37.245Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:44:37.413Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:44:37.460Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:44:37.544Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:44:44.785Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:44:44.786Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:45:14.427Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:45:14.431Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:45:24.841Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:45:25.119Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T19:45:31.289Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T19:45:31.294Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:45:47.637Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:45:47.638Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:45:47.638Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:46:35.188Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:46:50.211Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:46:50.307Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:46:50.358Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:46:50.467Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:46:57.364Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:47:41.684Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:47:41.684Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:47:41.685Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:47:56.382Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:47:56.439Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:48:00.107Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:48:47.493Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:49:03.368Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:49:06.813Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:49:50.822Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:50:13.481Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:50:13.727Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.449Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.450Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.451Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:50:14.451Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:51:01.463Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:51:16.535Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:51:24.074Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:52:04.270Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:52:23.363Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.318Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.319Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:52:31.320Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:53:10.645Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:53:10.688Z"}
+{"level":"error","message":"Uncaught Exception: Cannot set properties of undefined (setting 'name')","stack":"TypeError: Cannot set properties of undefined (setting 'name')\n    at Connection.<anonymous> (/app/node_modules/imap/lib/Connection.js:431:22)\n    at Connection._resTagged (/app/node_modules/imap/lib/Connection.js:1535:22)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:194:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resTagged (/app/node_modules/imap/lib/Parser.js:175:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:139:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)","timestamp":"2025-07-05T19:53:33.130Z"}
+{"level":"error","message":"Uncaught Exception: Cannot read properties of undefined (reading 'type')","stack":"TypeError: Cannot read properties of undefined (reading 'type')\n    at Connection._resUntagged (/app/node_modules/imap/lib/Connection.js:1265:52)\n    at Parser.<anonymous> (/app/node_modules/imap/lib/Connection.js:191:10)\n    at Parser.emit (node:events:524:28)\n    at Parser._resUntagged (/app/node_modules/imap/lib/Parser.js:271:10)\n    at Parser._parse (/app/node_modules/imap/lib/Parser.js:137:16)\n    at Parser._tryread (/app/node_modules/imap/lib/Parser.js:82:15)\n    at Parser._cbReadable (/app/node_modules/imap/lib/Parser.js:53:12)\n    at TLSSocket.emit (node:events:524:28)\n    at emitReadable_ (node:internal/streams/readable:834:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:81:21)","timestamp":"2025-07-05T19:53:33.218Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:53:34.200Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:53:34.201Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:53:34.201Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:54:17.215Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:54:36.307Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:54:43.480Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T19:55:27.554Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T19:55:47.542Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:09:48.334Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:09:48.338Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:09:48.338Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:09:48.339Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:09:48.339Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:09:48.339Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:09:48.388Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:09:48.398Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:09:48.469Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:09:48.471Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:09:53.299Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:09:53.302Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:09:54.496Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:10:49.087Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:10:49.109Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:10:49.242Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:10:49.248Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:10:49.312Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:10:49.315Z"}
+{"level":"info","message":"POST /api/chat/process-guest","timestamp":"2025-07-05T21:10:49.371Z"}
+{"level":"info","message":"Processing guest messages for user 1 with guest ID 1751749844008-be8p1lisl","timestamp":"2025-07-05T21:10:49.373Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:10:49.376Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:10:49.383Z"}
+{"level":"info","message":"Created mapping for guest ID 1751749844008-be8p1lisl to user 1","timestamp":"2025-07-05T21:10:49.410Z"}
+{"level":"info","message":"No guest messages found for guest ID 1751749844008-be8p1lisl","timestamp":"2025-07-05T21:10:49.419Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:10:49.425Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:10:49.429Z"}
+{"level":"info","message":"Marked guest mapping as processed (no messages found) for guest ID 1751749844008-be8p1lisl","timestamp":"2025-07-05T21:10:49.433Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T21:10:49.445Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T21:10:49.447Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:10:49.453Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:10:49.461Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-05T21:10:51.027Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-05T21:10:51.055Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-05T21:10:51.067Z","total":158}
+{"level":"info","message":"GET /api/monitoring/health","timestamp":"2025-07-05T21:10:56.971Z"}
+{"level":"info","message":"GET /api/monitoring/health","timestamp":"2025-07-05T21:11:04.230Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:11:04.793Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:11:14.596Z"}
+{"cookie":{"expires":"2025-08-04T21:11:14.586Z","httpOnly":true,"originalMaxAge":2592000000,"path":"/","sameSite":"lax","secure":false},"guestId":"600d8290e5f2cb76687c378c4429473f","level":"info","message":"[SessionService] Saving session data:","timestamp":"2025-07-05T21:11:14.597Z"}
+{"level":"info","message":"Session saved successfully","timestamp":"2025-07-05T21:11:14.600Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-07-05T21:11:16.285Z"}
+{"level":"info","message":"GET /api/users/read-contacts-status","timestamp":"2025-07-05T21:11:17.987Z"}
+{"level":"info","message":"GET /api/tags","timestamp":"2025-07-05T21:11:18.018Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-07-05T21:11:18.093Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-07-05T21:11:18.134Z"}
+{"level":"info","message":"GET /api/messages/read-status","timestamp":"2025-07-05T21:11:18.186Z"}
+{"level":"info","message":"GET /api/messages","timestamp":"2025-07-05T21:11:18.220Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:11:19.742Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:11:19.745Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:11:50.732Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:11:50.737Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:12:11.190Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:12:21.065Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:12:21.068Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:12:51.387Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:12:51.393Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:13:18.416Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:13:18.421Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.670Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:18.671Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:13:29.080Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:13:29.085Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:29.086Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:29.087Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:13:29.087Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:13:29.088Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:13:29.125Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:13:29.139Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:13:29.213Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:13:29.214Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:13:34.074Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:13:34.078Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:34.078Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:34.079Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:13:34.079Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:13:34.080Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:13:34.103Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:13:34.113Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:13:34.157Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:13:34.160Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:13:35.227Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:13:35.230Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:40.553Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-05T21:13:40.554Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:13:40.555Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:13:43.284Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:13:43.287Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:43.288Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:43.289Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:13:43.289Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:13:43.289Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:13:43.316Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:13:43.328Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:13:43.419Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:13:43.420Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:13:48.742Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:13:48.745Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:48.745Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:13:48.746Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:13:48.746Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:13:48.747Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:13:48.772Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:13:48.784Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:13:48.823Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:13:48.825Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:13:50.083Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:13:50.087Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:13:51.216Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:14:37.534Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:14:37.537Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:14:37.538Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:14:37.538Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:14:37.539Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:14:37.539Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:14:37.565Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:14:37.575Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:14:37.635Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:14:37.637Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:14:38.770Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:14:38.772Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:14:39.783Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:14:45.207Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:14:45.211Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:14:45.211Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:14:45.212Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:14:45.212Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:14:45.213Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:14:45.241Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:14:45.251Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:14:45.286Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:14:45.288Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:14:46.788Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:14:46.791Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:14:48.078Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:15:14.375Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:15:14.382Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:15:54.648Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:16:15.008Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:16:15.027Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:17:01.141Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:17:12.329Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:17:12.334Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:17:19.392Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:17:19.397Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:19.397Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:19.398Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:17:19.398Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:17:19.399Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:17:19.425Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:17:19.436Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:17:19.475Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:17:19.477Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:17:20.617Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:17:20.620Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:17:21.912Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:17:27.727Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:17:27.732Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:27.733Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:27.734Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:17:27.735Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:17:27.735Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:17:27.773Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:17:27.786Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:17:27.862Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:17:27.863Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:17:32.508Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:17:32.512Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:17:33.755Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:17:35.321Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:17:35.324Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:35.324Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:35.325Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:17:35.325Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:17:35.325Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:17:35.347Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:17:35.357Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:17:35.404Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:17:35.405Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:17:36.377Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:17:36.380Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:17:41.261Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:17:43.219Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:17:43.221Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:43.222Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:43.222Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:17:43.223Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:17:43.223Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:17:43.250Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:17:43.260Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:17:43.303Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:17:43.305Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:17:51.973Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:17:51.979Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:51.980Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:51.982Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:17:51.983Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:17:51.984Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:17:52.016Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:17:52.030Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:17:52.103Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:17:52.105Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:17:53.579Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:17:53.583Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:53.584Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:17:53.585Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:17:53.586Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:17:53.587Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:17:53.624Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:17:53.638Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:17:53.694Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:17:53.695Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:17:54.803Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:17:54.806Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:17:55.910Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:18:11.518Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:18:11.521Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:18:11.522Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:18:11.522Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:18:11.523Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:18:11.523Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:18:11.556Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:18:11.568Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:18:11.613Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:18:11.614Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:18:12.829Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:18:12.831Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:18:13.003Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:18:13.008Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:18:13.790Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:18:32.624Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:18:32.627Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:18:32.627Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:18:32.628Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:18:32.628Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:18:32.629Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:18:32.659Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:18:32.667Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:18:32.703Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:18:32.705Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:18:33.824Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:18:33.827Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:18:36.757Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:18:38.526Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:19:13.656Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:19:13.669Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:19:41.703Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:20:14.335Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:14.341Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:20:48.413Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:20:49.612Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:49.627Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:20:49.714Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:49.723Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:20:49.756Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:49.761Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T21:20:49.810Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T21:20:49.813Z"}
+{"level":"info","message":"GET /api/users/read-contacts-status","timestamp":"2025-07-05T21:20:50.000Z"}
+{"level":"info","message":"GET /api/tags","timestamp":"2025-07-05T21:20:50.029Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:20:50.109Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:50.117Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-07-05T21:20:50.132Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:20:50.156Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:50.163Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-07-05T21:20:50.193Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:20:50.202Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:20:50.217Z"}
+{"level":"info","message":"GET /api/messages/read-status","timestamp":"2025-07-05T21:20:50.242Z"}
+{"level":"info","message":"GET /api/messages","timestamp":"2025-07-05T21:20:50.273Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:21:21.314Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:21:21.325Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:21:51.608Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:21:51.614Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:21:58.581Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:22:21.973Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:22:21.978Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:22:52.289Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:22:52.299Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:23:01.360Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:23:05.153Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:23:19.276Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:23:19.287Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:23:49.641Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:23:49.656Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:24:08.513Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:24:19.957Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:24:19.969Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:24:50.264Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:24:50.282Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:25:14.974Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:25:20.678Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:25:20.682Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:25:41.879Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:25:51.019Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:25:51.037Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:26:16.199Z"}
+{"level":"error","message":"[SessionService] Error cleaning session NNzFlSqL-TP1U2wa0GL9tgqO7QsdgZVB: Cannot use a pool after calling end on the pool","stack":"Error: Cannot use a pool after calling end on the pool\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:295:13)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:26:16.251Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.952Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-05T21:26:25.953Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.954Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:26:25.955Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-05T21:26:35.962Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:26:40.576Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:26:40.577Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:26:48.789Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:26:52.536Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:26:52.542Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:27:21.927Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:27:21.931Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:21.931Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:21.932Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:27:21.932Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:27:21.933Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:27:21.960Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:27:21.972Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:27:22.014Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:27:22.015Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:27:22.858Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:27:22.862Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:27:23.908Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:27:29.178Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:27:29.186Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:29.187Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:29.190Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:27:29.190Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:27:29.215Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:27:29.243Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:27:29.254Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:27:29.301Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:27:29.301Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:27:30.304Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:27:30.306Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:27:31.466Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:27:35.743Z"}
+{"level":"info","message":"[SessionService] Found 16 sessions with processedGuestIds","timestamp":"2025-07-05T21:27:35.788Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:27:52.759Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:27:52.763Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:52.763Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:52.764Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:27:52.764Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:27:52.764Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:27:52.790Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:27:52.800Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:27:52.844Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:27:52.845Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:27:53.953Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:27:53.955Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:27:54.107Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:27:54.118Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:27:55.059Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:27:58.984Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:27:58.995Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:58.996Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:27:58.997Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:27:58.997Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:27:58.997Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:27:59.045Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:27:59.071Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:27:59.136Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:27:59.139Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:28:00.220Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:28:00.222Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:28:03.593Z"}
+{"level":"info","message":"[SessionService] Found 16 sessions with processedGuestIds","timestamp":"2025-07-05T21:28:03.633Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:28:05.106Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:28:18.504Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:28:18.509Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:28:40.644Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:28:40.646Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:28:40.647Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:28:40.647Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:28:40.648Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:28:40.648Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:28:40.674Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:28:40.686Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:28:40.732Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:28:40.734Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:28:46.419Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:28:46.422Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:28:46.423Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:28:46.423Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:28:46.424Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:28:46.424Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:28:46.460Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:28:46.471Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:28:46.544Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:28:46.547Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:28:47.637Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:28:47.639Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:28:48.887Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:28:49.651Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:28:49.670Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:28:50.615Z"}
+{"code":"42883","file":"parse_func.c","hint":"No function matches the given name and argument types. You might need to add explicit type casts.","length":224,"level":"error","line":"629","message":"[SessionService] Error during cleanup: function jsonb_set(json, unknown, jsonb) does not exist","name":"error","position":"37","routine":"ParseFuncOrColumn","severity":"ERROR","stack":"error: function jsonb_set(json, unknown, jsonb) does not exist\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:285:22)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:28:50.654Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:29:02.745Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:29:02.749Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:02.750Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:02.752Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:29:02.753Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:29:02.755Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:29:02.783Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:29:02.794Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:29:02.874Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:29:02.876Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:29:10.135Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:29:10.139Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:10.140Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:10.143Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:29:10.144Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:29:10.146Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:29:10.189Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:29:10.219Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:29:10.279Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:29:10.282Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:29:11.099Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:29:11.103Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:29:12.677Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:29:17.372Z"}
+{"code":"42883","file":"parse_oper.c","hint":"No operator matches the given name and argument types. You might need to add explicit type casts.","length":199,"level":"error","line":"647","message":"[SessionService] Error during cleanup: operator does not exist: json - unknown","name":"error","position":"42","routine":"op_error","severity":"ERROR","stack":"error: operator does not exist: json - unknown\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async SessionService.cleanupProcessedGuestIds (/app/services/session-service.js:285:22)\n    at async cleanupSessions (/app/scripts/cleanup-sessions.js:8:20)","timestamp":"2025-07-05T21:29:17.406Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:29:26.874Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:29:26.878Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:26.878Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:26.879Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:29:26.880Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:29:26.880Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:29:26.905Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:29:26.914Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:29:26.951Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:29:26.952Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:29:31.340Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:29:31.344Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data","timestamp":"2025-07-05T21:29:34.775Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data","timestamp":"2025-07-05T21:29:34.782Z"}
+{"level":"info","message":"Директория существует: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:34.783Z"}
+{"level":"info","message":"Директория доступна для записи: /app/contracts-data/dles","timestamp":"2025-07-05T21:29:34.793Z"}
+{"level":"info","message":"Директория существует: /app/temp","timestamp":"2025-07-05T21:29:34.794Z"}
+{"level":"info","message":"Директория доступна для записи: /app/temp","timestamp":"2025-07-05T21:29:34.806Z"}
+{"level":"info","message":"Ethers version: 6.13.5","timestamp":"2025-07-05T21:29:34.882Z"}
+{"level":"info","message":"[EmailBot] start() called","timestamp":"2025-07-05T21:29:34.898Z"}
+{"connTimeout":30000,"host":"mail.hostland.ru","keepalive":{"forceNoop":true,"idleInterval":300000,"interval":10000},"level":"info","message":"[EmailBot] IMAP config:","password":"***","port":993,"timestamp":"2025-07-05T21:29:34.988Z","tls":true,"tlsOptions":{"rejectUnauthorized":false},"user":"info@hb3-accelerator.com"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 1","timestamp":"2025-07-05T21:29:34.990Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:29:35.942Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:29:35.945Z"}
+{"level":"info","message":"[SessionService] Starting cleanup of processedGuestIds from sessions","timestamp":"2025-07-05T21:29:39.664Z"}
+{"level":"info","message":"[SessionService] Cleaned processedGuestIds from 16 sessions","timestamp":"2025-07-05T21:29:39.724Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:29:40.740Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:30:14.335Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:30:14.351Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:30:47.775Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:31:15.018Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:31:15.028Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:31:50.492Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:32:12.351Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:32:12.359Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:33:00.795Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:33:02.355Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:02.364Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:33:09.603Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:09.609Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:33:09.663Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:09.670Z"}
+{"level":"info","message":"GET /api/users/read-contacts-status","timestamp":"2025-07-05T21:33:09.827Z"}
+{"level":"info","message":"GET /api/tags","timestamp":"2025-07-05T21:33:09.859Z"}
+{"level":"info","message":"GET /api/auth/check","timestamp":"2025-07-05T21:33:09.906Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:09.917Z"}
+{"level":"info","message":"GET /api/tokens/balances?address=0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T21:33:09.921Z"}
+{"level":"info","message":"Fetching token balances for address: 0xf45aa4917b3775ba37f48aeb3dc1a943561e9e0b","timestamp":"2025-07-05T21:33:09.923Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:33:09.939Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:09.971Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:33:10.006Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:10.011Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-07-05T21:33:10.015Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:33:10.034Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:10.046Z"}
+{"level":"info","message":"GET /api/users","timestamp":"2025-07-05T21:33:10.065Z"}
+{"level":"info","message":"GET /api/messages/read-status","timestamp":"2025-07-05T21:33:10.069Z"}
+{"level":"info","message":"GET /api/messages","timestamp":"2025-07-05T21:33:10.099Z"}
+{"level":"info","message":"GET /api/dle","timestamp":"2025-07-05T21:33:11.759Z"}
+{"level":"info","message":"GET /api/chat/history?count_only=true","timestamp":"2025-07-05T21:33:14.389Z"}
+{"level":"info","message":"GET /api/chat/history?offset=128&limit=30","timestamp":"2025-07-05T21:33:14.443Z"}
+{"count":30,"level":"info","limit":30,"message":"Returning message history for user 1","offset":128,"timestamp":"2025-07-05T21:33:14.451Z","total":158}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:33:40.624Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:33:40.638Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.008Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 2)...","timestamp":"2025-07-05T21:34:08.008Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.009Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.010Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.010Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:34:08.010Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:34:10.920Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:34:10.923Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 2","timestamp":"2025-07-05T21:34:18.010Z"}
+{"level":"info","message":"[EmailBot] IMAP connection ready","timestamp":"2025-07-05T21:34:19.068Z"}
+{"level":"info","message":"[EmailBot] Email bot started and IMAP connection initiated","timestamp":"2025-07-05T21:34:19.071Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:34:20.340Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:34:41.295Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:34:41.301Z"}
+{"level":"info","message":"No new messages found","timestamp":"2025-07-05T21:35:10.447Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:35:11.360Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:35:11.369Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.211Z"}
+{"level":"warn","message":"[EmailBot] IMAP reconnecting in 10 seconds (attempt 3)...","timestamp":"2025-07-05T21:35:31.212Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.212Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.212Z"}
+{"level":"error","message":"IMAP connection error during check: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:31.213Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:35:41.950Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:35:41.954Z"}
+{"level":"info","message":"[EmailBot] IMAP connect attempt 3","timestamp":"2025-07-05T21:35:44.566Z"}
+{"level":"error","message":"[EmailBot] IMAP connection error: Timed out while authenticating with server","timestamp":"2025-07-05T21:35:50.053Z"}
+{"level":"info","message":"GET /api/auth/identities","timestamp":"2025-07-05T21:36:12.301Z"}
+{"level":"info","message":"[IdentityService] Found 3 identities for user 1","timestamp":"2025-07-05T21:36:12.304Z"}

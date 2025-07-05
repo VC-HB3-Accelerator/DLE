@@ -1,1 +1,0 @@
-ALTER TABLE cloudflare_settings ADD COLUMN tunnel_id TEXT;

@@ -1,51 +1,11 @@
 <template>
   <div class="interface-settings settings-panel" style="position:relative;min-height:120px">
     <button class="close-btn" @click="goBack">×</button>
-    <h2>Традиционный хостинг</h2>
-    
-    <!-- Cloudflare -->
-    <div class="web3-service-block">
-      <div class="service-header">
-        <h3>Cloudflare</h3>
-        <span class="service-badge cloudflare">Туннели и CDN</span>
-      </div>
-      <p>Подключите ваш локальный DApp к интернету через Cloudflare Tunnels. Быстрый доступ и защита от DDoS атак.</p>
-      <div class="service-features">
-        <span class="feature">✓ Cloudflare Tunnels</span>
-        <span class="feature">✓ Защита от DDoS</span>
-        <span class="feature">✓ Глобальная CDN</span>
-      </div>
-      <button 
-        class="btn-primary" 
-        @click="isAdmin ? goToCloudflareDetails() : null"
-        :disabled="!isAdmin"
-      >
-        Подробнее
-      </button>
-    </div>
-
     <h2>Web3 Хостинг</h2>
     
-    <!-- Pinata IPFS -->
-    <div class="web3-service-block">
-      <div class="service-header">
-        <h3>Pinata IPFS</h3>
-        <span class="service-badge">Децентрализованное хранение</span>
-      </div>
-      <p>Разместите ваш DApp на IPFS с помощью Pinata. Поддержка пользовательских доменов, CDN и автоматические деплои.</p>
-      <div class="service-features">
-        <span class="feature">✓ IPFS хостинг</span>
-        <span class="feature">✓ CDN глобально</span>
-        <span class="feature">✓ Домен</span>
-      </div>
-      <button 
-        class="btn-primary" 
-        @click="isAdmin ? goToPinataDetails() : null"
-        :disabled="!isAdmin"
-      >
-        Подробнее
-      </button>
-    </div>
+
+
+
 
     <!-- Akash Network -->
     <div class="web3-service-block">
@@ -97,13 +57,8 @@ import { useAuthContext } from '@/composables/useAuth';
 const router = useRouter();
 const { isAdmin } = useAuthContext();
 const goBack = () => router.push('/settings');
-const goToCloudflareDetails = () => router.push('/settings/interface/cloudflare-details');
 
-// Web3 сервисы
-const goToPinataDetails = () => {
-  // Пока открываем в новой вкладке, позже можно создать отдельные страницы
-  window.open('https://pinata.cloud/pricing', '_blank');
-};
+
 
 const goToAkashDetails = () => {
   window.open('https://akash.network/', '_blank');
@@ -172,10 +127,6 @@ h2:first-of-type {
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 500;
-}
-
-.service-badge.cloudflare {
-  background: linear-gradient(135deg, #f38020, #f5af19);
 }
 
 .service-badge.akash {
