@@ -48,12 +48,39 @@
         Подробнее
       </button>
     </div>
+
+    <!-- WEB SSH -->
+    <div class="web3-service-block">
+      <div class="service-header">
+        <h3>WEB SSH</h3>
+        <span class="service-badge webssh">Публикация через SSH-туннель</span>
+      </div>
+      <p>Автоматическая публикация приложения в интернете через SSH-туннель.</p>
+      <div class="service-features">
+        <span class="feature">✓ Быстрое подключение</span>
+        <span class="feature">✓ Безопасно</span>
+        <span class="feature">✓ Для локальных и VPS</span>
+      </div>
+      <button class="btn-primary" @click="goToWebSsh">Подробнее</button>
+    </div>
+
+    <!-- Модальное окно с формой WEB SSH -->
+    <NoAccessModal v-if="showWebSsh" @close="showWebSsh = false">
+      <div style="padding:2rem;max-width:600px">
+        <h3>WEB SSH Туннель (форма)</h3>
+        <!-- Здесь будет компонент WebSshForm.vue -->
+        <div style="color:#888">Здесь появится форма WEB SSH (будет вынесена из WebSshSettingsView.vue)</div>
+        <button class="btn-primary" @click="showWebSsh = false" style="margin-top:1.5rem">Закрыть</button>
+      </div>
+    </NoAccessModal>
   </div>
 </template>
 
 <script setup>
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
+import NoAccessModal from '@/components/NoAccessModal.vue';
+import { ref } from 'vue';
 const router = useRouter();
 const { isAdmin } = useAuthContext();
 const goBack = () => router.push('/settings');
@@ -67,6 +94,10 @@ const goToAkashDetails = () => {
 const goToFluxDetails = () => {
   window.open('https://runonflux.io/', '_blank');
 };
+
+const goToWebSsh = () => router.push('/settings/interface/webssh');
+
+const showWebSsh = ref(false);
 </script>
 
 <style scoped>
@@ -135,6 +166,10 @@ h2:first-of-type {
 
 .service-badge.flux {
   background: linear-gradient(135deg, #4ecdc4, #44a08d);
+}
+
+.service-badge.webssh {
+  background: linear-gradient(135deg, #6c757d, #343a40);
 }
 
 .service-features {

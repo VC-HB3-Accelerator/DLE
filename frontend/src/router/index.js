@@ -52,6 +52,13 @@ const routes = [
         path: 'interface',
         name: 'settings-interface',
         component: SettingsInterfaceView,
+        // children: [
+        //   {
+        //     path: 'webssh',
+        //     name: 'settings-interface-webssh',
+        //     component: () => import('../views/settings/Interface/InterfaceWebSshView.vue'),
+        //   }
+        // ]
       },
       {
         path: 'webssh',
@@ -90,6 +97,12 @@ const routes = [
     path: '/settings/ai/assistant',
     name: 'ai-assistant-settings',
     component: () => import('@/views/settings/AI/AiAssistantSettings.vue'),
+  },
+  {
+    path: '/settings/interface/webssh',
+    name: 'webssh-settings',
+    component: () => import('@/views/settings/Interface/InterfaceWebSshView.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/tables',
