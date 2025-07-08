@@ -93,7 +93,7 @@ async function addToken() {
     return;
   }
   try {
-    await api.post('/api/settings/auth-token', {
+    await api.post('/settings/auth-token', {
       ...newToken,
       minBalance: Number(newToken.minBalance) || 0
     });

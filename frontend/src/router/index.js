@@ -53,6 +53,11 @@ const routes = [
         name: 'settings-interface',
         component: SettingsInterfaceView,
       },
+      {
+        path: 'webssh',
+        name: 'settings-webssh',
+        component: () => import('../views/settings/WebSshSettingsView.vue'),
+      },
 
       {
         path: 'telegram',
@@ -170,7 +175,7 @@ router.beforeEach(async (to, from, next) => {
   // Проверяем аутентификацию, если маршрут требует авторизации
   if (to.matched.some((record) => record.meta.requiresAuth)) {
     try {
-      const response = await axios.get('/api/auth/check');
+      const response = await axios.get('/auth/check');
       if (response.data.authenticated) {
         next();
       } else {

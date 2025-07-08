@@ -1,18 +1,8 @@
 import axios from 'axios';
 
-// Определяем baseURL в зависимости от окружения
-const getBaseUrl = () => {
-  // В браузере используем localhost
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return 'http://localhost:8000';
-  }
-  // В других случаях используем переменную окружения
-  return import.meta.env.VITE_API_URL || '';
-};
-
 // Создаем экземпляр axios с базовым URL
 const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: '/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -29,17 +19,27 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Добавляем перехватчик для обработки ответов
-api.interceptors.response.use(
+// Добавляем перехватчик ответов для обработки ошибок
+axios.interceptors.response.use(
   (response) => {
-    console.log('Response from server:', response.data);
+    // Проверяем, что ответ действительно JSON
+    if (response.headers['content-type'] && 
+        !response.headers['content-type'].includes('application/json')) {
+      console.warn('Server returned non-JSON response:', response.headers['content-type']);
+      // Если это HTML, значит, запрос ушёл не туда
+      if (response.headers['content-type'].includes('text/html')) {
+        throw new Error('Server returned HTML instead of JSON. Check API endpoint.');
+      }
+    }
     return response;
   },
-  async (error) => {
-    // Проверяем, что это действительно ошибка авторизации
-    if (error.response?.status === 401) {
-      // Перенаправляем на страницу логина
-      window.location.href = '/login';
+  (error) => {
+    // Если ошибка содержит HTML в response
+    if (error.response && error.response.data && 
+        typeof error.response.data === 'string' && 
+        error.response.data.includes('<!DOCTYPE')) {
+      console.error('API Error: Server returned HTML instead of JSON');
+      error.message = 'Ошибка: сервер вернул HTML вместо JSON. Проверьте подключение к API.';
     }
     return Promise.reject(error);
   }
@@ -48,7 +48,7 @@ api.interceptors.response.use(
 // Пример функции для отправки гостевого сообщения на сервер
 const sendGuestMessageToServer = async (messageText) => {
   try {
-    await axios.post('/api/chat/guest-message', {
+    await axios.post('/chat/guest-message', {
       message: messageText,
       // language: userLanguage.value, // TODO: Реализовать получение языка пользователя
     });

@@ -45,7 +45,7 @@ const editMode = ref(false);
 
 const loadTelegramSettings = async () => {
   try {
-    const res = await api.get('/api/settings/telegram-settings');
+    const res = await api.get('/settings/telegram-settings');
     if (res.data.success) {
       const s = res.data.settings;
       form.botToken = s.bot_token || '';
@@ -64,7 +64,7 @@ onMounted(async () => {
 
 const saveTelegramSettings = async () => {
   try {
-    await api.put('/api/telegram-settings', {
+    await api.put('/telegram-settings', {
       bot_token: form.botToken,
       bot_username: form.botUsername
     });

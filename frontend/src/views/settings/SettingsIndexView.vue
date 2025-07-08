@@ -20,6 +20,11 @@
       <p>Настройки внешнего вида, локализации и пользовательского опыта.</p>
       <button class="details-btn" @click="$router.push('/settings/interface')">Подробнее</button>
     </div>
+    <div class="main-block">
+      <h3>WEB SSH</h3>
+      <p>Автоматическая публикация приложения в интернете через SSH-туннель.</p>
+      <button class="details-btn" @click="$router.push('/settings/webssh')">Подробнее</button>
+    </div>
   </div>
 </template>
 

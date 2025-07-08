@@ -80,7 +80,7 @@ export function useChat(auth) {
         let totalMessages = -1;
         if (initial || messageLoading.value.offset === 0) {
              try {
-                const countResponse = await api.get('/api/chat/history', { params: { count_only: true } });
+                const countResponse = await api.get('/chat/history', { params: { count_only: true } });
                 if (!countResponse.data.success) throw new Error('Не удалось получить количество сообщений');
                 totalMessages = countResponse.data.total || countResponse.data.count || 0;
                 console.log(`[useChat] Всего сообщений в истории: ${totalMessages}`);
@@ -97,7 +97,7 @@ export function useChat(auth) {
             console.log(`[useChat] Рассчитано начальное смещение: ${effectiveOffset}`);
         }
 
-        const response = await api.get('/api/chat/history', {
+        const response = await api.get('/chat/history', {
             params: {
                 offset: effectiveOffset,
                 limit: messageLoading.value.limit,
@@ -225,14 +225,14 @@ export function useChat(auth) {
             });
         }
 
-        let apiUrl = '/api/chat/message';
+        let apiUrl = '/chat/message';
         if (isGuestMessage) {
             if (!guestId.value) {
                 guestId.value = initGuestId();
                 setToStorage('guestId', guestId.value);
             }
             formData.append('guestId', guestId.value);
-            apiUrl = '/api/chat/guest-message';
+            apiUrl = '/chat/guest-message';
         }
 
         const response = await api.post(apiUrl, formData, {
@@ -352,7 +352,7 @@ export function useChat(auth) {
   const linkGuestMessagesAfterAuth = async () => {
     if (!guestId.value) return;
     try {
-      const response = await api.post('/api/chat/process-guest', { guestId: guestId.value });
+      const response = await api.post('/chat/process-guest', { guestId: guestId.value });
       if (response.data.success && response.data.conversationId) {
         // Можно сразу загрузить историю по этому диалогу, если нужно
         await loadMessages({ initial: true });

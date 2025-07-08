@@ -182,11 +182,25 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 480px) {
-  .header-text {
-    display: none; /* Hide text on very small screens */
+  .title {
+    font-size: 1em;
+    text-align: left;
+    word-break: break-word;
+  }
+  .subtitle {
+    font-size: 0.7em;
+    text-align: left;
+    word-break: break-word;
   }
   .header-content {
-    justify-content: flex-end; /* Align button to the right */
+    flex-direction: row;
+    align-items: center;
+  }
+  .header-text {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    width: auto;
   }
 }
 

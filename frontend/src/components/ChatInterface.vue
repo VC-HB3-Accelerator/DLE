@@ -489,6 +489,33 @@ async function handleAiReply() {
 
 <style scoped>
 .chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  position: relative;
+}
+
+.chat-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  position: relative;
+  padding-bottom: 8px;
+}
+
+.chat-input {
+  position: relative;
+  width: 100%;
+  margin-bottom: 12px;
+  margin-top: 8px;
+  left: 0;
+  right: 0;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+}
+
+.chat-container {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -714,31 +741,59 @@ async function handleAiReply() {
 }
 
 @media (max-width: 480px) {
-  .chat-container {
-    margin: var(--spacing-xs) auto;
+  .chat-input {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    z-index: 1000 !important;
+    margin: 0 !important;
+    border-radius: 12px 12px 0 0 !important;
   }
-  
   .chat-messages {
-    padding: var(--spacing-sm);
+    padding-bottom: 70px !important; /* чтобы сообщения не перекрывались input */
+    max-height: calc(100vh - 70px) !important;
+    overflow-y: auto !important;
   }
-  
-  .input-area {
-    gap: 4px;
+}
+
+@media (max-width: 600px) {
+  .chat-input {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    z-index: 1000 !important;
+    margin: 0 !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 8px 12px !important;
+    background: #f8f8f8 !important;
+    border-top: 1px solid #eee !important;
+    box-sizing: border-box !important;
   }
-  
-  .chat-icon-btn {
-    width: 28px;
-    height: 28px;
+  .chat-messages {
+    padding-bottom: 70px !important; /* чтобы сообщения не перекрывались input */
+    max-height: calc(100vh - 70px) !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
   }
-  
-  .chat-icon-btn svg {
-    width: 18px;
-    height: 18px;
+  .chat-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
   }
-  
-  .preview-item {
-    font-size: var(--font-size-xs);
-  }
+}
+
+.input-area textarea {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ai-spinner {

@@ -10,7 +10,7 @@ class DLEService {
    */
   async getDefaultSettings() {
     try {
-      const response = await api.get('/api/dle/settings');
+      const response = await api.get('/dle/settings');
       return response.data.data;
     } catch (error) {
       console.error('Ошибка при получении настроек DLE:', error);
@@ -25,7 +25,7 @@ class DLEService {
    */
   async createDLE(dleParams) {
     try {
-      const response = await api.post('/api/dle', dleParams);
+      const response = await api.post('/dle', dleParams);
       return response.data;
     } catch (error) {
       console.error('Ошибка при создании DLE:', error);
@@ -39,7 +39,7 @@ class DLEService {
    */
   async getAllDLEs() {
     try {
-      const response = await api.get('/api/dle');
+      const response = await api.get('/dle');
       
       // Проверяем и нормализуем поля isicCodes для всех DLE
       if (response.data.data && Array.isArray(response.data.data)) {
@@ -65,7 +65,7 @@ class DLEService {
    */
   async deleteDLE(tokenAddress) {
     try {
-      const response = await api.delete(`/api/dle/${tokenAddress}`);
+      const response = await api.delete(`/dle/${tokenAddress}`);
       return response.data;
     } catch (error) {
       console.error('Ошибка при удалении DLE:', error);
@@ -80,7 +80,7 @@ class DLEService {
    */
   async deleteEmptyDLE(fileName) {
     try {
-      const response = await api.delete(`/api/dle/empty/${fileName}`);
+      const response = await api.delete(`/dle/empty/${fileName}`);
       return response.data;
     } catch (error) {
       console.error('Ошибка при удалении пустого DLE:', error);

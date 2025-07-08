@@ -3,7 +3,7 @@ import api from '../api/axios';
 // Получение балансов токенов
 export const fetchTokenBalances = async (address = null) => {
   try {
-    let url = '/api/tokens/balances';
+    let url = '/tokens/balances';
     if (address) {
       url += `?address=${encodeURIComponent(address)}`;
       console.log(`Fetching token balances for specific address: ${address}`);

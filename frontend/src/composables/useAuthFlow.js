@@ -47,7 +47,7 @@ export function useAuthFlow(options = {}) {
     telegramAuth.value.isLoading = true;
     telegramAuth.value.error = '';
     try {
-      const response = await api.post('/api/auth/telegram/init');
+      const response = await api.post('/auth/telegram/init');
       if (response.data.success) {
         telegramAuth.value.verificationCode = response.data.verificationCode;
         telegramAuth.value.botLink = response.data.botLink;
@@ -130,7 +130,7 @@ export function useAuthFlow(options = {}) {
     emailAuth.value.isLoading = true;
 
     try {
-      const response = await api.post('/api/auth/email/init', { email: emailAuth.value.email });
+      const response = await api.post('/auth/email/init', { email: emailAuth.value.email });
       if (response.data.success) {
         emailAuth.value.verificationEmail = emailAuth.value.email; // Сохраняем email
         emailAuth.value.showForm = false;
@@ -161,7 +161,7 @@ export function useAuthFlow(options = {}) {
     emailAuth.value.isVerifying = true;
 
     try {
-      const response = await api.post('/api/auth/email/verify-code', {
+      const response = await api.post('/auth/email/verify-code', {
         email: emailAuth.value.verificationEmail,
         code: emailAuth.value.verificationCode,
       });

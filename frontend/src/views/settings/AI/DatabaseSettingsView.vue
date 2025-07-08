@@ -63,7 +63,7 @@ const editMode = ref(false);
 
 const loadDbSettings = async () => {
   try {
-    const res = await api.get('/api/settings/db-settings');
+    const res = await api.get('/settings/db-settings');
     if (res.data.success) {
       const s = res.data.settings;
       form.dbHost = s.db_host;
@@ -85,7 +85,7 @@ onMounted(async () => {
 
 const saveDbSettings = async () => {
   try {
-    await api.put('/api/settings/db-settings', {
+    await api.put('/settings/db-settings', {
       db_host: form.dbHost,
       db_port: form.dbPort,
       db_name: form.dbName,

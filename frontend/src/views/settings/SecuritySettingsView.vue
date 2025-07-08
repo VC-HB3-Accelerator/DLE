@@ -138,7 +138,7 @@ const loadSettings = async () => {
   isLoading.value = true;
   try {
     // Загрузка RPC конфигураций
-    const rpcResponse = await api.get('/api/settings/rpc');
+    const rpcResponse = await api.get('/settings/rpc');
     if (rpcResponse.data && rpcResponse.data.success) {
       securitySettings.rpcConfigs = (rpcResponse.data.data || []).map(rpc => ({
         networkId: rpc.network_id,
@@ -149,7 +149,7 @@ const loadSettings = async () => {
     }
     
     // Загрузка токенов для аутентификации
-    const authResponse = await api.get('/api/settings/auth-tokens');
+    const authResponse = await api.get('/settings/auth-tokens');
     if (authResponse.data && authResponse.data.success) {
       securitySettings.authTokens = (authResponse.data.data || []).map(token => ({
         name: token.name,
@@ -195,12 +195,12 @@ const saveSecuritySettings = async () => {
     console.log('[SecuritySettingsView] Отправка настроек на сервер:', settingsData);
     
     // Отправка RPC конфигураций
-    const rpcResponse = await api.post('/api/settings/rpc', { 
+    const rpcResponse = await api.post('/settings/rpc', { 
       rpcConfigs: settingsData.rpcConfigs 
     });
     
     // Отправка токенов для аутентификации
-    const authResponse = await api.post('/api/settings/auth-tokens', { 
+    const authResponse = await api.post('/settings/auth-tokens', { 
       authTokens: settingsData.authTokens 
     });
     

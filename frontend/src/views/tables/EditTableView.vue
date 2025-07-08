@@ -32,7 +32,7 @@ const description = ref('');
 const isRagSourceId = ref(2);
 
 onMounted(async () => {
-  const { data } = await axios.get(`/api/tables/${$route.params.id}`);
+      const { data } = await axios.get(`/tables/${$route.params.id}`);
   name.value = data.name;
   description.value = data.description;
   isRagSourceId.value = data.is_rag_source_id || 2;

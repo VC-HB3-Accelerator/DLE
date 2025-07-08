@@ -40,8 +40,7 @@ async function reloadDleList() {
 }
 
 onMounted(async () => {
-  dleList.value = await dleService.getAllDLEs() || [];
-  onMounted(reloadDleList);
+  await reloadDleList();
 });
 </script>
 

@@ -57,7 +57,7 @@ const emit = defineEmits(['close', 'success']);
     try {
       isLoading.value = true;
       error.value = '';
-    const response = await axios.post('/api/auth/email/request', {
+    const response = await axios.post('/auth/email/request', {
         email: email.value,
       });
       if (response.data.success) {
@@ -76,7 +76,7 @@ const emit = defineEmits(['close', 'success']);
     try {
       isLoading.value = true;
       error.value = '';
-    const response = await axios.post('/api/auth/email/verify-code', {
+    const response = await axios.post('/auth/email/verify-code', {
         email: email.value,
         code: code.value,
       });

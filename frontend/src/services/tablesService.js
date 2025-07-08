@@ -1,6 +1,6 @@
 import api from '../api/axios';
 
-const tablesApi = '/api/tables';
+const tablesApi = '/tables';
 
 export default {
   async getTables() {

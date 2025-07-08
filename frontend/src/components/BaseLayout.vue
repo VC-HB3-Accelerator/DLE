@@ -145,7 +145,7 @@ const handleWalletAuth = async () => {
 const disconnectWallet = async () => {
   console.log('[BaseLayout] Выполняется выход из системы...');
   try {
-    await api.post('/api/auth/logout');
+    await api.post('/auth/logout');
     showSuccessMessage('Вы успешно вышли из системы');
     removeFromStorage('guestMessages');
     removeFromStorage('hasUserSentMessage');

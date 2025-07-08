@@ -118,7 +118,7 @@ const getRagResultClass = () => {
 const refreshStatus = async () => {
   loading.value = true;
   try {
-    const response = await axios.get('/api/monitoring');
+    const response = await axios.get('/monitoring');
     monitoringData.value = response.data;
     lastUpdate.value = new Date().toLocaleString('ru-RU');
   } catch (e) {
@@ -133,7 +133,7 @@ const testRAG = async () => {
   ragTesting.value = true;
   ragResult.value = null;
   try {
-    const response = await axios.post('/api/rag/answer', {
+    const response = await axios.post('/rag/answer', {
       tableId: 28,
       question: ragQuestion.value,
       userTags: [],

@@ -18,7 +18,7 @@ const updateIdentities = async () => {
   if (!isAuthenticated.value || !userId.value) return;
 
   try {
-    const response = await axios.get('/api/auth/identities');
+    const response = await axios.get('/auth/identities');
     if (response.data.success) {
       // Фильтруем идентификаторы: убираем гостевые и оставляем только уникальные
       const filteredIdentities = response.data.identities
@@ -71,7 +71,7 @@ const stopIdentitiesPolling = () => {
 
 const checkTokenBalances = async (address) => {
   try {
-    const response = await axios.get(`/api/auth/check-tokens/${address}`);
+    const response = await axios.get(`/auth/check-tokens/${address}`);
     if (response.data.success) {
       tokenBalances.value = response.data.balances;
       return response.data.balances;
@@ -194,7 +194,7 @@ const linkMessages = async () => {
       /* Удаляем ненужный вызов
       try {
         // Отправляем запрос на связывание сообщений
-        const response = await axios.post('/api/auth/link-guest-messages', identifiersData);
+        const response = await axios.post('/auth/link-guest-messages', identifiersData);
 
         if (response.data.success) {
           console.log('Messages linked successfully:', response.data);
@@ -257,7 +257,7 @@ const linkMessages = async () => {
 
 const checkAuth = async () => {
   try {
-    const response = await axios.get('/api/auth/check');
+    const response = await axios.get('/auth/check');
     console.log('Auth check response:', response.data);
 
     const wasAuthenticated = isAuthenticated.value;
@@ -315,7 +315,7 @@ const checkAuth = async () => {
 const disconnect = async () => {
   try {
     // Удаляем все идентификаторы перед выходом
-    await axios.post('/api/auth/logout');
+    await axios.post('/auth/logout');
 
     // Обновляем состояние в памяти
     updateAuth({
@@ -423,7 +423,7 @@ const updateConnectionDisplay = (isConnected, authType, authData = {}) => {
  * @returns {Promise<Object>} - Результат операции
  */
 const linkIdentity = async (type, value) => {
-  const response = await axios.post('/api/link', {
+  const response = await axios.post('/link', {
     type,
     value,
   });
@@ -437,7 +437,7 @@ const linkIdentity = async (type, value) => {
  * @returns {Promise<Object>} - Результат операции
  */
 const deleteIdentity = async (provider, providerId) => {
-  const response = await axios.delete(`/api/${provider}/${encodeURIComponent(providerId)}`);
+  const response = await axios.delete(`/${provider}/${encodeURIComponent(providerId)}`);
   return response.data;
 };
 

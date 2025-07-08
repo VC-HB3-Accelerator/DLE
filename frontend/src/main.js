@@ -9,12 +9,7 @@ import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
 
 // Настройка axios
-// В Docker контейнере localhost:8000 не работает, поэтому используем явное значение
-const apiUrl =
-  window.location.hostname === 'localhost'
-    ? 'http://localhost:8000'
-    : 'http://dapp-backend:8000'; // имя контейнера backend
-axios.defaults.baseURL = apiUrl;
+axios.defaults.baseURL = '/api';
 axios.defaults.withCredentials = true;
 
 // Создаем и монтируем приложение Vue
@@ -33,7 +28,7 @@ app.use(ElementPlus);
 //   ]).catch(err => console.error('Failed to load API mocks:', err));
 // }
 
-console.log('API URL:', apiUrl);
+console.log('API URL:', axios.defaults.baseURL);
 console.log('main.js: Starting application with router');
 
 app.mount('#app');

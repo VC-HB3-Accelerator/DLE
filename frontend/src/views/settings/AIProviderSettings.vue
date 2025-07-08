@@ -70,7 +70,7 @@ const saveError = ref('');
 
 async function loadSettings() {
   try {
-    const { data } = await axios.get(`/api/settings/ai-settings/${props.provider}`);
+    const { data } = await axios.get(`/settings/ai-settings/${props.provider}`);
     if (data.settings) {
       apiKey.value = data.settings.api_key || '';
       baseUrl.value = data.settings.base_url || '';
@@ -91,7 +91,7 @@ async function loadSettings() {
 
 async function loadModels() {
   try {
-    const { data } = await axios.get(`/api/settings/ai-settings/${props.provider}/models`);
+    const { data } = await axios.get(`/settings/ai-settings/${props.provider}/models`);
     models.value = data.models || [];
     if (!selectedModel.value && models.value.length) {
       const first = models.value[0];
@@ -104,7 +104,7 @@ async function loadModels() {
 
 async function loadEmbeddingModels() {
   try {
-    const { data } = await axios.get(`/api/settings/ai-settings/${props.provider}/models`);
+    const { data } = await axios.get(`/settings/ai-settings/${props.provider}/models`);
     embeddingModels.value = (data.models || []).filter(m => {
       const name = m.id || m.name || m;
       return name && name.toLowerCase().includes('embed');
@@ -123,7 +123,7 @@ async function onVerify() {
   verifyStatus.value = null;
   verifyError.value = '';
   try {
-    const { data } = await axios.post(`/api/settings/ai-settings/${props.provider}/verify`, {
+    const { data } = await axios.post(`/settings/ai-settings/${props.provider}/verify`, {
       api_key: apiKey.value,
       base_url: baseUrl.value,
     });
@@ -144,7 +144,7 @@ async function onSave() {
   saveStatus.value = null;
   saveError.value = '';
   try {
-    await axios.put(`/api/settings/ai-settings/${props.provider}`, {
+    await axios.put(`/settings/ai-settings/${props.provider}`, {
       api_key: apiKey.value,
       base_url: baseUrl.value,
       selected_model: selectedModel.value,
@@ -161,7 +161,7 @@ async function onSave() {
 }
 
 async function onDelete() {
-  await axios.delete(`/api/settings/ai-settings/${props.provider}`);
+  await axios.delete(`/settings/ai-settings/${props.provider}`);
   apiKey.value = '';
   baseUrl.value = '';
   selectedModel.value = '';

@@ -70,7 +70,8 @@ let ws = null;
 
 function connectWebSocket() {
   if (ws) ws.close();
-  ws = new WebSocket('ws://localhost:8000');
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
   ws.onopen = () => {
     console.log('[CRM] WebSocket соединение установлено');
   };

@@ -87,33 +87,33 @@ const filteredEmbeddingModels = computed(() => {
   return embeddingModels.value.filter(m => m.provider === selectedLLM.value.provider);
 });
 async function loadUserTables() {
-  const { data } = await axios.get('/api/tables');
+  const { data } = await axios.get('/tables');
   userTables.value = Array.isArray(data) ? data : [];
 }
 async function loadRules() {
-  const { data } = await axios.get('/api/settings/ai-assistant-rules');
+  const { data } = await axios.get('/settings/ai-assistant-rules');
   rulesList.value = data.rules || [];
 }
 async function loadSettings() {
-  const { data } = await axios.get('/api/settings/ai-assistant');
+  const { data } = await axios.get('/settings/ai-assistant');
   if (data.success && data.settings) {
     settings.value = data.settings;
   }
 }
 async function loadTelegramBots() {
-  const { data } = await axios.get('/api/settings/telegram-settings/list');
+  const { data } = await axios.get('/settings/telegram-settings/list');
   telegramBots.value = data.items || [];
 }
 async function loadEmailList() {
-  const { data } = await axios.get('/api/settings/email-settings/list');
+  const { data } = await axios.get('/settings/email-settings/list');
   emailList.value = data.items || [];
 }
 async function loadLLMModels() {
-  const { data } = await axios.get('/api/settings/llm-models');
+  const { data } = await axios.get('/settings/llm-models');
   llmModels.value = data.models || [];
 }
 async function loadEmbeddingModels() {
-  const { data } = await axios.get('/api/settings/embedding-models');
+  const { data } = await axios.get('/settings/embedding-models');
   embeddingModels.value = data.models || [];
 }
 onMounted(() => {
@@ -126,7 +126,7 @@ onMounted(() => {
   loadEmbeddingModels();
 });
 async function saveSettings() {
-  await axios.put('/api/settings/ai-assistant', settings.value);
+  await axios.put('/settings/ai-assistant', settings.value);
   goBack();
 }
 function openRuleEditor(ruleId = null) {
@@ -139,7 +139,7 @@ function openRuleEditor(ruleId = null) {
 }
 async function deleteRule(ruleId) {
   if (!confirm('Удалить этот набор правил?')) return;
-  await axios.delete(`/api/settings/ai-assistant-rules/${ruleId}`);
+      await axios.delete(`/settings/ai-assistant-rules/${ruleId}`);
   await loadRules();
   if (settings.value.rules_id === ruleId) settings.value.rules_id = null;
 }

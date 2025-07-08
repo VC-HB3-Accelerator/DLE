@@ -2,19 +2,19 @@ import api from '../api/axios';
 
 export default {
   async getContacts() {
-    const res = await api.get('/api/users');
+    const res = await api.get('/users');
     if (res.data && res.data.success) {
       return res.data.contacts;
     }
     return [];
   },
   async updateContact(id, data) {
-    const res = await api.patch(`/api/users/${id}`, data);
+    const res = await api.patch(`/users/${id}`, data);
     return res.data;
   },
   async deleteContact(id) {
     try {
-      const res = await api.delete(`/api/users/${id}`);
+      const res = await api.delete(`/users/${id}`);
       console.log('Ответ на удаление контакта:', res.status, res.data);
       return res.data;
     } catch (err) {
@@ -23,18 +23,18 @@ export default {
     }
   },
   async getContactById(id) {
-    const res = await api.get(`/api/users/${id}`);
+    const res = await api.get(`/users/${id}`);
     if (res.data && res.data.id) {
       return res.data;
     }
     return null;
   },
   async blockContact(id) {
-    const res = await api.patch(`/api/users/${id}/block`);
+    const res = await api.patch(`/users/${id}/block`);
     return res.data;
   },
   async unblockContact(id) {
-    const res = await api.patch(`/api/users/${id}/unblock`);
+    const res = await api.patch(`/users/${id}/unblock`);
     return res.data;
   }
 }; 

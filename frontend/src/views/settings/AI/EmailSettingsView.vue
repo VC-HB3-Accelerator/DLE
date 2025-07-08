@@ -74,7 +74,7 @@ const editMode = ref(false);
 
 const loadEmailSettings = async () => {
   try {
-    const res = await api.get('/api/settings/email-settings');
+    const res = await api.get('/settings/email-settings');
     if (res.data.success) {
       const s = res.data.settings;
       form.smtpHost = s.smtp_host;
@@ -98,7 +98,7 @@ onMounted(async () => {
 
 const saveEmailSettings = async () => {
   try {
-    await api.put('/api/settings/email-settings', {
+    await api.put('/settings/email-settings', {
       smtp_host: form.smtpHost,
       smtp_port: form.smtpPort,
       smtp_user: form.smtpUser,

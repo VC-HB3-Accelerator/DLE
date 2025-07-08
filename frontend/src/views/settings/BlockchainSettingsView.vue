@@ -446,7 +446,7 @@ const fetchIsicCodes = async (params = {}, optionsRef, loadingRef) => {
     console.debug(`[BlockchainSettingsView] Fetching ISIC codes with params: ${queryParams}`);
     
     // Убедитесь, что базовый URL настроен правильно (например, через axios interceptors или .env)
-    const response = await axios.get(`/api/isic/codes?${queryParams}`); 
+            const response = await axios.get(`/isic/codes?${queryParams}`); 
     
     if (response.data && Array.isArray(response.data.codes)) {
        optionsRef.value = response.data.codes.map(code => ({
@@ -716,7 +716,7 @@ const fetchAddressByZipcode = async () => {
     }
 
     console.log(`[FetchByZipcode] Querying backend proxy for Nominatim with: ${params.toString()}`);
-    const response = await axios.get(`/api/geocoding/nominatim-search?${params.toString()}`);
+    const response = await axios.get(`/geocoding/nominatim-search?${params.toString()}`);
 
     if (response.data && response.data.length > 0) {
       const bestMatch = response.data[0];
@@ -818,7 +818,7 @@ const verifyAddress = async () => {
 
     console.log(`[VerifyAddress] Querying backend proxy for Nominatim with: ${params.toString()}`);
     // Запрос теперь идет на ваш бэкенд-прокси
-    const response = await axios.get(`/api/geocoding/nominatim-search?${params.toString()}`);
+    const response = await axios.get(`/geocoding/nominatim-search?${params.toString()}`);
 
     // Ответ от бэкенд-прокси должен иметь ту же структуру, что и прямой ответ от Nominatim
     if (response.data && Array.isArray(response.data)) { // Проверяем, что это массив (как отвечает Nominatim)
@@ -901,7 +901,7 @@ const toggleShowDeployerKey = () => {
 // Функция загрузки настроек RPC с сервера
 const loadRpcSettings = async () => {
   try {
-    const response = await axios.get('/api/settings/rpc');
+    const response = await axios.get('/settings/rpc');
     console.log('Ответ сервера на /api/settings/rpc:', response.data);
     if (response.data && response.data.success) {
       securitySettings.rpcConfigs = (response.data.data || []).map(rpc => ({
@@ -921,7 +921,7 @@ const loadRpcSettings = async () => {
 const saveRpcSettings = async () => {
   try {
     console.log('Отправляемые RPC:', securitySettings.rpcConfigs);
-    const response = await axios.post('/api/settings/rpc', { 
+    const response = await axios.post('/settings/rpc', { 
       rpcConfigs: JSON.parse(JSON.stringify(securitySettings.rpcConfigs)) 
     });
     

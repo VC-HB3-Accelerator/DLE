@@ -127,7 +127,7 @@ async function submitImport() {
     return obj;
   });
   try {
-    const resp = await fetch('/api/users/import', {
+    const resp = await fetch('/users/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(contacts)

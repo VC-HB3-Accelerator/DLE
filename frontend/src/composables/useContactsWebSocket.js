@@ -42,7 +42,7 @@ export function useContactsAndMessagesWebSocket() {
 
   async function fetchContactsReadStatus() {
     try {
-      const { data } = await axios.get('/api/users/read-contacts-status');
+      const { data } = await axios.get('/users/read-contacts-status');
       readContacts.value = data || [];
     } catch (e) {
       readContacts.value = [];
@@ -60,7 +60,7 @@ export function useContactsAndMessagesWebSocket() {
 
   async function markContactAsRead(contactId) {
     try {
-      await axios.post('/api/users/mark-contact-read', { contactId });
+      await axios.post('/users/mark-contact-read', { contactId });
       if (!readContacts.value.includes(contactId)) {
         readContacts.value.push(contactId);
         updateNewContacts();
@@ -70,7 +70,7 @@ export function useContactsAndMessagesWebSocket() {
 
   async function fetchReadStatus() {
     try {
-      const { data } = await axios.get('/api/messages/read-status');
+      const { data } = await axios.get('/messages/read-status');
       lastReadMessageDate.value = data || {};
     } catch (e) {
       lastReadMessageDate.value = {};
@@ -97,7 +97,7 @@ export function useContactsAndMessagesWebSocket() {
       const maxDate = Math.max(...userMessages.map(m => new Date(m.created_at).getTime()));
       const maxDateISO = new Date(maxDate).toISOString();
       try {
-        await axios.post('/api/messages/mark-read', { userId, lastReadAt: maxDateISO });
+        await axios.post('/messages/mark-read', { userId, lastReadAt: maxDateISO });
         lastReadMessageDate.value[userId] = maxDateISO;
       } catch (e) {}
     }
@@ -114,7 +114,8 @@ export function useContactsAndMessagesWebSocket() {
   }
 
   function setupWebSocket() {
-    ws = new WebSocket('ws://localhost:8000');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'contacts-updated') {

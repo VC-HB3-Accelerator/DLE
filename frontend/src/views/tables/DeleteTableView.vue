@@ -21,7 +21,7 @@ const router = useRouter();
 const { isAdmin } = useAuthContext();
 
 async function remove() {
-  await axios.delete(`/api/tables/${$route.params.id}`);
+      await axios.delete(`/tables/${$route.params.id}`);
   router.push({ name: 'tables-list' });
 }
 function cancel() {

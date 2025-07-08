@@ -141,7 +141,29 @@ services:
         curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_MODEL:-qwen2.5:7b}\"}' -H 'Content-Type: application/json'
         echo 'Done!'
       "
+  ssh-tunnel-frontend:
+    image: alpine:latest
+    container_name: ssh-tunnel-frontend
+    volumes:
+      - ./id_rsa:/key:ro
+    command: >
+      sh -c "apk add --no-cache openssh && ssh -i /key -o StrictHostKeyChecking=no -N -R 0.0.0.0:9000:host.docker.internal:5173 root@185.221.214.140"
+    restart: unless-stopped
+    # network_mode: host <-- Эту строку удаляем
+    extra_hosts:         # <-- Эту секцию добавляем
+      - "host.docker.internal:host-gateway"
 
+  ssh-tunnel-backend:
+    image: alpine:latest
+    container_name: ssh-tunnel-backend
+    volumes:
+      - ./id_rsa:/key:ro
+    command: >
+      sh -c "apk add --no-cache openssh && ssh -i /key -o StrictHostKeyChecking=no -N -R 0.0.0.0:8000:host.docker.internal:8000 root@185.221.214.140"
+    restart: unless-stopped
+    # network_mode: host <-- Эту строку удаляем
+    extra_hosts:         # <-- Эту секцию добавляем
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data: null

@@ -27,8 +27,6 @@
       @send-message="handleSendMessage"
       @load-more="loadMessages"
     />
-      <!-- Можно добавить заглушку или пояснение -->
-      <div class="empty-table-placeholder">Вы видите только свои сообщения. Данные других пользователей недоступны.</div>
     </template>
   </BaseLayout>
 </template>

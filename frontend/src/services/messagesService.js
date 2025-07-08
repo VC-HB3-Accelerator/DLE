@@ -3,7 +3,7 @@ import axios from 'axios';
 export default {
   async getMessagesByUserId(userId) {
     if (!userId) return [];
-    const { data } = await axios.get(`/api/messages?userId=${userId}`);
+    const { data } = await axios.get(`/messages?userId=${userId}`);
     return data;
   },
   async sendMessage({ conversationId, message, attachments = [], toUserId }) {
@@ -14,7 +14,7 @@ export default {
     attachments.forEach(file => {
       formData.append('attachments', file);
     });
-    const { data } = await axios.post('/api/chat/message', formData, {
+    const { data } = await axios.post('/chat/message', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       withCredentials: true
     });
@@ -22,20 +22,20 @@ export default {
   },
   async getMessagesByConversationId(conversationId) {
     if (!conversationId) return [];
-    const { data } = await axios.get(`/api/messages?conversationId=${conversationId}`);
+    const { data } = await axios.get(`/messages?conversationId=${conversationId}`);
     return data;
   },
   async getConversationByUserId(userId) {
     if (!userId) return null;
-    const { data } = await axios.get(`/api/messages/conversations?userId=${userId}`);
+    const { data } = await axios.get(`/messages/conversations?userId=${userId}`);
     return data;
   },
   async generateAiDraft(conversationId, messages, language = 'auto') {
-    const { data } = await axios.post('/api/chat/ai-draft', { conversationId, messages, language });
+    const { data } = await axios.post('/chat/ai-draft', { conversationId, messages, language });
     return data;
   },
   async broadcastMessage({ userId, message }) {
-    const { data } = await axios.post('/api/messages/broadcast', {
+    const { data } = await axios.post('/messages/broadcast', {
       user_id: userId,
       content: message
     }, {
@@ -46,6 +46,6 @@ export default {
 };
 
 export async function getAllMessages() {
-  const { data } = await axios.get('/api/messages');
+  const { data } = await axios.get('/messages');
   return data;
 } 

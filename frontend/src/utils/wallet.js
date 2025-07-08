@@ -37,7 +37,7 @@ export const connectWallet = async () => {
 
     // Запрашиваем nonce с сервера
     console.log('Requesting nonce...');
-    const nonceResponse = await axios.get(`/api/auth/nonce?address=${normalizedAddress}`);
+    const nonceResponse = await axios.get(`/auth/nonce?address=${normalizedAddress}`);
     const nonce = nonceResponse.data.nonce;
     console.log('Got nonce:', nonce);
 
@@ -88,7 +88,7 @@ export const connectWallet = async () => {
 
     // Отправляем верификацию на сервер
     console.log('Sending verification request...');
-    const verifyResponse = await axios.post('/api/auth/verify', {
+    const verifyResponse = await axios.post('/auth/verify', {
       address: normalizedAddress,
       signature,
       nonce,

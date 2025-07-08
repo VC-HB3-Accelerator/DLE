@@ -58,9 +58,9 @@ async function save() {
     return;
   }
   if (props.rule && props.rule.id) {
-    await axios.put(`/api/settings/ai-assistant-rules/${props.rule.id}`, { name: name.value, description: description.value, rules });
+    await axios.put(`/settings/ai-assistant-rules/${props.rule.id}`, { name: name.value, description: description.value, rules });
   } else {
-    await axios.post('/api/settings/ai-assistant-rules', { name: name.value, description: description.value, rules });
+    await axios.post('/settings/ai-assistant-rules', { name: name.value, description: description.value, rules });
   }
   emit('close', true);
 }

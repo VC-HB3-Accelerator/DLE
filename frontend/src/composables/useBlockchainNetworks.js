@@ -14,7 +14,7 @@ export default function useBlockchainNetworks() {
   const fetchNetworks = async () => {
     loadingNetworks.value = true;
     try {
-      const { data } = await axios.get('/api/settings/rpc');
+      const { data } = await axios.get('/settings/rpc');
       const networksArr = data.data || [];
       networks.value = networksArr.map(n => ({
         value: n.network_id,
@@ -163,7 +163,7 @@ export default function useBlockchainNetworks() {
     
     try {
       // Формируем запрос на бэкенд для проверки RPC
-      const response = await axios.post('/api/settings/rpc-test', { 
+      const response = await axios.post('/settings/rpc-test', { 
         networkId,
         rpcUrl
       });

@@ -73,7 +73,7 @@ async function addRpc() {
     return;
   }
   try {
-    await api.post('/api/settings/rpc', { networkId, rpcUrl, chainId });
+    await api.post('/settings/rpc', { networkId, rpcUrl, chainId });
     emit('update'); // сигнал родителю перезагрузить список
     resetNetworkEntry();
   } catch (e) {
