@@ -41,6 +41,9 @@ frontend/.env
 # Приватные ключи и сертификаты
 *.pem
 *.key
+id_rsa
+id_rsa.pub
+
 
 # Локальные настройки
 .prettierrc.local
