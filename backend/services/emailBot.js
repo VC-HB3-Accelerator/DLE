@@ -9,6 +9,8 @@ const logger = require('../utils/logger');
 const identityService = require('./identity-service');
 const aiAssistant = require('./ai-assistant');
 const { broadcastContactsUpdate } = require('../wsHub');
+const aiAssistantSettingsService = require('./aiAssistantSettingsService');
+const { ragAnswer, generateLLMResponse } = require('./ragService');
 
 class EmailBotService {
   constructor() {
@@ -179,8 +181,34 @@ class EmailBotService {
                           [userId, conversation.id, 'user', text, 'email', role, 'in', JSON.stringify({ subject, html })]
                         );
                       }
-                      // 3. Получить ответ от ИИ
-                      const aiResponse = await aiAssistant.getResponse(text, 'auto');
+                      // 3. Получить ответ от ИИ (RAG + LLM)
+                      const aiSettings = await aiAssistantSettingsService.getSettings();
+                      let ragTableId = null;
+                      if (aiSettings && aiSettings.selected_rag_tables) {
+                        ragTableId = Array.isArray(aiSettings.selected_rag_tables)
+                          ? aiSettings.selected_rag_tables[0]
+                          : aiSettings.selected_rag_tables;
+                      }
+                      let aiResponse;
+                      if (ragTableId) {
+                        // Сначала ищем ответ через RAG
+                        const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: text });
+                        if (ragResult && ragResult.answer) {
+                          aiResponse = ragResult.answer;
+                        } else {
+                          aiResponse = await generateLLMResponse({
+                            userQuestion: text,
+                            context: ragResult && ragResult.context ? ragResult.context : '',
+                            answer: ragResult && ragResult.answer ? ragResult.answer : '',
+                            systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+                            history: null,
+                            model: aiSettings ? aiSettings.model : undefined,
+                            language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+                          });
+                        }
+                      } else {
+                        aiResponse = await aiAssistant.getResponse(text, 'auto');
+                      }
                       // 4. Сохранить ответ в БД с conversation_id
                       await db.getQuery()(
                         `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
