@@ -8,6 +8,8 @@ const identityService = require('./identity-service');
 const aiAssistant = require('./ai-assistant');
 const { checkAdminRole } = require('./admin-role');
 const { broadcastContactsUpdate } = require('../wsHub');
+const aiAssistantSettingsService = require('./aiAssistantSettingsService');
+const { ragAnswer, generateLLMResponse } = require('./ragService');
 
 let botInstance = null;
 let telegramSettingsCache = null;
@@ -335,8 +337,34 @@ async function getBot() {
           ]
         );
 
-        // 3. Получить ответ от ИИ
-        const aiResponse = await aiAssistant.getResponse(content, 'auto');
+        // 3. Получить ответ от ИИ (RAG + LLM)
+        const aiSettings = await aiAssistantSettingsService.getSettings();
+        let ragTableId = null;
+        if (aiSettings && aiSettings.selected_rag_tables) {
+          ragTableId = Array.isArray(aiSettings.selected_rag_tables)
+            ? aiSettings.selected_rag_tables[0]
+            : aiSettings.selected_rag_tables;
+        }
+        let aiResponse;
+        if (ragTableId) {
+          // Сначала ищем ответ через RAG
+          const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: content });
+          if (ragResult && ragResult.answer) {
+            aiResponse = ragResult.answer;
+          } else {
+            aiResponse = await generateLLMResponse({
+              userQuestion: content,
+              context: ragResult && ragResult.context ? ragResult.context : '',
+              answer: ragResult && ragResult.answer ? ragResult.answer : '',
+              systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+              history: null,
+              model: aiSettings ? aiSettings.model : undefined,
+              language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+            });
+          }
+        } else {
+          aiResponse = await aiAssistant.getResponse(content, 'auto');
+        }
         // 4. Сохранить ответ в БД с conversation_id
         await db.getQuery()(
           `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at)

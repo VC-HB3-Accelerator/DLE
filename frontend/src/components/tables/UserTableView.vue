@@ -2,6 +2,12 @@
   <div class="user-table-header" v-if="tableMeta">
     <h2>{{ tableMeta.name }}</h2>
     <div class="table-desc">{{ tableMeta.description }}</div>
+    <button v-if="isAdmin" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
+      {{ rebuilding ? 'Пересборка...' : 'Пересобрать индекс' }}
+    </button>
+    <span v-if="rebuildStatus" :class="['rebuild-status', rebuildStatus.success ? 'success' : 'error']">
+      {{ rebuildStatus.message }}
+    </span>
   </div>
   <div class="notion-table-wrapper">
     <table class="notion-table">
@@ -97,6 +103,11 @@
 import { ref, onMounted } from 'vue';
 import tablesService from '../../services/tablesService';
 import TableCell from './TableCell.vue';
+import { useAuthContext } from '@/composables/useAuth';
+import axios from 'axios';
+const { isAdmin } = useAuthContext();
+const rebuilding = ref(false);
+const rebuildStatus = ref(null);
 
 const props = defineProps({ tableId: Number });
 const columns = ref([]);
@@ -251,6 +262,22 @@ function deleteColumn(col) {
   if (confirm('Удалить этот столбец?')) {
     tablesService.deleteColumn(col.id).then(fetchTable);
   }
+}
+
+async function rebuildIndex() {
+  rebuilding.value = true;
+  rebuildStatus.value = null;
+  try {
+    const { data } = await axios.post(`/tables/${props.tableId}/rebuild-index`);
+    if (data.success) {
+      rebuildStatus.value = { success: true, message: `Индекс пересобран (${data.count || 0} строк)` };
+    } else {
+      rebuildStatus.value = { success: false, message: data.message || 'Ошибка пересборки' };
+    }
+  } catch (e) {
+    rebuildStatus.value = { success: false, message: e.response?.data?.error || e.message || 'Ошибка запроса' };
+  }
+  rebuilding.value = false;
 }
 </script>
 
@@ -447,5 +474,31 @@ tr:hover .delete-row-btn {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: 1999;
+}
+.rebuild-btn {
+  margin-top: 1em;
+  background: #2ecc40;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+.rebuild-btn:disabled {
+  background: #b2e6c2;
+  color: #fff;
+  cursor: not-allowed;
+}
+.rebuild-status {
+  margin-left: 1em;
+  font-weight: 500;
+}
+.rebuild-status.success {
+  color: #2ecc40;
+}
+.rebuild-status.error {
+  color: #ff4d4f;
 }
 </style> 

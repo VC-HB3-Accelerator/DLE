@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const vectorSearchClient = require('../services/vectorSearchClient');
 
 router.use((req, res, next) => {
   console.log('Tables router received:', req.method, req.originalUrl);
@@ -79,6 +80,13 @@ router.post('/:id/rows', async (req, res, next) => {
       'INSERT INTO user_rows (table_id) VALUES ($1) RETURNING *',
       [tableId]
     );
+    // Получаем все строки и значения для upsert
+    const rows = (await db.getQuery()('SELECT r.id as row_id, c.value as text, c2.value as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId])).rows;
+    const upsertRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
+    console.log('[DEBUG][upsertRows]', upsertRows);
+    if (upsertRows.length > 0) {
+      await vectorSearchClient.upsert(tableId, upsertRows);
+    }
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -94,6 +102,24 @@ router.patch('/cell/:cellId', async (req, res, next) => {
       'UPDATE user_cell_values SET value = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [value, cellId]
     );
+    // Получаем row_id и table_id
+    const row = (await db.getQuery()('SELECT row_id FROM user_cell_values WHERE id = $1', [cellId])).rows[0];
+    if (row) {
+      const rowId = row.row_id;
+      const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [rowId])).rows[0];
+      if (table) {
+        const tableId = table.table_id;
+        // Получаем всю строку для upsert
+        const rowData = (await db.getQuery()('SELECT r.id as row_id, c.value as text, c2.value as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.id = $1', [rowId])).rows[0];
+        if (rowData) {
+          const upsertRows = [{ row_id: rowData.row_id, text: rowData.text, metadata: { answer: rowData.answer } }].filter(r => r.row_id && r.text);
+          console.log('[DEBUG][upsertRows]', upsertRows);
+          if (upsertRows.length > 0) {
+            await vectorSearchClient.upsert(tableId, upsertRows);
+          }
+        }
+      }
+    }
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -110,6 +136,20 @@ router.post('/cell', async (req, res, next) => {
        RETURNING *`,
       [row_id, column_id, value]
     );
+    // Получаем table_id
+    const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [row_id])).rows[0];
+    if (table) {
+      const tableId = table.table_id;
+      // Получаем всю строку для upsert
+      const rowData = (await db.getQuery()('SELECT r.id as row_id, c.value as text, c2.value as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.id = $1', [row_id])).rows[0];
+      if (rowData) {
+        const upsertRows = [{ row_id: rowData.row_id, text: rowData.text, metadata: { answer: rowData.answer } }].filter(r => r.row_id && r.text);
+        console.log('[DEBUG][upsertRows]', upsertRows);
+        if (upsertRows.length > 0) {
+          await vectorSearchClient.upsert(tableId, upsertRows);
+        }
+      }
+    }
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -120,7 +160,19 @@ router.post('/cell', async (req, res, next) => {
 router.delete('/row/:rowId', async (req, res, next) => {
   try {
     const rowId = req.params.rowId;
+    // Получаем table_id
+    const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [rowId])).rows[0];
     await db.getQuery()('DELETE FROM user_rows WHERE id = $1', [rowId]);
+    if (table) {
+      const tableId = table.table_id;
+      // Получаем все строки для rebuild
+      const rows = (await db.getQuery()('SELECT r.id as row_id, c.value as text, c2.value as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId])).rows;
+      const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
+      console.log('[DEBUG][rebuildRows]', rebuildRows);
+      if (rebuildRows.length > 0) {
+        await vectorSearchClient.rebuild(tableId, rebuildRows);
+      }
+    }
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -201,6 +253,51 @@ router.patch('/:id', async (req, res, next) => {
       [name, description, isRagSourceId, tableId]
     );
     res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Получить id колонок с purpose 'question' и 'answer'
+async function getQuestionAnswerColumnIds(tableId) {
+  const { rows } = await db.getQuery()(
+    `SELECT id, options FROM user_columns WHERE table_id = $1`, [tableId]
+  );
+  let questionCol = null, answerCol = null;
+  for (const col of rows) {
+    if (col.options && col.options.purpose === 'question') questionCol = col.id;
+    if (col.options && col.options.purpose === 'answer') answerCol = col.id;
+  }
+  return { questionCol, answerCol };
+}
+
+// Пересобрать векторный индекс для таблицы (только для админа)
+router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
+  try {
+    if (!req.session.isAdmin) {
+      return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    const tableId = req.params.id;
+    const { questionCol, answerCol } = await getQuestionAnswerColumnIds(tableId);
+    if (!questionCol || !answerCol) {
+      return res.status(400).json({ error: 'Не найдены колонки с вопросами и ответами' });
+    }
+    const rows = (await db.getQuery()(
+      `SELECT r.id as row_id, c.value as text, c2.value as answer
+       FROM user_rows r
+       LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = $2
+       LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = $3
+       WHERE r.table_id = $1`,
+      [tableId, questionCol, answerCol]
+    )).rows;
+    const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
+    console.log('[DEBUG][rebuildRows]', rebuildRows);
+    if (rebuildRows.length > 0) {
+      await vectorSearchClient.rebuild(tableId, rebuildRows);
+      res.json({ success: true, count: rebuildRows.length });
+    } else {
+      res.status(400).json({ error: 'Нет валидных строк для индексации' });
+    }
   } catch (err) {
     next(err);
   }

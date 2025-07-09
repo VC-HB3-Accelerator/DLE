@@ -76,9 +76,16 @@ async function reinitPoolFromDbSettings() {
   }
 }
 
-// При старте приложения — сразу пробуем инициализировать из db_settings
-if (process.env.NODE_ENV !== 'migration') {
-  reinitPoolFromDbSettings();
+// При старте приложения — убираем автоматический вызов reinitPoolFromDbSettings
+// if (process.env.NODE_ENV !== 'migration') {
+//   reinitPoolFromDbSettings();
+// }
+
+// Экспортируем функцию для явной инициализации пула
+async function initDbPool() {
+  if (process.env.NODE_ENV !== 'migration') {
+    await reinitPoolFromDbSettings();
+  }
 }
 
 // Функция для сохранения гостевого сообщения в базе данных
@@ -99,4 +106,4 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
 }
 
 // Экспортируем функции для работы с базой данных
-module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback };
+module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback, initDbPool };

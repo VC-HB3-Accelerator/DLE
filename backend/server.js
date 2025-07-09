@@ -5,6 +5,7 @@ const { initWSS } = require('./wsHub');
 const logger = require('./utils/logger');
 const { getBot } = require('./services/telegramBot');
 const EmailBotService = require('./services/emailBot');
+const { initDbPool } = require('./db');
 
 const PORT = process.env.PORT || 8000;
 
@@ -44,10 +45,15 @@ async function initServices() {
 const server = http.createServer(app);
 initWSS(server);
 
+async function startServer() {
+  await initDbPool(); // Дождаться пересоздания пула!
+  await initServices(); // Только теперь запускать сервисы
+  console.log(`Server is running on port ${PORT}`);
+}
+
 server.listen(PORT, async () => {
   try {
-    await initServices();
-    console.log(`Server is running on port ${PORT}`);
+    await startServer();
   } catch (error) {
     console.error('Error starting server:', error);
     process.exit(1);
