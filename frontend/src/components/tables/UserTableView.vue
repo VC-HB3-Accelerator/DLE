@@ -9,6 +9,23 @@
       {{ rebuildStatus.message }}
     </span>
   </div>
+  <!-- Фильтры на Element Plus -->
+  <div class="table-filters-el" v-if="productOptions.length || tagOptions.length">
+    <el-select v-model="selectedProduct" placeholder="Все продукты" clearable style="min-width: 180px;">
+      <el-option v-for="opt in productOptions" :key="opt" :label="opt" :value="opt" />
+    </el-select>
+    <el-select
+      v-model="selectedTags"
+      multiple
+      filterable
+      collapse-tags
+      placeholder="Теги"
+      style="min-width: 220px;"
+    >
+      <el-option v-for="tag in tagOptions" :key="tag" :label="tag" :value="tag" />
+    </el-select>
+    <el-button @click="resetFilters" type="default" icon="el-icon-refresh">Сбросить фильтры</el-button>
+  </div>
   <div class="notion-table-wrapper">
     <table class="notion-table">
       <thead>
@@ -30,7 +47,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="row.id">
+        <tr v-for="row in filteredRows" :key="row.id">
           <td v-for="col in columns" :key="col.id">
             <TableCell
               :rowId="row.id"
@@ -100,11 +117,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import tablesService from '../../services/tablesService';
 import TableCell from './TableCell.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import axios from 'axios';
+// Импортируем компоненты Element Plus
+import { ElSelect, ElOption, ElButton } from 'element-plus';
 const { isAdmin } = useAuthContext();
 const rebuilding = ref(false);
 const rebuildStatus = ref(null);
@@ -114,6 +133,13 @@ const columns = ref([]);
 const rows = ref([]);
 const cellValues = ref([]);
 const tableMeta = ref(null);
+
+// Фильтры
+const selectedProduct = ref('');
+const selectedTags = ref([]);
+const productOptions = ref([]);
+const tagOptions = ref([]);
+const filteredRows = ref([]);
 
 // Для модалки добавления столбца
 const showAddColModal = ref(false);
@@ -160,6 +186,53 @@ async function loadTags() {
   const res = await fetch('/api/tags');
   tags.value = await res.json();
 }
+
+// Получение уникальных значений для фильтров
+function updateFilterOptions() {
+  // product
+  const productCol = columns.value.find(c => c.options && c.options.purpose === 'product');
+  const tagCol = columns.value.find(c => c.options && c.options.purpose === 'userTags');
+  const products = new Set();
+  const tagsSet = new Set();
+  rows.value.forEach(row => {
+    const cells = cellValues.value.filter(cell => cell.row_id === row.id);
+    const prod = cells.find(c => c.column_id === productCol?.id)?.value;
+    if (prod) products.add(prod);
+    const tagsVal = cells.find(c => c.column_id === tagCol?.id)?.value;
+    if (tagsVal) tagsVal.split(',').map(t => t.trim()).forEach(t => t && tagsSet.add(t));
+  });
+  productOptions.value = Array.from(products);
+  tagOptions.value = Array.from(tagsSet);
+}
+
+// Загрузка данных с фильтрацией
+async function fetchFilteredRows() {
+  const data = await tablesService.getFilteredRows(props.tableId, {
+    product: selectedProduct.value,
+    tags: selectedTags.value
+  });
+  filteredRows.value = data;
+}
+
+// Основная загрузка таблицы
+async function fetchTable() {
+  const data = await tablesService.getTable(props.tableId);
+  columns.value = data.columns;
+  rows.value = data.rows;
+  cellValues.value = data.cellValues;
+  tableMeta.value = { name: data.name, description: data.description };
+  updateFilterOptions();
+  await fetchFilteredRows();
+}
+
+// Сброс фильтров
+function resetFilters() {
+  selectedProduct.value = '';
+  selectedTags.value = [];
+  fetchFilteredRows();
+}
+
+watch([selectedProduct, selectedTags], fetchFilteredRows);
 
 onMounted(() => {
   fetchTable();
@@ -238,15 +311,6 @@ function startChangeTypeCol(col) {
   closeMenus();
   // TODO: реализовать смену типа столбца (можно открыть модалку выбора типа)
   alert('Изменение типа столбца пока не реализовано');
-}
-
-// Загрузка данных
-async function fetchTable() {
-  const data = await tablesService.getTable(props.tableId);
-  columns.value = data.columns;
-  rows.value = data.rows;
-  cellValues.value = data.cellValues;
-  tableMeta.value = { name: data.name, description: data.description };
 }
 
 function saveCellValue(rowId, columnId, value) {
@@ -500,5 +564,11 @@ tr:hover .delete-row-btn {
 }
 .rebuild-status.error {
   color: #ff4d4f;
+}
+.table-filters-el {
+  display: flex;
+  gap: 1.2em;
+  align-items: center;
+  margin-bottom: 1.2em;
 }
 </style> 

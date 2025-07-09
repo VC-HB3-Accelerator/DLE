@@ -93,6 +93,49 @@ router.post('/:id/rows', async (req, res, next) => {
   }
 });
 
+// Получить строки таблицы с фильтрацией по продукту и тегам
+router.get('/:id/rows', async (req, res, next) => {
+  try {
+    const tableId = req.params.id;
+    const { product, tags } = req.query; // tags = "B2B,VIP"
+    // Получаем все столбцы, строки и значения ячеек
+    const columns = (await db.getQuery()('SELECT * FROM user_columns WHERE table_id = $1', [tableId])).rows;
+    const rows = (await db.getQuery()('SELECT * FROM user_rows WHERE table_id = $1', [tableId])).rows;
+    const cellValues = (await db.getQuery()('SELECT * FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId])).rows;
+
+    // Находим id нужных колонок
+    const productCol = columns.find(c => c.options && c.options.purpose === 'product');
+    const tagsCol = columns.find(c => c.options && c.options.purpose === 'userTags');
+
+    // Собираем строки с нужными полями
+    const data = rows.map(row => {
+      const cells = cellValues.filter(cell => cell.row_id === row.id);
+      return {
+        id: row.id,
+        product: cells.find(c => c.column_id === productCol?.id)?.value,
+        userTags: cells.find(c => c.column_id === tagsCol?.id)?.value,
+        // ... другие поля при необходимости
+      };
+    });
+
+    // Фильтрация на сервере
+    let filtered = data;
+    if (product) {
+      filtered = filtered.filter(r => r.product === product);
+    }
+    if (tags) {
+      const tagArr = tags.split(',').map(t => t.trim());
+      filtered = filtered.filter(r =>
+        tagArr.some(tag => (r.userTags || '').split(',').map(t => t.trim()).includes(tag))
+      );
+    }
+
+    res.json(filtered);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Изменить значение ячейки (доступно всем)
 router.patch('/cell/:cellId', async (req, res, next) => {
   try {

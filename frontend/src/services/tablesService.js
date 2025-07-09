@@ -53,5 +53,12 @@ export default {
       console.error('Error in deleteTable service:', error);
       throw error;
     }
+  },
+  async getFilteredRows(tableId, { product = '', tags = [] } = {}) {
+    const params = new URLSearchParams();
+    if (product) params.append('product', product);
+    if (tags.length) params.append('tags', tags.join(','));
+    const res = await api.get(`/tables/${tableId}/rows?${params.toString()}`);
+    return res.data;
   }
 }; 
