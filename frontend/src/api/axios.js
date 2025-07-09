@@ -51,7 +51,7 @@ const sendGuestMessageToServer = async (messageText) => {
     await axios.post('/chat/guest-message', {
       message: messageText,
       // language: userLanguage.value, // TODO: Реализовать получение языка пользователя
-    });
+    }, { withCredentials: true });
   } catch (error) {
     console.error('Ошибка при отправке гостевого сообщения на сервер:', error);
   }

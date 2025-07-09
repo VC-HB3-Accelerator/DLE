@@ -278,9 +278,6 @@ export function useChat(auth) {
             }
 
             // Сохраняем гостевое сообщение (если нужно)
-            // В текущей реализации HomeView гостевые сообщения из localstorage загружаются только при старте
-            // Если нужна синхронизация после отправки, логику нужно добавить/изменить
-            /*
             if (isGuestMessage) {
                 try {
                     const storedMessages = getFromStorage('guestMessages', []);
@@ -299,7 +296,6 @@ export function useChat(auth) {
                     console.error('[useChat] Ошибка сохранения гостевого сообщения в localStorage:', storageError);
                 }
             }
-            */
 
             hasUserSentMessage.value = true;
             setToStorage('hasUserSentMessage', true);
