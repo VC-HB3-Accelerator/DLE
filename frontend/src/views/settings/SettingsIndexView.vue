@@ -16,8 +16,8 @@
       <button class="details-btn" @click="$router.push('/settings/security')">Подробнее</button>
     </div>
     <div class="main-block">
-      <h3>Интерфейс</h3>
-      <p>Настройки внешнего вида, локализации и пользовательского опыта.</p>
+      <h3>Сервер</h3>
+      <p>Настройки серверов, хостинга и публикации приложения.</p>
       <button class="details-btn" @click="$router.push('/settings/interface')">Подробнее</button>
     </div>
   </div>

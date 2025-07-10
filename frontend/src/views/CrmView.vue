@@ -25,6 +25,13 @@
           <i class="fas fa-table"></i> Подробнее
         </button>
       </div>
+      <!-- Новый блок Контент -->
+      <div class="crm-content-block">
+        <h2>Контент</h2>
+        <button class="btn btn-info" @click="goToContent">
+          <i class="fas fa-file-alt"></i> Подробнее
+        </button>
+      </div>
     </div>
   </BaseLayout>
 </template>
@@ -195,6 +202,10 @@ function goToDleManagement() {
 function goToContactsList() {
   router.push({ name: 'contacts-list' });
 }
+
+function goToContent() {
+  router.push({ name: 'content-page' });
+}
 </script>
 
 <style scoped>
@@ -344,6 +355,26 @@ strong {
   font-weight: 600;
 }
 .crm-tables-block .btn {
+  font-size: 1rem;
+  padding: 8px 18px;
+}
+
+.crm-content-block {
+  margin: 32px 0 24px 0;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.crm-content-block h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.crm-content-block .btn {
   font-size: 1rem;
   padding: 8px 18px;
 }

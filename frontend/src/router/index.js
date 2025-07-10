@@ -169,6 +169,11 @@ const routes = [
     name: 'email-settings',
     component: () => import('@/views/settings/AI/EmailSettingsView.vue'),
   },
+  {
+    path: '/content',
+    name: 'content-page',
+    component: () => import('../views/ContentPageView.vue'),
+  },
 ];
 
 const router = createRouter({
