@@ -4,7 +4,7 @@ let wss = null;
 const wsClients = new Set();
 
 function initWSS(server) {
-  wss = new WebSocket.Server({ server });
+  wss = new WebSocket.Server({ server, path: '/ws' });
   wss.on('connection', (ws) => {
     wsClients.add(ws);
     ws.on('close', () => wsClients.delete(ws));

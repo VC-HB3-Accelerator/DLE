@@ -19,7 +19,6 @@ async function getTableData(tableId) {
   const getColId = purpose => columns.find(col => col.options?.purpose === purpose)?.id;
   const questionColId = getColId('question');
   const answerColId = getColId('answer');
-  const userTagsColId = getColId('userTags');
   const contextColId = getColId('context');
   const productColId = getColId('product');
   const priorityColId = getColId('priority');
@@ -28,7 +27,6 @@ async function getTableData(tableId) {
   console.log(`[RAG] Column IDs:`, {
     question: questionColId,
     answer: answerColId,
-    userTags: userTagsColId,
     context: contextColId,
     product: productColId,
     priority: priorityColId,
@@ -41,9 +39,9 @@ async function getTableData(tableId) {
       id: row.id,
       question: cells.find(c => c.column_id === questionColId)?.value,
       answer: cells.find(c => c.column_id === answerColId)?.value,
-      userTags: cells.find(c => c.column_id === userTagsColId)?.value,
       context: cells.find(c => c.column_id === contextColId)?.value,
-      product: cells.find(c => c.column_id === productColId)?.value,
+      product: parseIfArray(cells.find(c => c.column_id === productColId)?.value),
+      userTags: parseIfArray(cells.find(c => c.column_id === getColId('userTags'))?.value),
       priority: cells.find(c => c.column_id === priorityColId)?.value,
       date: cells.find(c => c.column_id === dateColId)?.value,
     };
@@ -53,7 +51,7 @@ async function getTableData(tableId) {
   return data;
 }
 
-async function ragAnswer({ tableId, userQuestion, userTags = [], product = null, threshold = 10 }) {
+async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10 }) {
   console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
   
   const data = await getTableData(tableId);
@@ -65,24 +63,26 @@ async function ragAnswer({ tableId, userQuestion, userTags = [], product = null,
       id: row.id,
       question: row.question,
       answer: row.answer,
-      userTags: row.userTags,
       product: row.product
     });
   });
   
   const questions = data.map(row => row.question && typeof row.question === 'string' ? row.question.trim() : row.question);
-  const rowsForUpsert = data.map(row => ({
-    row_id: row.id,
-    text: row.question,
-    metadata: {
-      answer: row.answer || null,
-      userTags: row.userTags || null,
-      context: row.context || null,
-      product: row.product || null,
-      priority: row.priority || null,
-      date: row.date || null
-    }
-  }));
+  // Фильтруем только строки с непустым вопросом (text)
+  const rowsForUpsert = data
+    .filter(row => row.id && row.question && String(row.question).trim().length > 0)
+    .map(row => ({
+      row_id: row.id,
+      text: row.question,
+      metadata: {
+        answer: row.answer || null,
+        context: row.context || null,
+        product: row.product || [],
+        userTags: row.userTags || [],
+        priority: row.priority || null,
+        date: row.date || null
+      }
+    }));
   
   console.log(`[RAG] Prepared ${rowsForUpsert.length} rows for upsert`);
   console.log(`[RAG] First row:`, rowsForUpsert[0]);
@@ -117,15 +117,9 @@ async function ragAnswer({ tableId, userQuestion, userTags = [], product = null,
   let filtered = results;
   console.log(`[RAG] Before filtering: ${filtered.length} results`);
   
-  if (userTags.length) {
-    console.log(`[RAG] Filtering by userTags:`, userTags);
-    filtered = filtered.filter(row => row.metadata.userTags && userTags.some(tag => row.metadata.userTags.includes(tag)));
-    console.log(`[RAG] After userTags filtering: ${filtered.length} results`);
-  }
-  
   if (product) {
     console.log(`[RAG] Filtering by product:`, product);
-    filtered = filtered.filter(row => row.metadata.product === product);
+    filtered = filtered.filter(row => Array.isArray(row.metadata.product) ? row.metadata.product.includes(product) : row.metadata.product === product);
     console.log(`[RAG] After product filtering: ${filtered.length} results`);
   }
   
@@ -155,6 +149,50 @@ async function ragAnswer({ tableId, userQuestion, userTags = [], product = null,
     date: best?.metadata?.date,
     score: best?.score,
   };
+}
+
+/**
+ * Загрузка всех плейсхолдеров и их значений из пользовательских таблиц
+ * Возвращает объект: { placeholder1: value1, placeholder2: value2, ... }
+ */
+async function getAllPlaceholdersWithValues() {
+  // Получаем все плейсхолдеры и их значения (берём первое значение для каждого плейсхолдера)
+  const result = await db.getQuery()(`
+    SELECT c.placeholder, cv.value
+    FROM user_columns c
+    JOIN user_cell_values cv ON c.id = cv.column_id
+    WHERE c.placeholder IS NOT NULL AND c.placeholder != ''
+    ORDER BY c.id, cv.id
+  `);
+  // Группируем по плейсхолдеру (берём первое значение)
+  const map = {};
+  for (const row of result.rows) {
+    if (row.placeholder && !(row.placeholder in map)) {
+      map[row.placeholder] = row.value;
+    }
+  }
+  return map;
+}
+
+/**
+ * Подставляет значения плейсхолдеров в строку (например, systemPrompt)
+ * Пример: "Добро пожаловать, {client_name}!" => "Добро пожаловать, ООО Ромашка!"
+ */
+function replacePlaceholders(str, placeholders) {
+  if (!str || typeof str !== 'string') return str;
+  return str.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    return key in placeholders ? placeholders[key] : match;
+  });
+}
+
+function parseIfArray(val) {
+  if (typeof val === 'string') {
+    try {
+      const arr = JSON.parse(val);
+      if (Array.isArray(arr)) return arr;
+    } catch {}
+  }
+  return Array.isArray(val) ? val : (val ? [val] : []);
 }
 
 async function generateLLMResponse({
@@ -200,20 +238,24 @@ async function generateLLMResponse({
       prompt += `\n\nНайденный ответ: ${answer}`;
     }
     
-    if (userTags) {
-      prompt += `\n\nТеги: ${userTags}`;
-    }
-    
     if (product) {
       prompt += `\n\nПродукт: ${product}`;
     }
+
+    // --- ДОБАВЛЕНО: подстановка плейсхолдеров ---
+    let finalSystemPrompt = systemPrompt;
+    if (systemPrompt && systemPrompt.includes('{')) {
+      const placeholders = await getAllPlaceholdersWithValues();
+      finalSystemPrompt = replacePlaceholders(systemPrompt, placeholders);
+    }
+    // --- КОНЕЦ ДОБАВЛЕНИЯ ---
 
     // Получаем ответ от AI
     const llmResponse = await aiAssistant.getResponse(
       prompt,
       language || 'auto',
       history,
-      systemPrompt,
+      finalSystemPrompt,
       rules
     );
 

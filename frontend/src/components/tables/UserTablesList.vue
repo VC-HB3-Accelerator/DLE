@@ -6,7 +6,7 @@
     <ul class="tables-list-simple">
       <!-- Системная таблица tags -->
       <li>
-        <button class="table-link" @click="goToTagsTable">Теги (tags)</button>
+        <!-- <button class="table-link" @click="goToTagsTable">Теги (tags)</button> -->
       </li>
       <!-- Пользовательские таблицы -->
       <li v-for="table in tables" :key="table.id">
@@ -39,9 +39,6 @@ function selectTable(table) {
 }
 function createTable() {
   router.push({ name: 'create-table' });
-}
-function goToTagsTable() {
-  router.push({ name: 'tags-table-view' });
 }
 </script>
 

@@ -24,7 +24,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
-import axios from 'axios';
+import tablesService from '@/services/tablesService';
 const $route = useRoute();
 const router = useRouter();
 const name = ref('');
@@ -32,14 +32,14 @@ const description = ref('');
 const isRagSourceId = ref(2);
 
 onMounted(async () => {
-      const { data } = await axios.get(`/tables/${$route.params.id}`);
+  const data = await tablesService.getTable($route.params.id);
   name.value = data.name;
   description.value = data.description;
   isRagSourceId.value = data.is_rag_source_id || 2;
 });
 
 async function save() {
-  await axios.patch(`/api/tables/${$route.params.id}`, {
+  await tablesService.updateTable($route.params.id, {
     name: name.value,
     description: description.value,
     isRagSourceId: isRagSourceId.value

@@ -14,7 +14,6 @@ import BaseLayout from '../../components/BaseLayout.vue';
 import UserTablesList from '../../components/tables/UserTablesList.vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
-// import TagsTableView from '../../components/tables/TagsTableView.vue'; // больше не используется
 const router = useRouter();
 const { isAdmin } = useAuthContext();
 function goBack() {

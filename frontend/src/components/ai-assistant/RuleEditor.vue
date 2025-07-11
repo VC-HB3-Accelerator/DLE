@@ -6,7 +6,6 @@
       <input v-model="name" />
       <label>Описание</label>
       <textarea v-model="description" rows="3" placeholder="Опишите правило в свободной форме" />
-      <button type="button" @click="convertToJson" style="margin: 0.5rem 0;">Преобразовать в JSON</button>
       <label>Правила (JSON)</label>
       <textarea v-model="rulesJson" rows="6"></textarea>
       <div v-if="error" class="error">{{ error }}</div>

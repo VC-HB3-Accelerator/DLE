@@ -4,6 +4,7 @@ const db = require('../db');
 const { broadcastMessagesUpdate } = require('../wsHub');
 const telegramBot = require('../services/telegramBot');
 const emailBot = new (require('../services/emailBot'))();
+const { isUserBlocked } = require('../utils/userUtils');
 
 // GET /api/messages?userId=123
 router.get('/', async (req, res) => {
@@ -44,6 +45,10 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const { user_id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata } = req.body;
   try {
+    // Проверка блокировки пользователя
+    if (await isUserBlocked(user_id)) {
+      return res.status(403).json({ error: 'Пользователь заблокирован. Сообщение не принимается.' });
+    }
     // Проверка наличия идентификатора для выбранного канала
     if (channel === 'email') {
       const emailIdentity = await db.getQuery()(

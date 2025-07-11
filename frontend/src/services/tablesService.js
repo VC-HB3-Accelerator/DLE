@@ -54,11 +54,14 @@ export default {
       throw error;
     }
   },
-  async getFilteredRows(tableId, { product = '', tags = [] } = {}) {
+  async getFilteredRows(tableId, { product = '' } = {}) {
     const params = new URLSearchParams();
     if (product) params.append('product', product);
-    if (tags.length) params.append('tags', tags.join(','));
     const res = await api.get(`/tables/${tableId}/rows?${params.toString()}`);
+    return res.data;
+  },
+  async rebuildIndex(tableId) {
+    const res = await api.post(`/tables/${tableId}/rebuild-index`);
     return res.data;
   }
 }; 

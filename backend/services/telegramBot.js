@@ -10,6 +10,7 @@ const { checkAdminRole } = require('./admin-role');
 const { broadcastContactsUpdate } = require('../wsHub');
 const aiAssistantSettingsService = require('./aiAssistantSettingsService');
 const { ragAnswer, generateLLMResponse } = require('./ragService');
+const { isUserBlocked } = require('../utils/userUtils');
 
 let botInstance = null;
 let telegramSettingsCache = null;
@@ -269,6 +270,10 @@ async function getBot() {
         const telegramId = ctx.from.id.toString();
         // 1. Найти или создать пользователя
         const { userId, role } = await identityService.findOrCreateUserWithRole('telegram', telegramId);
+        if (await isUserBlocked(userId)) {
+          await ctx.reply('Вы заблокированы. Сообщения не принимаются.');
+          return;
+        }
         // 1.1 Найти или создать беседу
         let conversationResult = await db.getQuery()(
           'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
@@ -336,6 +341,11 @@ async function getBot() {
             attachmentMeta.attachment_data || null
           ]
         );
+
+        if (await isUserBlocked(userId)) {
+          logger.info(`[TelegramBot] Пользователь ${userId} заблокирован — ответ ИИ не отправляется.`);
+          return;
+        }
 
         // 3. Получить ответ от ИИ (RAG + LLM)
         const aiSettings = await aiAssistantSettingsService.getSettings();

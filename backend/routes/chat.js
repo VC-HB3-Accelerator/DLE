@@ -8,6 +8,7 @@ const { requireAuth } = require('../middleware/auth');
 const crypto = require('crypto');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
+const { isUserBlocked } = require('../utils/userUtils');
 
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
@@ -422,6 +423,11 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     );
     const userMessage = userMessageResult.rows[0];
     logger.info('User message saved', { messageId: userMessage.id, conversationId });
+
+    if (await isUserBlocked(userId)) {
+      logger.info(`[Chat] Пользователь ${userId} заблокирован — ответ ИИ не отправляется.`);
+      return;
+    }
 
     // --- Новая логика автоответа ИИ по RAG ---
     let aiMessage = null;

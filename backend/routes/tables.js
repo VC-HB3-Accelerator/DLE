@@ -50,6 +50,30 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+// Вспомогательная функция для генерации плейсхолдера
+function generatePlaceholder(name, existingPlaceholders = []) {
+  // Транслитерация (упрощённая)
+  const cyrillicToLatinMap = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya'
+  };
+  let translit = name.toLowerCase().split('').map(ch => {
+    if (cyrillicToLatinMap[ch]) return cyrillicToLatinMap[ch];
+    if (/[a-z0-9]/.test(ch)) return ch;
+    if (ch === ' ') return '_';
+    if (ch === '-') return '_';
+    return '';
+  }).join('');
+  translit = translit.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  let base = translit;
+  let candidate = base;
+  let i = 1;
+  while (existingPlaceholders.includes(candidate)) {
+    candidate = `${base}_${i}`;
+    i++;
+  }
+  return candidate;
+}
+
 // Добавить столбец (доступно всем)
 router.post('/:id/columns', async (req, res, next) => {
   try {
@@ -62,9 +86,13 @@ router.post('/:id/columns', async (req, res, next) => {
     if (purpose) {
       finalOptions.purpose = purpose;
     }
+    // Получаем уже существующие плейсхолдеры в таблице
+    const existing = (await db.getQuery()('SELECT placeholder FROM user_columns WHERE table_id = $1', [tableId])).rows;
+    const existingPlaceholders = existing.map(c => c.placeholder).filter(Boolean);
+    const placeholder = generatePlaceholder(name, existingPlaceholders);
     const result = await db.getQuery()(
-      'INSERT INTO user_columns (table_id, name, type, options, "order") VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [tableId, name, type, finalOptions ? JSON.stringify(finalOptions) : null, order || 0]
+      'INSERT INTO user_columns (table_id, name, type, options, "order", placeholder) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [tableId, name, type, finalOptions ? JSON.stringify(finalOptions) : null, order || 0, placeholder]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -80,6 +108,7 @@ router.post('/:id/rows', async (req, res, next) => {
       'INSERT INTO user_rows (table_id) VALUES ($1) RETURNING *',
       [tableId]
     );
+    console.log('[DEBUG][addRow] result.rows[0]:', result.rows[0]);
     // Получаем все строки и значения для upsert
     const rows = (await db.getQuery()('SELECT r.id as row_id, c.value as text, c2.value as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId])).rows;
     const upsertRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
@@ -87,17 +116,18 @@ router.post('/:id/rows', async (req, res, next) => {
     if (upsertRows.length > 0) {
       await vectorSearchClient.upsert(tableId, upsertRows);
     }
+    console.log('[DEBUG][addRow] res.json:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
   }
 });
 
-// Получить строки таблицы с фильтрацией по продукту и тегам
+// Получить строки таблицы с фильтрацией по продукту, тегам и связям
 router.get('/:id/rows', async (req, res, next) => {
   try {
     const tableId = req.params.id;
-    const { product, tags } = req.query; // tags = "B2B,VIP"
+    const { product, tags, ...relationFilters } = req.query; // tags = "B2B,VIP", relation_{colId}=rowId
     // Получаем все столбцы, строки и значения ячеек
     const columns = (await db.getQuery()('SELECT * FROM user_columns WHERE table_id = $1', [tableId])).rows;
     const rows = (await db.getQuery()('SELECT * FROM user_rows WHERE table_id = $1', [tableId])).rows;
@@ -118,7 +148,7 @@ router.get('/:id/rows', async (req, res, next) => {
       };
     });
 
-    // Фильтрация на сервере
+    // Фильтрация на сервере (старое)
     let filtered = data;
     if (product) {
       filtered = filtered.filter(r => r.product === product);
@@ -128,6 +158,33 @@ router.get('/:id/rows', async (req, res, next) => {
       filtered = filtered.filter(r =>
         tagArr.some(tag => (r.userTags || '').split(',').map(t => t.trim()).includes(tag))
       );
+    }
+
+    // Новая фильтрация по relation/multiselect/lookup
+    const relationFilterKeys = Object.keys(relationFilters).filter(k => k.startsWith('relation_') || k.startsWith('multiselect_') || k.startsWith('lookup_'));
+    if (relationFilterKeys.length > 0) {
+      // Получаем все связи для строк этой таблицы
+      const rowIds = filtered.map(r => r.id);
+      const rels = (await db.getQuery()(
+        'SELECT * FROM user_table_relations WHERE from_row_id = ANY($1)', [rowIds]
+      )).rows;
+      for (const key of relationFilterKeys) {
+        const [type, colId] = key.split('_');
+        const filterVals = (relationFilters[key] || '').split(',').map(v => v.trim()).filter(Boolean);
+        if (!colId || !filterVals.length) continue;
+        filtered = filtered.filter(r => {
+          const relsForRow = rels.filter(rel => String(rel.from_row_id) === String(r.id) && String(rel.column_id) === colId);
+          if (type === 'relation' || type === 'lookup') {
+            // Обычная связь: хотя бы одна связь с нужным to_row_id
+            return relsForRow.some(rel => filterVals.includes(String(rel.to_row_id)));
+          } else if (type === 'multiselect') {
+            // Мультивыбор: все значения должны быть среди связей
+            const rowVals = relsForRow.map(rel => String(rel.to_row_id));
+            return filterVals.every(val => rowVals.includes(val));
+          }
+          return true;
+        });
+      }
     }
 
     res.json(filtered);
@@ -237,13 +294,21 @@ router.delete('/column/:columnId', async (req, res, next) => {
 router.patch('/column/:columnId', async (req, res, next) => {
   try {
     const columnId = req.params.columnId;
-    const { name, type, options, order } = req.body;
-    
+    const { name, type, options, order, placeholder } = req.body;
+    // Получаем table_id для проверки уникальности плейсхолдера
+    const colInfo = (await db.getQuery()('SELECT table_id, name FROM user_columns WHERE id = $1', [columnId])).rows[0];
+    if (!colInfo) return res.status(404).json({ error: 'Column not found' });
+    let newPlaceholder = placeholder;
+    if (name !== undefined && !placeholder) {
+      // Если имя меняется и плейсхолдер не передан — генерируем новый
+      const existing = (await db.getQuery()('SELECT placeholder FROM user_columns WHERE table_id = $1 AND id != $2', [colInfo.table_id, columnId])).rows;
+      const existingPlaceholders = existing.map(c => c.placeholder).filter(Boolean);
+      newPlaceholder = generatePlaceholder(name, existingPlaceholders);
+    }
     // Построение динамического запроса
     const updates = [];
     const values = [];
     let paramIndex = 1;
-    
     if (name !== undefined) {
       updates.push(`name = $${paramIndex++}`);
       values.push(name);
@@ -260,21 +325,20 @@ router.patch('/column/:columnId', async (req, res, next) => {
       updates.push(`"order" = $${paramIndex++}`);
       values.push(order);
     }
-    
+    if (newPlaceholder !== undefined) {
+      updates.push(`placeholder = $${paramIndex++}`);
+      values.push(newPlaceholder);
+    }
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
     updates.push(`updated_at = NOW()`);
     values.push(columnId);
-    
     const query = `UPDATE user_columns SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     const result = await db.getQuery()(query, values);
-    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Column not found' });
     }
-    
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -379,6 +443,100 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
     console.error('[DIAG] Ошибка при удалении таблицы:', err);
+    next(err);
+  }
+});
+
+// Получить связи для строки (relation/multiselect/lookup)
+router.get('/:tableId/row/:rowId/relations', async (req, res, next) => {
+  try {
+    const { tableId, rowId } = req.params;
+    const relations = (await db.getQuery()(
+      'SELECT * FROM user_table_relations WHERE from_row_id = $1',
+      [rowId]
+    )).rows;
+    res.json(relations);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Добавить связь (relation/multiselect/lookup)
+router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
+  try {
+    const { tableId, rowId } = req.params;
+    const { column_id, to_table_id, to_row_id } = req.body;
+    const result = await db.getQuery()(
+      `INSERT INTO user_table_relations (from_row_id, column_id, to_table_id, to_row_id)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [rowId, column_id, to_table_id, to_row_id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Удалить связь
+router.delete('/:tableId/row/:rowId/relations/:relationId', async (req, res, next) => {
+  try {
+    const { relationId } = req.params;
+    await db.getQuery()('DELETE FROM user_table_relations WHERE id = $1', [relationId]);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Массовое обновление связей для multiselect-relation ---
+router.post('/:tableId/row/:rowId/multirelations', async (req, res, next) => {
+  try {
+    const { tableId, rowId } = req.params;
+    const { column_id, to_table_id, to_row_ids } = req.body; // to_row_ids: массив id
+    if (!Array.isArray(to_row_ids)) return res.status(400).json({ error: 'to_row_ids должен быть массивом' });
+    // Удаляем старые связи для этой строки/столбца
+    await db.getQuery()('DELETE FROM user_table_relations WHERE from_row_id = $1 AND column_id = $2', [rowId, column_id]);
+    // Добавляем новые связи
+    for (const to_row_id of to_row_ids) {
+      await db.getQuery()(
+        `INSERT INTO user_table_relations (from_row_id, column_id, to_table_id, to_row_id)
+         VALUES ($1, $2, $3, $4)`,
+        [rowId, column_id, to_table_id, to_row_id]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Получить плейсхолдеры для всех столбцов таблицы
+router.get('/:id/placeholders', async (req, res, next) => {
+  try {
+    const tableId = req.params.id;
+    const columns = (await db.getQuery()('SELECT id, name, placeholder FROM user_columns WHERE table_id = $1', [tableId])).rows;
+    res.json(columns.map(col => ({
+      id: col.id,
+      name: col.name,
+      placeholder: col.placeholder
+    })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Получить все плейсхолдеры по всем пользовательским таблицам
+router.get('/placeholders/all', async (req, res, next) => {
+  try {
+    const result = await db.getQuery()(`
+      SELECT c.id as column_id, c.name as column_name, c.placeholder, t.id as table_id, t.name as table_name
+      FROM user_columns c
+      JOIN user_tables t ON c.table_id = t.id
+      WHERE c.placeholder IS NOT NULL AND c.placeholder != ''
+      ORDER BY t.id, c.id
+    `);
+    res.json(result.rows);
+  } catch (err) {
     next(err);
   }
 });

@@ -34,19 +34,6 @@ describe('vectorSearchClient integration (vector-search)', () => {
     }
   });
 
-  it('Поиск с фильтрацией по тегу (должен найти FAISS)', async () => {
-    const results = await vectorSearch.search(TEST_TABLE_ID, 'Что такое FAISS?', 3);
-    console.log('Результаты поиска FAISS:', results);
-    if (!results || results.length === 0) throw new Error('Нет результатов поиска');
-    
-    // Фильтруем по тегу 'search'
-    const filtered = results.filter(r => r.metadata.userTags && r.metadata.userTags.includes('search'));
-    if (filtered.length === 0) throw new Error('Нет результатов с тегом search');
-    if (filtered[0].metadata.answer !== 'Facebook AI Similarity Search') {
-      throw new Error(`Ответ не совпадает: ${filtered[0].metadata.answer}`);
-    }
-  });
-
   it('Поиск с фильтрацией по продукту (должен найти Ollama)', async () => {
     const results = await vectorSearch.search(TEST_TABLE_ID, 'Что такое Ollama?', 3);
     console.log('Результаты поиска Ollama:', results);
@@ -56,22 +43,6 @@ describe('vectorSearchClient integration (vector-search)', () => {
     const filtered = results.filter(r => r.metadata.product === 'A');
     if (filtered.length === 0) throw new Error('Нет результатов с продуктом A');
     if (filtered[0].metadata.answer !== 'Локальный inference LLM') {
-      throw new Error(`Ответ не совпадает: ${filtered[0].metadata.answer}`);
-    }
-  });
-
-  it('Комбинированная фильтрация (тег+продукт)', async () => {
-    const results = await vectorSearch.search(TEST_TABLE_ID, 'Что такое RAG?', 3);
-    console.log('Результаты поиска RAG:', results);
-    if (!results || results.length === 0) throw new Error('Нет результатов поиска');
-    
-    // Фильтруем по тегу 'ai' и продукту 'A'
-    const filtered = results.filter(r => 
-      r.metadata.userTags && r.metadata.userTags.includes('ai') && 
-      r.metadata.product === 'A'
-    );
-    if (filtered.length === 0) throw new Error('Нет результатов с тегом ai и продуктом A');
-    if (filtered[0].metadata.answer !== 'Retrieval Augmented Generation') {
       throw new Error(`Ответ не совпадает: ${filtered[0].metadata.answer}`);
     }
   });

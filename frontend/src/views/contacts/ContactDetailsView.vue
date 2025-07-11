@@ -144,6 +144,7 @@ import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { ElMessageBox } from 'element-plus';
+import tablesService from '../../services/tablesService';
 
 const route = useRoute();
 const router = useRouter();
@@ -167,6 +168,59 @@ const chatNewMessage = ref('');
 const { isAdmin } = useAuthContext();
 const isAiLoading = ref(false);
 const conversationId = ref(null);
+
+// id таблицы тегов (будет найден или создан)
+const tagsTableId = ref(null);
+
+async function ensureTagsTable() {
+  // Получаем все пользовательские таблицы
+  const tables = await tablesService.getTables();
+  let tagsTable = tables.find(t => t.name === 'Теги клиентов');
+  if (!tagsTable) {
+    // Если таблицы нет — создаём
+    tagsTable = await tablesService.createTable({
+      name: 'Теги клиентов',
+      description: 'Справочник тегов для контактов',
+      isRagSourceId: 2 // не источник для RAG по умолчанию
+    });
+    // Добавляем столбцы
+    await tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' });
+    await tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' });
+  } else {
+    // Проверяем, есть ли нужные столбцы, если таблица уже была создана
+    const table = await tablesService.getTable(tagsTable.id);
+    const hasName = table.columns.some(col => col.name === 'Название');
+    const hasDesc = table.columns.some(col => col.name === 'Описание');
+    if (!hasName) await tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' });
+    if (!hasDesc) await tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' });
+  }
+  tagsTableId.value = tagsTable.id;
+  return tagsTable.id;
+}
+
+async function loadAllTags() {
+  // Убедимся, что таблица тегов есть
+  const tableId = await ensureTagsTable();
+  // Загружаем все строки из таблицы тегов
+  const table = await tablesService.getTable(tableId);
+  // Ожидаем, что первый столбец — название тега, второй — описание (если есть)
+  const nameCol = table.columns[0];
+  const descCol = table.columns[1];
+  allTags.value = table.rows.map(row => {
+    const nameCell = table.cellValues.find(c => c.row_id === row.id && c.column_id === nameCol.id);
+    const descCell = descCol ? table.cellValues.find(c => c.row_id === row.id && c.column_id === descCol.id) : null;
+    return {
+      id: row.id,
+      name: nameCell ? nameCell.value : '',
+      description: descCell ? descCell.value : ''
+    };
+  });
+}
+
+function openTagModal() {
+  showTagModal.value = true;
+  loadAllTags();
+}
 
 function toggleSidebar() {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -268,58 +322,6 @@ async function loadMessages() {
   } finally {
     isLoadingMessages.value = false;
   }
-}
-
-async function loadUserTags() {
-  if (!contact.value) return;
-  const res = await fetch(`/api/users/${contact.value.id}/tags`);
-  userTags.value = await res.json();
-  selectedTags.value = userTags.value.map(t => t.id);
-}
-
-async function openTagModal() {
-  await fetch('/api/tags/init', { method: 'POST' })
-  const res = await fetch('/api/tags')
-  allTags.value = await res.json()
-  await loadUserTags()
-  showTagModal.value = true
-}
-
-async function createTag() {
-  const res = await fetch('/api/tags', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: newTagName.value, description: newTagDescription.value })
-  });
-  const newTag = await res.json();
-  await fetch(`/api/users/${contact.value.id}/tags`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tag_id: newTag.id })
-  });
-  const tagsRes = await fetch('/api/tags');
-  allTags.value = await tagsRes.json();
-  await loadUserTags();
-  newTagName.value = '';
-  newTagDescription.value = '';
-}
-
-async function addTagsToUser() {
-  for (const tagId of selectedTags.value) {
-    await fetch(`/api/users/${contact.value.id}/tags`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tag_id: tagId })
-    })
-  }
-  await loadUserTags()
-}
-
-async function removeUserTag(tagId) {
-  await fetch(`/api/users/${contact.value.id}/tags/${tagId}`, {
-    method: 'DELETE'
-  });
-  await loadUserTags();
 }
 
 async function reloadContact() {
@@ -454,15 +456,99 @@ async function unblockUser() {
   }
 }
 
+// --- Теги ---
+async function createTag() {
+  if (!newTagName.value) return;
+  const tableId = await ensureTagsTable();
+  const table = await tablesService.getTable(tableId);
+  const nameCol = table.columns[0];
+  const descCol = table.columns[1];
+  // 1. Создаём строку
+  const newRow = await tablesService.addRow(tableId);
+  console.log('DEBUG newRow:', newRow);
+  if (!newRow || !newRow.id) {
+    console.error('Ошибка: не удалось получить id новой строки', newRow);
+    alert('Ошибка: не удалось получить id новой строки. См. консоль.');
+    return;
+  }
+  const newRowId = newRow.id;
+  // 2. Сохраняем имя
+  await tablesService.saveCell({
+    table_id: tableId,
+    row_id: newRowId,
+    column_id: nameCol.id,
+    value: newTagName.value
+  });
+  // 3. Сохраняем описание (если есть столбец)
+  if (descCol && newTagDescription.value) {
+    await tablesService.saveCell({
+      table_id: tableId,
+      row_id: newRowId,
+      column_id: descCol.id,
+      value: newTagDescription.value
+    });
+  }
+  // 4. Обновляем список тегов
+  await loadAllTags();
+  // 5. Автоматически выбираем новый тег для пользователя
+  selectedTags.value = [...selectedTags.value, newRowId];
+  await addTagsToUser();
+  // 6. Очищаем поля
+  newTagName.value = '';
+  newTagDescription.value = '';
+}
+
+async function loadUserTags() {
+  if (!contact.value || !contact.value.id) {
+    userTags.value = [];
+    return;
+  }
+  // Получаем id тегов пользователя
+  const tagIds = await contactsService.getContactTags(contact.value.id);
+  if (!Array.isArray(tagIds) || tagIds.length === 0) {
+    userTags.value = [];
+    return;
+  }
+  // Загружаем справочник тегов
+  await loadAllTags();
+  // Сопоставляем id с объектами тегов
+  userTags.value = allTags.value.filter(tag => tagIds.includes(tag.id));
+}
+
+// После добавления/удаления тегов всегда обновляем userTags
+async function addTagsToUser() {
+  if (!contact.value || !contact.value.id) return;
+  if (!selectedTags.value || selectedTags.value.length === 0) return;
+  try {
+    await contactsService.addTagsToContact(contact.value.id, selectedTags.value);
+    await loadUserTags();
+    showTagModal.value = false;
+    ElMessageBox.alert('Теги успешно добавлены.', 'Успех', { type: 'success' });
+  } catch (e) {
+    ElMessageBox.alert('Ошибка добавления тегов: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
+  }
+}
+
+async function removeUserTag(tagId) {
+  if (!contact.value || !contact.value.id) return;
+  try {
+    await contactsService.removeTagFromContact(contact.value.id, tagId);
+    await loadUserTags();
+    ElMessageBox.alert('Тег успешно удален.', 'Успех', { type: 'success' });
+  } catch (e) {
+    ElMessageBox.alert('Ошибка удаления тега: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
+  }
+}
+
 onMounted(async () => {
   await reloadContact();
-  await loadMessages();
   await loadUserTags();
+  await loadMessages();
 });
 watch(userId, async () => {
   await reloadContact();
-  await loadMessages();
   await loadUserTags();
+  await loadMessages();
 });
 </script>
 

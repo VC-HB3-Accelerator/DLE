@@ -37,18 +37,17 @@
           <el-option label="Только не заблокированные" value="unblocked" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Теги">
+      <el-form-item label="Теги" v-if="availableTags.length">
         <el-select
           v-model="selectedTagIds"
           multiple
           filterable
-          collapse-tags
           placeholder="Выберите теги"
           style="min-width:180px;"
           @change="onAnyFilterChange"
         >
           <el-option
-            v-for="tag in allTags"
+            v-for="tag in availableTags"
             :key="tag.id"
             :label="tag.name"
             :value="tag.id"
@@ -97,6 +96,7 @@ import { useRouter } from 'vue-router';
 import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckbox, ElButton, ElMessageBox, ElMessage } from 'element-plus';
 import ImportContactsModal from './ImportContactsModal.vue';
 import BroadcastModal from './BroadcastModal.vue';
+import tablesService from '../services/tablesService';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -117,8 +117,8 @@ const filterDateTo = ref('');
 const filterNewMessages = ref('');
 const filterBlocked = ref('all');
 
-// Теги
-const allTags = ref([]);
+// Новый фильтр тегов через мультисвязи
+const availableTags = ref([]);
 const selectedTagIds = ref([]);
 
 const showImportModal = ref(false);
@@ -128,13 +128,36 @@ const selectedIds = ref([]);
 const selectAll = ref(false);
 
 onMounted(async () => {
-  await loadTags();
   await fetchContacts();
+  await loadAvailableTags();
 });
 
-async function loadTags() {
-  const res = await fetch('/api/tags');
-  allTags.value = await res.json();
+async function loadAvailableTags() {
+  try {
+    // Получаем все пользовательские таблицы и ищем "Теги клиентов"
+    const tables = await tablesService.getTables();
+    const tagsTable = tables.find(t => t.name === 'Теги клиентов');
+    
+    if (tagsTable) {
+      // Загружаем данные таблицы тегов
+      const table = await tablesService.getTable(tagsTable.id);
+      const nameColumn = table.columns.find(col => col.name === 'Название') || table.columns[0];
+      
+      if (nameColumn) {
+        // Формируем список тегов
+        availableTags.value = table.rows.map(row => {
+          const nameCell = table.cellValues.find(c => c.row_id === row.id && c.column_id === nameColumn.id);
+          return {
+            id: row.id,
+            name: nameCell ? nameCell.value : `Тег ${row.id}`
+          };
+        }).filter(tag => tag.name.trim()); // Исключаем пустые названия
+      }
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки тегов:', e);
+    availableTags.value = [];
+  }
 }
 
 function buildQuery() {
@@ -158,10 +181,6 @@ async function fetchContacts() {
   contactsArray.value = data.contacts || [];
 }
 
-function onTagsFilterChange() {
-  onAnyFilterChange();
-}
-
 function onAnyFilterChange() {
   fetchContacts();
 }
@@ -173,7 +192,7 @@ function resetFilters() {
   filterDateTo.value = '';
   filterNewMessages.value = '';
   filterBlocked.value = 'all';
-  selectedTagIds.value = [];
+  selectedTagIds.value = []; // Сбрасываем выбранные теги
   fetchContacts();
 }
 

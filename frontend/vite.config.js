@@ -47,6 +47,15 @@ export default defineConfig({
         secure: false,
         credentials: true,
         rewrite: (path) => path,
+        ws: true,
+      },
+      '/ws': {
+        target: 'ws://dapp-backend:8000',
+        ws: true,
+        changeOrigin: true,
+        secure: false,
+        credentials: true,
+        rewrite: (path) => path,
       },
     },
     watch: {

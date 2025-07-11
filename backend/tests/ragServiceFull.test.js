@@ -21,7 +21,6 @@ describe('ragService full integration (DB + vector-search)', () => {
     const columns = [
       { id: 'col_question', name: 'Question', type: 'text', purpose: 'question' },
       { id: 'col_answer', name: 'Answer', type: 'text', purpose: 'answer' },
-      { id: 'col_tags', name: 'Tags', type: 'text', purpose: 'userTags' },
       { id: 'col_product', name: 'Product', type: 'text', purpose: 'product' }
     ];
 
@@ -35,9 +34,9 @@ describe('ragService full integration (DB + vector-search)', () => {
 
     // Создаем строки
     const rows = [
-      { id: 'row_1', question: 'Что такое RAG?', answer: 'Retrieval Augmented Generation', tags: 'ai,ml', product: 'A' },
-      { id: 'row_2', question: 'Что такое FAISS?', answer: 'Facebook AI Similarity Search', tags: 'ai,search', product: 'B' },
-      { id: 'row_3', question: 'Что такое Ollama?', answer: 'Локальный inference LLM', tags: 'llm', product: 'A' }
+      { id: 'row_1', question: 'Что такое RAG?', answer: 'Retrieval Augmented Generation', product: 'A' },
+      { id: 'row_2', question: 'Что такое FAISS?', answer: 'Facebook AI Similarity Search', product: 'B' },
+      { id: 'row_3', question: 'Что такое Ollama?', answer: 'Локальный inference LLM', product: 'A' }
     ];
 
     for (const row of rows) {
@@ -56,7 +55,6 @@ describe('ragService full integration (DB + vector-search)', () => {
       `, [
         row.id, 'col_question', row.question,
         row.id, 'col_answer', row.answer,
-        row.id, 'col_tags', row.tags,
         row.id, 'col_product', row.product
       ]);
     }
@@ -104,20 +102,6 @@ describe('ragService full integration (DB + vector-search)', () => {
     }
   });
 
-  it('Полная интеграция: фильтрация по тегу', async () => {
-    const result = await ragService.ragAnswer({ 
-      tableId: TEST_TABLE_ID, 
-      userQuestion: 'Что такое FAISS?',
-      userTags: ['search']
-    });
-    
-    console.log('Результат с фильтром по тегу:', result);
-    if (!result) throw new Error('Нет результата');
-    if (result.answer !== 'Facebook AI Similarity Search') {
-      throw new Error(`Ответ не совпадает: ${result.answer}`);
-    }
-  });
-
   it('Полная интеграция: фильтрация по продукту', async () => {
     const result = await ragService.ragAnswer({ 
       tableId: TEST_TABLE_ID, 
@@ -136,7 +120,6 @@ describe('ragService full integration (DB + vector-search)', () => {
     const result = await ragService.ragAnswer({ 
       tableId: TEST_TABLE_ID, 
       userQuestion: 'Что такое RAG?',
-      userTags: ['ai'],
       product: 'A'
     });
     

@@ -133,11 +133,6 @@ const routes = [
     props: true
   },
   {
-    path: '/tables/tags',
-    name: 'tags-table-view',
-    component: () => import('../views/tables/TagsTableViewPage.vue')
-  },
-  {
     path: '/contacts/:id',
     name: 'contact-details',
     component: () => import('../views/contacts/ContactDetailsView.vue'),

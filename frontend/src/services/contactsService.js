@@ -36,8 +36,24 @@ export default {
   async unblockContact(id) {
     const res = await api.patch(`/users/${id}/unblock`);
     return res.data;
+  },
+  // --- Работа с тегами пользователя ---
+  async addTagsToContact(contactId, tagIds) {
+    // PATCH /users/:id/tags { tags: [...] }
+    const res = await api.patch(`/users/${contactId}/tags`, { tags: tagIds });
+    return res.data;
+  },
+  async getContactTags(contactId) {
+    // GET /users/:id/tags
+    const res = await api.get(`/users/${contactId}/tags`);
+    return res.data.tags || [];
+  },
+  async removeTagFromContact(contactId, tagId) {
+    // DELETE /users/:id/tags/:tagId
+    const res = await api.delete(`/users/${contactId}/tags/${tagId}`);
+    return res.data;
   }
-}; 
+};
 
 export async function getContacts() {
   const res = await fetch('/api/users');

@@ -11,6 +11,7 @@ const aiAssistant = require('./ai-assistant');
 const { broadcastContactsUpdate } = require('../wsHub');
 const aiAssistantSettingsService = require('./aiAssistantSettingsService');
 const { ragAnswer, generateLLMResponse } = require('./ragService');
+const { isUserBlocked } = require('../utils/userUtils');
 
 class EmailBotService {
   constructor() {
@@ -142,6 +143,10 @@ class EmailBotService {
                       const html = parsed.html || '';
                       // 1. Найти или создать пользователя
                       const { userId, role } = await identityService.findOrCreateUserWithRole('email', fromEmail);
+                      if (await isUserBlocked(userId)) {
+                        logger.info(`Email от заблокированного пользователя ${userId} проигнорирован.`);
+                        return;
+                      }
                       // 1.1 Найти или создать беседу
                       let conversationResult = await db.getQuery()(
                         'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
@@ -208,6 +213,10 @@ class EmailBotService {
                         }
                       } else {
                         aiResponse = await aiAssistant.getResponse(text, 'auto');
+                      }
+                      if (await isUserBlocked(userId)) {
+                        logger.info(`[EmailBot] Пользователь ${userId} заблокирован — ответ ИИ не отправляется.`);
+                        return;
                       }
                       // 4. Сохранить ответ в БД с conversation_id
                       await db.getQuery()(

@@ -10,20 +10,20 @@
     </span>
   </div>
   <!-- Фильтры на Element Plus -->
-  <div class="table-filters-el" v-if="productOptions.length || tagOptions.length">
-    <el-select v-model="selectedProduct" placeholder="Все продукты" clearable style="min-width: 180px;">
-      <el-option v-for="opt in productOptions" :key="opt" :label="opt" :value="opt" />
-    </el-select>
-    <el-select
-      v-model="selectedTags"
-      multiple
-      filterable
-      collapse-tags
-      placeholder="Теги"
-      style="min-width: 220px;"
-    >
-      <el-option v-for="tag in tagOptions" :key="tag" :label="tag" :value="tag" />
-    </el-select>
+  <div class="table-filters-el" v-if="relationFilterDefs.length">
+    <!-- Только фильтры по multiselect-relation -->
+    <template v-for="def in relationFilterDefs" :key="def.col.id">
+      <el-select
+        v-model="relationFilters[def.filterKey]"
+        :multiple="def.isMulti"
+        filterable
+        clearable
+        :placeholder="def.col.name"
+        style="min-width: 180px;"
+      >
+        <el-option v-for="opt in def.options" :key="opt.id" :label="opt.display" :value="opt.id" />
+      </el-select>
+    </template>
     <el-button @click="resetFilters" type="default" icon="el-icon-refresh">Сбросить фильтры</el-button>
   </div>
   <div class="notion-table-wrapper">
@@ -83,30 +83,28 @@
         <select v-model="newColType" class="notion-input">
           <option value="text">Текст</option>
           <option value="number">Число</option>
-          <option value="tags">Теги</option>
+          <option value="multiselect">Мультивыбор</option>
+          <option value="multiselect-relation">Мультивыбор из таблицы</option>
+          <option value="relation">Связь (relation)</option>
+          <option value="lookup">Lookup</option>
         </select>
-        <label>Назначение столбца</label>
-        <select v-model="newColPurpose" class="notion-input">
-          <option value="">— Не выбрано —</option>
-          <option value="question">Это столбец с вопросами</option>
-          <option value="answer">Это столбец с ответами</option>
-          <option value="clarifyingAnswer">Ответ с уточняющим вопросом</option>
-          <option value="objectionAnswer">Ответ на возражение</option>
-          <option value="userTags">Это столбец с тегами пользователей</option>
-          <option value="context">Это столбец с дополнительным контекстом</option>
-          <option value="product">Это столбец с продуктом/услугой</option>
-          <option value="priority">Это столбец с приоритетом</option>
-          <option value="date">Это столбец с датой</option>
-        </select>
-        <div v-if="newColType === 'tags'">
-          <label>Выберите теги</label>
-          <div class="tags-multiselect">
-            <div v-for="tag in tags" :key="tag.id" class="tag-option">
-              <input type="checkbox" :id="'tag-' + tag.id" :value="tag.id" v-model="selectedTagIds" />
-              <label :for="'tag-' + tag.id">{{ tag.name }}</label>
-            </div>
-          </div>
+        <div v-if="newColType === 'relation' || newColType === 'lookup' || newColType === 'multiselect-relation'">
+          <label>Связанная таблица</label>
+          <select v-model="relatedTableId" class="notion-input">
+            <option v-for="tbl in allTables" :key="tbl.id" :value="tbl.id">{{ tbl.name }}</option>
+          </select>
+          <label>Связанный столбец</label>
+          <select v-model="relatedColumnId" class="notion-input">
+            <option v-for="col in relatedTableColumns" :key="col.id" :value="col.id">{{ col.name }}</option>
+          </select>
         </div>
+        <div v-if="newColType === 'multiselect'">
+          <label>Опции для мультивыбора (через запятую)</label>
+          <input v-model="multiOptionsInput" class="notion-input" placeholder="например: VIP, B2B, Startup" />
+        </div>
+        <label>Плейсхолдер</label>
+        <input v-model="newColPlaceholder" class="notion-input" placeholder="Плейсхолдер (авто)" />
+        <!-- Удаляю блок назначения столбца -->
         <div class="modal-actions">
           <button class="save-btn" @click="handleAddColumn">Добавить</button>
           <button class="cancel-btn" @click="closeAddColModal">Отмена</button>
@@ -115,7 +113,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import tablesService from '../../services/tablesService';
@@ -135,10 +132,9 @@ const cellValues = ref([]);
 const tableMeta = ref(null);
 
 // Фильтры
-const selectedProduct = ref('');
-const selectedTags = ref([]);
-const productOptions = ref([]);
-const tagOptions = ref([]);
+// Удаляю selectedProduct и productOptions
+// const selectedProduct = ref('');
+// const productOptions = ref([]);
 const filteredRows = ref([]);
 
 // Для модалки добавления столбца
@@ -147,7 +143,62 @@ const newColName = ref('');
 const newColType = ref('text');
 const tags = ref([]);
 const selectedTagIds = ref([]);
-const newColPurpose = ref("");
+const allTables = ref([]);
+const relatedTableId = ref(null);
+const relatedColumnId = ref(null);
+const relatedTableColumns = ref([]);
+const newColPlaceholder = ref('');
+const multiOptionsInput = ref('');
+
+// Новые фильтры по relation/multiselect/lookup
+const relationFilters = ref({});
+const relationFilterDefs = ref([]);
+
+watch(newColType, async (val) => {
+  if (val === 'relation' || val === 'lookup' || val === 'multiselect-relation') {
+    // Загрузить все таблицы
+    const tables = await tablesService.getTables();
+    allTables.value = tables;
+    relatedTableId.value = tables[0]?.id || null;
+  }
+});
+watch(relatedTableId, async (val) => {
+  if (val) {
+    const table = await tablesService.getTable(val);
+    relatedTableColumns.value = table.columns;
+    relatedColumnId.value = table.columns[0]?.id || null;
+  }
+});
+watch(newColName, async (val) => {
+  // Получить плейсхолдер с бэка
+  if (!val) { newColPlaceholder.value = ''; return; }
+  try {
+    // Имитация генерации плейсхолдера (можно заменить на API)
+    newColPlaceholder.value = val.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  } catch { newColPlaceholder.value = ''; }
+});
+
+// Автоматизация для столбца 'Теги клиентов'
+watch([newColType, selectedTagIds], async ([type, tagIds]) => {
+  if ((type === 'relation' || type === 'multiselect') && tagIds.length > 0) {
+    // Найти или создать таблицу 'Теги клиентов'
+    let tables = await tablesService.getTables();
+    let tagsTable = tables.find(t => t.name === 'Теги клиентов');
+    if (!tagsTable) {
+      tagsTable = await tablesService.createTable({
+        name: 'Теги клиентов',
+        description: 'Справочник тегов для контактов',
+        isRagSourceId: 2
+      });
+      tables = await tablesService.getTables();
+    }
+    relatedTableId.value = tagsTable.id;
+    // Получить первый столбец (название тега)
+    const tagTable = await tablesService.getTable(tagsTable.id);
+    relatedTableColumns.value = tagTable.columns;
+    relatedColumnId.value = tagTable.columns[0]?.id || null;
+  }
+});
 
 // Меню столбца
 const openedColMenuId = ref(null);
@@ -160,7 +211,8 @@ function closeAddColModal() {
   newColName.value = '';
   newColType.value = 'text';
   selectedTagIds.value = [];
-  newColPurpose.value = '';
+  newColPlaceholder.value = '';
+  multiOptionsInput.value = '';
 }
 
 async function handleAddColumn() {
@@ -171,47 +223,88 @@ async function handleAddColumn() {
     data.tagIds = selectedTagIds.value;
     options.tagIds = selectedTagIds.value;
   }
-  if (newColPurpose.value) {
-    options.purpose = newColPurpose.value;
+  if (newColType.value === 'multiselect') {
+    options.options = multiOptionsInput.value.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  if (newColType.value === 'multiselect-relation') {
+    options.relatedTableId = relatedTableId.value;
+    options.relatedColumnId = relatedColumnId.value;
+  }
+  if (newColType.value === 'relation' || newColType.value === 'lookup') {
+    options.relatedTableId = relatedTableId.value;
+    options.relatedColumnId = relatedColumnId.value;
   }
   if (Object.keys(options).length > 0) {
     data.options = options;
   }
+  if (newColPlaceholder.value) {
+    data.placeholder = newColPlaceholder.value;
+  }
   await tablesService.addColumn(props.tableId, data);
   closeAddColModal();
-  fetchTable();
+  await fetchTable();
+  await updateRelationFilterDefs(); // Явно обновляем фильтры
 }
 
-async function loadTags() {
-  const res = await fetch('/api/tags');
-  tags.value = await res.json();
+async function deleteColumn(col) {
+  // Можно добавить подтверждение
+  if (!confirm(`Удалить столбец "${col.name}"?`)) return;
+  await tablesService.deleteColumn(col.id);
+  await fetchTable();
+  await updateRelationFilterDefs(); // Явно обновляем фильтры
 }
 
-// Получение уникальных значений для фильтров
-function updateFilterOptions() {
-  // product
-  const productCol = columns.value.find(c => c.options && c.options.purpose === 'product');
-  const tagCol = columns.value.find(c => c.options && c.options.purpose === 'userTags');
-  const products = new Set();
-  const tagsSet = new Set();
-  rows.value.forEach(row => {
-    const cells = cellValues.value.filter(cell => cell.row_id === row.id);
-    const prod = cells.find(c => c.column_id === productCol?.id)?.value;
-    if (prod) products.add(prod);
-    const tagsVal = cells.find(c => c.column_id === tagCol?.id)?.value;
-    if (tagsVal) tagsVal.split(',').map(t => t.trim()).forEach(t => t && tagsSet.add(t));
-  });
-  productOptions.value = Array.from(products);
-  tagOptions.value = Array.from(tagsSet);
-}
+// Удаляю все переменные, функции и UI, связанные с tags, tagOptions, selectedTags, loadTags, updateFilterOptions с tags, и т.д.
 
+function parseIfArray(val) {
+  if (typeof val === 'string') {
+    // Попытка распарсить как JSON-массив
+    try {
+      const arr = JSON.parse(val);
+      if (Array.isArray(arr)) return arr.map(String);
+    } catch {}
+    // Попытка распарсить как строку-объект вида {"49","47"}
+    if (/^\{.*\}$/.test(val)) {
+      return val.replace(/[{}\s]/g, '').split(',').map(s => s.replace(/"/g, ''));
+    }
+    // Если просто строка с числом/id
+    if (val.trim().length > 0) return [val.trim()];
+    return [];
+  }
+  if (Array.isArray(val)) return val.map(String);
+  if (val && typeof val === 'number') return [String(val)];
+  return [];
+}
 // Загрузка данных с фильтрацией
 async function fetchFilteredRows() {
-  const data = await tablesService.getFilteredRows(props.tableId, {
-    product: selectedProduct.value,
-    tags: selectedTags.value
+  const params = new URLSearchParams();
+  for (const def of relationFilterDefs.value) {
+    const val = relationFilters.value[def.filterKey];
+    if (val && (Array.isArray(val) ? val.length : true)) {
+      params.append(def.filterKey, Array.isArray(val) ? val.join(',') : val);
+    }
+  }
+  console.log('fetchFilteredRows params:', params.toString()); // Для отладки
+  const data = await tablesService.getFilteredRows(props.tableId, params);
+  // Локальная фильтрация по multiselect-relation (если backend не фильтрует)
+  filteredRows.value = data.filter(row => {
+    let ok = true;
+    for (const def of relationFilterDefs.value) {
+      const filterVal = relationFilters.value[def.filterKey];
+      if (!filterVal || (Array.isArray(filterVal) && !filterVal.length)) continue;
+      // Найти ячейку для этого столбца
+      const cell = cellValues.value.find(c => c.row_id === row.id && c.column_id === def.col.id);
+      const cellArr = parseIfArray(cell ? cell.value : []);
+      // filterVal может быть массивом (multi) или строкой
+      const filterArr = Array.isArray(filterVal) ? filterVal : [filterVal];
+      // Если хотя бы одно значение фильтра есть в массиве ячейки — строка проходит
+      if (!filterArr.some(val => cellArr.includes(val))) {
+        ok = false;
+        break;
+      }
+    }
+    return ok;
   });
-  filteredRows.value = data;
 }
 
 // Основная загрузка таблицы
@@ -221,22 +314,52 @@ async function fetchTable() {
   rows.value = data.rows;
   cellValues.value = data.cellValues;
   tableMeta.value = { name: data.name, description: data.description };
-  updateFilterOptions();
+  await updateRelationFilterDefs();
   await fetchFilteredRows();
+}
+
+async function updateRelationFilterDefs() {
+  // Для каждого multiselect-relation-столбца формируем опции
+  const defs = [];
+  for (const col of columns.value) {
+    if (col.type === 'multiselect-relation' && col.options && col.options.relatedTableId && col.options.relatedColumnId) {
+      // Собираем все уникальные id из этого столбца по всем строкам
+      const idsSet = new Set();
+      for (const row of rows.value) {
+        const cell = cellValues.value.find(c => c.row_id === row.id && c.column_id === col.id);
+        const arr = parseIfArray(cell ? cell.value : []);
+        arr.forEach(val => idsSet.add(val));
+      }
+      // Получаем значения из связанной таблицы
+      const relTable = await tablesService.getTable(col.options.relatedTableId);
+      const opts = Array.from(idsSet).map(id => {
+        const relRow = relTable.rows.find(r => String(r.id) === String(id));
+        const cell = relTable.cellValues.find(c => c.row_id === (relRow ? relRow.id : id) && c.column_id === col.options.relatedColumnId);
+        return { id, display: cell ? cell.value : `ID ${id}` };
+      });
+      defs.push({
+        col,
+        filterKey: `multiselect-relation_${col.id}`,
+        isMulti: true,
+        options: opts
+      });
+    }
+  }
+  console.log('relationFilterDefs:', defs); // Для отладки
+  relationFilterDefs.value = defs;
 }
 
 // Сброс фильтров
 function resetFilters() {
-  selectedProduct.value = '';
-  selectedTags.value = [];
+  // selectedProduct.value = '';
+  relationFilters.value = {};
   fetchFilteredRows();
 }
 
-watch([selectedProduct, selectedTags], fetchFilteredRows);
+watch([relationFilters], fetchFilteredRows, { deep: true });
 
 onMounted(() => {
   fetchTable();
-  loadTags();
 });
 
 // Для редактирования ячеек
@@ -259,6 +382,11 @@ function cancelEdit() {
 function getCellValue(row, col) {
   const cell = cellValues.value.find(c => c.row_id === row.id && c.column_id === col.id);
   return cell ? cell.value : '';
+}
+
+async function saveCellValue(rowId, colId, value) {
+  await tablesService.saveCell({ row_id: rowId, column_id: colId, value });
+  await fetchTable();
 }
 
 // Для редактирования названия столбца
@@ -300,275 +428,281 @@ function closeMenus() {
 function setMenuPosition(event, styleRef) {
   // Позиционируем меню под кнопкой
   const rect = event.target.getBoundingClientRect();
-  styleRef.value = `position:fixed;top:${rect.bottom + 4}px;left:${rect.left}px;z-index:2000;`;
-}
-// Действия меню столбца
-function startRenameCol(col) {
-  closeMenus();
-  editColumn(col);
-}
-function startChangeTypeCol(col) {
-  closeMenus();
-  // TODO: реализовать смену типа столбца (можно открыть модалку выбора типа)
-  alert('Изменение типа столбца пока не реализовано');
+  styleRef.value = `top: ${rect.bottom + window.scrollY}px; left: ${rect.left + window.scrollX}px;`;
 }
 
-function saveCellValue(rowId, columnId, value) {
-  tablesService.saveCell({ row_id: rowId, column_id: columnId, value }).then(fetchTable);
-}
-
-function deleteRow(row) {
-  if (confirm('Удалить эту строку?')) {
-    tablesService.deleteRow(row.id).then(fetchTable);
-  }
-}
-function deleteColumn(col) {
-  if (confirm('Удалить этот столбец?')) {
-    tablesService.deleteColumn(col.id).then(fetchTable);
-  }
+async function deleteRow(row) {
+  // Можно добавить подтверждение
+  if (!confirm(`Удалить строку с ID ${row.id}?`)) return;
+  await tablesService.deleteRow(row.id);
+  await fetchTable();
 }
 
 async function rebuildIndex() {
   rebuilding.value = true;
   rebuildStatus.value = null;
   try {
-    const { data } = await axios.post(`/tables/${props.tableId}/rebuild-index`);
-    if (data.success) {
-      rebuildStatus.value = { success: true, message: `Индекс пересобран (${data.count || 0} строк)` };
-    } else {
-      rebuildStatus.value = { success: false, message: data.message || 'Ошибка пересборки' };
-    }
+    const result = await tablesService.rebuildIndex(props.tableId);
+    rebuildStatus.value = { success: true, message: `Индекс успешно пересобран (${result.count || 0} строк)` };
+    await fetchTable();
   } catch (e) {
-    rebuildStatus.value = { success: false, message: e.response?.data?.error || e.message || 'Ошибка запроса' };
+    let msg = 'Ошибка пересборки индекса';
+    if (e?.response?.data?.error) msg += `: ${e.response.data.error}`;
+    rebuildStatus.value = { success: false, message: msg };
+  } finally {
+    rebuilding.value = false;
   }
-  rebuilding.value = false;
 }
+
 </script>
 
 <style scoped>
-.notion-table-wrapper {
-  overflow-x: auto;
+.user-table-header {
+  max-width: 1100px;
+  margin: 32px auto 0 auto;
+  padding: 32px 24px 18px 24px;
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-  padding: 1.5rem 1rem;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
+.user-table-header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  letter-spacing: 0.5px;
+}
+.table-desc {
+  color: #6b7280;
+  font-size: 1.08rem;
+  margin-bottom: 6px;
+}
+.rebuild-btn {
+  background: #4f8cff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 1rem;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.rebuild-btn:disabled {
+  background: #b6c6e6;
+  cursor: not-allowed;
+}
+.rebuild-btn:not(:disabled):hover {
+  background: #2563eb;
+}
+.rebuild-status {
+  margin-top: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+}
+.rebuild-status.success { color: #22c55e; }
+.rebuild-status.error { color: #ef4444; }
+
+.table-filters-el {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 18px auto 0 auto;
+  max-width: 1100px;
+  padding: 0 24px;
+}
+
+.notion-table-wrapper {
+  max-width: 1100px;
+  margin: 24px auto 0 auto;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  padding: 12px 6px 18px 6px;
+}
+
 .notion-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.98rem;
   background: #fff;
 }
+
 .notion-table th, .notion-table td {
-  border: 1px solid #ececec;
-  padding: 0.5em 0.7em;
-  min-width: 80px;
-  position: relative;
+  border: 1px solid #e5e7eb;
+  padding: 6px 10px;
+  text-align: left;
   background: #fff;
+  font-size: 0.98rem;
+  min-width: 80px;
 }
+
 .notion-table th {
-  background: #f7f7f7;
+  background: #f3f4f6;
   font-weight: 600;
+  border-bottom: 2px solid #d1d5db;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 7px;
+  padding-bottom: 7px;
 }
-.notion-table tr:hover {
-  background: #f9fafb;
+
+.notion-table tr:hover td {
+  background: #f5f7fa;
 }
-.col-menu, .row-menu, .add-col, .add-row {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  font-size: 1.1em;
-  margin-left: 0.3em;
-}
-.col-menu:hover, .row-menu:hover, .add-col:hover, .add-row:hover {
-  color: #2ecc40;
-}
+
 .notion-input {
   width: 100%;
-  border: 1px solid #2ecc40;
+  padding: 4px 7px;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  font-size: 0.98rem;
+  background: #fff;
+  transition: border 0.2s;
+}
+
+.notion-input:focus {
+  border-color: #4f8cff;
+  outline: none;
+}
+
+.add-row, .add-col, .save-btn, .cancel-btn, .rebuild-btn {
+  background: #f3f4f6;
+  color: #222;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
-  padding: 0.2em 0.4em;
-}
-.user-table-header {
-  margin-bottom: 1.2em;
-  padding: 1em 1.2em 0.5em 1.2em;
-  background: #f8f9fa;
-  border-radius: 10px 10px 0 0;
-  border-bottom: 1px solid #ececec;
-}
-.user-table-header h2 {
-  margin: 0 0 0.2em 0;
-  font-size: 1.3em;
-  font-weight: 700;
-}
-.table-desc {
-  color: #888;
-  font-size: 1em;
-}
-.modal-backdrop {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.18);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.modal {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.13);
-  padding: 2em 2em 1.5em 2em;
-  min-width: 320px;
-  max-width: 95vw;
-}
-.add-col-modal label {
-  font-weight: 500;
-  margin-top: 0.7em;
-  display: block;
-}
-.add-col-modal input,
-.add-col-modal select {
-  width: 100%;
-  border: 1px solid #ececec;
-  border-radius: 7px;
-  padding: 0.5em 0.8em;
-  font-size: 1em;
-  background: #fafbfc;
-  margin-bottom: 0.7em;
-}
-.tags-multiselect {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em 1.2em;
-  margin-bottom: 1em;
-}
-.tag-option {
-  display: flex;
-  align-items: center;
-  gap: 0.3em;
-}
-.save-btn {
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 600;
+  padding: 5px 12px;
+  font-size: 0.98rem;
   cursor: pointer;
-  margin-right: 0.7em;
-  transition: background 0.2s;
+  transition: background 0.18s, border 0.18s;
+  margin: 0 2px;
 }
-.save-btn:hover {
-  background: #27ae38;
+
+.add-row:hover, .add-col:hover, .save-btn:hover, .cancel-btn:hover, .rebuild-btn:hover {
+  background: #e5e7eb;
+  border-color: #b6c6e6;
 }
-.cancel-btn {
-  background: #eaeaea;
-  color: #333;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5em 1.2em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.cancel-btn:hover {
-  background: #d5d5d5;
-}
-.th-col {
-  position: relative;
-}
-.delete-col-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+
+.col-menu, .row-menu {
   background: none;
   border: none;
-  color: #ff4d4f;
-  font-size: 1.1em;
+  font-size: 1.1rem;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: background 0.15s;
 }
-.th-col:hover .delete-col-btn {
-  opacity: 1;
+
+.col-menu:hover, .row-menu:hover {
+  background: #e5e7eb;
+  color: #1d4ed8;
 }
-.delete-row-btn {
-  background: none;
-  border: none;
-  color: #ff4d4f;
-  font-size: 1.1em;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-tr:hover .delete-row-btn {
-  opacity: 1;
-}
+
 .context-menu {
+  position: absolute;
+  z-index: 10;
+  min-width: 120px;
   background: #fff;
-  border: 1px solid #ececec;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.13);
-  min-width: 150px;
-  padding: 0.3em 0.2em;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  padding: 4px 0;
   display: flex;
   flex-direction: column;
-  position: fixed;
-  z-index: 2001;
+  gap: 0;
 }
+
 .menu-item {
   background: none;
   border: none;
   text-align: left;
-  padding: 0.6em 1.1em;
-  font-size: 1em;
+  padding: 7px 14px;
+  font-size: 0.98rem;
   color: #222;
+  border-radius: 2px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background 0.18s;
+  transition: background 0.13s;
 }
+
 .menu-item:hover {
-  background: #f2f8f4;
+  background: #f5f7fa;
 }
+
 .menu-item.danger {
-  color: #ff4d4f;
+  color: #ef4444;
 }
+
+.menu-item.danger:hover {
+  background: #fee2e2;
+}
+
 .menu-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  z-index: 1999;
+  inset: 0;
+  z-index: 5;
+  background: transparent;
 }
-.rebuild-btn {
-  margin-top: 1em;
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
-}
-.rebuild-btn:disabled {
-  background: #b2e6c2;
-  color: #fff;
-  cursor: not-allowed;
-}
-.rebuild-status {
-  margin-left: 1em;
-  font-weight: 500;
-}
-.rebuild-status.success {
-  color: #2ecc40;
-}
-.rebuild-status.error {
-  color: #ff4d4f;
-}
-.table-filters-el {
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.10);
+  z-index: 100;
   display: flex;
-  gap: 1.2em;
   align-items: center;
-  margin-bottom: 1.2em;
+  justify-content: center;
 }
-</style> 
+
+.modal {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  padding: 18px 16px 14px 16px;
+  min-width: 320px;
+  max-width: 98vw;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal h4 {
+  margin: 0 0 6px 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+
+.modal label {
+  font-size: 0.98rem;
+  color: #374151;
+  margin-bottom: 1px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.notion-table td:empty::after {
+  content: '—';
+  color: #b0b0b0;
+  font-style: italic;
+}
+
+@media (max-width: 700px) {
+  .notion-table-wrapper, .table-filters-el {
+    padding: 4px 1vw;
+    max-width: 100vw;
+  }
+  .modal {
+    min-width: 90vw;
+    padding: 10px 2vw;
+  }
+  .notion-table th, .notion-table td {
+    padding: 4px 2px;
+    font-size: 0.95rem;
+  }
+}
+</style>

@@ -136,7 +136,6 @@ const testRAG = async () => {
     const response = await axios.post('/rag/answer', {
       tableId: 28,
       question: ragQuestion.value,
-      userTags: [],
       product: null
     });
     ragResult.value = {

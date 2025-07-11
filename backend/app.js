@@ -12,9 +12,6 @@ const aiAssistant = require('./services/ai-assistant'); // Добавляем и
 const fs = require('fs');
 const path = require('path');
 const messagesRoutes = require('./routes/messages');
-const userTagsRoutes = require('./routes/userTags');
-const tagsInitRoutes = require('./routes/tagsInit');
-const tagsRoutes = require('./routes/tags');
 const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 const monitoringRoutes = require('./routes/monitoring');
 
@@ -177,7 +174,6 @@ app.use((req, res, next) => {
 app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
 // app.use('/api', identitiesRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userTagsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
@@ -187,8 +183,6 @@ app.use('/api/geocoding', geocodingRoutes); // Добавленное испол
 app.use('/api/dle', dleRoutes); // Добавляем маршрут DLE
 app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
 app.use('/api/messages', messagesRoutes);
-app.use('/api/tags', tagsInitRoutes);
-app.use('/api/tags', tagsRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);

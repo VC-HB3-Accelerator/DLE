@@ -7,6 +7,43 @@
         <form @submit.prevent="saveSettings">
           <label>Системный промт</label>
           <textarea v-model="settings.system_prompt" rows="3" />
+          <!-- Блок плейсхолдеров -->
+          <div class="placeholders-block">
+            <h4>Плейсхолдеры пользовательских таблиц</h4>
+            <div v-if="placeholders.length === 0" class="empty-placeholder">Нет пользовательских плейсхолдеров</div>
+            <table v-else class="placeholders-table">
+              <thead>
+                <tr>
+                  <th>Плейсхолдер</th>
+                  <th>Столбец</th>
+                  <th>Таблица</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="ph in placeholders" :key="ph.column_id">
+                  <td><code>{ {{ ph.placeholder }} }</code></td>
+                  <td>{{ ph.column_name }}</td>
+                  <td>{{ ph.table_name }}</td>
+                  <td><button type="button" @click="openEditPlaceholder(ph)">Редактировать</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Модалка редактирования плейсхолдера -->
+          <div v-if="editingPlaceholder" class="modal-bg">
+            <div class="modal">
+              <h4>Редактировать плейсхолдер</h4>
+              <div><b>Таблица:</b> {{ editingPlaceholder.table_name }}</div>
+              <div><b>Столбец:</b> {{ editingPlaceholder.column_name }}</div>
+              <label>Плейсхолдер</label>
+              <input v-model="editingPlaceholderValue" />
+              <div class="actions">
+                <button type="button" @click="savePlaceholderEdit">Сохранить</button>
+                <button type="button" @click="closeEditPlaceholder">Отмена</button>
+              </div>
+            </div>
+          </div>
           <label>LLM-модель</label>
           <select v-if="llmModels.length" v-model="settings.model">
             <option v-for="m in llmModels" :key="m.id" :value="m.id">{{ m.id }} ({{ m.provider }})</option>
@@ -86,6 +123,10 @@ const filteredEmbeddingModels = computed(() => {
   if (!selectedLLM.value) return embeddingModels.value;
   return embeddingModels.value.filter(m => m.provider === selectedLLM.value.provider);
 });
+const placeholders = ref([]);
+const editingPlaceholder = ref(null);
+const editingPlaceholderValue = ref('');
+
 async function loadUserTables() {
   const { data } = await axios.get('/tables');
   userTables.value = Array.isArray(data) ? data : [];
@@ -116,6 +157,24 @@ async function loadEmbeddingModels() {
   const { data } = await axios.get('/settings/embedding-models');
   embeddingModels.value = data.models || [];
 }
+async function loadPlaceholders() {
+  const { data } = await axios.get('/tables/placeholders/all');
+  placeholders.value = Array.isArray(data) ? data : [];
+}
+function openEditPlaceholder(ph) {
+  editingPlaceholder.value = { ...ph };
+  editingPlaceholderValue.value = ph.placeholder;
+}
+function closeEditPlaceholder() {
+  editingPlaceholder.value = null;
+  editingPlaceholderValue.value = '';
+}
+async function savePlaceholderEdit() {
+  if (!editingPlaceholder.value) return;
+  await axios.patch(`/tables/column/${editingPlaceholder.value.column_id}`, { placeholder: editingPlaceholderValue.value });
+  await loadPlaceholders();
+  closeEditPlaceholder();
+}
 onMounted(() => {
   loadSettings();
   loadUserTables();
@@ -124,6 +183,7 @@ onMounted(() => {
   loadEmailList();
   loadLLMModels();
   loadEmbeddingModels();
+  loadPlaceholders();
 });
 async function saveSettings() {
   await axios.put('/settings/ai-assistant', settings.value);
@@ -274,5 +334,31 @@ button[type="button"] {
 }
 .rag-table-link:hover {
   color: #27ae38;
+}
+.placeholders-block {
+  margin: 1.5em 0 2em 0;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1em 1.5em;
+}
+.placeholders-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5em;
+  background: #fff;
+}
+.placeholders-table th, .placeholders-table td {
+  border: 1px solid #ececec;
+  padding: 0.5em 0.7em;
+  font-size: 1em;
+}
+.placeholders-table th {
+  background: #f7f7f7;
+  font-weight: 600;
+}
+.empty-placeholder {
+  color: #888;
+  font-size: 1em;
+  margin: 0.7em 0;
 }
 </style> 

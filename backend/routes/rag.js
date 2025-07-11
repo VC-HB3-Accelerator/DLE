@@ -7,9 +7,9 @@ router.get('/health', (req, res) => {
 });
 
 router.post('/answer', async (req, res) => {
-  const { tableId, question, userTags, product, systemPrompt, priority, date, rules, history, model, language } = req.body;
+  const { tableId, question, product, systemPrompt, priority, date, rules, history, model, language } = req.body;
   try {
-    const ragResult = await ragAnswer({ tableId, userQuestion: question, userTags, product });
+    const ragResult = await ragAnswer({ tableId, userQuestion: question, product });
     const llmResponse = await generateLLMResponse({
       userQuestion: question,
       context: ragResult.context,
@@ -17,7 +17,6 @@ router.post('/answer', async (req, res) => {
       objectionAnswer: ragResult.objectionAnswer,
       answer: ragResult.answer,
       systemPrompt,
-      userTags: userTags?.join ? userTags.join(', ') : userTags,
       product,
       priority: priority || ragResult.priority,
       date: date || ragResult.date,
