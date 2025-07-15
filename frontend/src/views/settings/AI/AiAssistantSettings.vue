@@ -101,7 +101,7 @@
 <script setup>
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import RuleEditor from '@/components/ai-assistant/RuleEditor.vue';
 import SystemMonitoring from '@/components/ai-assistant/SystemMonitoring.vue';
@@ -184,6 +184,12 @@ onMounted(() => {
   loadLLMModels();
   loadEmbeddingModels();
   loadPlaceholders();
+  // Подписка на глобальное событие обновления плейсхолдеров
+  window.addEventListener('placeholders-updated', loadPlaceholders);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('placeholders-updated', loadPlaceholders);
 });
 async function saveSettings() {
   await axios.put('/settings/ai-assistant', settings.value);

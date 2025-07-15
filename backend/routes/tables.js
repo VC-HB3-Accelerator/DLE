@@ -365,6 +365,27 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
+// PATCH: массовое обновление порядка строк (order)
+router.patch('/:id/rows/order', async (req, res, next) => {
+  try {
+    const tableId = req.params.id;
+    const { order } = req.body; // order: [{rowId, order}, ...]
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: 'order должен быть массивом' });
+    }
+    for (const item of order) {
+      if (!item.rowId || typeof item.order !== 'number') continue;
+      await db.getQuery()(
+        'UPDATE user_rows SET "order" = $1, updated_at = NOW() WHERE id = $2 AND table_id = $3',
+        [item.order, item.rowId, tableId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Получить id колонок с purpose 'question' и 'answer'
 async function getQuestionAnswerColumnIds(tableId) {
   const { rows } = await db.getQuery()(

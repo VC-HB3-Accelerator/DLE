@@ -2,76 +2,110 @@
   <div class="user-table-header" v-if="tableMeta">
     <h2>{{ tableMeta.name }}</h2>
     <div class="table-desc">{{ tableMeta.description }}</div>
-    <button v-if="isAdmin" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
-      {{ rebuilding ? 'Пересборка...' : 'Пересобрать индекс' }}
-    </button>
+    <div class="table-header-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; margin-bottom: 18px;">
+      <el-button type="danger" :disabled="!selectedRows.length" @click="deleteSelectedRows">Удалить выбранные</el-button>
+      <span v-if="selectedRows.length">Выбрано: {{ selectedRows.length }}</span>
+      <button v-if="isAdmin" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
+        {{ rebuilding ? 'Пересборка...' : 'Пересобрать индекс' }}
+      </button>
+      <el-button @click="resetFilters" type="default" icon="el-icon-refresh">Сбросить фильтры</el-button>
+      <template v-for="def in relationFilterDefs" :key="def.col.id">
+        <el-select
+          v-model="relationFilters[def.filterKey]"
+          :multiple="def.isMulti"
+          filterable
+          clearable
+          :placeholder="def.col.name"
+          style="min-width: 180px;"
+        >
+          <el-option v-for="opt in def.options" :key="opt.id" :label="opt.display" :value="opt.id" />
+        </el-select>
+      </template>
+    </div>
     <span v-if="rebuildStatus" :class="['rebuild-status', rebuildStatus.success ? 'success' : 'error']">
       {{ rebuildStatus.message }}
     </span>
   </div>
-  <!-- Фильтры на Element Plus -->
-  <div class="table-filters-el" v-if="relationFilterDefs.length">
-    <!-- Только фильтры по multiselect-relation -->
-    <template v-for="def in relationFilterDefs" :key="def.col.id">
-      <el-select
-        v-model="relationFilters[def.filterKey]"
-        :multiple="def.isMulti"
-        filterable
-        clearable
-        :placeholder="def.col.name"
-        style="min-width: 180px;"
-      >
-        <el-option v-for="opt in def.options" :key="opt.id" :label="opt.display" :value="opt.id" />
-      </el-select>
-    </template>
-    <el-button @click="resetFilters" type="default" icon="el-icon-refresh">Сбросить фильтры</el-button>
-  </div>
+  <!-- Удаляю .table-filters-el -->
   <div class="notion-table-wrapper">
-    <table class="notion-table">
-      <thead>
-        <tr>
-          <th v-for="col in columns" :key="col.id" @dblclick="editColumn(col)" class="th-col">
-            <span v-if="!editingCol || editingCol.id !== col.id">{{ col.name }}</span>
-            <input v-else v-model="colEditValue" @blur="saveColEdit(col)" @keyup.enter="saveColEdit(col)" @keyup.esc="cancelColEdit" class="notion-input" />
+    <el-table
+      :data="filteredRows"
+      border
+      style="width: 100%"
+      :header-cell-style="{ background: '#f3f4f6', fontWeight: 600 }"
+      :cell-style="{ whiteSpace: 'normal', wordBreak: 'break-word', minWidth: '80px' }"
+      :row-class-name="() => 'el-table-row-custom'"
+      row-key="id"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="48" fixed="left" />
+      <el-table-column
+        v-for="col in columns"
+        :key="col.id"
+        :prop="'col_' + col.id"
+        :label="col.name"
+        :resizable="true"
+        :min-width="120"
+        :show-overflow-tooltip="false"
+      >
+        <template #header="{ column }">
+          <template v-if="editingCol && editingCol.id === col.id">
+            <input v-model="colEditValue" class="notion-input" style="width: 90px; display: inline-block;" @keyup.enter="saveColEdit(col)" />
+            <button class="save-btn" @click="saveColEdit(col)">Сохранить</button>
+            <button class="cancel-btn" @click="cancelColEdit">Отмена</button>
+          </template>
+          <template v-else>
+            <span>{{ col.name }}</span>
             <button class="col-menu" @click.stop="openColMenu(col, $event)">⋮</button>
-            <!-- Меню столбца -->
-            <div v-if="openedColMenuId === col.id" class="context-menu" :style="colMenuStyle">
-              <button class="menu-item" @click="startRenameCol(col)">Переименовать</button>
-              <button class="menu-item" @click="startChangeTypeCol(col)">Изменить тип</button>
-              <button class="menu-item danger" @click="deleteColumn(col)">Удалить</button>
-            </div>
-          </th>
-          <th>
-            <button class="add-col" @click="showAddColModal = true">+</button>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in filteredRows" :key="row.id">
-          <td v-for="col in columns" :key="col.id">
-            <TableCell
-              :rowId="row.id"
-              :column="col"
-              :cellValues="cellValues"
-              @update="val => saveCellValue(row.id, col.id, val)"
-            />
-          </td>
-          <td>
-            <button class="row-menu" @click.stop="openRowMenu(row, $event)">⋮</button>
-            <!-- Меню строки -->
+          </template>
+        </template>
+        <template #default="{ row }">
+          <TableCell
+            :rowId="row.id"
+            :column="col"
+            :cellValues="cellValues"
+            @update="val => saveCellValue(row.id, col.id, val)"
+          />
+        </template>
+      </el-table-column>
+      <!-- Было два столбца: один для плюса, один для ⋮. Теперь объединяем: -->
+      <el-table-column
+        label=""
+        width="48"
+        align="center"
+        fixed="right"
+        class-name="add-col-header"
+        :resizable="false"
+      >
+        <template #header>
+          <button class="add-col-btn" @click="addColumn" title="Добавить столбец">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="11" cy="11" r="10" fill="#f3f4f6" stroke="#b6c6e6"/>
+              <rect x="10" y="5.5" width="2" height="11" rx="1" fill="#4f8cff"/>
+              <rect x="5.5" y="10" width="11" height="2" rx="1" fill="#4f8cff"/>
+            </svg>
+          </button>
+        </template>
+        <template #default="{ row }">
+          <button class="row-menu" @click.stop="openRowMenu(row, $event)">⋮</button>
+          <teleport to="body">
             <div v-if="openedRowMenuId === row.id" class="context-menu" :style="rowMenuStyle">
+              <button class="menu-item" @click="addRowAfter(row)">Добавить строку</button>
+              <button class="menu-item" @click="moveRowUp(row)" :disabled="rows.findIndex(r => r.id === row.id) === 0">Переместить вверх</button>
+              <button class="menu-item" @click="moveRowDown(row)" :disabled="rows.findIndex(r => r.id === row.id) === rows.length - 1">Переместить вниз</button>
               <button class="menu-item danger" @click="deleteRow(row)">Удалить</button>
             </div>
-          </td>
-        </tr>
-        <tr>
-          <td :colspan="columns.length + 1">
-            <button class="add-row" @click="addRow">+ Добавить строку</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <!-- Оверлей для закрытия меню по клику вне -->
+          </teleport>
+        </template>
+      </el-table-column>
+    </el-table>
+    <teleport to="body">
+      <div v-if="openedColMenuId" class="context-menu" :style="colMenuStyle">
+        <button class="menu-item" @click="editColumn(columns.find(c => c.id === openedColMenuId))">Редактировать</button>
+        <button class="menu-item danger" @click="deleteColumn(columns.find(c => c.id === openedColMenuId))">Удалить</button>
+        <!-- <button class="menu-item" @click="addColumn">Добавить столбец</button> -->
+      </div>
+    </teleport>
     <div v-if="openedColMenuId || openedRowMenuId" class="menu-overlay" @click="closeMenus"></div>
     <!-- Модалка добавления столбца -->
     <div v-if="showAddColModal" class="modal-backdrop">
@@ -136,6 +170,19 @@ const tableMeta = ref(null);
 // const selectedProduct = ref('');
 // const productOptions = ref([]);
 const filteredRows = ref([]);
+const selectedRows = ref([]);
+function handleSelectionChange(val) {
+  selectedRows.value = val;
+}
+async function deleteSelectedRows() {
+  if (!selectedRows.value.length) return;
+  if (!confirm(`Удалить выбранные строки (${selectedRows.value.length})?`)) return;
+  for (const row of selectedRows.value) {
+    await tablesService.deleteRow(row.id);
+  }
+  selectedRows.value = [];
+  await fetchTable();
+}
 
 // Для модалки добавления столбца
 const showAddColModal = ref(false);
@@ -244,6 +291,7 @@ async function handleAddColumn() {
   closeAddColModal();
   await fetchTable();
   await updateRelationFilterDefs(); // Явно обновляем фильтры
+  window.dispatchEvent(new Event('placeholders-updated'));
 }
 
 async function deleteColumn(col) {
@@ -252,6 +300,7 @@ async function deleteColumn(col) {
   await tablesService.deleteColumn(col.id);
   await fetchTable();
   await updateRelationFilterDefs(); // Явно обновляем фильтры
+  window.dispatchEvent(new Event('placeholders-updated'));
 }
 
 // Удаляю все переменные, функции и UI, связанные с tags, tagOptions, selectedTags, loadTags, updateFilterOptions с tags, и т.д.
@@ -411,6 +460,9 @@ function addColumn() {
 function addRow() {
   tablesService.addRow(props.tableId).then(fetchTable);
 }
+function addRowAfter(row) {
+  tablesService.addRow(props.tableId, row.id).then(fetchTable);
+}
 function openColMenu(col, event) {
   openedColMenuId.value = col.id;
   openedRowMenuId.value = null;
@@ -438,6 +490,33 @@ async function deleteRow(row) {
   await fetchTable();
 }
 
+async function saveRowsOrder() {
+  // Сохраняем новый порядок строк на сервере
+  const orderArr = rows.value.map((row, idx) => ({ rowId: row.id, order: idx + 1 }));
+  await tablesService.updateRowsOrder(props.tableId, orderArr);
+}
+
+function moveRowUp(row) {
+  const idx = rows.value.findIndex(r => r.id === row.id);
+  if (idx > 0) {
+    const temp = rows.value[idx - 1];
+    rows.value[idx - 1] = rows.value[idx];
+    rows.value[idx] = temp;
+    saveRowsOrder();
+    fetchTable();
+  }
+}
+function moveRowDown(row) {
+  const idx = rows.value.findIndex(r => r.id === row.id);
+  if (idx < rows.value.length - 1) {
+    const temp = rows.value[idx + 1];
+    rows.value[idx + 1] = rows.value[idx];
+    rows.value[idx] = temp;
+    saveRowsOrder();
+    fetchTable();
+  }
+}
+
 async function rebuildIndex() {
   rebuilding.value = true;
   rebuildStatus.value = null;
@@ -458,12 +537,12 @@ async function rebuildIndex() {
 
 <style scoped>
 .user-table-header {
-  max-width: 1100px;
-  margin: 32px auto 0 auto;
-  padding: 32px 24px 18px 24px;
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  /* max-width: 1100px; */
+  margin: 0 auto 0 auto;
+  /* padding: 32px 24px 18px 24px; */
+  /* background: #fff; */
+  /* border-radius: 18px; */
+  /* box-shadow: 0 4px 24px rgba(0,0,0,0.08); */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -515,41 +594,24 @@ async function rebuildIndex() {
 }
 
 .notion-table-wrapper {
-  max-width: 1100px;
-  margin: 24px auto 0 auto;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-  padding: 12px 6px 18px 6px;
+  /* max-width: 1100px; */
+  margin: 0 auto 0 auto;
+  /* background: #fff; */
+  /* border-radius: 6px; */
+  /* box-shadow: 0 1px 4px rgba(0,0,0,0.04); */
+  /* padding: 12px 6px 18px 6px; */
 }
 
-.notion-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.98rem;
-  background: #fff;
-}
-
-.notion-table th, .notion-table td {
-  border: 1px solid #e5e7eb;
-  padding: 6px 10px;
-  text-align: left;
-  background: #fff;
-  font-size: 0.98rem;
+.el-table__cell, .el-table th, .el-table td {
+  height: auto !important;
+  min-height: 36px;
+  white-space: normal !important;
+  word-break: break-word !important;
   min-width: 80px;
+  max-width: 600px;
 }
-
-.notion-table th {
-  background: #f3f4f6;
-  font-weight: 600;
-  border-bottom: 2px solid #d1d5db;
-  border-top: 1px solid #e5e7eb;
-  padding-top: 7px;
-  padding-bottom: 7px;
-}
-
-.notion-table tr:hover td {
-  background: #f5f7fa;
+.el-table-row-custom {
+  /* Можно добавить стили для высоты строк, если нужно */
 }
 
 .notion-input {
@@ -602,7 +664,7 @@ async function rebuildIndex() {
 
 .context-menu {
   position: absolute;
-  z-index: 10;
+  z-index: 2000;
   min-width: 120px;
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -689,6 +751,25 @@ async function rebuildIndex() {
   content: '—';
   color: #b0b0b0;
   font-style: italic;
+}
+
+.add-col-header .add-col-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.add-col-header .add-col-btn:hover svg circle {
+  fill: #e5e7eb;
+  stroke: #4f8cff;
+}
+.add-col-header .add-col-btn:active svg circle {
+  fill: #dbeafe;
 }
 
 @media (max-width: 700px) {

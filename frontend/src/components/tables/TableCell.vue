@@ -2,7 +2,13 @@
   <template v-if="column.type === 'multiselect'">
     <div v-if="!editing" @click="editing = true" class="tags-cell-view">
       <span v-if="selectedMultiNames.length">{{ selectedMultiNames.join(', ') }}</span>
-      <span v-else style="color:#bbb">—</span>
+      <span v-else class="cell-plus-icon" title="Добавить">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+        </svg>
+      </span>
     </div>
     <div v-else class="tags-cell-edit">
       <div class="tags-multiselect">
@@ -23,7 +29,13 @@
   <template v-else-if="column.type === 'relation'">
     <div v-if="!editing" @click="editing = true" class="tags-cell-view">
       <span v-if="selectedRelationName">{{ selectedRelationName }}</span>
-      <span v-else style="color:#bbb">—</span>
+      <span v-else class="cell-plus-icon" title="Добавить">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+        </svg>
+      </span>
     </div>
     <div v-else class="tags-cell-edit">
       <select v-model="editRelationValue" class="notion-input">
@@ -42,13 +54,19 @@
   <template v-else-if="column.type === 'multiselect-relation'">
     <div v-if="!editing" @click="editing = true" class="tags-cell-view">
       <span v-if="selectedMultiRelationNames.length">{{ selectedMultiRelationNames.map(prettyDisplay).join(', ') }}</span>
-      <span v-else>{{ prettyDisplay(localValue) }}</span>
+      <span v-else class="cell-plus-icon" title="Добавить">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+        </svg>
+      </span>
     </div>
     <div v-else class="tags-cell-edit">
       <div class="tags-multiselect">
         <div v-for="option in multiRelationOptions" :key="option.id" class="tag-option">
           <input type="checkbox" :id="'cell-multirel-' + option.id + '-' + rowId" :value="String(option.id)" v-model="editMultiRelationValues" />
-          <label :for="'cell-multirel-' + option.id + '-' + rowId">{{ prettyDisplay(option.display) }}</label>
+          <label :for="'cell-multirel-' + option.id + '-' + rowId">{{ prettyDisplay(option.display, multiRelationOptions.value) }}</label>
           <button class="delete-tag-btn" @click.prevent="deleteTag(option.id)" title="Удалить тег">×</button>
         </div>
       </div>
@@ -67,20 +85,33 @@
     </div>
   </template>
   <template v-else>
+    <div v-if="!editing" class="cell-view-value" @click="editing = true">
     <span v-if="isArrayString(localValue)">{{ parseArrayString(localValue).join(', ') }}</span>
-    <input
+      <span v-else-if="localValue">{{ localValue }}</span>
+      <span v-else class="cell-plus-icon" title="Добавить">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
+          <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
+          <rect x="4" y="8" width="10" height="2" rx="1" fill="#4f8cff"/>
+        </svg>
+      </span>
+    </div>
+    <textarea
       v-else
       v-model="localValue"
-      @blur="save"
-      @keyup.enter="save"
+      @blur="saveAndExit"
+      @keyup.enter="saveAndExit"
       :placeholder="column.name"
       class="cell-input"
+      autofocus
+      ref="textareaRef"
+      @input="autoResize"
     />
   </template>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted, computed, nextTick } from 'vue';
 import tablesService from '../../services/tablesService';
 const props = defineProps(['rowId', 'column', 'cellValues']);
 const emit = defineEmits(['update']);
@@ -109,6 +140,27 @@ const selectedMultiRelationNames = ref([]);
 
 const showAddTagInput = ref(false);
 const newTagName = ref('');
+
+const textareaRef = ref(null);
+
+function autoResize() {
+  const ta = textareaRef.value;
+  if (ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+}
+
+watch(editing, (val) => {
+  if (val) {
+    nextTick(() => {
+      if (textareaRef.value) {
+        autoResize();
+        setTimeout(() => autoResize(), 0);
+      }
+    });
+  }
+});
 
 // Добавляем watch для отслеживания изменений в мультисвязях
 watch(editMultiRelationValues, (newValues, oldValues) => {
@@ -472,6 +524,11 @@ function save() {
   emit('update', localValue.value);
 }
 
+function saveAndExit() {
+  save();
+  editing.value = false;
+}
+
 function isArrayString(val) {
   if (typeof val !== 'string') return false;
   try {
@@ -482,35 +539,61 @@ function isArrayString(val) {
   }
 }
 function parseArrayString(val) {
+  if (typeof val !== 'string') return [];
+  // Пробуем как JSON
   try {
     const arr = JSON.parse(val);
-    return Array.isArray(arr) ? arr : [val];
-  } catch {
-    return [val];
+    if (Array.isArray(arr)) return arr.map(String);
+  } catch {}
+  // Пробуем как PostgreSQL-массив
+  if (/^\{.*\}$/.test(val)) {
+    return val.replace(/[{}\s"]/g, '').split(',').filter(Boolean);
   }
+  // Если просто строка
+  if (val.trim().length > 0) return [val.trim()];
+  return [];
 }
 
-function prettyDisplay(val) {
-  if (isArrayString(val)) {
-    return parseArrayString(val).join(', ');
+function prettyDisplay(val, optionsArr) {
+  const arr = parseArrayString(val);
+  if (!arr.length) return '—';
+  if (optionsArr && Array.isArray(optionsArr)) {
+    // Для relation/multiselect-relation ищу display по id
+    return arr.map(id => {
+      const found = optionsArr.find(opt => String(opt.id) === String(id) || String(opt) === String(id));
+      return found ? (found.display || found) : id;
+    }).join(', ');
   }
-  return val;
+  return arr.join(', ');
 }
 </script>
 
 <style scoped>
 .cell-input {
-  width: 100%;
-  border: 1px solid #e0e0e0;
-  border-radius: 5px;
-  padding: 0.3em 0.5em;
-  font-size: 1em;
-  background: #fff;
-  transition: border 0.2s;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  resize: none !important;
+  width: 100% !important;
+  min-height: 32px;
+  font: inherit;
+  color: inherit;
+  overflow: hidden;
 }
 .cell-input:focus {
   border: 1.5px solid #2ecc40;
   outline: none;
+}
+.tags-cell-view, .tags-cell-edit, .lookup-cell-view, .tag-option, .multi-relation-option, .add-multiselect-option, .add-tag-form, .multi-relation-options, .multi-relation-edit, .multi-relation-actions, .action-buttons {
+  white-space: normal !important;
+  word-break: break-word !important;
+  height: auto !important;
+  min-height: 1.7em;
+  align-items: flex-start !important;
+  vertical-align: top !important;
+  overflow: visible !important;
 }
 .tags-cell-view {
   min-height: 1.7em;
@@ -705,5 +788,31 @@ function prettyDisplay(val) {
 
 .add-tag-block {
   margin: 0.7em 0;
+}
+.cell-view-value {
+  display: block;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-height: 32px;
+}
+.cell-view-value:hover {
+  background: #f3f4f6;
+}
+.cell-plus-icon {
+  color: #b6c6e6;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2em;
+  transition: color 0.15s;
+  vertical-align: middle;
+}
+.cell-plus-icon:hover {
+  color: #4f8cff;
 }
 </style> 

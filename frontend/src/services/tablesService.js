@@ -63,5 +63,10 @@ export default {
   async rebuildIndex(tableId) {
     const res = await api.post(`/tables/${tableId}/rebuild-index`);
     return res.data;
+  },
+  async updateRowsOrder(tableId, orderArr) {
+    // orderArr: [{rowId, order}, ...]
+    const res = await api.patch(`/tables/${tableId}/rows/order`, { order: orderArr });
+    return res.data;
   }
 }; 
