@@ -105,7 +105,7 @@ start_project() {
   if [ $? -eq 0 ]; then
     print_green "Сервисы успешно запущены!"
     print_green "----------------------------------------"
-    print_green "Проект DApp-for-Business доступен по адресам:"
+    print_green "Проект Digital_Legal_Entity(DLE) доступен по адресам:"
     print_green "Frontend: http://localhost:5173"
     print_green "Backend API: http://localhost:8000"
     print_green "Ollama API: http://localhost:11434"
@@ -126,7 +126,7 @@ start_project() {
 # Основная функция
 main() {
   print_blue "==============================================="
-  print_blue "   Установка и запуск DApp-for-Business"
+  print_blue "   Установка и запуск Digital_Legal_Entity(DLE)"
   print_blue "==============================================="
   
   check_docker

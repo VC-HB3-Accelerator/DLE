@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const { isUserBlocked } = require('../utils/userUtils');
+const { broadcastChatMessage } = require('../wsHub');
 
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
@@ -460,7 +461,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
           logger.info(`[RAG] Запуск поиска по RAG: tableId=${ragTableId}, вопрос="${messageContent}", threshold=${threshold}`);
           const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: messageContent, threshold });
           logger.info(`[RAG] Результат поиска по RAG:`, ragResult);
-          if (ragResult && ragResult.answer && ragResult.score && ragResult.score > threshold) {
+          if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= threshold) {
             logger.info(`[RAG] Найден confident-ответ (score=${ragResult.score}), отправляем ответ из базы.`);
             // Прямой ответ из RAG
             const aiMessageResult = await db.getQuery()(
@@ -471,6 +472,8 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
               [conversationId, userId, ragResult.answer]
             );
             aiMessage = aiMessageResult.rows[0];
+            // Пушим новое сообщение через WebSocket
+            broadcastChatMessage(aiMessage);
           } else if (ragResult) {
             logger.info(`[RAG] Нет confident-ответа (score=${ragResult.score}), переходим к генерации через LLM.`);
             // Генерация через LLM с подстановкой значений из RAG
@@ -502,6 +505,8 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
                 [conversationId, userId, llmResponse]
               );
               aiMessage = aiMessageResult.rows[0];
+              // Пушим новое сообщение через WebSocket
+              broadcastChatMessage(aiMessage);
             } else {
               logger.info(`[RAG] Нет ни одного результата, прошедшего порог (${threshold}).`);
             }

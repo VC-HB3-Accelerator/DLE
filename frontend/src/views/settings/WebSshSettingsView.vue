@@ -19,8 +19,8 @@
             </span>
           </div>
           Затем в открывшемся терминале WSL выполните:
-          <div class="copy-block" @click="copyToClipboard('cd ~/DApp-for-Business\nsudo bash webssh-agent/install.sh')">
-            <pre><code>cd ~/DApp-for-Business
+          <div class="copy-block" @click="copyToClipboard('cd ~/Digital_Legal_Entity(DLE)\nsudo bash webssh-agent/install.sh')">
+            <pre><code>cd ~/Digital_Legal_Entity(DLE)
 sudo bash webssh-agent/install.sh</code></pre>
             <span class="copy-icon">
               <svg v-if="!copied" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="5" y="7" width="9" height="9" rx="2" stroke="#888" stroke-width="1.5"/><rect x="7" y="4" width="9" height="9" rx="2" stroke="#888" stroke-width="1.5"/></svg>
@@ -31,8 +31,8 @@ sudo bash webssh-agent/install.sh</code></pre>
         <li>
           <b>Linux:</b><br>
           Откройте терминал и выполните:
-          <div class="copy-block" @click="copyToClipboard('cd ~/DApp-for-Business\nsudo bash webssh-agent/install.sh')">
-            <pre><code>cd ~/DApp-for-Business
+          <div class="copy-block" @click="copyToClipboard('cd ~/Digital_Legal_Entity(DLE)\nsudo bash webssh-agent/install.sh')">
+            <pre><code>cd ~/Digital_Legal_Entity(DLE)
 sudo bash webssh-agent/install.sh</code></pre>
             <span class="copy-icon">
               <svg v-if="!copied" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="5" y="7" width="9" height="9" rx="2" stroke="#888" stroke-width="1.5"/><rect x="7" y="4" width="9" height="9" rx="2" stroke="#888" stroke-width="1.5"/></svg>

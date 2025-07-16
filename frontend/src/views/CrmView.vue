@@ -204,7 +204,7 @@ function goToContactsList() {
 }
 
 function goToContent() {
-  router.push({ name: 'content-page' });
+  router.push({ name: 'content-list' });
 }
 </script>
 

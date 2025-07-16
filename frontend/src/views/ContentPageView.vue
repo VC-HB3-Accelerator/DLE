@@ -1,8 +1,13 @@
 <template>
   <BaseLayout>
     <div class="content-page-block">
-      <h2>Контент</h2>
-      <form class="content-form" @submit.prevent>
+      <div class="content-header-nav">
+        <button class="nav-btn" @click="goToCreate">Создать</button>
+        <button class="nav-btn" @click="goToList">Список страниц</button>
+        <button class="nav-btn" @click="goToSettings">Настройки</button>
+      </div>
+      <router-view />
+      <form class="content-form" @submit.prevent="handleSubmit">
         <div class="form-group">
           <label for="title">Заголовок страницы *</label>
           <input v-model="form.title" id="title" type="text" required />
@@ -15,51 +20,6 @@
           <label for="content">Основной контент *</label>
           <textarea v-model="form.content" id="content" required rows="6" />
         </div>
-        <div class="form-group">
-          <label for="image">Изображение/обложка</label>
-          <input v-model="form.image" id="image" type="text" placeholder="URL или имя файла" />
-        </div>
-        <div class="form-group">
-          <label for="tags">Теги</label>
-          <div class="tags-input">
-            <input
-              v-model="tagInput"
-              @keydown.enter.prevent="addTag"
-              @blur="addTag"
-              placeholder="Введите тег и нажмите Enter"
-            />
-            <div class="tags-list">
-              <span v-for="(tag, idx) in form.tags" :key="tag" class="tag">
-                {{ tag }}
-                <button type="button" @click="removeTag(idx)">&times;</button>
-              </span>
-            </div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="category">Категория</label>
-          <select v-model="form.category" id="category">
-            <option value="">Не выбрано</option>
-            <option value="О компании">О компании</option>
-            <option value="Продукты">Продукты</option>
-            <option value="Блог">Блог</option>
-            <option value="FAQ">FAQ</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="addToChat">Добавить в чат</label>
-          <select v-model="form.addToChat" id="addToChat">
-            <option value="yes">Да</option>
-            <option value="no">Нет</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="rag">Интегрировать с RAG</label>
-          <select v-model="form.rag" id="rag">
-            <option value="yes">Да</option>
-            <option value="no">Нет</option>
-          </select>
-        </div>
         <button class="submit-btn" type="submit">Сохранить</button>
       </form>
     </div>
@@ -68,31 +28,44 @@
 
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
+import pagesService from '../services/pagesService';
+
+const router = useRouter();
+function goToCreate() { router.push({ name: 'content-create' }); }
+function goToList() { router.push({ name: 'content-list' }); }
+function goToSettings() { router.push({ name: 'content-settings' }); }
 
 const form = ref({
   title: '',
   summary: '',
-  content: '',
-  image: '',
-  tags: [],
-  category: '',
-  addToChat: 'yes',
-  rag: 'yes',
+  content: ''
 });
 
-const tagInput = ref('');
-
-function addTag() {
-  const tag = tagInput.value.trim();
-  if (tag && !form.value.tags.includes(tag)) {
-    form.value.tags.push(tag);
+async function handleSubmit() {
+  console.log('handleSubmit called', form.value);
+  try {
+    if (!form.value.title) {
+      alert('Заполните заголовок страницы!');
+      return;
+    }
+    // Создаём страницу через pagesService
+    const page = await pagesService.createPage({
+      title: form.value.title,
+      summary: form.value.summary,
+      content: form.value.content
+    });
+    console.log('createPage result:', page);
+    if (!page || !page.id) {
+      alert('Ошибка: страница не создана!');
+      return;
+    }
+    router.push({ name: 'content-list' });
+  } catch (e) {
+    alert('Ошибка при создании страницы: ' + (e?.message || e));
+    console.error('Ошибка при создании страницы:', e);
   }
-  tagInput.value = '';
-}
-
-function removeTag(idx) {
-  form.value.tags.splice(idx, 1);
 }
 </script>
 
@@ -164,5 +137,22 @@ input[type="text"], textarea, select {
 }
 .submit-btn:hover {
   background: #1a4e96;
+}
+.content-header-nav {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.nav-btn {
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 7px 18px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.nav-btn:hover {
+  background: #e0e0e0;
 }
 </style> 

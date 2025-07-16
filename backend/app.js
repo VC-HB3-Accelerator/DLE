@@ -14,6 +14,7 @@ const path = require('path');
 const messagesRoutes = require('./routes/messages');
 const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 const monitoringRoutes = require('./routes/monitoring');
+const pagesRoutes = require('./routes/pages'); // Добавляем импорт роутера страниц
 
 // Проверка и создание директорий для хранения данных контрактов
 const ensureDirectoriesExist = () => {
@@ -186,6 +187,7 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/pages', pagesRoutes); // Подключаем роутер страниц
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

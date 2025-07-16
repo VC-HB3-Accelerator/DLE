@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS ai_assistant_settings (
     model TEXT,
     rules JSONB,
     updated_at TIMESTAMP DEFAULT NOW(),
-    updated_by INTEGER,
+    updated_by INTEGER
 );
 
 -- Вставить дефолтную строку (глобальные настройки)

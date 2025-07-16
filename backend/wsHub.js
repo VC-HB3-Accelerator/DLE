@@ -27,4 +27,12 @@ function broadcastMessagesUpdate() {
   }
 }
 
-module.exports = { initWSS, broadcastContactsUpdate, broadcastMessagesUpdate }; 
+function broadcastChatMessage(message) {
+  for (const ws of wsClients) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'chat-message', message }));
+    }
+  }
+}
+
+module.exports = { initWSS, broadcastContactsUpdate, broadcastMessagesUpdate, broadcastChatMessage }; 

@@ -53,3 +53,4 @@ id_rsa.pub
 *.db
 *.sqlite
 *.sqlite3 
+docker-compose.local.yml 

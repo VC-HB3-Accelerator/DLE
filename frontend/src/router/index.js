@@ -166,8 +166,28 @@ const routes = [
   },
   {
     path: '/content',
-    name: 'content-page',
+    name: 'content-list',
+    component: () => import('../views/content/ContentListView.vue'),
+  },
+  {
+    path: '/content/create',
+    name: 'content-create',
     component: () => import('../views/ContentPageView.vue'),
+  },
+  {
+    path: '/content/settings',
+    name: 'content-settings',
+    component: () => import('../views/content/ContentSettingsView.vue'),
+  },
+  {
+    path: '/content/page/:id',
+    name: 'page-view',
+    component: () => import('../views/content/PageView.vue'),
+  },
+  {
+    path: '/content/page/:id/edit',
+    name: 'page-edit',
+    component: () => import('../views/content/PageEditView.vue'),
   },
 ];
 

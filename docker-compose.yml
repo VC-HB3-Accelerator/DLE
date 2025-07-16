@@ -139,6 +139,8 @@ services:
         done
         echo 'Ollama is ready, pulling qwen2.5-7b model...'
         curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_MODEL:-qwen2.5:7b}\"}' -H 'Content-Type: application/json'
+        echo 'Pulling embeddings model...'
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}\"}' -H 'Content-Type: application/json'
         echo 'Done!'
       "
   ssh-tunnel-frontend:
@@ -175,8 +177,8 @@ services:
       - backend
 
 volumes:
-  postgres_data: null
-  ollama_data: null
-  backend_node_modules: null
-  frontend_node_modules: null
-  vector_search_data: null
+  postgres_data:
+  ollama_data:
+  vector_search_data:
+  frontend_node_modules:
+  backend_node_modules:

@@ -198,7 +198,7 @@ class EmailBotService {
                       if (ragTableId) {
                         // Сначала ищем ответ через RAG
                         const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: text });
-                        if (ragResult && ragResult.answer) {
+                        if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.3) {
                           aiResponse = ragResult.answer;
                         } else {
                           aiResponse = await generateLLMResponse({

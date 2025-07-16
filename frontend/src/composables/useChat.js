@@ -1,4 +1,4 @@
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
@@ -400,9 +400,30 @@ export function useChat(auth) {
      // window.addEventListener('load-chat-history', () => loadMessages({ initial: true }));
   });
 
-  // onUnmounted(() => {
-  //   window.removeEventListener('load-chat-history', () => loadMessages({ initial: true }));
-  // });
+  // --- WebSocket для real-time сообщений ---
+  let ws = null;
+  function setupChatWebSocket() {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'chat-message' && data.message) {
+          // Проверяем, что сообщение для текущего пользователя/диалога
+          // (можно доработать фильтрацию по conversation_id, user_id и т.д.)
+          messages.value.push(data.message);
+        }
+      } catch (e) {
+        console.error('[useChat] Ошибка обработки chat-message по WebSocket:', e);
+      }
+    };
+  }
+  onMounted(() => {
+    setupChatWebSocket();
+  });
+  onUnmounted(() => {
+    if (ws) ws.close();
+  });
 
   return {
     messages,

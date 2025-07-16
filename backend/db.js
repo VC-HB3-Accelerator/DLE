@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 require('dotenv').config();
+const axios = require('axios');
 
 // Выводим настройки подключения (без пароля)
 console.log('Настройки подключения к базе данных:');
@@ -105,5 +106,44 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
   }
 }
 
+async function waitForOllamaModel(modelName) {
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
+  while (true) {
+    try {
+      const res = await axios.get(`${ollamaUrl}/api/tags`);
+      const models = res.data.models.map(m => m.name);
+      if (models.includes(modelName)) {
+        return true;
+      }
+      console.log(`[seedAIAssistantSettings] Ожидание загрузки модели ${modelName}...`);
+    } catch (e) {
+      console.log('[seedAIAssistantSettings] Ollama недоступна, ожидание...');
+    }
+    await new Promise(r => setTimeout(r, 5000));
+  }
+}
+
+async function seedAIAssistantSettings() {
+  const modelName = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+  await waitForOllamaModel(modelName);
+  const res = await pool.query('SELECT COUNT(*) FROM ai_assistant_settings');
+  if (parseInt(res.rows[0].count, 10) === 0) {
+    await pool.query(`
+      INSERT INTO ai_assistant_settings (system_prompt, selected_rag_tables, languages, model, rules, updated_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      'Ты — ИИ-ассистент для бизнеса. Отвечай кратко и по делу.',
+      [],
+      ['ru'],
+      modelName,
+      JSON.stringify({}),
+      1
+    ]);
+    console.log('[seedAIAssistantSettings] ai_assistant_settings: инициализировано дефолтными значениями');
+  } else {
+    console.log('[seedAIAssistantSettings] ai_assistant_settings: уже инициализировано, пропускаю');
+  }
+}
+
 // Экспортируем функции для работы с базой данных
-module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback, initDbPool };
+module.exports = { query, getQuery, pool, getPool, setPoolChangeCallback, initDbPool, seedAIAssistantSettings };
