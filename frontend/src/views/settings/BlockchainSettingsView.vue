@@ -123,6 +123,16 @@
         <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">Добавить код деятельности</button>
       </div>
 
+      <div v-if="dleDeploymentSettings.selectedIsicCodes.length" class="isic-codes-list" style="margin-bottom: 24px;">
+        <h4>Добавленные коды деятельности:</h4>
+        <ul>
+          <li v-for="(code, idx) in dleDeploymentSettings.selectedIsicCodes" :key="code.code" class="code-entry">
+            <span>{{ code.text }}</span>
+            <button class="btn btn-danger btn-xs" @click="removeIsicCode(idx)">Удалить</button>
+          </li>
+        </ul>
+      </div>
+
       <!-- 3. Партнёры -->
       <div v-for="(partner, index) in dleDeploymentSettings.partners" :key="index" class="partner-entry">
         <div class="form-group">
