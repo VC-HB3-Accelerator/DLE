@@ -305,4 +305,45 @@ router.post('/broadcast', async (req, res) => {
   }
 });
 
+// DELETE /api/messages/history/:userId - удалить историю сообщений пользователя
+router.delete('/history/:userId', async (req, res) => {
+  const userId = req.params.userId;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  try {
+    // Проверяем права администратора
+    if (!req.user || !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Only administrators can delete message history' });
+    }
+    
+    // Удаляем все сообщения пользователя
+    const result = await db.getQuery()(
+      'DELETE FROM messages WHERE user_id = $1 RETURNING id',
+      [userId]
+    );
+    
+    // Удаляем беседы пользователя (если есть)
+    const conversationResult = await db.getQuery()(
+      'DELETE FROM conversations WHERE user_id = $1 RETURNING id',
+      [userId]
+    );
+    
+    console.log(`[messages.js] Deleted ${result.rowCount} messages and ${conversationResult.rowCount} conversations for user ${userId}`);
+    
+    // Отправляем обновление через WebSocket
+    broadcastMessagesUpdate();
+    
+    res.json({ 
+      success: true, 
+      deletedMessages: result.rowCount,
+      deletedConversations: conversationResult.rowCount
+    });
+  } catch (e) {
+    console.error('[ERROR] /history/:userId:', e);
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
 module.exports = router; 

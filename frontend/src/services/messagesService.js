@@ -42,6 +42,12 @@ export default {
       withCredentials: true
     });
     return data;
+  },
+  async deleteMessagesHistory(userId) {
+    const { data } = await axios.delete(`/messages/history/${userId}`, {
+      withCredentials: true
+    });
+    return data;
   }
 };
 

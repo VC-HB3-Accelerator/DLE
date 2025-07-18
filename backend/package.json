@@ -59,7 +59,8 @@
     "utf7": "^1.0.2",
     "viem": "^2.23.15",
     "winston": "^3.17.0",
-    "ws": "^8.18.1"
+    "ws": "^8.18.1",
+    "csv-parser": "^3.0.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

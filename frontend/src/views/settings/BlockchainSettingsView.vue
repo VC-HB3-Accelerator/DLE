@@ -452,7 +452,7 @@ const fetchIsicCodes = async (params = {}, optionsRef, loadingRef) => {
   loadingRef.value = true;
   optionsRef.value = []; // Очищаем перед загрузкой
   try {
-    const queryParams = new URLSearchParams(params).toString();
+    const queryParams = new URLSearchParams({ ...params, lang: 'ru' }).toString();
     console.debug(`[BlockchainSettingsView] Fetching ISIC codes with params: ${queryParams}`);
     
     // Убедитесь, что базовый URL настроен правильно (например, через axios interceptors или .env)

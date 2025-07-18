@@ -84,7 +84,10 @@
             >Разблокировать</el-button>
           </template>
         </div>
-        <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
+        <div class="delete-actions">
+          <button class="delete-history-btn" @click="deleteMessagesHistory">Удалить историю сообщений</button>
+          <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
+        </div>
       </div>
       <div class="messages-block">
         <h3>Чат с пользователем</h3>
@@ -290,6 +293,45 @@ function saveName() {
 }
 
 // --- Удаление ---
+async function deleteMessagesHistory() {
+  if (!contact.value || !contact.value.id) return;
+  
+  try {
+    const confirmed = await ElMessageBox.confirm(
+      'Вы действительно хотите удалить всю историю сообщений этого пользователя? Это действие необратимо.',
+      'Подтверждение удаления',
+      {
+        confirmButtonText: 'Удалить',
+        cancelButtonText: 'Отмена',
+        type: 'warning'
+      }
+    );
+    
+    if (confirmed) {
+      const result = await messagesService.deleteMessagesHistory(contact.value.id);
+      if (result.success) {
+        ElMessageBox.alert(
+          `История сообщений успешно удалена. Удалено сообщений: ${result.deletedMessages}, бесед: ${result.deletedConversations}`,
+          'Успех',
+          { type: 'success' }
+        );
+        // Обновляем список сообщений
+        await loadMessages();
+      } else {
+        throw new Error('Не удалось удалить историю сообщений');
+      }
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessageBox.alert(
+        'Ошибка при удалении истории сообщений: ' + (e?.response?.data?.error || e?.message || e),
+        'Ошибка',
+        { type: 'error' }
+      );
+    }
+  }
+}
+
 function deleteContact() {
   router.push({ name: 'contact-delete-confirm', params: { id: contact.value.id } });
 }
@@ -601,6 +643,27 @@ watch(userId, async () => {
   font-size: 0.95rem;
   margin-left: 8px;
 }
+.delete-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.delete-history-btn {
+  background: #ff9800;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 18px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.delete-history-btn:hover {
+  background: #f57c00;
+}
+
 .delete-btn {
   background: #dc3545;
   color: #fff;
@@ -609,9 +672,9 @@ watch(userId, async () => {
   padding: 7px 18px;
   cursor: pointer;
   font-size: 1rem;
-  margin-top: 18px;
   transition: background 0.2s;
 }
+
 .delete-btn:hover {
   background: #b52a37;
 }

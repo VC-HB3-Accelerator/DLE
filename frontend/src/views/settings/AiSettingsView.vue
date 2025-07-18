@@ -45,7 +45,12 @@
       :showBaseUrl="providerLabels[showProvider].showBaseUrl"
       @cancel="showProvider = null"
     />
-    <NoAccessModal :show="showNoAccessModal" @close="closeNoAccessModal" />
+    <NoAccessModal 
+      :show="showNoAccessModal" 
+      title="Доступ ограничен"
+      message="Настройки ИИ доступны только администраторам."
+      @close="closeNoAccessModal" 
+    />
   </div>
 </template>
 
