@@ -2,6 +2,7 @@
   <div class="contact-table-modal">
     <div class="contact-table-header">
       <el-button type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
+      <el-button type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
       <el-button type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
       <el-button type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
       <button class="close-btn" @click="$emit('close')">×</button>
@@ -97,6 +98,7 @@ import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckb
 import ImportContactsModal from './ImportContactsModal.vue';
 import BroadcastModal from './BroadcastModal.vue';
 import tablesService from '../services/tablesService';
+import messagesService from '../services/messagesService';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -251,6 +253,38 @@ async function deleteSelected() {
     }
     ElMessage.success('Контакты удалены');
     fetchContacts();
+    selectedIds.value = [];
+    selectAll.value = false;
+  } catch (e) {
+    // Отмена
+  }
+}
+
+async function deleteMessagesSelected() {
+  if (!selectedIds.value.length) return;
+  try {
+    await ElMessageBox.confirm(
+      `Вы действительно хотите удалить историю сообщений для ${selectedIds.value.length} контакт(ов)? Это действие необратимо.`,
+      'Подтверждение удаления сообщений',
+      { type: 'warning' }
+    );
+    
+    let deletedMessages = 0;
+    let deletedConversations = 0;
+    
+    for (const id of selectedIds.value) {
+      try {
+        const result = await messagesService.deleteMessagesHistory(id);
+        if (result.success) {
+          deletedMessages += result.deletedMessages || 0;
+          deletedConversations += result.deletedConversations || 0;
+        }
+      } catch (error) {
+        console.error(`Ошибка при удалении сообщений для контакта ${id}:`, error);
+      }
+    }
+    
+    ElMessage.success(`Удалено сообщений: ${deletedMessages}, бесед: ${deletedConversations}`);
     selectedIds.value = [];
     selectAll.value = false;
   } catch (e) {
