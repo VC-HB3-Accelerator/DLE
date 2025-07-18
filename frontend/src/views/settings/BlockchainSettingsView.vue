@@ -452,7 +452,7 @@ const fetchIsicCodes = async (params = {}, optionsRef, loadingRef) => {
   loadingRef.value = true;
   optionsRef.value = []; // Очищаем перед загрузкой
   try {
-    const queryParams = new URLSearchParams({ ...params, lang: 'ru' }).toString();
+    const queryParams = new URLSearchParams(params).toString();
     console.debug(`[BlockchainSettingsView] Fetching ISIC codes with params: ${queryParams}`);
     
     // Убедитесь, что базовый URL настроен правильно (например, через axios interceptors или .env)
@@ -464,7 +464,8 @@ const fetchIsicCodes = async (params = {}, optionsRef, loadingRef) => {
            // Отображаем код и описание для ясности
            text: `${code.code} - ${code.description}` 
        }));
-       console.debug(`[BlockchainSettingsView] Loaded ISIC codes for level ${params.level || ('parent: '+params.parent_code)}, count:`, optionsRef.value.length);
+       console.log(`[BlockchainSettingsView] Loaded ISIC codes for level ${params.level || ('parent: '+params.parent_code)}, count:`, optionsRef.value.length);
+       console.log('[BlockchainSettingsView] Response data:', response.data);
     } else {
         console.error('[BlockchainSettingsView] Invalid response structure for ISIC codes:', response.data);
     }
@@ -513,6 +514,7 @@ const updateCurrentIsicSelection = () => {
 
 // --- Наблюдатели для каскадной загрузки и обновления текущего выбора --- 
 watch(selectedSection, (newVal) => {
+  console.log('[BlockchainSettingsView] selectedSection changed to:', newVal);
   selectedDivision.value = ''; divisionOptions.value = [];
   selectedGroup.value = ''; groupOptions.value = [];
   selectedClass.value = ''; classOptions.value = [];
@@ -523,6 +525,7 @@ watch(selectedSection, (newVal) => {
 });
 
 watch(selectedDivision, (newVal) => {
+  console.log('[BlockchainSettingsView] selectedDivision changed to:', newVal);
   selectedGroup.value = ''; groupOptions.value = [];
   selectedClass.value = ''; classOptions.value = [];
   if (newVal) {
@@ -532,6 +535,7 @@ watch(selectedDivision, (newVal) => {
 });
 
 watch(selectedGroup, (newVal) => {
+  console.log('[BlockchainSettingsView] selectedGroup changed to:', newVal);
   selectedClass.value = ''; classOptions.value = [];
   if (newVal) {
     fetchIsicCodes({ parent_code: newVal }, classOptions, isLoadingClasses);

@@ -2,8 +2,6 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const logger = require('../utils/logger'); // Если используете логгер
-const fs = require('fs');
-const csv = require('csv-parser');
 
 /**
  * @swagger
@@ -76,47 +74,8 @@ router.get('/codes', async (req, res) => {
   const offset = (page - 1) * limit;
   const { lang } = req.query;
 
-  // Если запрошен русский язык — отдаём из CSV
-  if (lang === 'ru') {
-    const { level, parent_code } = req.query;
-    const results = [];
-    fs.createReadStream(__dirname + '/../db/data/isic_titles_ru.csv')
-      .pipe(csv())
-      .on('data', (data) => {
-        let pass = true;
-        // Фильтрация по уровню (по длине кода)
-        if (level) {
-          if (level == 1 && data.code.length !== 1) pass = false;
-          if (level == 2 && data.code.length !== 2) pass = false;
-          if (level == 3 && data.code.length !== 3) pass = false;
-          if (level == 4 && data.code.length !== 4) pass = false;
-        }
-        // Фильтрация по parent_code
-        if (parent_code && pass) {
-          if (level == 2 && !data.code.startsWith(parent_code)) pass = false;
-          if (level == 3 && !data.code.startsWith(parent_code)) pass = false;
-          if (level == 4 && !data.code.startsWith(parent_code)) pass = false;
-        }
-        if (pass) {
-          results.push({
-            code: data.code,
-            description: data.title,
-          });
-        }
-      })
-      .on('end', () => {
-        res.json({
-          totalItems: results.length,
-          codes: results,
-          totalPages: 1,
-          currentPage: 1,
-        });
-      })
-      .on('error', (err) => {
-        res.status(500).json({ error: 'Ошибка чтения русских кодов ISIC', details: err.message });
-      });
-    return;
-  }
+  // Убираем русский вариант и всегда используем базу данных PostgreSQL
+  // if (lang === 'ru') { ... } - удалено
 
   const baseQuerySelect = `
     SELECT c.code, c.description, c.code_level, c.explanatory_note_inclusion, c.explanatory_note_exclusion,
