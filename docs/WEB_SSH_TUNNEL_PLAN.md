@@ -1,3 +1,15 @@
+<!--
+  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  All rights reserved.
+  
+  This software is proprietary and confidential.
+  Unauthorized copying, modification, or distribution is prohibited.
+  
+  For licensing inquiries: info@hb3-accelerator.com
+  Website: https://hb3-accelerator.com
+  GitHub: https://github.com/HB3-ACCELERATOR
+-->
+
 # Автоматизация публикации локального приложения через SSH-туннель и NGINX
 
 ## Описание задачи

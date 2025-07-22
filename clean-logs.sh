@@ -1,4 +1,8 @@
 #!/bin/bash
+# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# All rights reserved.
+# This software is proprietary and confidential.
+# For licensing inquiries: info@hb3-accelerator.com
 
 echo "🧹 Очистка логов DApp..."
 

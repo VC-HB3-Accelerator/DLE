@@ -1,4 +1,21 @@
+# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# All rights reserved.
+# This software is proprietary and confidential.
+# For licensing inquiries: info@hb3-accelerator.com
+
+# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# All rights reserved.
+# This software is proprietary and confidential.
+# For licensing inquiries: info@hb3-accelerator.com
+
 FROM python:3.10-slim
+
+# Добавляем метки для авторских прав
+LABEL maintainer="Тарабанов Александр Викторович <info@hb3-accelerator.com>"
+LABEL copyright="Copyright (c) 2024-2025 Тарабанов Александр Викторович"
+LABEL license="Proprietary"
+LABEL website="https://hb3-accelerator.com"
+
 WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

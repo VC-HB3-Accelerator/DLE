@@ -1,3 +1,15 @@
+<!--
+  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  All rights reserved.
+  
+  This software is proprietary and confidential.
+  Unauthorized copying, modification, or distribution is prohibited.
+  
+  For licensing inquiries: info@hb3-accelerator.com
+  Website: https://hb3-accelerator.com
+  GitHub: https://github.com/HB3-ACCELERATOR
+-->
+
 <template>
   <el-dialog v-model="visible" title="Массовая рассылка" width="700px" @close="$emit('close')">
     <div v-if="step === 1">

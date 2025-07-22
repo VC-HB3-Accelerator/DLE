@@ -1,3 +1,15 @@
+<!--
+  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  All rights reserved.
+  
+  This software is proprietary and confidential.
+  Unauthorized copying, modification, or distribution is prohibited.
+  
+  For licensing inquiries: info@hb3-accelerator.com
+  Website: https://hb3-accelerator.com
+  GitHub: https://github.com/HB3-ACCELERATOR
+-->
+
 <template>
   <transition name="sidebar-slide">
     <div v-if="modelValue" class="wallet-sidebar">
@@ -114,6 +126,29 @@
               <span class="token-name">{{ token.tokenName }}</span>
               <span class="token-network">{{ token.network }}</span>
               <span class="token-amount">{{ isNaN(Number(token.balance)) ? '—' : Number(token.balance).toLocaleString() }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Блок с информацией об авторских правах -->
+        <div class="copyright-section sidebar-section">
+          <h3>© Авторские права</h3>
+          <div class="copyright-info">
+            <p class="copyright-text">
+              <strong>Тарабанов Александр Викторович</strong><br>
+              2024-2025. Все права защищены.
+            </p>
+            <p class="copyright-status">DLE - Проприетарное ПО</p>
+            <div class="copyright-links">
+              <a href="mailto:info@hb3-accelerator.com" class="copyright-link" title="Связаться с автором">
+                📧 Контакты
+              </a>
+              <a href="https://hb3-accelerator.com" target="_blank" class="copyright-link" title="Официальный сайт">
+                🌐 Сайт
+              </a>
+              <a href="https://github.com/HB3-ACCELERATOR" target="_blank" class="copyright-link" title="GitHub">
+                📦 GitHub
+              </a>
             </div>
           </div>
         </div>
@@ -535,5 +570,70 @@ h3 {
 }
 .delete-identity-btn:hover {
   background: #ffeaea;
+}
+
+/* Стили для блока авторских прав */
+.copyright-section {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.copyright-info {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.copyright-text {
+  margin: 0 0 0.5rem 0;
+  line-height: 1.4;
+  color: #333;
+}
+
+.copyright-status {
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.copyright-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.copyright-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  padding: 0.3rem 0;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.copyright-link:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+@media screen and (max-width: 768px) {
+  .copyright-section {
+    margin-top: 1rem;
+  }
+  
+  .copyright-info {
+    padding: 0.8rem;
+  }
+  
+  .copyright-links {
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 0.3rem;
+  }
 }
 </style> 
