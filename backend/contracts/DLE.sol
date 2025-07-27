@@ -1,30 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/governance/Governor.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
-import "@openzeppelin/contracts/governance/TimelockController.sol";
+import "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import "@openzeppelin/contracts/utils/Nonces.sol";
 
 /**
  * @title DLE (Digital Legal Entity)
- * @dev Основной смарт-контракт DLE согласно требованиям SMART_CONTRACTS.md
- * 
- * Функции:
- * - ERC-20 токен управления с мультиподписью
- * - Система голосования с кворумом
- * - Казначейские функции
- * - Коммуникационные функции
- * - Настраиваемые таймлоки
- * - Модульная система
+ * @dev Основной контракт DLE с отдельным модулем TimelockController.
  */
 contract DLE is 
-    ERC20Permit, 
     ERC20Votes, 
     Governor, 
     GovernorSettings, 
@@ -32,184 +22,210 @@ contract DLE is
     GovernorVotesQuorumFraction, 
     GovernorTimelockControl 
 {
-    // Структура для хранения информации о DLE
     struct DLEInfo {
         string name;
         string symbol;
         string location;
-        string[] isicCodes;
+        string coordinates;
+        uint256 jurisdiction;
+        uint256 oktmo;
+        string[] okvedCodes;
+        uint256 kpp;
         uint256 creationTimestamp;
         bool isActive;
     }
 
-    // Структура для предложений
-    struct Proposal {
-        bytes operation;            // Операция для выполнения
-        uint256[] targetChains;     // Целевые сети для исполнения
-        uint256 timelock;           // Время исполнения (timestamp)
-        uint256 governanceChain;    // Сеть где проходит голосование
-        address initiator;          // Инициатор предложения
-        bytes[] signatures;         // Подписи токен-холдеров
-        bool executed;              // Статус исполнения
-        uint256 quorumRequired;     // Требуемый кворум
-        uint256 signaturesCount;    // Количество собранных подписей
+    struct DLEConfig {
+        string name;
+        string symbol;
+        string location;
+        string coordinates;
+        uint256 jurisdiction;
+        uint256 oktmo;
+        string[] okvedCodes;
+        uint256 kpp;
+        uint48 votingDelay;
+        uint32 votingPeriod;
+        uint256 proposalThreshold;
+        uint256 quorumPercentage;
+        address[] initialPartners;
+        uint256[] initialAmounts;
     }
 
-    // Информация о DLE
+    struct Proposal {
+        bytes operation;
+        uint256[] targetChains;
+        uint256 timelock;
+        uint256 governanceChain;
+        address initiator;
+        bytes[] signatures;
+        bool executed;
+        uint256 quorumRequired;
+        uint256 signaturesCount;
+    }
+
+    struct TokenDistributionProposal {
+        address[] partners;
+        uint256[] amounts;
+        uint256 timelock;
+        address initiator;
+        bytes[] signatures;
+        bool executed;
+        uint256 quorumRequired;
+        uint256 signaturesCount;
+        string description;
+    }
+
+    struct TreasuryProposal {
+        address recipient;
+        uint256 amount;
+        uint256 timelock;
+        address initiator;
+        bytes[] signatures;
+        bool executed;
+        uint256 quorumRequired;
+        uint256 signaturesCount;
+        string description;
+    }
+
     DLEInfo public dleInfo;
-    
-    // Таймлок контроллер
-    TimelockController public timelockController;
-    
-    // Маппинг предложений
     mapping(uint256 => Proposal) public proposals;
+    mapping(uint256 => TokenDistributionProposal) public tokenDistributionProposals;
+    mapping(uint256 => TreasuryProposal) public treasuryProposals;
     uint256 public proposalCounter;
-    
-    // Настройки кворума
+    uint256 public tokenDistributionProposalCounter;
+    uint256 public treasuryProposalCounter;
     uint256 public quorumPercentage;
-    
-    // События
+    bool public initialTokensDistributed = false;
+
+    // Казначейские функции
+    mapping(address => uint256) public lastWithdrawalBlock; // Последний блок вывода для каждого адреса
+    uint256 public totalTreasuryBalance; // Общий баланс казны
+
     event DLEInitialized(
         string name,
         string symbol,
         string location,
+        string coordinates,
+        uint256 jurisdiction,
+        uint256 oktmo,
+        string[] okvedCodes,
+        uint256 kpp,
         address tokenAddress,
         address timelockAddress,
         address governorAddress
     );
-    
-    event TokensDistributed(address[] partners, uint256[] amounts);
+    event InitialTokensDistributed(address[] partners, uint256[] amounts);
+    event TokensDepositedToTreasury(address depositor, uint256 amount);
+    event TreasuryProposalCreated(uint256 proposalId, address initiator, address recipient, uint256 amount, string description);
+    event TreasuryProposalSigned(uint256 proposalId, address signer, uint256 signaturesCount);
+    event TreasuryProposalExecuted(uint256 proposalId, address recipient, uint256 amount);
+    event TokenDistributionProposalCreated(uint256 proposalId, address initiator, address[] partners, uint256[] amounts, string description);
+    event TokenDistributionProposalSigned(uint256 proposalId, address signer, uint256 signaturesCount);
+    event TokenDistributionProposalExecuted(uint256 proposalId, address[] partners, uint256[] amounts);
     event ProposalCreated(uint256 proposalId, address initiator, bytes operation);
     event ProposalSigned(uint256 proposalId, address signer, uint256 signaturesCount);
-    event ProposalExecuted(uint256 proposalId);
     event ModuleInstalled(string moduleName, address moduleAddress);
 
-    /**
-     * @dev Конструктор DLE
-     * @param _name Название DLE
-     * @param _symbol Символ токена управления
-     * @param _location Местонахождение DLE
-     * @param _isicCodes Коды деятельности ISIC
-     * @param _votingDelay Задержка голосования в блоках
-     * @param _votingPeriod Период голосования в блоках
-     * @param _proposalThreshold Порог для создания предложений
-     * @param _quorumPercentage Процент кворума
-     * @param _minTimelockDelay Минимальная задержка таймлока в секундах
-     */
     constructor(
-        string memory _name,
-        string memory _symbol,
-        string memory _location,
-        string[] memory _isicCodes,
-        uint48 _votingDelay,
-        uint32 _votingPeriod,
-        uint256 _proposalThreshold,
-        uint256 _quorumPercentage,
-        uint256 _minTimelockDelay
+        DLEConfig memory config,
+        address timelockAddress
     )
-        ERC20(_name, _symbol)
-        ERC20Permit(_name)
-        Governor(_name)
-        GovernorSettings(_votingDelay, _votingPeriod, _proposalThreshold)
-        GovernorVotesQuorumFraction(_quorumPercentage)
+        ERC20(config.name, config.symbol)
+        Governor(config.name)
+        GovernorSettings(config.votingDelay, config.votingPeriod, config.proposalThreshold)
+        GovernorVotesQuorumFraction(config.quorumPercentage)
+        GovernorTimelockControl(TimelockController(payable(timelockAddress)))
+        GovernorVotes(IVotes(address(this)))
     {
-        // Инициализируем информацию о DLE
         dleInfo = DLEInfo({
-            name: _name,
-            symbol: _symbol,
-            location: _location,
-            isicCodes: _isicCodes,
+            name: config.name,
+            symbol: config.symbol,
+            location: config.location,
+            coordinates: config.coordinates,
+            jurisdiction: config.jurisdiction,
+            oktmo: config.oktmo,
+            okvedCodes: config.okvedCodes,
+            kpp: config.kpp,
             creationTimestamp: block.timestamp,
             isActive: true
         });
+        quorumPercentage = config.quorumPercentage;
 
-        // Устанавливаем кворум
-        quorumPercentage = _quorumPercentage;
+        // Автоматически распределяем начальные токены партнерам при деплое
+        require(config.initialPartners.length == config.initialAmounts.length, "Arrays length mismatch");
+        require(config.initialPartners.length > 0, "No initial partners");
+        
+        for (uint256 i = 0; i < config.initialPartners.length; i++) {
+            require(config.initialPartners[i] != address(0), "Zero address");
+            require(config.initialAmounts[i] > 0, "Zero amount");
+            _mint(config.initialPartners[i], config.initialAmounts[i]);
+        }
+        
+        initialTokensDistributed = true;
+        emit InitialTokensDistributed(config.initialPartners, config.initialAmounts);
 
-        // Создаем таймлок контроллер
-        address[] memory proposers = new address[](1);
-        address[] memory executors = new address[](1);
-        proposers[0] = address(this); // DLE контракт может предлагать
-        executors[0] = address(0); // Любой может выполнять
-
-        timelockController = new TimelockController(
-            _minTimelockDelay,
-            proposers,
-            executors,
-            address(0) // Нет админа для децентрализации
+        emit DLEInitialized(
+            config.name,
+            config.symbol,
+            config.location,
+            config.coordinates,
+            config.jurisdiction,
+            config.oktmo,
+            config.okvedCodes,
+            config.kpp,
+            address(this),
+            timelockAddress,
+            address(this)
         );
-
-        // Отказываемся от роли админа в таймлоке
-        timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));
     }
 
     /**
-     * @dev Распределяет начальные токены между партнерами
+     * @dev Создать предложение на распределение токенов
      * @param _partners Массив адресов партнеров
      * @param _amounts Массив сумм токенов для каждого партнера
+     * @param _timelock Время исполнения (timestamp)
+     * @param _description Описание предложения
      */
-    function distributeInitialTokens(
+    function createTokenDistributionProposal(
         address[] memory _partners,
-        uint256[] memory _amounts
-    ) external {
+        uint256[] memory _amounts,
+        uint256 _timelock,
+        string memory _description
+    ) external returns (uint256) {
         require(_partners.length == _amounts.length, "Arrays length mismatch");
         require(_partners.length > 0, "Empty arrays");
+        require(_timelock > block.timestamp, "Invalid timelock");
+        require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
 
-        uint256 totalSupply = 0;
-        for (uint256 i = 0; i < _partners.length; i++) {
-            require(_partners[i] != address(0), "Zero address");
-            require(_amounts[i] > 0, "Zero amount");
-            
-            totalSupply += _amounts[i];
-            _mint(_partners[i], _amounts[i]);
-        }
-
-        emit TokensDistributed(_partners, _amounts);
-    }
-
-    /**
-     * @dev Создает новое предложение
-     * @param _operation Операция для выполнения
-     * @param _targetChains Целевые сети для исполнения
-     * @param _timelockDelay Задержка таймлока
-     * @return proposalId ID созданного предложения
-     */
-    function createProposal(
-        bytes calldata _operation,
-        uint256[] calldata _targetChains,
-        uint256 _timelockDelay
-    ) external onlyTokenHolder returns (uint256 proposalId) {
-        require(_operation.length > 0, "Empty operation");
-        require(_targetChains.length > 0, "No target chains");
-        require(_timelockDelay > 0, "Invalid timelock");
-
-        proposalId = proposalCounter++;
+        uint256 proposalId = tokenDistributionProposalCounter++;
         
-        proposals[proposalId] = Proposal({
-            operation: _operation,
-            targetChains: _targetChains,
-            timelock: block.timestamp + _timelockDelay,
-            governanceChain: block.chainid,
+        tokenDistributionProposals[proposalId] = TokenDistributionProposal({
+            partners: _partners,
+            amounts: _amounts,
+            timelock: _timelock,
             initiator: msg.sender,
             signatures: new bytes[](0),
             executed: false,
             quorumRequired: (totalSupply() * quorumPercentage) / 100,
-            signaturesCount: 0
+            signaturesCount: 0,
+            description: _description
         });
 
-        emit ProposalCreated(proposalId, msg.sender, _operation);
+        emit TokenDistributionProposalCreated(proposalId, msg.sender, _partners, _amounts, _description);
         return proposalId;
     }
 
     /**
-     * @dev Подписывает предложение
+     * @dev Подписать предложение на распределение токенов
      * @param _proposalId ID предложения
      */
-    function signProposal(uint256 _proposalId) external onlyTokenHolder {
-        Proposal storage proposal = proposals[_proposalId];
+    function signTokenDistributionProposal(uint256 _proposalId) external {
+        TokenDistributionProposal storage proposal = tokenDistributionProposals[_proposalId];
         require(!proposal.executed, "Proposal already executed");
-        require(block.timestamp < proposal.timelock, "Timelock expired");
-        
+        require(block.timestamp < proposal.timelock, "Proposal expired");
+        require(balanceOf(msg.sender) > 0, "No tokens to sign");
+
         // Проверяем, что пользователь еще не подписал
         for (uint256 i = 0; i < proposal.signatures.length; i++) {
             require(
@@ -219,110 +235,256 @@ contract DLE is
             );
         }
 
-        // Добавляем подпись
-        proposal.signatures.push(abi.encode(msg.sender));
-        proposal.signaturesCount += balanceOf(msg.sender);
+        proposal.signatures.push(abi.encodePacked(msg.sender));
+        proposal.signaturesCount++;
 
-        emit ProposalSigned(_proposalId, msg.sender, proposal.signaturesCount);
+        emit TokenDistributionProposalSigned(_proposalId, msg.sender, proposal.signaturesCount);
+
+        // Проверяем, достигнут ли кворум
+        if (proposal.signaturesCount >= proposal.quorumRequired) {
+            proposal.executed = true;
+            _executeTokenDistribution(_proposalId);
+        }
     }
 
     /**
-     * @dev Выполняет предложение
+     * @dev Выполнить распределение токенов после достижения кворума
      * @param _proposalId ID предложения
      */
-    function executeProposal(uint256 _proposalId) external {
-        Proposal storage proposal = proposals[_proposalId];
+    function _executeTokenDistribution(uint256 _proposalId) internal {
+        TokenDistributionProposal storage proposal = tokenDistributionProposals[_proposalId];
+        require(proposal.executed, "Proposal not executed");
+        require(proposal.signaturesCount >= proposal.quorumRequired, "Insufficient quorum");
+
+        for (uint256 i = 0; i < proposal.partners.length; i++) {
+            require(proposal.partners[i] != address(0), "Zero address");
+            require(proposal.amounts[i] > 0, "Zero amount");
+            _mint(proposal.partners[i], proposal.amounts[i]);
+        }
+
+        emit TokenDistributionProposalExecuted(_proposalId, proposal.partners, proposal.amounts);
+    }
+
+    /**
+     * @dev Выполнить предложение на распределение токенов после истечения таймлока
+     * @param _proposalId ID предложения
+     */
+    function executeTokenDistributionProposal(uint256 _proposalId) external {
+        TokenDistributionProposal storage proposal = tokenDistributionProposals[_proposalId];
         require(!proposal.executed, "Proposal already executed");
         require(block.timestamp >= proposal.timelock, "Timelock not expired");
         require(proposal.signaturesCount >= proposal.quorumRequired, "Insufficient quorum");
 
         proposal.executed = true;
+        _executeTokenDistribution(_proposalId);
+    }
 
-        // Здесь будет логика выполнения операции
-        // В зависимости от типа операции
+    function createProposal(
+        bytes memory _operation,
+        uint256[] memory _targetChains,
+        uint256 _timelock,
+        uint256 _governanceChain
+    ) external returns (uint256) {
+        require(_operation.length > 0, "Empty operation");
+        require(_targetChains.length > 0, "Empty target chains");
+        require(_timelock > block.timestamp, "Invalid timelock");
+        uint256 proposalId = proposalCounter++;
+        proposals[proposalId] = Proposal({
+            operation: _operation,
+            targetChains: _targetChains,
+            timelock: _timelock,
+            governanceChain: _governanceChain,
+            initiator: msg.sender,
+            signatures: new bytes[](0),
+            executed: false,
+            quorumRequired: (totalSupply() * quorumPercentage) / 100,
+            signaturesCount: 0
+        });
+        emit ProposalCreated(proposalId, msg.sender, _operation);
+        return proposalId;
+    }
 
-        emit ProposalExecuted(_proposalId);
+    function signProposal(uint256 _proposalId) external {
+        Proposal storage proposal = proposals[_proposalId];
+        require(!proposal.executed, "Proposal already executed");
+        require(block.timestamp < proposal.timelock, "Proposal expired");
+        require(balanceOf(msg.sender) > 0, "No tokens to sign");
+        proposal.signatures.push(abi.encodePacked(msg.sender));
+        proposal.signaturesCount++;
+        emit ProposalSigned(_proposalId, msg.sender, proposal.signaturesCount);
+        if (proposal.signaturesCount >= proposal.quorumRequired) {
+            proposal.executed = true;
+            emit IGovernor.ProposalExecuted(_proposalId);
+        }
+    }
+
+    function installModule(string memory _moduleName, address _moduleAddress) external {
+        emit ModuleInstalled(_moduleName, _moduleAddress);
     }
 
     /**
-     * @dev Получает информацию о DLE
-     * @return Информация о DLE
+     * @dev Внести токены в казну DLE
+     * @param _amount Количество токенов для внесения
      */
-    function getDLEInfo() external view returns (DLEInfo memory) {
-        return dleInfo;
+    function depositToTreasury(uint256 _amount) external {
+        require(_amount > 0, "Amount must be greater than 0");
+        require(balanceOf(msg.sender) >= _amount, "Insufficient balance");
+        
+        _transfer(msg.sender, address(this), _amount);
+        totalTreasuryBalance += _amount;
+        
+        emit TokensDepositedToTreasury(msg.sender, _amount);
     }
 
     /**
-     * @dev Получает адрес таймлока
-     * @return Адрес таймлок контроллера
+     * @dev Создать предложение на вывод средств из казны
+     * @param _recipient Адрес получателя
+     * @param _amount Количество токенов для вывода
+     * @param _timelock Время исполнения (timestamp)
+     * @param _description Описание предложения
      */
-    function getTimelockAddress() external view returns (address) {
-        return address(timelockController);
+    function createTreasuryProposal(
+        address _recipient,
+        uint256 _amount,
+        uint256 _timelock,
+        string memory _description
+    ) external returns (uint256) {
+        require(_recipient != address(0), "Zero address");
+        require(_amount > 0, "Amount must be greater than 0");
+        require(_amount <= totalTreasuryBalance, "Insufficient treasury balance");
+        require(_timelock > block.timestamp, "Invalid timelock");
+        require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
+
+        uint256 proposalId = treasuryProposalCounter++;
+        
+        treasuryProposals[proposalId] = TreasuryProposal({
+            recipient: _recipient,
+            amount: _amount,
+            timelock: _timelock,
+            initiator: msg.sender,
+            signatures: new bytes[](0),
+            executed: false,
+            quorumRequired: (totalSupply() * quorumPercentage) / 100,
+            signaturesCount: 0,
+            description: _description
+        });
+
+        emit TreasuryProposalCreated(proposalId, msg.sender, _recipient, _amount, _description);
+        return proposalId;
     }
 
     /**
-     * @dev Модификатор для проверки владения токенами
+     * @dev Подписать предложение на вывод средств из казны
+     * @param _proposalId ID предложения
      */
-    modifier onlyTokenHolder() {
-        require(balanceOf(msg.sender) > 0, "Not a token holder");
-        _;
+    function signTreasuryProposal(uint256 _proposalId) external {
+        TreasuryProposal storage proposal = treasuryProposals[_proposalId];
+        require(!proposal.executed, "Proposal already executed");
+        require(block.timestamp < proposal.timelock, "Proposal expired");
+        require(balanceOf(msg.sender) > 0, "No tokens to sign");
+
+        // Проверяем, что пользователь еще не подписал
+        for (uint256 i = 0; i < proposal.signatures.length; i++) {
+            require(
+                proposal.signatures[i].length == 0 || 
+                abi.decode(proposal.signatures[i], (address)) != msg.sender,
+                "Already signed"
+            );
+        }
+
+        proposal.signatures.push(abi.encodePacked(msg.sender));
+        proposal.signaturesCount++;
+
+        emit TreasuryProposalSigned(_proposalId, msg.sender, proposal.signaturesCount);
+
+        // Проверяем, достигнут ли кворум
+        if (proposal.signaturesCount >= proposal.quorumRequired) {
+            proposal.executed = true;
+            _executeTreasuryProposal(_proposalId);
+        }
     }
 
-    // Переопределения, необходимые для корректной работы токена голосования
-    function _update(address from, address to, uint256 amount) internal override(ERC20, ERC20Votes) {
+    /**
+     * @dev Выполнить предложение на вывод средств из казны
+     * @param _proposalId ID предложения
+     */
+    function _executeTreasuryProposal(uint256 _proposalId) internal {
+        TreasuryProposal storage proposal = treasuryProposals[_proposalId];
+        require(proposal.executed, "Proposal not executed");
+        require(proposal.signaturesCount >= proposal.quorumRequired, "Insufficient quorum");
+        require(proposal.amount <= totalTreasuryBalance, "Insufficient treasury balance");
+
+        totalTreasuryBalance -= proposal.amount;
+        _transfer(address(this), proposal.recipient, proposal.amount);
+
+        emit TreasuryProposalExecuted(_proposalId, proposal.recipient, proposal.amount);
+    }
+
+    /**
+     * @dev Выполнить предложение на вывод средств после истечения таймлока
+     * @param _proposalId ID предложения
+     */
+    function executeTreasuryProposal(uint256 _proposalId) external {
+        TreasuryProposal storage proposal = treasuryProposals[_proposalId];
+        require(!proposal.executed, "Proposal already executed");
+        require(block.timestamp >= proposal.timelock, "Timelock not expired");
+        require(proposal.signaturesCount >= proposal.quorumRequired, "Insufficient quorum");
+
+        proposal.executed = true;
+        _executeTreasuryProposal(_proposalId);
+    }
+
+
+
+    /**
+     * @dev Получить доступную для вывода сумму для адреса (пропорционально доле)
+     * @param _address Адрес для проверки
+     * @return Доступная сумма для вывода
+     */
+    function getAvailableWithdrawal(address _address) public view returns (uint256) {
+        uint256 userBalance = balanceOf(_address);
+        if (userBalance == 0 || totalTreasuryBalance == 0) {
+            return 0;
+        }
+        
+        // Пропорционально доле в общем количестве токенов
+        uint256 userShare = (userBalance * totalTreasuryBalance) / totalSupply();
+        return userShare;
+    }
+
+
+
+    // Переопределения для совместимости с ERC-6372
+    function CLOCK_MODE() public pure override(Governor, GovernorVotes, Votes) returns (string memory) {
+        return "mode=blocknumber&from=default";
+    }
+    function clock() public view override(Governor, GovernorVotes, Votes) returns (uint48) {
+        return uint48(block.number);
+    }
+    function _update(address from, address to, uint256 amount) internal override(ERC20Votes) {
         super._update(from, to, amount);
     }
-
-    function nonces(address owner) public view override(ERC20Permit, Nonces) returns (uint256) {
+    function nonces(address owner) public view override(Nonces) returns (uint256) {
         return super.nonces(owner);
     }
-
-    // Переопределения для Governor
-    function votingDelay()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
+    function name() public view override(ERC20, Governor) returns (string memory) {
+        return super.name();
+    }
+    function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.votingDelay();
     }
-
-    function votingPeriod()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
+    function votingPeriod() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.votingPeriod();
     }
-
-    function quorum(uint256 blockNumber)
-        public
-        view
-        override(Governor, GovernorVotesQuorumFraction)
-        returns (uint256)
-    {
+    function quorum(uint256 blockNumber) public view override(Governor, GovernorVotesQuorumFraction) returns (uint256) {
         return super.quorum(blockNumber);
     }
-
-    function state(uint256 proposalId)
-        public
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (ProposalState)
-    {
+    function state(uint256 proposalId) public view override(Governor, GovernorTimelockControl) returns (ProposalState) {
         return super.state(proposalId);
     }
-
-    function proposalThreshold()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
+    function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
         return super.proposalThreshold();
     }
-
     function _cancel(
         address[] memory targets,
         uint256[] memory values,
@@ -331,34 +493,15 @@ contract DLE is
     ) internal override(Governor, GovernorTimelockControl) returns (uint256) {
         return super._cancel(targets, values, calldatas, descriptionHash);
     }
-
-    function _executor()
-        internal
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (address)
-    {
+    function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
         return super._executor();
     }
-
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(Governor)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view override(Governor) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
-
-    function proposalNeedsQueuing(uint256 proposalId) 
-        public 
-        view 
-        override(Governor, GovernorTimelockControl) 
-        returns (bool) 
-    {
+    function proposalNeedsQueuing(uint256 proposalId) public view override(Governor, GovernorTimelockControl) returns (bool) {
         return super.proposalNeedsQueuing(proposalId);
     }
-
     function _queueOperations(
         uint256 proposalId,
         address[] memory targets,
@@ -368,7 +511,6 @@ contract DLE is
     ) internal override(Governor, GovernorTimelockControl) returns (uint48) {
         return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
     }
-
     function _executeOperations(
         uint256 proposalId,
         address[] memory targets,
