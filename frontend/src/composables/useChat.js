@@ -14,7 +14,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
-import websocketService from '../services/websocketService';
+import websocketModule from '../services/websocketService';
+
+const { websocketService } = websocketModule;
 
 function initGuestId() {
   let id = getFromStorage('guestId', '');
@@ -43,6 +45,15 @@ export function useChat(auth) {
   });
 
   const guestId = ref(initGuestId());
+
+  // Сохраняем ссылки на callback функции WebSocket для правильной отписки
+  const wsCallbacks = {
+    chatMessage: null,
+    conversationUpdated: null,
+    connected: null,
+    disconnected: null,
+    error: null
+  };
 
   const shouldLoadHistory = computed(() => {
     return auth.isAuthenticated.value || !!guestId.value;
@@ -423,44 +434,69 @@ export function useChat(auth) {
       console.log('[useChat] Подключение к WebSocket для пользователя:', auth.user.value.id);
       websocketService.connect(auth.user.value.id);
       
-      // Подписываемся на события
-      websocketService.on('chat-message', (message) => {
+      // Создаем и сохраняем callback функции
+      wsCallbacks.chatMessage = (message) => {
         console.log('[useChat] Получено новое сообщение через WebSocket:', message);
         // Проверяем, что сообщение не дублируется
         const existingMessage = messages.value.find(m => m.id === message.id);
         if (!existingMessage) {
           messages.value.push(message);
         }
-      });
+      };
       
-      websocketService.on('conversation-updated', (conversationId) => {
+      wsCallbacks.conversationUpdated = (conversationId) => {
         console.log('[useChat] Обновление диалога через WebSocket:', conversationId);
         // Можно добавить логику обновления списка диалогов
-      });
+      };
       
-      websocketService.on('connected', () => {
+      wsCallbacks.connected = () => {
         console.log('[useChat] WebSocket подключен');
-      });
+      };
       
-      websocketService.on('disconnected', () => {
+      wsCallbacks.disconnected = () => {
         console.log('[useChat] WebSocket отключен');
-      });
+      };
       
-      websocketService.on('error', (error) => {
+      wsCallbacks.error = (error) => {
         console.error('[useChat] WebSocket ошибка:', error);
-      });
+      };
+      
+      // Подписываемся на события
+      websocketService.on('chat-message', wsCallbacks.chatMessage);
+      websocketService.on('conversation-updated', wsCallbacks.conversationUpdated);
+      websocketService.on('connected', wsCallbacks.connected);
+      websocketService.on('disconnected', wsCallbacks.disconnected);
+      websocketService.on('error', wsCallbacks.error);
     } else {
       console.log('[useChat] WebSocket не подключен: пользователь не аутентифицирован или данные не загружены');
     }
   }
   
   function cleanupWebSocket() {
-    websocketService.off('chat-message');
-    websocketService.off('conversation-updated');
-    websocketService.off('connected');
-    websocketService.off('disconnected');
-    websocketService.off('error');
-    websocketService.disconnect();
+    // Отписываемся от всех событий, передавая те же callback функции
+    if (websocketService) {
+      if (wsCallbacks.chatMessage) {
+        websocketService.off('chat-message', wsCallbacks.chatMessage);
+      }
+      if (wsCallbacks.conversationUpdated) {
+        websocketService.off('conversation-updated', wsCallbacks.conversationUpdated);
+      }
+      if (wsCallbacks.connected) {
+        websocketService.off('connected', wsCallbacks.connected);
+      }
+      if (wsCallbacks.disconnected) {
+        websocketService.off('disconnected', wsCallbacks.disconnected);
+      }
+      if (wsCallbacks.error) {
+        websocketService.off('error', wsCallbacks.error);
+      }
+      websocketService.disconnect();
+      
+      // Очищаем ссылки на callback функции
+      Object.keys(wsCallbacks).forEach(key => {
+        wsCallbacks[key] = null;
+      });
+    }
   }
 
   // --- Инициализация --- 

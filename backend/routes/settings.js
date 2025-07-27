@@ -15,6 +15,7 @@ const router = express.Router();
 const { requireAdmin } = require('../middleware/auth');
 const logger = require('../utils/logger');
 const { ethers } = require('ethers');
+const db = require('../db');
 const rpcProviderService = require('../services/rpcProviderService');
 const authTokenService = require('../services/authTokenService');
 const aiProviderSettingsService = require('../services/aiProviderSettingsService');

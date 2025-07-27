@@ -16,6 +16,10 @@ let wss = null;
 // Храним клиентов по userId для персонализированных уведомлений
 const wsClients = new Map(); // userId -> Set of WebSocket connections
 
+// Кэш для отслеживания изменений тегов
+const tagsChangeCache = new Map();
+const TAGS_CACHE_TTL = 5000; // 5 секунд
+
 function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
   
@@ -172,6 +176,96 @@ function broadcastConversationUpdate(conversationId, targetUserId = null) {
   }
 }
 
+function broadcastTableUpdate(tableId) {
+  console.log('📢 [WebSocket] Отправка обновления таблицы', tableId);
+  const payload = { type: 'table-updated', tableId };
+    for (const [userId, clients] of wsClients.entries()) {
+      for (const ws of clients) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(payload));
+      }
+    }
+  }
+}
+
+function broadcastTableRelationsUpdate(tableId, rowId, targetUserId = null) {
+  console.log(`📢 [WebSocket] Отправка обновления связей таблицы`, { 
+    tableId, 
+    rowId, 
+    targetUserId 
+  });
+  
+  const payload = { 
+    type: 'table-relations-updated', 
+    tableId, 
+    rowId 
+  };
+  
+  if (targetUserId) {
+    // Отправляем конкретному пользователю
+    const userClients = wsClients.get(targetUserId.toString());
+    if (userClients) {
+      for (const ws of userClients) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(payload));
+        }
+      }
+    }
+  } else {
+    // Отправляем всем
+    for (const [userId, clients] of wsClients.entries()) {
+      for (const ws of clients) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(payload));
+        }
+      }
+    }
+  }
+}
+
+function broadcastTagsUpdate(targetUserId = null) {
+  const now = Date.now();
+  const cacheKey = targetUserId || 'global';
+  
+  // Проверяем, не отправляли ли мы недавно уведомление
+  const lastUpdate = tagsChangeCache.get(cacheKey);
+  if (lastUpdate && (now - lastUpdate) < TAGS_CACHE_TTL) {
+    console.log(`🏷️ [WebSocket] Пропускаем отправку уведомления о тегах (слишком часто)`, { targetUserId });
+    return;
+  }
+  
+  // Обновляем кэш
+  tagsChangeCache.set(cacheKey, now);
+  
+  console.log(`🏷️ [WebSocket] Отправка обновления тегов`, { targetUserId });
+  
+  const payload = { 
+    type: 'tags-updated',
+    timestamp: now
+  };
+  
+  if (targetUserId) {
+    // Отправляем конкретному пользователю
+    const userClients = wsClients.get(targetUserId.toString());
+    if (userClients) {
+      for (const ws of userClients) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(payload));
+        }
+      }
+    }
+  } else {
+    // Отправляем всем
+    for (const [userId, clients] of wsClients.entries()) {
+      for (const ws of clients) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(payload));
+        }
+      }
+    }
+  }
+}
+
 function getConnectedUsers() {
   const users = [];
   for (const [userId, clients] of wsClients.entries()) {
@@ -210,6 +304,9 @@ module.exports = {
   broadcastMessagesUpdate, 
   broadcastChatMessage,
   broadcastConversationUpdate,
+  broadcastTableUpdate,
+  broadcastTableRelationsUpdate,
+  broadcastTagsUpdate,
   getConnectedUsers,
   getStats
 }; 

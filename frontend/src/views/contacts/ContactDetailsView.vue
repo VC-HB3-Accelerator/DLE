@@ -150,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import Message from '../../components/Message.vue';
@@ -160,6 +160,7 @@ import messagesService from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { ElMessageBox } from 'element-plus';
 import tablesService from '../../services/tablesService';
+import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
 
 const route = useRoute();
 const router = useRouter();
@@ -187,10 +188,15 @@ const conversationId = ref(null);
 // id таблицы тегов (будет найден или создан)
 const tagsTableId = ref(null);
 
+// WebSocket для тегов
+const { onTagsUpdate } = useTagsWebSocket();
+let unsubscribeFromTags = null;
+
 async function ensureTagsTable() {
   // Получаем все пользовательские таблицы
   const tables = await tablesService.getTables();
   let tagsTable = tables.find(t => t.name === 'Теги клиентов');
+  
   if (!tagsTable) {
     // Если таблицы нет — создаём
     tagsTable = await tablesService.createTable({
@@ -198,17 +204,28 @@ async function ensureTagsTable() {
       description: 'Справочник тегов для контактов',
       isRagSourceId: 2 // не источник для RAG по умолчанию
     });
-    // Добавляем столбцы
-    await tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' });
-    await tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' });
+    
+    // Добавляем столбцы параллельно
+    await Promise.all([
+      tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' }),
+      tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' })
+    ]);
   } else {
     // Проверяем, есть ли нужные столбцы, если таблица уже была создана
     const table = await tablesService.getTable(tagsTable.id);
     const hasName = table.columns.some(col => col.name === 'Название');
     const hasDesc = table.columns.some(col => col.name === 'Описание');
-    if (!hasName) await tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' });
-    if (!hasDesc) await tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' });
+    
+    // Добавляем недостающие столбцы параллельно
+    const addColumnPromises = [];
+    if (!hasName) addColumnPromises.push(tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' }));
+    if (!hasDesc) addColumnPromises.push(tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' }));
+    
+    if (addColumnPromises.length > 0) {
+      await Promise.all(addColumnPromises);
   }
+  }
+  
   tagsTableId.value = tagsTable.id;
   return tagsTable.id;
 }
@@ -598,6 +615,20 @@ onMounted(async () => {
   await reloadContact();
   await loadUserTags();
   await loadMessages();
+  
+  // Подписываемся на обновления тегов
+  unsubscribeFromTags = onTagsUpdate(async () => {
+    console.log('[ContactDetailsView] Получено обновление тегов, перезагружаем списки тегов');
+    await loadAllTags();
+    await loadUserTags();
+  });
+});
+
+onUnmounted(() => {
+  // Отписываемся от WebSocket при размонтировании
+  if (unsubscribeFromTags) {
+    unsubscribeFromTags();
+  }
 });
 watch(userId, async () => {
   await reloadContact();

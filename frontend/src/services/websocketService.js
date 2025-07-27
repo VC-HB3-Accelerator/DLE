@@ -126,6 +126,18 @@ class WebSocketService {
         this.emit('contacts-updated');
         break;
         
+      case 'tags-updated':
+        console.log('🏷️ [WebSocket] Обновление тегов клиентов');
+        this.emit('tags-updated');
+        break;
+        
+      case 'table-updated':
+        console.log('[WebSocket] table-updated:', data.tableId);
+        if (tableUpdateSubscribers[data.tableId]) {
+          tableUpdateSubscribers[data.tableId].forEach(cb => cb(data));
+        }
+        break;
+        
       default:
         console.log('❓ [WebSocket] Неизвестный тип сообщения:', data.type);
         this.emit('unknown-message', data);
@@ -189,4 +201,21 @@ class WebSocketService {
 // Создаем единственный экземпляр
 const websocketService = new WebSocketService();
 
-export default websocketService; 
+// Подписчики на обновления таблиц: tableId -> [callback]
+const tableUpdateSubscribers = {};
+
+function onTableUpdate(tableId, callback) {
+  if (!tableUpdateSubscribers[tableId]) {
+    tableUpdateSubscribers[tableId] = [];
+  }
+  tableUpdateSubscribers[tableId].push(callback);
+  // Возвращаем функцию для отписки
+  return () => {
+    tableUpdateSubscribers[tableId] = tableUpdateSubscribers[tableId].filter(cb => cb !== callback);
+  };
+}
+
+export default {
+  websocketService,
+  onTableUpdate,
+}; 

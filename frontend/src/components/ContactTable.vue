@@ -104,13 +104,14 @@
 </template>
 
 <script setup>
-import { defineProps, computed, ref, onMounted, watch } from 'vue';
+import { defineProps, computed, ref, onMounted, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckbox, ElButton, ElMessageBox, ElMessage } from 'element-plus';
 import ImportContactsModal from './ImportContactsModal.vue';
 import BroadcastModal from './BroadcastModal.vue';
 import tablesService from '../services/tablesService';
 import messagesService from '../services/messagesService';
+import { useTagsWebSocket } from '../composables/useTagsWebSocket';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -141,38 +142,81 @@ const showBroadcastModal = ref(false);
 const selectedIds = ref([]);
 const selectAll = ref(false);
 
+// WebSocket для тегов - ОТКЛЮЧАЕМ из-за циклических запросов
+// const { onTagsUpdate } = useTagsWebSocket();
+// let unsubscribeFromTags = null;
+let lastTagsHash = ref(''); // Хеш последних загруженных тегов
+let tagsUpdateInterval = null; // Интервал для периодического обновления тегов
+
 onMounted(async () => {
   await fetchContacts();
-  await loadAvailableTags();
+  // ВРЕМЕННО ОТКЛЮЧАЕМ - await loadAvailableTags();
+  
+  // ВРЕМЕННО ОТКЛЮЧАЕМ - Вместо WebSocket используем периодическое обновление каждые 30 секунд
+  // tagsUpdateInterval = setInterval(async () => {
+  //   console.log('[ContactTable] Периодическое обновление тегов');
+  //   await loadAvailableTags();
+  // }, 30000); // 30 секунд
+  
+  // Подписываемся на обновления тегов - ОТКЛЮЧАЕМ
+  // unsubscribeFromTags = onTagsUpdate(async () => {
+  //   console.log('[ContactTable] Получено обновление тегов, проверяем необходимость перезагрузки');
+  //   await loadAvailableTags();
+  // });
 });
 
-async function loadAvailableTags() {
-  try {
-    // Получаем все пользовательские таблицы и ищем "Теги клиентов"
-    const tables = await tablesService.getTables();
-    const tagsTable = tables.find(t => t.name === 'Теги клиентов');
-    
-    if (tagsTable) {
-      // Загружаем данные таблицы тегов
-      const table = await tablesService.getTable(tagsTable.id);
-      const nameColumn = table.columns.find(col => col.name === 'Название') || table.columns[0];
-      
-      if (nameColumn) {
-        // Формируем список тегов
-        availableTags.value = table.rows.map(row => {
-          const nameCell = table.cellValues.find(c => c.row_id === row.id && c.column_id === nameColumn.id);
-          return {
-            id: row.id,
-            name: nameCell ? nameCell.value : `Тег ${row.id}`
-          };
-        }).filter(tag => tag.name.trim()); // Исключаем пустые названия
-      }
-    }
-  } catch (e) {
-    console.error('Ошибка загрузки тегов:', e);
-    availableTags.value = [];
+onUnmounted(() => {
+  // Отписываемся от WebSocket при размонтировании - ОТКЛЮЧАЕМ
+  // if (unsubscribeFromTags) {
+  //   unsubscribeFromTags();
+  // }
+  
+  // Очищаем интервал
+  if (tagsUpdateInterval) {
+    clearInterval(tagsUpdateInterval);
+    tagsUpdateInterval = null;
   }
-}
+});
+
+// ВРЕМЕННО ОТКЛЮЧАЕМ - async function loadAvailableTags() {
+//   try {
+//     // Получаем все пользовательские таблицы и ищем "Теги клиентов"
+//     const tables = await tablesService.getTables();
+//     const tagsTable = tables.find(t => t.name === 'Теги клиентов');
+//     
+//     if (tagsTable) {
+//       // Загружаем данные таблицы тегов
+//       const table = await tablesService.getTable(tagsTable.id);
+//       const nameColumn = table.columns.find(col => col.name === 'Название') || table.columns[0];
+//       
+//       if (nameColumn) {
+//         // Формируем список тегов
+//         const newTags = table.rows.map(row => {
+//           const nameCell = table.cellValues.find(c => c.row_id === row.id && c.column_id === nameColumn.id);
+//           return {
+//             id: row.id,
+//             name: nameCell ? nameCell.value : `Тег ${row.id}`
+//           };
+//         }).filter(tag => tag.name.trim()); // Исключаем пустые названия
+//         
+//         // Создаем хеш для сравнения
+//         const newTagsHash = JSON.stringify(newTags.map(t => `${t.id}:${t.name}`).sort());
+//         
+//         // Обновляем только если данные действительно изменились
+//         if (newTagsHash !== lastTagsHash.value) {
+//           console.log('[ContactTable] Теги изменились, обновляем список');
+//           availableTags.value = newTags;
+//           lastTagsHash.value = newTagsHash;
+//         } else {
+//           console.log('[ContactTable] Теги не изменились, пропускаем обновление');
+//         }
+//       }
+//     }
+//   } catch (e) {
+//     console.error('Ошибка загрузки тегов:', e);
+//     availableTags.value = [];
+//   }
+// }
 
 function buildQuery() {
   const params = new URLSearchParams();

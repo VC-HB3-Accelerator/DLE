@@ -17,6 +17,7 @@ const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const vectorSearchClient = require('../services/vectorSearchClient');
+const { broadcastTableUpdate, broadcastTableRelationsUpdate } = require('../wsHub');
 
 router.use((req, res, next) => {
   console.log('Tables router received:', req.method, req.originalUrl);
@@ -32,7 +33,7 @@ router.get('/', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -58,7 +59,7 @@ router.post('/', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -85,7 +86,7 @@ router.get('/rag-sources', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -115,7 +116,7 @@ router.get('/:id', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -123,11 +124,26 @@ router.get('/:id', async (req, res, next) => {
       console.error('Error reading encryption key:', keyError);
     }
 
-    const tableMetaResult = await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name, decrypt_text(description_encrypted, $2) as description FROM user_tables WHERE id = $1', [tableId, encryptionKey]);
+    // Выполняем все 4 запроса параллельно для ускорения
+    const [tableMetaResult, columnsResult, rowsResult, cellValuesResult] = await Promise.all([
+      // 1. Метаданные таблицы
+      db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name, decrypt_text(description_encrypted, $2) as description FROM user_tables WHERE id = $1', [tableId, encryptionKey]),
+      
+      // 2. Столбцы
+      db.getQuery()('SELECT id, table_id, "order", created_at, updated_at, decrypt_text(name_encrypted, $2) as name, decrypt_text(type_encrypted, $2) as type, decrypt_text(placeholder_encrypted, $2) as placeholder_encrypted, options, placeholder FROM user_columns WHERE table_id = $1 ORDER BY "order" ASC, id ASC', [tableId, encryptionKey]),
+      
+      // 3. Строки
+      db.getQuery()('SELECT * FROM user_rows WHERE table_id = $1 ORDER BY id', [tableId]),
+      
+      // 4. Значения ячеек
+      db.getQuery()('SELECT id, row_id, column_id, created_at, updated_at, decrypt_text(value_encrypted, $2) as value FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId, encryptionKey])
+    ]);
+
     const tableMeta = tableMetaResult.rows[0] || { name: '', description: '' };
-    const columns = (await db.getQuery()('SELECT id, table_id, "order", created_at, updated_at, decrypt_text(name_encrypted, $2) as name, decrypt_text(type_encrypted, $2) as type, decrypt_text(placeholder_encrypted, $2) as placeholder_encrypted, placeholder FROM user_columns WHERE table_id = $1 ORDER BY "order" ASC, id ASC', [tableId, encryptionKey])).rows;
-    const rows = (await db.getQuery()('SELECT * FROM user_rows WHERE table_id = $1 ORDER BY id', [tableId])).rows;
-    const cellValues = (await db.getQuery()('SELECT id, row_id, column_id, created_at, updated_at, decrypt_text(value_encrypted, $2) as value FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId, encryptionKey])).rows;
+    const columns = columnsResult.rows;
+    const rows = rowsResult.rows;
+    const cellValues = cellValuesResult.rows;
+    
     res.json({ name: tableMeta.name, description: tableMeta.description, columns, rows, cellValues });
   } catch (err) {
     next(err);
@@ -177,7 +193,7 @@ router.post('/:id/columns', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -194,6 +210,7 @@ router.post('/:id/columns', async (req, res, next) => {
       [tableId, name, type, order || 0, placeholder, placeholder, encryptionKey]
     );
     res.json(result.rows[0]);
+    broadcastTableUpdate(tableId);
   } catch (err) {
     next(err);
   }
@@ -214,7 +231,7 @@ router.post('/:id/rows', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -231,6 +248,7 @@ router.post('/:id/rows', async (req, res, next) => {
     }
     console.log('[DEBUG][addRow] res.json:', result.rows[0]);
     res.json(result.rows[0]);
+    broadcastTableUpdate(tableId);
   } catch (err) {
     next(err);
   }
@@ -247,7 +265,7 @@ router.get('/:id/rows', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -331,7 +349,7 @@ router.patch('/cell/:cellId', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -362,6 +380,7 @@ router.patch('/cell/:cellId', async (req, res, next) => {
       }
     }
     res.json(result.rows[0]);
+    broadcastTableUpdate(tableId);
   } catch (err) {
     next(err);
   }
@@ -377,7 +396,7 @@ router.post('/cell', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -391,10 +410,20 @@ router.post('/cell', async (req, res, next) => {
        RETURNING *`,
       [row_id, column_id, value, encryptionKey]
     );
-    // Получаем table_id
+    
+    // Получаем table_id и проверяем, является ли это таблицей тегов
     const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [row_id])).rows[0];
     if (table) {
       const tableId = table.table_id;
+      
+      // Проверяем, является ли это таблицей "Теги клиентов" - ОТКЛЮЧАЕМ WebSocket
+      // const tableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [tableId, encryptionKey])).rows[0];
+      // if (tableName && tableName.name === 'Теги клиентов') {
+      //   // Отправляем WebSocket уведомление об обновлении тегов
+      //   const { broadcastTagsUpdate } = require('../wsHub');
+      //   broadcastTagsUpdate();
+      // }
+      
       // Получаем всю строку для upsert
       const rowData = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.id = $1', [row_id, encryptionKey])).rows[0];
       if (rowData) {
@@ -404,7 +433,12 @@ router.post('/cell', async (req, res, next) => {
           await vectorSearchClient.upsert(tableId, upsertRows);
         }
       }
+      
+      // Отправляем WebSocket уведомление об обновлении таблицы
+      const { broadcastTableUpdate } = require('../wsHub');
+      broadcastTableUpdate(tableId);
     }
+    
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -417,7 +451,29 @@ router.delete('/row/:rowId', async (req, res, next) => {
     const rowId = req.params.rowId;
     // Получаем table_id
     const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [rowId])).rows[0];
+    
+    // Проверяем, является ли это таблицей тегов перед удалением
+    let isTagsTable = false;
+    if (table) {
+      const fs = require('fs');
+      const path = require('path');
+      let encryptionKey = 'default-key';
+      
+      try {
+        const keyPath = '/app/ssl/keys/full_db_encryption.key';
+        if (fs.existsSync(keyPath)) {
+          encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+        }
+      } catch (keyError) {
+        console.error('Error reading encryption key:', keyError);
+      }
+      
+      const tableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [table.table_id, encryptionKey])).rows[0];
+      isTagsTable = tableName && tableName.name === 'Теги клиентов';
+    }
+    
     await db.getQuery()('DELETE FROM user_rows WHERE id = $1', [rowId]);
+    
     if (table) {
       const tableId = table.table_id;
       // Получаем все строки для rebuild
@@ -427,7 +483,7 @@ router.delete('/row/:rowId', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -442,6 +498,17 @@ router.delete('/row/:rowId', async (req, res, next) => {
         await vectorSearchClient.rebuild(tableId, rebuildRows);
       }
     }
+    
+    // Отправляем WebSocket уведомление, если это была таблица тегов - ОТКЛЮЧАЕМ
+    // if (isTagsTable) {
+    //   const { broadcastTagsUpdate } = require('../wsHub');
+    //   broadcastTagsUpdate();
+    // }
+    
+    // Отправляем WebSocket уведомление об обновлении таблицы
+    const { broadcastTableUpdate } = require('../wsHub');
+    broadcastTableUpdate(tableId);
+    
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -471,7 +538,7 @@ router.patch('/column/:columnId', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -523,6 +590,7 @@ router.patch('/column/:columnId', async (req, res, next) => {
       return res.status(404).json({ error: 'Column not found' });
     }
     res.json(result.rows[0]);
+    broadcastTableUpdate(colInfo.table_id);
   } catch (err) {
     next(err);
   }
@@ -588,21 +656,45 @@ router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
     if (!req.session.isAdmin) {
       return res.status(403).json({ error: 'Доступ только для администратора' });
     }
+    
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+    
     const tableId = req.params.id;
     const { questionCol, answerCol } = await getQuestionAnswerColumnIds(tableId);
     if (!questionCol || !answerCol) {
       return res.status(400).json({ error: 'Не найдены колонки с вопросами и ответами' });
     }
+    
     const rows = (await db.getQuery()(
-      `SELECT r.id as row_id, c.value as text, c2.value as answer
+      `SELECT r.id as row_id, 
+              decrypt_text(c.value_encrypted, $4) as text, 
+              decrypt_text(c2.value_encrypted, $4) as answer
        FROM user_rows r
        LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = $2
        LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = $3
        WHERE r.table_id = $1`,
-      [tableId, questionCol, answerCol]
+      [tableId, questionCol, answerCol, encryptionKey]
     )).rows;
-    const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
+    
+    const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ 
+      row_id: r.row_id, 
+      text: r.text, 
+      metadata: { answer: r.answer } 
+    }));
+    
     console.log('[DEBUG][rebuildRows]', rebuildRows);
+    
     if (rebuildRows.length > 0) {
       await vectorSearchClient.rebuild(tableId, rebuildRows);
       res.json({ success: true, count: rebuildRows.length });
@@ -708,6 +800,10 @@ router.post('/:tableId/row/:rowId/multirelations', async (req, res, next) => {
         [rowId, column_id, to_table_id, to_row_id]
       );
     }
+    
+    // Отправляем WebSocket уведомление об обновлении связей
+    broadcastTableRelationsUpdate(tableId, rowId);
+    
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -724,7 +820,7 @@ router.get('/:id/placeholders', async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }

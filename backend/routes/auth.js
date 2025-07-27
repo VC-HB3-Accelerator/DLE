@@ -163,8 +163,8 @@ router.post('/verify', async (req, res) => {
     }
 
     // Создаем SIWE сообщение для проверки подписи
-    const domain = 'localhost:5173'; // Используем тот же домен, что и на frontend
     const origin = req.get('origin') || 'http://localhost:5173';
+    const domain = new URL(origin).host; // Извлекаем домен из origin
     
     const { SiweMessage } = require('siwe');
     const message = new SiweMessage({
@@ -184,6 +184,9 @@ router.post('/verify', async (req, res) => {
     logger.info(`[verify] SIWE message for verification: ${messageToSign}`);
     logger.info(`[verify] Domain: ${domain}, Origin: ${origin}`);
     logger.info(`[verify] Normalized address: ${normalizedAddress}`);
+    logger.info(`[verify] Request headers origin: ${req.get('origin')}`);
+    logger.info(`[verify] Request headers host: ${req.get('host')}`);
+    logger.info(`[verify] Request headers referer: ${req.get('referer')}`);
 
     // Проверяем подпись
     const isValid = await authService.verifySignature(messageToSign, signature, normalizedAddress);

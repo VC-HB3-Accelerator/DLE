@@ -160,13 +160,17 @@
   </div>
 </template>
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
 import tablesService from '../../services/tablesService';
 import TableCell from './TableCell.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import axios from 'axios';
 // Импортируем компоненты Element Plus
 import { ElSelect, ElOption, ElButton } from 'element-plus';
+import websocketService from '../../services/websocketService';
+import cacheService from '../../services/cacheService';
+let unsubscribeFromTableUpdate = null;
+
 const { isAdmin } = useAuthContext();
 const rebuilding = ref(false);
 const rebuildStatus = ref(null);
@@ -370,18 +374,131 @@ async function fetchFilteredRows() {
 
 // Основная загрузка таблицы
 async function fetchTable() {
+  const startTime = Date.now();
+  console.log(`[UserTableView] 🚀 Начало загрузки таблицы ${props.tableId} в ${startTime}`);
+  
   const data = await tablesService.getTable(props.tableId);
   columns.value = data.columns;
   rows.value = data.rows;
   cellValues.value = data.cellValues;
   tableMeta.value = { name: data.name, description: data.description };
-  await updateRelationFilterDefs();
-  await fetchFilteredRows();
+  
+  console.log(`[UserTableView] 📊 Загружено ${rows.value.length} строк, ${columns.value.length} столбцов`);
+  
+  // Предварительно загружаем все relations для всех строк параллельно
+  const relationColumns = columns.value.filter(col => col.type === 'multiselect-relation');
+  if (relationColumns.length > 0) {
+    console.log(`[UserTableView] 🔄 Предварительно загружаем relations для ${relationColumns.length} столбцов`);
+    
+    const relationPromises = [];
+    for (const row of rows.value) {
+      for (const col of relationColumns) {
+        const promise = fetch(`/api/tables/${col.table_id}/row/${row.id}/relations`)
+          .then(res => res.json())
+          .then(relations => {
+            // Сохраняем в кэш
+            cacheService.setRelationsData(row.id, col.id, relations);
+            return { rowId: row.id, colId: col.id, relations };
+          })
+          .catch(error => {
+            console.error(`[UserTableView] Ошибка загрузки relations для row:${row.id} col:${col.id}:`, error);
+            return { rowId: row.id, colId: col.id, relations: [] };
+          });
+        relationPromises.push(promise);
+      }
+    }
+    
+    // Ждем загрузки всех relations
+    const results = await Promise.all(relationPromises);
+    console.log(`[UserTableView] ✅ Предварительно загружено ${results.length} relations`);
+  }
+  
+  // Предварительно загружаем данные связанных таблиц для опций
+  const relatedTableIds = new Set();
+  for (const col of relationColumns) {
+    if (col.options && col.options.relatedTableId) {
+      relatedTableIds.add(col.options.relatedTableId);
+    }
+  }
+  
+  if (relatedTableIds.size > 0) {
+    console.log(`[UserTableView] 🔄 Предварительно загружаем данные ${relatedTableIds.size} связанных таблиц для опций`);
+    
+    const tablePromises = Array.from(relatedTableIds).map(tableId => 
+      fetch(`/api/tables/${tableId}`)
+        .then(res => res.json())
+        .then(tableData => {
+          // Сохраняем в кэш с разными ключами для разных столбцов
+          cacheService.setTableData(tableId, 'default', tableData);
+          return { tableId, tableData };
+        })
+        .catch(error => {
+          console.error(`[UserTableView] Ошибка загрузки таблицы ${tableId}:`, error);
+          return { tableId, tableData: null };
+        })
+    );
+    
+    const tableResults = await Promise.all(tablePromises);
+    console.log(`[UserTableView] ✅ Предварительно загружено ${tableResults.length} связанных таблиц`);
+  }
+  
+  // Выполняем обновление фильтров и фильтрацию строк параллельно
+  await Promise.all([
+    updateRelationFilterDefs(),
+    fetchFilteredRows()
+  ]);
+  
+  // Выводим статистику кэша для отладки
+  const cacheStats = cacheService.getStats();
+  console.log('[UserTableView] Статистика кэша после загрузки таблицы:', {
+    tableCacheSize: cacheStats.tableCacheSize,
+    relationsCacheSize: cacheStats.relationsCacheSize,
+    tableCacheKeys: cacheStats.tableCacheKeys,
+    relationsCacheKeys: cacheStats.relationsCacheKeys.slice(0, 5) // Показываем только первые 5 ключей
+  });
+  
+  const endTime = Date.now();
+  console.log(`[UserTableView] ✅ Завершена загрузка таблицы ${props.tableId} за ${endTime - startTime}ms`);
 }
 
 async function updateRelationFilterDefs() {
-  // Для каждого multiselect-relation-столбца формируем опции
   const defs = [];
+  const relatedTableMap = new Map();
+  
+  // Сначала собираем все уникальные relatedTableId и создаем промисы для параллельной загрузки
+  for (const col of columns.value) {
+    if (col.type === 'multiselect-relation' && col.options && col.options.relatedTableId && col.options.relatedColumnId) {
+      const tableId = col.options.relatedTableId;
+      if (!relatedTableMap.has(tableId)) {
+        // Проверяем кэш
+        const cached = cacheService.getTableData(tableId);
+        if (cached) {
+          console.log(`[updateRelationFilterDefs] Используем кэшированные данные таблицы ${tableId}`);
+          relatedTableMap.set(tableId, Promise.resolve(cached));
+        } else {
+          relatedTableMap.set(tableId, tablesService.getTable(tableId));
+        }
+      }
+    }
+  }
+  
+  // Загружаем все связанные таблицы параллельно
+  const relatedTables = await Promise.all(Array.from(relatedTableMap.values()));
+  
+  // Создаем Map для быстрого доступа к загруженным таблицам
+  const tableMap = new Map();
+  let tableIndex = 0;
+  for (const tableId of relatedTableMap.keys()) {
+    const tableData = relatedTables[tableIndex++];
+    tableMap.set(tableId, tableData);
+    
+    // Сохраняем в кэш, если это новые данные
+    if (!cacheService.getTableData(tableId)) {
+      cacheService.setTableData(tableId, 'default', tableData);
+    }
+  }
+
+  // Теперь формируем опции фильтров
   for (const col of columns.value) {
     if (col.type === 'multiselect-relation' && col.options && col.options.relatedTableId && col.options.relatedColumnId) {
       // Собираем все уникальные id из этого столбца по всем строкам
@@ -391,8 +508,9 @@ async function updateRelationFilterDefs() {
         const arr = parseIfArray(cell ? cell.value : []);
         arr.forEach(val => idsSet.add(val));
       }
-      // Получаем значения из связанной таблицы
-      const relTable = await tablesService.getTable(col.options.relatedTableId);
+      
+      // Получаем значения из связанной таблицы (уже загружена)
+      const relTable = tableMap.get(col.options.relatedTableId);
       const opts = Array.from(idsSet).map(id => {
         const relRow = relTable.rows.find(r => String(r.id) === String(id));
         const cell = relTable.cellValues.find(c => c.row_id === (relRow ? relRow.id : id) && c.column_id === col.options.relatedColumnId);
@@ -421,6 +539,19 @@ watch([relationFilters], fetchFilteredRows, { deep: true });
 
 onMounted(() => {
   fetchTable();
+  // Подписка на WebSocket обновления таблицы
+  unsubscribeFromTableUpdate = websocketService.onTableUpdate(props.tableId, () => {
+    console.log('[UserTableView] Получено событие table-updated, перезагружаем данные');
+    // Очищаем кэш текущей таблицы
+    cacheService.clearTableCache(props.tableId);
+    fetchTable();
+  });
+});
+
+onUnmounted(() => {
+  if (unsubscribeFromTableUpdate) {
+    unsubscribeFromTableUpdate();
+  }
 });
 
 // Для редактирования ячеек

@@ -524,6 +524,11 @@ router.patch('/:id/tags', async (req, res) => {
         [userId, tagId]
       );
     }
+    
+    // Отправляем WebSocket уведомление об обновлении тегов - ОТКЛЮЧАЕМ
+    // const { broadcastTagsUpdate } = require('../wsHub');
+    // broadcastTagsUpdate();
+    
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -553,6 +558,11 @@ router.delete('/:id/tags/:tagId', async (req, res) => {
       'DELETE FROM user_tag_links WHERE user_id = $1 AND tag_id = $2',
       [userId, tagId]
     );
+    
+    // Отправляем WebSocket уведомление об обновлении тегов - ОТКЛЮЧАЕМ
+    // const { broadcastTagsUpdate } = require('../wsHub');
+    // broadcastTagsUpdate();
+    
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
