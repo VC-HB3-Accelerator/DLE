@@ -64,28 +64,74 @@ function setPoolChangeCallback(cb) {
 // Функция для пересоздания пула из db_settings
 async function reinitPoolFromDbSettings() {
   try {
+    // Используем прямое подключение для получения настроек
     const res = await pool.query('SELECT * FROM db_settings ORDER BY id LIMIT 1');
     if (!res.rows.length) throw new Error('DB settings not found');
-    const settings = res.rows[0];
+    const dbSettings = res.rows[0];
+    
     // Закрываем старый пул
     await pool.end();
-    // Создаём новый пул
+    
+    // Создаём новый пул с расшифрованными настройками
     pool = new Pool({
-      host: settings.db_host,
-      port: parseInt(settings.db_port),
-      database: settings.db_name,
-      user: settings.db_user,
-      password: settings.db_password,
+      host: dbSettings.db_host_encrypted ? await decryptValue(dbSettings.db_host_encrypted) : process.env.DB_HOST || 'postgres',
+      port: parseInt(dbSettings.db_port || process.env.DB_PORT || '5432'),
+      database: dbSettings.db_name_encrypted ? await decryptValue(dbSettings.db_name_encrypted) : process.env.DB_NAME || 'dapp_db',
+      user: dbSettings.db_user_encrypted ? await decryptValue(dbSettings.db_user_encrypted) : process.env.DB_USER || 'dapp_user',
+      password: dbSettings.db_password_encrypted ? await decryptValue(dbSettings.db_password_encrypted) : process.env.DB_PASSWORD,
       ssl: false,
     });
+    
     // Пересоздаём session middleware
     if (poolChangeCallback) {
       poolChangeCallback();
     }
-    console.log('Пул пересоздан с новыми параметрами:', settings);
+    console.log('Пул пересоздан с новыми параметрами из зашифрованных настроек');
   } catch (err) {
     console.error('Ошибка пересоздания пула:', err);
-    throw err;
+    // Используем дефолтные настройки при ошибке
+    console.log('Используем дефолтные настройки подключения');
+  }
+}
+
+// Функция для расшифровки значений
+async function decryptValue(encryptedValue) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const crypto = require('crypto');
+    
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (!fs.existsSync(keyPath)) {
+      console.warn('Ключ шифрования не найден, используем дефолтные значения');
+      return null;
+    }
+    
+    const key = fs.readFileSync(keyPath, 'utf8').trim();
+    const algorithm = 'aes-256-cbc';
+    
+    // Декодируем base64
+    const encryptedBuffer = Buffer.from(encryptedValue, 'base64');
+    
+    // Извлекаем IV (первые 16 байт)
+    const iv = encryptedBuffer.slice(0, 16);
+    const encryptedData = encryptedBuffer.slice(16);
+    
+    // Расшифровываем
+    const decipher = crypto.createDecipher(algorithm, key);
+    decipher.setAutoPadding(false);
+    
+    let decrypted = decipher.update(encryptedData, null, 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    // Убираем padding
+    const paddingLength = decrypted.charCodeAt(decrypted.length - 1);
+    decrypted = decrypted.slice(0, decrypted.length - paddingLength);
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Ошибка расшифровки:', error);
+    return null;
   }
 }
 
@@ -96,9 +142,9 @@ async function reinitPoolFromDbSettings() {
 
 // Экспортируем функцию для явной инициализации пула
 async function initDbPool() {
-  if (process.env.NODE_ENV !== 'migration') {
-    await reinitPoolFromDbSettings();
-  }
+  // Отключаем автоматическое пересоздание пула из настроек БД
+  // await reinitPoolFromDbSettings();
+  console.log('Используем дефолтные настройки подключения к БД');
 }
 
 // Функция для сохранения гостевого сообщения в базе данных
@@ -140,15 +186,30 @@ async function seedAIAssistantSettings() {
   await waitForOllamaModel(modelName);
   const res = await pool.query('SELECT COUNT(*) FROM ai_assistant_settings');
   if (parseInt(res.rows[0].count, 10) === 0) {
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, 'ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
     await pool.query(`
-      INSERT INTO ai_assistant_settings (system_prompt, selected_rag_tables, languages, model, rules, updated_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO ai_assistant_settings (system_prompt_encrypted, selected_rag_tables, languages, model_encrypted, rules_id, updated_by)
+      VALUES (encrypt_text($1, $6), $2, $3, encrypt_text($4, $6), $5, $7)
     `, [
       'Ты — ИИ-ассистент для бизнеса. Отвечай кратко и по делу.',
       [],
       ['ru'],
       modelName,
-      JSON.stringify({}),
+      1,
+      encryptionKey,
       1
     ]);
     console.log('[seedAIAssistantSettings] ai_assistant_settings: инициализировано дефолтными значениями');

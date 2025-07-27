@@ -75,10 +75,16 @@ const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
 const tokensRouter = require('./routes/tokens');
 const isicRoutes = require('./routes/isic'); // Добавленный импорт
+const kppRoutes = require('./routes/kpp'); // Добавленный импорт КПП кодов
 const geocodingRoutes = require('./routes/geocoding'); // Добавленный импорт
 const dleRoutes = require('./routes/dle'); // Добавляем импорт DLE маршрутов
+const dleV2Routes = require('./routes/dleV2'); // Добавляем импорт DLE v2 маршрутов
 const settingsRoutes = require('./routes/settings'); // Добавляем импорт маршрутов настроек
 const tablesRoutes = require('./routes/tables'); // Добавляем импорт таблиц
+const countriesRoutes = require('./routes/countries'); // Добавляем импорт маршрутов стран
+const russianClassifiersRoutes = require('./routes/russian-classifiers'); // Добавляем импорт российских классификаторов
+const ollamaRoutes = require('./routes/ollama'); // Добавляем импорт Ollama маршрутов
+const aiQueueRoutes = require('./routes/ai-queue'); // Добавляем импорт AI Queue маршрутов
 
 const app = express();
 
@@ -192,9 +198,15 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);
 app.use('/api/isic', isicRoutes); // Добавленное использование роута
+app.use('/api/kpp', kppRoutes); // Добавленное использование роута КПП кодов
 app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
 app.use('/api/dle', dleRoutes); // Добавляем маршрут DLE
+app.use('/api/dle-v2', dleV2Routes); // Добавляем маршрут DLE v2
 app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
+app.use('/api/countries', countriesRoutes); // Добавляем маршрут стран
+app.use('/api/russian-classifiers', russianClassifiersRoutes); // Добавляем маршрут российских классификаторов
+app.use('/api/ollama', ollamaRoutes); // Добавляем маршрут Ollama
+app.use('/api/ai-queue', aiQueueRoutes); // Добавляем маршрут AI Queue
 app.use('/api/messages', messagesRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут

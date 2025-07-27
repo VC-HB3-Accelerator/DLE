@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-import axios from '../api/axios';
+import axios from 'axios';
 import { ethers } from 'ethers';
 import { SiweMessage } from 'siwe';
 
@@ -100,10 +100,15 @@ export const connectWallet = async () => {
 
     // Отправляем верификацию на сервер
     console.log('Sending verification request...');
-    const verifyResponse = await axios.post('/auth/verify', {
+    const requestData = {
       address: normalizedAddress,
       signature,
       nonce,
+    };
+    console.log('Request data:', requestData);
+    
+    const verifyResponse = await axios.post('/api/auth/verify', requestData, {
+      withCredentials: true,
     });
 
     // Обновляем интерфейс для отображения подключенного состояния

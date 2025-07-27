@@ -49,6 +49,7 @@ export async function connectWithWallet() {
     const origin = window.location.origin;
     const statement = 'Sign in with Ethereum to the app.';
 
+    const issuedAt = new Date().toISOString();
     const siweMessage = new SiweMessage({
       domain,
       address,
@@ -57,11 +58,23 @@ export async function connectWithWallet() {
       version: '1',
       chainId: 1,
       nonce,
+      issuedAt,
       resources: [`${origin}/api/auth/verify`],
     });
 
     const message = siweMessage.prepareMessage();
     console.log('SIWE message:', message);
+    console.log('SIWE message details:', {
+      domain,
+      address,
+      statement,
+      uri: origin,
+      version: '1',
+      chainId: 1,
+      nonce,
+      issuedAt,
+      resources: [`${origin}/api/auth/verify`],
+    });
 
     // Запрашиваем подпись
     console.log('Requesting signature...');
@@ -75,9 +88,10 @@ export async function connectWithWallet() {
     // Отправляем подпись на сервер для верификации
     console.log('Sending verification request...');
     const verificationResponse = await axios.post('/auth/verify', {
-      message,
       signature,
       address,
+      nonce,
+      issuedAt,
     });
 
     console.log('Verification response:', verificationResponse.data);

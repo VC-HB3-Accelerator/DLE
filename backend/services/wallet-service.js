@@ -10,21 +10,19 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const logger = require('../utils/logger');
 
 // Получение связанного кошелька
 async function getLinkedWallet(userId) {
   logger.info(`[getLinkedWallet] Called with userId: ${userId} (Type: ${typeof userId})`);
   try {
-    const result = await db.getQuery()(
-      `SELECT provider_id as address 
-       FROM user_identities 
-       WHERE user_id = $1 AND provider = 'wallet'`,
-      [userId]
-    );
-    logger.info(`[getLinkedWallet] DB query result for userId ${userId}:`, result.rows);
-    const address = result.rows[0]?.address;
+    const result = await encryptedDb.getData('user_identities', {
+      user_id: userId,
+      provider: 'wallet'
+    }, 1);
+    logger.info(`[getLinkedWallet] DB query result for userId ${userId}:`, result);
+    const address = result[0]?.provider_id;
     logger.info(`[getLinkedWallet] Returning address: ${address} for userId ${userId}`);
     return address;
   } catch (error) {

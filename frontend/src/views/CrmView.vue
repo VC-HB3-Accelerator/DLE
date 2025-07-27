@@ -21,27 +21,34 @@
     <div class="crm-view-container">
       <div class="dle-management-block">
         <h2>Управление DLE</h2>
-        <button class="btn btn-info" @click="goToDleManagement">
-          <i class="fas fa-cogs"></i> Подробнее
+        <button class="details-btn" @click="goToDleManagement">
+          Подробнее
         </button>
       </div>
       <div class="crm-contacts-block">
         <h2>Контакты</h2>
-        <button class="btn btn-info" @click="goToContactsList">
-          <i class="fas fa-address-book"></i> Подробнее
+        <button class="details-btn" @click="goToContactsList">
+          Подробнее
         </button>
       </div>
       <div class="crm-tables-block">
         <h2>Таблицы</h2>
-        <button class="btn btn-info" @click="goToTables">
-          <i class="fas fa-table"></i> Подробнее
+        <button class="details-btn" @click="goToTables">
+          Подробнее
         </button>
       </div>
       <!-- Новый блок Контент -->
       <div class="crm-content-block">
         <h2>Контент</h2>
-        <button class="btn btn-info" @click="goToContent">
-          <i class="fas fa-file-alt"></i> Подробнее
+        <button class="details-btn" @click="goToContent">
+          Подробнее
+        </button>
+      </div>
+      <!-- Новый блок Управление -->
+      <div class="crm-management-block">
+        <h2>Управление</h2>
+        <button class="details-btn" @click="goToManagement">
+          Подробнее
         </button>
       </div>
     </div>
@@ -218,6 +225,10 @@ function goToContactsList() {
 function goToContent() {
   router.push({ name: 'content-list' });
 }
+
+function goToManagement() {
+  router.push({ name: 'management' });
+}
 </script>
 
 <style scoped>
@@ -258,57 +269,28 @@ strong {
   to { transform: rotate(360deg); }
 }
 
-.btn {
-  display: inline-block;
-  font-weight: 400;
-  text-align: center;
-  white-space: nowrap;
-  vertical-align: middle;
-  user-select: none;
-  border: 1px solid transparent;
-  padding: 0.375rem 0.75rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.25rem;
-  transition: all 0.15s ease-in-out;
+.details-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.5rem;
   cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+  margin: 0;
 }
 
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  border-radius: 0.2rem;
+.details-btn:hover {
+  background: var(--color-primary-dark);
 }
 
-.btn-primary {
-  color: #fff;
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+.details-btn-secondary {
+  background: #6c757d;
 }
 
-.btn-secondary {
-  color: #fff;
-  background-color: var(--color-grey-dark);
-  border-color: var(--color-grey-dark);
-}
-
-.btn-success {
-  color: #fff;
-  background-color: #28a745;
-  border-color: #28a745;
-}
-
-.btn-danger {
-  color: #fff;
-  background-color: #dc3545;
-  border-color: #dc3545;
-}
-
-.btn-info {
-  color: #fff;
-  background-color: #17a2b8;
-  border-color: #17a2b8;
+.details-btn-secondary:hover {
+  background: #5a6268;
 }
 
 .dle-management-block {
@@ -326,9 +308,8 @@ strong {
   font-size: 1.4rem;
   font-weight: 600;
 }
-.dle-management-block .btn {
-  font-size: 1rem;
-  padding: 8px 18px;
+.dle-management-block .details-btn {
+  margin-top: 0;
 }
 
 .crm-contacts-block {
@@ -346,9 +327,8 @@ strong {
   font-size: 1.4rem;
   font-weight: 600;
 }
-.crm-contacts-block .btn {
-  font-size: 1rem;
-  padding: 8px 18px;
+.crm-contacts-block .details-btn {
+  margin-top: 0;
 }
 
 .crm-tables-block {
@@ -366,9 +346,8 @@ strong {
   font-size: 1.4rem;
   font-weight: 600;
 }
-.crm-tables-block .btn {
-  font-size: 1rem;
-  padding: 8px 18px;
+.crm-tables-block .details-btn {
+  margin-top: 0;
 }
 
 .crm-content-block {
@@ -386,8 +365,26 @@ strong {
   font-size: 1.4rem;
   font-weight: 600;
 }
-.crm-content-block .btn {
-  font-size: 1rem;
-  padding: 8px 18px;
+.crm-content-block .details-btn {
+  margin-top: 0;
+}
+
+.crm-management-block {
+  margin: 32px 0 24px 0;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.crm-management-block h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.crm-management-block .details-btn {
+  margin-top: 0;
 }
 </style> 

@@ -14,14 +14,16 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const aiAssistant = require('../services/ai-assistant');
+const aiQueueService = require('../services/ai-queue'); // Добавляем импорт AI Queue сервиса
 const db = require('../db');
+const encryptedDb = require('../services/encryptedDatabaseService');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const crypto = require('crypto');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const { isUserBlocked } = require('../utils/userUtils');
-const { broadcastChatMessage } = require('../wsHub');
+const { broadcastChatMessage, broadcastConversationUpdate } = require('../wsHub');
 
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
@@ -32,10 +34,24 @@ async function processGuestMessages(userId, guestId) {
   try {
     logger.info(`Processing guest messages for user ${userId} with guest ID ${guestId}`);
 
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
     // Проверяем, обрабатывались ли уже эти сообщения
     const mappingCheck = await db.getQuery()(
-      'SELECT processed FROM guest_user_mapping WHERE guest_id = $1',
-      [guestId]
+      'SELECT processed FROM guest_user_mapping WHERE guest_id_encrypted = encrypt_text($1, $2)',
+      [guestId, encryptionKey]
     );
 
     // Если сообщения уже обработаны, пропускаем
@@ -47,8 +63,8 @@ async function processGuestMessages(userId, guestId) {
     // Проверяем наличие mapping записи и создаем если нет
     if (mappingCheck.rows.length === 0) {
       await db.getQuery()(
-        'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-        [userId, guestId]
+        'INSERT INTO guest_user_mapping (user_id, guest_id_encrypted) VALUES ($1, encrypt_text($2, $3)) ON CONFLICT (guest_id_encrypted) DO UPDATE SET user_id = $1',
+        [userId, guestId, encryptionKey]
       );
       logger.info(`Created mapping for guest ID ${guestId} to user ${userId}`);
     }
@@ -56,17 +72,17 @@ async function processGuestMessages(userId, guestId) {
     // Получаем все гостевые сообщения со всеми новыми полями
     const guestMessagesResult = await db.getQuery()(
       `SELECT
-         id, guest_id, content, language, is_ai, created_at,
-         attachment_filename, attachment_mimetype, attachment_size, attachment_data
-       FROM guest_messages WHERE guest_id = $1 ORDER BY created_at ASC`,
-      [guestId]
+         id, decrypt_text(guest_id_encrypted, $2) as guest_id, decrypt_text(content_encrypted, $2) as content, decrypt_text(language_encrypted, $2) as language, is_ai, created_at,
+         decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data
+       FROM guest_messages WHERE guest_id_encrypted = encrypt_text($1, $2) ORDER BY created_at ASC`,
+      [guestId, encryptionKey]
     );
 
     if (guestMessagesResult.rows.length === 0) {
       logger.info(`No guest messages found for guest ID ${guestId}`);
-      const checkResult = await db.getQuery()('SELECT 1 FROM guest_user_mapping WHERE guest_id = $1', [guestId]);
+      const checkResult = await db.getQuery()('SELECT 1 FROM guest_user_mapping WHERE guest_id_encrypted = encrypt_text($1, $2)', [guestId, encryptionKey]);
       if (checkResult.rows.length > 0) {
-        await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [guestId]);
+        await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id_encrypted = encrypt_text($1, $2)', [guestId, encryptionKey]);
         logger.info(`Marked guest mapping as processed (no messages found) for guest ID ${guestId}`);
       } else {
         logger.warn(`Attempted to mark non-existent guest mapping as processed for guest ID ${guestId}`);
@@ -80,20 +96,20 @@ async function processGuestMessages(userId, guestId) {
     // --- Новый порядок: ищем последний диалог пользователя ---
     let conversation = null;
     const lastConvResult = await db.getQuery()(
-      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-      [userId]
+      'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+      [userId, encryptionKey]
     );
     if (lastConvResult.rows.length > 0) {
       conversation = lastConvResult.rows[0];
     } else {
       // Если нет ни одного диалога, создаём новый
     const firstMessage = guestMessages[0];
-    const title = firstMessage.content
-      ? (firstMessage.content.length > 30 ? `${firstMessage.content.substring(0, 30)}...` : firstMessage.content)
+    const title = firstMessage.content && firstMessage.content.trim()
+      ? (firstMessage.content.trim().length > 30 ? `${firstMessage.content.trim().substring(0, 30)}...` : firstMessage.content.trim())
       : (firstMessage.attachment_filename ? `Файл: ${firstMessage.attachment_filename}` : 'Новый диалог');
     const newConversationResult = await db.getQuery()(
-      'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-      [userId, title]
+      'INSERT INTO conversations (user_id, title_encrypted) VALUES ($1, encrypt_text($2, $3)) RETURNING *',
+      [userId, title, encryptionKey]
     );
       conversation = newConversationResult.rows[0];
     logger.info(`Created new conversation ${conversation.id} for guest messages`);
@@ -110,11 +126,11 @@ async function processGuestMessages(userId, guestId) {
         // Сохраняем сообщение пользователя в таблицу messages, включая данные файла
         const userMessageResult = await db.getQuery()(
           `INSERT INTO messages
-            (conversation_id, content, sender_type, role, channel, created_at, user_id,
-             attachment_filename, attachment_mimetype, attachment_size, attachment_data)
+            (conversation_id, content_encrypted, sender_type_encrypted, role_encrypted, channel_encrypted, created_at, user_id,
+             attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
            VALUES
-            ($1, $2, 'user', 'user', 'web', $3, $4,
-             $5, $6, $7, $8)
+            ($1, encrypt_text($2, $9), encrypt_text('user', $9), encrypt_text('user', $9), encrypt_text('web', $9), $3, $4,
+             encrypt_text($5, $9), encrypt_text($6, $9), $7, $8)
            RETURNING *`,
           [
             conversation.id,
@@ -124,7 +140,8 @@ async function processGuestMessages(userId, guestId) {
             guestMessage.attachment_filename, // Метаданные и данные файла
             guestMessage.attachment_mimetype,
             guestMessage.attachment_size,
-            guestMessage.attachment_data // BYTEA
+            guestMessage.attachment_data, // BYTEA
+            encryptionKey
           ]
         );
         const savedUserMessage = userMessageResult.rows[0];
@@ -134,8 +151,8 @@ async function processGuestMessages(userId, guestId) {
         if (guestMessage.content) {
           // Проверяем, что на это сообщение ещё нет ответа ассистента
           const aiReplyExists = await db.getQuery()(
-            `SELECT 1 FROM messages WHERE conversation_id = $1 AND sender_type = 'assistant' AND created_at > $2 LIMIT 1`,
-            [conversation.id, guestMessage.created_at]
+            `SELECT 1 FROM messages WHERE conversation_id = $1 AND sender_type_encrypted = encrypt_text('assistant', $3) AND created_at > $2 LIMIT 1`,
+            [conversation.id, guestMessage.created_at, encryptionKey]
           );
           if (!aiReplyExists.rows.length) {
             try {
@@ -147,8 +164,8 @@ async function processGuestMessages(userId, guestId) {
               }
               // Получаем историю сообщений до этого guestMessage (до created_at)
               const historyResult = await db.getQuery()(
-                'SELECT sender_type, content FROM messages WHERE conversation_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT 10',
-                [conversation.id, guestMessage.created_at]
+                'SELECT decrypt_text(sender_type_encrypted, $3) as sender_type, decrypt_text(content_encrypted, $3) as content FROM messages WHERE conversation_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT 10',
+                [conversation.id, guestMessage.created_at, encryptionKey]
               );
               const history = historyResult.rows.reverse().map(msg => ({
                 role: msg.sender_type === 'user' ? 'user' : 'assistant',
@@ -168,9 +185,9 @@ async function processGuestMessages(userId, guestId) {
           if (aiResponseContent) {
                 await db.getQuery()(
                 `INSERT INTO messages
-                     (conversation_id, user_id, content, sender_type, role, channel)
-                   VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')`,
-                  [conversation.id, userId, aiResponseContent]
+                     (conversation_id, user_id, content_encrypted, sender_type_encrypted, role_encrypted, channel_encrypted)
+                   VALUES ($1, $2, encrypt_text($3, $4), encrypt_text('assistant', $4), encrypt_text('assistant', $4), encrypt_text('web', $4))`,
+                  [conversation.id, userId, aiResponseContent, encryptionKey]
               );
                 logger.info('AI response for guest message saved', { conversationId: conversation.id });
           }
@@ -194,14 +211,14 @@ async function processGuestMessages(userId, guestId) {
       );
 
       // Помечаем гостевой ID как обработанный
-      await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [
-        guestId,
+      await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id_encrypted = encrypt_text($1, $2)', [
+        guestId, encryptionKey
       ]);
       logger.info(`Marked guest mapping as processed for guest ID ${guestId}`);
     } else {
       logger.warn(`No guest messages were successfully processed, skipping deletion for guest ID ${guestId}`);
       // Если не было успешных, все равно пометим как обработанные, чтобы не пытаться снова
-      await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1', [guestId]);
+      await db.getQuery()('UPDATE guest_user_mapping SET processed = true WHERE guest_id_encrypted = encrypt_text($1, $2)', [guestId, encryptionKey]);
       logger.info(`Marked guest mapping as processed (no successful messages) for guest ID ${guestId}`);
     }
 
@@ -223,6 +240,20 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
   logger.info('Received /guest-message request');
   logger.debug('Request Body:', req.body);
   logger.debug('Request Files:', req.files); // Файлы будут здесь
+
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
 
   try {
     // Извлекаем данные из req.body (текстовые поля)
@@ -250,11 +281,17 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     }
 
     // Подготавливаем данные для вставки
-    const messageContent = message || ''; // Текст или ПУСТАЯ СТРОКА, если есть файл
+    const messageContent = message && message.trim() ? message.trim() : null; // Текст или NULL, если пустой
     const attachmentFilename = file ? file.originalname : null;
     const attachmentMimetype = file ? file.mimetype : null;
     const attachmentSize = file ? file.size : null;
     const attachmentData = file ? file.buffer : null; // Сам буфер файла
+
+    // Проверяем, что есть контент для сохранения
+    if (!messageContent && !attachmentData) {
+      logger.warn('Guest message attempt without content or file');
+      return res.status(400).json({ success: false, error: 'Требуется текст сообщения или файл.' });
+    }
 
     logger.info('Saving guest message:', {
       guestId,
@@ -267,9 +304,9 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     // Сохраняем сообщение пользователя с текстом или файлом
     const result = await db.getQuery()(
       `INSERT INTO guest_messages
-        (guest_id, content, language, is_ai,
-         attachment_filename, attachment_mimetype, attachment_size, attachment_data)
-       VALUES ($1, $2, $3, false, $4, $5, $6, $7) RETURNING id`,
+        (guest_id_encrypted, content_encrypted, language_encrypted, is_ai,
+         attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
+       VALUES (encrypt_text($1, $8), ${messageContent ? 'encrypt_text($2, $8)' : 'NULL'}, encrypt_text($3, $8), false, ${attachmentFilename ? 'encrypt_text($4, $8)' : 'NULL'}, ${attachmentMimetype ? 'encrypt_text($5, $8)' : 'NULL'}, $6, $7) RETURNING id`,
       [
         guestId,
         messageContent, // Текст сообщения или NULL
@@ -277,7 +314,8 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
         attachmentFilename,
         attachmentMimetype,
         attachmentSize,
-        attachmentData // BYTEA данные файла или NULL
+        attachmentData, // BYTEA данные файла или NULL
+        encryptionKey
       ]
     );
 
@@ -333,6 +371,20 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
   logger.debug('Request Body:', req.body);
   logger.debug('Request Files:', req.files);
 
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   const userId = req.session.userId;
   const { message, language, conversationId: convIdFromRequest } = req.body;
   const files = req.files;
@@ -359,14 +411,14 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       if (req.session.isAdmin) {
         // Админ может писать в любой диалог
         convResult = await db.getQuery()(
-          'SELECT * FROM conversations WHERE id = $1',
-          [conversationId]
+          'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE id = $1',
+          [conversationId, encryptionKey]
         );
       } else {
         // Обычный пользователь — только в свой диалог
         convResult = await db.getQuery()(
-        'SELECT * FROM conversations WHERE id = $1 AND user_id = $2',
-        [conversationId, userId]
+        'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $3) as title FROM conversations WHERE id = $1 AND user_id = $2',
+        [conversationId, userId, encryptionKey]
       );
       }
       if (convResult.rows.length === 0) {
@@ -377,20 +429,20 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     } else {
       // Ищем последний диалог пользователя
       const lastConvResult = await db.getQuery()(
-        'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-        [userId]
+        'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+        [userId, encryptionKey]
       );
       if (lastConvResult.rows.length > 0) {
         conversation = lastConvResult.rows[0];
         conversationId = conversation.id;
       } else {
         // Создаем новый диалог, если нет ни одного
-      const title = message
-        ? (message.length > 50 ? `${message.substring(0, 50)}...` : message)
+      const title = message && message.trim()
+        ? (message.trim().length > 50 ? `${message.trim().substring(0, 50)}...` : message.trim())
         : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
       const newConvResult = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING *',
-        [userId, title]
+        'INSERT INTO conversations (user_id, title_encrypted) VALUES ($1, encrypt_text($2, $3)) RETURNING *',
+        [userId, title, encryptionKey]
       );
       conversation = newConvResult.rows[0];
       conversationId = conversation.id;
@@ -399,7 +451,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     }
 
     // Подготавливаем данные для вставки сообщения пользователя
-    const messageContent = message || ''; // Текст или ПУСТАЯ СТРОКА, если есть файл
+    const messageContent = message && message.trim() ? message.trim() : null; // Текст или NULL, если пустой
     const attachmentFilename = file ? file.originalname : null;
     const attachmentMimetype = file ? file.mimetype : null;
     const attachmentSize = file ? file.size : null;
@@ -415,26 +467,26 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       role = 'admin';
     }
 
-    // Сохраняем сообщение
-    const userMessageResult = await db.getQuery()(
-      `INSERT INTO messages
-         (conversation_id, user_id, content, sender_type, role, channel,
-          attachment_filename, attachment_mimetype, attachment_size, attachment_data)
-       VALUES ($1, $2, $3, $4, $5, 'web', $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        conversationId,
-        recipientId, // user_id контакта
-        messageContent,
-        senderType,
-        role,
-        attachmentFilename,
-        attachmentMimetype,
-        attachmentSize,
-        attachmentData
-      ]
-    );
-    const userMessage = userMessageResult.rows[0];
+    // Сохраняем сообщение через encryptedDb
+    const userMessage = await encryptedDb.saveData('messages', {
+      conversation_id: conversationId,
+      user_id: recipientId, // user_id контакта
+      content: messageContent,
+      sender_type: senderType,
+      role: role,
+      channel: 'web',
+      attachment_filename: attachmentFilename,
+      attachment_mimetype: attachmentMimetype,
+      attachment_size: attachmentSize,
+      attachment_data: attachmentData
+    });
+    
+    // Проверяем, что сообщение было сохранено
+    if (!userMessage) {
+      logger.warn('Message not saved - all content was empty');
+      return res.status(400).json({ error: 'Message content cannot be empty' });
+    }
+    
     logger.info('User message saved', { messageId: userMessage.id, conversationId });
 
     if (await isUserBlocked(userId)) {
@@ -476,22 +528,24 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
           if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= threshold) {
             logger.info(`[RAG] Найден confident-ответ (score=${ragResult.score}), отправляем ответ из базы.`);
             // Прямой ответ из RAG
-            const aiMessageResult = await db.getQuery()(
-              `INSERT INTO messages
-                 (conversation_id, user_id, content, sender_type, role, channel)
-               VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')
-               RETURNING *`,
-              [conversationId, userId, ragResult.answer]
-            );
-            aiMessage = aiMessageResult.rows[0];
+            logger.info(`[RAG] Сохраняем AI сообщение с контентом: "${ragResult.answer}"`);
+            aiMessage = await encryptedDb.saveData('messages', {
+              conversation_id: conversationId,
+              user_id: userId,
+              content: ragResult.answer,
+              sender_type: 'assistant',
+              role: 'assistant',
+              channel: 'web'
+            });
+            logger.info(`[RAG] AI сообщение сохранено:`, aiMessage);
             // Пушим новое сообщение через WebSocket
             broadcastChatMessage(aiMessage);
           } else if (ragResult) {
             logger.info(`[RAG] Нет confident-ответа (score=${ragResult.score}), переходим к генерации через LLM.`);
             // Генерация через LLM с подстановкой значений из RAG
             const historyResult = await db.getQuery()(
-              'SELECT sender_type, content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
-              [conversationId, userMessage.id]
+              'SELECT decrypt_text(sender_type_encrypted, $3) as sender_type, decrypt_text(content_encrypted, $3) as content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
+              [conversationId, userMessage.id, encryptionKey]
             );
             const history = historyResult.rows.reverse().map(msg => ({
               role: msg.sender_type === 'user' ? 'user' : 'assistant',
@@ -509,14 +563,14 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
               language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
             });
             if (llmResponse) {
-              const aiMessageResult = await db.getQuery()(
-                `INSERT INTO messages
-                   (conversation_id, user_id, content, sender_type, role, channel)
-                 VALUES ($1, $2, $3, 'assistant', 'assistant', 'web')
-                 RETURNING *`,
-                [conversationId, userId, llmResponse]
-              );
-              aiMessage = aiMessageResult.rows[0];
+              aiMessage = await encryptedDb.saveData('messages', {
+                conversation_id: conversationId,
+                user_id: userId,
+                content: llmResponse,
+                sender_type: 'assistant',
+                role: 'assistant',
+                channel: 'web'
+              });
               // Пушим новое сообщение через WebSocket
               broadcastChatMessage(aiMessage);
             } else {
@@ -531,25 +585,53 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       }
     }
 
+    // Fallback: если AI не смог ответить, создаем fallback сообщение
+    if (!aiMessage && messageContent && shouldGenerateAiReply) {
+      try {
+        logger.info('[Chat] Creating fallback AI response due to AI error');
+        aiMessage = await encryptedDb.saveData('messages', {
+          conversation_id: conversationId,
+          user_id: userId,
+          content: 'Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.',
+          sender_type: 'assistant',
+          role: 'assistant',
+          channel: 'web'
+        });
+        // Пушим новое сообщение через WebSocket
+        broadcastChatMessage(aiMessage);
+      } catch (fallbackError) {
+        logger.error('Error creating fallback AI response:', fallbackError);
+      }
+    }
+
     // Форматируем ответ для фронтенда
     const formatMessageForFrontend = (msg) => {
       if (!msg) return null;
+      console.log(`🔍 [formatMessageForFrontend] Форматируем сообщение:`, {
+        id: msg.id,
+        sender_type: msg.sender_type,
+        role: msg.role,
+        content: msg.content,
+        // Добавляем все поля для диагностики
+        allFields: Object.keys(msg),
+        rawMsg: msg
+      });
       const formatted = {
         id: msg.id,
         conversation_id: msg.conversation_id,
         user_id: msg.user_id,
-        content: msg.content,
-        sender_type: msg.sender_type,
-        role: msg.role,
-        channel: msg.channel,
+        content: msg.content, // content уже расшифрован encryptedDb
+        sender_type: msg.sender_type, // sender_type уже расшифрован encryptedDb
+        role: msg.role, // role уже расшифрован encryptedDb
+        channel: msg.channel, // channel уже расшифрован encryptedDb
         created_at: msg.created_at,
         attachments: null // Инициализируем как null
       };
       // Добавляем информацию о файле, если она есть
       if (msg.attachment_filename) {
         formatted.attachments = [{
-          originalname: msg.attachment_filename,
-          mimetype: msg.attachment_mimetype,
+          originalname: msg.attachment_filename, // attachment_filename уже расшифрован encryptedDb
+          mimetype: msg.attachment_mimetype, // attachment_mimetype уже расшифрован encryptedDb
           size: msg.attachment_size,
           // НЕ передаем attachment_data обратно в ответе на POST
         }];
@@ -563,15 +645,225 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       [conversationId]
     );
 
-    res.json({
+    // Получаем расшифрованные данные для форматирования
+    const decryptedUserMessage = userMessage ? await encryptedDb.getData('messages', { id: userMessage.id }, 1) : null;
+    const decryptedAiMessage = aiMessage ? await encryptedDb.getData('messages', { id: aiMessage.id }, 1) : null;
+    
+    const response = {
       success: true,
       conversationId: conversationId,
-      userMessage: formatMessageForFrontend(userMessage),
-      aiMessage: formatMessageForFrontend(aiMessage),
+      userMessage: formatMessageForFrontend(decryptedUserMessage ? decryptedUserMessage[0] : null),
+      aiMessage: formatMessageForFrontend(decryptedAiMessage ? decryptedAiMessage[0] : null),
+    };
+    
+    console.log(`📤 [Chat] Отправляем ответ на фронтенд:`, {
+      userMessage: response.userMessage,
+      aiMessage: response.aiMessage
     });
+    
+    // Отправляем WebSocket уведомления
+    if (response.userMessage) {
+      broadcastChatMessage(response.userMessage, userId);
+    }
+    if (response.aiMessage) {
+      broadcastChatMessage(response.aiMessage, userId);
+    }
+    broadcastConversationUpdate(conversationId, userId);
+    
+    res.json(response);
   } catch (error) {
     logger.error('Error processing authenticated message:', error);
     res.status(500).json({ success: false, error: 'Ошибка обработки сообщения' });
+  }
+});
+
+// Новый маршрут для обработки сообщений через очередь
+router.post('/message-queued', requireAuth, upload.array('attachments'), async (req, res) => {
+  logger.info('Received /message-queued request');
+  
+  try {
+    const userId = req.session.userId;
+    const { message, language, conversationId: convIdFromRequest, type = 'chat' } = req.body;
+    const files = req.files;
+    const file = files && files.length > 0 ? files[0] : null;
+
+    // Валидация
+    if (!message && !file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Требуется текст сообщения или файл.' 
+      });
+    }
+
+    if (message && file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Нельзя отправить текст и файл одновременно.' 
+      });
+    }
+
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
+    let conversationId = convIdFromRequest;
+    let conversation = null;
+
+    // Найти или создать диалог
+    if (conversationId) {
+      let convResult;
+      if (req.session.isAdmin) {
+        convResult = await db.getQuery()(
+          'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE id = $1',
+          [conversationId, encryptionKey]
+        );
+      } else {
+        convResult = await db.getQuery()(
+          'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $3) as title FROM conversations WHERE id = $1 AND user_id = $2',
+          [conversationId, userId, encryptionKey]
+        );
+      }
+      if (convResult.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Диалог не найден или доступ запрещен' 
+        });
+      }
+      conversation = convResult.rows[0];
+    } else {
+      // Ищем последний диалог пользователя
+      const lastConvResult = await db.getQuery()(
+        'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+        [userId, encryptionKey]
+      );
+      if (lastConvResult.rows.length > 0) {
+        conversation = lastConvResult.rows[0];
+        conversationId = conversation.id;
+      } else {
+        // Создаем новый диалог
+        const title = message && message.trim()
+          ? (message.trim().length > 50 ? `${message.trim().substring(0, 50)}...` : message.trim())
+          : (file ? `Файл: ${file.originalname}` : 'Новый диалог');
+        const newConvResult = await db.getQuery()(
+          'INSERT INTO conversations (user_id, title_encrypted) VALUES ($1, encrypt_text($2, $3)) RETURNING *',
+          [userId, title, encryptionKey]
+        );
+        conversation = newConvResult.rows[0];
+        conversationId = conversation.id;
+      }
+    }
+
+    // Сохраняем сообщение пользователя
+    const messageContent = message && message.trim() ? message.trim() : null;
+    const attachmentFilename = file ? file.originalname : null;
+    const attachmentMimetype = file ? file.mimetype : null;
+    const attachmentSize = file ? file.size : null;
+    const attachmentData = file ? file.buffer : null;
+
+    const recipientId = conversation.user_id;
+    let senderType = 'user';
+    let role = 'user';
+    if (req.session.isAdmin) {
+      senderType = 'admin';
+      role = 'admin';
+    }
+
+    const userMessage = await encryptedDb.saveData('messages', {
+      conversation_id: conversationId,
+      user_id: recipientId,
+      content: messageContent,
+      sender_type: senderType,
+      role: role,
+      channel: 'web',
+      attachment_filename: attachmentFilename,
+      attachment_mimetype: attachmentMimetype,
+      attachment_size: attachmentSize,
+      attachment_data: attachmentData
+    });
+
+    // Проверяем, нужно ли генерировать AI ответ
+    if (await isUserBlocked(userId)) {
+      logger.info(`[Chat] Пользователь ${userId} заблокирован — ответ ИИ не отправляется.`);
+      return res.json({ success: true, message: userMessage });
+    }
+
+    let shouldGenerateAiReply = true;
+    if (senderType === 'admin' && userId !== recipientId) {
+      shouldGenerateAiReply = false;
+    }
+
+    if (messageContent && shouldGenerateAiReply) {
+      try {
+        // Получаем историю сообщений
+        const historyResult = await db.getQuery()(
+          'SELECT decrypt_text(sender_type_encrypted, $3) as sender_type, decrypt_text(content_encrypted, $3) as content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
+          [conversationId, userMessage.id, encryptionKey]
+        );
+        const history = historyResult.rows.reverse().map(msg => ({
+          role: msg.sender_type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+
+        // Получаем настройки AI
+        const aiSettings = await aiAssistantSettingsService.getSettings();
+        let rules = null;
+        if (aiSettings && aiSettings.rules_id) {
+          rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
+        }
+
+        // Добавляем задачу в очередь
+        const taskData = {
+          message: messageContent,
+          language: language || 'auto',
+          history: history,
+          systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+          rules: rules,
+          type: type,
+          userId: userId,
+          userRole: req.session.isAdmin ? 'admin' : 'user',
+          conversationId: conversationId,
+          userMessageId: userMessage.id
+        };
+
+        const queueResult = await aiQueueService.addTask(taskData);
+
+        res.json({
+          success: true,
+          message: userMessage,
+          queueInfo: {
+            taskId: queueResult.taskId,
+            status: 'queued',
+            estimatedWaitTime: aiQueueService.getStats().currentQueueSize * 30
+          }
+        });
+
+      } catch (error) {
+        logger.error('Error adding task to queue:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: 'Ошибка при добавлении задачи в очередь.' 
+        });
+      }
+    } else {
+      res.json({ success: true, message: userMessage });
+    }
+
+  } catch (error) {
+    logger.error('Error processing queued message:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера.' 
+    });
   }
 });
 
@@ -601,6 +893,20 @@ router.get('/history', requireAuth, async (req, res) => {
   // Опциональный ID диалога
   const conversationId = req.query.conversation_id;
 
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     // Если нужен только подсчет
     if (countOnly) {
@@ -615,51 +921,24 @@ router.get('/history', requireAuth, async (req, res) => {
       return res.json({ success: true, count: totalCount });
     }
 
-    // Формируем основной запрос
-    let query = `
-      SELECT
-        id,
-        conversation_id,
-        user_id,
-        content,
-        sender_type,
-        role,
-        channel,
-        created_at,
-        attachment_filename,
-        attachment_mimetype,
-        attachment_size,
-        attachment_data -- Выбираем и данные файла
-      FROM messages
-      WHERE user_id = $1
-    `;
-    const params = [userId];
-
-    // Добавляем фильтр по диалогу, если нужно
+    // Загружаем сообщения через encryptedDb
+    const whereConditions = { user_id: userId };
     if (conversationId) {
-      query += ' AND conversation_id = $2';
-      params.push(conversationId);
+      whereConditions.conversation_id = conversationId;
     }
 
-    // Добавляем сортировку и пагинацию
-    query += ' ORDER BY created_at ASC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
-    params.push(limit);
-    params.push(offset);
-
-    logger.debug('Executing history query:', { query, params });
-
-    const result = await db.getQuery()(query, params);
+    const messages = await encryptedDb.getData('messages', whereConditions, limit, 'created_at ASC', offset);
 
     // Обрабатываем результаты для фронтенда
-    const messages = result.rows.map(msg => {
+    const formattedMessages = messages.map(msg => {
       const formatted = {
         id: msg.id,
         conversation_id: msg.conversation_id,
         user_id: msg.user_id,
-        content: msg.content,
-        sender_type: msg.sender_type,
-        role: msg.role,
-        channel: msg.channel,
+        content: msg.content, // content уже расшифрован encryptedDb
+        sender_type: msg.sender_type, // sender_type уже расшифрован encryptedDb
+        role: msg.role, // role уже расшифрован encryptedDb
+        channel: msg.channel, // channel уже расшифрован encryptedDb
         created_at: msg.created_at,
         attachments: null // Инициализируем
       };
@@ -667,17 +946,13 @@ router.get('/history', requireAuth, async (req, res) => {
       // Если есть данные файла, добавляем их в attachments
       if (msg.attachment_data) {
         formatted.attachments = [{
-          originalname: msg.attachment_filename,
-          mimetype: msg.attachment_mimetype,
+          originalname: msg.attachment_filename, // attachment_filename уже расшифрован encryptedDb
+          mimetype: msg.attachment_mimetype, // attachment_mimetype уже расшифрован encryptedDb
           size: msg.attachment_size,
           // Кодируем Buffer в Base64 для передачи на фронтенд
           data_base64: msg.attachment_data.toString('base64')
         }];
       }
-      // Не забываем удалить поле attachment_data из итогового объекта,
-      // так как оно уже обработано и не нужно в сыром виде на фронте
-      // (хотя map и так создает новый объект, это для ясности)
-      delete formatted.attachment_data;
 
       return formatted;
     });
@@ -692,11 +967,11 @@ router.get('/history', requireAuth, async (req, res) => {
     const totalCountResult = await db.getQuery()(totalCountQuery, totalCountParams);
     const totalMessages = parseInt(totalCountResult.rows[0].count, 10);
 
-    logger.info(`Returning message history for user ${userId}`, { count: messages.length, offset, limit, total: totalMessages });
+    logger.info(`Returning message history for user ${userId}`, { count: formattedMessages.length, offset, limit, total: totalMessages });
 
     res.json({
       success: true,
-      messages: messages,
+      messages: formattedMessages,
       offset: offset,
       limit: limit,
       total: totalMessages
@@ -732,6 +1007,20 @@ router.post('/process-guest', requireAuth, async (req, res) => {
 router.post('/ai-draft', requireAuth, async (req, res) => {
   const userId = req.session.userId;
   const { conversationId, messages, language } = req.body;
+
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
   if (!conversationId || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ success: false, error: 'conversationId и messages обязательны' });
   }
@@ -746,8 +1035,8 @@ router.post('/ai-draft', requireAuth, async (req, res) => {
     const promptText = messages.map(m => m.content).join('\n\n');
     // Получаем последние 10 сообщений из диалога для истории
     const historyResult = await db.getQuery()(
-      'SELECT sender_type, content FROM messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 10',
-      [conversationId]
+      'SELECT decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content FROM messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 10',
+      [conversationId, encryptionKey]
     );
     const history = historyResult.rows.reverse().map(msg => ({
       role: msg.sender_type === 'user' ? 'user' : 'assistant',

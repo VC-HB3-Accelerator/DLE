@@ -19,7 +19,14 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="settings-view-container">
-      <h1>Настройки</h1>
+      <div class="page-header">
+        <h1>{{ pageTitle }}</h1>
+        <button 
+          v-if="route.name === 'settings-blockchain-dle-deploy' || route.name === 'settings-dle-v2-deploy'" 
+          class="close-btn" 
+          @click="router.push('/settings')"
+        >×</button>
+      </div>
       <!-- Router view для отображения дочерних компонентов настроек -->
       <router-view></router-view>
     </div>
@@ -49,6 +56,17 @@ const auth = useAuthContext();
 const router = useRouter();
 const route = useRoute();
 const isLoading = ref(true);
+
+// Вычисляемый заголовок страницы в зависимости от роута
+const pageTitle = computed(() => {
+  if (route.name === 'settings-blockchain-dle-deploy') {
+    return 'Создать новое DLE (Digital Legal Entity)';
+  }
+  if (route.name === 'settings-dle-v2-deploy') {
+    return 'Создать современное DLE v2 (Digital Legal Entity)';
+  }
+  return 'Настройки';
+});
 
 // Обработчик события изменения авторизации
 const handleAuthEvent = (eventData) => {
@@ -91,9 +109,37 @@ onBeforeUnmount(() => {
 }
 
 /* Заголовки */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
 h1 {
   color: var(--color-dark);
-  margin-bottom: var(--spacing-lg);
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #f0f0f0;
+  color: #333;
 }
 
 h3 {

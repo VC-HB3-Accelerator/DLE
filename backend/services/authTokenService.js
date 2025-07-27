@@ -10,35 +10,59 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 
 async function getAllAuthTokens() {
-  const { rows } = await db.getQuery()('SELECT * FROM auth_tokens ORDER BY id');
-  return rows;
+  const tokens = await encryptedDb.getData('auth_tokens', {}, null, 'id');
+  return tokens;
 }
 
 async function saveAllAuthTokens(authTokens) {
-  await db.getQuery()('DELETE FROM auth_tokens');
+  // Удаляем все существующие токены
+  await encryptedDb.deleteData('auth_tokens', {});
+  
+  // Сохраняем новые токены
   for (const token of authTokens) {
-    await db.getQuery()(
-      'INSERT INTO auth_tokens (name, address, network, min_balance) VALUES ($1, $2, $3, $4)',
-      [token.name, token.address, token.network, token.minBalance]
-    );
+    await encryptedDb.saveData('auth_tokens', {
+      name: token.name,
+      address: token.address,
+      network: token.network,
+      min_balance: token.minBalance == null ? 0 : Number(token.minBalance)
+    });
   }
 }
 
 async function upsertAuthToken(token) {
   const minBalance = token.minBalance == null ? 0 : Number(token.minBalance);
-  await db.getQuery()(
-    `INSERT INTO auth_tokens (name, address, network, min_balance)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (address, network) DO UPDATE SET name=EXCLUDED.name, min_balance=EXCLUDED.min_balance`,
-    [token.name, token.address, token.network, minBalance]
-  );
+  
+  // Проверяем, существует ли токен
+  const existingTokens = await encryptedDb.getData('auth_tokens', {
+    address: token.address,
+    network: token.network
+  }, 1);
+  
+  if (existingTokens.length > 0) {
+    // Обновляем существующий токен
+    await encryptedDb.saveData('auth_tokens', {
+      name: token.name,
+      min_balance: minBalance
+    }, {
+      address: token.address,
+      network: token.network
+    });
+  } else {
+    // Создаем новый токен
+    await encryptedDb.saveData('auth_tokens', {
+      name: token.name,
+      address: token.address,
+      network: token.network,
+      min_balance: minBalance
+    });
+  }
 }
 
 async function deleteAuthToken(address, network) {
-  await db.getQuery()('DELETE FROM auth_tokens WHERE address = $1 AND network = $2', [address, network]);
+  await encryptedDb.deleteData('auth_tokens', { address, network });
 }
 
 module.exports = { getAllAuthTokens, saveAllAuthTokens, upsertAuthToken, deleteAuthToken }; 

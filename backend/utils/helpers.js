@@ -33,19 +33,47 @@ function generateVerificationCode(length = 6) {
 
 // Проверка существования идентификатора пользователя
 async function checkUserIdentity(userId, provider, providerId) {
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   const result = await db.getQuery()(
-    'SELECT * FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3',
-    [userId, provider, providerId]
+    'SELECT * FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $4) AND provider_id_encrypted = encrypt_text($3, $4)',
+    [userId, provider, providerId, encryptionKey]
   );
   return result.rows.length > 0;
 }
 
 // Добавление новой идентификации
 async function addUserIdentity(userId, provider, providerId) {
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     await db.getQuery()(
-      'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-      [userId, provider, providerId]
+      'INSERT INTO user_identities (user_id, provider_encrypted, provider_id_encrypted) VALUES ($1, encrypt_text($2, $4), encrypt_text($3, $4))',
+      [userId, provider, providerId, encryptionKey]
     );
     return true;
   } catch (error) {

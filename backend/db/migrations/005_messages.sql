@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_messages_sender_type ON messages(sender_type);
+-- CREATE INDEX IF NOT EXISTS idx_messages_sender_type ON messages(sender_type); -- пропускаем, колонка зашифрована
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
-CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel);
-CREATE INDEX IF NOT EXISTS idx_messages_metadata ON messages USING gin(metadata);
+-- CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel); -- пропускаем, колонка зашифрована
+-- CREATE INDEX IF NOT EXISTS idx_messages_metadata ON messages USING gin(metadata); -- пропускаем, колонки нет
 CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);

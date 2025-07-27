@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS nonces (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Индекс для быстрого поиска по identity_value
-CREATE INDEX IF NOT EXISTS idx_nonces_identity_value ON nonces(identity_value);
+-- Индекс для быстрого поиска по identity_value (пропускаем, колонка зашифрована)
+-- CREATE INDEX IF NOT EXISTS idx_nonces_identity_value ON nonces(identity_value);
 
 -- Индекс для очистки просроченных nonce
 CREATE INDEX IF NOT EXISTS idx_nonces_expires_at ON nonces(expires_at);

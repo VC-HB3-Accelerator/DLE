@@ -10,41 +10,41 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 
 const TABLE = 'ai_providers_settings';
 
 async function getProviderSettings(provider) {
-  const { rows } = await db.getQuery()(
-    `SELECT * FROM ${TABLE} WHERE provider = $1 LIMIT 1`,
-    [provider]
-  );
-  return rows[0] || null;
+  const settings = await encryptedDb.getData(TABLE, { provider: provider }, 1);
+  return settings[0] || null;
 }
 
 async function upsertProviderSettings({ provider, api_key, base_url, selected_model, embedding_model }) {
-  const { rows } = await db.getQuery()(
-    `INSERT INTO ${TABLE} (provider, api_key, base_url, selected_model, embedding_model, updated_at)
-     VALUES ($1, $2, $3, $4, $5, NOW())
-     ON CONFLICT (provider) DO UPDATE SET
-       api_key = EXCLUDED.api_key,
-       base_url = EXCLUDED.base_url,
-       selected_model = EXCLUDED.selected_model,
-       embedding_model = EXCLUDED.embedding_model,
-       updated_at = NOW()
-     RETURNING *`,
-    [provider, api_key, base_url, selected_model, embedding_model]
-  );
-  return rows[0];
+  const data = {
+    provider: provider,
+    api_key: api_key,
+    base_url: base_url,
+    selected_model: selected_model,
+    embedding_model: embedding_model,
+    updated_at: new Date()
+  };
+
+  // Проверяем, существует ли запись
+  const existing = await encryptedDb.getData(TABLE, { provider: provider }, 1);
+  
+  if (existing.length > 0) {
+    // Обновляем существующую запись
+    return await encryptedDb.saveData(TABLE, data, { provider: provider });
+  } else {
+    // Создаем новую запись
+    return await encryptedDb.saveData(TABLE, data);
+  }
 }
 
 async function deleteProviderSettings(provider) {
-  await db.getQuery()(
-    `DELETE FROM ${TABLE} WHERE provider = $1`,
-    [provider]
-  );
+  await encryptedDb.deleteData(TABLE, { provider: provider });
 }
 
 async function getProviderModels(provider, { api_key, base_url } = {}) {
@@ -111,19 +111,130 @@ async function verifyProviderKey(provider, { api_key, base_url } = {}) {
 }
 
 async function getAllLLMModels() {
-  const { rows } = await db.getQuery()(
-    `SELECT provider, selected_model FROM ${TABLE} WHERE selected_model IS NOT NULL AND selected_model <> ''`
-  );
-  // Возвращаем массив объектов { id, provider }
-  return rows.map(r => ({ id: r.selected_model, provider: r.provider }));
+  try {
+    // Получаем все настройки провайдеров
+    const providers = await encryptedDb.getData(TABLE, {});
+    
+    // Собираем все модели из всех провайдеров
+    const allModels = [];
+    
+    for (const provider of providers) {
+      if (provider.selected_model) {
+        allModels.push({ 
+          id: provider.selected_model, 
+          provider: provider.provider 
+        });
+      }
+    }
+    
+    // Для Ollama проверяем реально установленные модели
+    try {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execAsync = util.promisify(exec);
+      
+      // Проверяем, какие модели установлены в Ollama
+      const { stdout } = await execAsync('docker exec dapp-ollama ollama list');
+      const lines = stdout.trim().split('\n').slice(1); // Пропускаем заголовок
+      
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          const modelName = parts[0];
+          allModels.push({ 
+            id: modelName, 
+            provider: 'ollama' 
+          });
+        }
+      }
+    } catch (ollamaError) {
+      console.error('Error checking Ollama models:', ollamaError);
+      // Если не удалось проверить Ollama, добавляем базовые модели
+      allModels.push({ id: 'qwen2.5:7b', provider: 'ollama' });
+    }
+    
+    // Убираем дубликаты
+    const uniqueModels = [];
+    const seen = new Set();
+    
+    for (const model of allModels) {
+      const key = `${model.id}-${model.provider}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueModels.push(model);
+      }
+    }
+    
+    return uniqueModels;
+  } catch (error) {
+    console.error('Error getting LLM models:', error);
+    return [];
+  }
 }
 
 async function getAllEmbeddingModels() {
-  const { rows } = await db.getQuery()(
-    `SELECT provider, embedding_model FROM ${TABLE} WHERE embedding_model IS NOT NULL AND embedding_model <> ''`
-  );
-  // Возвращаем массив объектов { id, provider }
-  return rows.map(r => ({ id: r.embedding_model, provider: r.provider }));
+  try {
+    // Получаем все настройки провайдеров
+    const providers = await encryptedDb.getData(TABLE, {});
+    
+    // Собираем все embedding модели из всех провайдеров
+    const allModels = [];
+    
+    for (const provider of providers) {
+      if (provider.embedding_model) {
+        allModels.push({ 
+          id: provider.embedding_model, 
+          provider: provider.provider 
+        });
+      }
+    }
+    
+    // Для Ollama проверяем реально установленные embedding модели
+    try {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execAsync = util.promisify(exec);
+      
+      // Проверяем, какие embedding модели установлены в Ollama
+      const { stdout } = await execAsync('docker exec dapp-ollama ollama list');
+      const lines = stdout.trim().split('\n').slice(1); // Пропускаем заголовок
+      
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          const modelName = parts[0];
+          // Проверяем, что это embedding модель
+          if (modelName.includes('embed') || modelName.includes('bge') || modelName.includes('nomic')) {
+            allModels.push({ 
+              id: modelName, 
+              provider: 'ollama' 
+            });
+          }
+        }
+      }
+    } catch (ollamaError) {
+      console.error('Error checking Ollama embedding models:', ollamaError);
+      // Если не удалось проверить Ollama, добавляем базовые embedding модели
+      allModels.push({ id: 'mxbai-embed-large:latest', provider: 'ollama' });
+    }
+    
+    // Убираем дубликаты
+    const uniqueModels = [];
+    const seen = new Set();
+    
+    for (const model of allModels) {
+      const key = `${model.id}-${model.provider}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueModels.push(model);
+      }
+    }
+    
+    return uniqueModels;
+  } catch (error) {
+    console.error('Error getting embedding models:', error);
+    return [];
+  }
 }
 
 module.exports = {

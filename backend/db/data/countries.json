@@ -1,0 +1,1498 @@
+{
+  "countries": [
+    {
+      "code": "AD",
+      "code3": "AND",
+      "numeric": "020",
+      "title": "Андорра"
+    },
+    {
+      "code": "AE",
+      "code3": "ARE",
+      "numeric": "784",
+      "title": "Объединенные Арабские Эмираты"
+    },
+    {
+      "code": "AF",
+      "code3": "AFG",
+      "numeric": "004",
+      "title": "Афганистан"
+    },
+    {
+      "code": "AG",
+      "code3": "ATG",
+      "numeric": "028",
+      "title": "Антигуа и Барбуда"
+    },
+    {
+      "code": "AI",
+      "code3": "AIA",
+      "numeric": "660",
+      "title": "Ангилья"
+    },
+    {
+      "code": "AL",
+      "code3": "ALB",
+      "numeric": "008",
+      "title": "Албания"
+    },
+    {
+      "code": "AM",
+      "code3": "ARM",
+      "numeric": "051",
+      "title": "Армения"
+    },
+    {
+      "code": "AO",
+      "code3": "AGO",
+      "numeric": "024",
+      "title": "Ангола"
+    },
+    {
+      "code": "AQ",
+      "code3": "ATA",
+      "numeric": "010",
+      "title": "Антарктида"
+    },
+    {
+      "code": "AR",
+      "code3": "ARG",
+      "numeric": "032",
+      "title": "Аргентина"
+    },
+    {
+      "code": "AS",
+      "code3": "ASM",
+      "numeric": "016",
+      "title": "Американское Самоа"
+    },
+    {
+      "code": "AT",
+      "code3": "AUT",
+      "numeric": "040",
+      "title": "Австрия"
+    },
+    {
+      "code": "AU",
+      "code3": "AUS",
+      "numeric": "036",
+      "title": "Австралия"
+    },
+    {
+      "code": "AW",
+      "code3": "ABW",
+      "numeric": "533",
+      "title": "Аруба"
+    },
+    {
+      "code": "AX",
+      "code3": "ALA",
+      "numeric": "248",
+      "title": "Аландские острова"
+    },
+    {
+      "code": "AZ",
+      "code3": "AZE",
+      "numeric": "031",
+      "title": "Азербайджан"
+    },
+    {
+      "code": "BA",
+      "code3": "BIH",
+      "numeric": "070",
+      "title": "Босния и Герцеговина"
+    },
+    {
+      "code": "BB",
+      "code3": "BRB",
+      "numeric": "052",
+      "title": "Барбадос"
+    },
+    {
+      "code": "BD",
+      "code3": "BGD",
+      "numeric": "050",
+      "title": "Бангладеш"
+    },
+    {
+      "code": "BE",
+      "code3": "BEL",
+      "numeric": "056",
+      "title": "Бельгия"
+    },
+    {
+      "code": "BF",
+      "code3": "BFA",
+      "numeric": "854",
+      "title": "Буркина-Фасо"
+    },
+    {
+      "code": "BG",
+      "code3": "BGR",
+      "numeric": "100",
+      "title": "Болгария"
+    },
+    {
+      "code": "BH",
+      "code3": "BHR",
+      "numeric": "048",
+      "title": "Бахрейн"
+    },
+    {
+      "code": "BI",
+      "code3": "BDI",
+      "numeric": "108",
+      "title": "Бурунди"
+    },
+    {
+      "code": "BJ",
+      "code3": "BEN",
+      "numeric": "204",
+      "title": "Бенин"
+    },
+    {
+      "code": "BL",
+      "code3": "BLM",
+      "numeric": "652",
+      "title": "Сен-Бартелеми"
+    },
+    {
+      "code": "BM",
+      "code3": "BMU",
+      "numeric": "060",
+      "title": "Бермудские острова"
+    },
+    {
+      "code": "BN",
+      "code3": "BRN",
+      "numeric": "096",
+      "title": "Бруней-Даруссалам"
+    },
+    {
+      "code": "BO",
+      "code3": "BOL",
+      "numeric": "068",
+      "title": "Боливия"
+    },
+    {
+      "code": "BQ",
+      "code3": "BES",
+      "numeric": "535",
+      "title": "Бонэйр, Синт-Эстатиус и Саба"
+    },
+    {
+      "code": "BR",
+      "code3": "BRA",
+      "numeric": "076",
+      "title": "Бразилия"
+    },
+    {
+      "code": "BS",
+      "code3": "BHS",
+      "numeric": "044",
+      "title": "Багамские острова"
+    },
+    {
+      "code": "BT",
+      "code3": "BTN",
+      "numeric": "064",
+      "title": "Бутан"
+    },
+    {
+      "code": "BV",
+      "code3": "BVT",
+      "numeric": "074",
+      "title": "Остров Буве"
+    },
+    {
+      "code": "BW",
+      "code3": "BWA",
+      "numeric": "072",
+      "title": "Ботсвана"
+    },
+    {
+      "code": "BY",
+      "code3": "BLR",
+      "numeric": "112",
+      "title": "Беларусь"
+    },
+    {
+      "code": "BZ",
+      "code3": "BLZ",
+      "numeric": "084",
+      "title": "Белиз"
+    },
+    {
+      "code": "CA",
+      "code3": "CAN",
+      "numeric": "124",
+      "title": "Канада"
+    },
+    {
+      "code": "CC",
+      "code3": "CCK",
+      "numeric": "166",
+      "title": "Кокосовые острова"
+    },
+    {
+      "code": "CD",
+      "code3": "COD",
+      "numeric": "180",
+      "title": "Демократическая Республика Конго"
+    },
+    {
+      "code": "CF",
+      "code3": "CAF",
+      "numeric": "140",
+      "title": "Центральноафриканская Республика"
+    },
+    {
+      "code": "CG",
+      "code3": "COG",
+      "numeric": "178",
+      "title": "Конго"
+    },
+    {
+      "code": "CH",
+      "code3": "CHE",
+      "numeric": "756",
+      "title": "Швейцария"
+    },
+    {
+      "code": "CI",
+      "code3": "CIV",
+      "numeric": "384",
+      "title": "Кот-д'Ивуар"
+    },
+    {
+      "code": "CK",
+      "code3": "COK",
+      "numeric": "184",
+      "title": "Острова Кука"
+    },
+    {
+      "code": "CL",
+      "code3": "CHL",
+      "numeric": "152",
+      "title": "Чили"
+    },
+    {
+      "code": "CM",
+      "code3": "CMR",
+      "numeric": "120",
+      "title": "Камерун"
+    },
+    {
+      "code": "CN",
+      "code3": "CHN",
+      "numeric": "156",
+      "title": "Китай"
+    },
+    {
+      "code": "CO",
+      "code3": "COL",
+      "numeric": "170",
+      "title": "Колумбия"
+    },
+    {
+      "code": "CR",
+      "code3": "CRI",
+      "numeric": "188",
+      "title": "Коста-Рика"
+    },
+    {
+      "code": "CU",
+      "code3": "CUB",
+      "numeric": "192",
+      "title": "Куба"
+    },
+    {
+      "code": "CV",
+      "code3": "CPV",
+      "numeric": "132",
+      "title": "Кабо-Верде"
+    },
+    {
+      "code": "CW",
+      "code3": "CUW",
+      "numeric": "531",
+      "title": "Кюрасао"
+    },
+    {
+      "code": "CX",
+      "code3": "CXR",
+      "numeric": "162",
+      "title": "Остров Рождества"
+    },
+    {
+      "code": "CY",
+      "code3": "CYP",
+      "numeric": "196",
+      "title": "Кипр"
+    },
+    {
+      "code": "CZ",
+      "code3": "CZE",
+      "numeric": "203",
+      "title": "Чешская Республика"
+    },
+    {
+      "code": "DE",
+      "code3": "DEU",
+      "numeric": "276",
+      "title": "Германия"
+    },
+    {
+      "code": "DJ",
+      "code3": "DJI",
+      "numeric": "262",
+      "title": "Джибути"
+    },
+    {
+      "code": "DK",
+      "code3": "DNK",
+      "numeric": "208",
+      "title": "Дания"
+    },
+    {
+      "code": "DM",
+      "code3": "DMA",
+      "numeric": "212",
+      "title": "Доминика"
+    },
+    {
+      "code": "DO",
+      "code3": "DOM",
+      "numeric": "214",
+      "title": "Доминиканская Республика"
+    },
+    {
+      "code": "DZ",
+      "code3": "DZA",
+      "numeric": "012",
+      "title": "Алжир"
+    },
+    {
+      "code": "EC",
+      "code3": "ECU",
+      "numeric": "218",
+      "title": "Эквадор"
+    },
+    {
+      "code": "EE",
+      "code3": "EST",
+      "numeric": "233",
+      "title": "Эстония"
+    },
+    {
+      "code": "EG",
+      "code3": "EGY",
+      "numeric": "818",
+      "title": "Египет"
+    },
+    {
+      "code": "EH",
+      "code3": "ESH",
+      "numeric": "732",
+      "title": "Западная Сахара"
+    },
+    {
+      "code": "ER",
+      "code3": "ERI",
+      "numeric": "232",
+      "title": "Эритрея"
+    },
+    {
+      "code": "ES",
+      "code3": "ESP",
+      "numeric": "724",
+      "title": "Испания"
+    },
+    {
+      "code": "ET",
+      "code3": "ETH",
+      "numeric": "231",
+      "title": "Эфиопия"
+    },
+    {
+      "code": "FI",
+      "code3": "FIN",
+      "numeric": "246",
+      "title": "Финляндия"
+    },
+    {
+      "code": "FJ",
+      "code3": "FJI",
+      "numeric": "242",
+      "title": "Фиджи"
+    },
+    {
+      "code": "FK",
+      "code3": "FLK",
+      "numeric": "238",
+      "title": "Фолклендские острова"
+    },
+    {
+      "code": "FM",
+      "code3": "FSM",
+      "numeric": "583",
+      "title": "Микронезия"
+    },
+    {
+      "code": "FO",
+      "code3": "FRO",
+      "numeric": "234",
+      "title": "Фарерские острова"
+    },
+    {
+      "code": "FR",
+      "code3": "FRA",
+      "numeric": "250",
+      "title": "Франция"
+    },
+    {
+      "code": "GA",
+      "code3": "GAB",
+      "numeric": "266",
+      "title": "Габон"
+    },
+    {
+      "code": "GB",
+      "code3": "GBR",
+      "numeric": "826",
+      "title": "Великобритания"
+    },
+    {
+      "code": "GD",
+      "code3": "GRD",
+      "numeric": "308",
+      "title": "Гренада"
+    },
+    {
+      "code": "GE",
+      "code3": "GEO",
+      "numeric": "268",
+      "title": "Грузия"
+    },
+    {
+      "code": "GF",
+      "code3": "GUF",
+      "numeric": "254",
+      "title": "Французская Гвиана"
+    },
+    {
+      "code": "GG",
+      "code3": "GGY",
+      "numeric": "831",
+      "title": "Гернси"
+    },
+    {
+      "code": "GH",
+      "code3": "GHA",
+      "numeric": "288",
+      "title": "Гана"
+    },
+    {
+      "code": "GI",
+      "code3": "GIB",
+      "numeric": "292",
+      "title": "Гибралтар"
+    },
+    {
+      "code": "GL",
+      "code3": "GRL",
+      "numeric": "304",
+      "title": "Гренландия"
+    },
+    {
+      "code": "GM",
+      "code3": "GMB",
+      "numeric": "270",
+      "title": "Гамбия"
+    },
+    {
+      "code": "GN",
+      "code3": "GIN",
+      "numeric": "324",
+      "title": "Гвинея"
+    },
+    {
+      "code": "GP",
+      "code3": "GLP",
+      "numeric": "312",
+      "title": "Гваделупа"
+    },
+    {
+      "code": "GQ",
+      "code3": "GNQ",
+      "numeric": "226",
+      "title": "Экваториальная Гвинея"
+    },
+    {
+      "code": "GR",
+      "code3": "GRC",
+      "numeric": "300",
+      "title": "Греция"
+    },
+    {
+      "code": "GS",
+      "code3": "SGS",
+      "numeric": "239",
+      "title": "Южная Георгия и Южные Сандвичевы острова"
+    },
+    {
+      "code": "GT",
+      "code3": "GTM",
+      "numeric": "320",
+      "title": "Гватемала"
+    },
+    {
+      "code": "GU",
+      "code3": "GUM",
+      "numeric": "316",
+      "title": "Гуам"
+    },
+    {
+      "code": "GW",
+      "code3": "GNB",
+      "numeric": "624",
+      "title": "Гвинея-Бисау"
+    },
+    {
+      "code": "GY",
+      "code3": "GUY",
+      "numeric": "328",
+      "title": "Гайана"
+    },
+    {
+      "code": "HK",
+      "code3": "HKG",
+      "numeric": "344",
+      "title": "Гонконг"
+    },
+    {
+      "code": "HM",
+      "code3": "HMD",
+      "numeric": "334",
+      "title": "Остров Херд и острова Макдональд"
+    },
+    {
+      "code": "HN",
+      "code3": "HND",
+      "numeric": "340",
+      "title": "Гондурас"
+    },
+    {
+      "code": "HR",
+      "code3": "HRV",
+      "numeric": "191",
+      "title": "Хорватия"
+    },
+    {
+      "code": "HT",
+      "code3": "HTI",
+      "numeric": "332",
+      "title": "Гаити"
+    },
+    {
+      "code": "HU",
+      "code3": "HUN",
+      "numeric": "348",
+      "title": "Венгрия"
+    },
+    {
+      "code": "ID",
+      "code3": "IDN",
+      "numeric": "360",
+      "title": "Индонезия"
+    },
+    {
+      "code": "IE",
+      "code3": "IRL",
+      "numeric": "372",
+      "title": "Ирландия"
+    },
+    {
+      "code": "IL",
+      "code3": "ISR",
+      "numeric": "376",
+      "title": "Израиль"
+    },
+    {
+      "code": "IM",
+      "code3": "IMN",
+      "numeric": "833",
+      "title": "Остров Мэн"
+    },
+    {
+      "code": "IN",
+      "code3": "IND",
+      "numeric": "356",
+      "title": "Индия"
+    },
+    {
+      "code": "IO",
+      "code3": "IOT",
+      "numeric": "086",
+      "title": "Британская территория в Индийском океане"
+    },
+    {
+      "code": "IQ",
+      "code3": "IRQ",
+      "numeric": "368",
+      "title": "Ирак"
+    },
+    {
+      "code": "IR",
+      "code3": "IRN",
+      "numeric": "364",
+      "title": "Иран"
+    },
+    {
+      "code": "IS",
+      "code3": "ISL",
+      "numeric": "352",
+      "title": "Исландия"
+    },
+    {
+      "code": "IT",
+      "code3": "ITA",
+      "numeric": "380",
+      "title": "Италия"
+    },
+    {
+      "code": "JE",
+      "code3": "JEY",
+      "numeric": "832",
+      "title": "Джерси"
+    },
+    {
+      "code": "JM",
+      "code3": "JAM",
+      "numeric": "388",
+      "title": "Ямайка"
+    },
+    {
+      "code": "JO",
+      "code3": "JOR",
+      "numeric": "400",
+      "title": "Иордания"
+    },
+    {
+      "code": "JP",
+      "code3": "JPN",
+      "numeric": "392",
+      "title": "Япония"
+    },
+    {
+      "code": "KE",
+      "code3": "KEN",
+      "numeric": "404",
+      "title": "Кения"
+    },
+    {
+      "code": "KG",
+      "code3": "KGZ",
+      "numeric": "417",
+      "title": "Кыргызстан"
+    },
+    {
+      "code": "KH",
+      "code3": "KHM",
+      "numeric": "116",
+      "title": "Камбоджа"
+    },
+    {
+      "code": "KI",
+      "code3": "KIR",
+      "numeric": "296",
+      "title": "Кирибати"
+    },
+    {
+      "code": "KM",
+      "code3": "COM",
+      "numeric": "174",
+      "title": "Коморские острова"
+    },
+    {
+      "code": "KN",
+      "code3": "KNA",
+      "numeric": "659",
+      "title": "Сент-Китс и Невис"
+    },
+    {
+      "code": "KP",
+      "code3": "PRK",
+      "numeric": "408",
+      "title": "Северная Корея"
+    },
+    {
+      "code": "KR",
+      "code3": "KOR",
+      "numeric": "410",
+      "title": "Южная Корея"
+    },
+    {
+      "code": "KW",
+      "code3": "KWT",
+      "numeric": "414",
+      "title": "Кувейт"
+    },
+    {
+      "code": "KY",
+      "code3": "CYM",
+      "numeric": "136",
+      "title": "Каймановы острова"
+    },
+    {
+      "code": "KZ",
+      "code3": "KAZ",
+      "numeric": "398",
+      "title": "Казахстан"
+    },
+    {
+      "code": "LA",
+      "code3": "LAO",
+      "numeric": "418",
+      "title": "Лаос"
+    },
+    {
+      "code": "LB",
+      "code3": "LBN",
+      "numeric": "422",
+      "title": "Ливан"
+    },
+    {
+      "code": "LC",
+      "code3": "LCA",
+      "numeric": "662",
+      "title": "Сент-Люсия"
+    },
+    {
+      "code": "LI",
+      "code3": "LIE",
+      "numeric": "438",
+      "title": "Лихтенштейн"
+    },
+    {
+      "code": "LK",
+      "code3": "LKA",
+      "numeric": "144",
+      "title": "Шри-Ланка"
+    },
+    {
+      "code": "LR",
+      "code3": "LBR",
+      "numeric": "430",
+      "title": "Либерия"
+    },
+    {
+      "code": "LS",
+      "code3": "LSO",
+      "numeric": "426",
+      "title": "Лесото"
+    },
+    {
+      "code": "LT",
+      "code3": "LTU",
+      "numeric": "440",
+      "title": "Литва"
+    },
+    {
+      "code": "LU",
+      "code3": "LUX",
+      "numeric": "442",
+      "title": "Люксембург"
+    },
+    {
+      "code": "LV",
+      "code3": "LVA",
+      "numeric": "428",
+      "title": "Латвия"
+    },
+    {
+      "code": "LY",
+      "code3": "LBY",
+      "numeric": "434",
+      "title": "Ливия"
+    },
+    {
+      "code": "MA",
+      "code3": "MAR",
+      "numeric": "504",
+      "title": "Марокко"
+    },
+    {
+      "code": "MC",
+      "code3": "MCO",
+      "numeric": "492",
+      "title": "Монако"
+    },
+    {
+      "code": "MD",
+      "code3": "MDA",
+      "numeric": "498",
+      "title": "Молдова"
+    },
+    {
+      "code": "ME",
+      "code3": "MNE",
+      "numeric": "499",
+      "title": "Черногория"
+    },
+    {
+      "code": "MF",
+      "code3": "MAF",
+      "numeric": "663",
+      "title": "Сен-Мартен"
+    },
+    {
+      "code": "MG",
+      "code3": "MDG",
+      "numeric": "450",
+      "title": "Мадагаскар"
+    },
+    {
+      "code": "MH",
+      "code3": "MHL",
+      "numeric": "584",
+      "title": "Маршалловы острова"
+    },
+    {
+      "code": "MK",
+      "code3": "MKD",
+      "numeric": "807",
+      "title": "Северная Македония"
+    },
+    {
+      "code": "ML",
+      "code3": "MLI",
+      "numeric": "466",
+      "title": "Мали"
+    },
+    {
+      "code": "MM",
+      "code3": "MMR",
+      "numeric": "104",
+      "title": "Мьянма"
+    },
+    {
+      "code": "MN",
+      "code3": "MNG",
+      "numeric": "496",
+      "title": "Монголия"
+    },
+    {
+      "code": "MO",
+      "code3": "MAC",
+      "numeric": "446",
+      "title": "Макао"
+    },
+    {
+      "code": "MP",
+      "code3": "MNP",
+      "numeric": "580",
+      "title": "Северные Марианские острова"
+    },
+    {
+      "code": "MQ",
+      "code3": "MTQ",
+      "numeric": "474",
+      "title": "Мартиника"
+    },
+    {
+      "code": "MR",
+      "code3": "MRT",
+      "numeric": "478",
+      "title": "Мавритания"
+    },
+    {
+      "code": "MS",
+      "code3": "MSR",
+      "numeric": "500",
+      "title": "Монтсеррат"
+    },
+    {
+      "code": "MT",
+      "code3": "MLT",
+      "numeric": "470",
+      "title": "Мальта"
+    },
+    {
+      "code": "MU",
+      "code3": "MUS",
+      "numeric": "480",
+      "title": "Маврикий"
+    },
+    {
+      "code": "MV",
+      "code3": "MDV",
+      "numeric": "462",
+      "title": "Мальдивы"
+    },
+    {
+      "code": "MW",
+      "code3": "MWI",
+      "numeric": "454",
+      "title": "Малави"
+    },
+    {
+      "code": "MX",
+      "code3": "MEX",
+      "numeric": "484",
+      "title": "Мексика"
+    },
+    {
+      "code": "MY",
+      "code3": "MYS",
+      "numeric": "458",
+      "title": "Малайзия"
+    },
+    {
+      "code": "MZ",
+      "code3": "MOZ",
+      "numeric": "508",
+      "title": "Мозамбик"
+    },
+    {
+      "code": "NA",
+      "code3": "NAM",
+      "numeric": "516",
+      "title": "Намибия"
+    },
+    {
+      "code": "NC",
+      "code3": "NCL",
+      "numeric": "540",
+      "title": "Новая Каледония"
+    },
+    {
+      "code": "NE",
+      "code3": "NER",
+      "numeric": "562",
+      "title": "Нигер"
+    },
+    {
+      "code": "NF",
+      "code3": "NFK",
+      "numeric": "574",
+      "title": "Остров Норфолк"
+    },
+    {
+      "code": "NG",
+      "code3": "NGA",
+      "numeric": "566",
+      "title": "Нигерия"
+    },
+    {
+      "code": "NI",
+      "code3": "NIC",
+      "numeric": "558",
+      "title": "Никарагуа"
+    },
+    {
+      "code": "NL",
+      "code3": "NLD",
+      "numeric": "528",
+      "title": "Нидерланды"
+    },
+    {
+      "code": "NO",
+      "code3": "NOR",
+      "numeric": "578",
+      "title": "Норвегия"
+    },
+    {
+      "code": "NP",
+      "code3": "NPL",
+      "numeric": "524",
+      "title": "Непал"
+    },
+    {
+      "code": "NR",
+      "code3": "NRU",
+      "numeric": "520",
+      "title": "Науру"
+    },
+    {
+      "code": "NU",
+      "code3": "NIU",
+      "numeric": "570",
+      "title": "Ниуэ"
+    },
+    {
+      "code": "NZ",
+      "code3": "NZL",
+      "numeric": "554",
+      "title": "Новая Зеландия"
+    },
+    {
+      "code": "OM",
+      "code3": "OMN",
+      "numeric": "512",
+      "title": "Оман"
+    },
+    {
+      "code": "PA",
+      "code3": "PAN",
+      "numeric": "591",
+      "title": "Панама"
+    },
+    {
+      "code": "PE",
+      "code3": "PER",
+      "numeric": "604",
+      "title": "Перу"
+    },
+    {
+      "code": "PF",
+      "code3": "PYF",
+      "numeric": "258",
+      "title": "Французская Полинезия"
+    },
+    {
+      "code": "PG",
+      "code3": "PNG",
+      "numeric": "598",
+      "title": "Папуа — Новая Гвинея"
+    },
+    {
+      "code": "PH",
+      "code3": "PHL",
+      "numeric": "608",
+      "title": "Филиппины"
+    },
+    {
+      "code": "PK",
+      "code3": "PAK",
+      "numeric": "586",
+      "title": "Пакистан"
+    },
+    {
+      "code": "PL",
+      "code3": "POL",
+      "numeric": "616",
+      "title": "Польша"
+    },
+    {
+      "code": "PM",
+      "code3": "SPM",
+      "numeric": "666",
+      "title": "Сен-Пьер и Микелон"
+    },
+    {
+      "code": "PN",
+      "code3": "PCN",
+      "numeric": "612",
+      "title": "Питкэрн"
+    },
+    {
+      "code": "PR",
+      "code3": "PRI",
+      "numeric": "630",
+      "title": "Пуэрто-Рико"
+    },
+    {
+      "code": "PS",
+      "code3": "PSE",
+      "numeric": "275",
+      "title": "Палестина"
+    },
+    {
+      "code": "PT",
+      "code3": "PRT",
+      "numeric": "620",
+      "title": "Португалия"
+    },
+    {
+      "code": "PW",
+      "code3": "PLW",
+      "numeric": "585",
+      "title": "Палау"
+    },
+    {
+      "code": "PY",
+      "code3": "PRY",
+      "numeric": "600",
+      "title": "Парагвай"
+    },
+    {
+      "code": "QA",
+      "code3": "QAT",
+      "numeric": "634",
+      "title": "Катар"
+    },
+    {
+      "code": "RE",
+      "code3": "REU",
+      "numeric": "638",
+      "title": "Реюньон"
+    },
+    {
+      "code": "RO",
+      "code3": "ROU",
+      "numeric": "642",
+      "title": "Румыния"
+    },
+    {
+      "code": "RS",
+      "code3": "SRB",
+      "numeric": "688",
+      "title": "Сербия"
+    },
+    {
+      "code": "RU",
+      "code3": "RUS",
+      "numeric": "643",
+      "title": "Российская Федерация"
+    },
+    {
+      "code": "RW",
+      "code3": "RWA",
+      "numeric": "646",
+      "title": "Руанда"
+    },
+    {
+      "code": "SA",
+      "code3": "SAU",
+      "numeric": "682",
+      "title": "Саудовская Аравия"
+    },
+    {
+      "code": "SB",
+      "code3": "SLB",
+      "numeric": "090",
+      "title": "Соломоновы острова"
+    },
+    {
+      "code": "SC",
+      "code3": "SYC",
+      "numeric": "690",
+      "title": "Сейшельские острова"
+    },
+    {
+      "code": "SD",
+      "code3": "SDN",
+      "numeric": "729",
+      "title": "Судан"
+    },
+    {
+      "code": "SE",
+      "code3": "SWE",
+      "numeric": "752",
+      "title": "Швеция"
+    },
+    {
+      "code": "SG",
+      "code3": "SGP",
+      "numeric": "702",
+      "title": "Сингапур"
+    },
+    {
+      "code": "SH",
+      "code3": "SHN",
+      "numeric": "654",
+      "title": "Остров Святой Елены"
+    },
+    {
+      "code": "SI",
+      "code3": "SVN",
+      "numeric": "705",
+      "title": "Словения"
+    },
+    {
+      "code": "SJ",
+      "code3": "SJM",
+      "numeric": "744",
+      "title": "Шпицберген и Ян-Майен"
+    },
+    {
+      "code": "SK",
+      "code3": "SVK",
+      "numeric": "703",
+      "title": "Словакия"
+    },
+    {
+      "code": "SL",
+      "code3": "SLE",
+      "numeric": "694",
+      "title": "Сьерра-Леоне"
+    },
+    {
+      "code": "SM",
+      "code3": "SMR",
+      "numeric": "674",
+      "title": "Сан-Марино"
+    },
+    {
+      "code": "SN",
+      "code3": "SEN",
+      "numeric": "686",
+      "title": "Сенегал"
+    },
+    {
+      "code": "SO",
+      "code3": "SOM",
+      "numeric": "706",
+      "title": "Сомали"
+    },
+    {
+      "code": "SR",
+      "code3": "SUR",
+      "numeric": "740",
+      "title": "Суринам"
+    },
+    {
+      "code": "SS",
+      "code3": "SSD",
+      "numeric": "728",
+      "title": "Южный Судан"
+    },
+    {
+      "code": "ST",
+      "code3": "STP",
+      "numeric": "678",
+      "title": "Сан-Томе и Принсипи"
+    },
+    {
+      "code": "SV",
+      "code3": "SLV",
+      "numeric": "222",
+      "title": "Сальвадор"
+    },
+    {
+      "code": "SX",
+      "code3": "SXM",
+      "numeric": "534",
+      "title": "Синт-Мартен"
+    },
+    {
+      "code": "SY",
+      "code3": "SYR",
+      "numeric": "760",
+      "title": "Сирия"
+    },
+    {
+      "code": "SZ",
+      "code3": "SWZ",
+      "numeric": "748",
+      "title": "Эсватини"
+    },
+    {
+      "code": "TC",
+      "code3": "TCA",
+      "numeric": "796",
+      "title": "Теркс и Кайкос"
+    },
+    {
+      "code": "TD",
+      "code3": "TCD",
+      "numeric": "148",
+      "title": "Чад"
+    },
+    {
+      "code": "TF",
+      "code3": "ATF",
+      "numeric": "260",
+      "title": "Французские Южные территории"
+    },
+    {
+      "code": "TG",
+      "code3": "TGO",
+      "numeric": "768",
+      "title": "Того"
+    },
+    {
+      "code": "TH",
+      "code3": "THA",
+      "numeric": "764",
+      "title": "Таиланд"
+    },
+    {
+      "code": "TJ",
+      "code3": "TJK",
+      "numeric": "762",
+      "title": "Таджикистан"
+    },
+    {
+      "code": "TK",
+      "code3": "TKL",
+      "numeric": "772",
+      "title": "Токелау"
+    },
+    {
+      "code": "TL",
+      "code3": "TLS",
+      "numeric": "626",
+      "title": "Восточный Тимор"
+    },
+    {
+      "code": "TM",
+      "code3": "TKM",
+      "numeric": "795",
+      "title": "Туркменистан"
+    },
+    {
+      "code": "TN",
+      "code3": "TUN",
+      "numeric": "788",
+      "title": "Тунис"
+    },
+    {
+      "code": "TO",
+      "code3": "TON",
+      "numeric": "776",
+      "title": "Тонга"
+    },
+    {
+      "code": "TR",
+      "code3": "TUR",
+      "numeric": "792",
+      "title": "Турция"
+    },
+    {
+      "code": "TT",
+      "code3": "TTO",
+      "numeric": "780",
+      "title": "Тринидад и Тобаго"
+    },
+    {
+      "code": "TV",
+      "code3": "TUV",
+      "numeric": "798",
+      "title": "Тувалу"
+    },
+    {
+      "code": "TW",
+      "code3": "TWN",
+      "numeric": "158",
+      "title": "Тайвань"
+    },
+    {
+      "code": "TZ",
+      "code3": "TZA",
+      "numeric": "834",
+      "title": "Танзания"
+    },
+    {
+      "code": "UA",
+      "code3": "UKR",
+      "numeric": "804",
+      "title": "Украина"
+    },
+    {
+      "code": "UG",
+      "code3": "UGA",
+      "numeric": "800",
+      "title": "Уганда"
+    },
+    {
+      "code": "UM",
+      "code3": "UMI",
+      "numeric": "581",
+      "title": "Внешние малые острова США"
+    },
+    {
+      "code": "US",
+      "code3": "USA",
+      "numeric": "840",
+      "title": "Соединенные Штаты Америки"
+    },
+    {
+      "code": "UY",
+      "code3": "URY",
+      "numeric": "858",
+      "title": "Уругвай"
+    },
+    {
+      "code": "UZ",
+      "code3": "UZB",
+      "numeric": "860",
+      "title": "Узбекистан"
+    },
+    {
+      "code": "VA",
+      "code3": "VAT",
+      "numeric": "336",
+      "title": "Ватикан"
+    },
+    {
+      "code": "VC",
+      "code3": "VCT",
+      "numeric": "670",
+      "title": "Сент-Винсент и Гренадины"
+    },
+    {
+      "code": "VE",
+      "code3": "VEN",
+      "numeric": "862",
+      "title": "Венесуэла"
+    },
+    {
+      "code": "VG",
+      "code3": "VGB",
+      "numeric": "092",
+      "title": "Британские Виргинские острова"
+    },
+    {
+      "code": "VI",
+      "code3": "VIR",
+      "numeric": "850",
+      "title": "Виргинские острова США"
+    },
+    {
+      "code": "VN",
+      "code3": "VNM",
+      "numeric": "704",
+      "title": "Вьетнам"
+    },
+    {
+      "code": "VU",
+      "code3": "VUT",
+      "numeric": "548",
+      "title": "Вануату"
+    },
+    {
+      "code": "WF",
+      "code3": "WLF",
+      "numeric": "876",
+      "title": "Уоллис и Футуна"
+    },
+    {
+      "code": "WS",
+      "code3": "WSM",
+      "numeric": "882",
+      "title": "Самоа"
+    },
+    {
+      "code": "YE",
+      "code3": "YEM",
+      "numeric": "887",
+      "title": "Йемен"
+    },
+    {
+      "code": "YT",
+      "code3": "MYT",
+      "numeric": "175",
+      "title": "Майотта"
+    },
+    {
+      "code": "ZA",
+      "code3": "ZAF",
+      "numeric": "710",
+      "title": "Южно-Африканская Республика"
+    },
+    {
+      "code": "ZM",
+      "code3": "ZMB",
+      "numeric": "894",
+      "title": "Замбия"
+    },
+    {
+      "code": "ZW",
+      "code3": "ZWE",
+      "numeric": "716",
+      "title": "Зимбабве"
+    }
+  ]
+} 

@@ -56,6 +56,16 @@ const routes = [
         component: SettingsBlockchainView,
       },
       {
+        path: 'blockchain/dle-deploy',
+        name: 'settings-blockchain-dle-deploy',
+        component: () => import('../views/settings/BlockchainSettingsView.vue'),
+      },
+      {
+        path: 'dle-v2-deploy',
+        name: 'settings-dle-v2-deploy',
+        component: () => import('../views/settings/DleDeployFormView.vue'),
+      },
+      {
         path: 'security',
         name: 'settings-security',
         component: SettingsSecurityView,
@@ -200,6 +210,66 @@ const routes = [
     path: '/content/page/:id/edit',
     name: 'page-edit',
     component: () => import('../views/content/PageEditView.vue'),
+  },
+  {
+    path: '/management',
+    name: 'management',
+    component: () => import('../views/ManagementView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/dle',
+    name: 'management-dle',
+    component: () => import('../views/smartcontracts/DleManagementView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/proposals',
+    name: 'management-proposals',
+    component: () => import('../views/smartcontracts/ProposalsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/tokens',
+    name: 'management-tokens',
+    component: () => import('../views/smartcontracts/TokensView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/quorum',
+    name: 'management-quorum',
+    component: () => import('../views/smartcontracts/QuorumView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/modules',
+    name: 'management-modules',
+    component: () => import('../views/smartcontracts/ModulesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/treasury',
+    name: 'management-treasury',
+    component: () => import('../views/smartcontracts/TreasuryView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/analytics',
+    name: 'management-analytics',
+    component: () => import('../views/smartcontracts/AnalyticsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/history',
+    name: 'management-history',
+    component: () => import('../views/smartcontracts/HistoryView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/settings',
+    name: 'management-settings',
+    component: () => import('../views/smartcontracts/SettingsView.vue'),
+    meta: { requiresAuth: true }
   },
 ];
 

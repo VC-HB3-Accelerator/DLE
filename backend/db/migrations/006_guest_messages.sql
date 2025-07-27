@@ -7,15 +7,16 @@ CREATE TABLE IF NOT EXISTS guest_messages (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-DO $$ 
-BEGIN 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes 
-    WHERE tablename = 'guest_messages' AND indexname = 'idx_guest_messages_guest_id'
-  ) THEN
-    CREATE INDEX idx_guest_messages_guest_id ON guest_messages(guest_id);
-  END IF;
-END $$;
+-- DO $$ 
+-- BEGIN 
+--   IF NOT EXISTS (
+--     SELECT 1 FROM pg_indexes 
+--     WHERE tablename = 'guest_messages' AND indexname = 'idx_guest_messages_guest_id'
+--   ) THEN
+--     CREATE INDEX idx_guest_messages_guest_id ON guest_messages(guest_id);
+--   END IF;
+-- END $$;
+-- -- Пропускаем создание индекса, так как колонка guest_id зашифрована
 
 DO $$ 
 BEGIN 

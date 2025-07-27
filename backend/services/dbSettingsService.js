@@ -10,29 +10,39 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 
 class DbSettingsService {
   async getSettings() {
-    const { rows } = await db.getQuery()('SELECT * FROM db_settings WHERE id = 1');
+    const rows = await encryptedDb.getData('db_settings', { id: 1 }, 1);
     return rows[0];
   }
 
   async upsertSettings({ db_host, db_port, db_name, db_user, db_password }) {
-    const { rows } = await db.getQuery()(
-      `INSERT INTO db_settings (id, db_host, db_port, db_name, db_user, db_password, updated_at)
-       VALUES (1, $1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (id) DO UPDATE SET
-         db_host = EXCLUDED.db_host,
-         db_port = EXCLUDED.db_port,
-         db_name = EXCLUDED.db_name,
-         db_user = EXCLUDED.db_user,
-         db_password = EXCLUDED.db_password,
-         updated_at = NOW()
-       RETURNING *`,
-      [db_host, db_port, db_name, db_user, db_password]
-    );
-    return rows[0];
+    const data = {
+      id: 1,
+      db_host,
+      db_port,
+      db_name,
+      db_user,
+      db_password,
+      updated_at: new Date()
+    };
+
+    // Пытаемся обновить существующую запись
+    const existing = await this.getSettings();
+    if (existing) {
+      return await encryptedDb.saveData('db_settings', data, { id: 1 });
+    } else {
+      return await encryptedDb.saveData('db_settings', data);
+    }
+  }
+
+  /**
+   * Получить статус шифрования
+   */
+  getEncryptionStatus() {
+    return encryptedDb.getEncryptionStatus();
   }
 }
 

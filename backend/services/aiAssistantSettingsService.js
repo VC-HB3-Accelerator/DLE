@@ -10,53 +10,80 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
+const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const TABLE = 'ai_assistant_settings';
 
 async function getSettings() {
-  const { rows } = await db.getQuery()(`SELECT * FROM ${TABLE} ORDER BY id LIMIT 1`);
-  const settings = rows[0] || null;
-  if (!settings) return null;
+  const settings = await encryptedDb.getData(TABLE, {}, 1, 'id');
+  const setting = settings[0] || null;
+  if (!setting) return null;
 
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+  
   // Получаем связанные данные из telegram_settings и email_settings
   let telegramBot = null;
   let supportEmail = null;
-  if (settings.telegram_settings_id) {
-    const tg = await db.getQuery()('SELECT * FROM telegram_settings WHERE id = $1', [settings.telegram_settings_id]);
+  if (setting.telegram_settings_id) {
+    const tg = await db.getQuery()(
+      'SELECT id, created_at, updated_at, decrypt_text(bot_token_encrypted, $2) as bot_token, decrypt_text(bot_username_encrypted, $2) as bot_username FROM telegram_settings WHERE id = $1',
+      [setting.telegram_settings_id, encryptionKey]
+    );
     telegramBot = tg.rows[0] || null;
   }
-  if (settings.email_settings_id) {
-    const em = await db.getQuery()('SELECT * FROM email_settings WHERE id = $1', [settings.email_settings_id]);
+  if (setting.email_settings_id) {
+    const em = await db.getQuery()(
+      'SELECT id, smtp_port, imap_port, created_at, updated_at, decrypt_text(smtp_host_encrypted, $2) as smtp_host, decrypt_text(smtp_user_encrypted, $2) as smtp_user, decrypt_text(smtp_password_encrypted, $2) as smtp_password, decrypt_text(imap_host_encrypted, $2) as imap_host, decrypt_text(from_email_encrypted, $2) as from_email FROM email_settings WHERE id = $1',
+      [setting.email_settings_id, encryptionKey]
+    );
     supportEmail = em.rows[0] || null;
   }
   return {
-    ...settings,
+    ...setting,
     telegramBot,
     supportEmail,
-    embedding_model: settings.embedding_model
+    embedding_model: setting.embedding_model
   };
 }
 
 async function upsertSettings({ system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {
-  const { rows } = await db.getQuery()(
-    `INSERT INTO ${TABLE} (id, system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_at, updated_by, telegram_settings_id, email_settings_id, system_message)
-     VALUES (1, $1, $2, $3, $4, $5, $6, NOW(), $7, $8, $9, $10)
-     ON CONFLICT (id) DO UPDATE SET
-       system_prompt = EXCLUDED.system_prompt,
-       selected_rag_tables = EXCLUDED.selected_rag_tables,
-       languages = EXCLUDED.languages,
-       model = EXCLUDED.model,
-       embedding_model = EXCLUDED.embedding_model,
-       rules = EXCLUDED.rules,
-       updated_at = NOW(),
-       updated_by = EXCLUDED.updated_by,
-       telegram_settings_id = EXCLUDED.telegram_settings_id,
-       email_settings_id = EXCLUDED.email_settings_id,
-       system_message = EXCLUDED.system_message
-     RETURNING *`,
-    [system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message]
-  );
-  return rows[0];
+  const data = {
+    id: 1,
+    system_prompt,
+    selected_rag_tables,
+    languages,
+    model,
+    embedding_model,
+    rules,
+    updated_at: new Date(),
+    updated_by,
+    telegram_settings_id,
+    email_settings_id,
+    system_message
+  };
+
+  // Проверяем, существует ли запись
+  const existing = await encryptedDb.getData(TABLE, { id: 1 }, 1);
+  
+  if (existing.length > 0) {
+    // Обновляем существующую запись
+    return await encryptedDb.saveData(TABLE, data, { id: 1 });
+  } else {
+    // Создаем новую запись
+    return await encryptedDb.saveData(TABLE, data);
+  }
 }
 
 module.exports = { getSettings, upsertSettings }; 

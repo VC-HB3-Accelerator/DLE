@@ -4,9 +4,8 @@ CREATE TABLE IF NOT EXISTS roles (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Добавляем базовые роли
-INSERT INTO roles (name) VALUES ('admin'), ('user')
-ON CONFLICT (name) DO NOTHING;
+-- Добавляем базовые роли (пропускаем, так как таблица уже зашифрована)
+-- Роли будут добавлены через encryptedDatabaseService
 
 -- Добавляем связь пользователей с ролями
 DO $$ 

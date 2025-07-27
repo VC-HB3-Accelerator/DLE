@@ -12,24 +12,24 @@ CREATE TABLE IF NOT EXISTS guest_user_mapping (
 );
 
 -- 2. Создание индексов для guest_user_mapping
-CREATE INDEX IF NOT EXISTS idx_guest_user_mapping_guest_id ON guest_user_mapping(guest_id);
+-- CREATE INDEX IF NOT EXISTS idx_guest_user_mapping_guest_id ON guest_user_mapping(guest_id); -- колонка зашифрована
 CREATE INDEX IF NOT EXISTS idx_guest_user_mapping_user_id ON guest_user_mapping(user_id);
 
--- 3. Перенос гостевых идентификаторов из user_identities в guest_user_mapping
-DO $$ 
-BEGIN
-  -- Выполняем только если есть гостевые идентификаторы в user_identities
-  IF EXISTS (SELECT 1 FROM user_identities WHERE provider = 'guest') THEN
-    INSERT INTO guest_user_mapping (user_id, guest_id, processed)
-    SELECT user_id, provider_id, true
-    FROM user_identities
-    WHERE provider = 'guest'
-    ON CONFLICT (guest_id) DO NOTHING;
-    
-    -- Удаляем перенесенные идентификаторы
-    DELETE FROM user_identities WHERE provider = 'guest';
-  END IF;
-END $$;
+-- 3. Перенос гостевых идентификаторов из user_identities в guest_user_mapping (пропускаем, колонки зашифрованы)
+-- DO $$ 
+-- BEGIN
+--   -- Выполняем только если есть гостевые идентификаторы в user_identities
+--   IF EXISTS (SELECT 1 FROM user_identities WHERE provider = 'guest') THEN
+--     INSERT INTO guest_user_mapping (user_id, guest_id, processed)
+--     SELECT user_id, provider_id, true
+--     FROM user_identities
+--     WHERE provider = 'guest'
+--     ON CONFLICT (guest_id) DO NOTHING;
+--     
+--     -- Удаляем перенесенные идентификаторы
+--     DELETE FROM user_identities WHERE provider = 'guest';
+--   END IF;
+-- END $$;
 
 -- 4. Добавление/обновление поля user_id в таблице messages
 DO $$ 
@@ -71,74 +71,74 @@ BEFORE INSERT ON messages
 FOR EACH ROW
 EXECUTE FUNCTION set_message_user_id();
 
--- 7. Перенос идентификаторов из полей users в user_identities
-DO $$ 
-DECLARE
-  user_rec RECORD;
-BEGIN
-  -- Обрабатываем email
-  FOR user_rec IN 
-    SELECT id, email FROM users 
-    WHERE email IS NOT NULL AND email != ''
-  LOOP
-    -- Проверяем, существует ли такой email в user_identities
-    IF NOT EXISTS (
-      SELECT 1 FROM user_identities 
-      WHERE user_id = user_rec.id AND provider = 'email' AND provider_id = user_rec.email
-    ) THEN
-      -- Если нет, добавляем его
-      INSERT INTO user_identities (user_id, provider, provider_id)
-      VALUES (user_rec.id, 'email', LOWER(user_rec.email));
-    END IF;
-  END LOOP;
-  
-  -- Обрабатываем address (wallet)
-  FOR user_rec IN 
-    SELECT id, address FROM users 
-    WHERE address IS NOT NULL AND address != ''
-  LOOP
-    -- Проверяем, существует ли такой адрес в user_identities
-    IF NOT EXISTS (
-      SELECT 1 FROM user_identities 
-      WHERE user_id = user_rec.id AND provider = 'wallet' AND provider_id = LOWER(user_rec.address)
-    ) THEN
-      -- Если нет, добавляем его
-      INSERT INTO user_identities (user_id, provider, provider_id)
-      VALUES (user_rec.id, 'wallet', LOWER(user_rec.address));
-    END IF;
-  END LOOP;
-END $$;
+-- 7. Перенос идентификаторов из полей users в user_identities (пропускаем, колонки зашифрованы)
+-- DO $$ 
+-- DECLARE
+--   user_rec RECORD;
+-- BEGIN
+--   -- Обрабатываем email
+--   FOR user_rec IN 
+--     SELECT id, email FROM users 
+--     WHERE email IS NOT NULL AND email != ''
+--   LOOP
+--     -- Проверяем, существует ли такой email в user_identities
+--     IF NOT EXISTS (
+--       SELECT 1 FROM user_identities 
+--       WHERE user_id = user_rec.id AND provider = 'email' AND provider_id = user_rec.email
+--     ) THEN
+--       -- Если нет, добавляем его
+--       INSERT INTO user_identities (user_id, provider, provider_id)
+--       VALUES (user_rec.id, 'email', LOWER(user_rec.email));
+--     END IF;
+--   END LOOP;
+--   
+--   -- Обрабатываем address (wallet)
+--   FOR user_rec IN 
+--     SELECT id, address FROM users 
+--     WHERE address IS NOT NULL AND address != ''
+--   LOOP
+--     -- Проверяем, существует ли такой адрес в user_identities
+--     IF NOT EXISTS (
+--       SELECT 1 FROM user_identities 
+--       WHERE user_id = user_rec.id AND provider = 'wallet' AND provider_id = LOWER(user_rec.address)
+--     ) THEN
+--       -- Если нет, добавляем его
+--       INSERT INTO user_identities (user_id, provider, provider_id)
+--       VALUES (user_rec.id, 'wallet', LOWER(user_rec.address));
+--     END IF;
+--   END LOOP;
+-- END $$;
 
--- 8. Очистка устаревших полей в таблице users
-UPDATE users 
-SET 
-  email = NULL,
-  address = NULL,
-  username = NULL
-WHERE 
-  email IS NOT NULL OR address IS NOT NULL OR username IS NOT NULL;
+-- 8. Очистка устаревших полей в таблице users (пропускаем, колонки зашифрованы)
+-- UPDATE users 
+-- SET 
+--   email = NULL,
+--   address = NULL,
+--   username = NULL
+-- WHERE 
+--   email IS NOT NULL OR address IS NOT NULL OR username IS NOT NULL;
 
--- 9. Нормализация регистра для email и wallet идентификаторов
-UPDATE user_identities
-SET provider_id = LOWER(provider_id)
-WHERE (provider = 'wallet' OR provider = 'email') AND provider_id != LOWER(provider_id);
+-- 9. Нормализация регистра для email и wallet идентификаторов (пропускаем, колонки зашифрованы)
+-- UPDATE user_identities
+-- SET provider_id = LOWER(provider_id)
+-- WHERE (provider = 'wallet' OR provider = 'email') AND provider_id != LOWER(provider_id);
 
--- 10. Ограничения для предотвращения использования guest в user_identities
-ALTER TABLE user_identities DROP CONSTRAINT IF EXISTS check_provider_not_guest;
-ALTER TABLE user_identities ADD CONSTRAINT check_provider_not_guest
-  CHECK (provider != 'guest');
+-- 10. Ограничения для предотвращения использования guest в user_identities (пропускаем, колонки зашифрованы)
+-- ALTER TABLE user_identities DROP CONSTRAINT IF EXISTS check_provider_not_guest;
+-- ALTER TABLE user_identities ADD CONSTRAINT check_provider_not_guest
+--   CHECK (provider != 'guest');
 
--- 11. Ограничение на допустимые типы идентификаторов
-ALTER TABLE user_identities DROP CONSTRAINT IF EXISTS check_provider_allowed;
-ALTER TABLE user_identities ADD CONSTRAINT check_provider_allowed
-  CHECK (provider IN ('email', 'wallet', 'telegram'));
+-- 11. Ограничение на допустимые типы идентификаторов (пропускаем, колонки зашифрованы)
+-- ALTER TABLE user_identities DROP CONSTRAINT IF EXISTS check_provider_allowed;
+-- ALTER TABLE user_identities ADD CONSTRAINT check_provider_allowed
+--   CHECK (provider IN ('email', 'wallet', 'telegram'));
 
--- 12. Помечаем обработанные гостевые идентификаторы
-UPDATE guest_user_mapping
-SET processed = true
-WHERE processed = false AND NOT EXISTS (
-  SELECT 1 FROM guest_messages WHERE guest_id = guest_user_mapping.guest_id
-);
+-- 12. Помечаем обработанные гостевые идентификаторы (пропускаем, колонки зашифрованы)
+-- UPDATE guest_user_mapping
+-- SET processed = true
+-- WHERE processed = false AND NOT EXISTS (
+--   SELECT 1 FROM guest_messages WHERE guest_id = guest_user_mapping.guest_id
+-- );
 
 -- 13. Добавляем комментарии к таблицам и полям
 COMMENT ON TABLE users IS 'Основная таблица пользователей системы';
@@ -149,16 +149,16 @@ COMMENT ON TABLE messages IS 'Сообщения пользователей и �
 COMMENT ON TABLE guest_messages IS 'Временное хранилище сообщений от неавторизованных пользователей';
 
 COMMENT ON COLUMN users.id IS 'Уникальный идентификатор пользователя';
-COMMENT ON COLUMN users.username IS 'Имя пользователя (устарело, используется user_identities)';
-COMMENT ON COLUMN users.email IS 'Email пользователя (устарело, используется user_identities)';
-COMMENT ON COLUMN users.address IS 'Адрес кошелька (устарело, используется user_identities)';
-COMMENT ON COLUMN users.status IS 'Статус пользователя (active, blocked)';
+-- COMMENT ON COLUMN users.username IS 'Имя пользователя (устарело, используется user_identities)'; -- колонка зашифрована
+-- COMMENT ON COLUMN users.email IS 'Email пользователя (устарело, используется user_identities)'; -- колонка зашифрована
+-- COMMENT ON COLUMN users.address IS 'Адрес кошелька (устарело, используется user_identities)'; -- колонка зашифрована
+-- COMMENT ON COLUMN users.status IS 'Статус пользователя (active, blocked)'; -- колонка зашифрована
 COMMENT ON COLUMN users.role IS 'Роль пользователя (user, admin)';
 
-COMMENT ON COLUMN user_identities.provider IS 'Тип идентификатора (email, wallet, telegram, username)';
-COMMENT ON COLUMN user_identities.provider_id IS 'Значение идентификатора';
+-- COMMENT ON COLUMN user_identities.provider IS 'Тип идентификатора (email, wallet, telegram, username)'; -- колонка зашифрована
+-- COMMENT ON COLUMN user_identities.provider_id IS 'Значение идентификатора'; -- колонка зашифрована
 
-COMMENT ON COLUMN guest_user_mapping.guest_id IS 'Идентификатор гостя из localStorage';
+-- COMMENT ON COLUMN guest_user_mapping.guest_id IS 'Идентификатор гостя из localStorage'; -- колонка зашифрована
 COMMENT ON COLUMN guest_user_mapping.processed IS 'Флаг, показывающий, были ли обработаны гостевые сообщения';
 
 -- 14. Создаем диагностическую функцию

@@ -24,6 +24,7 @@
         :showApiKey="false"
         :showBaseUrl="true"
       />
+      <OllamaModelManager />
     </div>
   </BaseLayout>
 </template>
@@ -31,6 +32,7 @@
 <script setup>
 import BaseLayout from '@/components/BaseLayout.vue';
 import AIProviderSettings from '@/views/settings/AIProviderSettings.vue';
+import OllamaModelManager from '@/components/OllamaModelManager.vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();

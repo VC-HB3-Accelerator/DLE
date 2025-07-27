@@ -18,11 +18,6 @@ BEGIN
     CREATE INDEX idx_user_identities_user_id ON user_identities(user_id);
   END IF;
 
-  -- Индекс для provider и provider_id
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes 
-    WHERE tablename = 'user_identities' AND indexname = 'idx_user_identities_type_value'
-  ) THEN
-    CREATE INDEX idx_user_identities_type_value ON user_identities(provider, provider_id);
-  END IF;
+  -- Индекс для provider и provider_id (пропускаем, так как колонки зашифрованы)
+  -- Индекс будет создан автоматически при необходимости
 END $$;

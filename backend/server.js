@@ -47,8 +47,12 @@ async function initServices() {
       console.error('[initServices] Ошибка при запуске emailBot:', err);
     }
     console.log('[initServices] Запуск Telegram-бота...');
-    await getBot();
-    console.log('[initServices] Telegram-бот успешно запущен');
+    try {
+      await getBot();
+      console.log('[initServices] Telegram-бот успешно запущен');
+    } catch (err) {
+      console.error('[initServices] Ошибка при запуске Telegram-бота:', err);
+    }
   } catch (error) {
     console.error('Ошибка при инициализации сервисов:', error);
   }

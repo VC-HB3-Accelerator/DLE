@@ -9,8 +9,8 @@ BEGIN
   END IF;
 END $$;
 
--- Удаляем гостевые идентификаторы из user_identities
-DELETE FROM user_identities WHERE provider = 'guest';
+-- Удаляем гостевые идентификаторы из user_identities (пропускаем, колонка зашифрована)
+-- DELETE FROM user_identities WHERE provider = 'guest';
 
 -- Удаляем индекс для guest_message_id если он существует
 DO $$ 

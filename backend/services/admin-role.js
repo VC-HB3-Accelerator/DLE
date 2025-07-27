@@ -12,6 +12,7 @@
 
 const { ethers } = require('ethers');
 const logger = require('../utils/logger');
+const db = require('../db');
 const authTokenService = require('./authTokenService');
 const rpcProviderService = require('./rpcProviderService');
 
@@ -28,12 +29,41 @@ const ERC20_ABI = [
 async function checkAdminRole(address) {
   if (!address) return false;
   logger.info(`Checking admin role for address: ${address}`);
+  
+  try {
   let foundTokens = false;
   let errorCount = 0;
   const balances = {};
-  // Получаем токены и RPC из базы
-  const tokens = await authTokenService.getAllAuthTokens();
-  const rpcProviders = await rpcProviderService.getAllRpcProviders();
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
+  // Получаем токены и RPC из базы с расшифровкой
+  const tokensResult = await db.getQuery()(
+    'SELECT id, min_balance, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+    [encryptionKey]
+  );
+  const tokens = tokensResult.rows;
+
+  const rpcProvidersResult = await db.getQuery()(
+    'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
+    [encryptionKey]
+  );
+  const rpcProviders = rpcProvidersResult.rows;
+  
+  logger.info(`Retrieved ${tokens.length} tokens and ${rpcProviders.length} RPC providers`);
+  logger.info('Tokens:', JSON.stringify(tokens, null, 2));
+  logger.info('RPC Providers:', JSON.stringify(rpcProviders, null, 2));
   const rpcMap = {};
   for (const rpc of rpcProviders) {
     rpcMap[rpc.network_id] = rpc.rpc_url;
@@ -109,6 +139,10 @@ async function checkAdminRole(address) {
   }
   logger.info(`Admin role denied - no tokens found for ${address}`);
   return false;
+  } catch (error) {
+    logger.error(`Error in checkAdminRole for ${address}:`, error);
+    return false;
+  }
 }
 
 module.exports = { checkAdminRole }; 

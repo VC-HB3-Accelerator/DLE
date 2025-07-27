@@ -14,7 +14,7 @@ const { pool } = require('../db');
 const verificationService = require('./verification-service');
 const logger = require('../utils/logger');
 const EmailBotService = require('./emailBot.js');
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const authService = require('./auth-service');
 const { checkAdminRole } = require('./admin-role');
 const { broadcastContactsUpdate } = require('../wsHub');
@@ -31,12 +31,10 @@ class EmailAuth {
       }
 
       // Проверяем, существует ли пользователь с таким email
-      const existingEmailUser = await db.getQuery()(
-        `SELECT u.id FROM users u 
-         JOIN user_identities i ON u.id = i.user_id 
-         WHERE i.provider = 'email' AND i.provider_id = $1`,
-        [email.toLowerCase()]
-      );
+      const existingEmailUsers = await encryptedDb.getData('user_identities', {
+        provider: 'email',
+        provider_id: email.toLowerCase()
+      }, 1);
 
       // Создаем или получаем ID пользователя
       let userId;
@@ -47,16 +45,16 @@ class EmailAuth {
         logger.info(
           `[initEmailAuth] Using existing authenticated user ${userId} for email ${email}`
         );
-      } else if (existingEmailUser.rows.length > 0) {
+      } else if (existingEmailUsers.length > 0) {
         // Если найден пользователь с таким email, используем его ID
-        userId = existingEmailUser.rows[0].id;
+        userId = existingEmailUsers[0].user_id;
         logger.info(`[initEmailAuth] Found existing user ${userId} with email ${email}`);
       } else {
         // Создаем временного пользователя, если нужно будет создать нового
-        const userResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
-          'user',
-        ]);
-        userId = userResult.rows[0].id;
+        const newUser = await encryptedDb.saveData('users', {
+          role: 'user'
+        });
+        userId = newUser.id;
         session.tempUserId = userId;
         logger.info(`[initEmailAuth] Created temporary user ${userId} for email ${email}`);
       }
@@ -165,11 +163,10 @@ class EmailAuth {
           finalUserId = session.tempUserId;
           logger.info(`[checkEmailVerification] Using temporary user ${finalUserId}`);
         } else {
-          const newUserResult = await db.getQuery()(
-            'INSERT INTO users (role) VALUES ($1) RETURNING id',
-            ['user']
-          );
-          finalUserId = newUserResult.rows[0].id;
+          const newUserResult = await encryptedDb.saveData('users', {
+            role: 'user'
+          });
+          finalUserId = newUserResult.id;
           logger.info(`[checkEmailVerification] Created new user ${finalUserId}`);
         }
       }
@@ -189,9 +186,9 @@ class EmailAuth {
           logger.info(`[checkEmailVerification] Role for user ${finalUserId} determined as: ${userRole}`);
 
           // Опционально: Обновить роль в таблице users, если она отличается
-          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [finalUserId]);
-          if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
-            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [userRole, finalUserId]);
+          const currentUser = await encryptedDb.getData('users', { id: finalUserId }, 1);
+          if (currentUser.length > 0 && currentUser[0].role !== userRole) {
+            await encryptedDb.saveData('users', { role: userRole, id: finalUserId });
             logger.info(`[checkEmailVerification] Updated user role in DB to ${userRole}`);
           }
         } else {

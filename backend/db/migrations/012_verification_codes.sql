@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS verification_codes (
   used BOOLEAN DEFAULT FALSE
 );
 
--- Индексы для оптимизации
-CREATE INDEX IF NOT EXISTS idx_verification_codes_code ON verification_codes(code);
-CREATE INDEX IF NOT EXISTS idx_verification_codes_provider ON verification_codes(provider);
+-- Индексы для оптимизации (пропускаем зашифрованные колонки)
+-- CREATE INDEX IF NOT EXISTS idx_verification_codes_code ON verification_codes(code); -- колонка зашифрована
+-- CREATE INDEX IF NOT EXISTS idx_verification_codes_provider ON verification_codes(provider); -- колонка зашифрована
 CREATE INDEX IF NOT EXISTS idx_verification_codes_expires ON verification_codes(expires_at);
 
 -- Удаляем старую таблицу email_auth_tokens

@@ -20,8 +20,8 @@ services:
       POSTGRES_DB: ${DB_NAME:-dapp_db}
       POSTGRES_USER: ${DB_USER:-dapp_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dapp_password}
-    ports:
-      - '5432:5432'
+    # ports:
+    #   - '5432:5432'  # Закрываем доступ к базе данных извне
     healthcheck:
       test:
         - CMD-SHELL
@@ -40,9 +40,26 @@ services:
         max-file: "3"
     volumes:
       - ollama_data:/root/.ollama
-    ports:
-      - '11434:11434'
+    # ports:
+    #   - '11434:11434'  # Закрываем - используется только backend'ом
     command: serve
+    deploy:
+      resources:
+        limits:
+          cpus: '3.5'
+          memory: 12G
+        reservations:
+          cpus: '2.0'
+          memory: 6G
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
   vector-search:
     build:
       context: ./vector-search
@@ -63,8 +80,8 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_EMBED_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
-    ports:
-      - '8001:8001'
+    # ports:
+    #   - '8001:8001'  # Закрываем - используется только backend'ом
   backend:
     build:
       context: ./backend
@@ -86,6 +103,7 @@ services:
     volumes:
       - ./backend:/app
       - ./frontend/dist:/app/frontend_dist:ro
+      - ./ssl:/app/ssl:ro
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -123,7 +141,7 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     ports:
-      - '5173:5173'
+      - '5173:5173'  # Закрываем - используем nginx
     command: yarn run dev -- --host 0.0.0.0
   ollama-setup:
     image: curlimages/curl:latest
@@ -180,6 +198,29 @@ services:
       - "9000:80" # 9000 — порт, который пробрасывается наружу/через туннель
     depends_on:
       - backend
+
+  # Автоматический бэкап базы данных
+  backup-service:
+    image: postgres:16-alpine
+    container_name: dapp-backup-service
+    restart: unless-stopped
+    volumes:
+      - ./backup-database.sh:/backup.sh:ro
+      - ./backups:/backups
+      - postgres_data:/var/lib/postgresql/data:ro
+    environment:
+      - PGPASSWORD=${DB_PASSWORD:-dapp_password}
+    depends_on:
+      - postgres
+    command: >
+      sh -c "
+        echo 'Backup service started'
+        while true; do
+          sleep 86400
+          echo 'Starting daily backup...'
+          /backup.sh
+        done
+      "
 
 volumes:
   postgres_data:

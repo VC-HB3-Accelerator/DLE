@@ -103,20 +103,41 @@ async function loadSettings() {
 
 async function loadModels() {
   try {
-    const { data } = await axios.get(`/settings/ai-settings/${props.provider}/models`);
+    let data;
+    if (props.provider === 'ollama') {
+      // Для Ollama используем специальный API
+      const response = await axios.get('/ollama/models');
+      data = { models: response.data.models.map(m => ({ id: m.name, name: m.name })) };
+    } else {
+      // Для других провайдеров используем стандартный API
+      const response = await axios.get(`/settings/ai-settings/${props.provider}/models`);
+      data = response.data;
+    }
+    
     models.value = data.models || [];
     if (!selectedModel.value && models.value.length) {
       const first = models.value[0];
       selectedModel.value = first.id || first.name || first;
     }
   } catch (e) {
+    console.error('Error loading models:', e);
     models.value = [];
   }
 }
 
 async function loadEmbeddingModels() {
   try {
-    const { data } = await axios.get(`/settings/ai-settings/${props.provider}/models`);
+    let data;
+    if (props.provider === 'ollama') {
+      // Для Ollama используем специальный API
+      const response = await axios.get('/ollama/models');
+      data = { models: response.data.models.map(m => ({ id: m.name, name: m.name })) };
+    } else {
+      // Для других провайдеров используем стандартный API
+      const response = await axios.get(`/settings/ai-settings/${props.provider}/models`);
+      data = response.data;
+    }
+    
     embeddingModels.value = (data.models || []).filter(m => {
       const name = m.id || m.name || m;
       return name && name.toLowerCase().includes('embed');
@@ -126,6 +147,7 @@ async function loadEmbeddingModels() {
       selectedEmbeddingModel.value = first.id || first.name || first;
     }
   } catch (e) {
+    console.error('Error loading embedding models:', e);
     embeddingModels.value = [];
   }
 }
@@ -135,13 +157,24 @@ async function onVerify() {
   verifyStatus.value = null;
   verifyError.value = '';
   try {
-    const { data } = await axios.post(`/settings/ai-settings/${props.provider}/verify`, {
-      api_key: apiKey.value,
-      base_url: baseUrl.value,
-    });
+    let data;
+    if (props.provider === 'ollama') {
+      // Для Ollama используем специальный API
+      const response = await axios.get('/ollama/status');
+      data = { success: response.data.connected };
+    } else {
+      // Для других провайдеров используем стандартный API
+      const response = await axios.post(`/settings/ai-settings/${props.provider}/verify`, {
+        api_key: apiKey.value,
+        base_url: baseUrl.value,
+      });
+      data = response.data;
+    }
+    
     verifyStatus.value = data.success;
     if (data.success) {
       await loadModels();
+      await loadEmbeddingModels();
     }
   } catch (e) {
     verifyStatus.value = false;

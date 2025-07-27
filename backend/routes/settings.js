@@ -45,7 +45,25 @@ router.get('/rpc', async (req, res, next) => {
       }
     }
     
-    const rpcConfigs = await rpcProviderService.getAllRpcProviders();
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
+    const rpcProvidersResult = await db.getQuery()(
+      'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
+      [encryptionKey]
+    );
+    const rpcConfigs = rpcProvidersResult.rows;
     
     if (isAdmin) {
       // Для админов возвращаем полные данные
@@ -108,7 +126,25 @@ router.delete('/rpc/:networkId', requireAdmin, async (req, res, next) => {
 // Получение токенов для аутентификации
 router.get('/auth-tokens', async (req, res, next) => {
   try {
-    const authTokens = await authTokenService.getAllAuthTokens();
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
+    const tokensResult = await db.getQuery()(
+      'SELECT id, min_balance, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+      [encryptionKey]
+    );
+    const authTokens = tokensResult.rows;
     
     // Возвращаем полные данные для всех пользователей (включая гостевых)
     res.json({ success: true, data: authTokens });

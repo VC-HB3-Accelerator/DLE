@@ -14,6 +14,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
+import websocketService from '../services/websocketService';
 
 function initGuestId() {
   let id = getFromStorage('guestId', '');
@@ -396,10 +397,71 @@ export function useChat(auth) {
          hasUserSentMessage.value = false;
          newMessage.value = '';
          attachments.value = [];
+         // Отключаем WebSocket
+         cleanupWebSocket();
          // Гостевые данные очищаются при успешной аутентификации в loadMessages
          // или если пользователь сам очистит localStorage
+     } else if (isAuth && !wasAuth) { // Если пользователь вошел
+         console.log('[useChat] Пользователь вошел, подключаем WebSocket.');
+         // Отложенное подключение, чтобы дождаться загрузки данных пользователя
+         setTimeout(() => setupChatWebSocket(), 100);
      }
  });
+
+ // Отслеживаем загрузку данных пользователя для подключения WebSocket
+ watch(() => auth.user?.value, (newUser, oldUser) => {
+     if (newUser && newUser.id && auth.isAuthenticated.value) {
+         console.log('[useChat] Данные пользователя загружены, подключаем WebSocket:', newUser.id);
+         setupChatWebSocket();
+     }
+ }, { immediate: false });
+
+  // --- WebSocket для real-time сообщений ---
+  function setupChatWebSocket() {
+    // Подключаемся к WebSocket только если пользователь аутентифицирован
+    if (auth.isAuthenticated.value && auth.user && auth.user.value && auth.user.value.id) {
+      console.log('[useChat] Подключение к WebSocket для пользователя:', auth.user.value.id);
+      websocketService.connect(auth.user.value.id);
+      
+      // Подписываемся на события
+      websocketService.on('chat-message', (message) => {
+        console.log('[useChat] Получено новое сообщение через WebSocket:', message);
+        // Проверяем, что сообщение не дублируется
+        const existingMessage = messages.value.find(m => m.id === message.id);
+        if (!existingMessage) {
+          messages.value.push(message);
+        }
+      });
+      
+      websocketService.on('conversation-updated', (conversationId) => {
+        console.log('[useChat] Обновление диалога через WebSocket:', conversationId);
+        // Можно добавить логику обновления списка диалогов
+      });
+      
+      websocketService.on('connected', () => {
+        console.log('[useChat] WebSocket подключен');
+      });
+      
+      websocketService.on('disconnected', () => {
+        console.log('[useChat] WebSocket отключен');
+      });
+      
+      websocketService.on('error', (error) => {
+        console.error('[useChat] WebSocket ошибка:', error);
+      });
+    } else {
+      console.log('[useChat] WebSocket не подключен: пользователь не аутентифицирован или данные не загружены');
+    }
+  }
+  
+  function cleanupWebSocket() {
+    websocketService.off('chat-message');
+    websocketService.off('conversation-updated');
+    websocketService.off('connected');
+    websocketService.off('disconnected');
+    websocketService.off('error');
+    websocketService.disconnect();
+  }
 
   // --- Инициализация --- 
   onMounted(() => {
@@ -408,33 +470,13 @@ export function useChat(auth) {
     } else if (auth.isAuthenticated.value) {
       loadMessages({ initial: true });
     }
-     // Добавляем слушатель для возможности принудительной перезагрузки
-     // window.addEventListener('load-chat-history', () => loadMessages({ initial: true }));
-  });
-
-  // --- WebSocket для real-time сообщений ---
-  let ws = null;
-  function setupChatWebSocket() {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'chat-message' && data.message) {
-          // Проверяем, что сообщение для текущего пользователя/диалога
-          // (можно доработать фильтрацию по conversation_id, user_id и т.д.)
-          messages.value.push(data.message);
-        }
-      } catch (e) {
-        console.error('[useChat] Ошибка обработки chat-message по WebSocket:', e);
-      }
-    };
-  }
-  onMounted(() => {
+    
+    // Подключаем WebSocket если пользователь уже аутентифицирован
     setupChatWebSocket();
   });
+  
   onUnmounted(() => {
-    if (ws) ws.close();
+    cleanupWebSocket();
   });
 
   return {

@@ -10,22 +10,26 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const vectorSearch = require('./vectorSearchClient');
 const { getProviderSettings } = require('./aiProviderSettingsService');
 
 console.log('[RAG] ragService.js loaded');
 
+// Простой кэш для RAG результатов
+const ragCache = new Map();
+const RAG_CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
 async function getTableData(tableId) {
   console.log(`[RAG] getTableData called for tableId: ${tableId}`);
   
-  const columns = (await db.query('SELECT * FROM user_columns WHERE table_id = $1', [tableId])).rows;
+  const columns = await encryptedDb.getData('user_columns', { table_id: tableId });
   console.log(`[RAG] Found ${columns.length} columns:`, columns.map(col => ({ id: col.id, name: col.name, purpose: col.options?.purpose })));
   
-  const rows = (await db.query('SELECT * FROM user_rows WHERE table_id = $1', [tableId])).rows;
+  const rows = await encryptedDb.getData('user_rows', { table_id: tableId });
   console.log(`[RAG] Found ${rows.length} rows:`, rows.map(row => ({ id: row.id, name: row.name })));
   
-  const cellValues = (await db.query('SELECT * FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId])).rows;
+  const cellValues = await encryptedDb.getData('user_cell_values', { row_id: { $in: rows.map(row => row.id) } });
   console.log(`[RAG] Found ${cellValues.length} cell values`);
 
   const getColId = purpose => columns.find(col => col.options?.purpose === purpose)?.id;
@@ -65,6 +69,14 @@ async function getTableData(tableId) {
 
 async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10 }) {
   console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
+  
+  // Проверяем кэш
+  const cacheKey = `${tableId}:${userQuestion}:${product}`;
+  const cached = ragCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < RAG_CACHE_TTL) {
+    console.log(`[RAG] Returning cached result for: ${cacheKey}`);
+    return cached.result;
+  }
   
   const data = await getTableData(tableId);
   console.log(`[RAG] Got ${data.length} rows from database`);
@@ -110,7 +122,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
   // Поиск
   let results = [];
   if (rowsForUpsert.length > 0) {
-    results = await vectorSearch.search(tableId, userQuestion, 3);
+    results = await vectorSearch.search(tableId, userQuestion, 2); // Уменьшаем до 2 результатов
     console.log(`[RAG] Search completed, got ${results.length} results`);
     
     // Подробное логирование результатов поиска
@@ -153,7 +165,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
     });
   }
   
-  return {
+  const result = {
     answer: best?.metadata?.answer,
     context: best?.metadata?.context,
     product: best?.metadata?.product,
@@ -161,6 +173,14 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
     date: best?.metadata?.date,
     score: best?.score,
   };
+  
+  // Кэшируем результат
+  ragCache.set(cacheKey, {
+    result,
+    timestamp: Date.now()
+  });
+  
+  return result;
 }
 
 /**
@@ -169,16 +189,11 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
  */
 async function getAllPlaceholdersWithValues() {
   // Получаем все плейсхолдеры и их значения (берём первое значение для каждого плейсхолдера)
-  const result = await db.getQuery()(`
-    SELECT c.placeholder, cv.value
-    FROM user_columns c
-    JOIN user_cell_values cv ON c.id = cv.column_id
-    WHERE c.placeholder IS NOT NULL AND c.placeholder != ''
-    ORDER BY c.id, cv.id
-  `);
+  const result = await encryptedDb.getData('user_columns', {});
+  
   // Группируем по плейсхолдеру (берём первое значение)
   const map = {};
-  for (const row of result.rows) {
+  for (const row of result) {
     if (row.placeholder && !(row.placeholder in map)) {
       map[row.placeholder] = row.value;
     }

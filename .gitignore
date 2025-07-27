@@ -131,6 +131,20 @@ ssh_config
 # Docker
 .dockerignore
 
+# Git tools
+bfg-*.jar
+
+# Backup files
+*.bak
+*.backup
+*~
+backups/
+
+# Debug and temporary files
+check_*.js
+debug_*.js
+test_*.js
+
 # ========================================
 # ПАТЕНТНЫЕ ДОКУМЕНТЫ - НЕ ПУБЛИКОВАТЬ!
 # ========================================

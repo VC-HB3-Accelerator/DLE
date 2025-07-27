@@ -12,6 +12,7 @@
 
 const { Telegraf } = require('telegraf');
 const logger = require('../utils/logger');
+const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const authService = require('./auth-service');
 const verificationService = require('./verification-service');
@@ -19,7 +20,7 @@ const crypto = require('crypto');
 const identityService = require('./identity-service');
 const aiAssistant = require('./ai-assistant');
 const { checkAdminRole } = require('./admin-role');
-const { broadcastContactsUpdate } = require('../wsHub');
+const { broadcastContactsUpdate, broadcastChatMessage } = require('../wsHub');
 const aiAssistantSettingsService = require('./aiAssistantSettingsService');
 const { ragAnswer, generateLLMResponse } = require('./ragService');
 const { isUserBlocked } = require('../utils/userUtils');
@@ -29,17 +30,23 @@ let telegramSettingsCache = null;
 
 async function getTelegramSettings() {
   if (telegramSettingsCache) return telegramSettingsCache;
-  const { rows } = await db.getQuery()('SELECT * FROM telegram_settings ORDER BY id LIMIT 1');
-  if (!rows.length) throw new Error('Telegram settings not found in DB');
-  telegramSettingsCache = rows[0];
+  
+  const settings = await encryptedDb.getData('telegram_settings', {}, 1);
+  if (!settings.length) throw new Error('Telegram settings not found in DB');
+  
+  telegramSettingsCache = settings[0];
   return telegramSettingsCache;
 }
 
 // Создание и настройка бота
 async function getBot() {
+  console.log('[TelegramBot] getBot() called');
   if (!botInstance) {
+    console.log('[TelegramBot] Creating new bot instance...');
     const settings = await getTelegramSettings();
+    console.log('[TelegramBot] Got settings, creating Telegraf instance...');
     botInstance = new Telegraf(settings.bot_token);
+    console.log('[TelegramBot] Telegraf instance created');
 
     // Обработка команды /start
     botInstance.command('start', (ctx) => {
@@ -51,49 +58,51 @@ async function getBot() {
       const text = ctx.message.text.trim();
       // 1. Если команда — пропустить
       if (text.startsWith('/')) return;
+      
+      // Отправляем индикатор печати для улучшения UX
+      const typingAction = ctx.replyWithChatAction('typing');
+      
       // 2. Проверка: это потенциальный код?
       const isPotentialCode = (str) => /^[A-Z0-9]{6}$/i.test(str);
       if (isPotentialCode(text)) {
+        await typingAction;
         try {
           // Получаем код верификации для всех активных кодов с провайдером telegram
-          const codeResult = await db.getQuery()(
-            `SELECT * FROM verification_codes 
-             WHERE code = $1 
-             AND provider = 'telegram' 
-             AND used = false 
-             AND expires_at > NOW()`,
-            [text.toUpperCase()]
-          );
+          const codes = await encryptedDb.getData('verification_codes', {
+            code: text.toUpperCase(),
+            provider: 'telegram',
+            used: false
+          }, 1);
 
-          if (codeResult.rows.length === 0) {
+          if (codes.length === 0) {
             ctx.reply('Неверный код подтверждения');
             return;
           }
 
-          const verification = codeResult.rows[0];
+          const verification = codes[0];
           const providerId = verification.provider_id;
           const linkedUserId = verification.user_id; // Получаем связанный userId если он есть
           let userId;
           let userRole = 'user'; // Роль по умолчанию
 
           // Отмечаем код как использованный
-          await db.getQuery()('UPDATE verification_codes SET used = true WHERE id = $1', [
-            verification.id,
-          ]);
+          await encryptedDb.saveData('verification_codes', {
+            used: true
+          }, {
+            id: verification.id
+          });
 
           logger.info('Starting Telegram auth process for code:', text);
 
           // Проверяем, существует ли уже пользователь с таким Telegram ID
-          const existingTelegramUser = await db.getQuery()(
-            `SELECT ui.user_id 
-             FROM user_identities ui 
-             WHERE ui.provider = 'telegram' AND ui.provider_id = $1`,
-            [ctx.from.id.toString()]
-          );
+          const existingTelegramUsers = await encryptedDb.getData('user_identities', {
+            provider: 'telegram',
+            provider_id: ctx.from.id.toString()
+          }, 1);
 
-          if (existingTelegramUser.rows.length > 0) {
+          if (existingTelegramUsers.length > 0) {
             // Если пользователь с таким Telegram ID уже существует, используем его
-            userId = existingTelegramUser.rows[0].user_id;
+            userId = existingTelegramUsers[0].user_id;
             logger.info(`Using existing user ${userId} for Telegram account ${ctx.from.id}`);
           } else {
             // Если код верификации был связан с существующим пользователем, используем его
@@ -101,12 +110,11 @@ async function getBot() {
               // Используем userId из кода верификации
               userId = linkedUserId;
               // Связываем Telegram с этим пользователем
-              await db.getQuery()(
-                `INSERT INTO user_identities 
-                 (user_id, provider, provider_id, created_at) 
-                 VALUES ($1, $2, $3, NOW())`,
-                [userId, 'telegram', ctx.from.id.toString()]
-              );
+              await encryptedDb.saveData('user_identities', {
+                user_id: userId,
+                provider: 'telegram',
+                provider_id: ctx.from.id.toString()
+              });
               logger.info(
                 `Linked Telegram account ${ctx.from.id} to pre-authenticated user ${userId}`
               );
@@ -114,12 +122,11 @@ async function getBot() {
               // Проверяем, есть ли пользователь, связанный с гостевым идентификатором
               let existingUserWithGuestId = null;
               if (providerId) {
-                const guestUserResult = await db.getQuery()(
-                  `SELECT user_id FROM guest_user_mapping WHERE guest_id = $1`,
-                  [providerId]
-                );
-                if (guestUserResult.rows.length > 0) {
-                  existingUserWithGuestId = guestUserResult.rows[0].user_id;
+                const guestUserResult = await encryptedDb.getData('guest_user_mapping', {
+                  guest_id: providerId
+                }, 1);
+                if (guestUserResult.length > 0) {
+                  existingUserWithGuestId = guestUserResult[0].user_id;
                   logger.info(
                     `Found existing user ${existingUserWithGuestId} by guest ID ${providerId}`
                   );
@@ -129,38 +136,35 @@ async function getBot() {
               if (existingUserWithGuestId) {
                 // Используем существующего пользователя и добавляем ему Telegram идентификатор
                 userId = existingUserWithGuestId;
-                await db.getQuery()(
-                  `INSERT INTO user_identities 
-                   (user_id, provider, provider_id, created_at) 
-                   VALUES ($1, $2, $3, NOW())`,
-                  [userId, 'telegram', ctx.from.id.toString()]
-                );
+                await encryptedDb.saveData('user_identities', {
+                  user_id: userId,
+                  provider: 'telegram',
+                  provider_id: ctx.from.id.toString()
+                });
                 logger.info(`Linked Telegram account ${ctx.from.id} to existing user ${userId}`);
               } else {
                 // Создаем нового пользователя, если не нашли существующего
-                const userResult = await db.getQuery()(
-                  'INSERT INTO users (created_at, role) VALUES (NOW(), $1) RETURNING id',
-                  ['user']
-                );
-                userId = userResult.rows[0].id;
+                const userResult = await encryptedDb.saveData('users', {
+                  created_at: new Date(),
+                  role: 'user'
+                });
+                userId = userResult.id;
 
                 // Связываем Telegram с новым пользователем
-                await db.getQuery()(
-                  `INSERT INTO user_identities 
-                   (user_id, provider, provider_id, created_at) 
-                   VALUES ($1, $2, $3, NOW())`,
-                  [userId, 'telegram', ctx.from.id.toString()]
-                );
+                await encryptedDb.saveData('user_identities', {
+                  user_id: userId,
+                  provider: 'telegram',
+                  provider_id: ctx.from.id.toString()
+                });
 
                 // Если был гостевой ID, связываем его с новым пользователем
                 if (providerId) {
-                  await db.getQuery()(
-                    `INSERT INTO guest_user_mapping 
-                     (user_id, guest_id) 
-                     VALUES ($1, $2)
-                     ON CONFLICT (guest_id) DO UPDATE SET user_id = $1`,
-                    [userId, providerId]
-                  );
+                  await encryptedDb.saveData('guest_user_mapping', {
+                    user_id: userId,
+                    guest_id: providerId
+                  }, {
+                    user_id: userId
+                  });
                 }
 
                 logger.info(`Created new user ${userId} with Telegram account ${ctx.from.id}`);
@@ -180,25 +184,35 @@ async function getBot() {
                 logger.info(`[TelegramBot] Role for user ${userId} determined as: ${userRole}`);
 
                 // Опционально: Обновить роль в таблице users
-                const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
-                if (currentUser.rows.length > 0 && currentUser.rows[0].role !== userRole) {
-                  await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [userRole, userId]);
+                const currentUser = await encryptedDb.getData('users', {
+                  id: userId
+                }, 1);
+                if (currentUser.length > 0 && currentUser[0].role !== userRole) {
+                  await encryptedDb.saveData('users', {
+                    role: userRole
+                  }, {
+                    id: userId
+                  });
                   logger.info(`[TelegramBot] Updated user role in DB to ${userRole}`);
                 }
               } else {
                 logger.info(`[TelegramBot] No linked wallet found for user ${userId}. Checking current DB role.`);
                 // Если кошелька нет, берем текущую роль из базы
-                const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
-                if (currentUser.rows.length > 0) {
-                  userRole = currentUser.rows[0].role;
+                const currentUser = await encryptedDb.getData('users', {
+                  id: userId
+                }, 1);
+                if (currentUser.length > 0) {
+                  userRole = currentUser[0].role;
                 }
               }
             } catch (roleCheckError) {
               logger.error(`[TelegramBot] Error checking admin role for user ${userId}:`, roleCheckError);
               // В случае ошибки берем роль из базы или оставляем 'user'
               try {
-                  const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
-                  if (currentUser.rows.length > 0) { userRole = currentUser.rows[0].role; }
+                  const currentUser = await encryptedDb.getData('users', {
+                    id: userId
+                  }, 1);
+                  if (currentUser.length > 0) { userRole = currentUser[0].role; }
               } catch (dbError) { /* ignore */ }
             }
           } else {
@@ -214,37 +228,28 @@ async function getBot() {
           try {
             // Ищем сессию, где есть userId и она не истекла (проверка expires_at)
             // Сортируем по expires_at DESC чтобы взять самую "свежую", если их несколько
-            const sessionResult = await db.getQuery()(
-               `SELECT sid FROM session 
-                WHERE sess ->> 'userId' = $1 
-                AND expire > NOW()
-                ORDER BY expire DESC 
-                LIMIT 1`, 
-               [userId?.toString()] // Используем optional chaining и преобразуем в строку
-            );
+            const sessionResult = await encryptedDb.getData('session', {
+              'sess->>userId': userId?.toString()
+            }, 1, 'expire', 'DESC');
             
-            if (sessionResult.rows.length > 0) {
-              activeSessionId = sessionResult.rows[0].sid;
+            if (sessionResult.length > 0) {
+              activeSessionId = sessionResult[0].sid;
               logger.info(`[telegramBot] Found active session ID ${activeSessionId} for user ${userId}`);
 
               // Обновляем найденную сессию в базе данных, добавляя/перезаписывая данные Telegram
-              const updateResult = await db.getQuery()(
-                `UPDATE session 
-                 SET sess = (sess::jsonb || $1::jsonb)::json
-                 WHERE sid = $2`,
-                [
-                  JSON.stringify({
-                    // authenticated: true, // Не перезаписываем, т.к. сессия уже должна быть аутентифицирована
-                    authType: 'telegram', // Обновляем тип аутентификации
-                    telegramId: ctx.from.id.toString(),
-                    telegramUsername: ctx.from.username,
-                    telegramFirstName: ctx.from.first_name,
-                    role: userRole, // Записываем определенную роль
-                    // userId: userId?.toString() // userId уже должен быть в сессии
-                  }),
-                  activeSessionId // Обновляем по найденному session ID
-                ]
-              );
+              const updateResult = await encryptedDb.saveData('session', {
+                sess: JSON.stringify({
+                  // authenticated: true, // Не перезаписываем, т.к. сессия уже должна быть аутентифицирована
+                  authType: 'telegram', // Обновляем тип аутентификации
+                  telegramId: ctx.from.id.toString(),
+                  telegramUsername: ctx.from.username,
+                  telegramFirstName: ctx.from.first_name,
+                  role: userRole, // Записываем определенную роль
+                  // userId: userId?.toString() // userId уже должен быть в сессии
+                })
+              }, {
+                sid: activeSessionId
+              });
               
               if (updateResult.rowCount > 0) {
                   logger.info(`[telegramBot] Session ${activeSessionId} updated successfully with Telegram data for user ${userId}`);
@@ -277,31 +282,36 @@ async function getBot() {
         }
         return;
       }
-      // 3. Всё остальное — чат с ИИ-ассистентом
+      
+            // 3. Всё остальное — чат с ИИ-ассистентом
       try {
         const telegramId = ctx.from.id.toString();
+        
         // 1. Найти или создать пользователя
         const { userId, role } = await identityService.findOrCreateUserWithRole('telegram', telegramId);
         if (await isUserBlocked(userId)) {
           await ctx.reply('Вы заблокированы. Сообщения не принимаются.');
           return;
         }
+        
         // 1.1 Найти или создать беседу
-        let conversationResult = await db.getQuery()(
-          'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-          [userId]
-        );
+        let conversationResult = await encryptedDb.getData('conversations', {
+          user_id: userId
+        }, 1, 'updated_at', 'DESC', 'created_at', 'DESC');
         let conversation;
-        if (conversationResult.rows.length === 0) {
+        if (conversationResult.length === 0) {
           const title = `Чат с пользователем ${userId}`;
-          const newConv = await db.getQuery()(
-            'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
-            [userId, title]
-          );
-          conversation = newConv.rows[0];
+          const newConv = await encryptedDb.saveData('conversations', {
+            user_id: userId,
+            title: title,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          conversation = newConv;
         } else {
-          conversation = conversationResult.rows[0];
+          conversation = conversationResult[0];
         }
+        
         // 2. Сохранять все сообщения с conversation_id
         let content = text;
         let attachmentMeta = {};
@@ -330,80 +340,171 @@ async function getBot() {
           mimeType = ctx.message.video.mime_type || 'video/mp4';
           fileSize = ctx.message.video.file_size;
         }
+        
+        // Асинхронная загрузка файлов
         if (fileId) {
-          // Скачиваем файл
-          const fileLink = await ctx.telegram.getFileLink(fileId);
-          const res = await fetch(fileLink.href);
-          attachmentBuffer = await res.buffer();
-          attachmentMeta = {
-            attachment_filename: fileName,
-            attachment_mimetype: mimeType,
-            attachment_size: fileSize,
-            attachment_data: attachmentBuffer
-          };
+          try {
+            const fileLink = await ctx.telegram.getFileLink(fileId);
+            const res = await fetch(fileLink.href);
+            attachmentBuffer = await res.buffer();
+            attachmentMeta = {
+              attachment_filename: fileName,
+              attachment_mimetype: mimeType,
+              attachment_size: fileSize,
+              attachment_data: attachmentBuffer
+            };
+          } catch (fileError) {
+            logger.error('[TelegramBot] Error downloading file:', fileError);
+            // Продолжаем без файла
+          }
         }
+        
         // Сохраняем сообщение в БД
-        await db.getQuery()(
-          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11)`,
-          [userId, conversation.id, 'user', content, 'telegram', role, 'in',
-            attachmentMeta.attachment_filename || null,
-            attachmentMeta.attachment_mimetype || null,
-            attachmentMeta.attachment_size || null,
-            attachmentMeta.attachment_data || null
-          ]
-        );
+        if (!conversation || !conversation.id) {
+          logger.error(`[TelegramBot] Conversation is undefined or has no id for user ${userId}`);
+          await ctx.reply('Произошла ошибка при создании диалога. Попробуйте позже.');
+          return;
+        }
+        
+        const userMessage = await encryptedDb.saveData('messages', {
+          user_id: userId,
+          conversation_id: conversation.id,
+          sender_type: 'user',
+          content: content,
+          channel: 'telegram',
+          role: role,
+          direction: 'in',
+          created_at: new Date(),
+          attachment_filename: attachmentMeta.attachment_filename || null,
+          attachment_mimetype: attachmentMeta.attachment_mimetype || null,
+          attachment_size: attachmentMeta.attachment_size || null,
+          attachment_data: attachmentMeta.attachment_data || null
+        });
+        
+        // Отправляем WebSocket уведомление о пользовательском сообщении
+        try {
+          const decryptedUserMessage = await encryptedDb.getData('messages', { id: userMessage.id }, 1);
+          if (decryptedUserMessage && decryptedUserMessage[0]) {
+            broadcastChatMessage(decryptedUserMessage[0], userId);
+          }
+        } catch (wsError) {
+          logger.error('[TelegramBot] WebSocket notification error for user message:', wsError);
+        }
 
         if (await isUserBlocked(userId)) {
           logger.info(`[TelegramBot] Пользователь ${userId} заблокирован — ответ ИИ не отправляется.`);
           return;
         }
 
-        // 3. Получить ответ от ИИ (RAG + LLM)
-        const aiSettings = await aiAssistantSettingsService.getSettings();
-        let ragTableId = null;
-        if (aiSettings && aiSettings.selected_rag_tables) {
-          ragTableId = Array.isArray(aiSettings.selected_rag_tables)
-            ? aiSettings.selected_rag_tables[0]
-            : aiSettings.selected_rag_tables;
-        }
-        let aiResponse;
-        if (ragTableId) {
-          // Сначала ищем ответ через RAG
-          const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: content });
-          if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.3) {
-            aiResponse = ragResult.answer;
-          } else {
-            aiResponse = await generateLLMResponse({
-              userQuestion: content,
-              context: ragResult && ragResult.context ? ragResult.context : '',
-              answer: ragResult && ragResult.answer ? ragResult.answer : '',
-              systemPrompt: aiSettings ? aiSettings.system_prompt : '',
-              history: null,
-              model: aiSettings ? aiSettings.model : undefined,
-              language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
-            });
+        // 3. Получить ответ от ИИ (RAG + LLM) - асинхронно
+        const aiResponsePromise = (async () => {
+          const aiSettings = await aiAssistantSettingsService.getSettings();
+          let ragTableId = null;
+          if (aiSettings && aiSettings.selected_rag_tables) {
+            ragTableId = Array.isArray(aiSettings.selected_rag_tables)
+              ? aiSettings.selected_rag_tables[0]
+              : aiSettings.selected_rag_tables;
           }
-        } else {
-          aiResponse = await aiAssistant.getResponse(content, 'auto');
-        }
+          
+          // Загружаем историю сообщений для контекста (ограничиваем до 5 сообщений)
+          let history = null;
+          try {
+            const recentMessages = await encryptedDb.getData('messages', {
+              conversation_id: conversation.id
+            }, 5, 'created_at DESC');
+            
+            if (recentMessages && recentMessages.length > 0) {
+              // Преобразуем сообщения в формат для AI
+              history = recentMessages.reverse().map(msg => ({
+                role: msg.sender_type === 'user' ? 'user' : 'assistant',
+                content: msg.content || '' // content уже расшифрован encryptedDb
+              }));
+            }
+          } catch (historyError) {
+            logger.error('[TelegramBot] Error loading message history:', historyError);
+          }
+          
+          let aiResponse;
+          if (ragTableId) {
+            // Сначала ищем ответ через RAG
+            const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: content });
+            if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.3) {
+              aiResponse = ragResult.answer;
+            } else {
+              aiResponse = await generateLLMResponse({
+                userQuestion: content,
+                context: ragResult && ragResult.context ? ragResult.context : '',
+                answer: ragResult && ragResult.answer ? ragResult.answer : '',
+                systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+                history: history,
+                model: aiSettings ? aiSettings.model : undefined,
+                language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+              });
+            }
+          } else {
+            // Используем системный промпт из настроек, если RAG не используется
+            const systemPrompt = aiSettings ? aiSettings.system_prompt : '';
+            aiResponse = await aiAssistant.getResponse(content, 'auto', history, systemPrompt);
+          }
+          
+          return aiResponse;
+        })();
+        
+        // Ждем ответ от ИИ с таймаутом
+        const aiResponse = await Promise.race([
+          aiResponsePromise,
+                  new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI response timeout')), 60000)
+        )
+        ]);
+        
         // 4. Сохранить ответ в БД с conversation_id
-        await db.getQuery()(
-          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-          [userId, conversation.id, 'assistant', aiResponse, 'telegram', role, 'out']
-        );
+        const aiMessage = await encryptedDb.saveData('messages', {
+          user_id: userId,
+          conversation_id: conversation.id,
+          sender_type: 'assistant',
+          content: aiResponse,
+          channel: 'telegram',
+          role: role,
+          direction: 'out',
+          created_at: new Date()
+        });
+        
         // 5. Отправить ответ пользователю
         await ctx.reply(aiResponse);
+        
+        // 6. Отправить WebSocket уведомление
+        try {
+          const decryptedAiMessage = await encryptedDb.getData('messages', { id: aiMessage.id }, 1);
+          if (decryptedAiMessage && decryptedAiMessage[0]) {
+            broadcastChatMessage(decryptedAiMessage[0], userId);
+          }
+        } catch (wsError) {
+          logger.error('[TelegramBot] WebSocket notification error:', wsError);
+        }
       } catch (error) {
         logger.error('[TelegramBot] Ошибка при обработке сообщения:', error);
         await ctx.reply('Произошла ошибка при обработке вашего сообщения. Попробуйте позже.');
       }
     });
 
-    // Запуск бота
-    await botInstance.launch();
-    logger.info('[TelegramBot] Бот запущен');
+    // Запуск бота с таймаутом
+    console.log('[TelegramBot] Before botInstance.launch()');
+    try {
+      // Запускаем бота с таймаутом
+      const launchPromise = botInstance.launch();
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Telegram bot launch timeout')), 10000); // 10 секунд таймаут
+      });
+      
+      await Promise.race([launchPromise, timeoutPromise]);
+      console.log('[TelegramBot] After botInstance.launch()');
+      logger.info('[TelegramBot] Бот запущен');
+    } catch (error) {
+      console.error('[TelegramBot] Error launching bot:', error);
+      // Не выбрасываем ошибку, чтобы не блокировать запуск сервера
+      console.log('[TelegramBot] Bot launch failed, but continuing...');
+    }
   }
 
   return botInstance;
@@ -436,12 +537,12 @@ async function initTelegramAuth(session) {
       const guestId = session.guestId || tempId;
 
       // Связываем гостевой ID с текущим пользователем
-      await db.getQuery()(
-        `INSERT INTO guest_user_mapping (user_id, guest_id) 
-         VALUES ($1, $2) 
-         ON CONFLICT (guest_id) DO UPDATE SET user_id = $1`,
-        [session.userId, guestId]
-      );
+      await encryptedDb.saveData('guest_user_mapping', {
+        user_id: session.userId,
+        guest_id: guestId
+      }, {
+        user_id: session.userId
+      });
 
       logger.info(
         `[initTelegramAuth] Linked guestId ${guestId} to authenticated user ${session.userId}`
@@ -475,8 +576,8 @@ function clearSettingsCache() {
 }
 
 async function getAllBots() {
-  const { rows } = await db.getQuery()('SELECT id, bot_username FROM telegram_settings ORDER BY id');
-  return rows;
+  const settings = await encryptedDb.getData('telegram_settings', {}, 1, 'id');
+  return settings;
 }
 
 module.exports = {

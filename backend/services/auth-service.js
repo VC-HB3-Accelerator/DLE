@@ -10,6 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
+const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { ethers } = require('ethers');
@@ -34,13 +35,20 @@ class AuthService {
       if (!message || !signature || !address) return false;
 
       // Нормализуем входящий адрес
-      const normalizedAddress = ethers.getAddress(address).toLowerCase();
+      const normalizedAddress = ethers.getAddress(address);
 
       // Восстанавливаем адрес из подписи
       const recoveredAddress = ethers.verifyMessage(message, signature);
 
+      // Логируем для отладки
+      logger.info(`[verifySignature] Message: ${message}`);
+      logger.info(`[verifySignature] Signature: ${signature}`);
+      logger.info(`[verifySignature] Expected address: ${normalizedAddress}`);
+      logger.info(`[verifySignature] Recovered address: ${recoveredAddress}`);
+      logger.info(`[verifySignature] Addresses match: ${ethers.getAddress(recoveredAddress) === normalizedAddress}`);
+
       // Сравниваем нормализованные адреса
-      return ethers.getAddress(recoveredAddress).toLowerCase() === normalizedAddress;
+      return ethers.getAddress(recoveredAddress) === normalizedAddress;
     } catch (error) {
       logger.error('Error in signature verification:', error);
       return false;
@@ -58,43 +66,40 @@ class AuthService {
       const normalizedAddress = ethers.getAddress(address).toLowerCase();
 
       // Ищем пользователя по адресу в таблице user_identities
-      const userResult = await db.getQuery()(
-        `
-        SELECT u.* FROM users u 
-        JOIN user_identities ui ON u.id = ui.user_id 
-        WHERE ui.provider = 'wallet' AND ui.provider_id = $1
-      `,
-        [normalizedAddress]
-      );
+      const identities = await encryptedDb.getData('user_identities', {
+        provider: 'wallet',
+        provider_id: normalizedAddress
+      }, 1);
 
-      if (userResult.rows.length > 0) {
-        const user = userResult.rows[0];
+      if (identities.length > 0) {
+        const user = await encryptedDb.getData('users', { id: identities[0].user_id }, 1);
+        if (user.length === 0) {
+          throw new Error('User not found');
+        }
+        const userData = user[0];
 
         // Проверяем роль администратора при каждой аутентификации
         const isAdmin = await checkAdminRole(normalizedAddress);
 
         // Если статус админа изменился, обновляем роль в базе данных
-        if (user.role === 'admin' && !isAdmin) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', user.id]);
-          logger.info(`Updated user ${user.id} role to user (admin tokens no longer present)`);
-          return { userId: user.id, isAdmin: false };
-        } else if (user.role !== 'admin' && isAdmin) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
-          logger.info(`Updated user ${user.id} role to admin (admin tokens found)`);
-          return { userId: user.id, isAdmin: true };
+        if (userData.role === 'admin' && !isAdmin) {
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', userData.id]);
+          logger.info(`Updated user ${userData.id} role to user (admin tokens no longer present)`);
+          return { userId: userData.id, isAdmin: false };
+        } else if (userData.role !== 'admin' && isAdmin) {
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userData.id]);
+          logger.info(`Updated user ${userData.id} role to admin (admin tokens found)`);
+          return { userId: userData.id, isAdmin: true };
         }
 
         return {
-          userId: user.id,
-          isAdmin: user.role === 'admin',
+          userId: userData.id,
+          isAdmin: userData.role === 'admin',
         };
       }
 
       // Если пользователь не найден, создаем нового
-      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
-        'user',
-      ]);
-
+      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', ['user']);
       const userId = newUserResult.rows[0].id;
 
       // Добавляем идентификатор кошелька (всегда в нижнем регистре)
@@ -209,7 +214,7 @@ class AuthService {
   }
 
   // Создание сессии с проверкой роли
-  async createSession(session, { userId, authenticated, authType, guestId, address }) {
+  async createSession(session, { userId, authenticated, authType, guestId, address, isAdmin }) {
     try {
       // Если пользователь аутентифицирован, обрабатываем гостевые сообщения
       if (authenticated && guestId) {
@@ -220,6 +225,7 @@ class AuthService {
       session.userId = userId;
       session.authenticated = authenticated;
       session.authType = authType;
+      session.isAdmin = isAdmin || false;
 
       // Сохраняем адрес кошелька если есть
       if (address) {
@@ -237,6 +243,7 @@ class AuthService {
             authenticated,
             authType,
             address,
+            isAdmin: isAdmin || false,
             cookie: session.cookie,
           }),
           session.id,
@@ -328,7 +335,7 @@ class AuthService {
       const email = result.providerId;
 
       // Проверяем, существует ли пользователь с таким email
-      const userResult = await db.getQuery()('SELECT * FROM users WHERE id = $1', [userId]);
+      const userResult = await db.getQuery()('SELECT id, role, created_at, updated_at, is_blocked, blocked_at, preferred_language FROM users WHERE id = $1', [userId]);
 
       if (userResult.rows.length === 0) {
         return { verified: false };
@@ -428,9 +435,23 @@ class AuthService {
 
       // Если есть гостевой ID в сессии, сохраняем его для нового пользователя
       if (session.guestId && isNewUser) {
+        // Получаем ключ шифрования
+        const fs = require('fs');
+        const path = require('path');
+        let encryptionKey = 'default-key';
+        
+        try {
+          const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+          if (fs.existsSync(keyPath)) {
+            encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+          }
+        } catch (keyError) {
+          console.error('Error reading encryption key:', keyError);
+        }
+
         await db.getQuery()(
-          'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-          [userId, session.guestId]
+          'INSERT INTO guest_user_mapping (user_id, guest_id_encrypted) VALUES ($1, encrypt_text($2, $3)) ON CONFLICT (guest_id_encrypted) DO UPDATE SET user_id = $1',
+          [userId, session.guestId, encryptionKey]
         );
         logger.info(`[verifyTelegramAuth] Saved guest ID ${session.guestId} for user ${userId}`);
       }
@@ -460,13 +481,27 @@ class AuthService {
       // Обновляем роль пользователя в базе данных, если есть админские токены
       if (isAdmin) {
         try {
+          // Получаем ключ шифрования
+          const fs = require('fs');
+          const path = require('path');
+          let encryptionKey = 'default-key';
+          
+          try {
+            const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+            if (fs.existsSync(keyPath)) {
+              encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+            }
+          } catch (keyError) {
+            console.error('Error reading encryption key:', keyError);
+          }
+
           // Находим userId по адресу
           const userResult = await db.getQuery()(
             `
             SELECT u.id FROM users u 
             JOIN user_identities ui ON u.id = ui.user_id 
-            WHERE ui.provider = 'wallet' AND ui.provider_id = $1`,
-            [address.toLowerCase()]
+            WHERE ui.provider_encrypted = encrypt_text('wallet', $2) AND ui.provider_id_encrypted = encrypt_text($1, $2)`,
+            [address.toLowerCase(), encryptionKey]
           );
 
           if (userResult.rows.length > 0) {
@@ -486,8 +521,8 @@ class AuthService {
             `
             SELECT u.id, u.role FROM users u 
             JOIN user_identities ui ON u.id = ui.user_id 
-            WHERE ui.provider = 'wallet' AND ui.provider_id = $1`,
-            [address.toLowerCase()]
+            WHERE ui.provider_encrypted = encrypt_text('wallet', $2) AND ui.provider_id_encrypted = encrypt_text($1, $2)`,
+            [address.toLowerCase(), encryptionKey]
           );
 
           if (userResult.rows.length > 0 && userResult.rows[0].role === 'admin') {
@@ -531,7 +566,7 @@ class AuthService {
         // Удаляем старые идентификаторы
         for (const identity of identitiesToDelete) {
           await db.getQuery()('DELETE FROM user_identities WHERE id = $1', [identity.id]);
-          logger.info(`Deleted old guest identity: ${identity.identity_value}`);
+          logger.info(`Deleted old guest identity: ${identity.id}`);
         }
       }
     } catch (error) {
@@ -546,11 +581,8 @@ class AuthService {
    */
   async getUserIdentities(userId) {
     try {
-      const result = await db.getQuery()(
-        'SELECT * FROM user_identities WHERE user_id = $1 ORDER BY created_at DESC',
-        [userId]
-      );
-      return result.rows;
+      const identities = await encryptedDb.getData('user_identities', { user_id: userId }, null, 'created_at DESC');
+      return identities;
     } catch (error) {
       logger.error('[getUserIdentities] Error:', error);
       throw error;
@@ -611,13 +643,13 @@ class AuthService {
       );
 
       // Проверяем, существует ли уже такой идентификатор
-      const existingResult = await db.getQuery()(
-        `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
-        [provider, normalizedProviderId]
-      );
+      const existingIdentities = await encryptedDb.getData('user_identities', {
+        provider: provider,
+        provider_id: normalizedProviderId
+      }, 1);
 
-      if (existingResult.rows.length > 0) {
-        const existingUserId = existingResult.rows[0].user_id;
+      if (existingIdentities.length > 0) {
+        const existingUserId = existingIdentities[0].user_id;
 
         // Если идентификатор уже принадлежит этому пользователю, ничего не делаем
         if (existingUserId === userId) {
@@ -779,8 +811,33 @@ class AuthService {
    */
   async getUserTokenBalances(address) {
     if (!address) return [];
-    const tokens = await authTokenService.getAllAuthTokens();
-    const rpcProviders = await rpcProviderService.getAllRpcProviders();
+    
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
+    // Получаем токены и RPC с расшифровкой
+    const tokensResult = await db.getQuery()(
+      'SELECT id, min_balance, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+      [encryptionKey]
+    );
+    const tokens = tokensResult.rows;
+
+    const rpcProvidersResult = await db.getQuery()(
+      'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
+      [encryptionKey]
+    );
+    const rpcProviders = rpcProvidersResult.rows;
     const rpcMap = {};
     for (const rpc of rpcProviders) {
       rpcMap[rpc.network_id] = rpc.rpc_url;
@@ -810,6 +867,41 @@ class AuthService {
       });
     }
     return results;
+  }
+
+  /**
+   * Проверяет nonce для адреса кошелька
+   * @param {string} address - адрес кошелька
+   * @param {string} nonce - nonce для проверки
+   * @returns {Promise<boolean>} - true если nonce валиден
+   */
+  async verifyNonce(address, nonce) {
+    try {
+      // Получаем nonce из базы данных через encryptedDb
+      const nonceData = await encryptedDb.getData('nonces', {
+        identity_value: address.toLowerCase()
+      }, 1);
+
+      if (nonceData.length === 0) {
+        logger.warn(`[verifyNonce] No nonce found for address: ${address}`);
+        return false;
+      }
+
+      // Получаем nonce из результата
+      const storedNonce = nonceData[0].nonce;
+      
+      // Сравниваем с переданным nonce
+      const isValid = storedNonce === nonce;
+      
+      if (!isValid) {
+        logger.warn(`[verifyNonce] Invalid nonce for address: ${address}. Expected: ${storedNonce}, Got: ${nonce}`);
+      }
+
+      return isValid;
+    } catch (error) {
+      logger.error(`[verifyNonce] Error verifying nonce for address ${address}:`, error);
+      return false;
+    }
   }
 }
 

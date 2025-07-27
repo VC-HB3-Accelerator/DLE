@@ -22,29 +22,45 @@ const { isUserBlocked } = require('../utils/userUtils');
 router.get('/', async (req, res) => {
   const userId = req.query.userId;
   const conversationId = req.query.conversationId;
+
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     let result;
     if (conversationId) {
       result = await db.getQuery()(
-        `SELECT id, user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata
+        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data
          FROM messages
          WHERE conversation_id = $1
          ORDER BY created_at ASC`,
-        [conversationId]
+        [conversationId, encryptionKey]
       );
     } else if (userId) {
       result = await db.getQuery()(
-        `SELECT id, user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata
+        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data
          FROM messages
          WHERE user_id = $1
          ORDER BY created_at ASC`,
-        [userId]
+        [userId, encryptionKey]
       );
     } else {
       result = await db.getQuery()(
-        `SELECT id, user_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata
+        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $1) as sender_type, decrypt_text(content_encrypted, $1) as content, decrypt_text(channel_encrypted, $1) as channel, decrypt_text(role_encrypted, $1) as role, decrypt_text(direction_encrypted, $1) as direction, created_at, decrypt_text(attachment_filename_encrypted, $1) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $1) as attachment_mimetype, attachment_size, attachment_data
          FROM messages
-         ORDER BY created_at ASC`
+         ORDER BY created_at ASC`,
+        [encryptionKey]
       );
     }
     res.json(result.rows);
@@ -55,7 +71,22 @@ router.get('/', async (req, res) => {
 
 // POST /api/messages
 router.post('/', async (req, res) => {
-  const { user_id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata } = req.body;
+  const { user_id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data } = req.body;
+
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     // Проверка блокировки пользователя
     if (await isUserBlocked(user_id)) {
@@ -64,8 +95,8 @@ router.post('/', async (req, res) => {
     // Проверка наличия идентификатора для выбранного канала
     if (channel === 'email') {
       const emailIdentity = await db.getQuery()(
-        'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2 LIMIT 1',
-        [user_id, 'email']
+        'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
+        [user_id, 'email', encryptionKey]
       );
       if (emailIdentity.rows.length === 0) {
         return res.status(400).json({ error: 'У пользователя не указан email. Сообщение не отправлено.' });
@@ -73,8 +104,8 @@ router.post('/', async (req, res) => {
     }
     if (channel === 'telegram') {
       const tgIdentity = await db.getQuery()(
-        'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2 LIMIT 1',
-        [user_id, 'telegram']
+        'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
+        [user_id, 'telegram', encryptionKey]
       );
       if (tgIdentity.rows.length === 0) {
         return res.status(400).json({ error: 'У пользователя не привязан Telegram. Сообщение не отправлено.' });
@@ -82,8 +113,8 @@ router.post('/', async (req, res) => {
     }
     if (channel === 'wallet' || channel === 'web3' || channel === 'web') {
       const walletIdentity = await db.getQuery()(
-        'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2 LIMIT 1',
-        [user_id, 'wallet']
+        'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
+        [user_id, 'wallet', encryptionKey]
       );
       if (walletIdentity.rows.length === 0) {
         return res.status(400).json({ error: 'У пользователя не привязан кошелёк. Сообщение не отправлено.' });
@@ -91,16 +122,16 @@ router.post('/', async (req, res) => {
     }
     // 1. Проверяем, есть ли беседа для user_id
     let conversationResult = await db.getQuery()(
-      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-      [user_id]
+      'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+      [user_id, encryptionKey]
     );
     let conversation;
     if (conversationResult.rows.length === 0) {
       // 2. Если нет — создаём новую беседу
       const title = `Чат с пользователем ${user_id}`;
       const newConv = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
-        [user_id, title]
+        'INSERT INTO conversations (user_id, title_encrypted, created_at, updated_at) VALUES ($1, encrypt_text($2, $3), NOW(), NOW()) RETURNING *',
+        [user_id, title, encryptionKey]
       );
       conversation = newConv.rows[0];
     } else {
@@ -108,9 +139,9 @@ router.post('/', async (req, res) => {
     }
     // 3. Сохраняем сообщение с conversation_id
     const result = await db.getQuery()(
-      `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11,$12) RETURNING *`,
-      [user_id, conversation.id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata]
+      `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, created_at, attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
+       VALUES ($1,$2,encrypt_text($3,$12),encrypt_text($4,$12),encrypt_text($5,$12),encrypt_text($6,$12),encrypt_text($7,$12),NOW(),encrypt_text($8,$12),encrypt_text($9,$12),$10,$11) RETURNING *`,
+      [user_id, conversation.id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, encryptionKey]
     );
     // 4. Если это исходящее сообщение для Telegram — отправляем через бота
     if (channel === 'telegram' && direction === 'out') {
@@ -118,8 +149,8 @@ router.post('/', async (req, res) => {
         console.log(`[messages.js] Попытка отправки сообщения в Telegram для user_id=${user_id}`);
         // Получаем Telegram ID пользователя
         const tgIdentity = await db.getQuery()(
-          'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2 LIMIT 1',
-          [user_id, 'telegram']
+          'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
+          [user_id, 'telegram', encryptionKey]
         );
         console.log(`[messages.js] Результат поиска Telegram ID:`, tgIdentity.rows);
         if (tgIdentity.rows.length > 0) {
@@ -144,8 +175,8 @@ router.post('/', async (req, res) => {
       try {
         // Получаем email пользователя
         const emailIdentity = await db.getQuery()(
-          'SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2 LIMIT 1',
-          [user_id, 'email']
+          'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
+          [user_id, 'email', encryptionKey]
         );
         if (emailIdentity.rows.length > 0) {
           const email = emailIdentity.rows[0].provider_id;
@@ -237,24 +268,39 @@ router.post('/broadcast', async (req, res) => {
   if (!user_id || !content) {
     return res.status(400).json({ error: 'user_id и content обязательны' });
   }
+
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     // Получаем все идентификаторы пользователя
     const identitiesRes = await db.getQuery()(
-      'SELECT provider, provider_id FROM user_identities WHERE user_id = $1',
-      [user_id]
+      'SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1',
+      [user_id, encryptionKey]
     );
     const identities = identitiesRes.rows;
     // --- Найти или создать беседу (conversation) ---
     let conversationResult = await db.getQuery()(
-      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-      [user_id]
+      'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+      [user_id, encryptionKey]
     );
     let conversation;
     if (conversationResult.rows.length === 0) {
       const title = `Чат с пользователем ${user_id}`;
       const newConv = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
-        [user_id, title]
+        'INSERT INTO conversations (user_id, title_encrypted, created_at, updated_at) VALUES ($1, encrypt_text($2, $3), NOW(), NOW()) RETURNING *',
+        [user_id, title, encryptionKey]
       );
       conversation = newConv.rows[0];
     } else {
@@ -269,9 +315,9 @@ router.post('/broadcast', async (req, res) => {
         await emailBot.sendEmail(email, 'Новое сообщение', content);
         // Сохраняем в messages с conversation_id
         await db.getQuery()(
-          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
-          [user_id, conversation.id, 'admin', content, 'email', 'user', 'out', JSON.stringify({ broadcast: true })]
+          `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, created_at)
+           VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), NOW())`,
+          [user_id, conversation.id, 'admin', content, 'email', 'user', 'out', encryptionKey]
         );
         results.push({ channel: 'email', status: 'sent' });
         sent = true;
@@ -286,9 +332,9 @@ router.post('/broadcast', async (req, res) => {
         const bot = await telegramBot.getBot();
         await bot.telegram.sendMessage(telegram, content);
         await db.getQuery()(
-          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
-          [user_id, conversation.id, 'admin', content, 'telegram', 'user', 'out', JSON.stringify({ broadcast: true })]
+          `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, created_at)
+           VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), NOW())`,
+          [user_id, conversation.id, 'admin', content, 'telegram', 'user', 'out', encryptionKey]
         );
         results.push({ channel: 'telegram', status: 'sent' });
         sent = true;
@@ -301,9 +347,9 @@ router.post('/broadcast', async (req, res) => {
     if (wallet) {
       // Здесь можно реализовать отправку через web3, если нужно
       await db.getQuery()(
-        `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
-        [user_id, conversation.id, 'admin', content, 'wallet', 'user', 'out', JSON.stringify({ broadcast: true })]
+        `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, created_at)
+         VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), NOW())`,
+        [user_id, conversation.id, 'admin', content, 'wallet', 'user', 'out', encryptionKey]
       );
       results.push({ channel: 'wallet', status: 'saved' });
       sent = true;

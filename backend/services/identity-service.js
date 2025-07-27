@@ -12,6 +12,7 @@
 
 console.log('[identity-service] loaded');
 
+const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { getLinkedWallet } = require('./wallet-service');
@@ -53,7 +54,7 @@ class IdentityService {
    * @param {number} userId - ID пользователя
    * @param {string} provider - Тип идентификатора (wallet, email, telegram)
    * @param {string} providerId - Значение идентификатора
-   * @param {boolean} verified - Флаг верификации идентификатора
+   * @param {boolean} verified - Флаг верификации идентификатора (не используется в БД)
    * @returns {Promise<object>} - Результат операции
    */
   async saveIdentity(userId, provider, providerId, verified = true) {
@@ -79,10 +80,10 @@ class IdentityService {
         );
 
         try {
-          await db.getQuery()(
-            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-            [userId, normalizedProviderId]
-          );
+          await encryptedDb.saveData('guest_user_mapping', {
+            user_id: userId,
+            guest_id: normalizedProviderId
+          });
           return { success: true };
         } catch (guestError) {
           logger.error(
@@ -99,54 +100,42 @@ class IdentityService {
         logger.warn(`[IdentityService] Invalid provider type: ${normalizedProvider}`);
         return {
           success: false,
-          error: `Invalid provider type. Allowed types: ${allowedProviders.join(', ')}`,
+          error: `Invalid provider type: ${normalizedProvider}`,
         };
       }
 
-      logger.info(
-        `[IdentityService] Saving identity for user ${userId}: ${normalizedProvider}:${normalizedProviderId}`
-      );
-
       // Проверяем, существует ли уже такой идентификатор
-      const existingResult = await db.getQuery()(
-        `SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2`,
-        [normalizedProvider, normalizedProviderId]
-      );
+      const existingIdentity = await this.findIdentity(userId, normalizedProvider);
+      if (existingIdentity) {
+        // Обновляем существующий идентификатор
+        await encryptedDb.saveData('user_identities', {
+          provider: normalizedProvider,
+          provider_id: normalizedProviderId
+        }, {
+          user_id: userId,
+          provider: normalizedProvider
+        });
 
-      if (existingResult.rows.length > 0) {
-        const existingUserId = existingResult.rows[0].user_id;
-
-        // Если идентификатор уже принадлежит этому пользователю, ничего не делаем
-        if (existingUserId === userId) {
           logger.info(
-            `[IdentityService] Identity ${normalizedProvider}:${normalizedProviderId} already exists for user ${userId}`
+          `[IdentityService] Updated identity for user ${userId}: ${normalizedProvider}=${normalizedProviderId}`
           );
-        } else {
-          // Если идентификатор принадлежит другому пользователю, логируем это
-          logger.warn(
-            `[IdentityService] Identity ${normalizedProvider}:${normalizedProviderId} already belongs to user ${existingUserId}, not user ${userId}`
-          );
-          return {
-            success: false,
-            error: `Identity already belongs to another user (${existingUserId})`,
-          };
-        }
       } else {
-        // Создаем новую запись
-        await db.getQuery()(
-          `INSERT INTO user_identities (user_id, provider, provider_id) 
-           VALUES ($1, $2, $3)`,
-          [userId, normalizedProvider, normalizedProviderId]
-        );
+        // Создаем новый идентификатор
+        await encryptedDb.saveData('user_identities', {
+          user_id: userId,
+          provider: normalizedProvider,
+          provider_id: normalizedProviderId
+        });
+
         logger.info(
-          `[IdentityService] Created new identity ${normalizedProvider}:${normalizedProviderId} for user ${userId}`
+          `[IdentityService] Saved new identity for user ${userId}: ${normalizedProvider}=${normalizedProviderId}`
         );
       }
 
       return { success: true };
     } catch (error) {
       logger.error(
-        `[IdentityService] Error saving identity ${provider}:${providerId} for user ${userId}:`,
+        `[IdentityService] Error saving identity for user ${userId}:`,
         error
       );
       return { success: false, error: error.message };
@@ -160,18 +149,9 @@ class IdentityService {
    */
   async getUserIdentities(userId) {
     try {
-      if (!userId) {
-        logger.warn('[IdentityService] Missing userId parameter');
-        return [];
-      }
-
-      const result = await db.getQuery()(
-        `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
-        [userId]
-      );
-
-      logger.info(`[IdentityService] Found ${result.rows.length} identities for user ${userId}`);
-      return result.rows;
+      const identities = await encryptedDb.getData('user_identities', { user_id: userId });
+      logger.info(`[IdentityService] Found ${identities.length} identities for user ${userId}`);
+      return identities;
     } catch (error) {
       logger.error(`[IdentityService] Error getting identities for user ${userId}:`, error);
       return [];
@@ -179,121 +159,70 @@ class IdentityService {
   }
 
   /**
-   * Получает все идентификаторы пользователя определенного типа
+   * Получает идентификаторы пользователя по типу провайдера
    * @param {number} userId - ID пользователя
-   * @param {string} provider - Тип идентификатора
+   * @param {string} provider - Тип провайдера
    * @returns {Promise<Array>} - Массив идентификаторов
    */
   async getUserIdentitiesByProvider(userId, provider) {
     try {
-      if (!userId || !provider) {
-        logger.warn(`[IdentityService] Missing parameters: userId=${userId}, provider=${provider}`);
-        return [];
-      }
-
-      const result = await db.getQuery()(
-        `SELECT provider_id FROM user_identities WHERE user_id = $1 AND provider = $2`,
-        [userId, provider]
-      );
-
-      logger.info(
-        `[IdentityService] Found ${result.rows.length} ${provider} identities for user ${userId}`
-      );
-      return result.rows.map((row) => row.provider_id);
+      const identities = await encryptedDb.getData('user_identities', { 
+        user_id: userId, 
+        provider: provider.toLowerCase() 
+      });
+      return identities;
     } catch (error) {
-      logger.error(
-        `[IdentityService] Error getting ${provider} identities for user ${userId}:`,
-        error
-      );
+      logger.error(`[IdentityService] Error getting identities by provider for user ${userId}:`, error);
       return [];
     }
   }
 
   /**
    * Находит пользователя по идентификатору
-   * @param {string} provider - Тип идентификатора
+   * @param {string} provider - Тип провайдера
    * @param {string} providerId - Значение идентификатора
-   * @returns {Promise<object|null>} - Информация о пользователе или null
+   * @returns {Promise<object|null>} - Пользователь или null
    */
   async findUserByIdentity(provider, providerId) {
     try {
-      if (!provider || !providerId) {
-        logger.warn(
-          `[IdentityService] Missing parameters: provider=${provider}, providerId=${providerId}`
-        );
-        return null;
-      }
-
-      // Нормализуем значения
       const { provider: normalizedProvider, providerId: normalizedProviderId } =
         this.normalizeIdentity(provider, providerId);
 
-      const result = await db.getQuery()(
-        `SELECT u.id, u.role FROM users u 
-         JOIN user_identities ui ON u.id = ui.user_id 
-         WHERE ui.provider = $1 AND ui.provider_id = $2`,
-        [normalizedProvider, normalizedProviderId]
-      );
+      const identities = await encryptedDb.getData('user_identities', {
+        provider: normalizedProvider,
+        provider_id: normalizedProviderId
+      }, 1);
 
-      if (result.rows.length === 0) {
-        logger.info(
-          `[IdentityService] No user found with identity ${normalizedProvider}:${normalizedProviderId}`
-        );
+      if (identities.length === 0) {
         return null;
       }
 
-      logger.info(
-        `[IdentityService] Found user ${result.rows[0].id} with identity ${normalizedProvider}:${normalizedProviderId}`
-      );
-      return result.rows[0];
+      const userId = identities[0].user_id;
+      const users = await encryptedDb.getData('users', { id: userId }, 1);
+      
+      return users.length > 0 ? users[0] : null;
     } catch (error) {
-      logger.error(
-        `[IdentityService] Error finding user by identity ${provider}:${providerId}:`,
-        error
-      );
+      logger.error(`[IdentityService] Error finding user by identity:`, error);
       return null;
     }
   }
 
   /**
-   * Находит конкретный идентификатор пользователя по его типу.
-   * Возвращает первую найденную запись.
+   * Находит конкретный идентификатор пользователя
    * @param {number} userId - ID пользователя
-   * @param {string} provider - Тип идентификатора (например, 'wallet', 'email')
-   * @returns {Promise<object|null>} - Объект идентификатора (содержит provider_id) или null
+   * @param {string} provider - Тип провайдера
+   * @returns {Promise<object|null>} - Идентификатор или null
    */
   async findIdentity(userId, provider) {
     try {
-      if (!userId || !provider) {
-        logger.warn(`[IdentityService] Missing parameters for findIdentity: userId=${userId}, provider=${provider}`);
-        return null;
-      }
+      const identities = await encryptedDb.getData('user_identities', {
+        user_id: userId,
+        provider: provider.toLowerCase()
+      }, 1);
 
-      // Нормализуем провайдера
-      const normalizedProvider = provider.toLowerCase();
-
-      const result = await db.getQuery()(
-        `SELECT provider, provider_id, created_at, updated_at 
-         FROM user_identities 
-         WHERE user_id = $1 AND provider = $2 
-         LIMIT 1`,
-        [userId, normalizedProvider]
-      );
-
-      if (result.rows.length === 0) {
-        logger.info(`[IdentityService] No ${normalizedProvider} identity found for user ${userId}`);
-        return null;
-      }
-
-      logger.info(
-        `[IdentityService] Found ${normalizedProvider} identity for user ${userId}: ${result.rows[0].provider_id}`
-      );
-      return result.rows[0]; // Возвращаем всю строку (включая provider_id)
+      return identities.length > 0 ? identities[0] : null;
     } catch (error) {
-      logger.error(
-        `[IdentityService] Error finding ${provider} identity for user ${userId}:`,
-        error
-      );
+      logger.error(`[IdentityService] Error finding identity for user ${userId}:`, error);
       return null;
     }
   }
@@ -337,10 +266,10 @@ class IdentityService {
       // Сохраняем гостевые идентификаторы в guest_user_mapping
       if (session.guestId) {
         try {
-          await db.getQuery()(
-            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-            [userId, session.guestId]
-          );
+          await encryptedDb.saveData('guest_user_mapping', {
+            user_id: userId,
+            guest_id: session.guestId
+          });
           results.push({ type: 'guest', result: { success: true } });
         } catch (error) {
           logger.error(`[IdentityService] Error saving guest ID for user ${userId}:`, error);
@@ -350,10 +279,10 @@ class IdentityService {
 
       if (session.previousGuestId && session.previousGuestId !== session.guestId) {
         try {
-          await db.getQuery()(
-            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-            [userId, session.previousGuestId]
-          );
+          await encryptedDb.saveData('guest_user_mapping', {
+            user_id: userId,
+            guest_id: session.previousGuestId
+          });
           results.push({ type: 'previousGuest', result: { success: true } });
         } catch (error) {
           logger.error(
@@ -392,92 +321,75 @@ class IdentityService {
         return { success: false, error: 'Missing required parameters' };
       }
 
-      // Начинаем транзакцию
-      const client = await db.pool.connect();
-      try {
-        await client.query('BEGIN');
-
         // Получаем все идентификаторы исходного пользователя
-        const identitiesResult = await client.query(
-          `SELECT provider, provider_id FROM user_identities WHERE user_id = $1`,
-          [fromUserId]
-        );
+      const identities = await encryptedDb.getData('user_identities', { user_id: fromUserId });
 
         // Переносим каждый идентификатор
-        for (const identity of identitiesResult.rows) {
-          await client.query(
-            `INSERT INTO user_identities (user_id, provider, provider_id)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (provider, provider_id) DO NOTHING`,
-            [toUserId, identity.provider, identity.provider_id]
-          );
+      for (const identity of identities) {
+        // Создаем новый идентификатор для целевого пользователя
+        await encryptedDb.saveData('user_identities', {
+          user_id: toUserId,
+          provider: identity.provider,
+          provider_id: identity.provider_id
+        });
 
           // Удаляем старый идентификатор
-          await client.query(
-            `DELETE FROM user_identities
-             WHERE user_id = $1 AND provider = $2 AND provider_id = $3`,
-            [fromUserId, identity.provider, identity.provider_id]
-          );
+        await encryptedDb.deleteData('user_identities', {
+          user_id: fromUserId,
+          provider: identity.provider,
+          provider_id: identity.provider_id
+        });
         }
 
-        // Мигрируем гостевые идентификаторы из новой таблицы guest_user_mapping
-        const guestMappingsResult = await client.query(
-          `SELECT guest_id, processed FROM guest_user_mapping WHERE user_id = $1`,
-          [fromUserId]
-        );
+      // Мигрируем гостевые идентификаторы
+      const guestMappings = await encryptedDb.getData('guest_user_mapping', { user_id: fromUserId });
 
         // Переносим каждый гостевой идентификатор
-        for (const mapping of guestMappingsResult.rows) {
-          await client.query(
-            `INSERT INTO guest_user_mapping (user_id, guest_id, processed)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (guest_id) DO UPDATE 
-             SET user_id = $1, processed = EXCLUDED.processed OR guest_user_mapping.processed`,
-            [toUserId, mapping.guest_id, mapping.processed]
-          );
+      for (const mapping of guestMappings) {
+        await encryptedDb.saveData('guest_user_mapping', {
+          user_id: toUserId,
+          guest_id: mapping.guest_id,
+          processed: mapping.processed
+        });
         }
 
         // Удаляем старые гостевые маппинги
-        await client.query(`DELETE FROM guest_user_mapping WHERE user_id = $1`, [fromUserId]);
+      await encryptedDb.deleteData('guest_user_mapping', { user_id: fromUserId });
 
         // Переносим все сообщения
-        await client.query(
-          `UPDATE messages 
-           SET user_id = $1 
-           WHERE user_id = $2`,
-          [toUserId, fromUserId]
-        );
+      const messages = await encryptedDb.getData('messages', { user_id: fromUserId });
+      for (const message of messages) {
+        await encryptedDb.saveData('messages', {
+          ...message,
+          user_id: toUserId
+        });
+        await encryptedDb.deleteData('messages', { id: message.id });
+      }
 
         // Переносим все диалоги
-        await client.query(
-          `UPDATE conversations 
-           SET user_id = $1 
-           WHERE user_id = $2`,
-          [toUserId, fromUserId]
-        );
+      const conversations = await encryptedDb.getData('conversations', { user_id: fromUserId });
+      for (const conversation of conversations) {
+        await encryptedDb.saveData('conversations', {
+          ...conversation,
+          user_id: toUserId
+        });
+        await encryptedDb.deleteData('conversations', { id: conversation.id });
+      }
 
         // Переносим настройки пользователя
-        await client.query(
-          `UPDATE user_preferences
-           SET user_id = $1
-           WHERE user_id = $2`,
-          [toUserId, fromUserId]
-        );
-
-        // Завершаем транзакцию
-        await client.query('COMMIT');
+      const preferences = await encryptedDb.getData('user_preferences', { user_id: fromUserId });
+      for (const preference of preferences) {
+        await encryptedDb.saveData('user_preferences', {
+          ...preference,
+          user_id: toUserId
+        });
+        await encryptedDb.deleteData('user_preferences', { id: preference.id });
+      }
 
         logger.info(
           `[IdentityService] Successfully migrated data from user ${fromUserId} to ${toUserId}`
         );
         return { success: true };
-      } catch (error) {
-        await client.query('ROLLBACK');
-        logger.error(`[IdentityService] Transaction error:`, error);
-        return { success: false, error: error.message };
-      } finally {
-        client.release();
-      }
     } catch (error) {
       logger.error(`[IdentityService] Error migrating user data:`, error);
       return { success: false, error: error.message };
@@ -496,14 +408,12 @@ class IdentityService {
       for (const [provider, providerId] of Object.entries(identities)) {
         if (!providerId) continue;
 
-        const result = await db.getQuery()(
-          `SELECT DISTINCT user_id 
-           FROM user_identities 
-           WHERE provider = $1 AND provider_id = $2`,
-          [provider, providerId]
-        );
+        const users = await encryptedDb.getData('user_identities', {
+          provider: provider,
+          provider_id: providerId
+        });
 
-        result.rows.forEach((row) => userIds.add(row.user_id));
+        users.forEach((user) => userIds.add(user.user_id));
       }
 
       return Array.from(userIds);
@@ -527,12 +437,13 @@ class IdentityService {
         return { success: false, error: 'Missing required parameters' };
       }
       const { provider: normalizedProvider, providerId: normalizedProviderId } = this.normalizeIdentity(provider, providerId);
-      const result = await db.getQuery()(
-        `DELETE FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3`,
-        [userId, normalizedProvider, normalizedProviderId]
-      );
+      const result = await encryptedDb.deleteData('user_identities', {
+        user_id: userId,
+        provider: normalizedProvider,
+        provider_id: normalizedProviderId
+      });
       logger.info(`[IdentityService] Deleted identity ${normalizedProvider}:${normalizedProviderId} for user ${userId}`);
-      return { success: true, deleted: result.rowCount };
+      return { success: true, deleted: result.length };
     } catch (error) {
       logger.error(`[IdentityService] Error deleting identity ${provider}:${providerId} for user ${userId}:`, error);
       return { success: false, error: error.message };
@@ -551,8 +462,10 @@ class IdentityService {
     let isNew = false;
     if (!user) {
       // Создаем пользователя
-      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', ['user']);
-      const userId = newUserResult.rows[0].id;
+      const newUser = await encryptedDb.saveData('users', {
+        role: 'user'
+      });
+      const userId = newUser.id;
       await this.saveIdentity(userId, provider, providerId, true);
       user = { id: userId, role: 'user' };
       isNew = true;
@@ -567,7 +480,11 @@ class IdentityService {
       role = isAdmin ? 'admin' : 'user';
       // Обновляем роль в users, если изменилась
       if (user.role !== role) {
-        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, user.id]);
+        await encryptedDb.saveData('users', {
+          role: role
+        }, {
+          id: user.id
+        });
       }
     }
     return { userId: user.id, role, isNew };

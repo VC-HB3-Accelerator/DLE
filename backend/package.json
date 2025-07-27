@@ -31,11 +31,13 @@
     "@openzeppelin/contracts": "5.2.0",
     "archiver": "^7.0.1",
     "axios": "^1.8.4",
+    "better-queue": "^3.8.12",
     "connect-pg-simple": "^10.0.0",
     "cookie": "^1.0.2",
     "cors": "^2.8.5",
     "cron": "^4.1.0",
     "csurf": "^1.11.0",
+    "csv-parser": "^3.0.0",
     "dotenv": "^16.0.3",
     "ethers": "6.13.5",
     "express": "^4.21.2",
@@ -59,8 +61,7 @@
     "utf7": "^1.0.2",
     "viem": "^2.23.15",
     "winston": "^3.17.0",
-    "ws": "^8.18.1",
-    "csv-parser": "^3.0.0"
+    "ws": "^8.18.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

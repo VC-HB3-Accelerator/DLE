@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const db = require('../db');
+const encryptedDb = require('../services/encryptedDatabaseService');
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 const { requireAuth } = require('../middleware/auth');
@@ -44,24 +45,49 @@ router.get('/nonce', async (req, res) => {
 
     // Генерируем случайный nonce
     const nonce = crypto.randomBytes(16).toString('hex');
+    logger.info(`[nonce] Generated nonce: ${nonce}`);
 
-    // Проверяем, существует ли уже nonce для этого адреса
-    const existingNonce = await db.getQuery()('SELECT id FROM nonces WHERE identity_value = $1', [
-      address.toLowerCase(),
-    ]);
+    // Используем правильный ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+        logger.info(`[nonce] Using encryption key: ${encryptionKey.substring(0, 10)}...`);
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+    
+    try {
+      // Проверяем, существует ли уже nonce для этого адреса
+      const existingNonces = await db.getQuery()(
+        'SELECT id FROM nonces WHERE identity_value_encrypted = encrypt_text($1, $2)',
+        [address.toLowerCase(), encryptionKey]
+      );
 
-    if (existingNonce.rows.length > 0) {
-      // Обновляем существующий nonce
-      await db.getQuery()(
-        "UPDATE nonces SET nonce = $1, expires_at = NOW() + INTERVAL '15 minutes' WHERE identity_value = $2",
-        [nonce, address.toLowerCase()]
-      );
-    } else {
-      // Создаем новый nonce
-      await db.getQuery()(
-        "INSERT INTO nonces (identity_value, nonce, expires_at) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')",
-        [address.toLowerCase(), nonce]
-      );
+      if (existingNonces.rows.length > 0) {
+        // Обновляем существующий nonce
+        logger.info(`[nonce] Updating existing nonce for address: ${address.toLowerCase()}`);
+        await db.getQuery()(
+          'UPDATE nonces SET nonce_encrypted = encrypt_text($1, $2), expires_at = $3 WHERE id = $4',
+          [nonce, encryptionKey, new Date(Date.now() + 15 * 60 * 1000), existingNonces.rows[0].id]
+        );
+      } else {
+        // Создаем новый nonce
+        logger.info(`[nonce] Creating new nonce for address: ${address.toLowerCase()}`);
+        await db.getQuery()(
+          'INSERT INTO nonces (identity_value_encrypted, nonce_encrypted, expires_at) VALUES (encrypt_text($1, $2), encrypt_text($3, $2), $4)',
+          [address.toLowerCase(), encryptionKey, nonce, new Date(Date.now() + 15 * 60 * 1000)]
+        );
+      }
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      // Fallback: просто возвращаем nonce без сохранения в БД
+      logger.warn(`Nonce ${nonce} generated for address ${address} but not saved to DB due to error`);
     }
 
     logger.info(`Nonce ${nonce} сохранен для адреса ${address}`);
@@ -76,32 +102,94 @@ router.get('/nonce', async (req, res) => {
 // Верификация подписи и создание сессии
 router.post('/verify', async (req, res) => {
   try {
-    const { address, message, signature } = req.body;
+    const { address, signature, nonce, issuedAt } = req.body;
 
     logger.info(`[verify] Verifying signature for address: ${address}`);
+    logger.info(`[verify] Request body:`, JSON.stringify(req.body, null, 2));
+    logger.info(`[verify] Request headers:`, JSON.stringify(req.headers, null, 2));
+    logger.info(`[verify] Raw request body:`, req.body);
+    logger.info(`[verify] Request body type:`, typeof req.body);
+    logger.info(`[verify] Request body keys:`, Object.keys(req.body || {}));
+    logger.info(`[verify] Nonce from request: ${nonce}`);
+    logger.info(`[verify] Address from request: ${address}`);
+    logger.info(`[verify] Signature from request: ${signature}`);
 
     // Сохраняем гостевые ID до проверки
     const guestId = req.session.guestId;
     const previousGuestId = req.session.previousGuestId;
 
-    // Проверяем подпись
-    const isValid = await authService.verifySignature(message, signature, address);
-    if (!isValid) {
-      return res.status(401).json({ success: false, error: 'Invalid signature' });
+    // Нормализуем адрес для использования в запросах
+    const normalizedAddress = ethers.getAddress(address);
+    const normalizedAddressLower = normalizedAddress.toLowerCase();
+
+    // Читаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
     }
 
-    // Нормализуем адрес для использования в запросах
-    const normalizedAddress = ethers.getAddress(address).toLowerCase();
+    // Проверяем nonce в базе данных
+    const nonceResult = await db.getQuery()(
+      'SELECT nonce_encrypted FROM nonces WHERE identity_value_encrypted = encrypt_text($1, $2)',
+      [normalizedAddressLower, encryptionKey]
+    );
+    
+    if (nonceResult.rows.length === 0) {
+      logger.error(`[verify] Nonce not found for address: ${normalizedAddressLower}`);
+      return res.status(401).json({ success: false, error: 'Nonce not found' });
+    }
 
-    // Проверяем nonce
-    const nonceResult = await db.getQuery()('SELECT nonce FROM nonces WHERE identity_value = $1', [
-      normalizedAddress,
-    ]);
-    if (
-      nonceResult.rows.length === 0 ||
-      nonceResult.rows[0].nonce !== message.match(/Nonce: ([^\n]+)/)[1]
-    ) {
+    // Расшифровываем nonce из базы данных
+    const storedNonce = await db.getQuery()(
+      'SELECT decrypt_text(nonce_encrypted, $1) as nonce FROM nonces WHERE identity_value_encrypted = encrypt_text($2, $1)',
+      [encryptionKey, normalizedAddressLower]
+    );
+
+    logger.info(`[verify] Stored nonce from DB: ${storedNonce.rows[0]?.nonce}`);
+    logger.info(`[verify] Nonce from request: ${nonce}`);
+    logger.info(`[verify] Nonce match: ${storedNonce.rows[0]?.nonce === nonce}`);
+
+    if (storedNonce.rows.length === 0 || storedNonce.rows[0].nonce !== nonce) {
+      logger.error(`[verify] Invalid nonce for address: ${normalizedAddressLower}. Expected: ${storedNonce.rows[0]?.nonce}, Got: ${nonce}`);
       return res.status(401).json({ success: false, error: 'Invalid nonce' });
+    }
+
+    // Создаем SIWE сообщение для проверки подписи
+    const domain = 'localhost:5173'; // Используем тот же домен, что и на frontend
+    const origin = req.get('origin') || 'http://localhost:5173';
+    
+    const { SiweMessage } = require('siwe');
+    const message = new SiweMessage({
+      domain,
+      address: normalizedAddress,
+      statement: 'Sign in with Ethereum to the app.',
+      uri: origin,
+      version: '1',
+      chainId: 1,
+      nonce: nonce,
+      issuedAt: issuedAt || new Date().toISOString(),
+      resources: [`${origin}/api/auth/verify`],
+    });
+
+    const messageToSign = message.prepareMessage();
+    
+    logger.info(`[verify] SIWE message for verification: ${messageToSign}`);
+    logger.info(`[verify] Domain: ${domain}, Origin: ${origin}`);
+    logger.info(`[verify] Normalized address: ${normalizedAddress}`);
+
+    // Проверяем подпись
+    const isValid = await authService.verifySignature(messageToSign, signature, normalizedAddress);
+    if (!isValid) {
+      logger.error(`[verify] Invalid signature for address: ${normalizedAddress}`);
+      return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
 
     let userId;

@@ -10,38 +10,44 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const TABLE = 'ai_assistant_rules';
 
 async function getAllRules() {
-  const { rows } = await db.getQuery()(`SELECT * FROM ${TABLE} ORDER BY id`);
-  return rows;
+  const rules = await encryptedDb.getData(TABLE, {}, null, 'id');
+  return rules;
 }
 
 async function getRuleById(id) {
-  const { rows } = await db.getQuery()(`SELECT * FROM ${TABLE} WHERE id = $1`, [id]);
-  return rows[0] || null;
+  const rules = await encryptedDb.getData(TABLE, { id: id }, 1);
+  return rules[0] || null;
 }
 
 async function createRule({ name, description, rules }) {
-  const { rows } = await db.getQuery()(
-    `INSERT INTO ${TABLE} (name, description, rules, created_at, updated_at)
-     VALUES ($1, $2, $3, NOW(), NOW()) RETURNING *`,
-    [name, description, rules]
-  );
-  return rows[0];
+  const rule = await encryptedDb.saveData(TABLE, {
+    name: name,
+    description: description,
+    rules: rules,
+    created_at: new Date(),
+    updated_at: new Date()
+  });
+  return rule;
 }
 
 async function updateRule(id, { name, description, rules }) {
-  const { rows } = await db.getQuery()(
-    `UPDATE ${TABLE} SET name = $1, description = $2, rules = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
-    [name, description, rules, id]
-  );
-  return rows[0];
+  const rule = await encryptedDb.saveData(TABLE, {
+    name: name,
+    description: description,
+    rules: rules,
+    updated_at: new Date()
+  }, {
+    id: id
+  });
+  return rule;
 }
 
 async function deleteRule(id) {
-  await db.getQuery()(`DELETE FROM ${TABLE} WHERE id = $1`, [id]);
+  await encryptedDb.deleteData(TABLE, { id: id });
 }
 
 module.exports = { getAllRules, getRuleById, createRule, updateRule, deleteRule }; 

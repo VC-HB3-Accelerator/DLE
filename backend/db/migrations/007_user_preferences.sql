@@ -22,25 +22,26 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id);
 
--- Базовые настройки
-DO $$ 
-BEGIN 
-  INSERT INTO user_preferences (user_id, preference_key, preference_value, metadata)
-  SELECT id, 'language', 'ru', '{"available": ["ru", "en"]}'::jsonb
-  FROM users u
-  WHERE NOT EXISTS (
-    SELECT 1 FROM user_preferences 
-    WHERE preference_key = 'language' AND user_id = u.id
-  );
-END $$;
+-- Базовые настройки (пропускаем, так как колонки зашифрованы)
+-- Данные будут добавлены через encryptedDatabaseService
+-- DO $$ 
+-- BEGIN 
+--   INSERT INTO user_preferences (user_id, preference_key, preference_value, metadata)
+--   SELECT id, 'language', 'ru', '{"available": ["ru", "en"]}'::jsonb
+--   FROM users u
+--   WHERE NOT EXISTS (
+--     SELECT 1 FROM user_preferences 
+--     WHERE preference_key = 'language' AND user_id = u.id
+--   );
+-- END $$;
 
-DO $$ 
-BEGIN 
-  INSERT INTO user_preferences (user_id, preference_key, preference_value, metadata)
-  SELECT id, 'notifications', 'true', '{"channels": ["email", "telegram"]}'::jsonb
-  FROM users u
-  WHERE NOT EXISTS (
-    SELECT 1 FROM user_preferences 
-    WHERE preference_key = 'notifications' AND user_id = u.id
-  );
-END $$;
+-- DO $$ 
+-- BEGIN 
+--   INSERT INTO user_preferences (user_id, preference_key, preference_value, metadata)
+--   SELECT id, 'notifications', 'true', '{"channels": ["email", "telegram"]}'::jsonb
+--   FROM users u
+--   WHERE NOT EXISTS (
+--     SELECT 1 FROM user_preferences 
+--     WHERE preference_key = 'notifications' AND user_id = u.id
+--   );
+-- END $$;

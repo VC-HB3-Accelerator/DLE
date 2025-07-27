@@ -78,6 +78,20 @@ router.get('/', requireAuth, async (req, res, next) => {
     } = req.query;
     const adminId = req.user && req.user.id;
 
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
     // --- Формируем условия ---
     const where = [];
     const params = [];
@@ -97,9 +111,10 @@ router.get('/', requireAuth, async (req, res, next) => {
     if (contactType !== 'all') {
       where.push(`EXISTS (
         SELECT 1 FROM user_identities ui
-        WHERE ui.user_id = u.id AND ui.provider = $${idx++}
+        WHERE ui.user_id = u.id AND ui.provider_encrypted = encrypt_text($${idx++}, $${idx++})
       )`);
       params.push(contactType);
+      params.push(encryptionKey);
     }
 
     // Фильтр по поиску
@@ -107,10 +122,11 @@ router.get('/', requireAuth, async (req, res, next) => {
       where.push(`(
         LOWER(u.first_name) LIKE $${idx} OR
         LOWER(u.last_name) LIKE $${idx} OR
-        EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND LOWER(ui.provider_id) LIKE $${idx})
+        EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND LOWER(decrypt_text(ui.provider_id_encrypted, $${idx + 1})) LIKE $${idx})
       )`);
       params.push(`%${search.toLowerCase()}%`);
-      idx++;
+      params.push(encryptionKey);
+      idx += 2;
     }
 
     // Фильтр по блокировке
@@ -123,11 +139,12 @@ router.get('/', requireAuth, async (req, res, next) => {
     // --- Основной SQL ---
     let sql = `
       SELECT u.id, u.first_name, u.last_name, u.created_at, u.preferred_language, u.is_blocked,
-        (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'email' LIMIT 1) AS email,
-        (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'telegram' LIMIT 1) AS telegram,
-        (SELECT provider_id FROM user_identities WHERE user_id = u.id AND provider = 'wallet' LIMIT 1) AS wallet
+        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
+        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('telegram', $${idx++}) LIMIT 1) AS telegram,
+        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('wallet', $${idx++}) LIMIT 1) AS wallet
       FROM users u
     `;
+    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
 
     // Фильтрация по тегам
     if (tagIds) {
@@ -330,16 +347,31 @@ router.delete('/:id', async (req, res) => {
 // Получить пользователя по id
 router.get('/:id', async (req, res, next) => {
   const userId = req.params.id;
+
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     const query = db.getQuery();
     // Получаем пользователя
-    const userResult = await query('SELECT id, first_name, last_name, created_at, preferred_language, is_blocked FROM users WHERE id = $1', [userId]);
+    const userResult = await query('SELECT id, decrypt_text(first_name_encrypted, $2) as first_name, decrypt_text(last_name_encrypted, $2) as last_name, created_at, preferred_language, is_blocked FROM users WHERE id = $1', [userId, encryptionKey]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     const user = userResult.rows[0];
     // Получаем идентификаторы
-    const identitiesResult = await query('SELECT provider, provider_id FROM user_identities WHERE user_id = $1', [userId]);
+    const identitiesResult = await query('SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1', [userId, encryptionKey]);
     const identityMap = {};
     for (const id of identitiesResult.rows) {
       identityMap[id.provider] = id.provider_id;
@@ -362,11 +394,26 @@ router.get('/:id', async (req, res, next) => {
 // POST /api/users
 router.post('/', async (req, res) => {
   const { first_name, last_name, preferred_language } = req.body;
+  
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     const result = await db.getQuery()(
-      `INSERT INTO users (first_name, last_name, preferred_language, created_at)
-       VALUES ($1, $2, $3, NOW()) RETURNING *`,
-      [first_name, last_name, JSON.stringify(preferred_language || [])]
+      `INSERT INTO users (first_name_encrypted, last_name_encrypted, preferred_language, created_at)
+       VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3, NOW()) RETURNING *`,
+      [first_name, last_name, JSON.stringify(preferred_language || []), encryptionKey]
     );
     broadcastContactsUpdate();
     res.json({ success: true, user: result.rows[0] });
@@ -377,6 +424,20 @@ router.post('/', async (req, res) => {
 
 // Массовый импорт контактов
 router.post('/import', requireAuth, async (req, res) => {
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
   try {
     const contacts = req.body;
     if (!Array.isArray(contacts)) {
@@ -397,15 +458,15 @@ router.post('/import', requireAuth, async (req, res) => {
         let userId = null;
         let foundUser = null;
         if (c.email) {
-          const r = await dbq('SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2', ['email', c.email.toLowerCase()]);
+          const r = await dbq('SELECT user_id FROM user_identities WHERE provider_encrypted = encrypt_text($1, $3) AND provider_id_encrypted = encrypt_text($2, $3)', ['email', c.email.toLowerCase(), encryptionKey]);
           if (r.rows.length) foundUser = r.rows[0].user_id;
         }
         if (!foundUser && c.telegram) {
-          const r = await dbq('SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2', ['telegram', c.telegram]);
+          const r = await dbq('SELECT user_id FROM user_identities WHERE provider_encrypted = encrypt_text($1, $3) AND provider_id_encrypted = encrypt_text($2, $3)', ['telegram', c.telegram, encryptionKey]);
           if (r.rows.length) foundUser = r.rows[0].user_id;
         }
         if (!foundUser && c.wallet) {
-          const r = await dbq('SELECT user_id FROM user_identities WHERE provider = $1 AND provider_id = $2', ['wallet', c.wallet]);
+          const r = await dbq('SELECT user_id FROM user_identities WHERE provider_encrypted = encrypt_text($1, $3) AND provider_id_encrypted = encrypt_text($2, $3)', ['wallet', c.wallet, encryptionKey]);
           if (r.rows.length) foundUser = r.rows[0].user_id;
         }
         if (foundUser) {
@@ -413,11 +474,11 @@ router.post('/import', requireAuth, async (req, res) => {
           updated++;
           // Обновляем имя, если нужно
           if (first_name || last_name) {
-            await dbq('UPDATE users SET first_name = COALESCE($1, first_name), last_name = COALESCE($2, last_name) WHERE id = $3', [first_name, last_name, userId]);
+            await dbq('UPDATE users SET first_name_encrypted = COALESCE(encrypt_text($1, $4), first_name_encrypted), last_name_encrypted = COALESCE(encrypt_text($2, $4), last_name_encrypted) WHERE id = $3', [first_name, last_name, userId, encryptionKey]);
           }
         } else {
           // Создаём нового пользователя
-          const ins = await dbq('INSERT INTO users (first_name, last_name, created_at) VALUES ($1, $2, NOW()) RETURNING id', [first_name, last_name]);
+          const ins = await dbq('INSERT INTO users (first_name_encrypted, last_name_encrypted, created_at) VALUES (encrypt_text($1, $3), encrypt_text($2, $3), NOW()) RETURNING id', [first_name, last_name, encryptionKey]);
           userId = ins.rows[0].id;
           added++;
         }

@@ -10,39 +10,56 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 
 async function getAllRpcProviders() {
-  const { rows } = await db.getQuery()('SELECT * FROM rpc_providers ORDER BY id');
-  return rows;
+  const providers = await encryptedDb.getData('rpc_providers', {}, null, 'id');
+  return providers;
 }
 
 async function saveAllRpcProviders(rpcConfigs) {
-  await db.getQuery()('DELETE FROM rpc_providers');
+  // Удаляем все существующие провайдеры
+  await encryptedDb.deleteData('rpc_providers', {});
+  
+  // Сохраняем новые провайдеры
   for (const cfg of rpcConfigs) {
-    await db.query(
-      'INSERT INTO rpc_providers (network_id, rpc_url, chain_id) VALUES ($1, $2, $3)',
-      [cfg.networkId, cfg.rpcUrl, cfg.chainId || null]
-    );
+    await encryptedDb.saveData('rpc_providers', {
+      network_id: cfg.networkId,
+      rpc_url: cfg.rpcUrl,
+      chain_id: cfg.chainId || null
+    });
   }
 }
 
 async function upsertRpcProvider(cfg) {
-  await db.query(
-    `INSERT INTO rpc_providers (network_id, rpc_url, chain_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (network_id) DO UPDATE SET rpc_url=EXCLUDED.rpc_url, chain_id=EXCLUDED.chain_id`,
-    [cfg.networkId, cfg.rpcUrl, cfg.chainId || null]
-  );
+  // Проверяем, существует ли провайдер
+  const existing = await encryptedDb.getData('rpc_providers', { network_id: cfg.networkId }, 1);
+  
+  if (existing.length > 0) {
+    // Обновляем существующий провайдер
+    await encryptedDb.saveData('rpc_providers', {
+      rpc_url: cfg.rpcUrl,
+      chain_id: cfg.chainId || null
+    }, {
+      network_id: cfg.networkId
+    });
+  } else {
+    // Создаем новый провайдер
+    await encryptedDb.saveData('rpc_providers', {
+      network_id: cfg.networkId,
+      rpc_url: cfg.rpcUrl,
+      chain_id: cfg.chainId || null
+    });
+  }
 }
 
 async function deleteRpcProvider(networkId) {
-  await db.getQuery()('DELETE FROM rpc_providers WHERE network_id = $1', [networkId]);
+  await encryptedDb.deleteData('rpc_providers', { network_id: networkId });
 }
 
 async function getRpcUrlByNetworkId(networkId) {
-  const { rows } = await db.getQuery()('SELECT rpc_url FROM rpc_providers WHERE network_id = $1', [networkId]);
-  return rows[0]?.rpc_url || null;
+  const providers = await encryptedDb.getData('rpc_providers', { network_id: networkId }, 1);
+  return providers[0]?.rpc_url || null;
 }
 
 module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId }; 

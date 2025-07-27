@@ -11,7 +11,7 @@
  */
 
 const logger = require('../utils/logger');
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const { processGuestMessages } = require('../routes/chat');
 
 /**
@@ -50,11 +50,8 @@ class SessionService {
   async linkGuestMessages(session, userId) {
     try {
       // Получаем все гостевые ID для текущего пользователя из таблицы
-      const guestIdsResult = await db.getQuery()(
-        'SELECT guest_id FROM guest_user_mapping WHERE user_id = $1',
-        [userId]
-      );
-      const userGuestIds = guestIdsResult.rows.map((row) => row.guest_id);
+      const guestIdsResult = await encryptedDb.getData('guest_user_mapping', { user_id: userId });
+      const userGuestIds = guestIdsResult.map((row) => row.guest_id);
 
       // Собираем все гостевые ID, которые нужно обработать
       const guestIdsToProcess = new Set();
@@ -66,10 +63,10 @@ class SessionService {
           guestIdsToProcess.add(session.guestId);
 
           // Записываем связь с пользователем в новую таблицу
-          await db.getQuery()(
-            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-            [userId, session.guestId]
-          );
+          await encryptedDb.saveData('guest_user_mapping', {
+            user_id: userId,
+            guest_id: session.guestId
+          });
         }
       }
 
@@ -80,10 +77,10 @@ class SessionService {
           guestIdsToProcess.add(session.previousGuestId);
 
           // Записываем связь с пользователем в новую таблицу
-          await db.getQuery()(
-            'INSERT INTO guest_user_mapping (user_id, guest_id) VALUES ($1, $2) ON CONFLICT (guest_id) DO UPDATE SET user_id = $1',
-            [userId, session.previousGuestId]
-          );
+          await encryptedDb.saveData('guest_user_mapping', {
+            user_id: userId,
+            guest_id: session.previousGuestId
+          });
         }
       }
 
@@ -98,24 +95,18 @@ class SessionService {
       // Логируем только если есть что обрабатывать
       if (guestIdsToProcess.size > 0) {
         logger.info(
-          `[linkGuestMessages] Processing ${guestIdsToProcess.size} guest IDs for user ${userId}`
+          `[SessionService] Linking ${guestIdsToProcess.size} guest IDs to user ${userId}: ${Array.from(guestIdsToProcess).join(', ')}`
         );
+
+        // Обрабатываем сообщения для каждого гостевого ID
+        for (const guestId of guestIdsToProcess) {
+          await this.processGuestMessagesWrapper(userId, guestId);
+        }
       }
 
-      // Обрабатываем все собранные гостевые ID
-      for (const guestId of guestIdsToProcess) {
-        await this.processGuestMessagesWrapper(userId, guestId);
-
-        // Помечаем guestId как обработанный в базе данных
-        await db.getQuery()(
-          'UPDATE guest_user_mapping SET processed = true WHERE guest_id = $1',
-          [guestId]
-        );
-      }
-
-      return { success: true };
+      return { success: true, processedCount: guestIdsToProcess.size };
     } catch (error) {
-      logger.error('[linkGuestMessages] Error:', error);
+      logger.error(`[SessionService] Error linking guest messages:`, error);
       return { success: false, error: error.message };
     }
   }
@@ -127,12 +118,9 @@ class SessionService {
    */
   async isGuestIdProcessed(guestId) {
     try {
-      const result = await db.getQuery()(
-        'SELECT processed FROM guest_user_mapping WHERE guest_id = $1',
-        [guestId]
-      );
+      const result = await encryptedDb.getData('guest_user_mapping', { guest_id: guestId });
       
-      return result.rows.length > 0 && result.rows[0].processed === true;
+      return result.length > 0 && result[0].processed === true;
     } catch (error) {
       logger.error(`[isGuestIdProcessed] Error checking guest ID ${guestId}:`, error);
       return false;
@@ -208,17 +196,14 @@ class SessionService {
 
       logger.info(`[SessionService] Attempting to retrieve session ${sessionId}`);
 
-      const result = await db.getQuery()(
-        'SELECT sess FROM session WHERE sid = $1',
-        [sessionId]
-      );
+      const result = await encryptedDb.getData('session', { sid: sessionId });
 
-      if (result.rows.length === 0) {
+      if (result.length === 0) {
         logger.info(`[SessionService] No session found with ID ${sessionId}`);
         return null;
       }
 
-      const sessionData = result.rows[0].sess;
+      const sessionData = result[0].sess;
       logger.info(`[SessionService] Retrieved session data for ${sessionId}`);
 
       return sessionData;
@@ -294,13 +279,16 @@ class SessionService {
       logger.info('[SessionService] Starting cleanup of processedGuestIds from sessions');
       
       // Используем один SQL-запрос для обновления всех сессий
-      const result = await db.getQuery()(
-        `UPDATE session 
-         SET sess = (sess::jsonb - 'processedGuestIds')::json
-         WHERE sess::text LIKE '%"processedGuestIds"%'`
-      );
+      const result = await encryptedDb.getData('session', { sess: { $regex: '.*"processedGuestIds":' } });
       
-      logger.info(`[SessionService] Cleaned processedGuestIds from ${result.rowCount} sessions`);
+      for (const session of result) {
+        const sessJson = JSON.parse(session.sess);
+        delete sessJson.processedGuestIds;
+        session.sess = JSON.stringify(sessJson);
+        await encryptedDb.saveData('session', session);
+      }
+      
+      logger.info(`[SessionService] Cleaned processedGuestIds from ${result.length} sessions`);
       return true;
     } catch (error) {
       logger.error('[SessionService] Error during cleanup:', error);

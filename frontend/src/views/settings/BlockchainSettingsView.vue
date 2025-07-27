@@ -396,6 +396,8 @@ const dleDeploymentSettings = reactive({
   selectedIsicCodes: [], // <<< Для хранения массива выбранных кодов ISIC
 });
 
+
+
 // Добавляем переменную useCustomGas для управления отображением пользовательских настроек газа
 const useCustomGas = ref(false);
 
@@ -667,6 +669,8 @@ const deployDLE = async () => {
     isDeploying.value = false;
   }
 };
+
+
 
 const validateDLEForm = () => {
   // Проверяем обязательные поля
@@ -1397,4 +1401,6 @@ h3 {
 .mb-gt-total {
   margin-bottom: 2.5rem;
 }
+
+
 </style> 

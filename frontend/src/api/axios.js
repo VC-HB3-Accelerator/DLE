@@ -32,7 +32,7 @@ api.interceptors.request.use(
 );
 
 // Добавляем перехватчик ответов для обработки ошибок
-axios.interceptors.response.use(
+api.interceptors.response.use(
   (response) => {
     // Проверяем, что ответ действительно JSON
     if (response.headers['content-type'] && 

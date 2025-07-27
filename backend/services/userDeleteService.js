@@ -10,26 +10,25 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 
 async function deleteUserById(userId) {
   console.log('[DELETE] Вызван deleteUserById для userId:', userId);
-  const query = db.getQuery();
   try {
-    await query('BEGIN');
     console.log('[DELETE] Начинаем удаление user_identities для userId:', userId);
-    const resIdentities = await query('DELETE FROM user_identities WHERE user_id = $1', [userId]);
-    console.log('[DELETE] Удалено user_identities:', resIdentities.rowCount);
+    const resIdentities = await encryptedDb.deleteData('user_identities', { user_id: userId });
+    console.log('[DELETE] Удалено user_identities:', resIdentities.length);
+    
     console.log('[DELETE] Начинаем удаление messages для userId:', userId);
-    const resMessages = await query('DELETE FROM messages WHERE user_id = $1', [userId]);
-    console.log('[DELETE] Удалено messages:', resMessages.rowCount);
+    const resMessages = await encryptedDb.deleteData('messages', { user_id: userId });
+    console.log('[DELETE] Удалено messages:', resMessages.length);
+    
     console.log('[DELETE] Начинаем удаление пользователя из users:', userId);
-    const result = await query('DELETE FROM users WHERE id = $1 RETURNING *', [userId]);
-    console.log('[DELETE] Результат удаления пользователя:', result.rowCount, result.rows);
-    await query('COMMIT');
-    return result.rowCount;
+    const result = await encryptedDb.deleteData('users', { id: userId });
+    console.log('[DELETE] Результат удаления пользователя:', result.length, result);
+    
+    return result.length;
   } catch (e) {
-    await query('ROLLBACK');
     console.error('[DELETE] Ошибка при удалении пользователя:', e);
     throw e;
   }

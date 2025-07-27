@@ -59,10 +59,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Создаем триггер
-CREATE TRIGGER check_admin_role_trigger
-AFTER INSERT OR UPDATE ON user_identities
-FOR EACH ROW
-EXECUTE FUNCTION check_admin_role();
+-- CREATE TRIGGER check_admin_role_trigger
+-- AFTER INSERT OR UPDATE ON user_identities
+-- FOR EACH ROW
+-- EXECUTE FUNCTION check_admin_role();
+
+-- Триггер отключен, так как проверка роли админа происходит в JavaScript коде
+-- и триггер вызывает ошибку с зашифрованными полями provider_encrypted
 
 -- Сбрасываем все роли на user
 UPDATE users SET role = 'user'::user_role;

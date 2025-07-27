@@ -11,6 +11,7 @@
  */
 
 console.log('[EmailBot] emailBot.js loaded');
+const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const nodemailer = require('nodemailer');
 const Imap = require('imap');
@@ -31,7 +32,24 @@ class EmailBotService {
   }
 
   async getSettingsFromDb() {
-    const { rows } = await db.getQuery()('SELECT * FROM email_settings ORDER BY id LIMIT 1');
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+    
+    const { rows } = await db.getQuery()(
+      'SELECT id, smtp_port, imap_port, created_at, updated_at, decrypt_text(smtp_host_encrypted, $1) as smtp_host, decrypt_text(smtp_user_encrypted, $1) as smtp_user, decrypt_text(smtp_password_encrypted, $1) as smtp_password, decrypt_text(imap_host_encrypted, $1) as imap_host, decrypt_text(from_email_encrypted, $1) as from_email FROM email_settings ORDER BY id LIMIT 1',
+      [encryptionKey]
+    );
     if (!rows.length) throw new Error('Email settings not found in DB');
     return rows[0];
   }
@@ -160,43 +178,68 @@ class EmailBotService {
                         return;
                       }
                       // 1.1 Найти или создать беседу
-                      let conversationResult = await db.getQuery()(
-                        'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-                        [userId]
-                      );
+                                             let conversationResult = await encryptedDb.getData(
+                         'conversations',
+                         { user_id: userId },
+                         1,
+                         'updated_at DESC, created_at DESC'
+                       );
                       let conversation;
-                      if (conversationResult.rows.length === 0) {
+                      if (conversationResult.length === 0) {
                         const title = `Чат с пользователем ${userId}`;
-                        const newConv = await db.getQuery()(
-                          'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
-                          [userId, title]
-                        );
-                        conversation = newConv.rows[0];
+                                                 const newConv = await encryptedDb.saveData(
+                           'conversations',
+                           { user_id: userId, title: title, created_at: new Date(), updated_at: new Date() }
+                          );
+                         conversation = newConv;
                       } else {
-                        conversation = conversationResult.rows[0];
+                        conversation = conversationResult[0];
                       }
+                      
+                      // Проверяем, что conversation создан успешно
+                      if (!conversation || !conversation.id) {
+                        logger.error(`[EmailBot] Conversation is undefined or has no id for user ${userId}`);
+                        return;
+                      }
+                      
                       // 2. Сохранять все сообщения с conversation_id
                       let hasAttachments = parsed.attachments && parsed.attachments.length > 0;
                       if (hasAttachments) {
                         for (const att of parsed.attachments) {
-                          await db.getQuery()(
-                            `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, attachment_filename, attachment_mimetype, attachment_size, attachment_data, metadata)
-                             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12)`,
-                            [userId, conversation.id, 'user', text, 'email', role, 'in',
-                              att.filename,
-                              att.contentType,
-                              att.size,
-                              att.content,
-                              JSON.stringify({ subject, html })
-                            ]
-                          );
+                                                     await encryptedDb.saveData(
+                             'messages',
+                             {
+                               user_id: userId,
+                               conversation_id: conversation.id,
+                               sender_type: 'user',
+                               content: text,
+                               channel: 'email',
+                               role: role,
+                               direction: 'in',
+                               created_at: new Date(),
+                               attachment_filename: att.filename,
+                               attachment_mimetype: att.contentType,
+                               attachment_size: att.size,
+                               attachment_data: att.content,
+                               metadata: JSON.stringify({ subject, html })
+                             }
+                            );
                         }
                       } else {
-                        await db.getQuery()(
-                          `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
-                           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
-                          [userId, conversation.id, 'user', text, 'email', role, 'in', JSON.stringify({ subject, html })]
-                        );
+                                                 await encryptedDb.saveData(
+                           'messages',
+                           {
+                             user_id: userId,
+                             conversation_id: conversation.id,
+                             sender_type: 'user',
+                             content: text,
+                             channel: 'email',
+                             role: role,
+                             direction: 'in',
+                             created_at: new Date(),
+                             metadata: JSON.stringify({ subject, html })
+                           }
+                          );
                       }
                       // 3. Получить ответ от ИИ (RAG + LLM)
                       const aiSettings = await aiAssistantSettingsService.getSettings();
@@ -231,11 +274,20 @@ class EmailBotService {
                         return;
                       }
                       // 4. Сохранить ответ в БД с conversation_id
-                      await db.getQuery()(
-                        `INSERT INTO messages (user_id, conversation_id, sender_type, content, channel, role, direction, created_at, metadata)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
-                        [userId, conversation.id, 'assistant', aiResponse, 'email', role, 'out', JSON.stringify({ subject, html })]
-                      );
+                                             await encryptedDb.saveData(
+                         'messages',
+                         {
+                           user_id: userId,
+                           conversation_id: conversation.id,
+                           sender_type: 'assistant',
+                           content: aiResponse,
+                           channel: 'email',
+                           role: role,
+                           direction: 'out',
+                           created_at: new Date(),
+                           metadata: JSON.stringify({ subject, html })
+                         }
+                        );
                       // 5. Отправить ответ на email
                       await this.sendEmail(fromEmail, 'Re: ' + subject, aiResponse);
                       // После каждого успешного создания пользователя:
@@ -359,10 +411,10 @@ class EmailBotService {
     }
   }
 
-  async getAllEmailSettings() {
-    const { rows } = await db.getQuery()('SELECT id, from_email FROM email_settings ORDER BY id');
-    return rows;
-  }
+      async getAllEmailSettings() {
+     const settings = await encryptedDb.getData('email_settings', {}, null, 'id');
+     return settings;
+    }
 }
 
 console.log('[EmailBot] module.exports = EmailBotService');
