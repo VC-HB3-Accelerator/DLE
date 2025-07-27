@@ -104,6 +104,7 @@ export const connectWallet = async () => {
       address: normalizedAddress,
       signature,
       nonce,
+      issuedAt: new Date().toISOString(),
     };
     console.log('Request data:', requestData);
     

@@ -80,7 +80,7 @@ export async function connectWithWallet() {
     console.log('Requesting signature...');
     const signature = await window.ethereum.request({
       method: 'personal_sign',
-      params: [message, address],
+      params: [message, address.toLowerCase()],
     });
 
     console.log('Got signature:', signature);
