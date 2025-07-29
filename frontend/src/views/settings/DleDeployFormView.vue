@@ -325,6 +325,20 @@
                 <small class="form-help">3-10 символов для токена управления (Governance Token)</small>
               </div>
 
+              <!-- Координаты -->
+              <div class="form-group">
+                <label class="form-label" for="coordinates">Координаты (широта, долгота):</label>
+                <input 
+                  type="text" 
+                  id="coordinates" 
+                  v-model="dleSettings.coordinates" 
+                  class="form-control" 
+                  placeholder="Например: 55.7558,37.6176"
+                  pattern="^-?\d+\.\d+,-?\d+\.\d+$"
+                >
+                <small class="form-help">Координаты в формате "широта,долгота" (например: 55.7558,37.6176)</small>
+              </div>
+
               <!-- Партнеры и распределение токенов -->
               <div class="partners-section">
                 <h4>Партнеры и распределение токенов</h4>
@@ -761,6 +775,11 @@
             <strong>🏢 КПП:</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}
           </div>
           
+          <!-- Координаты -->
+          <div v-if="dleSettings.coordinates" class="preview-item">
+            <strong>📍 Координаты:</strong> {{ dleSettings.coordinates }}
+          </div>
+          
           <!-- Кнопка деплоя смарт-контрактов -->
           <div class="deploy-section">
             <div class="deploy-buttons">
@@ -843,6 +862,7 @@ const dleSettings = reactive({
   // Устаревшие поля (для совместимости)
   deployNetwork: '',      // Заменено на selectedNetworks
   privateKey: '',         // Заменено на privateKeys объект
+  coordinates: '',        // Координаты для DLE
 });
 
 // Состояние UI (минимально необходимое)
@@ -2156,6 +2176,88 @@ const maskedPrivateKey = computed(() => {
   const end = dleSettings.privateKey.substring(dleSettings.privateKey.length - 4);
   return `${start}...${end}`;
 });
+
+// Функция деплоя смарт-контрактов DLE
+const deploySmartContracts = async () => {
+  try {
+    // Валидация данных
+    if (!isFormValid.value) {
+      alert('Пожалуйста, заполните все обязательные поля');
+      return;
+    }
+
+    // Подготовка данных для деплоя
+    const deployData = {
+      // Основная информация DLE
+      name: dleSettings.name,
+      symbol: dleSettings.tokenSymbol,
+      location: dleSettings.addressData.fullAddress || 'Не указан',
+      coordinates: dleSettings.coordinates || '0,0',
+      jurisdiction: parseInt(dleSettings.jurisdiction) || 0,
+      oktmo: dleSettings.selectedOktmo || '',
+      okvedCodes: dleSettings.selectedOkved || [],
+      kpp: dleSettings.kppCode || '',
+      
+      // Настройки кворума
+      quorumPercentage: dleSettings.governanceQuorum || 51,
+      
+      // Партнеры и токены
+      initialPartners: dleSettings.partners.map(p => p.address).filter(addr => addr),
+      initialAmounts: dleSettings.partners.map(p => p.amount).filter(amount => amount > 0),
+      
+      // Мульти-чейн настройки
+      supportedChainIds: dleSettings.selectedNetworks || [],
+      
+      // Текущая цепочка (будет установлена при деплое)
+      currentChainId: dleSettings.selectedNetworks[0] || 1
+    };
+
+    console.log('Данные для деплоя DLE:', deployData);
+
+    // Вызов API для деплоя
+    const response = await axios.post('/api/dle-v2', deployData);
+    
+    if (response.data.success) {
+      alert('✅ DLE успешно развернут!');
+      
+      // Сохраняем адрес контракта
+      dleSettings.predictedAddress = response.data.data?.contractAddress || 'Адрес будет доступен после деплоя';
+      
+      // Перенаправляем на страницу управления
+      router.push('/management/dle-management');
+    } else {
+      alert('❌ Ошибка при деплое: ' + response.data.error);
+    }
+    
+  } catch (error) {
+    console.error('Ошибка деплоя DLE:', error);
+    alert('❌ Ошибка при деплое смарт-контракта: ' + error.message);
+  }
+};
+
+// Валидация формы
+const isFormValid = computed(() => {
+  return (
+    dleSettings.jurisdiction &&
+    dleSettings.name &&
+    dleSettings.tokenSymbol ||
+    dleSettings.tokenStandard !== 'ERC20' ||
+    dleSettings.partners.length > 0 &&
+    dleSettings.partners.every(partner => partner.address && partner.amount > 0) &&
+    dleSettings.governanceQuorum > 0 &&
+    dleSettings.governanceQuorum <= 100 &&
+    dleSettings.selectedNetworks.length > 0 &&
+    // Валидация координат
+    validateCoordinates(dleSettings.coordinates)
+  );
+});
+
+// Функция валидации координат
+const validateCoordinates = (coordinates) => {
+  if (!coordinates) return true; // Координаты не обязательны
+  const coordRegex = /^-?\d+\.\d+,-?\d+\.\d+$/;
+  return coordRegex.test(coordinates);
+};
 </script>
 
 <style scoped>

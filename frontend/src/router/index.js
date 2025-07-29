@@ -171,11 +171,7 @@ const routes = [
     name: 'contacts-list',
     component: () => import('../views/ContactsView.vue')
   },
-  {
-    path: '/dle-management',
-    name: 'dle-management',
-    component: () => import('../views/DleManagementView.vue')
-  },
+
   {
     path: '/settings/ai/telegram',
     name: 'telegram-settings',
@@ -224,9 +220,15 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/management/dle-management',
+    name: 'management-dle-management',
+    component: () => import('../views/smartcontracts/DleManagementView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/management/proposals',
     name: 'management-proposals',
-    component: () => import('../views/smartcontracts/ProposalsView.vue'),
+    component: () => import('../views/smartcontracts/DleProposalsView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -244,7 +246,13 @@ const routes = [
   {
     path: '/management/modules',
     name: 'management-modules',
-    component: () => import('../views/smartcontracts/ModulesView.vue'),
+    component: () => import('../views/smartcontracts/DleModulesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/management/multisig',
+    name: 'management-multisig',
+    component: () => import('../views/smartcontracts/DleMultisigView.vue'),
     meta: { requiresAuth: true }
   },
   {

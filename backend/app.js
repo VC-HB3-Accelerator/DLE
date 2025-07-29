@@ -77,7 +77,7 @@ const tokensRouter = require('./routes/tokens');
 const isicRoutes = require('./routes/isic'); // Добавленный импорт
 const kppRoutes = require('./routes/kpp'); // Добавленный импорт КПП кодов
 const geocodingRoutes = require('./routes/geocoding'); // Добавленный импорт
-const dleRoutes = require('./routes/dle'); // Добавляем импорт DLE маршрутов
+
 const dleV2Routes = require('./routes/dleV2'); // Добавляем импорт DLE v2 маршрутов
 const settingsRoutes = require('./routes/settings'); // Добавляем импорт маршрутов настроек
 const tablesRoutes = require('./routes/tables'); // Добавляем импорт таблиц
@@ -200,7 +200,7 @@ app.use('/api/tokens', tokensRouter);
 app.use('/api/isic', isicRoutes); // Добавленное использование роута
 app.use('/api/kpp', kppRoutes); // Добавленное использование роута КПП кодов
 app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
-app.use('/api/dle', dleRoutes); // Добавляем маршрут DLE
+
 app.use('/api/dle-v2', dleV2Routes); // Добавляем маршрут DLE v2
 app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
 app.use('/api/countries', countriesRoutes); // Добавляем маршрут стран

@@ -19,12 +19,7 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="crm-view-container">
-      <div class="dle-management-block">
-        <h2>Управление DLE</h2>
-        <button class="details-btn" @click="goToDleManagement">
-          Подробнее
-        </button>
-      </div>
+
       <div class="crm-contacts-block">
         <h2>Контакты</h2>
         <button class="details-btn" @click="goToContactsList">
@@ -62,10 +57,8 @@ import { useRouter } from 'vue-router';
 import { setToStorage } from '../utils/storage';
 import BaseLayout from '../components/BaseLayout.vue';
 import eventBus from '../utils/eventBus';
-import dleService from '../services/dleService';
 import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
-import DleManagement from '../components/DleManagement.vue';
 
 // Определяем props
 const props = defineProps({
@@ -214,9 +207,7 @@ function goToTables() {
   router.push({ name: 'tables-list' });
 }
 
-function goToDleManagement() {
-  router.push({ name: 'dle-management' });
-}
+
 
 function goToContactsList() {
   router.push({ name: 'contacts-list' });
@@ -293,24 +284,7 @@ strong {
   background: #5a6268;
 }
 
-.dle-management-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.dle-management-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.dle-management-block .details-btn {
-  margin-top: 0;
-}
+
 
 .crm-contacts-block {
   margin: 32px 0 24px 0;

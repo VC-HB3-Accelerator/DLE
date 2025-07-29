@@ -130,7 +130,7 @@ const openModules = () => {
 };
 
 const openDle = () => {
-  router.push('/management/dle');
+  router.push('/management/dle-management');
 };
 
 const openTreasury = () => {

@@ -1,18 +1,36 @@
 #!/bin/bash
 
 # Скрипт мониторинга безопасности для DLE
-# Автоматически блокирует подозрительные IP адреса
+# Автоматически блокирует подозрительные IP адреса и домены
 
 LOG_FILE="/var/log/nginx/access.log"
 BLOCKED_IPS_FILE="/tmp/blocked_ips.txt"
+SUSPICIOUS_DOMAINS_FILE="/tmp/suspicious_domains.txt"
 NGINX_CONTAINER="dapp-frontend-nginx"
 
-# Создаем файл для хранения заблокированных IP
+# Создаем файлы для хранения данных
 touch "$BLOCKED_IPS_FILE"
+touch "$SUSPICIOUS_DOMAINS_FILE"
 
 echo "🔒 Запуск мониторинга безопасности DLE..."
 echo "📊 Логирование атак в: $LOG_FILE"
 echo "🚫 Заблокированные IP: $BLOCKED_IPS_FILE"
+echo "🌐 Подозрительные домены: $SUSPICIOUS_DOMAINS_FILE"
+
+# Список подозрительных доменов
+SUSPICIOUS_DOMAINS=(
+    "akamai-inputs-"
+    "gosipgambar"
+    "gitlab.cloud"
+    "autodiscover.home"
+    "akamai-san"
+    "akamai-inputs-cleanaway"
+    "akamai-inputs-hgmccarterenglish"
+    "akamai-inputs-nbpdnj"
+    "akamai-inputs-rvc"
+    "akamai-inputs-erau"
+    "akamai-inputs-notion"
+)
 
 # Функция для блокировки IP
 block_ip() {
@@ -36,6 +54,25 @@ block_ip() {
     echo "✅ IP $ip заблокирован в nginx"
 }
 
+# Функция для логирования подозрительных доменов
+log_suspicious_domain() {
+    local domain=$1
+    local ip=$2
+    
+    # Проверяем, не логировали ли уже этот домен
+    if grep -q "^$domain$" "$SUSPICIOUS_DOMAINS_FILE"; then
+        return
+    fi
+    
+    echo "$domain" >> "$SUSPICIOUS_DOMAINS_FILE"
+    echo "🌐 Подозрительный домен: $domain (IP: $ip)"
+    
+    # Блокируем IP, который обращается к подозрительному домену
+    if [ -n "$ip" ]; then
+        block_ip "$ip" "Обращение к подозрительному домену: $domain"
+    fi
+}
+
 # Функция для анализа логов
 analyze_logs() {
     echo "🔍 Анализ логов на предмет атак..."
@@ -44,6 +81,9 @@ analyze_logs() {
     docker exec "$NGINX_CONTAINER" tail -f "$LOG_FILE" | while read line; do
         # Извлекаем IP адрес
         ip=$(echo "$line" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')
+        
+        # Извлекаем домен из Referer
+        domain=$(echo "$line" | grep -oE 'https?://[^/]+' | sed 's|https\?://||')
         
         if [ -n "$ip" ]; then
             # Проверяем на подозрительные запросы
@@ -61,6 +101,14 @@ analyze_logs() {
                 block_ip "$ip" "Известный сканер/бот"
             fi
             
+            # Проверяем на подозрительные домены
+            for suspicious in "${SUSPICIOUS_DOMAINS[@]}"; do
+                if echo "$domain" | grep -qi "$suspicious"; then
+                    log_suspicious_domain "$domain" "$ip"
+                    break
+                fi
+            done
+            
             # Проверяем на множественные запросы (DDoS)
             request_count=$(docker exec "$NGINX_CONTAINER" grep "$ip" "$LOG_FILE" | wc -l)
             if [ "$request_count" -gt 100 ]; then
@@ -74,8 +122,13 @@ analyze_logs() {
 show_stats() {
     echo "📈 Статистика безопасности:"
     echo "Заблокированных IP: $(wc -l < "$BLOCKED_IPS_FILE")"
+    echo "Подозрительных доменов: $(wc -l < "$SUSPICIOUS_DOMAINS_FILE")"
+    echo ""
     echo "Последние заблокированные IP:"
     tail -5 "$BLOCKED_IPS_FILE" 2>/dev/null || echo "Нет заблокированных IP"
+    echo ""
+    echo "Последние подозрительные домены:"
+    tail -5 "$SUSPICIOUS_DOMAINS_FILE" 2>/dev/null || echo "Нет подозрительных доменов"
 }
 
 # Основной цикл

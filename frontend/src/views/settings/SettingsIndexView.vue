@@ -20,12 +20,7 @@
     <div class="main-block">
       <h3>Блокчейн</h3>
       <p>Интеграция с блокчейн-сетями, RPC, токены и смарт-контракты.</p>
-      <button class="details-btn" @click="$router.push('/settings/blockchain')">Подробнее</button>
-    </div>
-    <div class="main-block">
-      <h3>Блокчейн 2</h3>
-      <p>Современный DLE v2 - единый смарт-контракт с встроенной системой голосования.</p>
-      <button class="details-btn details-btn-secondary" @click="$router.push('/settings/dle-v2-deploy')">Подробнее</button>
+      <button class="details-btn" @click="$router.push('/settings/dle-v2-deploy')">Подробнее</button>
     </div>
     <div class="main-block">
       <h3>Безопасность</h3>
