@@ -59,6 +59,7 @@ import BaseLayout from '../components/BaseLayout.vue';
 import eventBus from '../utils/eventBus';
 import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
+import dleService from '../services/dleV2Service.js';
 
 // Определяем props
 const props = defineProps({

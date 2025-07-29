@@ -216,13 +216,13 @@ const routes = [
   {
     path: '/management/dle',
     name: 'management-dle',
-    component: () => import('../views/smartcontracts/DleManagementView.vue'),
+    component: () => import('../views/smartcontracts/DleModulesView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/management/dle-management',
     name: 'management-dle-management',
-    component: () => import('../views/smartcontracts/DleManagementView.vue'),
+    component: () => import('../views/smartcontracts/DleModulesView.vue'),
     meta: { requiresAuth: true }
   },
   {

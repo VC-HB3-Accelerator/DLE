@@ -311,7 +311,7 @@
 import { reactive, onMounted, computed, ref, watch } from 'vue';
 import axios from 'axios'; // Предполагаем, что axios доступен
 import { useAuthContext } from '@/composables/useAuth'; // Импортируем composable useAuth
-import dleService from '@/services/dleService';
+import dleService from '@/services/dleV2Service';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks'; // Импортируем composable для работы с сетями
 import { useRouter } from 'vue-router';
 import RpcTestModal from '@/components/RpcTestModal.vue';
