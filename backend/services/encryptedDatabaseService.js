@@ -349,8 +349,8 @@ class EncryptedDataService {
         params.push(...Object.values(conditions));
       }
 
-      const { rows } = await db.getQuery()(query, params);
-      return rows;
+      const result = await db.getQuery()(query, params);
+      return result.rows;
     } catch (error) {
       console.error(`❌ Ошибка удаления данных из ${tableName}:`, error);
       throw error;

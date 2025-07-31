@@ -17,6 +17,8 @@ const { HNSWLib } = require('@langchain/community/vectorstores/hnswlib');
 const { OpenAIEmbeddings } = require('@langchain/openai');
 const logger = require('../utils/logger');
 const fetch = require('node-fetch');
+const aiCache = require('./ai-cache');
+const aiQueue = require('./ai-queue');
 
 // Простой кэш для ответов
 const responseCache = new Map();
@@ -105,6 +107,38 @@ class AIAssistant {
     return cyrillicPattern.test(message) ? 'ru' : 'en';
   }
 
+  // Определение приоритета запроса
+  getRequestPriority(message, history, rules) {
+    let priority = 0;
+    
+    // Высокий приоритет для коротких запросов
+    if (message.length < 50) {
+      priority += 10;
+    }
+    
+    // Приоритет по типу запроса
+    const urgentKeywords = ['срочно', 'urgent', 'важно', 'important', 'помоги', 'help'];
+    if (urgentKeywords.some(keyword => message.toLowerCase().includes(keyword))) {
+      priority += 20;
+    }
+    
+    // Приоритет для администраторов
+    if (rules && rules.isAdmin) {
+      priority += 15;
+    }
+    
+    // Приоритет по времени ожидания (если есть история)
+    if (history && history.length > 0) {
+      const lastMessage = history[history.length - 1];
+      const timeDiff = Date.now() - (lastMessage.timestamp || Date.now());
+      if (timeDiff > 30000) { // Более 30 секунд ожидания
+        priority += 5;
+      }
+    }
+    
+    return priority;
+  }
+
   // Основной метод для получения ответа
   async getResponse(message, language = 'auto', history = null, systemPrompt = '', rules = null) {
     try {
@@ -120,13 +154,56 @@ class AIAssistant {
         return 'Извините, модель временно недоступна. Пожалуйста, попробуйте позже.';
       }
 
-      // Создаем ключ кэша
-      const cacheKey = JSON.stringify({ message, language, systemPrompt, rules });
-      const cached = responseCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      // Проверяем кэш
+      const cacheKey = aiCache.generateKey([{ role: 'user', content: message }], {
+        temperature: 0.3,
+        maxTokens: 150
+      });
+      const cachedResponse = aiCache.get(cacheKey);
+      if (cachedResponse) {
         console.log('Returning cached response');
-        return cached.response;
+        return cachedResponse;
       }
+
+      // Определяем приоритет запроса
+      const priority = this.getRequestPriority(message, history, rules);
+      
+      // Добавляем запрос в очередь
+      const requestId = await aiQueue.addRequest({
+        message,
+        language,
+        history,
+        systemPrompt,
+        rules
+      }, priority);
+
+      // Ждем результат из очереди
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Request timeout - очередь перегружена'));
+        }, 60000); // 60 секунд таймаут для очереди
+
+        const onCompleted = (item) => {
+          if (item.id === requestId) {
+            clearTimeout(timeout);
+            aiQueue.off('completed', onCompleted);
+            aiQueue.off('failed', onFailed);
+            resolve(item.result);
+          }
+        };
+
+        const onFailed = (item) => {
+          if (item.id === requestId) {
+            clearTimeout(timeout);
+            aiQueue.off('completed', onCompleted);
+            aiQueue.off('failed', onFailed);
+            reject(new Error(item.error));
+          }
+        };
+
+        aiQueue.on('completed', onCompleted);
+        aiQueue.on('failed', onFailed);
+      });
 
       // Определяем язык, если не указан явно
       const detectedLanguage = language === 'auto' ? this.detectLanguage(message) : language;
@@ -179,10 +256,7 @@ class AIAssistant {
 
       // Кэшируем ответ
       if (response) {
-        responseCache.set(cacheKey, {
-          response,
-          timestamp: Date.now()
-        });
+        aiCache.set(cacheKey, response);
       }
 
       return response;
@@ -200,7 +274,7 @@ class AIAssistant {
       
       // Создаем AbortController для таймаута
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // Увеличиваем до 60 секунд
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // Увеличиваем до 120 секунд
       
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: 'POST',
@@ -211,16 +285,19 @@ class AIAssistant {
           stream: false,
           options: {
             temperature: 0.3,
-            num_predict: 200, // Уменьшаем максимальную длину ответа
-            num_ctx: 1024, // Уменьшаем контекст для экономии памяти
-            num_thread: 8, // Увеличиваем количество потоков
+            num_predict: 150, // Уменьшаем максимальную длину ответа для ускорения
+            num_ctx: 512, // Уменьшаем контекст для экономии памяти и ускорения
+            num_thread: 12, // Увеличиваем количество потоков для ускорения
             num_gpu: 1, // Используем GPU если доступен
             num_gqa: 8, // Оптимизация для qwen2.5
             rope_freq_base: 1000000, // Оптимизация для qwen2.5
             rope_freq_scale: 0.5, // Оптимизация для qwen2.5
             repeat_penalty: 1.1, // Добавляем штраф за повторения
-            top_k: 40, // Ограничиваем выбор токенов
-            top_p: 0.9, // Используем nucleus sampling
+            top_k: 20, // Уменьшаем выбор токенов для ускорения
+            top_p: 0.8, // Уменьшаем nucleus sampling для ускорения
+            mirostat: 2, // Используем mirostat для стабильности
+            mirostat_tau: 5.0, // Настройка mirostat
+            mirostat_eta: 0.1, // Настройка mirostat
           },
         }),
         signal: controller.signal,
@@ -240,7 +317,7 @@ class AIAssistant {
     } catch (error) {
       console.error('Error in fallbackRequestOpenAI:', error);
       if (error.name === 'AbortError') {
-        throw new Error('Request timeout - модель не ответила в течение 60 секунд');
+        throw new Error('Request timeout - модель не ответила в течение 120 секунд');
       }
       throw error;
     }

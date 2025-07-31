@@ -262,6 +262,37 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
+// POST /api/conversations - создать беседу для пользователя
+router.post('/conversations', async (req, res) => {
+  const { userId, title } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  
+  // Получаем ключ шифрования
+  const fs = require('fs');
+  const path = require('path');
+  let encryptionKey = 'default-key';
+  
+  try {
+    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    if (fs.existsSync(keyPath)) {
+      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    }
+  } catch (keyError) {
+    console.error('Error reading encryption key:', keyError);
+  }
+
+  try {
+    const conversationTitle = title || `Чат с пользователем ${userId}`;
+    const result = await db.getQuery()(
+      'INSERT INTO conversations (user_id, title_encrypted, created_at, updated_at) VALUES ($1, encrypt_text($2, $3), NOW(), NOW()) RETURNING *',
+      [userId, conversationTitle, encryptionKey]
+    );
+    res.json(result.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
 // Массовая рассылка сообщения во все каналы пользователя
 router.post('/broadcast', async (req, res) => {
   const { user_id, content } = req.body;

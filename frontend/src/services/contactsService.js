@@ -31,6 +31,12 @@ export default {
       return res.data;
     } catch (err) {
       console.error('Ошибка при удалении контакта:', err.response?.status, err.response?.data, err);
+      
+      // Если пользователь уже удален (404), считаем это успехом
+      if (err.response?.status === 404) {
+        return { success: true, deleted: 0, message: 'Пользователь уже удален' };
+      }
+      
       throw err;
     }
   },

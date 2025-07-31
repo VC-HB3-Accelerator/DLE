@@ -33,24 +33,16 @@ export function useTagsWebSocket() {
   }
 
   function handleTagsUpdate(data) {
-    console.log('🏷️ [useTagsWebSocket] Получено обновление тегов:', data);
+    console.log('🏷️ [useTagsWebSocket] Получено уведомление об обновлении тегов:', data);
     
-    // Очищаем предыдущий таймер
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    
-    // Устанавливаем новый таймер для дебаунсинга
-    debounceTimer = setTimeout(() => {
-      console.log('🏷️ [useTagsWebSocket] Выполняем обновление тегов после дебаунсинга');
-      tagsUpdateCallbacks.value.forEach(callback => {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error('Ошибка в callback обновления тегов:', error);
-        }
-      });
-    }, DEBOUNCE_DELAY);
+    // Вызываем все зарегистрированные колбэки
+    tagsUpdateCallbacks.value.forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('🏷️ [useTagsWebSocket] Ошибка в колбэке:', error);
+      }
+    });
   }
 
   onMounted(() => {

@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-import axios from 'axios';
+import api from '@/api/axios';
 
 /**
  * Сервис для работы с DLE v2 (Digital Legal Entity)
@@ -24,7 +24,7 @@ class DLEV2Service {
    */
   async createDLE(dleParams) {
     try {
-      const response = await axios.post('/api/dle-v2', dleParams);
+      const response = await api.post('/dle-v2', dleParams);
       return response.data;
     } catch (error) {
       console.error('Ошибка при создании DLE v2:', error);
@@ -38,7 +38,7 @@ class DLEV2Service {
    */
   async getAllDLEs() {
     try {
-      const response = await axios.get('/api/dle-v2');
+      const response = await api.get('/dle-v2');
       return response.data.data || [];
     } catch (error) {
       console.error('Ошибка при получении списка DLE v2:', error);
@@ -52,7 +52,7 @@ class DLEV2Service {
    */
   async getDefaults() {
     try {
-      const response = await axios.get('/api/dle-v2/defaults');
+      const response = await api.get('/dle-v2/defaults');
       return response.data.data;
     } catch (error) {
       console.error('Ошибка при получении настроек по умолчанию DLE v2:', error);
@@ -73,7 +73,7 @@ class DLEV2Service {
    */
   async deleteDLE(dleAddress) {
     try {
-      const response = await axios.delete(`/api/dle-v2/${dleAddress}`);
+      const response = await api.delete(`/dle-v2/${dleAddress}`);
       return response.data;
     } catch (error) {
       console.error('Ошибка при удалении DLE v2:', error);

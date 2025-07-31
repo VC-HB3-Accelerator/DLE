@@ -338,53 +338,7 @@ router.get('/:id/rows', async (req, res, next) => {
   }
 });
 
-// Изменить значение ячейки (доступно всем)
-router.patch('/cell/:cellId', async (req, res, next) => {
-  try {
-    const cellId = req.params.cellId;
-    const { value } = req.body;
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
-    
-    const result = await db.getQuery()(
-      'UPDATE user_cell_values SET value_encrypted = encrypt_text($1, $3), updated_at = NOW() WHERE id = $2 RETURNING *',
-      [value, cellId, encryptionKey]
-    );
-    // Получаем row_id и table_id
-    const row = (await db.getQuery()('SELECT row_id FROM user_cell_values WHERE id = $1', [cellId])).rows[0];
-    if (row) {
-      const rowId = row.row_id;
-      const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [rowId])).rows[0];
-      if (table) {
-        const tableId = table.table_id;
-        // Получаем всю строку для upsert
-        const rowData = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.id = $1', [rowId, encryptionKey])).rows[0];
-        if (rowData) {
-          const upsertRows = [{ row_id: rowData.row_id, text: rowData.text, metadata: { answer: rowData.answer } }].filter(r => r.row_id && r.text);
-          console.log('[DEBUG][upsertRows]', upsertRows);
-          if (upsertRows.length > 0) {
-            await vectorSearchClient.upsert(tableId, upsertRows);
-          }
-        }
-      }
-    }
-    res.json(result.rows[0]);
-    broadcastTableUpdate(tableId);
-  } catch (err) {
-    next(err);
-  }
-});
+
 
 // Создать/обновить значение ячейки (upsert) (доступно всем)
 router.post('/cell', async (req, res, next) => {
@@ -416,13 +370,15 @@ router.post('/cell', async (req, res, next) => {
     if (table) {
       const tableId = table.table_id;
       
-      // Проверяем, является ли это таблицей "Теги клиентов" - ОТКЛЮЧАЕМ WebSocket
-      // const tableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [tableId, encryptionKey])).rows[0];
-      // if (tableName && tableName.name === 'Теги клиентов') {
-      //   // Отправляем WebSocket уведомление об обновлении тегов
-      //   const { broadcastTagsUpdate } = require('../wsHub');
-      //   broadcastTagsUpdate();
-      // }
+      // Проверяем, является ли это таблицей "Теги клиентов"
+      const tableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [tableId, encryptionKey])).rows[0];
+      console.log('🔄 [Tables] Проверяем таблицу:', { tableId, tableName: tableName?.name });
+      if (tableName && tableName.name === 'Теги клиентов') {
+        // Отправляем WebSocket уведомление об обновлении тегов
+        console.log('🔄 [Tables] Обновление ячейки в таблице тегов, отправляем уведомление');
+        const { broadcastTagsUpdate } = require('../wsHub');
+        broadcastTagsUpdate();
+      }
       
       // Получаем всю строку для upsert
       const rowData = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.id = $1', [row_id, encryptionKey])).rows[0];
@@ -499,11 +455,12 @@ router.delete('/row/:rowId', async (req, res, next) => {
       }
     }
     
-    // Отправляем WebSocket уведомление, если это была таблица тегов - ОТКЛЮЧАЕМ
-    // if (isTagsTable) {
-    //   const { broadcastTagsUpdate } = require('../wsHub');
-    //   broadcastTagsUpdate();
-    // }
+    // Отправляем WebSocket уведомление, если это была таблица тегов
+    if (isTagsTable) {
+      console.log('🔄 [Tables] Обновление строки в таблице тегов, отправляем уведомление');
+      const { broadcastTagsUpdate } = require('../wsHub');
+      broadcastTagsUpdate();
+    }
     
     // Отправляем WebSocket уведомление об обновлении таблицы
     const { broadcastTableUpdate } = require('../wsHub');
@@ -790,6 +747,31 @@ router.post('/:tableId/row/:rowId/multirelations', async (req, res, next) => {
     const { tableId, rowId } = req.params;
     const { column_id, to_table_id, to_row_ids } = req.body; // to_row_ids: массив id
     if (!Array.isArray(to_row_ids)) return res.status(400).json({ error: 'to_row_ids должен быть массивом' });
+    
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+    
+    // Проверяем, является ли это обновлением тегов (проверяем связанную таблицу)
+    const relatedTableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [to_table_id, encryptionKey])).rows[0];
+    console.log('🔄 [Tables] Multirelations: проверяем связанную таблицу:', { to_table_id, tableName: relatedTableName?.name });
+    
+    if (relatedTableName && relatedTableName.name === 'Теги клиентов') {
+      console.log('🔄 [Tables] Multirelations: обновление тегов, отправляем уведомление');
+      const { broadcastTagsUpdate } = require('../wsHub');
+      broadcastTagsUpdate();
+    }
+    
     // Удаляем старые связи для этой строки/столбца
     await db.getQuery()('DELETE FROM user_table_relations WHERE from_row_id = $1 AND column_id = $2', [rowId, column_id]);
     // Добавляем новые связи

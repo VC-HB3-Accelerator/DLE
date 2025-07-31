@@ -14,6 +14,10 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const db = require('../db');
+const aiAssistant = require('../services/ai-assistant');
+const aiCache = require('../services/ai-cache');
+const aiQueue = require('../services/ai-queue');
+const logger = require('../utils/logger');
 
 router.get('/', async (req, res) => {
   const results = {};
@@ -48,6 +52,73 @@ router.get('/', async (req, res) => {
   }
 
   res.json({ status: 'ok', services: results, timestamp: new Date().toISOString() });
+});
+
+// GET /api/monitoring/ai-stats - статистика AI
+router.get('/ai-stats', async (req, res) => {
+  try {
+    const aiHealth = await aiAssistant.checkHealth();
+    const cacheStats = aiCache.getStats();
+    const queueStats = aiQueue.getStats();
+    
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      ai: {
+        health: aiHealth,
+        model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+        baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434'
+      },
+      cache: {
+        ...cacheStats,
+        hitRate: `${(cacheStats.hitRate * 100).toFixed(1)}%`
+      },
+      queue: {
+        ...queueStats,
+        avgResponseTime: `${queueStats.avgResponseTime.toFixed(0)}ms`
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting AI stats:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/monitoring/ai-cache/clear - очистка кэша
+router.post('/ai-cache/clear', async (req, res) => {
+  try {
+    aiCache.clear();
+    res.json({
+      status: 'ok',
+      message: 'AI cache cleared successfully'
+    });
+  } catch (error) {
+    logger.error('Error clearing AI cache:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/monitoring/ai-queue/clear - очистка очереди
+router.post('/ai-queue/clear', async (req, res) => {
+  try {
+    aiQueue.clear();
+    res.json({
+      status: 'ok',
+      message: 'AI queue cleared successfully'
+    });
+  } catch (error) {
+    logger.error('Error clearing AI queue:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message
+    });
+  }
 });
 
 module.exports = router; 

@@ -139,7 +139,7 @@ class WebSocketService {
         break;
         
       case 'tags-updated':
-        console.log('🏷️ [WebSocket] Обновление тегов клиентов');
+        console.log('🔔 [websocketService] Получено сообщение tags-updated');
         this.emit('tags-updated');
         break;
         

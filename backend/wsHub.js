@@ -25,6 +25,9 @@ function initWSS(server) {
   
   wss.on('connection', (ws, req) => {
     console.log('🔌 [WebSocket] Новое подключение');
+    console.log('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
+    console.log('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
+    console.log('🔌 [WebSocket] Origin:', req.headers.origin);
     
     // Добавляем клиента в общий список
     if (!wsClients.has('anonymous')) {
@@ -42,13 +45,21 @@ function initWSS(server) {
           // Аутентификация пользователя
           authenticateUser(ws, data.userId);
         }
+        
+        if (data.type === 'ping') {
+          // Отправляем pong ответ
+          ws.send(JSON.stringify({ 
+            type: 'pong', 
+            timestamp: data.timestamp 
+          }));
+        }
       } catch (error) {
         console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
       }
     });
     
-    ws.on('close', () => {
-      console.log('🔌 [WebSocket] Соединение закрыто');
+    ws.on('close', (code, reason) => {
+      console.log('🔌 [WebSocket] Соединение закрыто', { code, reason: reason.toString() });
       // Удаляем клиента из всех списков
       for (const [userId, clients] of wsClients.entries()) {
         clients.delete(ws);
@@ -59,7 +70,7 @@ function initWSS(server) {
     });
     
     ws.on('error', (error) => {
-      console.error('❌ [WebSocket] Ошибка соединения:', error);
+      console.error('❌ [WebSocket] Ошибка соединения:', error.message);
     });
   });
   
@@ -224,46 +235,19 @@ function broadcastTableRelationsUpdate(tableId, rowId, targetUserId = null) {
 }
 
 function broadcastTagsUpdate(targetUserId = null) {
-  const now = Date.now();
-  const cacheKey = targetUserId || 'global';
-  
-  // Проверяем, не отправляли ли мы недавно уведомление
-  const lastUpdate = tagsChangeCache.get(cacheKey);
-  if (lastUpdate && (now - lastUpdate) < TAGS_CACHE_TTL) {
-    console.log(`🏷️ [WebSocket] Пропускаем отправку уведомления о тегах (слишком часто)`, { targetUserId });
-    return;
-  }
-  
-  // Обновляем кэш
-  tagsChangeCache.set(cacheKey, now);
-  
-  console.log(`🏷️ [WebSocket] Отправка обновления тегов`, { targetUserId });
-  
-  const payload = { 
+  console.log('🔔 [WebSocket] Отправляем уведомление об обновлении тегов');
+  const message = JSON.stringify({
     type: 'tags-updated',
-    timestamp: now
-  };
+    timestamp: Date.now()
+  });
   
-  if (targetUserId) {
-    // Отправляем конкретному пользователю
-    const userClients = wsClients.get(targetUserId.toString());
-    if (userClients) {
-      for (const ws of userClients) {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(payload));
-        }
-      }
+  // Отправляем всем подключенным клиентам
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      console.log('🔔 [WebSocket] Отправляем tags-updated клиенту');
+      client.send(message);
     }
-  } else {
-    // Отправляем всем
-    for (const [userId, clients] of wsClients.entries()) {
-      for (const ws of clients) {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(payload));
-        }
-      }
-    }
-  }
+  });
 }
 
 function getConnectedUsers() {
@@ -298,6 +282,21 @@ function getStats() {
   };
 }
 
+// Функция для отправки уведомлений о статусе AI
+function broadcastAIStatus(status) {
+  console.log('📢 [WebSocket] Отправка статуса AI всем клиентам');
+  for (const [userId, clients] of wsClients.entries()) {
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ 
+          type: 'ai-status', 
+          status 
+        }));
+      }
+    }
+  }
+}
+
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
@@ -307,6 +306,7 @@ module.exports = {
   broadcastTableUpdate,
   broadcastTableRelationsUpdate,
   broadcastTagsUpdate,
+  broadcastAIStatus,
   getConnectedUsers,
   getStats
 }; 

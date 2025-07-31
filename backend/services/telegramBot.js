@@ -454,7 +454,7 @@ async function getBot() {
         const aiResponse = await Promise.race([
           aiResponsePromise,
                   new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('AI response timeout')), 60000)
+          setTimeout(() => reject(new Error('AI response timeout')), 120000)
         )
         ]);
         
@@ -494,7 +494,7 @@ async function getBot() {
       // Запускаем бота с таймаутом
       const launchPromise = botInstance.launch();
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Telegram bot launch timeout')), 10000); // 10 секунд таймаут
+        setTimeout(() => reject(new Error('Telegram bot launch timeout')), 30000); // 30 секунд таймаут
       });
       
       await Promise.race([launchPromise, timeoutPromise]);

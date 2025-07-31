@@ -54,8 +54,13 @@ async function loadContact() {
   isLoading.value = true;
   try {
     contact.value = await contactsService.getContactById(route.params.id);
+    if (!contact.value) {
+      error.value = 'Контакт не найден';
+    }
   } catch (e) {
+    console.error('Ошибка загрузки контакта:', e);
     contact.value = null;
+    error.value = 'Контакт не найден';
   } finally {
     isLoading.value = false;
   }
@@ -66,9 +71,17 @@ async function deleteContact() {
   isDeleting.value = true;
   error.value = '';
   try {
-    await contactsService.deleteContact(contact.value.id);
-    router.push({ name: 'crm' });
+    const result = await contactsService.deleteContact(contact.value.id);
+    console.log('Результат удаления:', result);
+    
+    // Если удаление успешно или пользователь уже удален
+    if (result.success || result.message === 'Пользователь уже удален') {
+      router.push({ name: 'contacts-list' });
+    } else {
+      error.value = 'Ошибка при удалении контакта';
+    }
   } catch (e) {
+    console.error('Ошибка при удалении:', e);
     error.value = 'Ошибка при удалении контакта';
   } finally {
     isDeleting.value = false;
@@ -76,7 +89,7 @@ async function deleteContact() {
 }
 
 function cancelDelete() {
-  router.push({ name: 'contact-details', params: { id: route.params.id } });
+  router.push({ name: 'contacts-list' });
 }
 
 onMounted(loadContact);

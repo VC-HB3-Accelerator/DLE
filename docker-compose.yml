@@ -42,7 +42,6 @@ services:
       - ollama_data:/root/.ollama
     # ports:
     #   - '11434:11434'  # Закрываем - используется только backend'ом
-    command: serve
     deploy:
       resources:
         limits:
@@ -58,8 +57,8 @@ services:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 120s
   vector-search:
     build:
       context: ./vector-search
@@ -143,29 +142,6 @@ services:
     ports:
       - '5173:5173'  # Закрываем - используем nginx
     command: yarn run dev -- --host 0.0.0.0
-  ollama-setup:
-    image: curlimages/curl:latest
-    container_name: dapp-ollama-setup
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
-    depends_on:
-      - ollama
-    restart: on-failure
-    command: |
-      sh -c "
-        echo 'Waiting for Ollama to be ready...'
-        until curl -s http://ollama:11434/api/tags >/dev/null; do
-          sleep 5
-        done
-        echo 'Ollama is ready, pulling qwen2.5-7b model...'
-        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_MODEL:-qwen2.5:7b}\"}' -H 'Content-Type: application/json'
-        echo 'Pulling embeddings model...'
-        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}\"}' -H 'Content-Type: application/json'
-        echo 'Done!'
-      "
   ssh-tunnel-frontend:
     image: alpine:latest
     container_name: ssh-tunnel-frontend

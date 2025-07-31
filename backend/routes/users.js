@@ -84,7 +84,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     let encryptionKey = 'default-key';
     
     try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
       if (fs.existsSync(keyPath)) {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
@@ -120,13 +120,16 @@ router.get('/', requireAuth, async (req, res, next) => {
     // Фильтр по поиску
     if (search) {
       where.push(`(
-        LOWER(u.first_name) LIKE $${idx} OR
-        LOWER(u.last_name) LIKE $${idx} OR
-        EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND LOWER(decrypt_text(ui.provider_id_encrypted, $${idx + 1})) LIKE $${idx})
+        LOWER(decrypt_text(u.first_name_encrypted, $${idx++})) LIKE $${idx++} OR
+        LOWER(decrypt_text(u.last_name_encrypted, $${idx++})) LIKE $${idx++} OR
+        EXISTS (SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND LOWER(decrypt_text(ui.provider_id_encrypted, $${idx++})) LIKE $${idx++})
       )`);
+      params.push(encryptionKey); // Для first_name_encrypted
       params.push(`%${search.toLowerCase()}%`);
-      params.push(encryptionKey);
-      idx += 2;
+      params.push(encryptionKey); // Для last_name_encrypted
+      params.push(`%${search.toLowerCase()}%`);
+      params.push(encryptionKey); // Для provider_id_encrypted
+      params.push(`%${search.toLowerCase()}%`);
     }
 
     // Фильтр по блокировке
@@ -138,13 +141,22 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     // --- Основной SQL ---
     let sql = `
-      SELECT u.id, u.first_name, u.last_name, u.created_at, u.preferred_language, u.is_blocked,
+      SELECT u.id, 
+        CASE 
+          WHEN u.first_name_encrypted IS NULL OR u.first_name_encrypted = '' THEN NULL
+          ELSE decrypt_text(u.first_name_encrypted, $${idx++})
+        END as first_name,
+        CASE 
+          WHEN u.last_name_encrypted IS NULL OR u.last_name_encrypted = '' THEN NULL
+          ELSE decrypt_text(u.last_name_encrypted, $${idx++})
+        END as last_name,
+        u.created_at, u.preferred_language, u.is_blocked,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('telegram', $${idx++}) LIMIT 1) AS telegram,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('wallet', $${idx++}) LIMIT 1) AS wallet
       FROM users u
     `;
-    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
+    params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
 
     // Фильтрация по тегам
     if (tagIds) {
@@ -298,13 +310,55 @@ router.patch('/:id/unblock', requireAuth, async (req, res) => {
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const userId = req.params.id;
-    const { first_name, last_name, preferred_language, is_blocked } = req.body;
+    const { first_name, last_name, name, preferred_language, language, is_blocked } = req.body;
     const fields = [];
     const values = [];
     let idx = 1;
-    if (first_name !== undefined) { fields.push(`first_name = $${idx++}`); values.push(first_name); }
-    if (last_name !== undefined) { fields.push(`last_name = $${idx++}`); values.push(last_name); }
-    if (preferred_language !== undefined) { fields.push(`preferred_language = $${idx++}`); values.push(JSON.stringify(preferred_language)); }
+    
+    // Получаем ключ шифрования один раз
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    try {
+      const keyPath = '/app/ssl/keys/full_db_encryption.key';
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+        console.log('Encryption key loaded:', encryptionKey.length, 'characters');
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+    
+    // Обработка поля name - разбиваем на first_name и last_name
+    if (name !== undefined) {
+      const nameParts = name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      fields.push(`first_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+      values.push(firstName);
+      values.push(encryptionKey);
+      fields.push(`last_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+      values.push(lastName);
+      values.push(encryptionKey);
+    } else {
+      if (first_name !== undefined) { 
+        fields.push(`first_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+        values.push(first_name);
+        values.push(encryptionKey);
+      }
+      if (last_name !== undefined) { 
+        fields.push(`last_name_encrypted = encrypt_text($${idx++}, $${idx++})`); 
+        values.push(last_name);
+        values.push(encryptionKey);
+      }
+    }
+    
+    // Обработка поля language (alias для preferred_language)
+    const languageToUpdate = language !== undefined ? language : preferred_language;
+    if (languageToUpdate !== undefined) { 
+      fields.push(`preferred_language = $${idx++}`); 
+      values.push(JSON.stringify(languageToUpdate)); 
+    }
     if (is_blocked !== undefined) {
       fields.push(`is_blocked = $${idx++}`);
       values.push(is_blocked);
@@ -318,6 +372,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`;
     values.push(userId);
     await db.query(sql, values);
+    broadcastContactsUpdate();
     res.json({ success: true, message: 'Пользователь обновлен' });
   } catch (e) {
     logger.error('Ошибка обновления пользователя:', e);
@@ -326,7 +381,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/users/:id — удалить контакт и все связанные данные
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   console.log('[users.js] DELETE HANDLER', req.params.id);
   const userId = Number(req.params.id);
   console.log('[ROUTER] Перед вызовом deleteUserById для userId:', userId);
@@ -354,7 +409,7 @@ router.get('/:id', async (req, res, next) => {
   let encryptionKey = 'default-key';
   
   try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    const keyPath = '/app/ssl/keys/full_db_encryption.key';
     if (fs.existsSync(keyPath)) {
       encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
     }
@@ -401,7 +456,7 @@ router.post('/', async (req, res) => {
   let encryptionKey = 'default-key';
   
   try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    const keyPath = '/app/ssl/keys/full_db_encryption.key';
     if (fs.existsSync(keyPath)) {
       encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
     }
@@ -430,7 +485,7 @@ router.post('/import', requireAuth, async (req, res) => {
   let encryptionKey = 'default-key';
   
   try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+    const keyPath = '/app/ssl/keys/full_db_encryption.key';
     if (fs.existsSync(keyPath)) {
       encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
     }
@@ -525,9 +580,9 @@ router.patch('/:id/tags', async (req, res) => {
       );
     }
     
-    // Отправляем WebSocket уведомление об обновлении тегов - ОТКЛЮЧАЕМ
-    // const { broadcastTagsUpdate } = require('../wsHub');
-    // broadcastTagsUpdate();
+    // Отправляем WebSocket уведомление об обновлении тегов
+    const { broadcastTagsUpdate } = require('../wsHub');
+    broadcastTagsUpdate();
     
     res.json({ success: true });
   } catch (e) {
@@ -559,9 +614,9 @@ router.delete('/:id/tags/:tagId', async (req, res) => {
       [userId, tagId]
     );
     
-    // Отправляем WebSocket уведомление об обновлении тегов - ОТКЛЮЧАЕМ
-    // const { broadcastTagsUpdate } = require('../wsHub');
-    // broadcastTagsUpdate();
+    // Отправляем WebSocket уведомление об обновлении тегов
+    const { broadcastTagsUpdate } = require('../wsHub');
+    broadcastTagsUpdate();
     
     res.json({ success: true });
   } catch (e) {
