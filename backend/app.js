@@ -86,6 +86,7 @@ const countriesRoutes = require('./routes/countries'); // Добавляем и�
 const russianClassifiersRoutes = require('./routes/russian-classifiers'); // Добавляем импорт российских классификаторов
 const ollamaRoutes = require('./routes/ollama'); // Добавляем импорт Ollama маршрутов
 const aiQueueRoutes = require('./routes/ai-queue'); // Добавляем импорт AI Queue маршрутов
+const tagsRoutes = require('./routes/tags'); // Добавляем импорт маршрутов тегов
 
 const app = express();
 
@@ -210,6 +211,7 @@ app.use('/api/countries', countriesRoutes); // Добавляем маршрут
 app.use('/api/russian-classifiers', russianClassifiersRoutes); // Добавляем маршрут российских классификаторов
 app.use('/api/ollama', ollamaRoutes); // Добавляем маршрут Ollama
 app.use('/api/ai-queue', aiQueueRoutes); // Добавляем маршрут AI Queue
+app.use('/api/tags', tagsRoutes); // Добавляем маршрут тегов
 app.use('/api/messages', messagesRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут

@@ -16,6 +16,7 @@
 
 class WebSocketService {
   constructor() {
+    console.log('🔌 [WebSocket] Конструктор вызван');
     this.ws = null;
     this.isConnected = false;
     this.reconnectAttempts = 0;
@@ -23,10 +24,12 @@ class WebSocketService {
     this.reconnectDelay = 1000; // 1 секунда
     this.listeners = new Map();
     this.userId = null;
+    console.log('🔌 [WebSocket] Конструктор завершен');
   }
 
   // Подключение к WebSocket серверу
   connect(userId = null) {
+    console.log('🔌 [WebSocket] Попытка подключения, userId:', userId);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       console.log('🔌 [WebSocket] Уже подключен');
       return;
@@ -37,11 +40,11 @@ class WebSocketService {
     try {
       // Определяем WebSocket URL
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // В Docker окружении backend работает на порту 8000
-      const backendHost = window.location.hostname + ':8000';
-      const wsUrl = `${protocol}//${backendHost}/ws`;
+      // В Docker окружении используем тот же хост, что и для HTTP
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
       
       console.log('🔌 [WebSocket] Подключение к:', wsUrl);
+      console.log('🔌 [WebSocket] Текущий хост:', window.location.host);
       
       this.ws = new WebSocket(wsUrl);
       
@@ -61,10 +64,35 @@ class WebSocketService {
         this.emit('connected');
       };
       
+      this.ws.onclose = (event) => {
+        console.log('🔌 [WebSocket] Соединение закрыто:', event.code, event.reason);
+        this.isConnected = false;
+        this.emit('disconnected', event);
+        
+        // Попытка переподключения
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          console.log(`🔄 [WebSocket] Попытка переподключения ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+          
+          setTimeout(() => {
+            this.connect(this.userId);
+          }, this.reconnectDelay * this.reconnectAttempts);
+        } else {
+          console.error('❌ [WebSocket] Превышено максимальное количество попыток переподключения');
+          this.emit('reconnect-failed');
+        }
+      };
+      
+      this.ws.onerror = (error) => {
+        console.error('❌ [WebSocket] Ошибка соединения:', error);
+        this.emit('error', error);
+      };
+      
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('📨 [WebSocket] Получено сообщение:', data);
+          console.log('📨 [WebSocket] Тип сообщения:', data.type);
           this.handleMessage(data);
         } catch (error) {
           console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
@@ -139,8 +167,9 @@ class WebSocketService {
         break;
         
       case 'tags-updated':
-        console.log('🔔 [websocketService] Получено сообщение tags-updated');
-        this.emit('tags-updated');
+        console.log('🔔 [websocketService] Получено сообщение tags-updated:', data);
+        console.log('🔔 [websocketService] Количество слушателей tags-updated:', this.listeners.get('tags-updated')?.length || 0);
+        this.emit('tags-updated', data);
         break;
         
       case 'table-updated':
@@ -158,10 +187,12 @@ class WebSocketService {
 
   // Подписка на события
   on(event, callback) {
+    console.log('🔌 [WebSocket] Подписка на событие:', event);
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
     this.listeners.get(event).push(callback);
+    console.log('🔌 [WebSocket] Количество слушателей для', event, ':', this.listeners.get(event).length);
   }
 
   // Отписка от событий
@@ -177,14 +208,20 @@ class WebSocketService {
 
   // Эмиссия событий
   emit(event, data) {
+    console.log('🔌 [WebSocket] Эмиссия события:', event, 'с данными:', data);
     if (this.listeners.has(event)) {
-      this.listeners.get(event).forEach(callback => {
+      const callbacks = this.listeners.get(event);
+      console.log('🔌 [WebSocket] Количество колбэков для', event, ':', callbacks.length);
+      callbacks.forEach((callback, index) => {
         try {
+          console.log('🔌 [WebSocket] Выполняем колбэк #', index, 'для события', event);
           callback(data);
         } catch (error) {
           console.error(`❌ [WebSocket] Ошибка в обработчике события ${event}:`, error);
         }
       });
+    } else {
+      console.log('🔌 [WebSocket] Нет слушателей для события:', event);
     }
   }
 
@@ -212,6 +249,7 @@ class WebSocketService {
 
 // Создаем единственный экземпляр
 const websocketService = new WebSocketService();
+console.log('🔌 [WebSocket] Сервис создан');
 
 // Подписчики на обновления таблиц: tableId -> [callback]
 const tableUpdateSubscribers = {};
@@ -230,4 +268,18 @@ function onTableUpdate(tableId, callback) {
 export default {
   websocketService,
   onTableUpdate,
-}; 
+};
+console.log('🔌 [WebSocket] Экспорт завершен');
+
+// Автоматически подключаемся при загрузке модуля
+console.log('🔌 [WebSocket] Автоматическое подключение...');
+setTimeout(() => {
+  console.log('🔌 [WebSocket] Подключаемся через 1 секунду...');
+  websocketService.connect();
+}, 1000);
+
+// Добавляем периодическую проверку состояния соединения
+setInterval(() => {
+  const status = websocketService.getStatus();
+  console.log('🔌 [WebSocket] Статус соединения:', status);
+}, 10000); // Проверяем каждые 10 секунд 

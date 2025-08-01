@@ -526,7 +526,7 @@ async function loadMultiRelationOptions() {
 
 // Дебаунсинг для loadMultiRelationValues
 let loadMultiRelationValuesTimer = null;
-const LOAD_DEBOUNCE_DELAY = 100; // 100ms
+const LOAD_DEBOUNCE_DELAY = 50; // 50ms (уменьшено для ускорения)
 
 async function loadMultiRelationValues() {
   // Проверяем, не загружены ли уже данные
@@ -625,13 +625,20 @@ async function saveMultiRelation() {
       to_row_ids: editMultiRelationValues.value
     };
     console.log('[saveMultiRelation] POST payload:', payload);
-    const response = await fetch(`/api/tables/${props.column.table_id}/row/${props.rowId}/multirelations`, {
+              console.log('[TableCell] Отправляем запрос на обновление relations для строки:', props.rowId);
+    console.log('[TableCell] Данные запроса:', payload);
+    const response = await fetch(`/api/tables/${props.column.table_id}/row/${props.rowId}/relations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     const result = await response.json().catch(() => ({}));
-    console.log('[saveMultiRelation] API response status:', response.status, 'result:', result);
+    console.log('[TableCell] Ответ сервера для строки:', props.rowId, 'статус:', response.status, 'результат:', result);
+    if (response.ok) {
+      console.log('[TableCell] Успешно сохранены теги для строки:', props.rowId);
+    } else {
+      console.error('[TableCell] Ошибка сохранения тегов для строки:', props.rowId, 'статус:', response.status);
+    }
     editing.value = false;
     await loadMultiRelationValues();
     console.log('[saveMultiRelation] emitting update with:', editMultiRelationValues.value);
@@ -682,6 +689,9 @@ async function addTag() {
     ]);
     
     console.log('[addTag] Тег добавлен в выбранные:', editMultiRelationValues.value);
+    
+    // Сохраняем изменения, чтобы отправить WebSocket уведомление
+    await saveMultiRelation();
   } catch (e) {
     console.error('[addTag] Ошибка при добавлении тега:', e);
   }
@@ -707,6 +717,9 @@ async function deleteTag(tagId) {
     await loadMultiRelationOptions();
     
     console.log('[deleteTag] Тег удален:', tagId);
+    
+    // Сохраняем изменения, чтобы отправить WebSocket уведомление
+    await saveMultiRelation();
   } catch (e) {
     console.error('[deleteTag] Ошибка при удалении тега:', e);
   }

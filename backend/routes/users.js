@@ -561,67 +561,11 @@ router.post('/import', requireAuth, async (req, res) => {
   }
 });
 
-// --- Работа с тегами пользователя через user_tag_links ---
-// PATCH /api/users/:id/tags — установить теги пользователю
-router.patch('/:id/tags', async (req, res) => {
-  const userId = Number(req.params.id);
-  const { tags } = req.body; // массив tagIds (id строк из таблицы тегов)
-  if (!Array.isArray(tags)) {
-    return res.status(400).json({ error: 'tags должен быть массивом' });
-  }
-  try {
-    // Удаляем старые связи
-    await db.getQuery()('DELETE FROM user_tag_links WHERE user_id = $1', [userId]);
-    // Добавляем новые связи
-    for (const tagId of tags) {
-      await db.getQuery()(
-        'INSERT INTO user_tag_links (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [userId, tagId]
-      );
-    }
-    
-    // Отправляем WebSocket уведомление об обновлении тегов
-    const { broadcastTagsUpdate } = require('../wsHub');
-    broadcastTagsUpdate();
-    
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// GET /api/users/:id/tags — получить все теги пользователя
-router.get('/:id/tags', async (req, res) => {
-  const userId = Number(req.params.id);
-  try {
-    const result = await db.getQuery()(
-      'SELECT tag_id FROM user_tag_links WHERE user_id = $1',
-      [userId]
-    );
-    res.json({ tags: result.rows.map(r => r.tag_id) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// DELETE /api/users/:id/tags/:tagId — удалить тег у пользователя
-router.delete('/:id/tags/:tagId', async (req, res) => {
-  const userId = Number(req.params.id);
-  const tagId = Number(req.params.tagId);
-  try {
-    await db.getQuery()(
-      'DELETE FROM user_tag_links WHERE user_id = $1 AND tag_id = $2',
-      [userId, tagId]
-    );
-    
-    // Отправляем WebSocket уведомление об обновлении тегов
-    const { broadcastTagsUpdate } = require('../wsHub');
-    broadcastTagsUpdate();
-    
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+// --- Работа с тегами перенесена в /api/tags ---
+// Используйте следующие endpoints:
+// PATCH /api/tags/user/:id — установить теги пользователю
+// GET /api/tags/user/:id — получить теги пользователя  
+// DELETE /api/tags/user/:id/tag/:tagId — удалить тег у пользователя
+// POST /api/tags/user/:id/multirelations — массовое обновление тегов
 
 module.exports = router;

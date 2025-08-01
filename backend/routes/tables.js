@@ -19,6 +19,18 @@ const { requireAuth } = require('../middleware/auth');
 const vectorSearchClient = require('../services/vectorSearchClient');
 const { broadcastTableUpdate, broadcastTableRelationsUpdate } = require('../wsHub');
 
+// Вспомогательная функция для получения ключа шифрования
+function getEncryptionKey() {
+  const fs = require('fs');
+  const keyPath = '/app/ssl/keys/full_db_encryption.key';
+  
+  if (!fs.existsSync(keyPath)) {
+    throw new Error('Encryption key file not found');
+  }
+  
+  return fs.readFileSync(keyPath, 'utf8').trim();
+}
+
 router.use((req, res, next) => {
   console.log('Tables router received:', req.method, req.originalUrl);
   next();
@@ -28,17 +40,12 @@ router.use((req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
+    let encryptionKey;
     try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
+      encryptionKey = getEncryptionKey();
     } catch (keyError) {
       console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
     }
     
     const result = await db.getQuery()('SELECT id, created_at, updated_at, is_rag_source_id, decrypt_text(name_encrypted, $1) as name, decrypt_text(description_encrypted, $1) as description FROM user_tables ORDER BY id', [encryptionKey]);
@@ -54,17 +61,12 @@ router.post('/', async (req, res, next) => {
     const { name, description, isRagSourceId } = req.body;
     
     // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
+    let encryptionKey;
     try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
+      encryptionKey = getEncryptionKey();
     } catch (keyError) {
       console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
     }
     
     const result = await db.getQuery()(
@@ -81,17 +83,12 @@ router.post('/', async (req, res, next) => {
 router.get('/rag-sources', async (req, res, next) => {
   try {
     // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
+    let encryptionKey;
     try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
+      encryptionKey = getEncryptionKey();
     } catch (keyError) {
       console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
     }
     
     const result = await db.getQuery()(
@@ -111,17 +108,12 @@ router.get('/:id', async (req, res, next) => {
   try {
     const tableId = req.params.id;
     // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
+    let encryptionKey;
     try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
+      encryptionKey = getEncryptionKey();
     } catch (keyError) {
       console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
     }
 
     // Выполняем все 4 запроса параллельно для ускорения
@@ -164,13 +156,27 @@ function generatePlaceholder(name, existingPlaceholders = []) {
     return '';
   }).join('');
   translit = translit.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  
+  // Если translit пустой, используем fallback
+  if (!translit) {
+    translit = 'column';
+  }
+  
   let base = translit;
   let candidate = base;
   let i = 1;
+  
+  // Генерируем уникальный плейсхолдер
   while (existingPlaceholders.includes(candidate)) {
     candidate = `${base}_${i}`;
     i++;
+    // Защита от бесконечного цикла
+    if (i > 1000) {
+      candidate = `${base}_${Date.now()}`;
+      break;
+    }
   }
+  
   return candidate;
 }
 
@@ -190,7 +196,13 @@ router.post('/:id/columns', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -201,8 +213,8 @@ router.post('/:id/columns', async (req, res, next) => {
       console.error('Error reading encryption key:', keyError);
     }
     
-    // Получаем уже существующие плейсхолдеры в таблице
-    const existing = (await db.getQuery()('SELECT placeholder FROM user_columns WHERE table_id = $1', [tableId])).rows;
+    // Получаем уже существующие плейсхолдеры во всей базе данных
+    const existing = (await db.getQuery()('SELECT placeholder FROM user_columns WHERE placeholder IS NOT NULL', [])).rows;
     const existingPlaceholders = existing.map(c => c.placeholder).filter(Boolean);
     const placeholder = generatePlaceholder(name, existingPlaceholders);
     const result = await db.getQuery()(
@@ -228,7 +240,13 @@ router.post('/:id/rows', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -262,7 +280,13 @@ router.get('/:id/rows', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -347,7 +371,13 @@ router.post('/cell', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -365,20 +395,10 @@ router.post('/cell', async (req, res, next) => {
       [row_id, column_id, value, encryptionKey]
     );
     
-    // Получаем table_id и проверяем, является ли это таблицей тегов
+    // Получаем table_id
     const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [row_id])).rows[0];
     if (table) {
       const tableId = table.table_id;
-      
-      // Проверяем, является ли это таблицей "Теги клиентов"
-      const tableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [tableId, encryptionKey])).rows[0];
-      console.log('🔄 [Tables] Проверяем таблицу:', { tableId, tableName: tableName?.name });
-      if (tableName && tableName.name === 'Теги клиентов') {
-        // Отправляем WebSocket уведомление об обновлении тегов
-        console.log('🔄 [Tables] Обновление ячейки в таблице тегов, отправляем уведомление');
-        const { broadcastTagsUpdate } = require('../wsHub');
-        broadcastTagsUpdate();
-      }
       
       // Получаем всю строку для upsert
       const rowData = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.id = $1', [row_id, encryptionKey])).rows[0];
@@ -408,35 +428,26 @@ router.delete('/row/:rowId', async (req, res, next) => {
     // Получаем table_id
     const table = (await db.getQuery()('SELECT table_id FROM user_rows WHERE id = $1', [rowId])).rows[0];
     
-    // Проверяем, является ли это таблицей тегов перед удалением
-    let isTagsTable = false;
-    if (table) {
-      const fs = require('fs');
-      const path = require('path');
-      let encryptionKey = 'default-key';
-      
-      try {
-        const keyPath = '/app/ssl/keys/full_db_encryption.key';
-        if (fs.existsSync(keyPath)) {
-          encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-        }
-      } catch (keyError) {
-        console.error('Error reading encryption key:', keyError);
-      }
-      
-      const tableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [table.table_id, encryptionKey])).rows[0];
-      isTagsTable = tableName && tableName.name === 'Теги клиентов';
+    if (!table) {
+      return res.status(404).json({ error: 'Row not found' });
     }
     
+    const tableId = table.table_id;
+    
+    // Удаляем строку
     await db.getQuery()('DELETE FROM user_rows WHERE id = $1', [rowId]);
     
-    if (table) {
-      const tableId = table.table_id;
-      // Получаем все строки для rebuild
-      // Получаем ключ шифрования
+    // Получаем все строки для rebuild
+    // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -448,18 +459,10 @@ router.delete('/row/:rowId', async (req, res, next) => {
     }
     
     const rows = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId, encryptionKey])).rows;
-      const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
-      console.log('[DEBUG][rebuildRows]', rebuildRows);
-      if (rebuildRows.length > 0) {
-        await vectorSearchClient.rebuild(tableId, rebuildRows);
-      }
-    }
-    
-    // Отправляем WebSocket уведомление, если это была таблица тегов
-    if (isTagsTable) {
-      console.log('🔄 [Tables] Обновление строки в таблице тегов, отправляем уведомление');
-      const { broadcastTagsUpdate } = require('../wsHub');
-      broadcastTagsUpdate();
+    const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
+    console.log('[DEBUG][rebuildRows]', rebuildRows);
+    if (rebuildRows.length > 0) {
+      await vectorSearchClient.rebuild(tableId, rebuildRows);
     }
     
     // Отправляем WebSocket уведомление об обновлении таблицы
@@ -468,6 +471,7 @@ router.delete('/row/:rowId', async (req, res, next) => {
     
     res.json({ success: true });
   } catch (err) {
+    console.error('[DELETE /row/:rowId] Error:', err);
     next(err);
   }
 });
@@ -476,9 +480,29 @@ router.delete('/row/:rowId', async (req, res, next) => {
 router.delete('/column/:columnId', async (req, res, next) => {
   try {
     const columnId = req.params.columnId;
+    
+    // Получаем информацию о столбце перед удалением
+    const columnInfo = (await db.getQuery()('SELECT table_id FROM user_columns WHERE id = $1', [columnId])).rows[0];
+    if (!columnInfo) {
+      return res.status(404).json({ error: 'Column not found' });
+    }
+    
+    // Удаляем все связанные данные в правильном порядке
+    // 1. Удаляем relations, связанные с этим столбцом
+    await db.getQuery()('DELETE FROM user_table_relations WHERE column_id = $1', [columnId]);
+    
+    // 2. Удаляем все значения ячеек для этого столбца
+    await db.getQuery()('DELETE FROM user_cell_values WHERE column_id = $1', [columnId]);
+    
+    // 3. Удаляем сам столбец
     await db.getQuery()('DELETE FROM user_columns WHERE id = $1', [columnId]);
+    
+    // Отправляем WebSocket уведомление об обновлении таблицы
+    broadcastTableUpdate(columnInfo.table_id);
+    
     res.json({ success: true });
   } catch (err) {
+    console.error('[DELETE /column/:columnId] Error:', err);
     next(err);
   }
 });
@@ -492,7 +516,13 @@ router.patch('/column/:columnId', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -616,7 +646,13 @@ router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
     
     // Получаем ключ шифрования
     const fs = require('fs');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';
@@ -665,37 +701,38 @@ router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
 
 // DELETE: удалить таблицу и каскадно все связанные строки/столбцы/ячейки (доступно всем)
 router.delete('/:id', requireAuth, async (req, res, next) => {
-  const dbModule = require('../db');
   try {
-    // Логируем строку подключения и pool.options
-    console.log('[DIAG][DELETE] pool.options:', dbModule.pool.options);
-    console.log('[DIAG][DELETE] process.env.DATABASE_URL:', process.env.DATABASE_URL);
-    console.log('[DIAG][DELETE] process.env.DB_HOST:', process.env.DB_HOST);
-    console.log('[DIAG][DELETE] process.env.DB_NAME:', process.env.DB_NAME);
-    console.log('=== [DIAG] Попытка удаления таблицы ===');
-    console.log('Сессия пользователя:', req.session);
     if (!req.session.isAdmin) {
-      console.log('[DIAG] Нет прав администратора');
       return res.status(403).json({ error: 'Удаление доступно только администраторам' });
     }
+    
     const tableId = Number(req.params.id);
-    console.log('[DIAG] id из запроса:', req.params.id, 'Преобразованный id:', tableId, 'typeof:', typeof tableId);
-
+    
     // Проверяем наличие таблицы перед удалением
-    const checkBefore = await db.getQuery()('SELECT * FROM user_tables WHERE id = $1', [tableId]);
-    console.log('[DIAG] Таблица перед удалением:', checkBefore.rows);
-
-    // Пытаемся удалить
+    const tableExists = (await db.getQuery()('SELECT id FROM user_tables WHERE id = $1', [tableId])).rows[0];
+    if (!tableExists) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    
+    // Удаляем все связанные данные в правильном порядке
+    // 1. Удаляем все relations, где эта таблица является источником или целью
+    await db.getQuery()('DELETE FROM user_table_relations WHERE from_row_id IN (SELECT id FROM user_rows WHERE table_id = $1) OR to_table_id = $1', [tableId]);
+    
+    // 2. Удаляем все значения ячеек для строк этой таблицы
+    await db.getQuery()('DELETE FROM user_cell_values WHERE row_id IN (SELECT id FROM user_rows WHERE table_id = $1)', [tableId]);
+    
+    // 3. Удаляем все строки таблицы
+    await db.getQuery()('DELETE FROM user_rows WHERE table_id = $1', [tableId]);
+    
+    // 4. Удаляем все столбцы таблицы
+    await db.getQuery()('DELETE FROM user_columns WHERE table_id = $1', [tableId]);
+    
+    // 5. Удаляем саму таблицу
     const result = await db.getQuery()('DELETE FROM user_tables WHERE id = $1 RETURNING *', [tableId]);
-    console.log('[DIAG] Результат удаления (rowCount):', result.rowCount, 'rows:', result.rows);
-
-    // Проверяем наличие таблицы после удаления
-    const checkAfter = await db.getQuery()('SELECT * FROM user_tables WHERE id = $1', [tableId]);
-    console.log('[DIAG] Таблица после удаления:', checkAfter.rows);
-
+    
     res.json({ success: true, deleted: result.rowCount });
   } catch (err) {
-    console.error('[DIAG] Ошибка при удалении таблицы:', err);
+    console.error('[DELETE /:id] Error:', err);
     next(err);
   }
 });
@@ -718,14 +755,51 @@ router.get('/:tableId/row/:rowId/relations', async (req, res, next) => {
 router.post('/:tableId/row/:rowId/relations', async (req, res, next) => {
   try {
     const { tableId, rowId } = req.params;
-    const { column_id, to_table_id, to_row_id } = req.body;
-    const result = await db.getQuery()(
-      `INSERT INTO user_table_relations (from_row_id, column_id, to_table_id, to_row_id)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [rowId, column_id, to_table_id, to_row_id]
-    );
-    res.json(result.rows[0]);
+    const { column_id, to_table_id, to_row_ids } = req.body;
+    
+    // Если передается массив to_row_ids - это массовое обновление
+    if (Array.isArray(to_row_ids)) {
+      // Удаляем старые связи для этого столбца
+      await db.getQuery()('DELETE FROM user_table_relations WHERE from_row_id = $1 AND column_id = $2', [rowId, column_id]);
+      
+      // Добавляем новые связи
+      if (to_row_ids.length > 0) {
+        const values = to_row_ids.map((to_row_id, index) => 
+          `($1, $2, $3, $${index + 4})`
+        ).join(', ');
+        
+        const params = [rowId, column_id, to_table_id, ...to_row_ids];
+        const result = await db.getQuery()(
+          `INSERT INTO user_table_relations (from_row_id, column_id, to_table_id, to_row_id)
+           VALUES ${values} RETURNING *`,
+          params
+        );
+        
+        // Отправляем WebSocket уведомление
+        const { broadcastTagsUpdate } = require('../wsHub');
+        broadcastTagsUpdate(null, rowId);
+        
+        res.json(result.rows);
+      } else {
+        res.json([]);
+      }
+    } else {
+      // Одиночная связь
+      const { to_row_id } = req.body;
+      const result = await db.getQuery()(
+        `INSERT INTO user_table_relations (from_row_id, column_id, to_table_id, to_row_id)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [rowId, column_id, to_table_id, to_row_id]
+      );
+      
+      // Отправляем WebSocket уведомление
+      const { broadcastTagsUpdate } = require('../wsHub');
+      broadcastTagsUpdate(null, rowId);
+      
+      res.json(result.rows[0]);
+    }
   } catch (err) {
+    console.error('[POST /:tableId/row/:rowId/relations] Error:', err);
     next(err);
   }
 });
@@ -742,55 +816,8 @@ router.delete('/:tableId/row/:rowId/relations/:relationId', async (req, res, nex
 });
 
 // --- Массовое обновление связей для multiselect-relation ---
-router.post('/:tableId/row/:rowId/multirelations', async (req, res, next) => {
-  try {
-    const { tableId, rowId } = req.params;
-    const { column_id, to_table_id, to_row_ids } = req.body; // to_row_ids: массив id
-    if (!Array.isArray(to_row_ids)) return res.status(400).json({ error: 'to_row_ids должен быть массивом' });
-    
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
-    
-    // Проверяем, является ли это обновлением тегов (проверяем связанную таблицу)
-    const relatedTableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [to_table_id, encryptionKey])).rows[0];
-    console.log('🔄 [Tables] Multirelations: проверяем связанную таблицу:', { to_table_id, tableName: relatedTableName?.name });
-    
-    if (relatedTableName && relatedTableName.name === 'Теги клиентов') {
-      console.log('🔄 [Tables] Multirelations: обновление тегов, отправляем уведомление');
-      const { broadcastTagsUpdate } = require('../wsHub');
-      broadcastTagsUpdate();
-    }
-    
-    // Удаляем старые связи для этой строки/столбца
-    await db.getQuery()('DELETE FROM user_table_relations WHERE from_row_id = $1 AND column_id = $2', [rowId, column_id]);
-    // Добавляем новые связи
-    for (const to_row_id of to_row_ids) {
-      await db.getQuery()(
-        `INSERT INTO user_table_relations (from_row_id, column_id, to_table_id, to_row_id)
-         VALUES ($1, $2, $3, $4)`,
-        [rowId, column_id, to_table_id, to_row_id]
-      );
-    }
-    
-    // Отправляем WebSocket уведомление об обновлении связей
-    broadcastTableRelationsUpdate(tableId, rowId);
-    
-    res.json({ success: true });
-  } catch (err) {
-    next(err);
-  }
-});
+// ПРИМЕЧАНИЕ: Для работы с тегами используйте /api/tags/user/:rowId/multirelations
+// Этот endpoint удален для избежания дублирования
 
 // Получить плейсхолдеры для всех столбцов таблицы
 router.get('/:id/placeholders', async (req, res, next) => {
@@ -799,7 +826,13 @@ router.get('/:id/placeholders', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
+    let encryptionKey;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+      return res.status(500).json({ error: 'Database encryption error' });
+    }
     
     try {
       const keyPath = '/app/ssl/keys/full_db_encryption.key';

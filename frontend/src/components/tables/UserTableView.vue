@@ -90,13 +90,19 @@
         :resizable="false"
       >
         <template #header>
-          <button class="add-col-btn" @click="addColumn" title="Добавить столбец">
+          <button class="add-col-btn" @click.stop="openAddMenu($event)" title="Добавить">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="11" cy="11" r="10" fill="#f3f4f6" stroke="#b6c6e6"/>
               <rect x="10" y="5.5" width="2" height="11" rx="1" fill="#4f8cff"/>
               <rect x="5.5" y="10" width="11" height="2" rx="1" fill="#4f8cff"/>
             </svg>
           </button>
+          <teleport to="body">
+            <div v-if="showAddMenu" class="context-menu" :style="addMenuStyle">
+              <button class="menu-item" @click="addColumn">Добавить столбец</button>
+              <button class="menu-item" @click="addRow">Добавить строку</button>
+            </div>
+          </teleport>
         </template>
         <template #default="{ row }">
           <button class="row-menu" @click.stop="openRowMenu(row, $event)">⋮</button>
@@ -118,7 +124,7 @@
         <!-- <button class="menu-item" @click="addColumn">Добавить столбец</button> -->
       </div>
     </teleport>
-    <div v-if="openedColMenuId || openedRowMenuId" class="menu-overlay" @click="closeMenus"></div>
+    <div v-if="openedColMenuId || openedRowMenuId || showAddMenu" class="menu-overlay" @click="closeMenus"></div>
     <!-- Модалка добавления столбца -->
     <div v-if="showAddColModal" class="modal-backdrop">
       <div class="modal add-col-modal">
@@ -169,7 +175,9 @@ import axios from 'axios';
 import { ElSelect, ElOption, ElButton } from 'element-plus';
 import websocketService from '../../services/websocketService';
 import cacheService from '../../services/cacheService';
+import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
 let unsubscribeFromTableUpdate = null;
+let unsubscribeFromTagsUpdate = null;
 
 const { isAdmin } = useAuthContext();
 const rebuilding = ref(false);
@@ -268,6 +276,10 @@ const openedColMenuId = ref(null);
 const openedRowMenuId = ref(null);
 const colMenuStyle = ref('');
 const rowMenuStyle = ref('');
+
+// Меню добавления
+const showAddMenu = ref(false);
+const addMenuStyle = ref('');
 
 function closeAddColModal() {
   showAddColModal.value = false;
@@ -546,11 +558,76 @@ onMounted(() => {
     cacheService.clearTableCache(props.tableId);
     fetchTable();
   });
+  
+  // Подписка на WebSocket обновления тегов
+  const { onTagsUpdate } = useTagsWebSocket();
+  console.log('[UserTableView] Подписываемся на обновления тегов для таблицы:', props.tableId);
+  console.log('[UserTableView] onTagsUpdate функция:', typeof onTagsUpdate);
+  unsubscribeFromTagsUpdate = onTagsUpdate(async (data) => {
+    console.log('[UserTableView] 🔔 ПОЛУЧЕНО СОБЫТИЕ TAGS-UPDATED!');
+    console.log('[UserTableView] Получено событие tags-updated, обновляем данные для таблицы:', props.tableId, data);
+    
+    // Если есть информация о конкретной строке, обновляем только её
+    if (data && data.rowId) {
+      console.log('[UserTableView] Точечное обновление для строки:', data.rowId);
+      try {
+        // Очищаем кэш relations только для конкретной строки
+        const tagColumns = columns.value.filter(col => 
+          col.type === 'multirelation' && 
+          col.options?.relatedTableId
+        );
+        
+        for (const col of tagColumns) {
+          cacheService.clearRelationsData(data.rowId, col.id);
+        }
+        
+        console.log('[UserTableView] Кэш relations очищен для строки, обновляем данные строки:', data.rowId);
+        
+        // Обновляем только данные конкретной строки
+        await updateRowData(data.rowId);
+        console.log('[UserTableView] Данные строки обновлены:', data.rowId);
+      } catch (error) {
+        console.error('[UserTableView] Ошибка при точечном обновлении:', error);
+        // Fallback: полная перезагрузка при ошибке
+        await fetchTable();
+      }
+    } else {
+      // Если нет информации о строке, используем старую логику
+      console.log('[UserTableView] Общее обновление тегов');
+      try {
+        // Очищаем кэш relations для всех строк этой таблицы
+        const tableRows = rows.value || [];
+        for (const row of tableRows) {
+          // Находим колонки с мульти-связями (теги)
+          const tagColumns = columns.value.filter(col => 
+            col.type === 'multirelation' && 
+            col.options?.relatedTableId
+          );
+          
+          for (const col of tagColumns) {
+            cacheService.clearRelationsData(row.id, col.id);
+          }
+        }
+        
+        console.log('[UserTableView] Кэш relations очищен, перезагружаем данные таблицы:', props.tableId);
+        await fetchTable();
+        console.log('[UserTableView] Данные таблицы перезагружены:', props.tableId);
+      } catch (error) {
+        console.error('[UserTableView] Ошибка при обновлении после tags-updated:', error);
+        // Fallback: полная перезагрузка при ошибке
+        cacheService.clearTableCache(props.tableId);
+        await fetchTable();
+      }
+    }
+  });
 });
 
 onUnmounted(() => {
   if (unsubscribeFromTableUpdate) {
     unsubscribeFromTableUpdate();
+  }
+  if (unsubscribeFromTagsUpdate) {
+    unsubscribeFromTagsUpdate();
   }
 });
 
@@ -619,6 +696,14 @@ function openRowMenu(row, event) {
 function closeMenus() {
   openedColMenuId.value = null;
   openedRowMenuId.value = null;
+  showAddMenu.value = false;
+}
+
+function openAddMenu(event) {
+  showAddMenu.value = true;
+  openedColMenuId.value = null;
+  openedRowMenuId.value = null;
+  setMenuPosition(event, addMenuStyle);
 }
 function setMenuPosition(event, styleRef) {
   // Позиционируем меню под кнопкой
@@ -673,6 +758,54 @@ async function rebuildIndex() {
     rebuildStatus.value = { success: false, message: msg };
   } finally {
     rebuilding.value = false;
+  }
+}
+
+// Функция для точечного обновления данных конкретной строки
+async function updateRowData(rowId) {
+  const startTime = Date.now();
+  console.log(`[UserTableView] 🔄 Начало обновления данных строки ${rowId}`);
+  
+  try {
+    // Находим строку в текущих данных
+    const rowIndex = rows.value.findIndex(row => row.id === rowId);
+    if (rowIndex === -1) {
+      console.log(`[UserTableView] Строка ${rowId} не найдена в текущих данных`);
+      return;
+    }
+    
+    // Загружаем relations только для этой строки
+    const tagColumns = columns.value.filter(col => 
+      col.type === 'multirelation' && 
+      col.options?.relatedTableId
+    );
+    
+    if (tagColumns.length > 0) {
+      console.log(`[UserTableView] 🔄 Загружаем relations для строки ${rowId} (${tagColumns.length} столбцов)`);
+      
+      const relationPromises = tagColumns.map(col => 
+        fetch(`/api/tables/${col.table_id}/row/${rowId}/relations`)
+          .then(res => res.json())
+          .then(relations => {
+            // Сохраняем в кэш
+            cacheService.setRelationsData(rowId, col.id, relations);
+            return { rowId, colId: col.id, relations };
+          })
+          .catch(error => {
+            console.error(`[UserTableView] Ошибка загрузки relations для row:${rowId} col:${col.id}:`, error);
+            return { rowId, colId: col.id, relations: [] };
+          })
+      );
+      
+      await Promise.all(relationPromises);
+      console.log(`[UserTableView] ✅ Relations для строки ${rowId} обновлены`);
+    }
+    
+    const endTime = Date.now();
+    console.log(`[UserTableView] ✅ Завершено обновление строки ${rowId} за ${endTime - startTime}ms`);
+  } catch (error) {
+    console.error(`[UserTableView] ❌ Ошибка при обновлении строки ${rowId}:`, error);
+    throw error;
   }
 }
 

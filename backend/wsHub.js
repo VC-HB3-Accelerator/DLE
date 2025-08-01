@@ -20,6 +20,10 @@ const wsClients = new Map(); // userId -> Set of WebSocket connections
 const tagsChangeCache = new Map();
 const TAGS_CACHE_TTL = 5000; // 5 секунд
 
+// Дебаунс для broadcastTagsUpdate
+let tagsUpdateTimeout = null;
+const TAGS_UPDATE_DEBOUNCE = 100; // 100ms
+
 function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
   
@@ -234,20 +238,32 @@ function broadcastTableRelationsUpdate(tableId, rowId, targetUserId = null) {
   }
 }
 
-function broadcastTagsUpdate(targetUserId = null) {
-  console.log('🔔 [WebSocket] Отправляем уведомление об обновлении тегов');
-  const message = JSON.stringify({
-    type: 'tags-updated',
-    timestamp: Date.now()
-  });
+function broadcastTagsUpdate(targetUserId = null, rowId = null) {
+  // Дебаунс: отменяем предыдущий таймаут
+  if (tagsUpdateTimeout) {
+    clearTimeout(tagsUpdateTimeout);
+  }
   
-  // Отправляем всем подключенным клиентам
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      console.log('🔔 [WebSocket] Отправляем tags-updated клиенту');
-      client.send(message);
-    }
-  });
+  // Устанавливаем новый таймаут
+  tagsUpdateTimeout = setTimeout(() => {
+    console.log('🔔 [WebSocket] Отправляем уведомление об обновлении тегов', rowId ? `для строки ${rowId}` : '');
+    const message = JSON.stringify({
+      type: 'tags-updated',
+      timestamp: Date.now(),
+      rowId: rowId // Добавляем информацию о конкретной строке
+    });
+    
+    let sentCount = 0;
+    // Отправляем всем подключенным клиентам
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+        sentCount++;
+      }
+    });
+    
+    console.log(`🔔 [WebSocket] Отправлено tags-updated ${sentCount} клиентам`);
+  }, TAGS_UPDATE_DEBOUNCE);
 }
 
 function getConnectedUsers() {
