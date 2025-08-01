@@ -93,24 +93,24 @@ function connectWebSocket() {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
   ws.onopen = () => {
-    console.log('[CRM] WebSocket соединение установлено');
+    // console.log('[CRM] WebSocket соединение установлено');
   };
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
       if (msg.type === 'contacts-updated') {
-        console.log('[CRM] Получено событие contacts-updated, обновляем контакты');
+        // console.log('[CRM] Получено событие contacts-updated, обновляем контакты');
         loadContacts();
       }
     } catch (e) {
-      console.error('[CRM] Ошибка обработки сообщения WebSocket:', e);
+      // console.error('[CRM] Ошибка обработки сообщения WebSocket:', e);
     }
   };
   ws.onclose = () => {
-    console.log('[CRM] WebSocket соединение закрыто');
+    // console.log('[CRM] WebSocket соединение закрыто');
   };
   ws.onerror = (e) => {
-    console.error('[CRM] WebSocket ошибка:', e);
+    // console.error('[CRM] WebSocket ошибка:', e);
   };
 }
 
@@ -136,7 +136,7 @@ const loadDLEs = async () => {
       selectedDleIndex.value = 0;
     }
   } catch (error) {
-    console.error('Ошибка при загрузке списка DLE:', error);
+    // console.error('Ошибка при загрузке списка DLE:', error);
   } finally {
     isLoading.value = false;
   }
@@ -144,7 +144,7 @@ const loadDLEs = async () => {
 
 // Обработчик события изменения авторизации
 const handleAuthEvent = (eventData) => {
-  console.log('[CrmView] Получено событие изменения авторизации:', eventData);
+  // console.log('[CrmView] Получено событие изменения авторизации:', eventData);
   if (eventData.isAuthenticated) {
     loadDLEs();
   }
@@ -154,7 +154,7 @@ const handleAuthEvent = (eventData) => {
 let unsubscribe = null;
 
 onMounted(() => {
-  console.log('[CrmView] Компонент загружен');
+  // console.log('[CrmView] Компонент загружен');
   
   // Если пользователь авторизован, загружаем данные
   if (auth.isAuthenticated.value) {

@@ -81,7 +81,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 // Callback после успешной аутентификации/привязки через Email/Telegram
 const handleAuthFlowSuccess = (authType) => {
-  console.log(`[BaseLayout] Auth flow success: ${authType}`);
+      // console.log(`[BaseLayout] Auth flow success: ${authType}`);
   // Отправляем событие для обновления данных на страницах
   eventBus.emit('auth-success', { authType });
 };
@@ -116,7 +116,7 @@ const handleWalletAuth = async () => {
   isConnectingWallet.value = true;
   try {
     const result = await connectWithWallet();
-    console.log('[BaseLayout] Результат подключения кошелька:', result);
+    // console.log('[BaseLayout] Результат подключения кошелька:', result);
 
     if (result.success) {
       if (auth.isAuthenticated.value) {
@@ -132,7 +132,7 @@ const handleWalletAuth = async () => {
         // Новая аутентификация через кошелек
         const authResponse = await auth.checkAuth();
         if (authResponse.authenticated && authResponse.authType === 'wallet') {
-          console.log('[BaseLayout] Кошелёк успешно подключен и аутентифицирован');
+          // console.log('[BaseLayout] Кошелёк успешно подключен и аутентифицирован');
           showSuccessMessage('Кошелёк успешно подключен!');
           emit('auth-action-completed');
         } else {
@@ -140,11 +140,11 @@ const handleWalletAuth = async () => {
         }
       }
     } else {
-      console.error('[BaseLayout] Не удалось подключить кошелёк:', result.error);
+              // console.error('[BaseLayout] Не удалось подключить кошелёк:', result.error);
       showErrorMessage(result.error || 'Не удалось подключить кошелёк');
     }
   } catch (error) {
-    console.error('[BaseLayout] Ошибка при подключении кошелька:', error);
+          // console.error('[BaseLayout] Ошибка при подключении кошелька:', error);
     showErrorMessage('Произошла ошибка при подключении кошелька');
   } finally {
     isConnectingWallet.value = false;
@@ -155,7 +155,7 @@ const handleWalletAuth = async () => {
  * Выполняет выход из аккаунта
  */
 const disconnectWallet = async () => {
-  console.log('[BaseLayout] Выполняется выход из системы...');
+      // console.log('[BaseLayout] Выполняется выход из системы...');
   try {
     await api.post('/auth/logout');
     showSuccessMessage('Вы успешно вышли из системы');
@@ -163,7 +163,7 @@ const disconnectWallet = async () => {
     removeFromStorage('hasUserSentMessage');
     emit('auth-action-completed');
   } catch (error) {
-    console.error('[BaseLayout] Ошибка при выходе из системы:', error);
+          // console.error('[BaseLayout] Ошибка при выходе из системы:', error);
     showErrorMessage('Произошла ошибка при выходе из системы');
   }
 };
@@ -181,7 +181,7 @@ const toggleWalletSidebar = () => {
 // =====================================================================
 
 onMounted(() => {
-  console.log('[BaseLayout] Компонент загружен');
+  // console.log('[BaseLayout] Компонент загружен');
 
   // Загружаем сохраненное состояние боковой панели
   const savedSidebarState = getFromStorage('showWalletSidebar');

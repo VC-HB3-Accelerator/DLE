@@ -20,34 +20,34 @@ class EncryptedDataService {
     this.isEncryptionEnabled = !!this.encryptionKey;
     
     if (this.isEncryptionEnabled) {
-      console.log('🔐 Шифрование базы данных активировано');
-      console.log('📋 Автоматическое определение зашифрованных колонок');
+      // console.log('🔐 Шифрование базы данных активировано');
+      // console.log('📋 Автоматическое определение зашифрованных колонок');
     } else {
-      console.log('⚠️ Шифрование базы данных отключено - ключ не найден');
+      // console.log('⚠️ Шифрование базы данных отключено - ключ не найден');
     }
   }
 
   loadEncryptionKey() {
     try {
       const keyPath = path.join(__dirname, '../../ssl/keys/full_db_encryption.key');
-      console.log(`[EncryptedDB] Trying key path: ${keyPath}`);
+      // console.log(`[EncryptedDB] Trying key path: ${keyPath}`);
       if (fs.existsSync(keyPath)) {
         const key = fs.readFileSync(keyPath, 'utf8').trim();
-        console.log(`[EncryptedDB] Key loaded from: ${keyPath}, length: ${key.length}`);
+        // console.log(`[EncryptedDB] Key loaded from: ${keyPath}, length: ${key.length}`);
         return key;
       }
       // Попробуем альтернативный путь относительно корня приложения
       const altKeyPath = '/app/ssl/keys/full_db_encryption.key';
-      console.log(`[EncryptedDB] Trying alternative key path: ${altKeyPath}`);
+      // console.log(`[EncryptedDB] Trying alternative key path: ${altKeyPath}`);
       if (fs.existsSync(altKeyPath)) {
         const key = fs.readFileSync(altKeyPath, 'utf8').trim();
-        console.log(`[EncryptedDB] Key loaded from: ${altKeyPath}, length: ${key.length}`);
+        // console.log(`[EncryptedDB] Key loaded from: ${altKeyPath}, length: ${key.length}`);
         return key;
       }
-      console.log(`[EncryptedDB] No key file found, using default key`);
+      // console.log(`[EncryptedDB] No key file found, using default key`);
       return 'default-key';
     } catch (error) {
-      console.error('❌ Ошибка загрузки ключа шифрования:', error);
+      // console.error('❌ Ошибка загрузки ключа шифрования:', error);
       return 'default-key';
     }
   }
@@ -75,7 +75,7 @@ class EncryptedDataService {
       const selectFields = columns.map(col => {
         if (col.column_name.endsWith('_encrypted')) {
           const originalName = col.column_name.replace('_encrypted', '');
-          console.log(`🔓 Расшифровываем поле ${col.column_name} -> ${originalName}`);
+          // console.log(`🔓 Расшифровываем поле ${col.column_name} -> ${originalName}`);
           if (col.data_type === 'jsonb') {
             return `decrypt_json(${col.column_name}, $1) as "${originalName}"`;
           } else {
@@ -89,7 +89,7 @@ class EncryptedDataService {
           
           // Если есть зашифрованная версия, пропускаем незашифрованную
           if (hasEncryptedVersion) {
-            console.log(`⚠️ Пропускаем незашифрованное поле ${col.column_name} (есть зашифрованная версия)`);
+            // console.log(`⚠️ Пропускаем незашифрованное поле ${col.column_name} (есть зашифрованная версия)`);
             return null;
           }
           
@@ -171,16 +171,16 @@ class EncryptedDataService {
         query += ` LIMIT ${limit}`;
       }
 
-      console.log(`🔍 [getData] Выполняем запрос:`, query);
-      console.log(`🔍 [getData] Параметры:`, params);
+      // console.log(`🔍 [getData] Выполняем запрос:`, query);
+      // console.log(`🔍 [getData] Параметры:`, params);
       
       const { rows } = await db.getQuery()(query, params);
       
-      console.log(`📊 Результат запроса из ${tableName}:`, rows);
+              // console.log(`📊 Результат запроса из ${tableName}:`, rows);
       
       return rows;
     } catch (error) {
-      console.error(`❌ Ошибка получения данных из ${tableName}:`, error);
+      // console.error(`❌ Ошибка получения данных из ${tableName}:`, error);
       throw error;
     }
   }
@@ -223,19 +223,19 @@ class EncryptedDataService {
         const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
         const unencryptedColumn = columns.find(col => col.column_name === key);
         
-        console.log(`🔍 Обрабатываем поле ${key} = "${value}" (тип: ${typeof value})`);
+        // console.log(`🔍 Обрабатываем поле ${key} = "${value}" (тип: ${typeof value})`);
         
         if (encryptedColumn) {
           // Если есть зашифрованная колонка, шифруем данные
           // Проверяем, что значение не пустое перед шифрованием
           if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
             // Пропускаем пустые значения
-            console.log(`⚠️ Пропускаем пустое зашифрованное поле ${key}`);
+            // console.log(`⚠️ Пропускаем пустое зашифрованное поле ${key}`);
             continue;
           }
           const currentParamIndex = paramIndex++;
           filteredData[key] = value; // Добавляем в отфильтрованные данные
-          console.log(`✅ Добавили зашифрованное поле ${key} в filteredData`);
+          // console.log(`✅ Добавили зашифрованное поле ${key} в filteredData`);
           if (encryptedColumn.data_type === 'jsonb') {
             encryptedData[`${key}_encrypted`] = `encrypt_json($${currentParamIndex}, ${hasEncryptedFields ? '$1::text' : 'NULL'})`;
           } else {
@@ -247,15 +247,15 @@ class EncryptedDataService {
           if ((value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) && 
               key !== 'role' && key !== 'sender_type') {
             // Пропускаем пустые значения, кроме role и sender_type
-            console.log(`⚠️ Пропускаем пустое незашифрованное поле ${key}`);
+            // console.log(`⚠️ Пропускаем пустое незашифрованное поле ${key}`);
             continue;
           }
           filteredData[key] = value; // Добавляем в отфильтрованные данные
           unencryptedData[key] = `$${paramIndex++}`;
-          console.log(`✅ Добавили незашифрованное поле ${key} в filteredData и unencryptedData`);
+          // console.log(`✅ Добавили незашифрованное поле ${key} в filteredData и unencryptedData`);
         } else {
           // Если колонка не найдена, пропускаем
-          console.warn(`⚠️ Колонка ${key} не найдена в таблице ${tableName}`);
+          // console.warn(`⚠️ Колонка ${key} не найдена в таблице ${tableName}`);
         }
       }
 
@@ -263,9 +263,9 @@ class EncryptedDataService {
       
       // Проверяем, есть ли данные для сохранения
       if (Object.keys(allData).length === 0) {
-        console.warn(`⚠️ Нет данных для сохранения в таблице ${tableName} - все значения пустые`);
-        console.warn(`⚠️ Исходные данные:`, data);
-        console.warn(`⚠️ Отфильтрованные данные:`, filteredData);
+        // console.warn(`⚠️ Нет данных для сохранения в таблице ${tableName} - все значения пустые`);
+        // console.warn(`⚠️ Исходные данные:`, data);
+        // console.warn(`⚠️ Отфильтрованные данные:`, filteredData);
         return null;
       }
       
@@ -301,7 +301,7 @@ class EncryptedDataService {
         return rows[0];
       }
     } catch (error) {
-      console.error(`❌ Ошибка сохранения данных в ${tableName}:`, error);
+      // console.error(`❌ Ошибка сохранения данных в ${tableName}:`, error);
       throw error;
     }
   }
@@ -352,7 +352,7 @@ class EncryptedDataService {
       const result = await db.getQuery()(query, params);
       return result.rows;
     } catch (error) {
-      console.error(`❌ Ошибка удаления данных из ${tableName}:`, error);
+      // console.error(`❌ Ошибка удаления данных из ${tableName}:`, error);
       throw error;
     }
   }

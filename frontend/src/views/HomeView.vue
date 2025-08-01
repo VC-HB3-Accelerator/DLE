@@ -52,7 +52,7 @@
   import BaseLayout from '../components/BaseLayout.vue';
   import ChatInterface from '../components/ChatInterface.vue';
 
-  console.log('HomeView.vue: Using BaseLayout');
+  // console.log('HomeView.vue: Using BaseLayout');
 
   // Определяем props, переданные из App.vue через RouterView
   const props = defineProps({
@@ -99,7 +99,7 @@
   let unsubscribe = null;
 
   onMounted(() => {
-    console.log('[HomeView] Компонент загружен (обновленная версия)');
+    // console.log('[HomeView] Компонент загружен (обновленная версия)');
     
     // Подписка на события авторизации
     unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
@@ -118,7 +118,7 @@
 
   // Функция обновления сообщений после авторизации
   const handleAuthEvent = async (eventData) => {
-    console.log('[HomeView] Получено событие изменения авторизации:', eventData);
+    // console.log('[HomeView] Получено событие изменения авторизации:', eventData);
     if (eventData.isAuthenticated) {
       // Сначала связываем гостевые сообщения, если есть
       await linkGuestMessagesAfterAuth();

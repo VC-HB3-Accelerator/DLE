@@ -11,7 +11,7 @@ const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama:11434';
 const MODEL_NAME = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
 
 async function warmupModel() {
-  console.log('🔥 Разогрев модели Ollama...');
+  // console.log('🔥 Разогрев модели Ollama...');
   
   try {
     // Проверяем доступность Ollama
@@ -20,7 +20,7 @@ async function warmupModel() {
       throw new Error(`Ollama недоступен: ${healthResponse.status}`);
     }
     
-    console.log('✅ Ollama доступен');
+          // console.log('✅ Ollama доступен');
     
     // Отправляем простой запрос для разогрева
     const warmupResponse = await fetch(`${OLLAMA_URL}/v1/chat/completions`, {
@@ -54,11 +54,11 @@ async function warmupModel() {
     }
     
     const data = await warmupResponse.json();
-    console.log('✅ Модель разогрета успешно');
-    console.log(`📝 Ответ модели: ${data.choices?.[0]?.message?.content?.substring(0, 100)}...`);
+          // console.log('✅ Модель разогрета успешно');
+      // console.log(`📝 Ответ модели: ${data.choices?.[0]?.message?.content?.substring(0, 100)}...`);
     
   } catch (error) {
-    console.error('❌ Ошибка разогрева модели:', error.message);
+          // console.error('❌ Ошибка разогрева модели:', error.message);
     // Не прерываем запуск приложения
   }
 }

@@ -37,7 +37,7 @@ api.interceptors.response.use(
     // Проверяем, что ответ действительно JSON
     if (response.headers['content-type'] && 
         !response.headers['content-type'].includes('application/json')) {
-      console.warn('Server returned non-JSON response:', response.headers['content-type']);
+      // console.warn('Server returned non-JSON response:', response.headers['content-type']);
       // Если это HTML, значит, запрос ушёл не туда
       if (response.headers['content-type'].includes('text/html')) {
         throw new Error('Server returned HTML instead of JSON. Check API endpoint.');
@@ -50,7 +50,7 @@ api.interceptors.response.use(
     if (error.response && error.response.data && 
         typeof error.response.data === 'string' && 
         error.response.data.includes('<!DOCTYPE')) {
-      console.error('API Error: Server returned HTML instead of JSON');
+      // console.error('API Error: Server returned HTML instead of JSON');
       error.message = 'Ошибка: сервер вернул HTML вместо JSON. Проверьте подключение к API.';
     }
     return Promise.reject(error);
@@ -65,7 +65,7 @@ const sendGuestMessageToServer = async (messageText) => {
       // language: userLanguage.value, // TODO: Реализовать получение языка пользователя
     }, { withCredentials: true });
   } catch (error) {
-    console.error('Ошибка при отправке гостевого сообщения на сервер:', error);
+    // console.error('Ошибка при отправке гостевого сообщения на сервер:', error);
   }
 };
 

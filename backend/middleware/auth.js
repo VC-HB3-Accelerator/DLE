@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-console.log('[DIAG][auth.js] Файл загружен:', __filename);
+// console.log('[DIAG][auth.js] Файл загружен:', __filename);
 
 const { createError } = require('../utils/error');
 const authService = require('../services/auth-service');
@@ -30,14 +30,14 @@ try {
     encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
   }
 } catch (keyError) {
-  console.error('Error reading encryption key:', keyError);
+  // console.error('Error reading encryption key:', keyError);
 }
 
 /**
  * Middleware для проверки аутентификации
  */
 const requireAuth = async (req, res, next) => {
-  console.log('[DIAG][requireAuth] session:', req.session);
+  // console.log('[DIAG][requireAuth] session:', req.session);
   if (!req.session || !req.session.authenticated) {
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
@@ -148,7 +148,7 @@ async function checkRole(req, res, next) {
 
     next();
   } catch (error) {
-    console.error('Error in checkRole middleware:', error);
+    // console.error('Error in checkRole middleware:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

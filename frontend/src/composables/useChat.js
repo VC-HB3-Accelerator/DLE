@@ -64,14 +64,14 @@ export function useChat(auth) {
     const { silent = false, initial = false, authType = null } = options;
 
     if (messageLoading.value.isHistoryLoadingInProgress) {
-      console.warn('[useChat] Загрузка истории уже идет, пропуск.');
+      // console.warn('[useChat] Загрузка истории уже идет, пропуск.');
       return;
     }
     messageLoading.value.isHistoryLoadingInProgress = true;
 
     // Если initial=true, сбрасываем offset и hasMoreMessages
     if (initial) {
-        console.log('[useChat] Начальная загрузка истории...');
+        // console.log('[useChat] Начальная загрузка истории...');
         messageLoading.value.offset = 0;
         messageLoading.value.hasMoreMessages = false;
         messages.value = []; // Очищаем текущие сообщения перед начальной загрузкой
@@ -86,17 +86,17 @@ export function useChat(auth) {
     messageLoading.value.isLoadingHistory = true;
     if (!silent && initial) isLoading.value = true; // Показываем общий лоадер только при начальной загрузке
 
-    console.log(
-      `[useChat] Загрузка истории сообщений (initial: ${initial}, authType: ${authType}, offset: ${messageLoading.value.offset})...`
-    );
+    // console.log(
+    //   `[useChat] Загрузка истории сообщений (initial: ${initial}, authType: ${authType}, offset: ${messageLoading.value.offset})...`
+    // );
 
     try {
         // --- Логика ожидания привязки гостя (упрощенная) --- 
         // TODO: Рассмотреть более надежный механизм, если это необходимо
         if (authType) {
-            console.log(`[useChat] Ожидание после ${authType} аутентификации...`);
+            // console.log(`[useChat] Ожидание после ${authType} аутентификации...`);
             await new Promise((resolve) => setTimeout(resolve, 1500)); // Увеличена задержка
-            console.log('[useChat] Ожидание завершено, продолжаем загрузку истории.');
+            // console.log('[useChat] Ожидание завершено, продолжаем загрузку истории.');
         }
         // --- Конец логики ожидания --- 
 
@@ -107,9 +107,9 @@ export function useChat(auth) {
                 const countResponse = await api.get('/chat/history', { params: { count_only: true } });
                 if (!countResponse.data.success) throw new Error('Не удалось получить количество сообщений');
                 totalMessages = countResponse.data.total || countResponse.data.count || 0;
-                console.log(`[useChat] Всего сообщений в истории: ${totalMessages}`);
+                // console.log(`[useChat] Всего сообщений в истории: ${totalMessages}`);
              } catch(countError) {
-                 console.error('[useChat] Ошибка получения количества сообщений:', countError);
+                 // console.error('[useChat] Ошибка получения количества сообщений:', countError);
                  // Не прерываем выполнение, попробуем загрузить без total
              }
         }
@@ -118,7 +118,7 @@ export function useChat(auth) {
         // Если это первая загрузка и мы знаем total, рассчитаем смещение для последних сообщений
         if (initial && totalMessages > 0 && totalMessages > messageLoading.value.limit) {
             effectiveOffset = Math.max(0, totalMessages - messageLoading.value.limit);
-            console.log(`[useChat] Рассчитано начальное смещение: ${effectiveOffset}`);
+            // console.log(`[useChat] Рассчитано начальное смещение: ${effectiveOffset}`);
         }
 
         const response = await api.get('/chat/history', {
@@ -130,7 +130,7 @@ export function useChat(auth) {
 
         if (response.data.success) {
             const loadedMessages = response.data.messages || [];
-            console.log(`[useChat] Загружено ${loadedMessages.length} сообщений.`);
+            // console.log(`[useChat] Загружено ${loadedMessages.length} сообщений.`);
 
             if (loadedMessages.length > 0) {
                 // Добавляем к существующим (в начало для истории, в конец для начальной загрузки)
@@ -147,7 +147,7 @@ export function useChat(auth) {
                 } else {
                    messageLoading.value.offset += loadedMessages.length;
                 }
-                 console.log(`[useChat] Новое смещение: ${messageLoading.value.offset}`);
+                 // console.log(`[useChat] Новое смещение: ${messageLoading.value.offset}`);
 
                 // Проверяем, есть ли еще сообщения для загрузки
                 // Используем totalMessages, если он был успешно получен
@@ -157,7 +157,7 @@ export function useChat(auth) {
                     // Если total не известен, считаем, что есть еще, если загрузили полный лимит
                      messageLoading.value.hasMoreMessages = loadedMessages.length === messageLoading.value.limit;
                 }
-                 console.log(`[useChat] Есть еще сообщения: ${messageLoading.value.hasMoreMessages}`);
+                 // console.log(`[useChat] Есть еще сообщения: ${messageLoading.value.hasMoreMessages}`);
             } else {
                 // Если сообщений не пришло, значит, больше нет
                 messageLoading.value.hasMoreMessages = false;
@@ -177,11 +177,11 @@ export function useChat(auth) {
             }
 
         } else {
-            console.error('[useChat] API вернул ошибку при загрузке истории:', response.data.error);
+            // console.error('[useChat] API вернул ошибку при загрузке истории:', response.data.error);
              messageLoading.value.hasMoreMessages = false; // Считаем, что больше нет при ошибке
         }
     } catch (error) {
-      console.error('[useChat] Ошибка загрузки истории сообщений:', error);
+      // console.error('[useChat] Ошибка загрузки истории сообщений:', error);
       messageLoading.value.hasMoreMessages = false; // Считаем, что больше нет при ошибке
     } finally {
       messageLoading.value.isLoadingHistory = false;
@@ -193,12 +193,12 @@ export function useChat(auth) {
   // --- Отправка сообщения --- 
   const handleSendMessage = async (payload) => {
     // --- НАЧАЛО ДОБАВЛЕННЫХ ЛОГОВ ---
-    console.log('[useChat] handleSendMessage called. Payload:', payload);
-    console.log('[useChat] Current auth state:', {
-        isAuthenticated: auth.isAuthenticated.value,
-        userId: auth.userId.value,
-        authType: auth.authType.value,
-    });
+    // console.log('[useChat] handleSendMessage called. Payload:', payload);
+    // console.log('[useChat] Current auth state:', {
+    //     isAuthenticated: auth.isAuthenticated.value,
+    //     userId: auth.userId.value,
+    //     authType: auth.authType.value,
+    // });
     // --- КОНЕЦ ДОБАВЛЕННЫХ ЛОГОВ ---
 
     const { message: text, attachments: files } = payload; // files - массив File объектов
@@ -206,7 +206,7 @@ export function useChat(auth) {
 
     // Проверка на пустое сообщение (если нет ни текста, ни файлов)
     if (!userMessageContent && (!files || files.length === 0)) {
-        console.warn('[useChat] Попытка отправить пустое сообщение.');
+        // console.warn('[useChat] Попытка отправить пустое сообщение.');
         return;
     }
 
@@ -268,7 +268,7 @@ export function useChat(auth) {
         const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
 
         if (response.data.success) {
-             console.log('[useChat] Сообщение успешно отправлено:', response.data);
+             // console.log('[useChat] Сообщение успешно отправлено:', response.data);
              // Обновляем локальное сообщение данными с сервера
              if (userMsgIndex !== -1) {
                 const serverUserMessage = response.data.userMessage || { id: response.data.messageId };
@@ -317,7 +317,7 @@ export function useChat(auth) {
                     });
                     setToStorage('guestMessages', storedMessages);
                 } catch (storageError) {
-                    console.error('[useChat] Ошибка сохранения гостевого сообщения в localStorage:', storageError);
+                    // console.error('[useChat] Ошибка сохранения гостевого сообщения в localStorage:', storageError);
                 }
             }
 
@@ -329,7 +329,7 @@ export function useChat(auth) {
         }
 
     } catch (error) {
-        console.error('[useChat] Ошибка отправки сообщения:', error);
+        // console.error('[useChat] Ошибка отправки сообщения:', error);
         const userMsgIndex = messages.value.findIndex((m) => m.id === tempId);
         if (userMsgIndex !== -1) {
             messages.value[userMsgIndex].hasError = true;
@@ -354,7 +354,7 @@ export function useChat(auth) {
           try {
               const storedMessages = getFromStorage('guestMessages');
               if (storedMessages && Array.isArray(storedMessages) && storedMessages.length > 0) {
-                  console.log(`[useChat] Найдено ${storedMessages.length} сохраненных гостевых сообщений`);
+                  // console.log(`[useChat] Найдено ${storedMessages.length} сохраненных гостевых сообщений`);
                   // Добавляем только если текущий список пуст (чтобы не дублировать при HMR)
                   if(messages.value.length === 0) {
                      messages.value = storedMessages.map(m => ({ ...m, isGuest: true })); // Помечаем как гостевые
@@ -362,7 +362,7 @@ export function useChat(auth) {
                   }
               }
           } catch (e) {
-              console.error('[useChat] Ошибка загрузки гостевых сообщений из localStorage:', e);
+              // console.error('[useChat] Ошибка загрузки гостевых сообщений из localStorage:', e);
               removeFromStorage('guestMessages'); // Очистить при ошибке парсинга
           }
       }
@@ -381,7 +381,7 @@ export function useChat(auth) {
         guestId.value = '';
       }
     } catch (error) {
-      console.error('[useChat] Ошибка связывания гостевых сообщений:', error);
+      // console.error('[useChat] Ошибка связывания гостевых сообщений:', error);
       }
   };
 
@@ -401,7 +401,7 @@ export function useChat(auth) {
  // Сброс чата при выходе пользователя
  watch(() => auth.isAuthenticated.value, (isAuth, wasAuth) => {
      if (!isAuth && wasAuth) { // Если пользователь разлогинился
-         console.log('[useChat] Пользователь вышел, сброс состояния чата.');
+         // console.log('[useChat] Пользователь вышел, сброс состояния чата.');
          messages.value = [];
          messageLoading.value.offset = 0;
          messageLoading.value.hasMoreMessages = false;
@@ -413,7 +413,7 @@ export function useChat(auth) {
          // Гостевые данные очищаются при успешной аутентификации в loadMessages
          // или если пользователь сам очистит localStorage
      } else if (isAuth && !wasAuth) { // Если пользователь вошел
-         console.log('[useChat] Пользователь вошел, подключаем WebSocket.');
+         // console.log('[useChat] Пользователь вошел, подключаем WebSocket.');
          // Отложенное подключение, чтобы дождаться загрузки данных пользователя
          setTimeout(() => setupChatWebSocket(), 100);
      }
@@ -422,7 +422,7 @@ export function useChat(auth) {
  // Отслеживаем загрузку данных пользователя для подключения WebSocket
  watch(() => auth.user?.value, (newUser, oldUser) => {
      if (newUser && newUser.id && auth.isAuthenticated.value) {
-         console.log('[useChat] Данные пользователя загружены, подключаем WebSocket:', newUser.id);
+         // console.log('[useChat] Данные пользователя загружены, подключаем WebSocket:', newUser.id);
          setupChatWebSocket();
      }
  }, { immediate: false });
@@ -431,12 +431,12 @@ export function useChat(auth) {
   function setupChatWebSocket() {
     // Подключаемся к WebSocket только если пользователь аутентифицирован
     if (auth.isAuthenticated.value && auth.user && auth.user.value && auth.user.value.id) {
-      console.log('[useChat] Подключение к WebSocket для пользователя:', auth.user.value.id);
+      // console.log('[useChat] Подключение к WebSocket для пользователя:', auth.user.value.id);
       websocketService.connect(auth.user.value.id);
       
       // Создаем и сохраняем callback функции
       wsCallbacks.chatMessage = (message) => {
-        console.log('[useChat] Получено новое сообщение через WebSocket:', message);
+        // console.log('[useChat] Получено новое сообщение через WebSocket:', message);
         // Проверяем, что сообщение не дублируется
         const existingMessage = messages.value.find(m => m.id === message.id);
         if (!existingMessage) {
@@ -445,20 +445,20 @@ export function useChat(auth) {
       };
       
       wsCallbacks.conversationUpdated = (conversationId) => {
-        console.log('[useChat] Обновление диалога через WebSocket:', conversationId);
+        // console.log('[useChat] Обновление диалога через WebSocket:', conversationId);
         // Можно добавить логику обновления списка диалогов
       };
       
       wsCallbacks.connected = () => {
-        console.log('[useChat] WebSocket подключен');
+        // console.log('[useChat] WebSocket подключен');
       };
       
       wsCallbacks.disconnected = () => {
-        console.log('[useChat] WebSocket отключен');
+        // console.log('[useChat] WebSocket отключен');
       };
       
       wsCallbacks.error = (error) => {
-        console.error('[useChat] WebSocket ошибка:', error);
+        // console.error('[useChat] WebSocket ошибка:', error);
       };
       
       // Подписываемся на события
@@ -468,7 +468,7 @@ export function useChat(auth) {
       websocketService.on('disconnected', wsCallbacks.disconnected);
       websocketService.on('error', wsCallbacks.error);
     } else {
-      console.log('[useChat] WebSocket не подключен: пользователь не аутентифицирован или данные не загружены');
+      // console.log('[useChat] WebSocket не подключен: пользователь не аутентифицирован или данные не загружены');
     }
   }
   

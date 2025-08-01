@@ -30,7 +30,7 @@ async function getSettings() {
       encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
     }
   } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
+    // console.error('Error reading encryption key:', keyError);
   }
   
   // Получаем связанные данные из telegram_settings и email_settings

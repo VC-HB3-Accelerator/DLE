@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-console.log('[EmailBot] emailBot.js loaded');
+// console.log('[EmailBot] emailBot.js loaded');
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const nodemailer = require('nodemailer');
@@ -28,7 +28,7 @@ const { isUserBlocked } = require('../utils/userUtils');
 
 class EmailBotService {
   constructor() {
-    console.log('[EmailBot] constructor called');
+    // console.log('[EmailBot] constructor called');
   }
 
   async getSettingsFromDb() {
@@ -43,7 +43,7 @@ class EmailBotService {
         encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
       }
     } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
+      // console.error('Error reading encryption key:', keyError);
     }
     
     const { rows } = await db.getQuery()(
@@ -530,7 +530,7 @@ class EmailBotService {
 
   async start() {
     try {
-      console.log('[EmailBot] start() called');
+      // console.log('[EmailBot] start() called');
       logger.info('[EmailBot] start() called');
       const imapConfig = await this.getImapConfig();
       // Логируем IMAP-конфиг (без пароля)
@@ -580,7 +580,7 @@ class EmailBotService {
       };
       tryConnect();
     } catch (err) {
-      console.error('[EmailBot] Ошибка при старте:', err);
+      // console.error('[EmailBot] Ошибка при старте:', err);
       logger.error('[EmailBot] Ошибка при старте:', err);
       throw err;
     }
@@ -592,5 +592,5 @@ class EmailBotService {
     }
 }
 
-console.log('[EmailBot] module.exports = EmailBotService');
+// console.log('[EmailBot] module.exports = EmailBotService');
 module.exports = EmailBotService;

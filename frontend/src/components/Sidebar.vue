@@ -197,7 +197,7 @@ const closeSidebar = () => {
 
 // Обработка события изменения авторизации
 const handleAuthEvent = (event) => {
-  console.log('[Sidebar] Получено событие изменения авторизации:', event);
+      // console.log('[Sidebar] Получено событие изменения авторизации:', event);
   // Здесь можно обновить данные, если нужно дополнительное обновление
 };
 
@@ -239,11 +239,11 @@ const handleDeleteIdentity = async (provider, providerId) => {
 
 // Добавляем watch для отслеживания props
 watch(() => props.tokenBalances, (newVal, oldVal) => {
-  console.log('[Sidebar] tokenBalances prop changed:', JSON.stringify(newVal));
+      // console.log('[Sidebar] tokenBalances prop changed:', JSON.stringify(newVal));
 }, { deep: true });
 
 watch(() => props.isLoadingTokens, (newVal, oldVal) => {
-  console.log(`[Sidebar] isLoadingTokens prop changed: ${newVal}`);
+      // console.log(`[Sidebar] isLoadingTokens prop changed: ${newVal}`);
 });
 </script>
 

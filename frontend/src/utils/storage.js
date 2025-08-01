@@ -17,7 +17,7 @@ export const isLocalStorageAvailable = () => {
     window.localStorage.removeItem(test);
     return true;
   } catch (e) {
-    console.error('localStorage is not available:', e);
+    // console.error('localStorage is not available:', e);
     return false;
   }
 };
@@ -33,7 +33,7 @@ export const getFromStorage = (key, defaultValue = null) => {
         return item || defaultValue;
     }
   } catch (e) {
-    console.error(`Error getting ${key} from localStorage:`, e);
+    // console.error(`Error getting ${key} from localStorage:`, e);
     return defaultValue;
   }
 };
@@ -48,7 +48,7 @@ export const setToStorage = (key, value) => {
     window.localStorage.setItem(key, valueToStore);
     return true;
   } catch (e) {
-    console.error(`Error setting ${key} in localStorage:`, e);
+    // console.error(`Error setting ${key} in localStorage:`, e);
     return false;
   }
 };
@@ -59,7 +59,7 @@ export const removeFromStorage = (key) => {
     window.localStorage.removeItem(key);
     return true;
   } catch (e) {
-    console.error(`Error removing ${key} from localStorage:`, e);
+    // console.error(`Error removing ${key} from localStorage:`, e);
     return false;
   }
 }; 

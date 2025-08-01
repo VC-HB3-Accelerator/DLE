@@ -19,10 +19,10 @@ const { deleteUserById } = require('../services/userDeleteService');
 const { broadcastContactsUpdate } = require('../wsHub');
 // const userService = require('../services/userService');
 
-console.log('[users.js] ROUTER LOADED');
+// console.log('[users.js] ROUTER LOADED');
 
 router.use((req, res, next) => {
-  console.log('[users.js] ROUTER REQUEST:', req.method, req.originalUrl);
+  // console.log('[users.js] ROUTER REQUEST:', req.method, req.originalUrl);
   next();
 });
 
@@ -42,7 +42,7 @@ router.get('/profile', requireAuth, async (req, res) => {
     }
     res.json({ success: true, user });
   } catch (error) {
-    console.error('Error getting user profile:', error);
+    // console.error('Error getting user profile:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
@@ -57,7 +57,7 @@ router.put('/profile', requireAuth, async (req, res) => {
     const updatedUser = await userService.updateUserProfile(userId, profileData);
     res.json({ success: true, user: updatedUser, message: 'Profile updated successfully' });
   } catch (error) {
-    console.error('Error updating user profile:', error);
+    // console.error('Error updating user profile:', error);
     // Можно добавить более специфичную обработку ошибок, например, если данные невалидны
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
@@ -382,19 +382,19 @@ router.patch('/:id', requireAuth, async (req, res) => {
 
 // DELETE /api/users/:id — удалить контакт и все связанные данные
 router.delete('/:id', requireAuth, async (req, res) => {
-  console.log('[users.js] DELETE HANDLER', req.params.id);
+  // console.log('[users.js] DELETE HANDLER', req.params.id);
   const userId = Number(req.params.id);
-  console.log('[ROUTER] Перед вызовом deleteUserById для userId:', userId);
+  // console.log('[ROUTER] Перед вызовом deleteUserById для userId:', userId);
   try {
     const deletedCount = await deleteUserById(userId);
-    console.log('[ROUTER] deleteUserById вернул:', deletedCount);
+    // console.log('[ROUTER] deleteUserById вернул:', deletedCount);
     if (deletedCount === 0) {
       return res.status(404).json({ success: false, deleted: 0, error: 'User not found' });
     }
     broadcastContactsUpdate();
     res.json({ success: true, deleted: deletedCount });
   } catch (e) {
-    console.error('[DELETE] Ошибка при удалении пользователя:', e);
+    // console.error('[DELETE] Ошибка при удалении пользователя:', e);
     res.status(500).json({ error: 'DB error', details: e.message });
   }
 });

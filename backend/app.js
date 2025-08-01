@@ -114,13 +114,13 @@ app.use((req, res, next) => sessionConfig.sessionMiddleware(req, res, next));
 
 // Добавим middleware для проверки сессии
 app.use(async (req, res, next) => {
-  console.log('Request cookies:', req.headers.cookie);
-  console.log('Session ID:', req.sessionID);
+  // console.log('Request cookies:', req.headers.cookie);
+  // console.log('Session ID:', req.sessionID);
 
   // Проверяем сессию в базе данных
   if (req.sessionID) {
     const result = await db.getQuery()('SELECT sess FROM session WHERE sid = $1', [req.sessionID]);
-    console.log('Session from DB:', result.rows[0]?.sess);
+    // console.log('Session from DB:', result.rows[0]?.sess);
   }
 
   // Если сессия уже есть, используем её
@@ -156,7 +156,7 @@ app.use(async (req, res, next) => {
         await new Promise((resolve) => req.session.save(resolve));
       }
     } catch (error) {
-      console.error('Error checking auth header:', error);
+      // console.error('Error checking auth header:', error);
     }
   }
 
@@ -188,7 +188,7 @@ app.use(
 
 // Логирование запросов
 app.use((req, res, next) => {
-  console.log('[APP] Глобальный лог:', req.method, req.originalUrl);
+  // console.log('[APP] Глобальный лог:', req.method, req.originalUrl);
   logger.info(`${req.method} ${req.url}`);
   next();
 });
@@ -224,21 +224,21 @@ const nonceStore = new Map(); // или любая другая реализац
 const redactedValue = '***********';
 
 // Логируем переменные окружения для отладки
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('PORT:', process.env.PORT);
-console.log('POSTGRES_HOST:', process.env.POSTGRES_HOST);
-console.log('POSTGRES_PORT:', process.env.POSTGRES_PORT);
-console.log('POSTGRES_DB:', process.env.POSTGRES_DB);
-console.log('POSTGRES_USER:', redactedValue);
-console.log('POSTGRES_PASSWORD:', redactedValue);
-console.log('TELEGRAM_BOT_TOKEN:', redactedValue);
-console.log('TELEGRAM_BOT_USERNAME:', process.env.TELEGRAM_BOT_USERNAME);
-console.log('OPENAI_API_KEY:', redactedValue);
+// console.log('NODE_ENV:', process.env.NODE_ENV);
+// console.log('PORT:', process.env.PORT);
+// console.log('POSTGRES_HOST:', process.env.POSTGRES_HOST);
+// console.log('POSTGRES_PORT:', process.env.POSTGRES_PORT);
+// console.log('POSTGRES_DB:', process.env.POSTGRES_DB);
+// console.log('POSTGRES_USER:', redactedValue);
+// console.log('POSTGRES_PASSWORD:', redactedValue);
+// console.log('TELEGRAM_BOT_TOKEN:', redactedValue);
+// console.log('TELEGRAM_BOT_USERNAME:', process.env.TELEGRAM_BOT_USERNAME);
+// console.log('OPENAI_API_KEY:', redactedValue);
 // console.log('SESSION_SECRET:', process.env.SESSION_SECRET); // Убираем вывод секретного ключа
-console.log('EMAIL_USER:', process.env.EMAIL_USER);
-console.log('EMAIL_PASSWORD:', redactedValue);
+// console.log('EMAIL_USER:', process.env.EMAIL_USER);
+// console.log('EMAIL_PASSWORD:', redactedValue);
 
-console.log('typeof errorHandler:', typeof errorHandler, errorHandler.name);
+// console.log('typeof errorHandler:', typeof errorHandler, errorHandler.name);
 
 // Добавляем обработчик ошибок последним
 app.use(errorHandler);
@@ -303,7 +303,7 @@ setInterval(
     try {
       await db.getQuery('DELETE FROM session WHERE expire < NOW()');
     } catch (error) {
-      console.error('Error cleaning old sessions:', error);
+      // console.error('Error cleaning old sessions:', error);
     }
   },
   15 * 60 * 1000

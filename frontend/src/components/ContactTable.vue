@@ -336,7 +336,7 @@ async function deleteMessagesSelected() {
           deletedConversations += result.deletedConversations || 0;
         }
       } catch (error) {
-        console.error(`Ошибка при удалении сообщений для контакта ${id}:`, error);
+        // console.error(`Ошибка при удалении сообщений для контакта ${id}:`, error);
       }
     }
     

@@ -74,14 +74,14 @@
     isLoadingTokens.value = true;
     try {
       const walletAddress = getIdentityValue('wallet');
-      console.log('[App] Обновление балансов для адреса:', walletAddress);
+      // console.log('[App] Обновление балансов для адреса:', walletAddress);
       
       const balances = await fetchTokenBalances(walletAddress);
-      console.log('[App] Полученные балансы:', balances);
+              // console.log('[App] Полученные балансы:', balances);
       
       tokenBalances.value = balances || {};
     } catch (error) {
-      console.error('[App] Ошибка при получении балансов:', error);
+      // console.error('[App] Ошибка при получении балансов:', error);
       tokenBalances.value = {};
     } finally {
       isLoadingTokens.value = false;
@@ -96,11 +96,11 @@
         const oldWalletId = oldWalletIdentity ? oldWalletIdentity.provider_id : null;
         
         if (newWalletId !== oldWalletId) {
-            console.log('[App] Обнаружено изменение идентификатора кошелька, обновляем балансы');
+            // console.log('[App] Обнаружено изменение идентификатора кошелька, обновляем балансы');
             refreshTokenBalances();
         } else if (hasIdentityType('wallet') && Object.keys(tokenBalances.value).length === 0 && !isLoadingTokens.value) {
             // Если кошелек есть, но баланс пустой и не грузится - пробуем загрузить
-            console.log('[App] Кошелек есть, но баланс пуст, пытаемся загрузить.');
+            // console.log('[App] Кошелек есть, но баланс пуст, пытаемся загрузить.');
             refreshTokenBalances();
         }
     }
@@ -108,7 +108,7 @@
 
   // Мониторинг изменений состояния аутентификации
   watch(auth.isAuthenticated, (isAuth) => {
-    console.log('[App] Состояние аутентификации изменилось:', isAuth);
+    // console.log('[App] Состояние аутентификации изменилось:', isAuth);
     if (isAuth) {
       // Убираем задержку, полагаемся на watch(identities) или прямо вызываем
       // setTimeout(refreshTokenBalances, 500);
@@ -121,16 +121,16 @@
   
   // --- Возвращаем и улучшаем функцию-обработчик --- 
   const handleAuthActionCompleted = async () => {
-    console.log('[App] Auth action completed, triggering updates...');
+    // console.log('[App] Auth action completed, triggering updates...');
     isLoading.value = true; // Показываем индикатор загрузки
     try {
       // 1. Проверяем аутентификацию (обновит identities и isAuthenticated)
       await auth.checkAuth();
-      console.log('[App] auth.checkAuth() completed. isAuthenticated:', auth.isAuthenticated.value);
+              // console.log('[App] auth.checkAuth() completed. isAuthenticated:', auth.isAuthenticated.value);
       
       // 2. Обновляем баланс (использует обновленные identities)
       await refreshTokenBalances();
-      console.log('[App] refreshTokenBalances() completed.');
+              // console.log('[App] refreshTokenBalances() completed.');
 
       // 3. Явно оповещаем компоненты об изменении состояния авторизации
       // Передаем актуальное состояние из useAuth
@@ -140,10 +140,10 @@
           userId: auth.userId.value, // Предполагаем, что userId есть в useAuth
           fromApp: true // Флаг, что событие от App.vue
       });
-      console.log('[App] auth-state-changed event emitted.');
+              // console.log('[App] auth-state-changed event emitted.');
 
     } catch (error) {
-        console.error("[App] Error during auth action handling:", error);
+        // console.error("[App] Error during auth action handling:", error);
     } finally {
         isLoading.value = false; // Скрываем индикатор загрузки
     }
@@ -157,7 +157,7 @@
     
     // Подписываемся на событие изменения настроек аутентификации
     const unsubscribe = eventBus.on('auth-settings-saved', () => {
-      console.log('[App] Получено событие сохранения настроек аутентификации, обновляем балансы');
+      // console.log('[App] Получено событие сохранения настроек аутентификации, обновляем балансы');
       if (auth.isAuthenticated.value) {
         refreshTokenBalances();
       }

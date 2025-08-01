@@ -56,7 +56,7 @@ onMounted(() => {
   // Следим за изменениями авторизации и сообщаем о них через eventBus
   unwatch = watch(isAuthenticated, (newValue, oldValue) => {
     if (newValue !== oldValue) {
-      console.log('[Header] Состояние аутентификации изменилось:', newValue);
+      // console.log('[Header] Состояние аутентификации изменилось:', newValue);
       // Оповещаем остальные компоненты через шину событий
       eventBus.emit('auth-state-changed', { 
         isAuthenticated: newValue, 

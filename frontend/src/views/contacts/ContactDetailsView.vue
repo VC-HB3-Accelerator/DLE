@@ -470,9 +470,9 @@ async function handleSendMessage({ message, attachments }) {
 }
 
 async function handleAiReply(selectedMessages = []) {
-  console.log('[AI-ASSISTANT] Кнопка нажата, messages:', messages.value);
+      // console.log('[AI-ASSISTANT] Кнопка нажата, messages:', messages.value);
   if (isAiLoading.value) {
-    console.log('[AI-ASSISTANT] Уже идёт генерация, выход');
+          // console.log('[AI-ASSISTANT] Уже идёт генерация, выход');
     return;
   }
   if (!Array.isArray(selectedMessages) || selectedMessages.length === 0) {
@@ -485,7 +485,7 @@ async function handleAiReply(selectedMessages = []) {
     const draftResp = await messagesService.generateAiDraft(conversationId.value, selectedMessages);
     if (draftResp && draftResp.success && draftResp.aiMessage) {
       chatNewMessage.value = draftResp.aiMessage;
-      console.log('[AI-ASSISTANT] Черновик сгенерирован:', draftResp.aiMessage);
+      // console.log('[AI-ASSISTANT] Черновик сгенерирован:', draftResp.aiMessage);
     } else {
       alert('Не удалось сгенерировать ответ ИИ.');
     }
@@ -493,7 +493,7 @@ async function handleAiReply(selectedMessages = []) {
     alert('Ошибка генерации ответа ИИ: ' + (e?.message || e));
   } finally {
     isAiLoading.value = false;
-    console.log('[AI-ASSISTANT] Генерация завершена');
+    // console.log('[AI-ASSISTANT] Генерация завершена');
   }
 }
 
@@ -536,9 +536,9 @@ async function createTag() {
   const descCol = table.columns[1];
   // 1. Создаём строку
   const newRow = await tablesService.addRow(tableId);
-  console.log('DEBUG newRow:', newRow);
+      // console.log('DEBUG newRow:', newRow);
   if (!newRow || !newRow.id) {
-    console.error('Ошибка: не удалось получить id новой строки', newRow);
+          // console.error('Ошибка: не удалось получить id новой строки', newRow);
     alert('Ошибка: не удалось получить id новой строки. См. консоль.');
     return;
   }
@@ -618,7 +618,7 @@ onMounted(async () => {
   
   // Подписываемся на обновления тегов
   unsubscribeFromTags = onTagsUpdate(async () => {
-    console.log('[ContactDetailsView] Получено обновление тегов, перезагружаем списки тегов');
+    // console.log('[ContactDetailsView] Получено обновление тегов, перезагружаем списки тегов');
     await loadAllTags();
     await loadUserTags();
   });

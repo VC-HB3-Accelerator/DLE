@@ -40,13 +40,13 @@ async function getTelegramSettings() {
 
 // Создание и настройка бота
 async function getBot() {
-  console.log('[TelegramBot] getBot() called');
+      // console.log('[TelegramBot] getBot() called');
   if (!botInstance) {
-    console.log('[TelegramBot] Creating new bot instance...');
+          // console.log('[TelegramBot] Creating new bot instance...');
     const settings = await getTelegramSettings();
-    console.log('[TelegramBot] Got settings, creating Telegraf instance...');
+          // console.log('[TelegramBot] Got settings, creating Telegraf instance...');
     botInstance = new Telegraf(settings.bot_token);
-    console.log('[TelegramBot] Telegraf instance created');
+          // console.log('[TelegramBot] Telegraf instance created');
 
     // Обработка команды /start
     botInstance.command('start', (ctx) => {
@@ -489,7 +489,7 @@ async function getBot() {
     });
 
     // Запуск бота с таймаутом
-    console.log('[TelegramBot] Before botInstance.launch()');
+    // console.log('[TelegramBot] Before botInstance.launch()');
     try {
       // Запускаем бота с таймаутом
       const launchPromise = botInstance.launch();
@@ -498,12 +498,12 @@ async function getBot() {
       });
       
       await Promise.race([launchPromise, timeoutPromise]);
-      console.log('[TelegramBot] After botInstance.launch()');
+      // console.log('[TelegramBot] After botInstance.launch()');
       logger.info('[TelegramBot] Бот запущен');
     } catch (error) {
-      console.error('[TelegramBot] Error launching bot:', error);
+              // console.error('[TelegramBot] Error launching bot:', error);
       // Не выбрасываем ошибку, чтобы не блокировать запуск сервера
-      console.log('[TelegramBot] Bot launch failed, but continuing...');
+      // console.log('[TelegramBot] Bot launch failed, but continuing...');
     }
   }
 

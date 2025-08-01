@@ -246,7 +246,7 @@ const updateSettings = async () => {
     isUpdating.value = true;
     
     // Здесь будет логика обновления настроек в смарт-контракте
-    console.log('Обновление настроек:', newSettings.value);
+    // console.log('Обновление настроек:', newSettings.value);
     
     // Временная логика
     const change = {
@@ -291,7 +291,7 @@ const updateSettings = async () => {
     alert('Настройки успешно обновлены!');
     
   } catch (error) {
-    console.error('Ошибка обновления настроек:', error);
+          // console.error('Ошибка обновления настроек:', error);
     alert('Ошибка при обновлении настроек');
   } finally {
     isUpdating.value = false;

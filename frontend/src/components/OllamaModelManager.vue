@@ -135,7 +135,7 @@ async function checkConnection() {
       await loadInstalledModels();
     }
   } catch (error) {
-    console.error('Ошибка проверки подключения:', error);
+            // console.error('Ошибка проверки подключения:', error);
     isConnected.value = false;
   } finally {
     checking.value = false;
@@ -148,7 +148,7 @@ async function loadInstalledModels() {
     const response = await axios.get('/ollama/models');
     installedModels.value = response.data.models || [];
   } catch (error) {
-    console.error('Ошибка загрузки моделей:', error);
+            // console.error('Ошибка загрузки моделей:', error);
   }
 }
 
@@ -162,7 +162,7 @@ async function searchModels() {
     // Пока просто устанавливаем модель напрямую
     await installModel(searchQuery.value.trim());
   } catch (error) {
-    console.error('Ошибка поиска моделей:', error);
+            // console.error('Ошибка поиска моделей:', error);
   } finally {
     searching.value = false;
   }
@@ -176,7 +176,7 @@ async function installModel(modelName) {
     await loadInstalledModels();
     searchQuery.value = '';
   } catch (error) {
-    console.error('Ошибка установки модели:', error);
+            // console.error('Ошибка установки модели:', error);
   } finally {
     installing.value = '';
   }
@@ -189,7 +189,7 @@ async function removeModel(modelName) {
     await axios.delete(`/ollama/models/${encodeURIComponent(modelName)}`);
     await loadInstalledModels();
   } catch (error) {
-    console.error('Ошибка удаления модели:', error);
+            // console.error('Ошибка удаления модели:', error);
   } finally {
     removing.value = '';
   }

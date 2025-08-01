@@ -180,7 +180,7 @@ watch(editing, (val) => {
 // Добавляем watch для отслеживания изменений в мультисвязях с дебаунсингом
 let debounceTimer = null;
 watch(editMultiRelationValues, (newValues, oldValues) => {
-  console.log('[editMultiRelationValues] changed from:', oldValues, 'to:', newValues);
+      // console.log('[editMultiRelationValues] changed from:', oldValues, 'to:', newValues);
   
   // Очищаем предыдущий таймер
   if (debounceTimer) {
@@ -204,7 +204,7 @@ let unsubscribeFromWebSocket = null;
 // Функция для очистки кэша
 function clearCache() {
   cacheService.clearAll();
-  console.log('[TableCell] Кэш очищен');
+      // console.log('[TableCell] Кэш очищен');
 }
 
 // WebSocket для тегов
@@ -223,7 +223,7 @@ let isMultiRelationValuesLoaded = false;
 
 onMounted(async () => {
   const startTime = Date.now();
-  console.log(`[TableCell] 🚀 Начало монтирования ячейки row:${props.rowId} col:${props.column.id} в ${startTime}`);
+      // console.log(`[TableCell] 🚀 Начало монтирования ячейки row:${props.rowId} col:${props.column.id} в ${startTime}`);
   
   if (props.column.type === 'multiselect') {
     multiOptions.value = (props.column.options && props.column.options.options) || [];
@@ -250,14 +250,14 @@ onMounted(async () => {
   } else if (props.column.type === 'multiselect-relation') {
     // Загружаем опции только один раз
     if (!isInitialized) {
-      console.log(`[TableCell] 📥 Загружаем опции для row:${props.rowId} col:${props.column.id}`);
+      // console.log(`[TableCell] 📥 Загружаем опции для row:${props.rowId} col:${props.column.id}`);
       await loadMultiRelationOptions();
       isInitialized = true;
     }
     
     // Загружаем relations только один раз для каждой комбинации rowId + columnId
     if (!isMultiRelationValuesLoaded) {
-      console.log(`[TableCell] 📥 Загружаем relations для row:${props.rowId} col:${props.column.id}`);
+      // console.log(`[TableCell] 📥 Загружаем relations для row:${props.rowId} col:${props.column.id}`);
       await loadMultiRelationValues();
       isMultiRelationValuesLoaded = true;
     }
@@ -265,7 +265,7 @@ onMounted(async () => {
     // Подписываемся на обновления таблицы
     if (props.column.type === 'multiselect-relation') {
       unsubscribeFromWebSocket = subscribeToTableRelationsUpdates(props.column.table_id, async () => {
-        console.log('[TableCell] Получено обновление таблицы, перезагружаем relations');
+        // console.log('[TableCell] Получено обновление таблицы, перезагружаем relations');
         // Сбрасываем флаг загрузки
         isMultiRelationValuesLoaded = false;
         // Очищаем кэш relations для текущей строки
@@ -277,7 +277,7 @@ onMounted(async () => {
     // Подписываемся на обновления тегов, если это связанная таблица тегов
     if (props.column.options && props.column.options.relatedTableId) {
       unsubscribeFromTags = onTagsUpdate(async () => {
-        console.log('[TableCell] Получено обновление тегов, перезагружаем опции');
+        // console.log('[TableCell] Получено обновление тегов, перезагружаем опции');
         // Сбрасываем флаги загрузки
         isInitialized = false;
         isMultiRelationValuesLoaded = false;
@@ -300,7 +300,7 @@ onMounted(async () => {
     localValue.value = cell ? cell.value : '';
   }
   const endTime = Date.now();
-  console.log(`[TableCell] ✅ Завершено монтирование ячейки row:${props.rowId} col:${props.column.id} за ${endTime - startTime}ms`);
+      // console.log(`[TableCell] ✅ Завершено монтирование ячейки row:${props.rowId} col:${props.column.id} за ${endTime - startTime}ms`);
 });
 
 onUnmounted(() => {
@@ -487,7 +487,7 @@ async function loadLookupValues() {
 async function loadMultiRelationOptions() {
   // Проверяем, не загружены ли уже опции
   if (multiRelationOptions.value.length > 0) {
-    console.log('[loadMultiRelationOptions] Опции уже загружены, пропускаем');
+    // console.log('[loadMultiRelationOptions] Опции уже загружены, пропускаем');
     return;
   }
   
@@ -499,10 +499,10 @@ async function loadMultiRelationOptions() {
       let tableData;
       
       if (cachedTableData) {
-        console.log(`[loadMultiRelationOptions] ✅ Используем предварительно загруженные данные таблицы ${rel.relatedTableId}`);
+        // console.log(`[loadMultiRelationOptions] ✅ Используем предварительно загруженные данные таблицы ${rel.relatedTableId}`);
         tableData = cachedTableData;
       } else {
-        console.log(`[loadMultiRelationOptions] ⚠️ Данные таблицы ${rel.relatedTableId} не найдены в кэше, загружаем заново`);
+        // console.log(`[loadMultiRelationOptions] ⚠️ Данные таблицы ${rel.relatedTableId} не найдены в кэше, загружаем заново`);
         const response = await fetch(`/api/tables/${rel.relatedTableId}`);
         tableData = await response.json();
         // Сохраняем в кэш
@@ -517,9 +517,9 @@ async function loadMultiRelationOptions() {
         opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
       }
       multiRelationOptions.value = opts;
-      console.log(`[loadMultiRelationOptions] Загружено ${opts.length} опций для таблицы ${rel.relatedTableId}`);
+      // console.log(`[loadMultiRelationOptions] Загружено ${opts.length} опций для таблицы ${rel.relatedTableId}`);
     } catch (e) {
-      console.error('[loadMultiRelationOptions] Error:', e);
+      // console.error('[loadMultiRelationOptions] Error:', e);
     }
   }
 }
@@ -531,7 +531,7 @@ const LOAD_DEBOUNCE_DELAY = 50; // 50ms (уменьшено для ускоре�
 async function loadMultiRelationValues() {
   // Проверяем, не загружены ли уже данные
   if (isMultiRelationValuesLoaded) {
-    console.log('[loadMultiRelationValues] Данные уже загружены, пропускаем');
+    // console.log('[loadMultiRelationValues] Данные уже загружены, пропускаем');
     return;
   }
   
@@ -543,7 +543,7 @@ async function loadMultiRelationValues() {
   // Устанавливаем новый таймер
   loadMultiRelationValuesTimer = setTimeout(async () => {
     // Получаем связи для текущей строки
-    console.log('[loadMultiRelationValues] called for row:', props.rowId, 'column:', props.column.id);
+    // console.log('[loadMultiRelationValues] called for row:', props.rowId, 'column:', props.column.id);
     
     try {
       const rel = props.column.options || {};
@@ -554,10 +554,10 @@ async function loadMultiRelationValues() {
         
         const cachedRelations = cacheService.getRelationsData(props.rowId, props.column.id);
         if (cachedRelations) {
-          console.log('[loadMultiRelationValues] ✅ Используем предварительно загруженные relations для строки', props.rowId);
+          // console.log('[loadMultiRelationValues] ✅ Используем предварительно загруженные relations для строки', props.rowId);
           relations = cachedRelations;
         } else {
-          console.log('[loadMultiRelationValues] ⚠️ Relations не найдены в кэше, загружаем заново для строки', props.rowId);
+          // console.log('[loadMultiRelationValues] ⚠️ Relations не найдены в кэше, загружаем заново для строки', props.rowId);
           // Выполняем запросы параллельно
           const [relationsRes, tableRes] = await Promise.all([
             fetch(`/api/tables/${props.column.table_id}/row/${props.rowId}/relations`),
@@ -573,13 +573,13 @@ async function loadMultiRelationValues() {
           cacheService.setRelationsData(props.rowId, props.column.id, relations);
         }
         
-        console.log('[loadMultiRelationValues] API response status: 200 relations:', relations);
+        // console.log('[loadMultiRelationValues] API response status: 200 relations:', relations);
         
         // Приводим все id к строке для корректного сравнения
         const relatedRowIds = relations
           .filter(r => String(r.column_id) === String(props.column.id) && String(r.to_table_id) === String(rel.relatedTableId))
           .map(r => String(r.to_row_id));
-        console.log('[loadMultiRelationValues] filtered related row ids:', relatedRowIds);
+        // console.log('[loadMultiRelationValues] filtered related row ids:', relatedRowIds);
         
         // Обновляем значения
         editMultiRelationValues.value = relatedRowIds;
@@ -603,48 +603,48 @@ async function loadMultiRelationValues() {
         selectedMultiRelationNames.value = multiRelationOptions.value
           .filter(opt => relatedRowIds.includes(String(opt.id)))
           .map(opt => opt.display);
-        console.log('[loadMultiRelationValues] selectedMultiRelationNames:', selectedMultiRelationNames.value);
+        // console.log('[loadMultiRelationValues] selectedMultiRelationNames:', selectedMultiRelationNames.value);
         
         // Отмечаем, что данные загружены
         isMultiRelationValuesLoaded = true;
       }
     } catch (e) {
-      console.error('[loadMultiRelationValues] Error:', e);
+      // console.error('[loadMultiRelationValues] Error:', e);
     }
   }, LOAD_DEBOUNCE_DELAY);
 }
 
 async function saveMultiRelation() {
-  console.log('[saveMultiRelation] called');
+  // console.log('[saveMultiRelation] called');
   const rel = props.column.options || {};
-  console.log('[saveMultiRelation] editMultiRelationValues:', editMultiRelationValues.value);
+  // console.log('[saveMultiRelation] editMultiRelationValues:', editMultiRelationValues.value);
   try {
     const payload = {
       column_id: props.column.id,
       to_table_id: rel.relatedTableId,
       to_row_ids: editMultiRelationValues.value
     };
-    console.log('[saveMultiRelation] POST payload:', payload);
-              console.log('[TableCell] Отправляем запрос на обновление relations для строки:', props.rowId);
-    console.log('[TableCell] Данные запроса:', payload);
+    // console.log('[saveMultiRelation] POST payload:', payload);
+              // console.log('[TableCell] Отправляем запрос на обновление relations для строки:', props.rowId);
+    // console.log('[TableCell] Данные запроса:', payload);
     const response = await fetch(`/api/tables/${props.column.table_id}/row/${props.rowId}/relations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     const result = await response.json().catch(() => ({}));
-    console.log('[TableCell] Ответ сервера для строки:', props.rowId, 'статус:', response.status, 'результат:', result);
+    // console.log('[TableCell] Ответ сервера для строки:', props.rowId, 'статус:', response.status, 'результат:', result);
     if (response.ok) {
-      console.log('[TableCell] Успешно сохранены теги для строки:', props.rowId);
+      // console.log('[TableCell] Успешно сохранены теги для строки:', props.rowId);
     } else {
-      console.error('[TableCell] Ошибка сохранения тегов для строки:', props.rowId, 'статус:', response.status);
+      // console.error('[TableCell] Ошибка сохранения тегов для строки:', props.rowId, 'статус:', response.status);
     }
     editing.value = false;
     await loadMultiRelationValues();
-    console.log('[saveMultiRelation] emitting update with:', editMultiRelationValues.value);
+    // console.log('[saveMultiRelation] emitting update with:', editMultiRelationValues.value);
     emit('update', editMultiRelationValues.value);
   } catch (e) {
-    console.error('[saveMultiRelation] Ошибка при сохранении мультисвязи:', e);
+    // console.error('[saveMultiRelation] Ошибка при сохранении мультисвязи:', e);
   }
 }
 
@@ -653,7 +653,7 @@ async function addTag() {
   const rel = props.column.options || {};
   
   try {
-    console.log('[addTag] Добавляем новый тег:', newTagName.value);
+    // console.log('[addTag] Добавляем новый тег:', newTagName.value);
     
     // 1. Создаем новую пустую строку в связанной таблице
     const rowResponse = await fetch(`/api/tables/${rel.relatedTableId}/rows`, {
@@ -662,7 +662,7 @@ async function addTag() {
     });
     const newRow = await rowResponse.json();
     
-    console.log('[addTag] Новая строка создана:', newRow);
+    // console.log('[addTag] Новая строка создана:', newRow);
     
     // 2. Добавляем значение в ячейку через POST /cell
     const cellResponse = await fetch(`/api/tables/cell`, {
@@ -676,7 +676,7 @@ async function addTag() {
     });
     const cellResult = await cellResponse.json();
     
-    console.log('[addTag] Значение ячейки сохранено:', cellResult);
+    // console.log('[addTag] Значение ячейки сохранено:', cellResult);
     
     // Очищаем форму
     newTagName.value = '';
@@ -688,12 +688,12 @@ async function addTag() {
       Promise.resolve(editMultiRelationValues.value.push(String(newRow.id)))
     ]);
     
-    console.log('[addTag] Тег добавлен в выбранные:', editMultiRelationValues.value);
+    // console.log('[addTag] Тег добавлен в выбранные:', editMultiRelationValues.value);
     
     // Сохраняем изменения, чтобы отправить WebSocket уведомление
     await saveMultiRelation();
   } catch (e) {
-    console.error('[addTag] Ошибка при добавлении тега:', e);
+    // console.error('[addTag] Ошибка при добавлении тега:', e);
   }
 }
 
@@ -702,13 +702,13 @@ async function deleteTag(tagId) {
   if (!confirm('Удалить этот тег?')) return;
   
   try {
-    console.log('[deleteTag] Удаляем тег с ID:', tagId);
+    // console.log('[deleteTag] Удаляем тег с ID:', tagId);
     
     // Удаляем тег из связанной таблицы
     const response = await fetch(`/api/tables/row/${tagId}`, { method: 'DELETE' });
     const result = await response.json();
     
-    console.log('[deleteTag] Ответ сервера:', response.status, result);
+    // console.log('[deleteTag] Ответ сервера:', response.status, result);
     
     // Убираем тег из выбранных значений, если он был выбран
     editMultiRelationValues.value = editMultiRelationValues.value.filter(id => String(id) !== String(tagId));
@@ -716,12 +716,12 @@ async function deleteTag(tagId) {
     // Обновляем список опций
     await loadMultiRelationOptions();
     
-    console.log('[deleteTag] Тег удален:', tagId);
+    // console.log('[deleteTag] Тег удален:', tagId);
     
     // Сохраняем изменения, чтобы отправить WebSocket уведомление
     await saveMultiRelation();
   } catch (e) {
-    console.error('[deleteTag] Ошибка при удалении тега:', e);
+    // console.error('[deleteTag] Ошибка при удалении тега:', e);
   }
 }
 

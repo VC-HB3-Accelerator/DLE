@@ -193,7 +193,7 @@ export default {
           stats.value = response.data.data
         }
       } catch (error) {
-        console.error('Error fetching queue stats:', error)
+        // console.error('Error fetching queue stats:', error)
       } finally {
         loading.value = false
       }
@@ -210,7 +210,7 @@ export default {
           await fetchStats()
         }
       } catch (error) {
-        console.error(`Error controlling queue (${action}):`, error)
+        // console.error(`Error controlling queue (${action}):`, error)
       }
     }
 

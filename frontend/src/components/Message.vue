@@ -106,7 +106,7 @@ const base64ToBlob = (base64, mimetype) => {
     const byteArray = new Uint8Array(byteNumbers);
     return new Blob([byteArray], { type: mimetype });
   } catch (e) {
-    console.error("Error decoding base64 string:", e);
+    // console.error("Error decoding base64 string:", e);
     return null;
   }
 };
@@ -161,7 +161,7 @@ const formattedTime = computed(() => {
   try {
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) {
-      console.warn('Invalid timestamp in Message.vue:', timestamp);
+      // console.warn('Invalid timestamp in Message.vue:', timestamp);
       return '';
     }
     return date.toLocaleString([], {
@@ -172,7 +172,7 @@ const formattedTime = computed(() => {
       minute: '2-digit',
     });
   } catch (error) {
-    console.error('Error formatting time in Message.vue:', error, timestamp);
+    // console.error('Error formatting time in Message.vue:', error, timestamp);
     return '';
   }
 });

@@ -66,7 +66,7 @@
         error.value = result.error || 'Не удалось подключить кошелек';
       }
     } catch (err) {
-      console.error('Error connecting wallet:', err);
+      // console.error('Error connecting wallet:', err);
       error.value = err.message || 'Произошла ошибка при подключении кошелька';
     } finally {
       isLoading.value = false;

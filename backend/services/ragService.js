@@ -14,23 +14,23 @@ const encryptedDb = require('./encryptedDatabaseService');
 const vectorSearch = require('./vectorSearchClient');
 const { getProviderSettings } = require('./aiProviderSettingsService');
 
-console.log('[RAG] ragService.js loaded');
+// console.log('[RAG] ragService.js loaded');
 
 // Простой кэш для RAG результатов
 const ragCache = new Map();
 const RAG_CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 async function getTableData(tableId) {
-  console.log(`[RAG] getTableData called for tableId: ${tableId}`);
+      // console.log(`[RAG] getTableData called for tableId: ${tableId}`);
   
   const columns = await encryptedDb.getData('user_columns', { table_id: tableId });
-  console.log(`[RAG] Found ${columns.length} columns:`, columns.map(col => ({ id: col.id, name: col.name, purpose: col.options?.purpose })));
+      // console.log(`[RAG] Found ${columns.length} columns:`, columns.map(col => ({ id: col.id, name: col.name, purpose: col.options?.purpose })));
   
   const rows = await encryptedDb.getData('user_rows', { table_id: tableId });
-  console.log(`[RAG] Found ${rows.length} rows:`, rows.map(row => ({ id: row.id, name: row.name })));
+      // console.log(`[RAG] Found ${rows.length} rows:`, rows.map(row => ({ id: row.id, name: row.name })));
   
   const cellValues = await encryptedDb.getData('user_cell_values', { row_id: { $in: rows.map(row => row.id) } });
-  console.log(`[RAG] Found ${cellValues.length} cell values`);
+      // console.log(`[RAG] Found ${cellValues.length} cell values`);
 
   const getColId = purpose => columns.find(col => col.options?.purpose === purpose)?.id;
   const questionColId = getColId('question');
@@ -40,14 +40,14 @@ async function getTableData(tableId) {
   const priorityColId = getColId('priority');
   const dateColId = getColId('date');
   
-  console.log(`[RAG] Column IDs:`, {
-    question: questionColId,
-    answer: answerColId,
-    context: contextColId,
-    product: productColId,
-    priority: priorityColId,
-    date: dateColId
-  });
+      // console.log(`[RAG] Column IDs:`, {
+      //   question: questionColId,
+      //   answer: answerColId,
+      //   context: contextColId,
+      //   product: productColId,
+      //   priority: priorityColId,
+      //   date: dateColId
+      // });
 
   const data = rows.map(row => {
     const cells = cellValues.filter(cell => cell.row_id === row.id);
@@ -61,34 +61,34 @@ async function getTableData(tableId) {
       priority: cells.find(c => c.column_id === priorityColId)?.value,
       date: cells.find(c => c.column_id === dateColId)?.value,
     };
-    console.log(`[RAG] Processed row ${row.id}:`, result);
+    // console.log(`[RAG] Processed row ${row.id}:`, result);
     return result;
   });
   return data;
 }
 
 async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10 }) {
-  console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
+      // console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
   
   // Проверяем кэш
   const cacheKey = `${tableId}:${userQuestion}:${product}`;
   const cached = ragCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < RAG_CACHE_TTL) {
-    console.log(`[RAG] Returning cached result for: ${cacheKey}`);
+    // console.log(`[RAG] Returning cached result for: ${cacheKey}`);
     return cached.result;
   }
   
   const data = await getTableData(tableId);
-  console.log(`[RAG] Got ${data.length} rows from database`);
+      // console.log(`[RAG] Got ${data.length} rows from database`);
   
   // Подробное логирование данных
   data.forEach((row, index) => {
-    console.log(`[RAG] Row ${index}:`, {
-      id: row.id,
-      question: row.question,
-      answer: row.answer,
-      product: row.product
-    });
+    // console.log(`[RAG] Row ${index}:`, {
+    //   id: row.id,
+    //   question: row.question,
+    //   answer: row.answer,
+    //   product: row.product
+    // });
   });
   
   const questions = data.map(row => row.question && typeof row.question === 'string' ? row.question.trim() : row.question);
@@ -108,61 +108,61 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
       }
     }));
   
-  console.log(`[RAG] Prepared ${rowsForUpsert.length} rows for upsert`);
-  console.log(`[RAG] First row:`, rowsForUpsert[0]);
+  // console.log(`[RAG] Prepared ${rowsForUpsert.length} rows for upsert`);
+  // console.log(`[RAG] First row:`, rowsForUpsert[0]);
   
   // Upsert все вопросы в индекс (можно оптимизировать по изменению)
   if (rowsForUpsert.length > 0) {
     await vectorSearch.upsert(tableId, rowsForUpsert);
-    console.log(`[RAG] Upsert completed`);
+    // console.log(`[RAG] Upsert completed`);
   } else {
-    console.log(`[RAG] No rows to upsert, skipping`);
+    // console.log(`[RAG] No rows to upsert, skipping`);
   }
   
   // Поиск
   let results = [];
   if (rowsForUpsert.length > 0) {
     results = await vectorSearch.search(tableId, userQuestion, 2); // Уменьшаем до 2 результатов
-    console.log(`[RAG] Search completed, got ${results.length} results`);
+    // console.log(`[RAG] Search completed, got ${results.length} results`);
     
     // Подробное логирование результатов поиска
     results.forEach((result, index) => {
-      console.log(`[RAG] Search result ${index}:`, {
-        row_id: result.row_id,
-        score: result.score,
-        metadata: result.metadata
-      });
+      // console.log(`[RAG] Search result ${index}:`, {
+      //   row_id: result.row_id,
+      //   score: result.score,
+      //   metadata: result.metadata
+      // });
     });
   } else {
-    console.log(`[RAG] No data in table, skipping search`);
+    // console.log(`[RAG] No data in table, skipping search`);
   }
   
   // Фильтрация по тегам/продукту
   let filtered = results;
-  console.log(`[RAG] Before filtering: ${filtered.length} results`);
+  // console.log(`[RAG] Before filtering: ${filtered.length} results`);
   
   if (product) {
-    console.log(`[RAG] Filtering by product:`, product);
+    // console.log(`[RAG] Filtering by product:`, product);
     filtered = filtered.filter(row => Array.isArray(row.metadata.product) ? row.metadata.product.includes(product) : row.metadata.product === product);
-    console.log(`[RAG] After product filtering: ${filtered.length} results`);
+    // console.log(`[RAG] After product filtering: ${filtered.length} results`);
   }
   
   // Берём ближайший результат с учётом порога (по модулю)
-  console.log(`[RAG] Looking for best result with abs(threshold): ${threshold}`);
+  // console.log(`[RAG] Looking for best result with abs(threshold): ${threshold}`);
   const best = filtered.reduce((acc, row) => {
     if (Math.abs(row.score) <= threshold && (acc === null || Math.abs(row.score) < Math.abs(acc.score))) {
       return row;
     }
     return acc;
   }, null);
-  console.log(`[RAG] Best result:`, best);
+  // console.log(`[RAG] Best result:`, best);
   
   // Логируем все результаты с их score для диагностики
   if (filtered.length > 0) {
-    console.log(`[RAG] All filtered results with scores:`);
-    filtered.forEach((result, index) => {
-      console.log(`[RAG]   ${index}: score=${result.score}, meets_threshold=${Math.abs(result.score) <= threshold}`);
-    });
+    // console.log(`[RAG] All filtered results with scores:`);
+    // filtered.forEach((result, index) => {
+    //   console.log(`[RAG]   ${index}: score=${result.score}, meets_threshold=${Math.abs(result.score) <= threshold}`);
+    // });
   }
   
   const result = {
@@ -238,18 +238,18 @@ async function generateLLMResponse({
   model,
   language
 }) {
-  console.log(`[RAG] generateLLMResponse called with:`, {
-    userQuestion,
-    context,
-    answer,
-    systemPrompt,
-    userTags,
-    product,
-    priority,
-    date,
-    model,
-    language
-  });
+  // console.log(`[RAG] generateLLMResponse called with:`, {
+  //   userQuestion,
+  //   context,
+  //   answer,
+  //   systemPrompt,
+  //   userTags,
+  //   product,
+  //   priority,
+  //   date,
+  //   model,
+  //   language
+  // });
 
   try {
     const aiAssistant = require('./ai-assistant');
@@ -286,10 +286,10 @@ async function generateLLMResponse({
       rules
     );
 
-    console.log(`[RAG] LLM response generated:`, llmResponse);
+    // console.log(`[RAG] LLM response generated:`, llmResponse);
     return llmResponse;
   } catch (error) {
-    console.error(`[RAG] Error generating LLM response:`, error);
+    // console.error(`[RAG] Error generating LLM response:`, error);
     return 'Извините, произошла ошибка при генерации ответа.';
   }
 }

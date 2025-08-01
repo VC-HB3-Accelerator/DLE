@@ -40,8 +40,8 @@ app.use(ElementPlus);
 //   ]).catch(err => console.error('Failed to load API mocks:', err));
 // }
 
-console.log('API URL:', axios.defaults.baseURL);
-console.log('main.js: Starting application with router');
+// console.log('API URL:', axios.defaults.baseURL);
+// console.log('main.js: Starting application with router');
 
 app.mount('#app');
-console.log('main.js: Application with router mounted');
+// console.log('main.js: Application with router mounted');

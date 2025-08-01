@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-console.log('[DIAG][tables.js] Файл загружен:', __filename);
+// console.log('[DIAG][tables.js] Файл загружен:', __filename);
 
 const express = require('express');
 const router = express.Router();
@@ -32,7 +32,7 @@ function getEncryptionKey() {
 }
 
 router.use((req, res, next) => {
-  console.log('Tables router received:', req.method, req.originalUrl);
+  // console.log('Tables router received:', req.method, req.originalUrl);
   next();
 });
 
@@ -44,7 +44,7 @@ router.get('/', async (req, res, next) => {
     try {
       encryptionKey = getEncryptionKey();
     } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
+      // console.error('Error reading encryption key:', keyError);
       return res.status(500).json({ error: 'Database encryption error' });
     }
     
@@ -65,7 +65,7 @@ router.post('/', async (req, res, next) => {
     try {
       encryptionKey = getEncryptionKey();
     } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
+      // console.error('Error reading encryption key:', keyError);
       return res.status(500).json({ error: 'Database encryption error' });
     }
     
@@ -98,7 +98,7 @@ router.get('/rag-sources', async (req, res, next) => {
     
     res.json(result.rows);
   } catch (err) {
-    console.error('[RAG Sources] Error:', err);
+    // console.error('[RAG Sources] Error:', err);
     next(err);
   }
 });
@@ -236,7 +236,7 @@ router.post('/:id/rows', async (req, res, next) => {
       'INSERT INTO user_rows (table_id) VALUES ($1) RETURNING *',
       [tableId]
     );
-    console.log('[DEBUG][addRow] result.rows[0]:', result.rows[0]);
+    // console.log('[DEBUG][addRow] result.rows[0]:', result.rows[0]);
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
@@ -260,11 +260,11 @@ router.post('/:id/rows', async (req, res, next) => {
     // Получаем все строки и значения для upsert
     const rows = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId, encryptionKey])).rows;
     const upsertRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
-    console.log('[DEBUG][upsertRows]', upsertRows);
+    // console.log('[DEBUG][upsertRows]', upsertRows);
     if (upsertRows.length > 0) {
       await vectorSearchClient.upsert(tableId, upsertRows);
     }
-    console.log('[DEBUG][addRow] res.json:', result.rows[0]);
+    // console.log('[DEBUG][addRow] res.json:', result.rows[0]);
     res.json(result.rows[0]);
     broadcastTableUpdate(tableId);
   } catch (err) {

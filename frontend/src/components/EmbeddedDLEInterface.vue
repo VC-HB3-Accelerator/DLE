@@ -242,7 +242,7 @@ const connectToDLE = async () => {
     connectionStatus.value = 'connecting';
     
     // Здесь будет подключение к DLE через Web3
-    console.log('Подключение к DLE:', props.dleAddress);
+    // console.log('Подключение к DLE:', props.dleAddress);
     
     // Имитация подключения
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -252,7 +252,7 @@ const connectToDLE = async () => {
     
     connectionStatus.value = 'connected';
   } catch (error) {
-    console.error('Ошибка подключения к DLE:', error);
+            // console.error('Ошибка подключения к DLE:', error);
     connectionStatus.value = 'error';
   }
 };
@@ -312,7 +312,7 @@ const loadDLEData = async () => {
     ];
     
   } catch (error) {
-    console.error('Ошибка загрузки данных DLE:', error);
+            // console.error('Ошибка загрузки данных DLE:', error);
   }
 };
 
@@ -351,7 +351,7 @@ const signProposal = async (proposalId) => {
     isSigning.value = true;
     
     // Здесь будет подписание предложения
-    console.log('Подписание предложения:', proposalId);
+    // console.log('Подписание предложения:', proposalId);
     
     const proposal = proposals.value.find(p => p.id === proposalId);
     if (proposal) {
@@ -362,7 +362,7 @@ const signProposal = async (proposalId) => {
     emit('proposal-signed', { proposalId, dleAddress: props.dleAddress });
     
   } catch (error) {
-    console.error('Ошибка подписания предложения:', error);
+            // console.error('Ошибка подписания предложения:', error);
   } finally {
     isSigning.value = false;
   }
@@ -375,7 +375,7 @@ const executeProposal = async (proposalId) => {
     isExecuting.value = true;
     
     // Здесь будет выполнение предложения
-    console.log('Выполнение предложения:', proposalId);
+    // console.log('Выполнение предложения:', proposalId);
     
     const proposal = proposals.value.find(p => p.id === proposalId);
     if (proposal) {
@@ -385,7 +385,7 @@ const executeProposal = async (proposalId) => {
     emit('proposal-executed', { proposalId, dleAddress: props.dleAddress });
     
   } catch (error) {
-    console.error('Ошибка выполнения предложения:', error);
+            // console.error('Ошибка выполнения предложения:', error);
   } finally {
     isExecuting.value = false;
   }

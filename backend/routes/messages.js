@@ -146,28 +146,28 @@ router.post('/', async (req, res) => {
     // 4. Если это исходящее сообщение для Telegram — отправляем через бота
     if (channel === 'telegram' && direction === 'out') {
       try {
-        console.log(`[messages.js] Попытка отправки сообщения в Telegram для user_id=${user_id}`);
+        // console.log(`[messages.js] Попытка отправки сообщения в Telegram для user_id=${user_id}`);
         // Получаем Telegram ID пользователя
         const tgIdentity = await db.getQuery()(
           'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
           [user_id, 'telegram', encryptionKey]
         );
-        console.log(`[messages.js] Результат поиска Telegram ID:`, tgIdentity.rows);
+        // console.log(`[messages.js] Результат поиска Telegram ID:`, tgIdentity.rows);
         if (tgIdentity.rows.length > 0) {
           const telegramId = tgIdentity.rows[0].provider_id;
-          console.log(`[messages.js] Отправка сообщения в Telegram ID: ${telegramId}, текст: ${content}`);
+          // console.log(`[messages.js] Отправка сообщения в Telegram ID: ${telegramId}, текст: ${content}`);
           const bot = await telegramBot.getBot();
           try {
             const sendResult = await bot.telegram.sendMessage(telegramId, content);
-            console.log(`[messages.js] Результат отправки в Telegram:`, sendResult);
+            // console.log(`[messages.js] Результат отправки в Telegram:`, sendResult);
           } catch (sendErr) {
-            console.error(`[messages.js] Ошибка при отправке в Telegram:`, sendErr);
+            // console.error(`[messages.js] Ошибка при отправке в Telegram:`, sendErr);
           }
         } else {
-          console.warn(`[messages.js] Не найден Telegram ID для user_id=${user_id}`);
+          // console.warn(`[messages.js] Не найден Telegram ID для user_id=${user_id}`);
         }
       } catch (err) {
-        console.error('[messages.js] Ошибка отправки сообщения в Telegram:', err);
+        // console.error('[messages.js] Ошибка отправки сообщения в Telegram:', err);
       }
     }
     // 5. Если это исходящее сообщение для Email — отправляем email
@@ -183,7 +183,7 @@ router.post('/', async (req, res) => {
           await emailBot.sendEmail(email, 'Новое сообщение', content);
         }
       } catch (err) {
-        console.error('[messages.js] Ошибка отправки email:', err);
+        // console.error('[messages.js] Ошибка отправки email:', err);
       }
     }
     broadcastMessagesUpdate();
@@ -196,16 +196,16 @@ router.post('/', async (req, res) => {
 // POST /api/messages/mark-read
 router.post('/mark-read', async (req, res) => {
   try {
-    console.log('[DEBUG] /mark-read req.user:', req.user);
-    console.log('[DEBUG] /mark-read req.body:', req.body);
+    // console.log('[DEBUG] /mark-read req.user:', req.user);
+    // console.log('[DEBUG] /mark-read req.body:', req.body);
     const adminId = req.user && req.user.id;
     const { userId, lastReadAt } = req.body;
     if (!adminId) {
-      console.error('[ERROR] /mark-read: adminId (req.user.id) is missing');
+      // console.error('[ERROR] /mark-read: adminId (req.user.id) is missing');
       return res.status(401).json({ error: 'Unauthorized: adminId missing' });
     }
     if (!userId || !lastReadAt) {
-      console.error('[ERROR] /mark-read: userId or lastReadAt missing');
+      // console.error('[ERROR] /mark-read: userId or lastReadAt missing');
       return res.status(400).json({ error: 'userId and lastReadAt required' });
     }
     await db.query(`
@@ -215,7 +215,7 @@ router.post('/mark-read', async (req, res) => {
     `, [adminId, userId, lastReadAt]);
     res.json({ success: true });
   } catch (e) {
-    console.error('[ERROR] /mark-read:', e);
+    // console.error('[ERROR] /mark-read:', e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -223,23 +223,23 @@ router.post('/mark-read', async (req, res) => {
 // GET /api/messages/read-status
 router.get('/read-status', async (req, res) => {
   try {
-    console.log('[DEBUG] /read-status req.user:', req.user);
-    console.log('[DEBUG] /read-status req.session:', req.session);
-    console.log('[DEBUG] /read-status req.session.userId:', req.session && req.session.userId);
+    // console.log('[DEBUG] /read-status req.user:', req.user);
+    // console.log('[DEBUG] /read-status req.session:', req.session);
+    // console.log('[DEBUG] /read-status req.session.userId:', req.session && req.session.userId);
     const adminId = req.user && req.user.id;
     if (!adminId) {
-      console.error('[ERROR] /read-status: adminId (req.user.id) is missing');
+      // console.error('[ERROR] /read-status: adminId (req.user.id) is missing');
       return res.status(401).json({ error: 'Unauthorized: adminId missing' });
     }
     const result = await db.query('SELECT user_id, last_read_at FROM admin_read_messages WHERE admin_id = $1', [adminId]);
-    console.log('[DEBUG] /read-status SQL result:', result.rows);
+    // console.log('[DEBUG] /read-status SQL result:', result.rows);
     const map = {};
     for (const row of result.rows) {
       map[row.user_id] = row.last_read_at;
     }
     res.json(map);
   } catch (e) {
-    console.error('[ERROR] /read-status:', e);
+    // console.error('[ERROR] /read-status:', e);
     res.status(500).json({ error: e.message });
   }
 });

@@ -99,15 +99,15 @@ function validatePrivateKey(key) {
   if (!key) return false;
   const trimmed = key.trim();
   if (!trimmed.startsWith('-----BEGIN OPENSSH PRIVATE KEY-----')) {
-    console.error('Ключ не начинается с -----BEGIN OPENSSH PRIVATE KEY-----');
+    // console.error('Ключ не начинается с -----BEGIN OPENSSH PRIVATE KEY-----');
     return false;
   }
   if (!trimmed.endsWith('-----END OPENSSH PRIVATE KEY-----')) {
-    console.error('Ключ не заканчивается на -----END OPENSSH PRIVATE KEY-----');
+    // console.error('Ключ не заканчивается на -----END OPENSSH PRIVATE KEY-----');
     return false;
   }
   if (trimmed.split('\n').length < 3) {
-    console.error('Ключ слишком короткий или не содержит переносов строк');
+    // console.error('Ключ слишком короткий или не содержит переносов строк');
     return false;
   }
   return true;
@@ -124,15 +124,15 @@ const handleSubmit = async () => {
   }
 
   // Логирование ключа (только для отладки!)
-  console.log('SSH ключ (начало):', form.sshKey.slice(0, 40));
-  console.log('SSH ключ (конец):', form.sshKey.slice(-40));
-  console.log('Длина ключа:', form.sshKey.length);
+  // console.log('SSH ключ (начало):', form.sshKey.slice(0, 40));
+  // console.log('SSH ключ (конец):', form.sshKey.slice(-40));
+  // console.log('Длина ключа:', form.sshKey.length);
 
   // Логирование отправляемых данных (без самого ключа)
-  console.log('Данные для агента:', {
-    ...form,
-    sshKey: form.sshKey ? `[скрыто, длина: ${form.sshKey.length}]` : 'нет ключа'
-  });
+  // console.log('Данные для агента:', {
+  //   ...form,
+  //   sshKey: form.sshKey ? `[скрыто, длина: ${form.sshKey.length}]` : 'нет ключа'
+  // });
 
   isLoading.value = true;
   addLog('info', 'Запуск публикации...');
@@ -228,7 +228,7 @@ const checkConnectionStatus = async () => {
       ? `Подключено к ${status.domain}` 
       : 'Не подключено';
   } catch (error) {
-    console.error('Ошибка проверки статуса:', error);
+    // console.error('Ошибка проверки статуса:', error);
   }
 };
 

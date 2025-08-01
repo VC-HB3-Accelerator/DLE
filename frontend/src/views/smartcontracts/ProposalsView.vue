@@ -200,7 +200,7 @@ const createProposal = async () => {
     isCreatingProposal.value = true;
     
     // Здесь будет создание предложения в смарт-контракте
-    console.log('Создание предложения:', newProposal.value);
+    // console.log('Создание предложения:', newProposal.value);
     
     // Временная логика
     const proposal = {
@@ -225,7 +225,7 @@ const createProposal = async () => {
     };
     
   } catch (error) {
-    console.error('Ошибка создания предложения:', error);
+          // console.error('Ошибка создания предложения:', error);
   } finally {
     isCreatingProposal.value = false;
   }
@@ -238,7 +238,7 @@ const signProposal = async (proposalId) => {
     isSigning.value = true;
     
     // Здесь будет подписание предложения в смарт-контракте
-    console.log('Подписание предложения:', proposalId);
+    // console.log('Подписание предложения:', proposalId);
     
     const proposal = proposals.value.find(p => p.id === proposalId);
     if (proposal) {
@@ -247,7 +247,7 @@ const signProposal = async (proposalId) => {
     }
     
   } catch (error) {
-    console.error('Ошибка подписания предложения:', error);
+          // console.error('Ошибка подписания предложения:', error);
   } finally {
     isSigning.value = false;
   }
@@ -260,7 +260,7 @@ const executeProposal = async (proposalId) => {
     isExecuting.value = true;
     
     // Здесь будет выполнение предложения в смарт-контракте
-    console.log('Выполнение предложения:', proposalId);
+    // console.log('Выполнение предложения:', proposalId);
     
     const proposal = proposals.value.find(p => p.id === proposalId);
     if (proposal) {
@@ -268,7 +268,7 @@ const executeProposal = async (proposalId) => {
     }
     
   } catch (error) {
-    console.error('Ошибка выполнения предложения:', error);
+          // console.error('Ошибка выполнения предложения:', error);
   } finally {
     isExecuting.value = false;
   }

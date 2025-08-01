@@ -380,7 +380,7 @@ const performDeposit = async () => {
     isProcessing.value = true;
     
     // Здесь будет логика депозита
-    console.log('Депозит:', depositData.value);
+    // console.log('Депозит:', depositData.value);
     
     // Временная логика
     const asset = assets.value.find(a => a.id === depositData.value.asset);
@@ -414,7 +414,7 @@ const performDeposit = async () => {
     alert('Депозит успешно выполнен!');
     
   } catch (error) {
-    console.error('Ошибка депозита:', error);
+          // console.error('Ошибка депозита:', error);
     alert('Ошибка при выполнении депозита');
   } finally {
     isProcessing.value = false;
@@ -428,7 +428,7 @@ const performWithdraw = async () => {
     isProcessing.value = true;
     
     // Здесь будет логика вывода
-    console.log('Вывод:', withdrawData.value);
+    // console.log('Вывод:', withdrawData.value);
     
     // Временная логика
     const asset = assets.value.find(a => a.id === withdrawData.value.asset);
@@ -469,7 +469,7 @@ const performWithdraw = async () => {
     alert('Вывод успешно выполнен!');
     
   } catch (error) {
-    console.error('Ошибка вывода:', error);
+          // console.error('Ошибка вывода:', error);
     alert('Ошибка при выполнении вывода');
   } finally {
     isProcessing.value = false;

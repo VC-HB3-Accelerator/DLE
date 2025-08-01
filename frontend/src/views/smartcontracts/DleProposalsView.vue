@@ -497,7 +497,7 @@ async function createProposal() {
     alert('✅ Предложение успешно создано!');
     
   } catch (error) {
-    console.error('Ошибка при создании предложения:', error);
+          // console.error('Ошибка при создании предложения:', error);
     alert('❌ Ошибка при создании предложения: ' + error.message);
   } finally {
     isCreating.value = false;
@@ -555,7 +555,7 @@ async function voteForProposal(proposalId, support) {
     alert('✅ Ваш голос учтен!');
     
   } catch (error) {
-    console.error('Ошибка при голосовании:', error);
+          // console.error('Ошибка при голосовании:', error);
     alert('❌ Ошибка при голосовании: ' + error.message);
   }
 }
@@ -570,7 +570,7 @@ async function executeProposal(proposalId) {
     alert('✅ Предложение успешно исполнено!');
     
   } catch (error) {
-    console.error('Ошибка при исполнении предложения:', error);
+          // console.error('Ошибка при исполнении предложения:', error);
     alert('❌ Ошибка при исполнении предложения: ' + error.message);
   }
 }
@@ -582,7 +582,7 @@ async function loadProposals() {
     // Пока используем заглушку
     proposals.value = [];
   } catch (error) {
-    console.error('Ошибка при загрузке предложений:', error);
+          // console.error('Ошибка при загрузке предложений:', error);
   }
 }
 
@@ -603,7 +603,7 @@ function resetForm() {
 
 function viewProposalDetails(proposalId) {
   // Открыть модальное окно с деталями предложения
-  console.log('Просмотр деталей предложения:', proposalId);
+      // console.log('Просмотр деталей предложения:', proposalId);
 }
 
 onMounted(() => {

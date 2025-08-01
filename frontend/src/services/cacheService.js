@@ -16,14 +16,14 @@ class CacheService {
     const cached = this.tableCache.get(cacheKey);
     
     if (cached && Date.now() - cached.timestamp < this.tableCacheTimeout) {
-      console.log(`[CacheService] ✅ КЭШ ПОПАДАНИЕ для таблицы ${tableId} (${cacheKey})`);
+      // console.log(`[CacheService] ✅ КЭШ ПОПАДАНИЕ для таблицы ${tableId} (${cacheKey})`);
       return cached.data;
     }
     
     if (cached) {
-      console.log(`[CacheService] ⏰ Кэш истек для таблицы ${tableId} (${cacheKey})`);
+      // console.log(`[CacheService] ⏰ Кэш истек для таблицы ${tableId} (${cacheKey})`);
     } else {
-      console.log(`[CacheService] ❌ Кэш отсутствует для таблицы ${tableId} (${cacheKey})`);
+      // console.log(`[CacheService] ❌ Кэш отсутствует для таблицы ${tableId} (${cacheKey})`);
     }
     
     return null;
@@ -35,7 +35,7 @@ class CacheService {
       data,
       timestamp: Date.now()
     });
-    console.log(`[CacheService] Сохранены данные таблицы ${tableId} в кэш`);
+    // console.log(`[CacheService] Сохранены данные таблицы ${tableId} в кэш`);
   }
 
   // Кэширование relations
@@ -44,7 +44,7 @@ class CacheService {
     const cached = this.relationsCache.get(cacheKey);
     
     if (cached && Date.now() - cached.timestamp < this.relationsCacheTimeout) {
-      console.log(`[CacheService] Используем кэшированные relations для строки ${rowId}`);
+      // console.log(`[CacheService] Используем кэшированные relations для строки ${rowId}`);
       return cached.data;
     }
     
@@ -57,7 +57,7 @@ class CacheService {
       data,
       timestamp: Date.now()
     });
-    console.log(`[CacheService] Сохранены relations строки ${rowId} в кэш`);
+    // console.log(`[CacheService] Сохранены relations строки ${rowId} в кэш`);
   }
 
   // Очистка кэша
@@ -69,11 +69,11 @@ class CacheService {
           this.tableCache.delete(key);
         }
       }
-      console.log(`[CacheService] Очищен кэш таблицы ${tableId}`);
+      // console.log(`[CacheService] Очищен кэш таблицы ${tableId}`);
     } else {
       // Очищаем весь кэш таблиц
       this.tableCache.clear();
-      console.log('[CacheService] Очищен весь кэш таблиц');
+      // console.log('[CacheService] Очищен весь кэш таблиц');
     }
   }
 
@@ -85,11 +85,11 @@ class CacheService {
           this.relationsCache.delete(key);
         }
       }
-      console.log(`[CacheService] Очищен кэш relations строки ${rowId}`);
+      // console.log(`[CacheService] Очищен кэш relations строки ${rowId}`);
     } else {
       // Очищаем весь кэш relations
       this.relationsCache.clear();
-      console.log('[CacheService] Очищен весь кэш relations');
+      // console.log('[CacheService] Очищен весь кэш relations');
     }
   }
 
@@ -97,7 +97,7 @@ class CacheService {
   clearAll() {
     this.tableCache.clear();
     this.relationsCache.clear();
-    console.log('[CacheService] Очищены все кэши');
+    // console.log('[CacheService] Очищены все кэши');
   }
 
   // Получение статистики кэша

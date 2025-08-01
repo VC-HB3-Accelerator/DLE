@@ -166,26 +166,26 @@ const videoStream = ref(null);
 const recordedAudioChunks = ref([]);
 const recordedVideoChunks = ref([]);
 
-const startAudioRecording = async () => {
-  console.log('[ChatInterface] startAudioRecording called');
+  const startAudioRecording = async () => {
+    // console.log('[ChatInterface] startAudioRecording called');
   try {
     if (isAudioRecording.value) return;
     audioStream.value = await navigator.mediaDevices.getUserMedia({ audio: true });
-    console.log('[ChatInterface] Got audio stream:', audioStream.value);
+    // console.log('[ChatInterface] Got audio stream:', audioStream.value);
     recordedAudioChunks.value = [];
     audioRecorder.value = new MediaRecorder(audioStream.value);
     audioRecorder.value.ondataavailable = (event) => {
-      console.log('[ChatInterface] audioRecorder.ondataavailable fired');
+      // console.log('[ChatInterface] audioRecorder.ondataavailable fired');
       if (event.data.size > 0) recordedAudioChunks.value.push(event.data);
     };
     audioRecorder.value.onstop = () => {
-        console.log('[ChatInterface] audioRecorder.onstop fired');
+        // console.log('[ChatInterface] audioRecorder.onstop fired');
         setTimeout(() => {
             if (recordedAudioChunks.value.length === 0) {
-                console.warn('[ChatInterface] No audio chunks recorded.');
+                // console.warn('[ChatInterface] No audio chunks recorded.');
                 return;
             }
-            console.log(`[ChatInterface] Creating audio Blob from ${recordedAudioChunks.value.length} chunks.`);
+            // console.log(`[ChatInterface] Creating audio Blob from ${recordedAudioChunks.value.length} chunks.`);
             const audioBlob = new Blob(recordedAudioChunks.value, { type: 'audio/webm' });
             const audioFile = new File([audioBlob], `audio-${Date.now()}.webm`, { type: 'audio/webm' });
             addAttachment(audioFile);
@@ -194,64 +194,64 @@ const startAudioRecording = async () => {
     };
     audioRecorder.value.start();
     isAudioRecording.value = true;
-    console.log('[ChatInterface] Audio recording started, recorder state:', audioRecorder.value.state);
+    // console.log('[ChatInterface] Audio recording started, recorder state:', audioRecorder.value.state);
   } catch (error) {
-    console.error('[ChatInterface] Error starting audio recording:', error);
+    // console.error('[ChatInterface] Error starting audio recording:', error);
   }
 };
 
 const stopAudioRecording = async () => {
-  console.log('[ChatInterface] stopAudioRecording called');
+  // console.log('[ChatInterface] stopAudioRecording called');
   if (!isAudioRecording.value || !audioRecorder.value || audioRecorder.value.state === 'inactive') {
-      console.log('[ChatInterface] stopAudioRecording: Not recording or recorder inactive, state:', audioRecorder.value?.state);
+      // console.log('[ChatInterface] stopAudioRecording: Not recording or recorder inactive, state:', audioRecorder.value?.state);
       return;
   }
   try {
     audioRecorder.value.stop();
-    console.log('[ChatInterface] audioRecorder.stop() called');
+    // console.log('[ChatInterface] audioRecorder.stop() called');
     isAudioRecording.value = false;
     if (audioStream.value) {
         audioStream.value.getTracks().forEach(track => track.stop());
-        console.log('[ChatInterface] Audio stream tracks stopped.');
+        // console.log('[ChatInterface] Audio stream tracks stopped.');
     }
   } catch (error) {
-    console.error('[ChatInterface] Error stopping audio recording:', error);
+    // console.error('[ChatInterface] Error stopping audio recording:', error);
     isAudioRecording.value = false;
     if (audioStream.value) audioStream.value.getTracks().forEach(track => track.stop());
   }
 };
 
 const startVideoRecording = async () => {
-  console.log('[ChatInterface] startVideoRecording called');
+  // console.log('[ChatInterface] startVideoRecording called');
   try {
     if (isVideoRecording.value) return;
     videoStream.value = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    console.log('[ChatInterface] Got video stream:', videoStream.value);
+    // console.log('[ChatInterface] Got video stream:', videoStream.value);
     recordedVideoChunks.value = [];
     let options = { mimeType: 'video/webm;codecs=vp9,opus' };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        console.warn(`MIME type ${options.mimeType} not supported, trying video/webm...`);
+        // console.warn(`MIME type ${options.mimeType} not supported, trying video/webm...`);
         options = { mimeType: 'video/webm' };
         if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            console.warn(`MIME type ${options.mimeType} not supported, using default.`);
+            // console.warn(`MIME type ${options.mimeType} not supported, using default.`);
             options = {};
         }
     }
-    console.log('[ChatInterface] Using MediaRecorder options:', options);
+    // console.log('[ChatInterface] Using MediaRecorder options:', options);
     videoRecorder.value = new MediaRecorder(videoStream.value, options);
 
     videoRecorder.value.ondataavailable = (event) => {
-      console.log('[ChatInterface] videoRecorder.ondataavailable fired');
+      // console.log('[ChatInterface] videoRecorder.ondataavailable fired');
       if (event.data.size > 0) recordedVideoChunks.value.push(event.data);
     };
     videoRecorder.value.onstop = () => {
-      console.log('[ChatInterface] videoRecorder.onstop fired');
+      // console.log('[ChatInterface] videoRecorder.onstop fired');
       setTimeout(() => {
           if (recordedVideoChunks.value.length === 0) {
-              console.warn('[ChatInterface] No video chunks recorded.');
+              // console.warn('[ChatInterface] No video chunks recorded.');
               return;
           }
-          console.log(`[ChatInterface] Creating video Blob from ${recordedVideoChunks.value.length} chunks.`);
+          // console.log(`[ChatInterface] Creating video Blob from ${recordedVideoChunks.value.length} chunks.`);
           const videoBlob = new Blob(recordedVideoChunks.value, { type: videoRecorder.value.mimeType || 'video/webm' });
           const videoFile = new File([videoBlob], `video-${Date.now()}.webm`, { type: videoRecorder.value.mimeType || 'video/webm' });
           addAttachment(videoFile);
@@ -260,28 +260,28 @@ const startVideoRecording = async () => {
     };
     videoRecorder.value.start();
     isVideoRecording.value = true;
-    console.log('[ChatInterface] Video recording started, recorder state:', videoRecorder.value.state);
+    // console.log('[ChatInterface] Video recording started, recorder state:', videoRecorder.value.state);
   } catch (error) {
-    console.error('[ChatInterface] Error starting video recording:', error);
+    // console.error('[ChatInterface] Error starting video recording:', error);
   }
 };
 
 const stopVideoRecording = async () => {
-  console.log('[ChatInterface] stopVideoRecording called');
+  // console.log('[ChatInterface] stopVideoRecording called');
   if (!isVideoRecording.value || !videoRecorder.value || videoRecorder.value.state === 'inactive') {
-      console.log('[ChatInterface] stopVideoRecording: Not recording or recorder inactive, state:', videoRecorder.value?.state);
+      // console.log('[ChatInterface] stopVideoRecording: Not recording or recorder inactive, state:', videoRecorder.value?.state);
       return;
   }
   try {
     videoRecorder.value.stop();
-    console.log('[ChatInterface] videoRecorder.stop() called');
+    // console.log('[ChatInterface] videoRecorder.stop() called');
     isVideoRecording.value = false;
     if (videoStream.value) {
         videoStream.value.getTracks().forEach(track => track.stop());
-        console.log('[ChatInterface] Video stream tracks stopped.');
+        // console.log('[ChatInterface] Video stream tracks stopped.');
     }
   } catch (error) {
-    console.error('[ChatInterface] Error stopping video recording:', error);
+    // console.error('[ChatInterface] Error stopping video recording:', error);
     isVideoRecording.value = false;
     if (videoStream.value) videoStream.value.getTracks().forEach(track => track.stop());
   }

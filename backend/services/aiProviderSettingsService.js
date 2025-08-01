@@ -148,7 +148,7 @@ async function getAllLLMModels() {
         }
       }
     } catch (ollamaError) {
-      console.error('Error checking Ollama models:', ollamaError);
+      // console.error('Error checking Ollama models:', ollamaError);
       // Если не удалось проверить Ollama, добавляем базовые модели
       allModels.push({ id: 'qwen2.5:7b', provider: 'ollama' });
     }
@@ -167,7 +167,7 @@ async function getAllLLMModels() {
     
     return uniqueModels;
   } catch (error) {
-    console.error('Error getting LLM models:', error);
+    // console.error('Error getting LLM models:', error);
     return [];
   }
 }
@@ -213,7 +213,7 @@ async function getAllEmbeddingModels() {
         }
       }
     } catch (ollamaError) {
-      console.error('Error checking Ollama embedding models:', ollamaError);
+      // console.error('Error checking Ollama embedding models:', ollamaError);
       // Если не удалось проверить Ollama, добавляем базовые embedding модели
       allModels.push({ id: 'mxbai-embed-large:latest', provider: 'ollama' });
     }
@@ -232,7 +232,7 @@ async function getAllEmbeddingModels() {
     
     return uniqueModels;
   } catch (error) {
-    console.error('Error getting embedding models:', error);
+    // console.error('Error getting embedding models:', error);
     return [];
   }
 }

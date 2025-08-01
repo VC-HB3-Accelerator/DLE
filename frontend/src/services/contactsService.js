@@ -27,10 +27,10 @@ export default {
   async deleteContact(id) {
     try {
       const res = await api.delete(`/users/${id}`);
-      console.log('Ответ на удаление контакта:', res.status, res.data);
+      // console.log('Ответ на удаление контакта:', res.status, res.data);
       return res.data;
     } catch (err) {
-      console.error('Ошибка при удалении контакта:', err.response?.status, err.response?.data, err);
+              // console.error('Ошибка при удалении контакта:', err.response?.status, err.response?.data, err);
       
       // Если пользователь уже удален (404), считаем это успехом
       if (err.response?.status === 404) {

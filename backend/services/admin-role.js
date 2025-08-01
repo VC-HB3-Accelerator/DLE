@@ -44,9 +44,9 @@ async function checkAdminRole(address) {
     if (fs.existsSync(keyPath)) {
       encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
     }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
+      } catch (keyError) {
+      // console.error('Error reading encryption key:', keyError);
+    }
 
   // Получаем токены и RPC из базы с расшифровкой
   const tokensResult = await db.getQuery()(

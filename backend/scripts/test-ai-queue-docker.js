@@ -17,14 +17,14 @@ process.env.OLLAMA_MODEL = 'qwen2.5:7b';
 const aiQueueService = require('../services/ai-queue');
 
 async function testQueueInDocker() {
-  console.log('🐳 Тестирование AI очереди в Docker...\n');
+  // console.log('🐳 Тестирование AI очереди в Docker...\n');
 
   try {
     // Проверяем инициализацию
-    console.log('1. Проверка инициализации очереди...');
+    // console.log('1. Проверка инициализации очереди...');
     const stats = aiQueueService.getStats();
-    console.log('✅ Очередь инициализирована:', stats.isInitialized);
-    console.log('📊 Статистика:', {
+          // console.log('✅ Очередь инициализирована:', stats.isInitialized);
+      // console.log('📊 Статистика:', {
       totalProcessed: stats.totalProcessed,
       totalFailed: stats.totalFailed,
       currentQueueSize: stats.currentQueueSize,

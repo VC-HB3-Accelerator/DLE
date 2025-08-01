@@ -50,7 +50,7 @@ export function useAuthFlow(options = {}) {
     if (telegramAuth.value.checkInterval) {
       clearInterval(telegramAuth.value.checkInterval);
       telegramAuth.value.checkInterval = null;
-      console.log('[useAuthFlow] Интервал проверки Telegram авторизации очищен');
+      // console.log('[useAuthFlow] Интервал проверки Telegram авторизации очищен');
     }
   };
 
@@ -69,13 +69,13 @@ export function useAuthFlow(options = {}) {
         clearTelegramInterval(); // На всякий случай
         telegramAuth.value.checkInterval = setInterval(async () => {
           try {
-            console.log('[useAuthFlow] Проверка статуса Telegram...');
+            // console.log('[useAuthFlow] Проверка статуса Telegram...');
             // Используем checkAuth из useAuth для обновления состояния
             const checkResponse = await auth.checkAuth();
             const telegramId = auth.telegramId.value;
 
             if (auth.isAuthenticated.value && telegramId) {
-              console.log('[useAuthFlow] Telegram успешно связан/подтвержден.');
+              // console.log('[useAuthFlow] Telegram успешно связан/подтвержден.');
               clearTelegramInterval();
               telegramAuth.value.showVerification = false;
               telegramAuth.value.verificationCode = '';
@@ -87,7 +87,7 @@ export function useAuthFlow(options = {}) {
               return;
             }
           } catch (intervalError) {
-            console.error('[useAuthFlow] Ошибка при проверке статуса Telegram в интервале:', intervalError);
+            // console.error('[useAuthFlow] Ошибка при проверке статуса Telegram в интервале:', intervalError);
             // Решаем, останавливать ли интервал при ошибке
             // telegramAuth.value.error = 'Ошибка проверки статуса Telegram.';
             // clearTelegramInterval();
@@ -99,7 +99,7 @@ export function useAuthFlow(options = {}) {
         showErrorMessage(telegramAuth.value.error);
       }
     } catch (error) {
-      console.error('[useAuthFlow] Ошибка инициализации Telegram аутентификации:', error);
+      // console.error('[useAuthFlow] Ошибка инициализации Telegram аутентификации:', error);
       const message = error?.response?.data?.error || 'Ошибка при инициализации аутентификации через Telegram';
       telegramAuth.value.error = message;
       showErrorMessage(message);
@@ -114,7 +114,7 @@ export function useAuthFlow(options = {}) {
     telegramAuth.value.verificationCode = '';
     telegramAuth.value.error = '';
     telegramAuth.value.isLoading = false;
-    console.log('[useAuthFlow] Аутентификация Telegram отменена');
+    // console.log('[useAuthFlow] Аутентификация Telegram отменена');
   };
 
   // --- Email --- 
@@ -148,13 +148,13 @@ export function useAuthFlow(options = {}) {
         emailAuth.value.showForm = false;
         emailAuth.value.showVerification = true;
         emailAuth.value.verificationCode = ''; // Очищаем поле кода
-        console.log('[useAuthFlow] Код верификации Email отправлен на:', emailAuth.value.verificationEmail);
+        // console.log('[useAuthFlow] Код верификации Email отправлен на:', emailAuth.value.verificationEmail);
       } else {
         emailAuth.value.error = response.data.error || 'Ошибка инициализации аутентификации по email';
         showErrorMessage(emailAuth.value.error);
       }
     } catch (error) {
-      console.error('[useAuthFlow] Ошибка при запросе инициализации Email:', error);
+      // console.error('[useAuthFlow] Ошибка при запросе инициализации Email:', error);
       const message = error?.response?.data?.error || 'Ошибка при запросе кода подтверждения';
       emailAuth.value.error = message;
       showErrorMessage(message);

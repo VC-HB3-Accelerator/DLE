@@ -47,7 +47,7 @@ class WebSshService {
       this.isAgentRunning = false;
       return { running: false };
     } catch (error) {
-      console.error('Агент не доступен:', error);
+              // console.error('Агент не доступен:', error);
       this.isAgentRunning = false;
       return { running: false, error: error.message };
     }
@@ -84,7 +84,7 @@ class WebSshService {
         return await this.downloadAndInstallAgent();
       }
     } catch (error) {
-      console.error('Ошибка при установке агента:', error);
+              // console.error('Ошибка при установке агента:', error);
       return await this.downloadAndInstallAgent();
     }
   }
@@ -154,7 +154,7 @@ EOF
         requiresManualInstall: true
       };
     } catch (error) {
-      console.error('Ошибка при создании установочного скрипта:', error);
+              // console.error('Ошибка при создании установочного скрипта:', error);
       return {
         success: false,
         message: 'Ошибка при подготовке установки агента',
@@ -216,7 +216,7 @@ EOF
         };
       }
     } catch (error) {
-      console.error('Ошибка при создании туннеля:', error);
+              // console.error('Ошибка при создании туннеля:', error);
       return {
         success: false,
         message: `Ошибка подключения к агенту: ${error.message}`
@@ -259,7 +259,7 @@ EOF
         };
       }
     } catch (error) {
-      console.error('Ошибка при отключении туннеля:', error);
+              // console.error('Ошибка при отключении туннеля:', error);
       return {
         success: false,
         message: `Ошибка подключения к агенту: ${error.message}`
@@ -291,7 +291,7 @@ EOF
         };
       }
     } catch (error) {
-      console.error('Ошибка при получении статуса:', error);
+              // console.error('Ошибка при получении статуса:', error);
       return {
         connected: false,
         domain: null,
@@ -337,7 +337,7 @@ app.post('/tunnel/create', async (req, res) => {
   try {
     const { domain, email, sshHost, sshUser, sshKey, localPort, serverPort, sshPort } = req.body;
     
-    console.log('Создание туннеля для домена:', domain);
+          // console.log('Создание туннеля для домена:', domain);
     
     // Сохраняем SSH ключ во временный файл
     const keyPath = path.join(__dirname, 'temp_ssh_key');
@@ -395,11 +395,11 @@ server {
     const sshProcess = spawn('ssh', sshArgs);
     
     sshProcess.on('error', (error) => {
-      console.error('SSH процесс ошибка:', error);
+              // console.error('SSH процесс ошибка:', error);
     });
     
     sshProcess.on('close', (code) => {
-      console.log('SSH процесс завершен с кодом:', code);
+              // console.log('SSH процесс завершен с кодом:', code);
       tunnelState.connected = false;
     });
     
@@ -419,7 +419,7 @@ server {
     });
     
   } catch (error) {
-    console.error('Ошибка создания туннеля:', error);
+            // console.error('Ошибка создания туннеля:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -446,7 +446,7 @@ app.post('/tunnel/disconnect', (req, res) => {
       message: 'Туннель отключен'
     });
   } catch (error) {
-    console.error('Ошибка отключения туннеля:', error);
+            // console.error('Ошибка отключения туннеля:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -465,7 +465,7 @@ app.get('/tunnel/status', (req, res) => {
 
 // Запуск сервера
 app.listen(PORT, 'localhost', () => {
-  console.log(\`WebSSH Agent запущен на порту \${PORT}\`);
+  // console.log(\`WebSSH Agent запущен на порту \${PORT}\`);
 });
 `;
   }

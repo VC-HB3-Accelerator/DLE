@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-console.log('[identity-service] loaded');
+// console.log('[identity-service] loaded');
 
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');

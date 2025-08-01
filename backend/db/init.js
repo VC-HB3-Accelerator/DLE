@@ -44,7 +44,7 @@ async function initRoles() {
         (4, 'admin', 'Администратор с полным доступом');
       `);
 
-      console.log('Таблица roles создана и заполнена');
+      // console.log('Таблица roles создана и заполнена');
     } else {
       // Проверяем наличие ролей
       const rolesExist = await pool.query(`
@@ -74,11 +74,11 @@ async function initRoles() {
           `);
         }
 
-        console.log('Таблица roles обновлена');
+        // console.log('Таблица roles обновлена');
       }
     }
   } catch (error) {
-    console.error('Ошибка при инициализации таблицы roles:', error);
+    // console.error('Ошибка при инициализации таблицы roles:', error);
     throw error;
   }
 }

@@ -58,7 +58,7 @@ async function loadContact() {
       error.value = 'Контакт не найден';
     }
   } catch (e) {
-    console.error('Ошибка загрузки контакта:', e);
+          // console.error('Ошибка загрузки контакта:', e);
     contact.value = null;
     error.value = 'Контакт не найден';
   } finally {
@@ -72,7 +72,7 @@ async function deleteContact() {
   error.value = '';
   try {
     const result = await contactsService.deleteContact(contact.value.id);
-    console.log('Результат удаления:', result);
+    // console.log('Результат удаления:', result);
     
     // Если удаление успешно или пользователь уже удален
     if (result.success || result.message === 'Пользователь уже удален') {
@@ -81,7 +81,7 @@ async function deleteContact() {
       error.value = 'Ошибка при удалении контакта';
     }
   } catch (e) {
-    console.error('Ошибка при удалении:', e);
+    // console.error('Ошибка при удалении:', e);
     error.value = 'Ошибка при удалении контакта';
   } finally {
     isDeleting.value = false;

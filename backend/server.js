@@ -22,41 +22,41 @@ const { warmupModel } = require('./scripts/warmup-model'); // Добавляем
 
 const PORT = process.env.PORT || 8000;
 
-console.log('Начало выполнения server.js');
-console.log('Переменная окружения PORT:', process.env.PORT);
-console.log('Используемый порт:', process.env.PORT || 8000);
+// console.log('Начало выполнения server.js');
+// console.log('Переменная окружения PORT:', process.env.PORT);
+// console.log('Используемый порт:', process.env.PORT || 8000);
 
 // Инициализация сервисов
 async function initServices() {
   try {
-    console.log('Инициализация сервисов...');
-    console.log('[initServices] Запуск Email-бота...');
-    console.log('[initServices] Создаю экземпляр EmailBotService...');
+    // console.log('Инициализация сервисов...');
+          // console.log('[initServices] Запуск Email-бота...');
+      // console.log('[initServices] Создаю экземпляр EmailBotService...');
     let emailBot;
     try {
       emailBot = new EmailBotService();
-      console.log('[initServices] Экземпляр EmailBotService создан');
+              // console.log('[initServices] Экземпляр EmailBotService создан');
     } catch (err) {
-      console.error('[initServices] Ошибка при создании экземпляра EmailBotService:', err);
+              // console.error('[initServices] Ошибка при создании экземпляра EmailBotService:', err);
       throw err;
     }
-    console.log('[initServices] Перед вызовом emailBot.start()');
+            // console.log('[initServices] Перед вызовом emailBot.start()');
     try {
       await emailBot.start();
-      console.log('[initServices] Email-бот успешно запущен');
+              // console.log('[initServices] Email-бот успешно запущен');
     } catch (err) {
-      console.error('[initServices] Ошибка при запуске emailBot:', err);
+              // console.error('[initServices] Ошибка при запуске emailBot:', err);
     }
-    console.log('[initServices] Запуск Telegram-бота...');
+          // console.log('[initServices] Запуск Telegram-бота...');
     try {
       await getBot();
-      console.log('[initServices] Telegram-бот успешно запущен');
+              // console.log('[initServices] Telegram-бот успешно запущен');
     } catch (err) {
-      console.error('[initServices] Ошибка при запуске Telegram-бота:', err);
+              // console.error('[initServices] Ошибка при запуске Telegram-бота:', err);
     }
-  } catch (error) {
-    console.error('Ошибка при инициализации сервисов:', error);
-  }
+      } catch (error) {
+      // console.error('Ошибка при инициализации сервисов:', error);
+    }
 }
 
 const server = http.createServer(app);
@@ -67,22 +67,22 @@ async function startServer() {
   await seedAIAssistantSettings(); // Инициализация ассистента после загрузки модели Ollama
   
   // Разогрев модели Ollama
-  console.log('🔥 Запуск разогрева модели...');
+      // console.log('🔥 Запуск разогрева модели...');
   setTimeout(() => {
     warmupModel().catch(err => {
-      console.error('❌ Ошибка разогрева модели:', err.message);
+              // console.error('❌ Ошибка разогрева модели:', err.message);
     });
   }, 10000); // Задержка 10 секунд для полной инициализации
   
   await initServices(); // Только теперь запускать сервисы
-  console.log(`Server is running on port ${PORT}`);
+  // console.log(`Server is running on port ${PORT}`);
 }
 
 server.listen(PORT, async () => {
   try {
     await startServer();
   } catch (error) {
-    console.error('Error starting server:', error);
+    // console.error('Error starting server:', error);
     process.exit(1);
   }
 });

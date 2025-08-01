@@ -14,14 +14,13 @@ import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
 // Импортируем (пока не созданные) компоненты для подстраниц настроек
 const SettingsAiView = () => import('../views/settings/AiSettingsView.vue');
-const SettingsBlockchainView = () => import('../views/settings/BlockchainSettingsView.vue');
 const SettingsSecurityView = () => import('../views/settings/SecuritySettingsView.vue');
 const SettingsInterfaceView = () => import('../views/settings/Interface/InterfaceSettingsView.vue');
 
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
 
-console.log('router/index.js: Script loaded');
+// console.log('router/index.js: Script loaded');
 
 const routes = [
   {
@@ -50,16 +49,7 @@ const routes = [
         name: 'settings-ai',
         component: SettingsAiView,
       },
-      {
-        path: 'blockchain',
-        name: 'settings-blockchain',
-        component: SettingsBlockchainView,
-      },
-      {
-        path: 'blockchain/dle-deploy',
-        name: 'settings-blockchain-dle-deploy',
-        component: () => import('../views/settings/BlockchainSettingsView.vue'),
-      },
+
       {
         path: 'dle-v2-deploy',
         name: 'settings-dle-v2-deploy',
@@ -286,7 +276,7 @@ const router = createRouter({
   routes,
 });
 
-console.log('router/index.js: Router created');
+// console.log('router/index.js: Router created');
 
 // Защита маршрутов
 router.beforeEach(async (to, from, next) => {

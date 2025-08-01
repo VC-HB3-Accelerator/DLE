@@ -245,7 +245,7 @@ const transferTokens = async () => {
     isTransferring.value = true;
     
     // Здесь будет логика трансфера токенов
-    console.log('Трансфер токенов:', transferData.value);
+    // console.log('Трансфер токенов:', transferData.value);
     
     // Временная логика
     const amount = parseFloat(transferData.value.amount);
@@ -266,7 +266,7 @@ const transferTokens = async () => {
     alert('Токены успешно переведены!');
     
   } catch (error) {
-    console.error('Ошибка трансфера токенов:', error);
+          // console.error('Ошибка трансфера токенов:', error);
     alert('Ошибка при переводе токенов');
   } finally {
     isTransferring.value = false;
@@ -280,7 +280,7 @@ const distributeTokens = async () => {
     isDistributing.value = true;
     
     // Здесь будет логика распределения токенов
-    console.log('Распределение токенов:', distributionData.value);
+    // console.log('Распределение токенов:', distributionData.value);
     
     // Временная логика
     const totalAmount = distributionData.value.recipients.reduce((sum, recipient) => {
@@ -303,7 +303,7 @@ const distributeTokens = async () => {
     alert('Токены успешно распределены!');
     
   } catch (error) {
-    console.error('Ошибка распределения токенов:', error);
+          // console.error('Ошибка распределения токенов:', error);
     alert('Ошибка при распределении токенов');
   } finally {
     isDistributing.value = false;

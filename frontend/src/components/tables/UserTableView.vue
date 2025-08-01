@@ -361,7 +361,7 @@ async function fetchFilteredRows() {
       params.append(def.filterKey, Array.isArray(val) ? val.join(',') : val);
     }
   }
-  console.log('fetchFilteredRows params:', params.toString()); // Для отладки
+      // console.log('fetchFilteredRows params:', params.toString()); // Для отладки
   const data = await tablesService.getFilteredRows(props.tableId, params);
   // Локальная фильтрация по multiselect-relation (если backend не фильтрует)
   filteredRows.value = data.filter(row => {
@@ -387,7 +387,7 @@ async function fetchFilteredRows() {
 // Основная загрузка таблицы
 async function fetchTable() {
   const startTime = Date.now();
-  console.log(`[UserTableView] 🚀 Начало загрузки таблицы ${props.tableId} в ${startTime}`);
+      // console.log(`[UserTableView] 🚀 Начало загрузки таблицы ${props.tableId} в ${startTime}`);
   
   const data = await tablesService.getTable(props.tableId);
   columns.value = data.columns;
@@ -395,12 +395,12 @@ async function fetchTable() {
   cellValues.value = data.cellValues;
   tableMeta.value = { name: data.name, description: data.description };
   
-  console.log(`[UserTableView] 📊 Загружено ${rows.value.length} строк, ${columns.value.length} столбцов`);
+      // console.log(`[UserTableView] 📊 Загружено ${rows.value.length} строк, ${columns.value.length} столбцов`);
   
   // Предварительно загружаем все relations для всех строк параллельно
   const relationColumns = columns.value.filter(col => col.type === 'multiselect-relation');
   if (relationColumns.length > 0) {
-    console.log(`[UserTableView] 🔄 Предварительно загружаем relations для ${relationColumns.length} столбцов`);
+    // console.log(`[UserTableView] 🔄 Предварительно загружаем relations для ${relationColumns.length} столбцов`);
     
     const relationPromises = [];
     for (const row of rows.value) {
@@ -413,7 +413,7 @@ async function fetchTable() {
             return { rowId: row.id, colId: col.id, relations };
           })
           .catch(error => {
-            console.error(`[UserTableView] Ошибка загрузки relations для row:${row.id} col:${col.id}:`, error);
+            // console.error(`[UserTableView] Ошибка загрузки relations для row:${row.id} col:${col.id}:`, error);
             return { rowId: row.id, colId: col.id, relations: [] };
           });
         relationPromises.push(promise);
@@ -422,7 +422,7 @@ async function fetchTable() {
     
     // Ждем загрузки всех relations
     const results = await Promise.all(relationPromises);
-    console.log(`[UserTableView] ✅ Предварительно загружено ${results.length} relations`);
+    // console.log(`[UserTableView] ✅ Предварительно загружено ${results.length} relations`);
   }
   
   // Предварительно загружаем данные связанных таблиц для опций
@@ -434,7 +434,7 @@ async function fetchTable() {
   }
   
   if (relatedTableIds.size > 0) {
-    console.log(`[UserTableView] 🔄 Предварительно загружаем данные ${relatedTableIds.size} связанных таблиц для опций`);
+    // console.log(`[UserTableView] 🔄 Предварительно загружаем данные ${relatedTableIds.size} связанных таблиц для опций`);
     
     const tablePromises = Array.from(relatedTableIds).map(tableId => 
       fetch(`/api/tables/${tableId}`)
@@ -445,13 +445,13 @@ async function fetchTable() {
           return { tableId, tableData };
         })
         .catch(error => {
-          console.error(`[UserTableView] Ошибка загрузки таблицы ${tableId}:`, error);
+          // console.error(`[UserTableView] Ошибка загрузки таблицы ${tableId}:`, error);
           return { tableId, tableData: null };
         })
     );
     
     const tableResults = await Promise.all(tablePromises);
-    console.log(`[UserTableView] ✅ Предварительно загружено ${tableResults.length} связанных таблиц`);
+    // console.log(`[UserTableView] ✅ Предварительно загружено ${tableResults.length} связанных таблиц`);
   }
   
   // Выполняем обновление фильтров и фильтрацию строк параллельно
@@ -462,15 +462,15 @@ async function fetchTable() {
   
   // Выводим статистику кэша для отладки
   const cacheStats = cacheService.getStats();
-  console.log('[UserTableView] Статистика кэша после загрузки таблицы:', {
-    tableCacheSize: cacheStats.tableCacheSize,
-    relationsCacheSize: cacheStats.relationsCacheSize,
-    tableCacheKeys: cacheStats.tableCacheKeys,
-    relationsCacheKeys: cacheStats.relationsCacheKeys.slice(0, 5) // Показываем только первые 5 ключей
-  });
+      // console.log('[UserTableView] Статистика кэша после загрузки таблицы:', {
+    //   tableCacheSize: cacheStats.tableCacheSize,
+    //   relationsCacheSize: cacheStats.relationsCacheSize,
+    //   tableCacheKeys: cacheStats.tableCacheKeys,
+    //   relationsCacheKeys: cacheStats.relationsCacheKeys.slice(0, 5) // Показываем только первые 5 ключей
+    // });
   
   const endTime = Date.now();
-  console.log(`[UserTableView] ✅ Завершена загрузка таблицы ${props.tableId} за ${endTime - startTime}ms`);
+  // console.log(`[UserTableView] ✅ Завершена загрузка таблицы ${props.tableId} за ${endTime - startTime}ms`);
 }
 
 async function updateRelationFilterDefs() {
@@ -485,7 +485,7 @@ async function updateRelationFilterDefs() {
         // Проверяем кэш
         const cached = cacheService.getTableData(tableId);
         if (cached) {
-          console.log(`[updateRelationFilterDefs] Используем кэшированные данные таблицы ${tableId}`);
+          // console.log(`[updateRelationFilterDefs] Используем кэшированные данные таблицы ${tableId}`);
           relatedTableMap.set(tableId, Promise.resolve(cached));
         } else {
           relatedTableMap.set(tableId, tablesService.getTable(tableId));
@@ -536,7 +536,7 @@ async function updateRelationFilterDefs() {
       });
     }
   }
-  console.log('relationFilterDefs:', defs); // Для отладки
+  // console.log('relationFilterDefs:', defs); // Для отладки
   relationFilterDefs.value = defs;
 }
 
@@ -553,7 +553,7 @@ onMounted(() => {
   fetchTable();
   // Подписка на WebSocket обновления таблицы
   unsubscribeFromTableUpdate = websocketService.onTableUpdate(props.tableId, () => {
-    console.log('[UserTableView] Получено событие table-updated, перезагружаем данные');
+    // console.log('[UserTableView] Получено событие table-updated, перезагружаем данные');
     // Очищаем кэш текущей таблицы
     cacheService.clearTableCache(props.tableId);
     fetchTable();
@@ -561,15 +561,15 @@ onMounted(() => {
   
   // Подписка на WebSocket обновления тегов
   const { onTagsUpdate } = useTagsWebSocket();
-  console.log('[UserTableView] Подписываемся на обновления тегов для таблицы:', props.tableId);
-  console.log('[UserTableView] onTagsUpdate функция:', typeof onTagsUpdate);
+  // console.log('[UserTableView] Подписываемся на обновления тегов для таблицы:', props.tableId);
+      // console.log('[UserTableView] onTagsUpdate функция:', typeof onTagsUpdate);
   unsubscribeFromTagsUpdate = onTagsUpdate(async (data) => {
-    console.log('[UserTableView] 🔔 ПОЛУЧЕНО СОБЫТИЕ TAGS-UPDATED!');
-    console.log('[UserTableView] Получено событие tags-updated, обновляем данные для таблицы:', props.tableId, data);
+          // console.log('[UserTableView] 🔔 ПОЛУЧЕНО СОБЫТИЕ TAGS-UPDATED!');
+          // console.log('[UserTableView] Получено событие tags-updated, обновляем данные для таблицы:', props.tableId, data);
     
     // Если есть информация о конкретной строке, обновляем только её
     if (data && data.rowId) {
-      console.log('[UserTableView] Точечное обновление для строки:', data.rowId);
+              // console.log('[UserTableView] Точечное обновление для строки:', data.rowId);
       try {
         // Очищаем кэш relations только для конкретной строки
         const tagColumns = columns.value.filter(col => 
@@ -581,19 +581,19 @@ onMounted(() => {
           cacheService.clearRelationsData(data.rowId, col.id);
         }
         
-        console.log('[UserTableView] Кэш relations очищен для строки, обновляем данные строки:', data.rowId);
+                  // console.log('[UserTableView] Кэш relations очищен для строки, обновляем данные строки:', data.rowId);
         
         // Обновляем только данные конкретной строки
         await updateRowData(data.rowId);
-        console.log('[UserTableView] Данные строки обновлены:', data.rowId);
+                  // console.log('[UserTableView] Данные строки обновлены:', data.rowId);
       } catch (error) {
-        console.error('[UserTableView] Ошибка при точечном обновлении:', error);
+                  // console.error('[UserTableView] Ошибка при точечном обновлении:', error);
         // Fallback: полная перезагрузка при ошибке
         await fetchTable();
       }
     } else {
       // Если нет информации о строке, используем старую логику
-      console.log('[UserTableView] Общее обновление тегов');
+              // console.log('[UserTableView] Общее обновление тегов');
       try {
         // Очищаем кэш relations для всех строк этой таблицы
         const tableRows = rows.value || [];
@@ -609,11 +609,11 @@ onMounted(() => {
           }
         }
         
-        console.log('[UserTableView] Кэш relations очищен, перезагружаем данные таблицы:', props.tableId);
+                  // console.log('[UserTableView] Кэш relations очищен, перезагружаем данные таблицы:', props.tableId);
         await fetchTable();
-        console.log('[UserTableView] Данные таблицы перезагружены:', props.tableId);
+                  // console.log('[UserTableView] Данные таблицы перезагружены:', props.tableId);
       } catch (error) {
-        console.error('[UserTableView] Ошибка при обновлении после tags-updated:', error);
+                  // console.error('[UserTableView] Ошибка при обновлении после tags-updated:', error);
         // Fallback: полная перезагрузка при ошибке
         cacheService.clearTableCache(props.tableId);
         await fetchTable();
@@ -764,13 +764,13 @@ async function rebuildIndex() {
 // Функция для точечного обновления данных конкретной строки
 async function updateRowData(rowId) {
   const startTime = Date.now();
-  console.log(`[UserTableView] 🔄 Начало обновления данных строки ${rowId}`);
+      // console.log(`[UserTableView] 🔄 Начало обновления данных строки ${rowId}`);
   
   try {
     // Находим строку в текущих данных
     const rowIndex = rows.value.findIndex(row => row.id === rowId);
     if (rowIndex === -1) {
-      console.log(`[UserTableView] Строка ${rowId} не найдена в текущих данных`);
+      // console.log(`[UserTableView] Строка ${rowId} не найдена в текущих данных`);
       return;
     }
     
@@ -781,7 +781,7 @@ async function updateRowData(rowId) {
     );
     
     if (tagColumns.length > 0) {
-      console.log(`[UserTableView] 🔄 Загружаем relations для строки ${rowId} (${tagColumns.length} столбцов)`);
+      // console.log(`[UserTableView] 🔄 Загружаем relations для строки ${rowId} (${tagColumns.length} столбцов)`);
       
       const relationPromises = tagColumns.map(col => 
         fetch(`/api/tables/${col.table_id}/row/${rowId}/relations`)
@@ -792,19 +792,19 @@ async function updateRowData(rowId) {
             return { rowId, colId: col.id, relations };
           })
           .catch(error => {
-            console.error(`[UserTableView] Ошибка загрузки relations для row:${rowId} col:${col.id}:`, error);
+            // console.error(`[UserTableView] Ошибка загрузки relations для row:${rowId} col:${col.id}:`, error);
             return { rowId, colId: col.id, relations: [] };
           })
       );
       
       await Promise.all(relationPromises);
-      console.log(`[UserTableView] ✅ Relations для строки ${rowId} обновлены`);
+      // console.log(`[UserTableView] ✅ Relations для строки ${rowId} обновлены`);
     }
     
     const endTime = Date.now();
-    console.log(`[UserTableView] ✅ Завершено обновление строки ${rowId} за ${endTime - startTime}ms`);
+    // console.log(`[UserTableView] ✅ Завершено обновление строки ${rowId} за ${endTime - startTime}ms`);
   } catch (error) {
-    console.error(`[UserTableView] ❌ Ошибка при обновлении строки ${rowId}:`, error);
+          // console.error(`[UserTableView] ❌ Ошибка при обновлении строки ${rowId}:`, error);
     throw error;
   }
 }

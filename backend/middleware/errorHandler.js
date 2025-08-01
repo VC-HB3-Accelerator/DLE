@@ -18,11 +18,11 @@ const { ERROR_CODES } = require('../utils/constants');
  * Middleware для обработки ошибок
  */
 const errorHandler = (err, req, res, next) => {
-  console.log('errorHandler called, arguments:', arguments);
-  console.log('typeof res:', typeof res, 'isFunction:', typeof res === 'function');
-  console.error('errorHandler: err =', err);
-  console.error('errorHandler: typeof err =', typeof err);
-  console.error('errorHandler: stack =', err && err.stack);
+  // console.log('errorHandler called, arguments:', arguments);
+  // console.log('typeof res:', typeof res, 'isFunction:', typeof res === 'function');
+  // console.error('errorHandler: err =', err);
+  // console.error('errorHandler: typeof err =', typeof err);
+  // console.error('errorHandler: stack =', err && err.stack);
   // Логируем ошибку
   logger.error(`Error: ${err.message}`, {
     stack: err.stack,

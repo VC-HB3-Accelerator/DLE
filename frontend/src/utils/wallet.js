@@ -16,11 +16,11 @@ import { SiweMessage } from 'siwe';
 
 export const connectWallet = async () => {
   try {
-    console.log('Starting wallet connection...');
+    // console.log('Starting wallet connection...');
 
     // Проверяем наличие MetaMask или другого Ethereum провайдера
     if (!window.ethereum) {
-      console.error('No Ethereum provider (like MetaMask) detected!');
+      // console.error('No Ethereum provider (like MetaMask) detected!');
       return {
         success: false,
         error:
@@ -28,11 +28,11 @@ export const connectWallet = async () => {
       };
     }
 
-    console.log('MetaMask detected, requesting accounts...');
+    // console.log('MetaMask detected, requesting accounts...');
 
     // Запрашиваем доступ к аккаунтам
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    console.log('Got accounts:', accounts);
+    // console.log('Got accounts:', accounts);
 
     if (!accounts || accounts.length === 0) {
       return {
@@ -45,13 +45,13 @@ export const connectWallet = async () => {
     const address = accounts[0];
     // Нормализуем адрес (приводим к нижнему регистру для последующих сравнений)
     const normalizedAddress = ethers.utils.getAddress(address);
-    console.log('Normalized address:', normalizedAddress);
+    // console.log('Normalized address:', normalizedAddress);
 
     // Запрашиваем nonce с сервера
-    console.log('Requesting nonce...');
+    // console.log('Requesting nonce...');
     const nonceResponse = await axios.get(`/auth/nonce?address=${normalizedAddress}`);
     const nonce = nonceResponse.data.nonce;
-    console.log('Got nonce:', nonce);
+    // console.log('Got nonce:', nonce);
 
     if (!nonce) {
       return {
@@ -83,10 +83,10 @@ export const connectWallet = async () => {
 
     // Получаем строку сообщения для подписи
     const messageToSign = message.prepareMessage();
-    console.log('SIWE message:', messageToSign);
+    // console.log('SIWE message:', messageToSign);
 
     // Запрашиваем подпись
-    console.log('Requesting signature...');
+    // console.log('Requesting signature...');
     const signature = await signer.signMessage(messageToSign);
 
     if (!signature) {
@@ -96,17 +96,17 @@ export const connectWallet = async () => {
       };
     }
 
-    console.log('Got signature:', signature);
+    // console.log('Got signature:', signature);
 
     // Отправляем верификацию на сервер
-    console.log('Sending verification request...');
+    // console.log('Sending verification request...');
     const requestData = {
       address: normalizedAddress,
       signature,
       nonce,
       issuedAt: new Date().toISOString(),
     };
-    console.log('Request data:', requestData);
+    // console.log('Request data:', requestData);
     
     const verifyResponse = await axios.post('/api/auth/verify', requestData, {
       withCredentials: true,
@@ -130,7 +130,7 @@ export const connectWallet = async () => {
     if (authButtonsEl) authButtonsEl.style.display = 'none';
     if (logoutButtonEl) logoutButtonEl.style.display = 'inline-block';
 
-    console.log('Verification response:', verifyResponse.data);
+    // console.log('Verification response:', verifyResponse.data);
 
     if (verifyResponse.data.success) {
       return {
@@ -146,7 +146,7 @@ export const connectWallet = async () => {
       };
     }
   } catch (error) {
-    console.error('Error connecting wallet:', error);
+    // console.error('Error connecting wallet:', error);
 
     // Формируем понятное сообщение об ошибке
     let errorMessage = 'Произошла ошибка при подключении кошелька.';

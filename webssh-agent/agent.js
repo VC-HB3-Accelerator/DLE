@@ -350,10 +350,10 @@ app.listen(PORT, 'localhost', () => {
 // Обработка необработанных ошибок
 process.on('uncaughtException', (error) => {
   log.error('Необработанная ошибка: ' + error.message);
-  console.error(error);
+  // console.error(error);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   log.error('Необработанное отклонение промиса: ' + reason);
-  console.error(reason);
+  // console.error(reason);
 }); 

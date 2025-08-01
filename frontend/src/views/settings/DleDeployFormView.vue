@@ -1006,10 +1006,10 @@ const getOkvedLevel = (code) => {
 
 // Функция для загрузки ОКВЭД кодов определенного уровня
 const fetchOkvedCodes = async (level, parentCode, optionsRef, loadingRef) => {
-  console.log(`🔍 fetchOkvedCodes вызвана: level=${level}, parentCode=${parentCode || 'root'}`);
+      // console.log(`🔍 fetchOkvedCodes вызвана: level=${level}, parentCode=${parentCode || 'root'}`);
   
   if (!optionsRef || !loadingRef) {
-    console.error('[DleDeployForm] fetchOkvedCodes requires optionsRef and loadingRef');
+    // console.error('[DleDeployForm] fetchOkvedCodes requires optionsRef and loadingRef');
     return;
   }
   
@@ -1017,8 +1017,8 @@ const fetchOkvedCodes = async (level, parentCode, optionsRef, loadingRef) => {
   optionsRef.value = [];
   
   try {
-    console.log(`[DleDeployForm] Загрузка ОКВЭД уровень ${level}, родитель: ${parentCode || 'root'}`);
-    console.log(`[DleDeployForm] Доступно ОКВЭД кодов: ${russianClassifiers.okved?.length || 0}`);
+    // console.log(`[DleDeployForm] Загрузка ОКВЭД уровень ${level}, родитель: ${parentCode || 'root'}`);
+    // console.log(`[DleDeployForm] Доступно ОКВЭД кодов: ${russianClassifiers.okved?.length || 0}`);
     
     // Фильтруем коды из уже загруженных данных
     let filteredCodes = [];
@@ -1042,11 +1042,11 @@ const fetchOkvedCodes = async (level, parentCode, optionsRef, loadingRef) => {
       text: `${code.code} - ${code.title}`
     }));
     
-    console.log(`[DleDeployForm] Загружено ОКВЭД кодов уровня ${level}: ${optionsRef.value.length}`);
-    console.log(`[DleDeployForm] Первые 3 кода:`, optionsRef.value.slice(0, 3));
+    // console.log(`[DleDeployForm] Загружено ОКВЭД кодов уровня ${level}: ${optionsRef.value.length}`);
+    // console.log(`[DleDeployForm] Первые 3 кода:`, optionsRef.value.slice(0, 3));
     
   } catch (error) {
-    console.error('[DleDeployForm] Ошибка при загрузке ОКВЭД кодов:', error);
+    // console.error('[DleDeployForm] Ошибка при загрузке ОКВЭД кодов:', error);
   } finally {
     loadingRef.value = false;
   }
@@ -1083,7 +1083,7 @@ const updateCurrentOkvedSelection = () => {
 
 // Watchers для 2-уровневой загрузки ОКВЭД
 watch(selectedOkvedLevel1, (newVal) => {
-  console.log('[DleDeployForm] selectedOkvedLevel1 changed to:', newVal);
+  // console.log('[DleDeployForm] selectedOkvedLevel1 changed to:', newVal);
   selectedOkvedLevel2.value = ''; 
   okvedLevel2Options.value = [];
   
@@ -1094,7 +1094,7 @@ watch(selectedOkvedLevel1, (newVal) => {
 });
 
 watch(selectedOkvedLevel2, () => {
-  console.log('[DleDeployForm] selectedOkvedLevel2 changed to:', selectedOkvedLevel2.value);
+  // console.log('[DleDeployForm] selectedOkvedLevel2 changed to:', selectedOkvedLevel2.value);
   updateCurrentOkvedSelection();
 });
 
@@ -1297,9 +1297,9 @@ const saveFormData = () => {
         showUnifiedKey: showUnifiedKey.value
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-      console.log('[DleDeployForm] Данные формы сохранены в localStorage');
+      // console.log('[DleDeployForm] Данные формы сохранены в localStorage');
     } catch (error) {
-      console.error('[DleDeployForm] Ошибка сохранения данных:', error);
+      // console.error('[DleDeployForm] Ошибка сохранения данных:', error);
     }
   }, 500); // Задержка 500мс
 };
@@ -1362,11 +1362,11 @@ const loadFormData = () => {
       Object.assign(keyValidation, parsedData.keyValidation || {});
       showUnifiedKey.value = parsedData.showUnifiedKey || false;
 
-      console.log('[DleDeployForm] Данные формы восстановлены из localStorage');
+      // console.log('[DleDeployForm] Данные формы восстановлены из localStorage');
       return true;
     }
   } catch (error) {
-    console.error('[DleDeployForm] Ошибка восстановления данных:', error);
+    // console.error('[DleDeployForm] Ошибка восстановления данных:', error);
   }
   return false;
 };
@@ -1375,9 +1375,9 @@ const loadFormData = () => {
 const clearStoredData = () => {
   try {
     localStorage.removeItem(STORAGE_KEY);
-    console.log('[DleDeployForm] Данные формы удалены из localStorage');
+    // console.log('[DleDeployForm] Данные формы удалены из localStorage');
   } catch (error) {
-    console.error('[DleDeployForm] Ошибка очистки localStorage:', error);
+    // console.error('[DleDeployForm] Ошибка очистки localStorage:', error);
   }
 };
 
@@ -1463,7 +1463,7 @@ const searchByPostalCode = async () => {
       params.append('countrycodes', 'RU');
     }
 
-    console.log(`[SearchByPostalCode] Querying Nominatim: ${params.toString()}`);
+    // console.log(`[SearchByPostalCode] Querying Nominatim: ${params.toString()}`);
     const response = await axios.get(`/geocoding/nominatim-search?${params.toString()}`);
     
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -1483,18 +1483,18 @@ const searchByPostalCode = async () => {
         rawData: result.address  // Сохраняем все сырые данные для анализа
       }));
       
-      console.log(`[SearchByPostalCode] Found ${searchResults.value.length} results`);
+      // console.log(`[SearchByPostalCode] Found ${searchResults.value.length} results`);
       
       // Автоматически заполняем поля первым результатом
       if (searchResults.value.length > 0) {
         fillFromSearchResult(searchResults.value[0]);
-        console.log('[SearchByPostalCode] Auto-filled with first result');
+        // console.log('[SearchByPostalCode] Auto-filled with first result');
       }
     } else {
-      console.log('[SearchByPostalCode] No results found');
+      // console.log('[SearchByPostalCode] No results found');
     }
   } catch (error) {
-    console.error('Ошибка при поиске по индексу:', error);
+    // console.error('Ошибка при поиске по индексу:', error);
   } finally {
     isSearchingAddress.value = false;
   }
@@ -1509,7 +1509,7 @@ const findOktmoByAddress = (result) => {
     return '';
   }
 
-  console.log(`[FindOktmo] Searching OKTMO for region: "${region}"`);
+  // console.log(`[FindOktmo] Searching OKTMO for region: "${region}"`);
   
   // Ищем совпадение по названию региона
   const foundOktmo = russianClassifiers.oktmo.find(oktmo => {
@@ -1523,11 +1523,11 @@ const findOktmoByAddress = (result) => {
   });
 
   if (foundOktmo) {
-    console.log(`[FindOktmo] Found OKTMO: ${foundOktmo.code} - ${foundOktmo.title}`);
+    // console.log(`[FindOktmo] Found OKTMO: ${foundOktmo.code} - ${foundOktmo.title}`);
     return foundOktmo.code;
   }
   
-  console.log(`[FindOktmo] No OKTMO found for region: "${region}"`);
+  // console.log(`[FindOktmo] No OKTMO found for region: "${region}"`);
   return '';
 };
 
@@ -1549,13 +1549,13 @@ const fillFromSearchResult = (result) => {
   if (autoOktmo) {
     dleSettings.selectedOktmo = autoOktmo;
     autoSelectedOktmo.value = true;  // Помечаем как автовыбранный
-    console.log(`[FillFromSearchResult] Auto-selected OKTMO: ${autoOktmo}`);
+    // console.log(`[FillFromSearchResult] Auto-selected OKTMO: ${autoOktmo}`);
   } else {
     autoSelectedOktmo.value = false;
   }
   
-  console.log('[FillFromSearchResult] Filled address data:', dleSettings.addressData);
-  console.log('[FillFromSearchResult] Saved API result:', result);
+  // console.log('[FillFromSearchResult] Filled address data:', dleSettings.addressData);
+  // console.log('[FillFromSearchResult] Saved API result:', result);
 };
 
 // Проверка адреса (повторный запрос для валидации)

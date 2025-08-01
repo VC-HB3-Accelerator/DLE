@@ -56,13 +56,13 @@ export default {
     return res.data;
   },
   async deleteTable(id) {
-    console.log('tablesService.deleteTable called with id:', id);
+    // console.log('tablesService.deleteTable called with id:', id);
     try {
       const res = await api.delete(`${tablesApi}/${id}`);
-      console.log('Delete response:', res.data);
+              // console.log('Delete response:', res.data);
       return res.data;
     } catch (error) {
-      console.error('Error in deleteTable service:', error);
+              // console.error('Error in deleteTable service:', error);
       throw error;
     }
   },

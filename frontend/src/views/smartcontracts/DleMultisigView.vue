@@ -454,7 +454,7 @@ async function createMultisigOperation() {
     alert('✅ Операция мультиподписи успешно создана!');
     
   } catch (error) {
-    console.error('Ошибка при создании операции мультиподписи:', error);
+          // console.error('Ошибка при создании операции мультиподписи:', error);
     alert('❌ Ошибка при создании операции: ' + error.message);
   } finally {
     isCreating.value = false;
@@ -471,7 +471,7 @@ async function signOperation(operationId, support) {
     alert('✅ Ваша подпись учтена!');
     
   } catch (error) {
-    console.error('Ошибка при подписании операции:', error);
+          // console.error('Ошибка при подписании операции:', error);
     alert('❌ Ошибка при подписании: ' + error.message);
   }
 }
@@ -486,7 +486,7 @@ async function executeOperation(operationId) {
     alert('✅ Операция успешно исполнена!');
     
   } catch (error) {
-    console.error('Ошибка при исполнении операции:', error);
+          // console.error('Ошибка при исполнении операции:', error);
     alert('❌ Ошибка при исполнении операции: ' + error.message);
   }
 }
@@ -498,7 +498,7 @@ async function loadOperations() {
     // Пока используем заглушку
     operations.value = [];
   } catch (error) {
-    console.error('Ошибка при загрузке операций:', error);
+          // console.error('Ошибка при загрузке операций:', error);
   }
 }
 
@@ -520,7 +520,7 @@ function resetForm() {
 
 function viewOperationDetails(operationId) {
   // Открыть модальное окно с деталями операции
-  console.log('Просмотр деталей операции:', operationId);
+      // console.log('Просмотр деталей операции:', operationId);
 }
 
 onMounted(() => {

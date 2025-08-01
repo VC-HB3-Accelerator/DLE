@@ -15,7 +15,7 @@ import axios from '../api/axios';
 import { SiweMessage } from 'siwe';
 
 export async function connectWithWallet() {
-  console.log('Starting wallet connection...');
+  // console.log('Starting wallet connection...');
 
   try {
     // Проверяем наличие MetaMask
@@ -23,12 +23,12 @@ export async function connectWithWallet() {
       throw new Error('MetaMask not detected. Please install MetaMask.');
     }
 
-    console.log('MetaMask detected, requesting accounts...');
+    // console.log('MetaMask detected, requesting accounts...');
 
     // Запрашиваем доступ к аккаунтам
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
 
-    console.log('Got accounts:', accounts);
+    // console.log('Got accounts:', accounts);
 
     if (!accounts || accounts.length === 0) {
       throw new Error('No accounts found. Please unlock MetaMask.');
@@ -36,13 +36,13 @@ export async function connectWithWallet() {
 
     // Берем первый аккаунт
     const address = ethers.getAddress(accounts[0]);
-    console.log('Normalized address:', address);
+    // console.log('Normalized address:', address);
 
     // Запрашиваем nonce с сервера
-    console.log('Requesting nonce...');
+    // console.log('Requesting nonce...');
     const nonceResponse = await axios.get(`/auth/nonce?address=${address}`);
     const nonce = nonceResponse.data.nonce;
-    console.log('Got nonce:', nonce);
+    // console.log('Got nonce:', nonce);
 
     // Создаем сообщение для подписи
     const domain = window.location.host;
@@ -63,30 +63,30 @@ export async function connectWithWallet() {
     });
 
     const message = siweMessage.prepareMessage();
-    console.log('SIWE message:', message);
-    console.log('SIWE message details:', {
-      domain,
-      address,
-      statement,
-      uri: origin,
-      version: '1',
-      chainId: 1,
-      nonce,
-      issuedAt,
-      resources: [`${origin}/api/auth/verify`],
-    });
+    // console.log('SIWE message:', message);
+    // console.log('SIWE message details:', {
+    //   domain,
+    //   address,
+    //   statement,
+    //   uri: origin,
+    //   version: '1',
+    //   chainId: 1,
+    //   nonce,
+    //   issuedAt,
+    //   resources: [`${origin}/api/auth/verify`],
+    // });
 
     // Запрашиваем подпись
-    console.log('Requesting signature...');
+    // console.log('Requesting signature...');
     const signature = await window.ethereum.request({
       method: 'personal_sign',
       params: [message, address.toLowerCase()],
     });
 
-    console.log('Got signature:', signature);
+    // console.log('Got signature:', signature);
 
     // Отправляем подпись на сервер для верификации
-    console.log('Sending verification request...');
+    // console.log('Sending verification request...');
     const verificationResponse = await axios.post('/auth/verify', {
       signature,
       address,
@@ -94,7 +94,7 @@ export async function connectWithWallet() {
       issuedAt,
     });
 
-    console.log('Verification response:', verificationResponse.data);
+    // console.log('Verification response:', verificationResponse.data);
 
     // Обновляем состояние аутентификации
     if (verificationResponse.data.success) {
@@ -107,7 +107,7 @@ export async function connectWithWallet() {
 
     return verificationResponse.data;
   } catch (error) {
-    console.error('Error connecting wallet:', error);
+    // console.error('Error connecting wallet:', error);
     throw error;
   }
 }

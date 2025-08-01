@@ -28,10 +28,10 @@ function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
   
   wss.on('connection', (ws, req) => {
-    console.log('🔌 [WebSocket] Новое подключение');
-    console.log('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
-    console.log('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
-    console.log('🔌 [WebSocket] Origin:', req.headers.origin);
+    // console.log('🔌 [WebSocket] Новое подключение');
+    // console.log('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
+    // console.log('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
+    // console.log('🔌 [WebSocket] Origin:', req.headers.origin);
     
     // Добавляем клиента в общий список
     if (!wsClients.has('anonymous')) {
@@ -43,7 +43,7 @@ function initWSS(server) {
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message);
-        console.log('📨 [WebSocket] Получено сообщение:', data);
+        // console.log('📨 [WebSocket] Получено сообщение:', data);
         
         if (data.type === 'auth' && data.userId) {
           // Аутентификация пользователя
@@ -58,12 +58,12 @@ function initWSS(server) {
           }));
         }
       } catch (error) {
-        console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
+        // console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
       }
     });
     
     ws.on('close', (code, reason) => {
-      console.log('🔌 [WebSocket] Соединение закрыто', { code, reason: reason.toString() });
+      // console.log('🔌 [WebSocket] Соединение закрыто', { code, reason: reason.toString() });
       // Удаляем клиента из всех списков
       for (const [userId, clients] of wsClients.entries()) {
         clients.delete(ws);
@@ -74,15 +74,15 @@ function initWSS(server) {
     });
     
     ws.on('error', (error) => {
-      console.error('❌ [WebSocket] Ошибка соединения:', error.message);
+      // console.error('❌ [WebSocket] Ошибка соединения:', error.message);
     });
   });
   
-  console.log('🚀 [WebSocket] Сервер запущен на /ws');
+  // console.log('🚀 [WebSocket] Сервер запущен на /ws');
 }
 
 function authenticateUser(ws, userId) {
-  console.log(`🔐 [WebSocket] Аутентификация пользователя ${userId}`);
+  // console.log(`🔐 [WebSocket] Аутентификация пользователя ${userId}`);
   
   // Удаляем из анонимных
   if (wsClients.has('anonymous')) {
@@ -103,7 +103,7 @@ function authenticateUser(ws, userId) {
 }
 
 function broadcastContactsUpdate() {
-  console.log('📢 [WebSocket] Отправка обновления контактов всем клиентам');
+  // console.log('📢 [WebSocket] Отправка обновления контактов всем клиентам');
   for (const [userId, clients] of wsClients.entries()) {
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) {
@@ -114,7 +114,7 @@ function broadcastContactsUpdate() {
 }
 
 function broadcastMessagesUpdate() {
-  console.log('📢 [WebSocket] Отправка обновления сообщений всем клиентам');
+  // console.log('📢 [WebSocket] Отправка обновления сообщений всем клиентам');
   for (const [userId, clients] of wsClients.entries()) {
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) {
@@ -125,10 +125,10 @@ function broadcastMessagesUpdate() {
 }
 
 function broadcastChatMessage(message, targetUserId = null) {
-  console.log(`📢 [WebSocket] Отправка сообщения чата`, { 
-    messageId: message.id, 
-    targetUserId 
-  });
+  // console.log(`📢 [WebSocket] Отправка сообщения чата`, { 
+  //   messageId: message.id, 
+  //   targetUserId 
+  // });
   
   if (targetUserId) {
     // Отправляем конкретному пользователю
@@ -159,10 +159,10 @@ function broadcastChatMessage(message, targetUserId = null) {
 }
 
 function broadcastConversationUpdate(conversationId, targetUserId = null) {
-  console.log(`📢 [WebSocket] Отправка обновления диалога`, { 
-    conversationId, 
-    targetUserId 
-  });
+  // console.log(`📢 [WebSocket] Отправка обновления диалога`, { 
+  //   conversationId, 
+  //   targetUserId 
+  // });
   
   const payload = { 
     type: 'conversation-updated', 
@@ -192,7 +192,7 @@ function broadcastConversationUpdate(conversationId, targetUserId = null) {
 }
 
 function broadcastTableUpdate(tableId) {
-  console.log('📢 [WebSocket] Отправка обновления таблицы', tableId);
+  // console.log('📢 [WebSocket] Отправка обновления таблицы', tableId);
   const payload = { type: 'table-updated', tableId };
     for (const [userId, clients] of wsClients.entries()) {
       for (const ws of clients) {
@@ -204,11 +204,11 @@ function broadcastTableUpdate(tableId) {
 }
 
 function broadcastTableRelationsUpdate(tableId, rowId, targetUserId = null) {
-  console.log(`📢 [WebSocket] Отправка обновления связей таблицы`, { 
-    tableId, 
-    rowId, 
-    targetUserId 
-  });
+  // console.log(`📢 [WebSocket] Отправка обновления связей таблицы`, { 
+  //   tableId, 
+  //   rowId, 
+  //   targetUserId 
+  // });
   
   const payload = { 
     type: 'table-relations-updated', 
@@ -246,7 +246,7 @@ function broadcastTagsUpdate(targetUserId = null, rowId = null) {
   
   // Устанавливаем новый таймаут
   tagsUpdateTimeout = setTimeout(() => {
-    console.log('🔔 [WebSocket] Отправляем уведомление об обновлении тегов', rowId ? `для строки ${rowId}` : '');
+    // console.log('🔔 [WebSocket] Отправляем уведомление об обновлении тегов', rowId ? `для строки ${rowId}` : '');
     const message = JSON.stringify({
       type: 'tags-updated',
       timestamp: Date.now(),
@@ -262,7 +262,7 @@ function broadcastTagsUpdate(targetUserId = null, rowId = null) {
       }
     });
     
-    console.log(`🔔 [WebSocket] Отправлено tags-updated ${sentCount} клиентам`);
+    // console.log(`🔔 [WebSocket] Отправлено tags-updated ${sentCount} клиентам`);
   }, TAGS_UPDATE_DEBOUNCE);
 }
 
@@ -300,7 +300,7 @@ function getStats() {
 
 // Функция для отправки уведомлений о статусе AI
 function broadcastAIStatus(status) {
-  console.log('📢 [WebSocket] Отправка статуса AI всем клиентам');
+  // console.log('📢 [WebSocket] Отправка статуса AI всем клиентам');
   for (const [userId, clients] of wsClients.entries()) {
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) {

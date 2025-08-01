@@ -10,7 +10,7 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-console.log('[ai-assistant] loaded');
+// console.log('[ai-assistant] loaded');
 
 const { ChatOllama } = require('@langchain/ollama');
 const { HNSWLib } = require('@langchain/community/vectorstores/hnswlib');
@@ -51,7 +51,7 @@ class AIAssistant {
         this.isModelLoaded = false;
       }
     } catch (error) {
-      console.error('Model health check failed:', error);
+      // console.error('Model health check failed:', error);
       this.isModelLoaded = false;
     }
     
@@ -142,7 +142,7 @@ class AIAssistant {
   // Основной метод для получения ответа
   async getResponse(message, language = 'auto', history = null, systemPrompt = '', rules = null) {
     try {
-      console.log('getResponse called with:', { message, language, history, systemPrompt, rules });
+      // console.log('getResponse called with:', { message, language, history, systemPrompt, rules });
 
       // Очищаем старый кэш
       this.cleanupCache();
@@ -150,7 +150,7 @@ class AIAssistant {
       // Проверяем здоровье модели
       const isHealthy = await this.checkModelHealth();
       if (!isHealthy) {
-        console.warn('Model is not healthy, returning fallback response');
+        // console.warn('Model is not healthy, returning fallback response');
         return 'Извините, модель временно недоступна. Пожалуйста, попробуйте позже.';
       }
 
@@ -161,7 +161,7 @@ class AIAssistant {
       });
       const cachedResponse = aiCache.get(cacheKey);
       if (cachedResponse) {
-        console.log('Returning cached response');
+        // console.log('Returning cached response');
         return cachedResponse;
       }
 
@@ -207,7 +207,7 @@ class AIAssistant {
 
       // Определяем язык, если не указан явно
       const detectedLanguage = language === 'auto' ? this.detectLanguage(message) : language;
-      console.log('Detected language:', detectedLanguage);
+      // console.log('Detected language:', detectedLanguage);
 
       // Формируем system prompt с учётом правил
       let fullSystemPrompt = systemPrompt || '';
@@ -234,22 +234,22 @@ class AIAssistant {
 
       // Пробуем прямой API запрос (OpenAI-совместимый endpoint)
       try {
-        console.log('Trying direct API request...');
+        // console.log('Trying direct API request...');
         response = await this.fallbackRequestOpenAI(messages, detectedLanguage, fullSystemPrompt);
-        console.log('Direct API response received:', response);
+                  // console.log('Direct API response received:', response);
       } catch (error) {
-        console.error('Error in direct API request:', error);
+                  // console.error('Error in direct API request:', error);
         
         // Если прямой запрос не удался, пробуем через ChatOllama (склеиваем сообщения в текст)
         const chat = this.createChat(detectedLanguage, fullSystemPrompt);
         try {
           const prompt = messages.map(m => `${m.role === 'user' ? 'Пользователь' : m.role === 'assistant' ? 'Ассистент' : 'Система'}: ${m.content}`).join('\n');
-          console.log('Sending request to ChatOllama...');
+          // console.log('Sending request to ChatOllama...');
           const chatResponse = await chat.invoke(prompt);
-          console.log('ChatOllama response:', chatResponse);
+                      // console.log('ChatOllama response:', chatResponse);
           response = chatResponse.content;
         } catch (chatError) {
-          console.error('Error using ChatOllama:', chatError);
+                      // console.error('Error using ChatOllama:', chatError);
           throw chatError;
         }
       }
@@ -261,7 +261,7 @@ class AIAssistant {
 
       return response;
     } catch (error) {
-      console.error('Error in getResponse:', error);
+      // console.error('Error in getResponse:', error);
       return 'Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.';
     }
   }
@@ -269,7 +269,7 @@ class AIAssistant {
   // Новый метод для OpenAI/Qwen2.5 совместимого endpoint
   async fallbackRequestOpenAI(messages, language, systemPrompt = '') {
     try {
-      console.log('Using fallbackRequestOpenAI with:', { messages, language, systemPrompt });
+      // console.log('Using fallbackRequestOpenAI with:', { messages, language, systemPrompt });
       const model = this.defaultModel;
       
       // Создаем AbortController для таймаута
@@ -315,7 +315,7 @@ class AIAssistant {
       }
       return data.response || '';
     } catch (error) {
-      console.error('Error in fallbackRequestOpenAI:', error);
+      // console.error('Error in fallbackRequestOpenAI:', error);
       if (error.name === 'AbortError') {
         throw new Error('Request timeout - модель не ответила в течение 120 секунд');
       }

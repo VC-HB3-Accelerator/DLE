@@ -368,7 +368,7 @@ const saveMainSettings = async () => {
     isSaving.value = true;
     
     // Здесь будет логика сохранения основных настроек
-    console.log('Сохранение основных настроек:', mainSettings.value);
+    // console.log('Сохранение основных настроек:', mainSettings.value);
     
     // Временная логика
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -376,7 +376,7 @@ const saveMainSettings = async () => {
     alert('Основные настройки успешно сохранены!');
     
   } catch (error) {
-    console.error('Ошибка сохранения основных настроек:', error);
+          // console.error('Ошибка сохранения основных настроек:', error);
     alert('Ошибка при сохранении настроек');
   } finally {
     isSaving.value = false;
@@ -390,7 +390,7 @@ const saveSecuritySettings = async () => {
     isSaving.value = true;
     
     // Здесь будет логика сохранения настроек безопасности
-    console.log('Сохранение настроек безопасности:', securitySettings.value);
+    // console.log('Сохранение настроек безопасности:', securitySettings.value);
     
     // Временная логика
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -398,7 +398,7 @@ const saveSecuritySettings = async () => {
     alert('Настройки безопасности успешно сохранены!');
     
   } catch (error) {
-    console.error('Ошибка сохранения настроек безопасности:', error);
+          // console.error('Ошибка сохранения настроек безопасности:', error);
     alert('Ошибка при сохранении настроек безопасности');
   } finally {
     isSaving.value = false;
@@ -412,7 +412,7 @@ const saveNetworkSettings = async () => {
     isSaving.value = true;
     
     // Здесь будет логика сохранения настроек сети
-    console.log('Сохранение настроек сети:', networkSettings.value);
+    // console.log('Сохранение настроек сети:', networkSettings.value);
     
     // Временная логика
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -420,7 +420,7 @@ const saveNetworkSettings = async () => {
     alert('Настройки сети успешно сохранены!');
     
   } catch (error) {
-    console.error('Ошибка сохранения настроек сети:', error);
+          // console.error('Ошибка сохранения настроек сети:', error);
     alert('Ошибка при сохранении настроек сети');
   } finally {
     isSaving.value = false;
@@ -463,7 +463,7 @@ const importSettings = (event) => {
       
       alert('Настройки успешно импортированы!');
     } catch (error) {
-      console.error('Ошибка импорта настроек:', error);
+      // console.error('Ошибка импорта настроек:', error);
       alert('Ошибка при импорте настроек');
     }
   };
@@ -513,7 +513,7 @@ const deleteDLE = () => {
   }
   
   // Здесь будет логика удаления DLE
-  console.log('Удаление DLE...');
+      // console.log('Удаление DLE...');
   alert('DLE будет удален. Это действие может занять некоторое время.');
 };
 </script>

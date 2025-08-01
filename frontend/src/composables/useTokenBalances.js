@@ -33,30 +33,30 @@ export function useTokenBalances() {
       if (walletAddress) {
         try {
           isLoadingTokens.value = true;
-          console.log('[useTokenBalances] Запрос балансов для адреса:', walletAddress);
+          // console.log('[useTokenBalances] Запрос балансов для адреса:', walletAddress);
           const response = await fetchTokenBalances(walletAddress);
           // Ожидаем, что response — это массив объектов
           tokenBalances.value = Array.isArray(response) ? response : (response?.data || []);
-          console.log('[useTokenBalances] Обновленные балансы:', tokenBalances.value);
-        } catch (error) {
-          console.error('[useTokenBalances] Ошибка при обновлении балансов:', error);
+              // console.log('[useTokenBalances] Обновленные балансы:', tokenBalances.value);
+  } catch (error) {
+    // console.error('[useTokenBalances] Ошибка при обновлении балансов:', error);
           tokenBalances.value = [];
         } finally {
           isLoadingTokens.value = false;
         }
       } else {
-        console.log('[useTokenBalances] Не найден адрес кошелька для запроса балансов.');
+        // console.log('[useTokenBalances] Не найден адрес кошелька для запроса балансов.');
         tokenBalances.value = [];
       }
     } else {
-      console.log('[useTokenBalances] Пользователь не аутентифицирован, сброс балансов.');
+      // console.log('[useTokenBalances] Пользователь не аутентифицирован, сброс балансов.');
       tokenBalances.value = [];
     }
   };
 
   const startBalanceUpdates = (intervalMs = 300000) => {
     stopBalanceUpdates(); // Остановить предыдущий интервал, если он был
-    console.log('[useTokenBalances] Запуск обновления балансов...');
+    // console.log('[useTokenBalances] Запуск обновления балансов...');
     updateBalances(); // Обновить сразу
     balanceUpdateInterval = setInterval(updateBalances, intervalMs);
   };

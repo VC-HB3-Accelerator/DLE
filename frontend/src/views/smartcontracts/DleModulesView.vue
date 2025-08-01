@@ -467,7 +467,7 @@ async function addModule() {
     alert('✅ Модуль успешно добавлен!');
     
   } catch (error) {
-    console.error('Ошибка при добавлении модуля:', error);
+          // console.error('Ошибка при добавлении модуля:', error);
     alert('❌ Ошибка при добавлении модуля: ' + error.message);
   } finally {
     isAdding.value = false;
@@ -486,7 +486,7 @@ async function removeModule(moduleId) {
     alert('✅ Модуль успешно удален!');
     
   } catch (error) {
-    console.error('Ошибка при удалении модуля:', error);
+          // console.error('Ошибка при удалении модуля:', error);
     alert('❌ Ошибка при удалении модуля: ' + error.message);
   }
 }
@@ -495,7 +495,7 @@ async function removeModule(moduleId) {
 async function installAvailableModule(availableModule) {
   // Здесь должна быть логика установки модуля
   // Например, деплой модуля и добавление в DLE
-  console.log('Установка модуля:', availableModule);
+      // console.log('Установка модуля:', availableModule);
   alert(`Модуль "${availableModule.name}" будет установлен`);
 }
 

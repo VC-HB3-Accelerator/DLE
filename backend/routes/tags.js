@@ -16,10 +16,10 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { broadcastTagsUpdate } = require('../wsHub');
 
-console.log('[tags.js] ROUTER LOADED');
+// console.log('[tags.js] ROUTER LOADED');
 
 router.use((req, res, next) => {
-  console.log('[tags.js] ROUTER REQUEST:', req.method, req.originalUrl);
+  // console.log('[tags.js] ROUTER REQUEST:', req.method, req.originalUrl);
   next();
 });
 
@@ -100,15 +100,15 @@ router.post('/user/:rowId/multirelations', async (req, res) => {
       encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
     }
   } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
+    // console.error('Error reading encryption key:', keyError);
   }
   
   // Проверяем, является ли это обновлением тегов (проверяем связанную таблицу)
   const relatedTableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [to_table_id, encryptionKey])).rows[0];
-  console.log('🔄 [Tags] Multirelations: проверяем связанную таблицу:', { to_table_id, tableName: relatedTableName?.name });
+        // console.log('🔄 [Tags] Multirelations: проверяем связанную таблицу:', { to_table_id, tableName: relatedTableName?.name });
   
   if (relatedTableName && relatedTableName.name === 'Теги клиентов') {
-    console.log('🔄 [Tags] Multirelations: обновление тегов для строки:', rowId);
+          // console.log('🔄 [Tags] Multirelations: обновление тегов для строки:', rowId);
     
     // Удаляем старые связи для этой строки/столбца
     await db.getQuery()('DELETE FROM user_table_relations WHERE from_row_id = $1 AND column_id = $2', [rowId, column_id]);
