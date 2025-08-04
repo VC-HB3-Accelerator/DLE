@@ -188,7 +188,7 @@ export default {
     const fetchStats = async () => {
       try {
         loading.value = true
-        const response = await axios.get('/api/ai-queue/stats')
+        const response = await axios.get('/ai-queue/stats')
         if (response.data.success) {
           stats.value = response.data.data
         }
@@ -205,7 +205,7 @@ export default {
 
     const controlQueue = async (action) => {
       try {
-        const response = await axios.post('/api/ai-queue/control', { action })
+        const response = await axios.post('/ai-queue/control', { action })
         if (response.data.success) {
           await fetchStats()
         }

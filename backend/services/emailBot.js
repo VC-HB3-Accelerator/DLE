@@ -213,17 +213,17 @@ class EmailBotService {
                   
                   logger.info(`[EmailBot] Проверяем письмо: UID=${uid}, Message-ID=${messageId}, From=${fromEmail}, Unread=${isUnread}`);
                   
-                  if (isUnread) {
-                    unreadMessages.push({
-                      uid,
-                      messageId,
-                      fromEmail,
-                      subject,
-                      text,
-                      html,
-                      parsed
-                    });
-                  }
+                  // Обрабатываем ВСЕ новые письма, независимо от статуса "прочитано"
+                  // Проверка на уже обработанные письма будет в processIncomingEmail
+                  unreadMessages.push({
+                    uid,
+                    messageId,
+                    fromEmail,
+                    subject,
+                    text,
+                    html,
+                    parsed
+                  });
                   
                   processedCount++;
                   if (processedCount >= totalMessages) {

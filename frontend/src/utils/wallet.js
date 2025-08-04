@@ -108,7 +108,7 @@ export const connectWallet = async () => {
     };
     // console.log('Request data:', requestData);
     
-    const verifyResponse = await axios.post('/api/auth/verify', requestData, {
+    const verifyResponse = await axios.post('/auth/verify', requestData, {
       withCredentials: true,
     });
 

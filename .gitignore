@@ -144,6 +144,24 @@ backups/
 check_*.js
 debug_*.js
 test_*.js
+test-*.js
+
+# Hardhat artifacts and cache
+backend/artifacts/
+backend/cache/
+backend/typechain/
+backend/typechain-types/
+
+# Contract data (может содержать конфиденциальную информацию)
+backend/contracts-data/
+
+# Temporary test files
+backend/test-*.js
+backend/test_*.js
+
+# Environment specific files
+backend/.env.local
+backend/.env.production
 
 # ========================================
 # ПАТЕНТНЫЕ ДОКУМЕНТЫ - НЕ ПУБЛИКОВАТЬ!

@@ -20,7 +20,7 @@ import axios from 'axios';
  */
 export const createDLE = async (dleParams) => {
   try {
-    const response = await axios.post('/api/dle-v2', dleParams);
+    const response = await axios.post('/dle-v2', dleParams);
     return response.data;
   } catch (error) {
     console.error('Ошибка при создании DLE:', error);
@@ -34,7 +34,7 @@ export const createDLE = async (dleParams) => {
  */
 export const getAllDLEs = async () => {
   try {
-    const response = await axios.get('/api/dle-v2');
+    const response = await axios.get('/dle-v2');
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении списка DLE:', error);
@@ -49,7 +49,7 @@ export const getAllDLEs = async () => {
  */
 export const getDLEInfo = async (dleAddress) => {
   try {
-    const response = await axios.get(`/api/dle-v2/${dleAddress}`);
+    const response = await axios.get(`/dle-v2/${dleAddress}`);
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении информации о DLE:', error);
@@ -63,7 +63,7 @@ export const getDLEInfo = async (dleAddress) => {
  */
 export const getDefaultParams = async () => {
   try {
-    const response = await axios.get('/api/dle-v2/default-params');
+    const response = await axios.get('/dle-v2/default-params');
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении параметров по умолчанию:', error);

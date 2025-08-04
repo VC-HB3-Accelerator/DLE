@@ -59,7 +59,7 @@ import BaseLayout from '../components/BaseLayout.vue';
 import eventBus from '../utils/eventBus';
 import ContactTable from '../components/ContactTable.vue';
 import contactsService from '../services/contactsService.js';
-import dleService from '../services/dleV2Service.js';
+import { getAllDLEs } from '../services/dleV2Service.js';
 
 // Определяем props
 const props = defineProps({
@@ -128,7 +128,7 @@ const goToBlockchainSettings = () => {
 const loadDLEs = async () => {
   isLoading.value = true;
   try {
-    const result = await dleService.getAllDLEs();
+    const result = await getAllDLEs();
     dleList.value = result || [];
     
     // Выбираем первый DLE, если есть
