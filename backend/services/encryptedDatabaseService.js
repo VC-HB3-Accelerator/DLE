@@ -77,9 +77,9 @@ class EncryptedDataService {
           const originalName = col.column_name.replace('_encrypted', '');
           // console.log(`🔓 Расшифровываем поле ${col.column_name} -> ${originalName}`);
           if (col.data_type === 'jsonb') {
-            return `decrypt_json(${col.column_name}, $1) as "${originalName}"`;
+            return `CASE WHEN ${col.column_name} IS NULL OR ${col.column_name} = '' THEN NULL ELSE decrypt_json(${col.column_name}, $1) END as "${originalName}"`;
           } else {
-            return `decrypt_text(${col.column_name}, $1) as "${originalName}"`;
+            return `CASE WHEN ${col.column_name} IS NULL OR ${col.column_name} = '' THEN NULL ELSE decrypt_text(${col.column_name}, $1) END as "${originalName}"`;
           }
         } else if (!col.column_name.includes('_encrypted')) {
           // Проверяем, есть ли зашифрованная версия этой колонки
@@ -181,6 +181,13 @@ class EncryptedDataService {
       return rows;
     } catch (error) {
       // console.error(`❌ Ошибка получения данных из ${tableName}:`, error);
+      
+      // Если ошибка связана с расшифровкой, попробуем получить данные без расшифровки
+      if (error.message && error.message.includes('invalid base64')) {
+        console.log(`⚠️ Ошибка расшифровки в ${tableName}, пытаемся получить данные без расшифровки`);
+        return await this.executeUnencryptedQuery(tableName, conditions, limit, orderBy);
+      }
+      
       throw error;
     }
   }
@@ -230,17 +237,18 @@ class EncryptedDataService {
           // Проверяем, что значение не пустое перед шифрованием
           if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
             // Пропускаем пустые значения
-            // console.log(`⚠️ Пропускаем пустое зашифрованное поле ${key}`);
+            console.log(`⚠️ Пропускаем пустое зашифрованное поле ${key}`);
             continue;
           }
           const currentParamIndex = paramIndex++;
           filteredData[key] = value; // Добавляем в отфильтрованные данные
-          // console.log(`✅ Добавили зашифрованное поле ${key} в filteredData`);
+          console.log(`✅ Добавили зашифрованное поле ${key} = "${value}" в filteredData`);
           if (encryptedColumn.data_type === 'jsonb') {
             encryptedData[`${key}_encrypted`] = `encrypt_json($${currentParamIndex}, ${hasEncryptedFields ? '$1::text' : 'NULL'})`;
           } else {
             encryptedData[`${key}_encrypted`] = `encrypt_text($${currentParamIndex}, ${hasEncryptedFields ? '$1::text' : 'NULL'})`;
           }
+          console.log(`🔐 Будем шифровать ${key} -> ${key}_encrypted`);
         } else if (unencryptedColumn) {
           // Если есть незашифрованная колонка, сохраняем как есть
           // Проверяем, что значение не пустое перед сохранением (кроме role и sender_type)
@@ -296,6 +304,10 @@ class EncryptedDataService {
 
         const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) RETURNING *`;
         const params = hasEncryptedFields ? [this.encryptionKey, ...Object.values(filteredData)] : [...Object.values(filteredData)];
+
+        console.log(`🔍 Выполняем INSERT запрос:`, query);
+        console.log(`🔍 Параметры:`, params);
+        console.log(`🔍 Ключ шифрования:`, this.encryptionKey ? 'установлен' : 'не установлен');
 
         const { rows } = await db.getQuery()(query, params);
         return rows[0];

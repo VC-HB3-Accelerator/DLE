@@ -213,7 +213,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     // --- Формируем ответ ---
     const contacts = users.map(u => ({
       id: u.id,
-      name: [u.first_name, u.last_name].filter(Boolean).join(' ') || null,
+      name: null, // Имена теперь только в зашифрованных колонках
       email: u.email || null,
       telegram: u.telegram || null,
       wallet: u.wallet || null,
@@ -418,22 +418,37 @@ router.get('/:id', async (req, res, next) => {
   }
 
   try {
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+      }
+    } catch (keyError) {
+      console.error('Error reading encryption key:', keyError);
+    }
+
     const query = db.getQuery();
     // Получаем пользователя
-    const userResult = await query('SELECT id, decrypt_text(first_name_encrypted, $2) as first_name, decrypt_text(last_name_encrypted, $2) as last_name, created_at, preferred_language, is_blocked FROM users WHERE id = $1', [userId, encryptionKey]);
+    const userResult = await query('SELECT id, created_at, preferred_language, is_blocked FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     const user = userResult.rows[0];
+
     // Получаем идентификаторы
-    const identitiesResult = await query('SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1', [userId, encryptionKey]);
+    const identitiesResult = await query('SELECT CASE WHEN provider_encrypted IS NULL OR provider_encrypted = \'\' THEN NULL ELSE decrypt_text(provider_encrypted, $2) END as provider, CASE WHEN provider_id_encrypted IS NULL OR provider_id_encrypted = \'\' THEN NULL ELSE decrypt_text(provider_id_encrypted, $2) END as provider_id FROM user_identities WHERE user_id = $1', [userId, encryptionKey]);
     const identityMap = {};
     for (const id of identitiesResult.rows) {
       identityMap[id.provider] = id.provider_id;
     }
     res.json({
       id: user.id,
-      name: [user.first_name, user.last_name].filter(Boolean).join(' ') || null,
+      name: null, // Пока не используем имена
       email: identityMap.email || null,
       telegram: identityMap.telegram || null,
       wallet: identityMap.wallet || null,
@@ -545,9 +560,9 @@ router.post('/import', requireAuth, async (req, res) => {
         ].filter(Boolean);
         for (const idn of identities) {
           // Проверяем, есть ли уже такой идентификатор у пользователя
-          const exists = await dbq('SELECT 1 FROM user_identities WHERE user_id = $1 AND provider = $2 AND provider_id = $3', [userId, idn.provider, idn.provider_id]);
+          const exists = await dbq('SELECT 1 FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $4) AND provider_id_encrypted = encrypt_text($3, $4)', [userId, idn.provider, idn.provider_id, encryptionKey]);
           if (!exists.rows.length) {
-            await dbq('INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [userId, idn.provider, idn.provider_id]);
+            await dbq('INSERT INTO user_identities (user_id, provider_encrypted, provider_id_encrypted) VALUES ($1, encrypt_text($2, $4), encrypt_text($3, $4)) ON CONFLICT DO NOTHING', [userId, idn.provider, idn.provider_id, encryptionKey]);
           }
         }
       } catch (e) {

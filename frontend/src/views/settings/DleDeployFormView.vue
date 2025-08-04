@@ -569,6 +569,9 @@
                         v-model="unifiedPrivateKey" 
                         class="form-control" 
                         placeholder="Введите приватный ключ (0x... или без префикса)"
+                        @input="() => { console.log('Input event triggered'); validatePrivateKey('unified'); }"
+                        @focus="() => console.log('Input field focused')"
+                        @blur="() => console.log('Input field blurred')"
                       >
                       <span class="input-icon" @click="showUnifiedKey = !showUnifiedKey">
                         <i :class="showUnifiedKey ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
@@ -1951,15 +1954,18 @@ const toggleKeyVisibility = (chainId) => {
 };
 
 // Валидация приватного ключа с дебаунсом
-const validatePrivateKey = (chainId) => {
+const validatePrivateKey = async (chainId) => {
+  console.log('Функция validatePrivateKey вызвана для chainId:', chainId);
+  
   // Очищаем предыдущий таймер
   if (validatePrivateKey.timeout) {
     clearTimeout(validatePrivateKey.timeout);
   }
   
   // Устанавливаем новый таймер для дебаунса
-  validatePrivateKey.timeout = setTimeout(() => {
+  validatePrivateKey.timeout = setTimeout(async () => {
     const key = chainId === 'unified' ? unifiedPrivateKey.value : privateKeys[chainId];
+    console.log('Ключ для валидации:', key);
     
     if (!key) {
       keyValidation[chainId] = null;
@@ -1967,26 +1973,33 @@ const validatePrivateKey = (chainId) => {
     }
     
     try {
-      // Простая валидация длины и формата
-      const cleanKey = key.startsWith('0x') ? key.slice(2) : key;
+      // Логируем отправляемый ключ (только для отладки)
+      console.log('Отправляем приватный ключ для валидации:', key);
+      console.log('Длина ключа:', key.length);
+      console.log('Полный ключ:', key);
       
-      if (cleanKey.length === 64 && /^[a-fA-F0-9]+$/.test(cleanKey)) {
-        // Генерируем адрес из приватного ключа (упрощенная версия)
-        const address = '0x' + cleanKey.substring(0, 40);
-        
-        keyValidation[chainId] = {
-          isValid: true,
-          address: address,
-          error: null
-        };
+      // Отправляем запрос на бэкенд для валидации
+      const response = await axios.post('/api/dle-v2/validate-private-key', {
+        privateKey: key
+      });
+      
+      console.log('Ответ от сервера:', response.data);
+      
+      if (response.data.success) {
+        keyValidation[chainId] = response.data.data;
       } else {
-        throw new Error('Некорректный формат ключа');
+        keyValidation[chainId] = {
+          isValid: false,
+          address: null,
+          error: response.data.message
+        };
       }
     } catch (error) {
+      console.error('Ошибка валидации приватного ключа:', error);
       keyValidation[chainId] = {
         isValid: false,
         address: null,
-        error: 'Некорректный приватный ключ'
+        error: error.response?.data?.message || 'Ошибка валидации приватного ключа'
       };
     }
   }, 300); // Задержка 300мс
@@ -2107,6 +2120,9 @@ watch([() => dleSettings.name, () => dleSettings.tokenSymbol, selectedNetworks],
 
 // Инициализация
 onMounted(() => {
+  console.log('🚀 DleDeployFormView компонент загружен - ТЕСТ ОБНОВЛЕНИЯ');
+  alert('Компонент загружен - проверьте консоль');
+  
   // Загружаем список стран
   loadCountries();
   
@@ -2209,7 +2225,10 @@ const deploySmartContracts = async () => {
       supportedChainIds: dleSettings.selectedNetworks || [],
       
       // Текущая цепочка (будет установлена при деплое)
-      currentChainId: dleSettings.selectedNetworks[0] || 1
+      currentChainId: dleSettings.selectedNetworks[0] || 1,
+      
+      // Приватный ключ для деплоя
+      privateKey: unifiedPrivateKey.value
     };
 
     console.log('Данные для деплоя DLE:', deployData);
@@ -2247,6 +2266,9 @@ const isFormValid = computed(() => {
     dleSettings.governanceQuorum > 0 &&
     dleSettings.governanceQuorum <= 100 &&
     dleSettings.selectedNetworks.length > 0 &&
+    // Проверка приватного ключа
+    unifiedPrivateKey.value &&
+    keyValidation.unified?.isValid &&
     // Валидация координат
     validateCoordinates(dleSettings.coordinates)
   );

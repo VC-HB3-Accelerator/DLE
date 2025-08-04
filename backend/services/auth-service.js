@@ -103,10 +103,11 @@ class AuthService {
       const userId = newUserResult.rows[0].id;
 
       // Добавляем идентификатор кошелька (всегда в нижнем регистре)
-      await db.getQuery()(
-        'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-        [userId, 'wallet', normalizedAddress]
-      );
+      await encryptedDb.saveData('user_identities', {
+        user_id: userId,
+        provider: 'wallet',
+        provider_id: normalizedAddress
+      });
 
       // Проверяем, есть ли у пользователя роль админа
       const isAdmin = await checkAdminRole(normalizedAddress);
@@ -400,11 +401,11 @@ class AuthService {
       // Если в сессии нет авторизованного пользователя, проверяем существующие идентификаторы
       // Проверяем, существует ли уже пользователь с таким Telegram ID
       const existingUserResult = await db.getQuery()(
-        `SELECT u.*, ui.provider, ui.provider_id 
+        `SELECT u.*, decrypt_text(ui.provider_encrypted, $2) as provider, decrypt_text(ui.provider_id_encrypted, $2) as provider_id 
          FROM users u 
          JOIN user_identities ui ON u.id = ui.user_id 
-         WHERE ui.provider = 'telegram' AND ui.provider_id = $1`,
-        [telegramId]
+         WHERE ui.provider_encrypted = encrypt_text('telegram', $2) AND ui.provider_id_encrypted = encrypt_text($1, $2)`,
+        [telegramId, encryptionKey]
       );
 
       // Если пользователь существует с таким telegramId, используем его
@@ -423,10 +424,11 @@ class AuthService {
         isNewUser = true;
 
         // Добавляем Telegram идентификатор
-        await db.getQuery()(
-          'INSERT INTO user_identities (user_id, provider, provider_id) VALUES ($1, $2, $3)',
-          [userId, 'telegram', telegramId]
-        );
+        await encryptedDb.saveData('user_identities', {
+          user_id: userId,
+          provider: 'telegram',
+          provider_id: telegramId
+        });
 
         logger.info(
           `[verifyTelegramAuth] Created new user ${userId} for Telegram ID ${telegramId}`
@@ -582,10 +584,34 @@ class AuthService {
   async getUserIdentities(userId) {
     try {
       const identities = await encryptedDb.getData('user_identities', { user_id: userId }, null, 'created_at DESC');
-      return identities;
+      
+      // Данные уже расшифрованы encryptedDb, просто переименовываем поля
+      const formattedIdentities = identities.map(identity => ({
+        id: identity.id,
+        user_id: identity.user_id,
+        created_at: identity.created_at,
+        provider: identity.provider, // Уже расшифровано
+        provider_id: identity.provider_id // Уже расшифровано
+      }));
+      
+      return formattedIdentities;
     } catch (error) {
       logger.error('[getUserIdentities] Error:', error);
-      throw error;
+      
+      // Если произошла ошибка расшифровки, попробуем получить данные напрямую
+      try {
+        logger.info(`[AuthService] Trying to get unencrypted data for user ${userId}`);
+        const { rows } = await db.getQuery()(
+          'SELECT id, user_id, created_at, provider_encrypted as provider, provider_id_encrypted as provider_id FROM user_identities WHERE user_id = $1 ORDER BY created_at DESC',
+          [userId]
+        );
+        
+        logger.info(`[AuthService] Found ${rows.length} unencrypted identities for user ${userId}`);
+        return rows;
+      } catch (fallbackError) {
+        logger.error(`[AuthService] Fallback error getting identities for user ${userId}:`, fallbackError);
+        throw fallbackError;
+      }
     }
   }
 
@@ -667,11 +693,11 @@ class AuthService {
       }
 
       // Добавляем новый идентификатор для пользователя
-      await db.getQuery()(
-        `INSERT INTO user_identities (user_id, provider, provider_id) 
-         VALUES ($1, $2, $3)`,
-        [userId, provider, normalizedProviderId]
-      );
+      await encryptedDb.saveData('user_identities', {
+        user_id: userId,
+        provider: provider,
+        provider_id: normalizedProviderId
+      });
 
       // Проверяем и обновляем роль администратора, если это идентификатор кошелька
       let isAdmin = false;

@@ -15,7 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const { ethers } = require('ethers');
 const logger = require('../utils/logger');
-const { getRpcUrlByNetworkId } = require('./rpcProviderService');
+const { getRpcUrlByChainId } = require('./rpcProviderService');
 
 /**
  * Сервис для управления DLE v2 (Digital Legal Entity)
@@ -49,10 +49,15 @@ class DLEV2Service {
       fs.copyFileSync(paramsFile, tempParamsFile);
       logger.info(`Файл параметров скопирован успешно`);
 
-      // Получаем rpc_url из базы по выбранной сети
-      const rpcUrl = await getRpcUrlByNetworkId(deployParams.network);
+      // Определяем сеть для деплоя (берем первую из выбранных сетей)
+      const chainId = deployParams.supportedChainIds && deployParams.supportedChainIds.length > 0 
+        ? deployParams.supportedChainIds[0] 
+        : 1; // По умолчанию Ethereum
+
+      // Получаем rpc_url из базы по chain_id
+      const rpcUrl = await getRpcUrlByChainId(chainId);
       if (!rpcUrl) {
-        throw new Error(`RPC URL для сети ${deployParams.network} не найден в базе данных`);
+        throw new Error(`RPC URL для сети с chain_id ${chainId} не найден в базе данных`);
       }
       if (!dleParams.privateKey) {
         throw new Error('Приватный ключ для деплоя не передан');
@@ -62,8 +67,8 @@ class DLEV2Service {
       const result = await this.runDeployScript(paramsFile, {
         rpcUrl,
         privateKey: dleParams.privateKey,
-        networkId: deployParams.network,
-        envNetworkKey: deployParams.network.toUpperCase()
+        networkId: chainId.toString(),
+        envNetworkKey: chainId.toString().toUpperCase()
       });
 
       // Очищаем временные файлы
@@ -94,61 +99,73 @@ class DLEV2Service {
       throw new Error('Местонахождение DLE обязательно');
     }
 
-    if (!params.partners || !Array.isArray(params.partners)) {
+    if (!params.initialPartners || !Array.isArray(params.initialPartners)) {
       throw new Error('Партнеры должны быть массивом');
     }
 
-    if (!params.amounts || !Array.isArray(params.amounts)) {
+    if (!params.initialAmounts || !Array.isArray(params.initialAmounts)) {
       throw new Error('Суммы должны быть массивом');
     }
 
-    if (params.partners.length !== params.amounts.length) {
+    if (params.initialPartners.length !== params.initialAmounts.length) {
       throw new Error('Количество партнеров должно соответствовать количеству сумм распределения');
     }
 
-    if (params.partners.length === 0) {
+    if (params.initialPartners.length === 0) {
       throw new Error('Должен быть указан хотя бы один партнер');
     }
 
-    if (params.quorumPercentage > 100) {
-      throw new Error('Процент кворума не может превышать 100%');
+    if (params.quorumPercentage > 100 || params.quorumPercentage < 1) {
+      throw new Error('Процент кворума должен быть от 1% до 100%');
     }
 
     // Проверяем адреса партнеров
-    for (let i = 0; i < params.partners.length; i++) {
-      if (!ethers.isAddress(params.partners[i])) {
-        throw new Error(`Неверный адрес партнера ${i + 1}: ${params.partners[i]}`);
+    for (let i = 0; i < params.initialPartners.length; i++) {
+      if (!ethers.isAddress(params.initialPartners[i])) {
+        throw new Error(`Неверный адрес партнера ${i + 1}: ${params.initialPartners[i]}`);
       }
+    }
+
+    // Проверяем, что выбраны сети
+    if (!params.supportedChainIds || !Array.isArray(params.supportedChainIds) || params.supportedChainIds.length === 0) {
+      throw new Error('Должна быть выбрана хотя бы одна сеть для деплоя');
     }
   }
 
   /**
    * Подготавливает параметры для деплоя
-   * @param {Object} params - Параметры DLE
-   * @returns {Object} - Подготовленные параметры
+   * @param {Object} params - Параметры DLE из формы
+   * @returns {Object} - Подготовленные параметры для скрипта деплоя
    */
   prepareDeployParams(params) {
     // Создаем копию объекта, чтобы не изменять исходный
     const deployParams = { ...params };
 
     // Преобразуем суммы из строк или чисел в BigNumber, если нужно
-    deployParams.amounts = params.amounts.map(amount => {
-      if (typeof amount === 'string' && !amount.startsWith('0x')) {
-        return ethers.parseEther(amount).toString();
-      }
-      return amount.toString();
-    });
+    if (deployParams.initialAmounts && Array.isArray(deployParams.initialAmounts)) {
+      deployParams.initialAmounts = deployParams.initialAmounts.map(amount => {
+        if (typeof amount === 'string' && !amount.startsWith('0x')) {
+          return ethers.parseEther(amount).toString();
+        }
+        return amount.toString();
+      });
+    }
 
-    // Преобразуем параметры голосования
-    deployParams.votingDelay = params.votingDelay || 1;
-    deployParams.votingPeriod = params.votingPeriod || 45818; // ~1 неделя
-    deployParams.proposalThreshold = params.proposalThreshold || ethers.parseEther("100000").toString();
-    deployParams.quorumPercentage = params.quorumPercentage || 4;
-    deployParams.minTimelockDelay = params.minTimelockDelay || 2;
+    // Убеждаемся, что okvedCodes - это массив
+    if (!Array.isArray(deployParams.okvedCodes)) {
+      deployParams.okvedCodes = [];
+    }
 
-    // Убеждаемся, что isicCodes - это массив
-    if (!Array.isArray(deployParams.isicCodes)) {
-      deployParams.isicCodes = [];
+    // Убеждаемся, что supportedChainIds - это массив
+    if (!Array.isArray(deployParams.supportedChainIds)) {
+      deployParams.supportedChainIds = [1]; // По умолчанию Ethereum
+    }
+
+    // Устанавливаем currentChainId как первую выбранную сеть
+    if (deployParams.supportedChainIds.length > 0) {
+      deployParams.currentChainId = deployParams.supportedChainIds[0];
+    } else {
+      deployParams.currentChainId = 1; // По умолчанию Ethereum
     }
 
     return deployParams;
@@ -244,20 +261,18 @@ class DLEV2Service {
   extractDeployResult(stdout) {
     // Ищем строки с адресами в выводе
     const dleAddressMatch = stdout.match(/DLE v2 задеплоен по адресу: (0x[a-fA-F0-9]{40})/);
-    const timelockAddressMatch = stdout.match(/Таймлок создан по адресу: (0x[a-fA-F0-9]{40})/);
 
-    if (dleAddressMatch && timelockAddressMatch) {
+    if (dleAddressMatch) {
       return {
         success: true,
         data: {
           dleAddress: dleAddressMatch[1],
-          timelockAddress: timelockAddressMatch[1],
           version: 'v2'
         }
       };
     }
 
-    throw new Error('Не удалось извлечь адреса из вывода скрипта');
+    throw new Error('Не удалось извлечь адрес DLE из вывода скрипта');
   }
 
   /**

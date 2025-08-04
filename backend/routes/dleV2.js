@@ -17,6 +17,7 @@ const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
 const path = require('path');
 const fs = require('fs');
+const ethers = require('ethers'); // Added ethers for private key validation
 
 /**
  * @route   POST /api/dle-v2
@@ -28,8 +29,8 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
     const dleParams = req.body;
     logger.info('Получен запрос на создание DLE v2:', dleParams);
     
-    // Если параметр partners не был передан явно, используем адрес авторизованного пользователя
-    if (!dleParams.partners || dleParams.partners.length === 0) {
+    // Если параметр initialPartners не был передан явно, используем адрес авторизованного пользователя
+    if (!dleParams.initialPartners || dleParams.initialPartners.length === 0) {
       // Проверяем, есть ли в сессии адрес кошелька пользователя
       if (!req.user || !req.user.walletAddress) {
         return res.status(400).json({ 
@@ -39,11 +40,11 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
       }
       
       // Используем адрес авторизованного пользователя
-      dleParams.partners = [req.user.address || req.user.walletAddress];
+      dleParams.initialPartners = [req.user.address || req.user.walletAddress];
       
       // Если суммы не указаны, используем значение по умолчанию (100% токенов)
-      if (!dleParams.amounts || dleParams.amounts.length === 0) {
-        dleParams.amounts = ['1000000'];
+      if (!dleParams.initialAmounts || dleParams.initialAmounts.length === 0) {
+        dleParams.initialAmounts = ['1000000000000000000000000']; // 1,000,000 токенов
       }
     }
     
@@ -91,23 +92,40 @@ router.get('/', auth.requireAuth, async (req, res, next) => {
 });
 
 /**
- * @route   GET /api/dle-v2/defaults
- * @desc    Получить настройки по умолчанию для DLE v2
- * @access  Private (только для авторизованных пользователей)
+ * @route   GET /api/dle-v2/default-params
+ * @desc    Получить параметры по умолчанию для создания DLE v2
+ * @access  Private
  */
-router.get('/defaults', auth.requireAuth, async (req, res, next) => {
-  // Возвращаем настройки по умолчанию, которые будут использоваться 
-  // при заполнении формы на фронтенде
-  res.json({
-    success: true,
-    data: {
-      votingDelay: 1, // 1 блок задержки перед началом голосования
-      votingPeriod: 45818, // ~1 неделя в блоках (при 13 секундах на блок)
-      proposalThreshold: '100000', // 100,000 токенов
-      quorumPercentage: 4, // 4% от общего количества токенов
-      minTimelockDelay: 2 // 2 дня
-    }
-  });
+router.get('/default-params', auth.requireAuth, async (req, res, next) => {
+  try {
+    const defaultParams = {
+      name: '',
+      symbol: '',
+      location: '',
+      coordinates: '',
+      jurisdiction: 1,
+      oktmo: 45000000000,
+      okvedCodes: [],
+      kpp: 770101001,
+      quorumPercentage: 51,
+      initialPartners: [],
+      initialAmounts: [],
+      supportedChainIds: [1, 137, 56, 42161],
+      currentChainId: 1
+    };
+    
+    res.json({
+      success: true,
+      data: defaultParams
+    });
+    
+  } catch (error) {
+    logger.error('Ошибка при получении параметров по умолчанию:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Произошла ошибка при получении параметров по умолчанию'
+    });
+  }
 });
 
 /**
@@ -166,6 +184,76 @@ router.delete('/:dleAddress', auth.requireAuth, auth.requireAdmin, async (req, r
     res.status(500).json({
       success: false,
       message: error.message || 'Произошла ошибка при удалении DLE v2'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/dle-v2/validate-private-key
+ * @desc    Валидировать приватный ключ и получить адрес кошелька
+ * @access  Private
+ */
+router.post('/validate-private-key', auth.requireAuth, async (req, res, next) => {
+  try {
+    const { privateKey } = req.body;
+    
+    if (!privateKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Приватный ключ не передан'
+      });
+    }
+    
+    // Логируем входящий ключ (только для отладки)
+    logger.info('Получен приватный ключ для валидации:', privateKey);
+    logger.info('Длина входящего ключа:', privateKey.length);
+    
+    try {
+      // Очищаем ключ от префикса 0x если есть
+      const cleanKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
+      
+      // Логируем очищенный ключ (только для отладки)
+      logger.info('Очищенный ключ:', cleanKey);
+      logger.info('Длина очищенного ключа:', cleanKey.length);
+      
+      // Проверяем длину и формат (64 символа в hex)
+      if (cleanKey.length !== 64 || !/^[a-fA-F0-9]+$/.test(cleanKey)) {
+        logger.error('Некорректный формат ключа. Длина:', cleanKey.length, 'Формат:', /^[a-fA-F0-9]+$/.test(cleanKey));
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный формат приватного ключа'
+        });
+      }
+      
+      // Генерируем адрес из приватного ключа
+      const wallet = new ethers.Wallet('0x' + cleanKey);
+      const address = wallet.address;
+      
+      // Логируем сгенерированный адрес
+      logger.info('Сгенерированный адрес из приватного ключа:', address);
+      
+      res.json({
+        success: true,
+        data: {
+          isValid: true,
+          address: address,
+          error: null
+        }
+      });
+      
+    } catch (error) {
+      logger.error('Ошибка при генерации адреса из приватного ключа:', error);
+      res.status(400).json({
+        success: false,
+        message: 'Некорректный приватный ключ'
+      });
+    }
+    
+  } catch (error) {
+    logger.error('Ошибка при валидации приватного ключа:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Произошла ошибка при валидации приватного ключа'
     });
   }
 });

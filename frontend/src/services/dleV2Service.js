@@ -10,76 +10,63 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-import api from '@/api/axios';
+// Сервис для работы с DLE v2
+import axios from 'axios';
 
 /**
- * Сервис для работы с DLE v2 (Digital Legal Entity)
- * Современный подход с единым контрактом
+ * Создает новое DLE v2
+ * @param {Object} dleParams - Параметры DLE
+ * @returns {Promise<Object>} - Результат создания
  */
-class DLEV2Service {
-  /**
-   * Создает новое DLE v2
-   * @param {Object} dleParams - Параметры DLE
-   * @returns {Promise<Object>} - Результат создания
-   */
-  async createDLE(dleParams) {
-    try {
-      const response = await api.post('/dle-v2', dleParams);
-      return response.data;
-    } catch (error) {
-      // console.error('Ошибка при создании DLE v2:', error);
-      throw error;
-    }
+export const createDLE = async (dleParams) => {
+  try {
+    const response = await axios.post('/api/dle-v2', dleParams);
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при создании DLE:', error);
+    throw error;
   }
+};
 
-  /**
-   * Получает список всех DLE v2
-   * @returns {Promise<Array>} - Список DLE v2
-   */
-  async getAllDLEs() {
-    try {
-      const response = await api.get('/dle-v2');
-      return response.data.data || [];
-    } catch (error) {
-      // console.error('Ошибка при получении списка DLE v2:', error);
-      return [];
-    }
+/**
+ * Получает список всех DLE v2
+ * @returns {Promise<Object>} - Список DLE
+ */
+export const getAllDLEs = async () => {
+  try {
+    const response = await axios.get('/api/dle-v2');
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении списка DLE:', error);
+    throw error;
   }
+};
 
-  /**
-   * Получает настройки по умолчанию для DLE v2
-   * @returns {Promise<Object>} - Настройки по умолчанию
-   */
-  async getDefaults() {
-    try {
-      const response = await api.get('/dle-v2/defaults');
-      return response.data.data;
-    } catch (error) {
-      // console.error('Ошибка при получении настроек по умолчанию DLE v2:', error);
-      return {
-        votingDelay: 1,
-        votingPeriod: 45818,
-        proposalThreshold: '100000',
-        quorumPercentage: 4,
-        minTimelockDelay: 2
-      };
-    }
+/**
+ * Получает информацию о конкретном DLE v2
+ * @param {string} dleAddress - Адрес DLE
+ * @returns {Promise<Object>} - Информация о DLE
+ */
+export const getDLEInfo = async (dleAddress) => {
+  try {
+    const response = await axios.get(`/api/dle-v2/${dleAddress}`);
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении информации о DLE:', error);
+    throw error;
   }
+};
 
-  /**
-   * Удаляет DLE v2 по адресу
-   * @param {string} dleAddress - Адрес DLE
-   * @returns {Promise<Object>} - Результат удаления
-   */
-  async deleteDLE(dleAddress) {
-    try {
-      const response = await api.delete(`/dle-v2/${dleAddress}`);
-      return response.data;
-    } catch (error) {
-      // console.error('Ошибка при удалении DLE v2:', error);
-      throw error;
-    }
+/**
+ * Получает параметры по умолчанию для создания DLE v2
+ * @returns {Promise<Object>} - Параметры по умолчанию
+ */
+export const getDefaultParams = async () => {
+  try {
+    const response = await axios.get('/api/dle-v2/default-params');
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении параметров по умолчанию:', error);
+    throw error;
   }
-}
-
-export default new DLEV2Service(); 
+}; 

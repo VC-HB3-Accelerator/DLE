@@ -151,10 +151,34 @@ class IdentityService {
     try {
       const identities = await encryptedDb.getData('user_identities', { user_id: userId });
       logger.info(`[IdentityService] Found ${identities.length} identities for user ${userId}`);
-      return identities;
+      
+      // Данные уже расшифрованы encryptedDb, просто переименовываем поля
+      const formattedIdentities = identities.map(identity => ({
+        id: identity.id,
+        user_id: identity.user_id,
+        created_at: identity.created_at,
+        provider: identity.provider, // Уже расшифровано
+        provider_id: identity.provider_id // Уже расшифровано
+      }));
+      
+      return formattedIdentities;
     } catch (error) {
       logger.error(`[IdentityService] Error getting identities for user ${userId}:`, error);
-      return [];
+      
+      // Если произошла ошибка расшифровки, попробуем получить данные напрямую
+      try {
+        logger.info(`[IdentityService] Trying to get unencrypted data for user ${userId}`);
+        const { rows } = await db.getQuery()(
+          'SELECT id, user_id, created_at, provider_encrypted as provider, provider_id_encrypted as provider_id FROM user_identities WHERE user_id = $1',
+          [userId]
+        );
+        
+        logger.info(`[IdentityService] Found ${rows.length} unencrypted identities for user ${userId}`);
+        return rows;
+      } catch (fallbackError) {
+        logger.error(`[IdentityService] Fallback error getting identities for user ${userId}:`, fallbackError);
+        return [];
+      }
     }
   }
 

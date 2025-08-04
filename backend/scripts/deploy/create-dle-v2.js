@@ -34,70 +34,59 @@ async function main() {
     
     const DLE = await ethers.getContractFactory("DLE");
     
-    // Преобразуем параметры голосования
-    const votingDelay = deployParams.votingDelay || 1;
-    const votingPeriod = deployParams.votingPeriod || 45818; // ~1 неделя
-    const proposalThreshold = deployParams.proposalThreshold || ethers.parseEther("100000");
-    const quorumPercentage = deployParams.quorumPercentage || 4;
-    const minTimelockDelay = (deployParams.minTimelockDelay || 2) * 24 * 60 * 60; // дни в секунды
+    // Создаем структуру DLEConfig
+    const dleConfig = {
+      name: deployParams.name,
+      symbol: deployParams.symbol,
+      location: deployParams.location,
+      coordinates: deployParams.coordinates || "0,0",
+      jurisdiction: deployParams.jurisdiction || 1,
+      oktmo: deployParams.oktmo || 45000000000,
+      okvedCodes: deployParams.okvedCodes || [],
+      kpp: deployParams.kpp || 770101001,
+      quorumPercentage: deployParams.quorumPercentage || 51,
+      initialPartners: deployParams.initialPartners,
+      initialAmounts: deployParams.initialAmounts,
+      supportedChainIds: deployParams.supportedChainIds || [1, 137, 56, 42161] // Ethereum, Polygon, BSC, Arbitrum
+    };
     
-    const dle = await DLE.deploy(
-      deployParams.name,
-      deployParams.symbol,
-      deployParams.location,
-      deployParams.isicCodes || [],
-      votingDelay,
-      votingPeriod,
-      proposalThreshold,
-      quorumPercentage,
-      minTimelockDelay
-    );
+    const currentChainId = deployParams.currentChainId || 1; // По умолчанию Ethereum
+    
+    const dle = await DLE.deploy(dleConfig, currentChainId);
     
     await dle.waitForDeployment();
     const dleAddress = await dle.getAddress();
     console.log(`DLE v2 задеплоен по адресу: ${dleAddress}`);
 
-    // 2. Получаем адрес таймлока
-    const timelockAddress = await dle.getTimelockAddress();
-    console.log(`Таймлок создан по адресу: ${timelockAddress}`);
-
-    // 3. Распределяем начальные токены
-    console.log("\n3. Распределение начальных токенов...");
-    const distributeTx = await dle.distributeInitialTokens(
-      deployParams.partners,
-      deployParams.amounts
-    );
-    await distributeTx.wait();
-    console.log(`Токены распределены между партнерами`);
-
-    // 4. Получаем информацию о DLE
+    // 2. Получаем информацию о DLE
     const dleInfo = await dle.getDLEInfo();
-    console.log("\n4. Информация о DLE:");
+    console.log("\n2. Информация о DLE:");
     console.log(`Название: ${dleInfo.name}`);
     console.log(`Символ: ${dleInfo.symbol}`);
     console.log(`Местонахождение: ${dleInfo.location}`);
-    console.log(`Коды деятельности: ${dleInfo.isicCodes.join(', ')}`);
+    console.log(`Коды деятельности: ${dleInfo.okvedCodes.join(', ')}`);
     console.log(`Дата создания: ${new Date(dleInfo.creationTimestamp * 1000).toISOString()}`);
 
-    // 5. Сохраняем информацию о созданном DLE
-    console.log("\n5. Сохранение информации о DLE v2...");
+    // 3. Сохраняем информацию о созданном DLE
+    console.log("\n3. Сохранение информации о DLE v2...");
     const dleData = {
       name: deployParams.name,
       symbol: deployParams.symbol,
       location: deployParams.location,
-      isicCodes: deployParams.isicCodes || [],
+      coordinates: deployParams.coordinates || "0,0",
+      jurisdiction: deployParams.jurisdiction || 1,
+      oktmo: deployParams.oktmo || 45000000000,
+      okvedCodes: deployParams.isicCodes || [],
+      kpp: deployParams.kpp || 770101001,
       dleAddress: dleAddress,
-      timelockAddress: timelockAddress,
-      creationBlock: (await distributeTx.provider.getBlockNumber()),
-      creationTimestamp: (await distributeTx.provider.getBlock()).timestamp,
+      creationBlock: (await dle.provider.getBlockNumber()),
+      creationTimestamp: (await dle.provider.getBlock()).timestamp,
       deployedManually: true,
       version: "v2",
       governanceSettings: {
-        votingDelay: votingDelay,
-        votingPeriod: votingPeriod,
-        proposalThreshold: proposalThreshold.toString(),
-        quorumPercentage: quorumPercentage,
-        minTimelockDelay: deployParams.minTimelockDelay || 2
+        quorumPercentage: deployParams.quorumPercentage || 51,
+        supportedChainIds: deployParams.supportedChainIds || [1, 137, 56, 42161],
+        currentChainId: currentChainId
       }
     };
     
@@ -105,13 +94,11 @@ async function main() {
     
     console.log("\nDLE v2 успешно создан!");
     console.log(`Адрес DLE: ${dleAddress}`);
-    console.log(`Адрес таймлока: ${timelockAddress}`);
     console.log(`Версия: v2 (единый контракт)`);
     
     return {
       success: true,
       dleAddress: dleAddress,
-      timelockAddress: timelockAddress,
       data: dleData
     };
 

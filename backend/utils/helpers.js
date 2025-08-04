@@ -56,25 +56,14 @@ async function checkUserIdentity(userId, provider, providerId) {
 
 // Добавление новой идентификации
 async function addUserIdentity(userId, provider, providerId) {
-  // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
+  const encryptedDb = require('../services/encryptedDatabaseService');
   
   try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
-
-  try {
-    await db.getQuery()(
-      'INSERT INTO user_identities (user_id, provider_encrypted, provider_id_encrypted) VALUES ($1, encrypt_text($2, $4), encrypt_text($3, $4))',
-      [userId, provider, providerId, encryptionKey]
-    );
+    await encryptedDb.saveData('user_identities', {
+      user_id: userId,
+      provider: provider,
+      provider_id: providerId
+    });
     return true;
   } catch (error) {
     if (error.code === '23505') {

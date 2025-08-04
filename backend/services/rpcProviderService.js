@@ -62,4 +62,9 @@ async function getRpcUrlByNetworkId(networkId) {
   return providers[0]?.rpc_url || null;
 }
 
-module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId }; 
+async function getRpcUrlByChainId(chainId) {
+  const providers = await encryptedDb.getData('rpc_providers', { chain_id: chainId }, 1);
+  return providers[0]?.rpc_url || null;
+}
+
+module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId, getRpcUrlByChainId }; 
