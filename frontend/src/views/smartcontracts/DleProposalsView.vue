@@ -11,10 +11,29 @@
 -->
 
 <template>
-  <div class="dle-proposals-management">
+  <BaseLayout
+    :is-authenticated="isAuthenticated"
+    :identities="identities"
+    :token-balances="tokenBalances"
+    :is-loading-tokens="isLoadingTokens"
+    @auth-action-completed="$emit('auth-action-completed')"
+  >
+    <div class="dle-proposals-management">
     <div class="proposals-header">
-      <h3>🗳️ Управление предложениями</h3>
-      <button class="btn btn-primary" @click="showCreateForm = true">
+      <div class="header-info">
+        <h3>🗳️ Управление предложениями</h3>
+        <div v-if="selectedDle" class="dle-info">
+          <span class="dle-name">{{ selectedDle.name }} ({{ selectedDle.symbol }})</span>
+          <span class="dle-address">{{ shortenAddress(selectedDle.dleAddress) }}</span>
+        </div>
+        <div v-else-if="isLoadingDle" class="loading-info">
+          <span>Загрузка данных DLE...</span>
+        </div>
+        <div v-else class="no-dle-info">
+          <span>DLE не выбран</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" @click="showCreateForm = true" :disabled="!selectedDle">
         <i class="fas fa-plus"></i> Создать предложение
       </button>
     </div>
@@ -322,18 +341,41 @@
       </div>
     </div>
   </div>
+  </BaseLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch, defineProps, defineEmits } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
+import BaseLayout from '../../components/BaseLayout.vue';
+import axios from 'axios';
 
 const props = defineProps({
-  dleAddress: { type: String, required: true },
-  dleContract: { type: Object, required: true }
+  dleAddress: { type: String, required: false, default: null },
+  dleContract: { type: Object, required: false, default: null },
+  isAuthenticated: Boolean,
+  identities: Array,
+  tokenBalances: Object,
+  isLoadingTokens: Boolean
 });
 
+const emit = defineEmits(['auth-action-completed']);
+
 const { address } = useAuthContext();
+const router = useRouter();
+const route = useRoute();
+
+// Получаем адрес DLE из URL
+const dleAddress = computed(() => {
+  const address = route.query.address || props.dleAddress;
+  console.log('DLE Address from URL:', address);
+  return address;
+});
+
+// Состояние DLE
+const selectedDle = ref(null);
+const isLoadingDle = ref(false);
 
 // Состояние формы
 const showCreateForm = ref(false);
@@ -382,6 +424,38 @@ const filteredProposals = computed(() => {
 });
 
 // Функции
+async function loadDleData() {
+  console.log('loadDleData вызвана с адресом:', dleAddress.value);
+  
+  if (!dleAddress.value) {
+    console.warn('Адрес DLE не указан');
+    return;
+  }
+
+  isLoadingDle.value = true;
+  try {
+    // Загружаем данные DLE из backend
+    const response = await axios.get(`/dle-v2`);
+    const dles = response.data.data; // Используем response.data.data
+    console.log('Получены DLE из API:', dles);
+    
+    // Находим нужный DLE по адресу
+    const dle = dles.find(d => d.dleAddress === dleAddress.value);
+    console.log('Найденный DLE:', dle);
+    
+    if (dle) {
+      selectedDle.value = dle;
+      console.log('Загружен DLE:', dle);
+    } else {
+      console.warn('DLE не найден:', dleAddress.value);
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки DLE:', error);
+  } finally {
+    isLoadingDle.value = false;
+  }
+}
+
 function validateOperationParams() {
   const params = newProposal.value.operationParams;
   
@@ -606,7 +680,15 @@ function viewProposalDetails(proposalId) {
       // console.log('Просмотр деталей предложения:', proposalId);
 }
 
+// Отслеживаем изменения в адресе DLE
+watch(dleAddress, (newAddress) => {
+  if (newAddress) {
+    loadDleData();
+  }
+}, { immediate: true });
+
 onMounted(() => {
+  // Загрузка предложений
   loadProposals();
 });
 </script>
@@ -621,6 +703,47 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.header-info h3 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.dle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dle-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 1rem;
+}
+
+.dle-address {
+  font-family: monospace;
+  font-size: 0.875rem;
+  color: #666;
+  background: #f8f9fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.loading-info,
+.no-dle-info {
+  font-size: 0.875rem;
+  color: #666;
+  font-style: italic;
 }
 
 .create-proposal-form {

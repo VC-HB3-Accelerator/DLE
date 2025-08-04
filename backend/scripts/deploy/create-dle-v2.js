@@ -20,35 +20,71 @@ async function main() {
   const deployParams = getDeployParams();
   
   console.log("Начинаем создание современного DLE v2...");
-  console.log("Параметры DLE:");
-  console.log(JSON.stringify(deployParams, null, 2));
+      console.log("Параметры DLE:");
+    console.log(JSON.stringify(deployParams, null, 2));
+    
+    // Преобразуем initialAmounts в wei
+    const initialAmountsInWei = deployParams.initialAmounts.map(amount => ethers.parseUnits(amount.toString(), 18));
+    console.log("Initial amounts в wei:");
+    console.log(initialAmountsInWei.map(wei => ethers.formatUnits(wei, 18) + " токенов"));
 
-  // Получаем аккаунт деплоя
-  const [deployer] = await ethers.getSigners();
+  // Получаем RPC URL и приватный ключ из переменных окружения
+  const rpcUrl = process.env.RPC_URL;
+  const privateKey = process.env.PRIVATE_KEY;
+  
+  if (!rpcUrl || !privateKey) {
+    throw new Error('RPC_URL и PRIVATE_KEY должны быть установлены в переменных окружения');
+  }
+  
+  // Создаем провайдер и кошелек
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const deployer = new ethers.Wallet(privateKey, provider);
+  
   console.log(`Адрес деплоера: ${deployer.address}`);
-  console.log(`Баланс деплоера: ${ethers.formatEther(await deployer.provider.getBalance(deployer.address))} ETH`);
+  const balance = await provider.getBalance(deployer.address);
+  console.log(`Баланс деплоера: ${ethers.formatEther(balance)} ETH`);
+  
+  // Проверяем, достаточно ли баланса для деплоя (минимум 0.00001 ETH для тестирования)
+  const minBalance = ethers.parseEther("0.00001");
+  if (balance < minBalance) {
+    throw new Error(`Недостаточно ETH для деплоя. Баланс: ${ethers.formatEther(balance)} ETH, требуется минимум: ${ethers.formatEther(minBalance)} ETH. Пополните кошелек через Sepolia faucet.`);
+  }
 
   try {
     // 1. Создаем единый контракт DLE
     console.log("\n1. Деплой единого контракта DLE v2...");
     
-    const DLE = await ethers.getContractFactory("DLE");
+    const DLE = await ethers.getContractFactory("DLE", deployer);
     
-    // Создаем структуру DLEConfig
+    // Создаем структуру DLEConfig с полными данными
     const dleConfig = {
       name: deployParams.name,
       symbol: deployParams.symbol,
       location: deployParams.location,
       coordinates: deployParams.coordinates || "0,0",
       jurisdiction: deployParams.jurisdiction || 1,
-      oktmo: deployParams.oktmo || 45000000000,
+      oktmo: parseInt(deployParams.oktmo) || 45000000000,
       okvedCodes: deployParams.okvedCodes || [],
-      kpp: deployParams.kpp || 770101001,
+      kpp: parseInt(deployParams.kpp) || 770101001,
       quorumPercentage: deployParams.quorumPercentage || 51,
       initialPartners: deployParams.initialPartners,
-      initialAmounts: deployParams.initialAmounts,
+      initialAmounts: deployParams.initialAmounts.map(amount => ethers.parseUnits(amount.toString(), 18)),
       supportedChainIds: deployParams.supportedChainIds || [1, 137, 56, 42161] // Ethereum, Polygon, BSC, Arbitrum
     };
+    
+    console.log("Конфигурация DLE для записи в блокчейн:");
+    console.log("Название:", dleConfig.name);
+    console.log("Символ:", dleConfig.symbol);
+    console.log("Местонахождение:", dleConfig.location);
+    console.log("Координаты:", dleConfig.coordinates);
+    console.log("Юрисдикция:", dleConfig.jurisdiction);
+    console.log("ОКТМО:", dleConfig.oktmo);
+    console.log("Коды ОКВЭД:", dleConfig.okvedCodes.join(', '));
+    console.log("КПП:", dleConfig.kpp);
+    console.log("Кворум:", dleConfig.quorumPercentage + "%");
+    console.log("Партнеры:", dleConfig.initialPartners.join(', '));
+    console.log("Количества токенов:", dleConfig.initialAmounts.map(amount => ethers.formatUnits(amount, 18) + " токенов").join(', '));
+    console.log("Поддерживаемые сети:", dleConfig.supportedChainIds.join(', '));
     
     const currentChainId = deployParams.currentChainId || 1; // По умолчанию Ethereum
     
@@ -58,17 +94,33 @@ async function main() {
     const dleAddress = await dle.getAddress();
     console.log(`DLE v2 задеплоен по адресу: ${dleAddress}`);
 
-    // 2. Получаем информацию о DLE
+    // 2. Получаем информацию о DLE из блокчейна
     const dleInfo = await dle.getDLEInfo();
-    console.log("\n2. Информация о DLE:");
+    console.log("\n2. Информация о DLE из блокчейна:");
     console.log(`Название: ${dleInfo.name}`);
     console.log(`Символ: ${dleInfo.symbol}`);
     console.log(`Местонахождение: ${dleInfo.location}`);
-    console.log(`Коды деятельности: ${dleInfo.okvedCodes.join(', ')}`);
-    console.log(`Дата создания: ${new Date(dleInfo.creationTimestamp * 1000).toISOString()}`);
+    console.log(`Координаты: ${dleInfo.coordinates}`);
+    console.log(`Юрисдикция: ${dleInfo.jurisdiction}`);
+    console.log(`ОКТМО: ${dleInfo.oktmo}`);
+    console.log(`Коды ОКВЭД: ${dleInfo.okvedCodes.join(', ')}`);
+    console.log(`КПП: ${dleInfo.kpp}`);
+    console.log(`Дата создания: ${new Date(Number(dleInfo.creationTimestamp) * 1000).toISOString()}`);
+    console.log(`Активен: ${dleInfo.isActive}`);
+    
+    // Проверяем, что данные записались правильно
+    console.log("\n3. Проверка записи данных в блокчейн:");
+    if (dleInfo.name === deployParams.name && 
+        dleInfo.location === deployParams.location && 
+        dleInfo.jurisdiction === deployParams.jurisdiction) {
+      console.log("✅ Все данные DLE успешно записаны в блокчейн!");
+      console.log("Теперь эти данные видны на Etherscan в разделе 'Contract' -> 'Read Contract'");
+    } else {
+      console.log("❌ Ошибка: данные не записались правильно в блокчейн");
+    }
 
-    // 3. Сохраняем информацию о созданном DLE
-    console.log("\n3. Сохранение информации о DLE v2...");
+    // 4. Сохраняем информацию о созданном DLE
+    console.log("\n4. Сохранение информации о DLE v2...");
     const dleData = {
       name: deployParams.name,
       symbol: deployParams.symbol,
@@ -76,13 +128,16 @@ async function main() {
       coordinates: deployParams.coordinates || "0,0",
       jurisdiction: deployParams.jurisdiction || 1,
       oktmo: deployParams.oktmo || 45000000000,
-      okvedCodes: deployParams.isicCodes || [],
+      okvedCodes: deployParams.okvedCodes || [],
       kpp: deployParams.kpp || 770101001,
       dleAddress: dleAddress,
-      creationBlock: (await dle.provider.getBlockNumber()),
-      creationTimestamp: (await dle.provider.getBlock()).timestamp,
+      creationBlock: Number(await provider.getBlockNumber()),
+      creationTimestamp: Number((await provider.getBlock()).timestamp),
       deployedManually: true,
       version: "v2",
+      // Сохраняем информацию о партнерах
+      initialPartners: deployParams.initialPartners || [],
+      initialAmounts: deployParams.initialAmounts || [],
       governanceSettings: {
         quorumPercentage: deployParams.quorumPercentage || 51,
         supportedChainIds: deployParams.supportedChainIds || [1, 137, 56, 42161],

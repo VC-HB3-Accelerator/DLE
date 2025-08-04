@@ -189,11 +189,49 @@ router.delete('/:dleAddress', auth.requireAuth, auth.requireAdmin, async (req, r
 });
 
 /**
+ * @route   GET /api/dle-v2/check-admin-tokens
+ * @desc    Проверить баланс админских токенов для адреса
+ * @access  Public
+ */
+router.get('/check-admin-tokens', async (req, res, next) => {
+  try {
+    const { address } = req.query;
+    
+    if (!address) {
+      return res.status(400).json({
+        success: false,
+        message: 'Адрес кошелька не передан'
+      });
+    }
+
+    // Проверяем баланс токенов
+    const { checkAdminRole } = require('../services/admin-role');
+    const isAdmin = await checkAdminRole(address);
+    
+    res.json({
+      success: true,
+      data: {
+        isAdmin: isAdmin,
+        address: address,
+        message: isAdmin ? 'Админские токены найдены' : 'Админские токены не найдены'
+      }
+    });
+    
+  } catch (error) {
+    logger.error('Ошибка при проверке админских токенов:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Произошла ошибка при проверке админских токенов'
+    });
+  }
+});
+
+/**
  * @route   POST /api/dle-v2/validate-private-key
  * @desc    Валидировать приватный ключ и получить адрес кошелька
- * @access  Private
+ * @access  Public
  */
-router.post('/validate-private-key', auth.requireAuth, async (req, res, next) => {
+router.post('/validate-private-key', async (req, res, next) => {
   try {
     const { privateKey } = req.body;
     
@@ -207,6 +245,8 @@ router.post('/validate-private-key', auth.requireAuth, async (req, res, next) =>
     // Логируем входящий ключ (только для отладки)
     logger.info('Получен приватный ключ для валидации:', privateKey);
     logger.info('Длина входящего ключа:', privateKey.length);
+    logger.info('Тип входящего ключа:', typeof privateKey);
+    logger.info('Полный объект запроса:', JSON.stringify(req.body));
     
     try {
       // Очищаем ключ от префикса 0x если есть

@@ -55,19 +55,52 @@ class DLEV2Service {
         : 1; // По умолчанию Ethereum
 
       // Получаем rpc_url из базы по chain_id
+      logger.info(`Поиск RPC URL для chain_id: ${chainId}`);
       const rpcUrl = await getRpcUrlByChainId(chainId);
       if (!rpcUrl) {
+        logger.error(`RPC URL для сети с chain_id ${chainId} не найден в базе данных`);
         throw new Error(`RPC URL для сети с chain_id ${chainId} не найден в базе данных`);
+      }
+      logger.info(`Найден RPC URL для chain_id ${chainId}: ${rpcUrl}`);
+      
+      // Проверяем баланс кошелька
+      const { ethers } = require('ethers');
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const walletAddress = dleParams.privateKey ? new ethers.Wallet(dleParams.privateKey, provider).address : null;
+      
+      if (walletAddress) {
+        const balance = await provider.getBalance(walletAddress);
+        const minBalance = ethers.parseEther("0.00001"); // Временно уменьшено для тестирования
+        logger.info(`Баланс кошелька ${walletAddress}: ${ethers.formatEther(balance)} ETH`);
+        
+        if (balance < minBalance) {
+          logger.warn(`Недостаточно ETH для деплоя. Баланс: ${ethers.formatEther(balance)} ETH, требуется минимум: ${ethers.formatEther(minBalance)} ETH`);
+          throw new Error(`Недостаточно ETH для деплоя. Баланс: ${ethers.formatEther(balance)} ETH, требуется минимум: ${ethers.formatEther(minBalance)} ETH. Пополните кошелек через Sepolia faucet: https://sepoliafaucet.com/`);
+        }
       }
       if (!dleParams.privateKey) {
         throw new Error('Приватный ключ для деплоя не передан');
+      }
+
+      // Маппинг chain_id к именам сетей в Hardhat
+      const chainIdToNetworkName = {
+        1: 'ethereum',
+        137: 'polygon', 
+        56: 'bsc',
+        42161: 'arbitrum',
+        11155111: 'sepolia'
+      };
+      
+      const networkName = chainIdToNetworkName[chainId];
+      if (!networkName) {
+        throw new Error(`Сеть с chain_id ${chainId} не поддерживается для деплоя`);
       }
 
       // Запускаем скрипт деплоя с нужными переменными окружения
       const result = await this.runDeployScript(paramsFile, {
         rpcUrl,
         privateKey: dleParams.privateKey,
-        networkId: chainId.toString(),
+        networkId: networkName,
         envNetworkKey: chainId.toString().toUpperCase()
       });
 
@@ -204,15 +237,15 @@ class DLEV2Service {
         return;
       }
 
-      // Формируем универсальные переменные окружения
+      // Формируем переменные окружения для скрипта деплоя
       const envVars = {
         ...process.env,
-        [`${extraEnv.envNetworkKey}_RPC_URL`]: extraEnv.rpcUrl,
-        [`${extraEnv.envNetworkKey}_PRIVATE_KEY`]: extraEnv.privateKey
+        RPC_URL: extraEnv.rpcUrl,
+        PRIVATE_KEY: extraEnv.privateKey
       };
 
-      // Запускаем скрипт с нужной сетью
-      const hardhatProcess = spawn('npx', ['hardhat', 'run', scriptPath, '--network', extraEnv.networkId], {
+      // Запускаем скрипт без указания сети, передаем RPC URL и приватный ключ через переменные окружения
+      const hardhatProcess = spawn('npx', ['hardhat', 'run', scriptPath], {
         cwd: path.join(__dirname, '..'),
         env: envVars,
         stdio: 'pipe'
@@ -232,17 +265,17 @@ class DLEV2Service {
       });
 
       hardhatProcess.on('close', (code) => {
-        if (code === 0) {
-          try {
-            // Пытаемся извлечь результат из stdout
-            const result = this.extractDeployResult(stdout);
-            resolve(result);
-          } catch (error) {
-            logger.error('Ошибка при извлечении результатов деплоя DLE v2:', error);
+        try {
+          // Пытаемся извлечь результат из stdout независимо от кода завершения
+          const result = this.extractDeployResult(stdout);
+          resolve(result);
+        } catch (error) {
+          logger.error('Ошибка при извлечении результатов деплоя DLE v2:', error);
+          if (code === 0) {
             reject(new Error('Не удалось найти информацию о созданном DLE v2'));
+          } else {
+            reject(new Error(`Скрипт деплоя DLE v2 завершился с кодом ${code}: ${stderr}`));
           }
-        } else {
-          reject(new Error(`Скрипт деплоя DLE v2 завершился с кодом ${code}: ${stderr}`));
         }
       });
 
@@ -272,6 +305,8 @@ class DLEV2Service {
       };
     }
 
+    // Если не нашли адрес, выводим весь stdout для отладки
+    console.log('Полный вывод скрипта:', stdout);
     throw new Error('Не удалось извлечь адрес DLE из вывода скрипта');
   }
 

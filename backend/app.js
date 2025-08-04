@@ -87,6 +87,7 @@ const russianClassifiersRoutes = require('./routes/russian-classifiers'); // Д�
 const ollamaRoutes = require('./routes/ollama'); // Добавляем импорт Ollama маршрутов
 const aiQueueRoutes = require('./routes/ai-queue'); // Добавляем импорт AI Queue маршрутов
 const tagsRoutes = require('./routes/tags'); // Добавляем импорт маршрутов тегов
+const blockchainRoutes = require('./routes/blockchain'); // Добавляем импорт blockchain маршрутов
 
 const app = express();
 
@@ -212,6 +213,7 @@ app.use('/api/russian-classifiers', russianClassifiersRoutes); // Добавля
 app.use('/api/ollama', ollamaRoutes); // Добавляем маршрут Ollama
 app.use('/api/ai-queue', aiQueueRoutes); // Добавляем маршрут AI Queue
 app.use('/api/tags', tagsRoutes); // Добавляем маршрут тегов
+app.use('/api/blockchain', blockchainRoutes); // Добавляем маршрут blockchain
 app.use('/api/messages', messagesRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут

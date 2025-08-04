@@ -325,19 +325,7 @@
                 <small class="form-help">3-10 символов для токена управления (Governance Token)</small>
               </div>
 
-              <!-- Координаты -->
-              <div class="form-group">
-                <label class="form-label" for="coordinates">Координаты (широта, долгота):</label>
-                <input 
-                  type="text" 
-                  id="coordinates" 
-                  v-model="dleSettings.coordinates" 
-                  class="form-control" 
-                  placeholder="Например: 55.7558,37.6176"
-                  pattern="^-?\d+\.\d+,-?\d+\.\d+$"
-                >
-                <small class="form-help">Координаты в формате "широта,долгота" (например: 55.7558,37.6176)</small>
-              </div>
+
 
               <!-- Партнеры и распределение токенов -->
               <div class="partners-section">
@@ -488,19 +476,7 @@
                   </div>
                 </div> -->
                 
-                <!-- Общая стоимость -->
-                <div v-if="selectedNetworks.length > 0" class="total-cost-section">
-                  <div class="cost-breakdown">
-                    <h5>💰 Стоимость деплоя:</h5>
-                    <div v-for="network in selectedNetworkDetails" :key="network.chainId" class="cost-line">
-                      <span>{{ network.name }}:</span>
-                      <span class="cost">~${{ network.estimatedCost }}</span>
-                    </div>
-                    <div class="total-line">
-                      <strong>Общая стоимость: ~${{ totalDeployCost.toFixed(2) }}</strong>
-                    </div>
-                  </div>
-                </div>
+
                 
                 <!-- Кнопки управления RPC -->
                 <div class="rpc-settings-actions">
@@ -546,40 +522,27 @@
                   </div>
                 </div>
                 
-                <!-- Информация о ключе -->
-                <div v-if="selectedNetworks.length > 0" class="key-info">
-                  <div class="info-card">
-                    <div class="info-icon">
-                      <i class="fas fa-key"></i>
-                    </div>
-                    <div class="info-content">
-                      <h5>Как это работает?</h5>
-                      <p>Один приватный ключ создаст одинаковый адрес во всех EVM-совместимых сетях. Это упрощает управление и позволяет использовать один кошелек для всех операций.</p>
-                    </div>
-                  </div>
-                </div>
+
                 
                 <!-- Ввод приватного ключа -->
                 <div v-if="selectedNetworks.length > 0" class="key-input-section">
                   <div class="form-group">
-                    <label class="form-label">Приватный ключ:</label>
                     <div class="input-icon-wrapper">
                       <input 
                         :type="showUnifiedKey ? 'text' : 'password'"
                         v-model="unifiedPrivateKey" 
                         class="form-control" 
                         placeholder="Введите приватный ключ (0x... или без префикса)"
-                        @input="() => { console.log('Input event triggered'); validatePrivateKey('unified'); }"
-                        @focus="() => console.log('Input field focused')"
-                        @blur="() => console.log('Input field blurred')"
+
+                        @input="validatePrivateKey('unified')"
+                        @keyup="validatePrivateKey('unified')"
+                        @change="validatePrivateKey('unified')"
                       >
                       <span class="input-icon" @click="showUnifiedKey = !showUnifiedKey">
                         <i :class="showUnifiedKey ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
                       </span>
                     </div>
-                    <small class="form-help">
-                      Этот ключ будет использован для деплоя во всех выбранных сетях
-                    </small>
+
                   </div>
                   
                   <!-- Валидация ключа -->
@@ -790,7 +753,7 @@
                 @click="deploySmartContracts" 
                 type="button" 
                 class="btn btn-primary btn-lg deploy-btn"
-                :disabled="!isFormValid"
+                :disabled="!isFormValid || !adminTokenCheck.isAdmin || adminTokenCheck.isLoading || showDeployProgress"
               >
                 <i class="fas fa-rocket"></i> Деплой смарт контрактов
               </button>
@@ -799,13 +762,49 @@
                 @click="clearAllData" 
                 class="btn btn-danger btn-lg clear-btn"
                 title="Очистить все данные"
+                :disabled="showDeployProgress"
               >
                 Удалить все
               </button>
             </div>
-            <small class="deploy-help">
+
+            <!-- Индикатор процесса деплоя -->
+            <div v-if="showDeployProgress" class="deploy-progress">
+              <div class="progress-header">
+                <h4>🚀 Деплой DLE в блокчейне</h4>
+                <p>{{ deployStatus }}</p>
+              </div>
               
-            </small>
+              <div class="progress-bar-container">
+                <div class="progress-bar">
+                  <div 
+                    class="progress-fill" 
+                    :style="{ width: deployProgress + '%' }"
+                  ></div>
+                </div>
+                <span class="progress-text">{{ deployProgress }}%</span>
+              </div>
+              
+              <div class="progress-steps">
+                <div class="step" :class="{ active: deployProgress >= 10 }">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Подготовка данных</span>
+                </div>
+                <div class="step" :class="{ active: deployProgress >= 30 }">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Отправка на сервер</span>
+                </div>
+                <div class="step" :class="{ active: deployProgress >= 70 }">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Деплой в блокчейне</span>
+                </div>
+                <div class="step" :class="{ active: deployProgress >= 100 }">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Завершение</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -828,6 +827,13 @@ const router = useRouter();
 
 // Получаем контекст авторизации для адреса кошелька
 const { address, isAdmin } = useAuthContext();
+
+// Состояние для проверки админских токенов
+const adminTokenCheck = ref({
+  isLoading: false,
+  isAdmin: false,
+  error: null
+});
 
 // Основные настройки DLE
 const dleSettings = reactive({
@@ -995,6 +1001,11 @@ const selectedOkvedLevel4 = ref('');
 // Текущий выбранный код ОКВЭД
 const currentSelectedOkvedCode = ref('');
 const currentSelectedOkvedText = ref('');
+
+// Состояние процесса деплоя
+const showDeployProgress = ref(false);
+const deployProgress = ref(0);
+const deployStatus = ref('');
 
 // Функция определения уровня ОКВЭД кода
 const getOkvedLevel = (code) => {
@@ -1300,7 +1311,8 @@ const saveFormData = () => {
         showUnifiedKey: showUnifiedKey.value
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-      // console.log('[DleDeployForm] Данные формы сохранены в localStorage');
+      console.log('[DleDeployForm] Данные формы сохранены в localStorage');
+      console.log('[DleDeployForm] Coordinates saved:', dataToSave.coordinates);
     } catch (error) {
       // console.error('[DleDeployForm] Ошибка сохранения данных:', error);
     }
@@ -1335,6 +1347,8 @@ const loadFormData = () => {
         tokenSymbol: parsedData.tokenSymbol || '',
         partners: parsedData.partners || [{ address: '', amount: 1 }],
         governanceQuorum: parsedData.governanceQuorum || 51,
+        // Координаты
+        coordinates: parsedData.coordinates || '',
         // Мульти-чейн настройки
         selectedNetworks: parsedData.selectedNetworks || [],
         tokenStandard: parsedData.tokenStandard || 'ERC20',
@@ -1365,7 +1379,8 @@ const loadFormData = () => {
       Object.assign(keyValidation, parsedData.keyValidation || {});
       showUnifiedKey.value = parsedData.showUnifiedKey || false;
 
-      // console.log('[DleDeployForm] Данные формы восстановлены из localStorage');
+      console.log('[DleDeployForm] Данные формы восстановлены из localStorage');
+      console.log('[DleDeployForm] Coordinates loaded:', dleSettings.coordinates);
       return true;
     }
   } catch (error) {
@@ -1412,6 +1427,9 @@ const clearAllData = () => {
   dleSettings.selectedNetworks = [];
   dleSettings.tokenStandard = 'ERC20'; // Сбрасываем к стандартному ERC-20
   dleSettings.predictedAddress = '';
+  
+  // Очищаем координаты
+  dleSettings.coordinates = '';
   
   // Устаревшие поля
   dleSettings.deployNetwork = '';
@@ -1536,6 +1554,8 @@ const findOktmoByAddress = (result) => {
 
 // Заполнение полей из результата поиска
 const fillFromSearchResult = (result) => {
+  console.log('[FillFromSearchResult] Called with result:', result);
+  
   dleSettings.addressData.postalCode = result.postcode;
   dleSettings.addressData.region = result.region;
   dleSettings.addressData.city = result.city;
@@ -1543,6 +1563,22 @@ const fillFromSearchResult = (result) => {
   dleSettings.addressData.building = result.building;
   dleSettings.addressData.apartment = '';  // Квартиру пользователь введет сам
   dleSettings.addressData.isVerified = false;  // Требует проверки после дозаполнения
+  
+  // Сохраняем координаты в dleSettings
+  if (result.coordinates && result.coordinates.lat && result.coordinates.lon) {
+    dleSettings.coordinates = `${result.coordinates.lat},${result.coordinates.lon}`;
+    console.log(`[FillFromSearchResult] Saved coordinates from coordinates object: ${dleSettings.coordinates}`);
+    // Сохраняем в localStorage
+    saveFormData();
+  } else if (result.lat && result.lon) {
+    // Альтернативный формат координат
+    dleSettings.coordinates = `${result.lat},${result.lon}`;
+    console.log(`[FillFromSearchResult] Saved coordinates from lat/lon: ${dleSettings.coordinates}`);
+    // Сохраняем в localStorage
+    saveFormData();
+  } else {
+    console.log('[FillFromSearchResult] No coordinates found in result');
+  }
   
   // Сохраняем результат API для отображения в превью
   lastApiResult.value = result;
@@ -1597,6 +1633,14 @@ const verifyAddress = async () => {
       addr.fullAddress = verificationResult.display_name;
       addr.isVerified = true;
       
+      // Сохраняем координаты из результата проверки
+      if (verificationResult.lat && verificationResult.lon) {
+        dleSettings.coordinates = `${verificationResult.lat},${verificationResult.lon}`;
+        console.log(`[VerifyAddress] Saved coordinates: ${dleSettings.coordinates}`);
+        // Сохраняем в localStorage
+        saveFormData();
+      }
+      
       console.log('[VerifyAddress] Address verified successfully:', addr.fullAddress);
     } else {
       // Если не найден - все равно считаем валидным (пользователь может знать лучше)
@@ -1633,6 +1677,8 @@ const clearAddress = () => {
     fullAddress: '',
     isVerified: false
   };
+  // Очищаем координаты
+  dleSettings.coordinates = '';
   postalCodeInput.value = '';
   searchResults.value = [];
   autoSelectedOktmo.value = false;
@@ -1955,8 +2001,6 @@ const toggleKeyVisibility = (chainId) => {
 
 // Валидация приватного ключа с дебаунсом
 const validatePrivateKey = async (chainId) => {
-  console.log('Функция validatePrivateKey вызвана для chainId:', chainId);
-  
   // Очищаем предыдущий таймер
   if (validatePrivateKey.timeout) {
     clearTimeout(validatePrivateKey.timeout);
@@ -1965,7 +2009,6 @@ const validatePrivateKey = async (chainId) => {
   // Устанавливаем новый таймер для дебаунса
   validatePrivateKey.timeout = setTimeout(async () => {
     const key = chainId === 'unified' ? unifiedPrivateKey.value : privateKeys[chainId];
-    console.log('Ключ для валидации:', key);
     
     if (!key) {
       keyValidation[chainId] = null;
@@ -1973,17 +2016,10 @@ const validatePrivateKey = async (chainId) => {
     }
     
     try {
-      // Логируем отправляемый ключ (только для отладки)
-      console.log('Отправляем приватный ключ для валидации:', key);
-      console.log('Длина ключа:', key.length);
-      console.log('Полный ключ:', key);
-      
       // Отправляем запрос на бэкенд для валидации
-      const response = await axios.post('/api/dle-v2/validate-private-key', {
+      const response = await axios.post('/dle-v2/validate-private-key', {
         privateKey: key
       });
-      
-      console.log('Ответ от сервера:', response.data);
       
       if (response.data.success) {
         keyValidation[chainId] = response.data.data;
@@ -2065,6 +2101,15 @@ watch([selectedOkvedLevel1, selectedOkvedLevel2, postalCodeInput], () => {
   }, 100);
 });
 
+// Watcher для координат
+watch(() => dleSettings.coordinates, (newCoordinates) => {
+  console.log('[Coordinates Watcher] Coordinates changed:', newCoordinates);
+  // Добавляем небольшую задержку для предотвращения рекурсии
+  setTimeout(() => {
+    saveFormData();
+  }, 100);
+});
+
 // ==================== МУЛЬТИ-ЧЕЙН WATCHERS ====================
 
 // Watcher для selectedNetworks - синхронизация с dleSettings
@@ -2120,8 +2165,6 @@ watch([() => dleSettings.name, () => dleSettings.tokenSymbol, selectedNetworks],
 
 // Инициализация
 onMounted(() => {
-  console.log('🚀 DleDeployFormView компонент загружен - ТЕСТ ОБНОВЛЕНИЯ');
-  alert('Компонент загружен - проверьте консоль');
   
   // Загружаем список стран
   loadCountries();
@@ -2149,6 +2192,9 @@ onMounted(() => {
   
   // Добавляем слушатель события видимости страницы для обновления списка сетей
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+  // Проверяем админские токены при загрузке
+  checkAdminTokens();
 });
 
 // Удаляем слушатель при размонтировании компонента
@@ -2162,6 +2208,33 @@ watch(address, (newAddress) => {
     dleSettings.partners[0].address = newAddress;
   }
 });
+
+// Функция проверки админских токенов
+const checkAdminTokens = async () => {
+  if (!address.value) {
+    adminTokenCheck.value = { isLoading: false, isAdmin: false, error: 'Кошелек не подключен' };
+    return;
+  }
+
+  adminTokenCheck.value.isLoading = true;
+  adminTokenCheck.value.error = null;
+
+  try {
+    const response = await axios.get(`/dle-v2/check-admin-tokens?address=${address.value}`);
+    
+    if (response.data.success) {
+      adminTokenCheck.value.isAdmin = response.data.data.isAdmin;
+      console.log('Проверка админских токенов:', response.data.data);
+    } else {
+      adminTokenCheck.value.error = response.data.message || 'Ошибка проверки токенов';
+    }
+  } catch (error) {
+    console.error('Ошибка проверки админских токенов:', error);
+    adminTokenCheck.value.error = error.response?.data?.message || 'Ошибка проверки токенов';
+  } finally {
+    adminTokenCheck.value.isLoading = false;
+  }
+};
 
 // Функции для работы с партнерами
 const addPartner = () => {
@@ -2202,6 +2275,11 @@ const deploySmartContracts = async () => {
       return;
     }
 
+    // Показываем индикатор процесса
+    showDeployProgress.value = true;
+    deployProgress.value = 10;
+    deployStatus.value = 'Подготовка данных для деплоя...';
+
     // Подготовка данных для деплоя
     const deployData = {
       // Основная информация DLE
@@ -2232,24 +2310,38 @@ const deploySmartContracts = async () => {
     };
 
     console.log('Данные для деплоя DLE:', deployData);
+    
+    deployProgress.value = 30;
+    deployStatus.value = 'Отправка данных на сервер...';
 
     // Вызов API для деплоя
-    const response = await axios.post('/api/dle-v2', deployData);
+    const response = await axios.post('/dle-v2', deployData);
+    
+    deployProgress.value = 70;
+    deployStatus.value = 'Деплой смарт-контракта в блокчейне...';
     
     if (response.data.success) {
-      alert('✅ DLE успешно развернут!');
+      deployProgress.value = 100;
+      deployStatus.value = '✅ DLE успешно развернут!';
       
       // Сохраняем адрес контракта
       dleSettings.predictedAddress = response.data.data?.contractAddress || 'Адрес будет доступен после деплоя';
       
-      // Перенаправляем на страницу управления
-      router.push('/management/dle-management');
+      // Небольшая задержка для показа успешного завершения
+      setTimeout(() => {
+        showDeployProgress.value = false;
+        // Перенаправляем на главную страницу управления
+        router.push('/management');
+      }, 2000);
+      
     } else {
+      showDeployProgress.value = false;
       alert('❌ Ошибка при деплое: ' + response.data.error);
     }
     
   } catch (error) {
     console.error('Ошибка деплоя DLE:', error);
+    showDeployProgress.value = false;
     alert('❌ Ошибка при деплое смарт-контракта: ' + error.message);
   }
 };
@@ -3919,5 +4011,129 @@ const validateCoordinates = (coordinates) => {
 
   .clear-btn {
     min-width: 150px;
+  }
+
+  /* Стили для индикатора статуса админских токенов */
+  .admin-status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+    font-size: 0.9rem;
+  }
+
+  .admin-status.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+
+  .admin-status.warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+  }
+
+  .admin-status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+
+  /* Стили для индикатора процесса деплоя */
+  .deploy-progress {
+    margin-top: 2rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    color: white;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .progress-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .progress-header h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .progress-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1.1rem;
+  }
+
+  .progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .progress-bar {
+    flex: 1;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+    border-radius: 6px;
+    transition: width 0.5s ease;
+  }
+
+  .progress-text {
+    font-weight: 600;
+    font-size: 1.1rem;
+    min-width: 50px;
+  }
+
+  .progress-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+  }
+
+  .step.active {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .step i {
+    font-size: 1.2rem;
+    color: #4ade80;
+  }
+
+  .step span {
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style> 

@@ -63,7 +63,14 @@ async function getRpcUrlByNetworkId(networkId) {
 }
 
 async function getRpcUrlByChainId(chainId) {
+  console.log(`[RPC Service] Поиск RPC URL для chain_id: ${chainId}`);
   const providers = await encryptedDb.getData('rpc_providers', { chain_id: chainId }, 1);
+  console.log(`[RPC Service] Найдено провайдеров: ${providers.length}`);
+  if (providers.length > 0) {
+    console.log(`[RPC Service] Найден RPC URL: ${providers[0].rpc_url}`);
+  } else {
+    console.log(`[RPC Service] RPC URL для chain_id ${chainId} не найден`);
+  }
   return providers[0]?.rpc_url || null;
 }
 

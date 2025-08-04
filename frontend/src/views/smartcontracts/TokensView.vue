@@ -23,7 +23,16 @@
       <div class="page-header">
         <div class="header-content">
           <h1>Токены DLE</h1>
-          <p>Балансы, трансферы и распределение токенов</p>
+          <div v-if="selectedDle" class="dle-info">
+            <span class="dle-name">{{ selectedDle.name }} ({{ selectedDle.symbol }})</span>
+            <span class="dle-address">{{ shortenAddress(selectedDle.dleAddress) }}</span>
+          </div>
+          <div v-else-if="isLoadingDle" class="loading-info">
+            <span>Загрузка данных DLE...</span>
+          </div>
+          <div v-else class="no-dle-info">
+            <span>DLE не выбран</span>
+          </div>
         </div>
         <button class="close-btn" @click="router.push('/management')">×</button>
       </div>
@@ -185,9 +194,10 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, watch, defineProps, defineEmits } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import axios from 'axios';
 
 // Определяем props
 const props = defineProps({
@@ -201,16 +211,28 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const route = useRoute();
+
+// Получаем адрес DLE из URL
+const dleAddress = computed(() => {
+  const address = route.query.address;
+  console.log('DLE Address from URL (Tokens):', address);
+  return address;
+});
+
+// Состояние DLE
+const selectedDle = ref(null);
+const isLoadingDle = ref(false);
 
 // Состояние
 const isTransferring = ref(false);
 const isDistributing = ref(false);
 
-// Данные токенов
-const tokenSymbol = ref('MDLE');
-const totalSupply = ref(10000);
-const userBalance = ref(1000);
-const quorumPercentage = ref(51);
+// Данные токенов (реактивные)
+const tokenSymbol = computed(() => selectedDle.value?.symbol || 'MDLE');
+const totalSupply = computed(() => selectedDle.value?.initialAmounts?.[0] || 10000);
+const userBalance = computed(() => Math.floor(totalSupply.value * 0.1)); // 10% для демо
+const quorumPercentage = computed(() => selectedDle.value?.governanceSettings?.quorumPercentage || 51);
 const tokenPrice = ref(1.25);
 
 // Данные трансфера
@@ -236,6 +258,41 @@ const tokenHolders = ref([
   { address: '0x4567890123456789012345678901234567890123', balance: 800 },
   { address: '0x5678901234567890123456789012345678901234', balance: 600 }
 ]);
+
+// Функции
+async function loadDleData() {
+  if (!dleAddress.value) {
+    console.warn('Адрес DLE не указан');
+    return;
+  }
+
+  isLoadingDle.value = true;
+  try {
+    // Загружаем данные DLE из backend
+    const response = await axios.get(`/dle-v2`);
+    const dles = response.data.data; // Используем response.data.data
+    
+    // Находим нужный DLE по адресу
+    const dle = dles.find(d => d.dleAddress === dleAddress.value);
+    
+    if (dle) {
+      selectedDle.value = dle;
+      console.log('Загружен DLE:', dle);
+      console.log('Данные токенов будут обновлены автоматически');
+    } else {
+      console.warn('DLE не найден:', dleAddress.value);
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки DLE:', error);
+  } finally {
+    isLoadingDle.value = false;
+  }
+}
+
+function shortenAddress(address) {
+  if (!address) return '';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
 
 // Методы
 const transferTokens = async () => {
@@ -324,6 +381,13 @@ const formatAddress = (address) => {
   if (!address) return '';
   return address.substring(0, 6) + '...' + address.substring(address.length - 4);
 };
+
+// Отслеживаем изменения в адресе DLE
+watch(dleAddress, (newAddress) => {
+  if (newAddress) {
+    loadDleData();
+  }
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -359,6 +423,38 @@ const formatAddress = (address) => {
   color: var(--color-grey-dark);
   font-size: 1.1rem;
   margin: 0;
+}
+
+.dle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.dle-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 1rem;
+}
+
+.dle-address {
+  font-family: monospace;
+  font-size: 0.875rem;
+  color: #666;
+  background: #f8f9fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.loading-info,
+.no-dle-info {
+  font-size: 0.875rem;
+  color: #666;
+  font-style: italic;
+  margin-top: 0.5rem;
 }
 
 .close-btn {

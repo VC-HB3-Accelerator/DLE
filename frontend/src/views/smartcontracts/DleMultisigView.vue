@@ -11,7 +11,14 @@
 -->
 
 <template>
-  <div class="dle-multisig-management">
+  <BaseLayout
+    :is-authenticated="isAuthenticated"
+    :identities="identities"
+    :token-balances="tokenBalances"
+    :is-loading-tokens="isLoadingTokens"
+    @auth-action-completed="$emit('auth-action-completed')"
+  >
+    <div class="dle-multisig-management">
     <div class="multisig-header">
       <h3>🔐 Управление мультиподписью</h3>
       <button class="btn btn-primary" @click="showCreateForm = true">
@@ -272,16 +279,24 @@
       </div>
     </div>
   </div>
+  </BaseLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useAuthContext } from '@/composables/useAuth';
+import BaseLayout from '../../components/BaseLayout.vue';
 
 const props = defineProps({
-  dleAddress: { type: String, required: true },
-  dleContract: { type: Object, required: true }
+  dleAddress: { type: String, required: false, default: null },
+  dleContract: { type: Object, required: false, default: null },
+  isAuthenticated: Boolean,
+  identities: Array,
+  tokenBalances: Object,
+  isLoadingTokens: Boolean
 });
+
+const emit = defineEmits(['auth-action-completed']);
 
 const { address } = useAuthContext();
 
