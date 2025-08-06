@@ -293,85 +293,8 @@ const filters = ref({
   status: ''
 });
 
-// История операций (временные данные)
-const history = ref([
-  {
-    id: 1,
-    type: 'proposal',
-    title: 'Создание предложения',
-    description: 'Создано предложение #15: Перевод 100 токенов партнеру',
-    timestamp: Date.now() - 3600000,
-    status: 'success',
-    transactionHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-    blockNumber: 18456789,
-    data: {
-      'ID предложения': 15,
-      'Инициатор': '0x1234...5678',
-      'Количество токенов': '100 MDLE',
-      'Получатель': '0xabcd...efgh'
-    }
-  },
-  {
-    id: 2,
-    type: 'vote',
-    title: 'Голосование',
-    description: 'Подписано предложение #15',
-    timestamp: Date.now() - 7200000,
-    status: 'success',
-    transactionHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-    blockNumber: 18456788,
-    data: {
-      'ID предложения': 15,
-      'Голосующий': '0x5678...9012',
-      'Вес голоса': '500 токенов'
-    }
-  },
-  {
-    id: 3,
-    type: 'transfer',
-    title: 'Трансфер токенов',
-    description: 'Перевод 50 токенов между участниками',
-    timestamp: Date.now() - 10800000,
-    status: 'success',
-    transactionHash: '0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234',
-    blockNumber: 18456787,
-    data: {
-      'От': '0x9012...3456',
-      'Кому': '0x3456...7890',
-      'Количество': '50 MDLE'
-    }
-  },
-  {
-    id: 4,
-    type: 'treasury',
-    title: 'Операция с казной',
-    description: 'Пополнение казны на 1000 USDC',
-    timestamp: Date.now() - 14400000,
-    status: 'pending',
-    transactionHash: '0x901234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
-    blockNumber: 18456786,
-    data: {
-      'Тип операции': 'Депозит',
-      'Актив': 'USDC',
-      'Количество': '1000'
-    }
-  },
-  {
-    id: 5,
-    type: 'module',
-    title: 'Установка модуля',
-    description: 'Установлен модуль "Казначейство"',
-    timestamp: Date.now() - 18000000,
-    status: 'success',
-    transactionHash: '0x345678901234567890abcdef1234567890abcdef1234567890abcdef123456789',
-    blockNumber: 18456785,
-    data: {
-      'Название модуля': 'Казначейство',
-      'Версия': '1.0.0',
-      'Адрес контракта': '0xabcd...efgh'
-    }
-  }
-]);
+// История операций (загружается из блокчейна)
+const history = ref([]);
 
 // Вычисляемые свойства
 const filteredHistory = computed(() => {

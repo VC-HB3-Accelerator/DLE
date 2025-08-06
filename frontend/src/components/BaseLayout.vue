@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
+import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits, provide, computed } from 'vue';
 import { useAuthContext } from '../composables/useAuth';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
@@ -78,6 +78,12 @@ const props = defineProps({
 
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
+
+// Предоставляем данные дочерним компонентам через provide/inject
+provide('isAuthenticated', computed(() => props.isAuthenticated));
+provide('identities', computed(() => props.identities));
+provide('tokenBalances', computed(() => props.tokenBalances));
+provide('isLoadingTokens', computed(() => props.isLoadingTokens));
 
 // Callback после успешной аутентификации/привязки через Email/Telegram
 const handleAuthFlowSuccess = (authType) => {

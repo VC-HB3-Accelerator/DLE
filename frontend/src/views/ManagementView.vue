@@ -162,7 +162,7 @@
           <div class="management-block">
             <h3>Мультиподпись</h3>
             <p>Управление мультиподписью</p>
-            <button class="details-btn" @click="openMultisigWithDle">Подробнее</button>
+            <!-- Мультиподпись удалена - используется только голосование -->
           </div>
         </div>
       </div>
@@ -241,26 +241,40 @@ const openSettings = () => {
 async function loadDeployedDles() {
   try {
     isLoadingDles.value = true;
+    console.log('[ManagementView] Начинаем загрузку DLE...');
     
     // Сначала получаем список DLE из API
     const response = await api.get('/dle-v2');
+    console.log('[ManagementView] Ответ от API /dle-v2:', response.data);
+    
     if (response.data.success) {
       const dlesFromApi = response.data.data || [];
+      console.log('[ManagementView] DLE из API:', dlesFromApi);
+      
+      if (dlesFromApi.length === 0) {
+        console.log('[ManagementView] Нет DLE в API, показываем пустой список');
+        deployedDles.value = [];
+        return;
+      }
       
       // Для каждого DLE читаем актуальные данные из блокчейна
       const dlesWithBlockchainData = await Promise.all(
         dlesFromApi.map(async (dle) => {
           try {
+            console.log(`[ManagementView] Читаем данные из блокчейна для ${dle.dleAddress}`);
+            
             // Читаем данные из блокчейна
             const blockchainResponse = await api.post('/blockchain/read-dle-info', {
               dleAddress: dle.dleAddress
             });
             
+            console.log(`[ManagementView] Ответ от блокчейна для ${dle.dleAddress}:`, blockchainResponse.data);
+            
             if (blockchainResponse.data.success) {
               const blockchainData = blockchainResponse.data.data;
               
               // Объединяем данные из API с данными из блокчейна
-              return {
+              const combinedDle = {
                 ...dle,
                 // Данные из блокчейна (приоритет)
                 name: blockchainData.name || dle.name,
@@ -277,25 +291,28 @@ async function loadDeployedDles() {
                 // Количество участников (держателей токенов)
                 participantCount: blockchainData.participantCount || 0
               };
+              
+              console.log(`[ManagementView] Объединенные данные для ${dle.dleAddress}:`, combinedDle);
+              return combinedDle;
             } else {
-              console.warn(`Не удалось прочитать данные из блокчейна для ${dle.dleAddress}`);
+              console.warn(`[ManagementView] Не удалось прочитать данные из блокчейна для ${dle.dleAddress}:`, blockchainResponse.data.error);
               return dle;
             }
           } catch (error) {
-            console.warn(`Ошибка при чтении данных из блокчейна для ${dle.dleAddress}:`, error);
+            console.warn(`[ManagementView] Ошибка при чтении данных из блокчейна для ${dle.dleAddress}:`, error);
             return dle;
           }
         })
       );
       
       deployedDles.value = dlesWithBlockchainData;
-      console.log('Загружены деплоированные DLE с данными из блокчейна:', deployedDles.value);
+      console.log('[ManagementView] Итоговый список DLE:', deployedDles.value);
     } else {
-      console.error('Ошибка при загрузке DLE:', response.data.message);
+      console.error('[ManagementView] Ошибка при загрузке DLE:', response.data.message);
       deployedDles.value = [];
     }
   } catch (error) {
-    console.error('Ошибка при загрузке DLE:', error);
+    console.error('[ManagementView] Ошибка при загрузке DLE:', error);
     deployedDles.value = [];
   } finally {
     isLoadingDles.value = false;
@@ -322,9 +339,9 @@ function selectDle(dle) {
   console.log('Выбран DLE:', dle);
 }
 
-function openMultisig() {
-  router.push('/management/multisig');
-}
+// function openMultisig() {
+//   router.push('/management/multisig');
+// }
 
 // Функции с передачей адреса DLE
 function openProposalsWithDle() {
@@ -375,11 +392,11 @@ function openSettingsWithDle() {
   }
 }
 
-function openMultisigWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/multisig?address=${selectedDle.value.dleAddress}`);
-  }
-}
+// function openMultisigWithDle() {
+//   if (selectedDle.value) {
+//     router.push(`/management/multisig?address=${selectedDle.value.dleAddress}`);
+//   }
+// }
 
 
 

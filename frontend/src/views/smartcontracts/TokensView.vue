@@ -228,12 +228,12 @@ const isLoadingDle = ref(false);
 const isTransferring = ref(false);
 const isDistributing = ref(false);
 
-// Данные токенов (реактивные)
-const tokenSymbol = computed(() => selectedDle.value?.symbol || 'MDLE');
-const totalSupply = computed(() => selectedDle.value?.initialAmounts?.[0] || 10000);
-const userBalance = computed(() => Math.floor(totalSupply.value * 0.1)); // 10% для демо
-const quorumPercentage = computed(() => selectedDle.value?.governanceSettings?.quorumPercentage || 51);
-const tokenPrice = ref(1.25);
+// Данные токенов (загружаются из блокчейна)
+const tokenSymbol = computed(() => selectedDle.value?.symbol || '');
+const totalSupply = computed(() => selectedDle.value?.totalSupply || 0);
+const userBalance = computed(() => selectedDle.value?.deployerBalance || 0);
+const quorumPercentage = computed(() => selectedDle.value?.quorumPercentage || 0);
+const tokenPrice = ref(0);
 
 // Данные трансфера
 const transferData = ref({
@@ -250,14 +250,8 @@ const distributionData = ref({
   ]
 });
 
-// Держатели токенов (временные данные)
-const tokenHolders = ref([
-  { address: '0x1234567890123456789012345678901234567890', balance: 2500 },
-  { address: '0x2345678901234567890123456789012345678901', balance: 1800 },
-  { address: '0x3456789012345678901234567890123456789012', balance: 1200 },
-  { address: '0x4567890123456789012345678901234567890123', balance: 800 },
-  { address: '0x5678901234567890123456789012345678901234', balance: 600 }
-]);
+// Держатели токенов (загружаются из блокчейна)
+const tokenHolders = ref([]);
 
 // Функции
 async function loadDleData() {
@@ -268,24 +262,35 @@ async function loadDleData() {
 
   isLoadingDle.value = true;
   try {
-    // Загружаем данные DLE из backend
-    const response = await axios.get(`/dle-v2`);
-    const dles = response.data.data; // Используем response.data.data
+    // Читаем актуальные данные из блокчейна
+    const blockchainResponse = await axios.post('/blockchain/read-dle-info', {
+      dleAddress: dleAddress.value
+    });
     
-    // Находим нужный DLE по адресу
-    const dle = dles.find(d => d.dleAddress === dleAddress.value);
-    
-    if (dle) {
-      selectedDle.value = dle;
-      console.log('Загружен DLE:', dle);
-      console.log('Данные токенов будут обновлены автоматически');
+    if (blockchainResponse.data.success) {
+      const blockchainData = blockchainResponse.data.data;
+      selectedDle.value = blockchainData;
+      console.log('Загружены данные DLE из блокчейна:', blockchainData);
+      
+      // Загружаем держателей токенов (если есть API)
+      await loadTokenHolders();
     } else {
-      console.warn('DLE не найден:', dleAddress.value);
+      console.warn('Не удалось прочитать данные из блокчейна для', dleAddress.value);
     }
   } catch (error) {
-    console.error('Ошибка загрузки DLE:', error);
+    console.error('Ошибка загрузки данных DLE из блокчейна:', error);
   } finally {
     isLoadingDle.value = false;
+  }
+}
+
+async function loadTokenHolders() {
+  try {
+    // Здесь можно добавить загрузку держателей токенов из блокчейна
+    // Пока оставляем пустым
+    tokenHolders.value = [];
+  } catch (error) {
+    console.error('Ошибка загрузки держателей токенов:', error);
   }
 }
 

@@ -108,4 +108,300 @@ router.post('/read-dle-info', async (req, res) => {
   }
 });
 
+// Получение поддерживаемых сетей из смарт-контракта
+router.post('/get-supported-chains', async (req, res) => {
+  try {
+    const { dleAddress } = req.body;
+    
+    if (!dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE обязателен'
+      });
+    }
+
+    console.log(`[Blockchain] Получение поддерживаемых сетей для DLE: ${dleAddress}`);
+
+    // Получаем RPC URL для Sepolia
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // ABI для проверки поддерживаемых сетей
+    const dleAbi = [
+      "function isChainSupported(uint256 _chainId) external view returns (bool)",
+      "function getCurrentChainId() external view returns (uint256)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Список всех возможных сетей для проверки
+    const allChains = [
+      { chainId: 1, name: 'Ethereum', description: 'Основная сеть Ethereum' },
+      { chainId: 137, name: 'Polygon', description: 'Сеть Polygon' },
+      { chainId: 56, name: 'BSC', description: 'Binance Smart Chain' },
+      { chainId: 42161, name: 'Arbitrum', description: 'Arbitrum One' },
+      { chainId: 10, name: 'Optimism', description: 'Optimism' },
+      { chainId: 8453, name: 'Base', description: 'Base' },
+      { chainId: 43114, name: 'Avalanche', description: 'Avalanche C-Chain' },
+      { chainId: 250, name: 'Fantom', description: 'Fantom Opera' },
+      { chainId: 11155111, name: 'Sepolia', description: 'Ethereum Testnet Sepolia' },
+      { chainId: 80001, name: 'Mumbai', description: 'Polygon Testnet Mumbai' },
+      { chainId: 97, name: 'BSC Testnet', description: 'Binance Smart Chain Testnet' },
+      { chainId: 421613, name: 'Arbitrum Goerli', description: 'Arbitrum Testnet Goerli' }
+    ];
+
+    const supportedChains = [];
+
+    // Проверяем каждую сеть через смарт-контракт
+    for (const chain of allChains) {
+      try {
+        const isSupported = await dle.isChainSupported(chain.chainId);
+        if (isSupported) {
+          supportedChains.push(chain);
+        }
+      } catch (error) {
+        console.log(`[Blockchain] Ошибка при проверке сети ${chain.chainId}:`, error.message);
+        // Продолжаем проверку других сетей
+      }
+    }
+
+    console.log(`[Blockchain] Найдено поддерживаемых сетей: ${supportedChains.length}`);
+
+    res.json({
+      success: true,
+      data: {
+        chains: supportedChains,
+        totalCount: supportedChains.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при получении поддерживаемых сетей:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при получении поддерживаемых сетей: ' + error.message
+    });
+  }
+});
+
+// Получение списка всех предложений
+router.post('/get-proposals', async (req, res) => {
+  try {
+    const { dleAddress } = req.body;
+    
+    if (!dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE обязателен'
+      });
+    }
+
+    console.log(`[Blockchain] Получение списка предложений для DLE: ${dleAddress}`);
+
+    // Получаем RPC URL для Sepolia
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // ABI для чтения предложений (только читаемые поля)
+    const dleAbi = [
+      "function proposals(uint256) external view returns (uint256 id, string description, uint256 forVotes, uint256 againstVotes, bool executed, uint256 deadline, address initiator, bytes operation)",
+      "function checkProposalResult(uint256 _proposalId) external view returns (bool)",
+      "event ProposalCreated(uint256 proposalId, address initiator, string description)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Получаем события ProposalCreated для определения количества предложений
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 10000); // Последние 10000 блоков
+    
+    const events = await dle.queryFilter('ProposalCreated', fromBlock, currentBlock);
+    
+    console.log(`[Blockchain] Найдено событий ProposalCreated: ${events.length}`);
+    console.log(`[Blockchain] Диапазон блоков: ${fromBlock} - ${currentBlock}`);
+    
+    const proposals = [];
+    
+    // Читаем информацию о каждом предложении
+    for (let i = 0; i < events.length; i++) {
+      try {
+        const proposalId = events[i].args.proposalId;
+        console.log(`[Blockchain] Читаем предложение ID: ${proposalId}`);
+        
+        // Пробуем несколько раз для новых предложений
+        let proposal, isPassed;
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+          try {
+            proposal = await dle.proposals(proposalId);
+            isPassed = await dle.checkProposalResult(proposalId);
+            break; // Успешно прочитали
+          } catch (error) {
+            retryCount++;
+            console.log(`[Blockchain] Попытка ${retryCount} чтения предложения ${proposalId} не удалась:`, error.message);
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Ждем 2 секунды
+            } else {
+              throw error; // Превышено количество попыток
+            }
+          }
+        }
+        
+        // governanceChainId не сохраняется в предложении, используем текущую цепочку
+        const governanceChainId = 11155111; // Sepolia chain ID
+        
+        console.log(`[Blockchain] Данные предложения ${proposalId}:`, {
+          id: Number(proposal.id),
+          description: proposal.description,
+          forVotes: Number(proposal.forVotes),
+          againstVotes: Number(proposal.againstVotes),
+          executed: proposal.executed,
+          deadline: Number(proposal.deadline),
+          initiator: proposal.initiator,
+          operation: proposal.operation,
+          governanceChainId: Number(governanceChainId)
+        });
+        
+        const proposalInfo = {
+          id: Number(proposal.id),
+          description: proposal.description,
+          forVotes: Number(proposal.forVotes),
+          againstVotes: Number(proposal.againstVotes),
+          executed: proposal.executed,
+          deadline: Number(proposal.deadline),
+          initiator: proposal.initiator,
+          operation: proposal.operation,
+          governanceChainId: Number(governanceChainId),
+          isPassed: isPassed,
+          blockNumber: events[i].blockNumber
+        };
+        
+        proposals.push(proposalInfo);
+              } catch (error) {
+          console.log(`[Blockchain] Ошибка при чтении предложения ${i}:`, error.message);
+          
+          // Если это ошибка декодирования, возможно предложение еще не полностью записано
+          if (error.message.includes('could not decode result data')) {
+            console.log(`[Blockchain] Предложение ${i} еще не полностью синхронизировано, пропускаем`);
+            continue;
+          }
+          
+          // Продолжаем с следующим предложением
+        }
+    }
+
+    // Сортируем по ID предложения (новые сверху)
+    proposals.sort((a, b) => b.id - a.id);
+
+    console.log(`[Blockchain] Найдено предложений: ${proposals.length}`);
+
+    res.json({
+      success: true,
+      data: {
+        proposals: proposals,
+        totalCount: proposals.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при получении списка предложений:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при получении списка предложений: ' + error.message
+    });
+  }
+});
+
+// Получение информации о предложении
+router.post('/get-proposal-info', async (req, res) => {
+  try {
+    const { dleAddress, proposalId } = req.body;
+    
+    if (!dleAddress || proposalId === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Все поля обязательны: dleAddress, proposalId'
+      });
+    }
+
+    console.log(`[Blockchain] Получение информации о предложении ${proposalId} в DLE: ${dleAddress}`);
+
+    // Получаем RPC URL для Sepolia
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // ABI для чтения информации о предложении
+    const dleAbi = [
+      "function proposals(uint256) external view returns (tuple(string description, uint256 duration, bytes operation, uint256 governanceChainId, uint256 startTime, bool executed, uint256 forVotes, uint256 againstVotes))",
+      "function checkProposalResult(uint256 _proposalId) external view returns (bool)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Читаем информацию о предложении
+            const proposal = await dle.proposals(proposalId);
+        const isPassed = await dle.checkProposalResult(proposalId);
+        
+        // governanceChainId не сохраняется в предложении, используем текущую цепочку
+        const governanceChainId = 11155111; // Sepolia chain ID
+
+        const proposalInfo = {
+      description: proposal.description,
+      duration: Number(proposal.duration),
+      operation: proposal.operation,
+      governanceChainId: Number(proposal.governanceChainId),
+      startTime: Number(proposal.startTime),
+      executed: proposal.executed,
+      forVotes: Number(proposal.forVotes),
+      againstVotes: Number(proposal.againstVotes),
+      isPassed: isPassed
+    };
+
+    console.log(`[Blockchain] Информация о предложении получена:`, proposalInfo);
+
+    res.json({
+      success: true,
+      data: proposalInfo
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при получении информации о предложении:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при получении информации о предложении: ' + error.message
+    });
+  }
+});
+
+
+
+
+
+// Импортируем WebSocket функции из wsHub
+const { broadcastProposalCreated, broadcastProposalVoted, broadcastProposalExecuted } = require('../wsHub');
+
+// Экспортируем router как основной экспорт
 module.exports = router; 

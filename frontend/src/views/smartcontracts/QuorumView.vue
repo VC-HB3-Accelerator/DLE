@@ -216,27 +216,8 @@ const newSettings = ref({
   reason: ''
 });
 
-// История изменений (временные данные)
-const settingsHistory = ref([
-  {
-    id: 1,
-    timestamp: Date.now() - 86400000, // 1 день назад
-    reason: 'Оптимизация параметров голосования для повышения эффективности',
-    quorumChange: { from: 60, to: 51 },
-    votingDelayChange: { from: 2, to: 1 },
-    author: '0x1234567890123456789012345678901234567890'
-  },
-  {
-    id: 2,
-    timestamp: Date.now() - 604800000, // 1 неделя назад
-    reason: 'Первоначальная настройка параметров DLE',
-    quorumChange: { from: 0, to: 60 },
-    votingDelayChange: { from: 0, to: 2 },
-    votingPeriodChange: { from: 0, to: 45818 },
-    proposalThresholdChange: { from: 0, to: 100 },
-    author: '0x2345678901234567890123456789012345678901'
-  }
-]);
+// История изменений (загружается из блокчейна)
+const settingsHistory = ref([]);
 
 // Методы
 const updateSettings = async () => {

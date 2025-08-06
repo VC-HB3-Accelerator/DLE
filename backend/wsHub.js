@@ -313,6 +313,58 @@ function broadcastAIStatus(status) {
   }
 }
 
+// Blockchain уведомления
+function broadcastProposalCreated(dleAddress, proposalId, txHash) {
+  const message = JSON.stringify({
+    type: 'proposal_created',
+    data: {
+      dleAddress: dleAddress,
+      proposalId: proposalId,
+      txHash: txHash
+    },
+    timestamp: Date.now()
+  });
+  
+  broadcastToAllClients(message);
+}
+
+function broadcastProposalVoted(dleAddress, proposalId, support, txHash) {
+  const message = JSON.stringify({
+    type: 'proposal_voted',
+    data: {
+      dleAddress: dleAddress,
+      proposalId: proposalId,
+      support: support,
+      txHash: txHash
+    },
+    timestamp: Date.now()
+  });
+  
+  broadcastToAllClients(message);
+}
+
+function broadcastProposalExecuted(dleAddress, proposalId, txHash) {
+  const message = JSON.stringify({
+    type: 'proposal_executed',
+    data: {
+      dleAddress: dleAddress,
+      proposalId: proposalId,
+      txHash: txHash
+    },
+    timestamp: Date.now()
+  });
+  
+  broadcastToAllClients(message);
+}
+
+function broadcastToAllClients(message) {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
@@ -323,6 +375,9 @@ module.exports = {
   broadcastTableRelationsUpdate,
   broadcastTagsUpdate,
   broadcastAIStatus,
+  broadcastProposalCreated,
+  broadcastProposalVoted,
+  broadcastProposalExecuted,
   getConnectedUsers,
   getStats
 }; 

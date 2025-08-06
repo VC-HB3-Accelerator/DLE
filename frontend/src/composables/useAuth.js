@@ -85,8 +85,8 @@ const checkTokenBalances = async (address) => {
   try {
     const response = await axios.get(`/auth/check-tokens/${address}`);
     if (response.data.success) {
-      tokenBalances.value = response.data.balances;
-      return response.data.balances;
+      tokenBalances.value = response.data.data;
+      return response.data.data;
     }
     return null;
   } catch (error) {
@@ -140,8 +140,8 @@ const updateAuth = async ({
     })
   );
 
-  // Если аутентификация через кошелек, проверяем баланс токенов только при изменении адреса
-  if (authenticated && newAuthType === 'wallet' && newAddress && newAddress !== address.value) {
+  // Если аутентификация через кошелек, проверяем баланс токенов
+  if (authenticated && newAuthType === 'wallet' && newAddress) {
     await checkTokenBalances(newAddress);
   }
 
@@ -474,6 +474,7 @@ const authApi = {
   updateConnectionDisplay,
   linkIdentity,
   deleteIdentity,
+  checkTokenBalances,
 };
 
 // === PROVIDE/INJECT HELPERS ===

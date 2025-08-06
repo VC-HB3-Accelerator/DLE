@@ -62,7 +62,14 @@ async function upsertAuthToken(token) {
 }
 
 async function deleteAuthToken(address, network) {
-  await encryptedDb.deleteData('auth_tokens', { address, network });
+  console.log(`[AuthTokenService] deleteAuthToken: address=${address}, network=${network}`);
+  try {
+    await encryptedDb.deleteData('auth_tokens', { address, network });
+    console.log(`[AuthTokenService] Токен успешно удален`);
+  } catch (error) {
+    console.error(`[AuthTokenService] Ошибка при удалении токена:`, error);
+    throw error;
+  }
 }
 
 module.exports = { getAllAuthTokens, saveAllAuthTokens, upsertAuthToken, deleteAuthToken }; 

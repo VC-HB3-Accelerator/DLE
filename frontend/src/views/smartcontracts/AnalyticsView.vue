@@ -238,39 +238,8 @@ const proposalsChange = ref(8);
 const yieldRate = ref(8.7);
 const yieldChange = ref(1.2);
 
-// Топ участников (временные данные)
-const topParticipants = ref([
-  {
-    rank: 1,
-    address: '0x1234567890123456789012345678901234567890',
-    balance: 2500,
-    percentage: 25.0
-  },
-  {
-    rank: 2,
-    address: '0x2345678901234567890123456789012345678901',
-    balance: 1800,
-    percentage: 18.0
-  },
-  {
-    rank: 3,
-    address: '0x3456789012345678901234567890123456789012',
-    balance: 1200,
-    percentage: 12.0
-  },
-  {
-    rank: 4,
-    address: '0x4567890123456789012345678901234567890123',
-    balance: 800,
-    percentage: 8.0
-  },
-  {
-    rank: 5,
-    address: '0x5678901234567890123456789012345678901234',
-    balance: 600,
-    percentage: 6.0
-  }
-]);
+// Топ участников (загружаются из блокчейна)
+const topParticipants = ref([]);
 
 // Методы
 const formatAddress = (address) => {

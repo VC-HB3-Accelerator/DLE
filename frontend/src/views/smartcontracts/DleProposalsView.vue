@@ -33,17 +33,160 @@
           <span>DLE не выбран</span>
         </div>
       </div>
-      <button class="btn btn-primary" @click="showCreateForm = true" :disabled="!selectedDle">
-        <i class="fas fa-plus"></i> Создать предложение
-      </button>
+      
+
     </div>
 
-    <!-- Форма создания предложения -->
-    <div v-if="showCreateForm" class="create-proposal-form">
-      <div class="form-header">
-        <h4>📝 Новое предложение</h4>
-        <button class="close-btn" @click="showCreateForm = false">×</button>
+    <!-- Список предложений -->
+    <div class="proposals-list">
+      <div class="list-header">
+        <h4>📋 Список предложений</h4>
+        <div class="list-filters">
+          <select v-model="statusFilter" class="form-control">
+            <option value="">Все статусы</option>
+            <option value="active">Активные</option>
+            <option value="pending">Ожидающие</option>
+            <option value="succeeded">Принятые</option>
+            <option value="defeated">Отклоненные</option>
+            <option value="executed">Выполненные</option>
+          </select>
+          <button 
+            class="btn btn-sm btn-outline-secondary" 
+            @click="loadDleData"
+            :disabled="isLoadingDle"
+          >
+            <i class="fas fa-sync-alt"></i> Обновить
+      </button>
+        </div>
+    </div>
+
+      <div v-if="filteredProposals.length === 0" class="no-proposals">
+        <p>Предложений пока нет</p>
       </div>
+
+      <div v-else class="proposals-grid">
+        <div 
+          v-for="proposal in filteredProposals" 
+          :key="proposal.id" 
+          class="proposal-card"
+          :class="proposal.status"
+        >
+
+          <div class="proposal-header">
+            <h5>{{ proposal.description || 'Без описания' }}</h5>
+            <span class="proposal-status" :class="proposal.status">
+              {{ getProposalStatusText(proposal.status) }}
+            </span>
+          </div>
+
+          <div class="proposal-details">
+            <div class="detail-item">
+              <strong>ID:</strong> #{{ proposal.id }}
+            </div>
+            <div class="detail-item">
+              <strong>Создатель:</strong> {{ shortenAddress(proposal.initiator) }}
+            </div>
+            <div class="detail-item">
+              <strong>Создано:</strong> {{ formatDate(proposal.blockNumber ? proposal.blockNumber * 1000 : Date.now()) }}
+            </div>
+            <div class="detail-item">
+              <strong>Цепочка:</strong> {{ getChainName(proposal.governanceChainId) || 'Неизвестная сеть' }}
+            </div>
+            <div class="detail-item">
+              <strong>Дедлайн:</strong> {{ formatDate(proposal.deadline) }}
+            </div>
+            <div class="detail-item">
+              <strong>Голоса:</strong> 
+              <div class="votes-container">
+                <div class="votes-info">
+                  <span class="for">За: {{ formatVotes(proposal.forVotes) }}</span>
+                  <span class="against">Против: {{ formatVotes(proposal.againstVotes) }}</span>
+                </div>
+                <div class="quorum-info">
+                  <span class="quorum-percentage">Кворум: {{ getQuorumPercentage(proposal) }}% из {{ getRequiredQuorum() }}%</span>
+                </div>
+                <div class="quorum-progress">
+                  <div class="progress-bar">
+                    <div 
+                      class="progress-fill" 
+                      :style="{ width: getQuorumProgress(proposal) + '%' }"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="detail-item" v-if="proposal.operation && proposal.operation !== '0x'">
+              <strong>Операция:</strong> 
+              <span class="operation">{{ decodeOperation(proposal.operation) }}</span>
+            </div>
+            <div class="detail-item" v-if="getOperationDetails(proposal.operation, proposal)">
+              <strong>Детали операции:</strong> 
+              <span class="operation-details">{{ getOperationDetails(proposal.operation, proposal) }}</span>
+            </div>
+          </div>
+
+          <div class="proposal-actions">
+            <button 
+              v-if="canSign(proposal) && props.isAuthenticated && hasAdminRights()"
+              class="btn btn-sm btn-success" 
+              @click="signProposalLocal(proposal.id)"
+              :disabled="hasSigned(proposal.id)"
+            >
+              <i class="fas fa-signature"></i> Подписать
+            </button>
+            <button 
+              v-if="canVoteAgainst(proposal) && props.isAuthenticated && hasAdminRights()"
+              class="btn btn-sm btn-warning" 
+              @click="cancelSignatureLocal(proposal.id)"
+              :disabled="hasVotedAgainst(proposal.id)"
+            >
+              <i class="fas fa-times"></i> Против
+            </button>
+            <button 
+              v-if="canExecute(proposal) && props.isAuthenticated && hasAdminRights()"
+              class="btn btn-sm btn-primary" 
+              @click="executeProposalLocal(proposal.id)"
+            >
+              <i class="fas fa-play"></i> Исполнить
+            </button>
+            
+            <!-- Информация для неавторизованных пользователей -->
+            <div v-if="!props.isAuthenticated" class="auth-notice">
+              <small class="text-muted">
+                <i class="fas fa-info-circle"></i> 
+                Для участия в голосовании необходимо авторизоваться
+              </small>
+            </div>
+            <div v-else-if="!hasAdminRights()" class="auth-notice">
+              <small class="text-muted">
+                <i class="fas fa-lock"></i> 
+                Для участия в голосовании необходимы права администратора
+              </small>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Форма создания предложения (всегда внизу страницы) -->
+    <div class="create-proposal-form">
+      <div class="form-header">
+        <h4>📝 Создание нового предложения</h4>
+        <!-- Кнопка закрытия больше не нужна -->
+      </div>
+      
+      <!-- Информация для неавторизованных пользователей -->
+      <div v-if="!props.isAuthenticated" class="auth-notice-form">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <strong>Для создания предложений необходимо авторизоваться в приложении</strong>
+          <p class="mb-0 mt-2">Подключите кошелек в сайдбаре для создания новых предложений</p>
+        </div>
+      </div>
+      
+      <!-- Форма только для авторизованных пользователей -->
+      <div v-else>
       
       <div class="form-content">
         <!-- Основная информация -->
@@ -125,8 +268,10 @@
                   id="transferTo" 
                   v-model="newProposal.operationParams.to" 
                   class="form-control"
-                  placeholder="0x..."
+                  placeholder="0x1234567890abcdef1234567890abcdef12345678"
+                  :class="{ 'is-invalid': newProposal.operationParams.to && !validateAddress(newProposal.operationParams.to) }"
                 >
+                <small class="form-text text-muted">Введите корректный Ethereum адрес (42 символа, начинается с 0x)</small>
               </div>
               <div class="form-group">
                 <label for="transferAmount">Количество токенов:</label>
@@ -137,7 +282,9 @@
                   class="form-control"
                   min="1"
                   placeholder="100"
+                  :class="{ 'is-invalid': newProposal.operationParams.amount <= 0 }"
                 >
+                <small class="form-text text-muted">Введите количество токенов для передачи</small>
               </div>
             </div>
 
@@ -243,113 +390,21 @@
           <button class="btn btn-secondary" @click="resetForm">
             <i class="fas fa-undo"></i> Сбросить
           </button>
-          <button class="btn btn-danger" @click="showCreateForm = false">
-            <i class="fas fa-times"></i> Отмена
-          </button>
         </div>
       </div>
-    </div>
-
-    <!-- Список предложений -->
-    <div class="proposals-list">
-      <div class="list-header">
-        <h4>📋 Список предложений</h4>
-        <div class="list-filters">
-          <select v-model="statusFilter" class="form-control">
-            <option value="">Все статусы</option>
-            <option value="active">Активные</option>
-            <option value="pending">Ожидающие</option>
-            <option value="succeeded">Принятые</option>
-            <option value="defeated">Отклоненные</option>
-            <option value="executed">Выполненные</option>
-          </select>
-        </div>
-      </div>
-
-      <div v-if="filteredProposals.length === 0" class="no-proposals">
-        <p>Предложений пока нет</p>
-      </div>
-
-      <div v-else class="proposals-grid">
-        <div 
-          v-for="proposal in filteredProposals" 
-          :key="proposal.id" 
-          class="proposal-card"
-          :class="proposal.status"
-        >
-          <div class="proposal-header">
-            <h5>{{ proposal.description }}</h5>
-            <span class="proposal-status" :class="proposal.status">
-              {{ getProposalStatusText(proposal.status) }}
-            </span>
-          </div>
-
-          <div class="proposal-details">
-            <div class="detail-item">
-              <strong>ID:</strong> #{{ proposal.id }}
-            </div>
-            <div class="detail-item">
-              <strong>Создатель:</strong> {{ shortenAddress(proposal.initiator) }}
-            </div>
-            <div class="detail-item">
-              <strong>Цепочка:</strong> {{ getChainName(proposal.governanceChainId) }}
-            </div>
-            <div class="detail-item">
-              <strong>Дедлайн:</strong> {{ formatDate(proposal.deadline) }}
-            </div>
-            <div class="detail-item">
-              <strong>Голоса:</strong> 
-              <span class="votes">
-                <span class="for">За: {{ proposal.forVotes }}</span>
-                <span class="against">Против: {{ proposal.againstVotes }}</span>
-              </span>
-            </div>
-          </div>
-
-          <div class="proposal-actions">
-            <button 
-              v-if="canVote(proposal)"
-              class="btn btn-sm btn-success" 
-              @click="voteForProposal(proposal.id, true)"
-              :disabled="hasVoted(proposal.id, true)"
-            >
-              <i class="fas fa-thumbs-up"></i> За
-            </button>
-            <button 
-              v-if="canVote(proposal)"
-              class="btn btn-sm btn-danger" 
-              @click="voteForProposal(proposal.id, false)"
-              :disabled="hasVoted(proposal.id, false)"
-            >
-              <i class="fas fa-thumbs-down"></i> Против
-            </button>
-            <button 
-              v-if="canExecute(proposal)"
-              class="btn btn-sm btn-primary" 
-              @click="executeProposal(proposal.id)"
-            >
-              <i class="fas fa-play"></i> Исполнить
-            </button>
-            <button 
-              class="btn btn-sm btn-info" 
-              @click="viewProposalDetails(proposal.id)"
-            >
-              <i class="fas fa-eye"></i> Детали
-            </button>
-          </div>
-        </div>
-      </div>
+      </div> <!-- Закрываем div для авторизованных пользователей -->
     </div>
   </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineProps, defineEmits } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, defineProps, defineEmits, inject } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
-import axios from 'axios';
+import { getDLEInfo, loadProposals, createProposal as createProposalAPI, voteForProposal as voteForProposalAPI, executeProposal as executeProposalAPI, getSupportedChains } from '../../utils/dle-contract.js';
+import wsClient from '../../utils/websocket.js';
 
 const props = defineProps({
   dleAddress: { type: String, required: false, default: null },
@@ -360,9 +415,15 @@ const props = defineProps({
   isLoadingTokens: Boolean
 });
 
+// Получаем данные из BaseLayout через inject
+const injectedIsAuthenticated = inject('isAuthenticated', computed(() => false));
+const injectedIdentities = inject('identities', computed(() => []));
+const injectedTokenBalances = inject('tokenBalances', computed(() => null));
+const injectedIsLoadingTokens = inject('isLoadingTokens', computed(() => false));
+
 const emit = defineEmits(['auth-action-completed']);
 
-const { address } = useAuthContext();
+const { address, isAuthenticated, tokenBalances, checkTokenBalances } = useAuthContext();
 const router = useRouter();
 const route = useRoute();
 
@@ -378,7 +439,7 @@ const selectedDle = ref(null);
 const isLoadingDle = ref(false);
 
 // Состояние формы
-const showCreateForm = ref(false);
+// const showCreateForm = ref(false); // Больше не нужно - форма всегда видна
 const isCreating = ref(false);
 const statusFilter = ref('');
 
@@ -396,16 +457,13 @@ const newProposal = ref({
   }
 });
 
-// Доступные цепочки
-const availableChains = ref([
-  { chainId: 1, name: 'Ethereum', description: 'Основная сеть Ethereum' },
-  { chainId: 137, name: 'Polygon', description: 'Сеть Polygon' },
-  { chainId: 56, name: 'BSC', description: 'Binance Smart Chain' },
-  { chainId: 42161, name: 'Arbitrum', description: 'Arbitrum One' }
-]);
+// Доступные цепочки (загружаются из конфигурации)
+const availableChains = ref([]);
 
 // Предложения
 const proposals = ref([]);
+
+
 
 // Вычисляемые свойства
 const isFormValid = computed(() => {
@@ -419,8 +477,17 @@ const isFormValid = computed(() => {
 });
 
 const filteredProposals = computed(() => {
-  if (!statusFilter.value) return proposals.value;
-  return proposals.value.filter(p => p.status === statusFilter.value);
+  console.log('[Frontend] Фильтрация предложений. Всего:', proposals.value.length);
+  console.log('[Frontend] Фильтр статуса:', statusFilter.value);
+  
+  if (!statusFilter.value) {
+    console.log('[Frontend] Возвращаем все предложения:', proposals.value);
+    return proposals.value;
+  }
+  
+  const filtered = proposals.value.filter(p => p.status === statusFilter.value);
+  console.log('[Frontend] Отфильтрованные предложения:', filtered);
+  return filtered;
 });
 
 // Функции
@@ -434,23 +501,35 @@ async function loadDleData() {
 
   isLoadingDle.value = true;
   try {
-    // Загружаем данные DLE из backend
-    const response = await axios.get(`/dle-v2`);
-    const dles = response.data.data; // Используем response.data.data
-    console.log('Получены DLE из API:', dles);
+    // Загружаем данные DLE из блокчейна
+    const dleData = await getDLEInfo(dleAddress.value);
+    selectedDle.value = dleData;
+    console.log('Загружены данные DLE из блокчейна:', dleData);
     
-    // Находим нужный DLE по адресу
-    const dle = dles.find(d => d.dleAddress === dleAddress.value);
-    console.log('Найденный DLE:', dle);
+    // Загружаем предложения
+    const proposalsData = await loadProposals(dleAddress.value);
+    console.log('[Frontend] Загруженные предложения из API:', proposalsData);
     
-    if (dle) {
-      selectedDle.value = dle;
-      console.log('Загружен DLE:', dle);
-    } else {
-      console.warn('DLE не найден:', dleAddress.value);
-    }
+    // Преобразуем данные из API в формат для frontend
+    proposals.value = proposalsData.map(proposal => {
+              const transformedProposal = {
+          ...proposal,
+          status: getProposalStatus(proposal),
+          deadline: proposal.deadline || (proposal.startTime + proposal.duration)
+        };
+      console.log('[Frontend] Преобразованное предложение:', transformedProposal);
+      return transformedProposal;
+    });
+    
+    console.log('[Frontend] Итоговый список предложений:', proposals.value);
+    
+    // Загружаем поддерживаемые цепочки
+    const chainsData = await getSupportedChains(dleAddress.value);
+    availableChains.value = chainsData;
+    
+
   } catch (error) {
-    console.error('Ошибка загрузки DLE:', error);
+    console.error('Ошибка загрузки данных DLE из блокчейна:', error);
   } finally {
     isLoadingDle.value = false;
   }
@@ -462,19 +541,38 @@ function validateOperationParams() {
   switch (newProposal.value.operationType) {
     case 'transfer':
     case 'mint':
-      return params.to && params.amount > 0;
+      return validateAddress(params.to) && params.amount > 0;
     case 'burn':
-      return params.from && params.amount > 0;
+      return validateAddress(params.from) && params.amount > 0;
     case 'custom':
-      return params.customData && params.customData.startsWith('0x');
+      return params.customData && params.customData.startsWith('0x') && params.customData.length >= 10;
     default:
       return false;
   }
 }
 
+function validateAddress(address) {
+  if (!address) return false;
+  // Проверяем формат Ethereum адреса
+  const addressRegex = /^0x[a-fA-F0-9]{40}$/;
+  return addressRegex.test(address);
+}
+
 function getChainName(chainId) {
+  // Сначала ищем в availableChains
   const chain = availableChains.value.find(c => c.chainId === chainId);
-  return chain ? chain.name : 'Неизвестная сеть';
+  if (chain) return chain.name;
+  
+  // Если не найдено, используем известные chain ID
+  const knownChains = {
+    1: 'Ethereum Mainnet',
+    11155111: 'Sepolia Testnet',
+    137: 'Polygon',
+    56: 'BSC',
+    42161: 'Arbitrum One'
+  };
+  
+  return knownChains[chainId] || `Chain ID: ${chainId}`;
 }
 
 function getOperationTypeName(type) {
@@ -514,6 +612,21 @@ function formatDate(timestamp) {
   return new Date(timestamp * 1000).toLocaleString();
 }
 
+function getProposalStatus(proposal) {
+  const now = Math.floor(Date.now() / 1000);
+  const deadline = proposal.deadline || 0;
+  
+  if (proposal.executed) {
+    return 'executed';
+  }
+  
+  if (deadline > 0 && now >= deadline) {
+    return proposal.isPassed ? 'succeeded' : 'defeated';
+  }
+  
+  return 'active';
+}
+
 function getProposalStatusText(status) {
   const statusMap = {
     'pending': 'Ожидает',
@@ -525,21 +638,160 @@ function getProposalStatusText(status) {
   return statusMap[status] || status;
 }
 
-function canVote(proposal) {
-  return proposal.status === 'active' && !hasVoted(proposal.id);
+function decodeOperation(operation) {
+  if (!operation || operation === '0x') return 'Нет операции';
+  
+  // Простое декодирование по селекторам
+  const selectors = {
+    '0xa9059cbb': 'Transfer',
+    '0x40c10f19': 'Mint',
+    '0x42966c68': 'Burn (address,uint256)'
+  };
+  
+  const selector = operation.slice(0, 10);
+  return selectors[selector] || `Операция (${selector})`;
+}
+
+function getQuorumPercentage(proposal) {
+  if (!selectedDle.value || !selectedDle.value.totalSupply) {
+    console.log('[Quorum] Нет данных DLE или totalSupply');
+    return 0;
+  }
+  
+  // Приводим все к одной единице измерения (wei)
+  const totalSupplyWei = parseFloat(selectedDle.value.totalSupply) * Math.pow(10, 18);
+  const forVotesWei = proposal.forVotes || 0;
+  const againstVotesWei = proposal.againstVotes || 0;
+  const totalVotesWei = forVotesWei + againstVotesWei;
+  
+  if (totalSupplyWei === 0) {
+    console.log('[Quorum] TotalSupply равен 0');
+    return 0;
+  }
+  
+  const percentage = (totalVotesWei / totalSupplyWei) * 100;
+  const roundedPercentage = Math.round(percentage * 100) / 100;
+  console.log('[Quorum] Расчет процента:', { 
+    totalSupplyWei, 
+    forVotesWei, 
+    againstVotesWei, 
+    totalVotesWei, 
+    percentage, 
+    roundedPercentage 
+  });
+  return roundedPercentage; // Округляем до 2 знаков
+}
+
+function getQuorumProgress(proposal) {
+  const percentage = getQuorumPercentage(proposal);
+  const requiredQuorum = getRequiredQuorum();
+  const progress = Math.min((percentage / requiredQuorum) * 100, 100);
+  console.log('[Quorum] Прогресс кворума:', { percentage, requiredQuorum, progress });
+  return progress;
+}
+
+function getRequiredQuorum() {
+  const quorum = selectedDle.value?.quorumPercentage || 51;
+  console.log('[Quorum] Требуемый кворум из DLE:', quorum, 'DLE данные:', selectedDle.value);
+  return quorum; // По умолчанию 51% если данные не загружены
+}
+
+function formatVotes(votes) {
+  if (!votes || votes === 0) return '0';
+  
+  // Конвертируем из wei в токены
+  const tokens = votes / Math.pow(10, 18);
+  return tokens.toFixed(2);
+}
+
+function getOperationDetails(operation, proposal) {
+  if (!operation || operation === '0x') return null;
+  
+  const selector = operation.slice(0, 10);
+  const data = operation.slice(10);
+  
+  try {
+    switch (selector) {
+      case '0xa9059cbb': // transfer(address,uint256)
+        if (data.length >= 128) {
+          const to = '0x' + data.slice(24, 64);
+          const amount = parseInt(data.slice(64, 128), 16);
+          return `Передать ${amount} токенов на адрес ${shortenAddress(to)}`;
+        }
+        break;
+        
+      case '0x40c10f19': // mint(address,uint256)
+        if (data.length >= 128) {
+          const to = '0x' + data.slice(24, 64);
+          const amount = parseInt(data.slice(64, 128), 16);
+          return `Создать ${amount} токенов для адреса ${shortenAddress(to)}`;
+        }
+        break;
+        
+      case '0x42966c68': // burn(address,uint256) или burn(uint256)
+        if (data.length >= 128) {
+          // Новый формат: burn(address,uint256) - адрес указан в операции
+          const from = '0x' + data.slice(24, 64);
+          const amount = parseInt(data.slice(64, 128), 16);
+          return `Сжечь ${amount} токенов с адреса ${shortenAddress(from)}`;
+        } else if (data.length >= 64) {
+          // Старый формат: burn(uint256) - сжигает с адреса создателя предложения
+          const amount = parseInt(data.slice(0, 64), 16);
+          const burnerAddress = proposal.initiator || 'неизвестный адрес';
+          return `Сжечь ${amount} токенов с адреса создателя ${shortenAddress(burnerAddress)}`;
+        }
+        break;
+    }
+  } catch (error) {
+    console.error('Ошибка декодирования операции:', error);
+  }
+  
+  return null;
+}
+
+function canSign(proposal) {
+  return proposal.status === 'active' && !hasSigned(proposal.id);
 }
 
 function canExecute(proposal) {
   return proposal.status === 'succeeded' && !proposal.executed;
 }
 
-function hasVoted(proposalId, support = null) {
-  // Здесь должна быть проверка голосования пользователя
+function hasSigned(proposalId) {
+  // Здесь должна быть проверка подписи пользователя
+  // Пока возвращаем false, так как нет API для проверки
   return false;
 }
 
+function canVoteAgainst(proposal) {
+  return proposal.status === 'active' && !hasVotedAgainst(proposal.id);
+}
+
+function hasVotedAgainst(proposalId) {
+  // Здесь должна быть проверка голосования "против" пользователя
+  // Пока возвращаем false, так как нет API для проверки
+  return false;
+}
+
+// Проверяем, голосовал ли пользователь за предложение
+function hasVotedFor(proposalId) {
+  // Здесь должна быть проверка голосования "за" пользователя
+  // Пока возвращаем false, так как нет API для проверки
+  return false;
+}
+
+
+
+
+
 // Создание предложения
 async function createProposal() {
+  // Проверка авторизации для создания предложений
+  if (!props.isAuthenticated) {
+    alert('❌ Для создания предложений необходимо авторизоваться в приложении');
+    return;
+  }
+
   if (!isFormValid.value) {
     alert('Пожалуйста, заполните все обязательные поля');
     return;
@@ -551,27 +803,44 @@ async function createProposal() {
     // Подготовка данных для смарт-контракта
     const operation = encodeOperation();
     
-    // Вызов смарт-контракта
-    const tx = await props.dleContract.createProposal(
-      newProposal.value.description,
-      newProposal.value.duration * 24 * 60 * 60, // конвертируем в секунды
-      operation,
-      newProposal.value.governanceChainId
-    );
+    // Создаем предложение через API
+    const result = await createProposalAPI(dleAddress.value, {
+      description: newProposal.value.description,
+      duration: newProposal.value.duration * 24 * 60 * 60, // конвертируем в секунды
+      operation: operation,
+      governanceChainId: newProposal.value.governanceChainId
+    });
     
-    await tx.wait();
+    console.log('Предложение создано:', result);
+    
+    // Отправляем WebSocket уведомление
+    wsClient.send('proposal_created', {
+      dleAddress: dleAddress.value,
+      proposalId: result.proposalId,
+      txHash: result.txHash
+    });
+    
+    // Ждем немного, чтобы блокчейн обработал транзакцию
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     // Обновляем список предложений
-    await loadProposals();
+    await loadDleData();
+    
+    // Отправляем WebSocket уведомление о новом предложении
+    wsClient.send('proposal_created', {
+      dleAddress: dleAddress.value,
+      proposalId: result.proposalId,
+      txHash: result.txHash
+    });
     
     // Сбрасываем форму
     resetForm();
-    showCreateForm.value = false;
+    // showCreateForm.value = false; // Больше не нужно
     
     alert('✅ Предложение успешно создано!');
     
   } catch (error) {
-          // console.error('Ошибка при создании предложения:', error);
+    console.error('Ошибка при создании предложения:', error);
     alert('❌ Ошибка при создании предложения: ' + error.message);
   } finally {
     isCreating.value = false;
@@ -596,69 +865,124 @@ function encodeOperation() {
 }
 
 function encodeTransferOperation(to, amount) {
-  // Кодируем операцию передачи токенов
-  const abiCoder = new ethers.AbiCoder();
+  // Кодировка операции передачи токенов ERC20
   const selector = '0xa9059cbb'; // transfer(address,uint256)
-  const data = abiCoder.encode(['address', 'uint256'], [to, amount]);
-  return selector + data.slice(2);
+  const paddedAddress = to.slice(2).padStart(64, '0');
+  const paddedAmount = BigInt(amount).toString(16).padStart(64, '0');
+  return selector + paddedAddress + paddedAmount;
 }
 
 function encodeMintOperation(to, amount) {
-  // Кодируем операцию минтинга токенов
-  const abiCoder = new ethers.AbiCoder();
+  // Кодировка операции минтинга токенов
   const selector = '0x40c10f19'; // mint(address,uint256)
-  const data = abiCoder.encode(['address', 'uint256'], [to, amount]);
-  return selector + data.slice(2);
+  const paddedAddress = to.slice(2).padStart(64, '0');
+  const paddedAmount = BigInt(amount).toString(16).padStart(64, '0');
+  return selector + paddedAddress + paddedAmount;
 }
 
 function encodeBurnOperation(from, amount) {
-  // Кодируем операцию сжигания токенов
-  const abiCoder = new ethers.AbiCoder();
-  const selector = '0x42966c68'; // burn(uint256)
-  const data = abiCoder.encode(['uint256'], [amount]);
-  return selector + data.slice(2);
+  // Кодировка операции сжигания токенов
+  const selector = '0x42966c68'; // burn(address,uint256)
+  const paddedAddress = from.slice(2).padStart(64, '0');
+  const paddedAmount = BigInt(amount).toString(16).padStart(64, '0');
+  return selector + paddedAddress + paddedAmount;
 }
 
-// Голосование
-async function voteForProposal(proposalId, support) {
+// Подпись предложения
+async function signProposalLocal(proposalId) {
+  // Проверка прав админа для голосования
+  if (!props.isAuthenticated) {
+    alert('❌ Для участия в голосовании необходимо авторизоваться в приложении');
+    return;
+  }
+  
+  // Дополнительная проверка на права админа (можно расширить логику)
+  if (!hasAdminRights()) {
+    alert('❌ Для участия в голосовании необходимы права администратора');
+    return;
+  }
+
   try {
-    const tx = await props.dleContract.vote(proposalId, support);
-    await tx.wait();
+    console.log('[Debug] Попытка подписи для предложения:', proposalId);
+    console.log('[Debug] Адрес кошелька:', address.value);
     
-    await loadProposals();
-    alert('✅ Ваш голос учтен!');
+    await voteForProposalAPI(dleAddress.value, proposalId, true); // Подпись = голос "за"
+    
+    await loadDleData();
+    alert('✅ Предложение подписано!');
     
   } catch (error) {
-          // console.error('Ошибка при голосовании:', error);
-    alert('❌ Ошибка при голосовании: ' + error.message);
+    console.error('Ошибка при подписании:', error);
+    
+    if (error.message.includes('Already voted')) {
+      alert('⚠️ Ошибка: Вы уже голосовали за это предложение!\n\nВаш адрес: ' + address.value + '\n\nВозможные причины:\n• Вы уже голосовали с этим кошельком\n• Вы голосовали с другим кошельком ранее\n\nКаждый адрес может голосовать только один раз за предложение.');
+    } else {
+      alert('❌ Ошибка при подписании: ' + error.message);
+    }
+  }
+}
+
+// Отмена подписи (голос "против")
+async function cancelSignatureLocal(proposalId) {
+  // Проверка прав админа для голосования
+  if (!props.isAuthenticated) {
+    alert('❌ Для участия в голосовании необходимо авторизоваться в приложении');
+    return;
+  }
+  
+  // Дополнительная проверка на права админа
+  if (!hasAdminRights()) {
+    alert('❌ Для участия в голосовании необходимы права администратора');
+    return;
+  }
+
+  try {
+    console.log('[Debug] Попытка голосования "против" для предложения:', proposalId);
+    console.log('[Debug] Адрес кошелька:', address.value);
+    
+    await voteForProposalAPI(dleAddress.value, proposalId, false); // Голос "против"
+    
+    await loadDleData();
+    alert('✅ Ваш голос "против" учтен!');
+    
+  } catch (error) {
+    console.error('Ошибка при голосовании "против":', error);
+    
+    if (error.message.includes('Already voted')) {
+      alert('⚠️ Ошибка: Вы уже голосовали за это предложение!\n\nВаш адрес: ' + address.value + '\n\nВозможные причины:\n• Вы уже голосовали с этим кошельком\n• Вы голосовали с другим кошельком ранее\n\nКаждый адрес может голосовать только один раз за предложение.');
+    } else {
+      alert('❌ Ошибка при голосовании "против": ' + error.message);
+    }
   }
 }
 
 // Исполнение предложения
-async function executeProposal(proposalId) {
+async function executeProposalLocal(proposalId) {
+  // Проверка прав админа для исполнения
+  if (!props.isAuthenticated) {
+    alert('❌ Для исполнения предложений необходимо авторизоваться в приложении');
+    return;
+  }
+  
+  // Дополнительная проверка на права админа
+  if (!hasAdminRights()) {
+    alert('❌ Для исполнения предложений необходимы права администратора');
+    return;
+  }
+
   try {
-    const tx = await props.dleContract.executeProposal(proposalId);
-    await tx.wait();
+    await executeProposalAPI(dleAddress.value, proposalId);
     
-    await loadProposals();
+    await loadDleData();
     alert('✅ Предложение успешно исполнено!');
     
   } catch (error) {
-          // console.error('Ошибка при исполнении предложения:', error);
+    console.error('Ошибка при исполнении предложения:', error);
     alert('❌ Ошибка при исполнении предложения: ' + error.message);
   }
 }
 
-// Загрузка предложений
-async function loadProposals() {
-  try {
-    // Здесь должен быть вызов API или смарт-контракта для загрузки предложений
-    // Пока используем заглушку
-    proposals.value = [];
-  } catch (error) {
-          // console.error('Ошибка при загрузке предложений:', error);
-  }
-}
+
 
 function resetForm() {
   newProposal.value = {
@@ -675,10 +999,48 @@ function resetForm() {
   };
 }
 
-function viewProposalDetails(proposalId) {
-  // Открыть модальное окно с деталями предложения
-      // console.log('Просмотр деталей предложения:', proposalId);
+// Проверка прав администратора
+function hasAdminRights() {
+  console.log('[hasAdminRights] Проверка прав администратора');
+  
+  // Используем данные из useAuthContext напрямую
+const isAuth = isAuthenticated.value;
+const tokenBalancesData = tokenBalances.value;
+  
+  console.log('[hasAdminRights] isAuthenticated:', isAuth);
+  console.log('[hasAdminRights] tokenBalances:', tokenBalancesData);
+  
+  // Базовая проверка - пользователь должен быть авторизован
+  if (!isAuth) {
+    console.log('[hasAdminRights] Пользователь не авторизован');
+    return false;
+  }
+  
+    // Проверяем, есть ли у пользователя админ токены
+  if (tokenBalancesData && Array.isArray(tokenBalancesData)) {
+    const balances = tokenBalancesData;
+    console.log('[hasAdminRights] Балансы токенов:', balances);
+    
+    // Проверяем, есть ли хотя бы один токен с достаточным балансом
+    for (const balance of balances) {
+      console.log('[hasAdminRights] Проверяем баланс:', balance);
+      // Проверяем баланс напрямую, так как структура данных может отличаться
+      const balanceValue = parseFloat(balance.balance || '0');
+      const minBalance = parseFloat(balance.minBalance || '0');
+      
+      if (balanceValue >= minBalance) {
+        console.log('[hasAdminRights] Найден токен с достаточным балансом:', balance);
+        return true;
+      }
+    }
+  }
+  
+  console.log('[hasAdminRights] Нет админ токенов, доступ запрещен');
+  // Если нет админ токенов, возвращаем false
+  return false;
 }
+
+
 
 // Отслеживаем изменения в адресе DLE
 watch(dleAddress, (newAddress) => {
@@ -687,9 +1049,46 @@ watch(dleAddress, (newAddress) => {
   }
 }, { immediate: true });
 
-onMounted(() => {
-  // Загрузка предложений
-  loadProposals();
+onMounted(async () => {
+  // Принудительно загружаем токены, если пользователь аутентифицирован
+  if (isAuthenticated.value && address.value) {
+    console.log('[DleProposalsView] Принудительная загрузка токенов для адреса:', address.value);
+    await checkTokenBalances(address.value);
+  }
+  
+  // Загрузка данных DLE
+  if (dleAddress.value) {
+    loadDleData();
+  }
+  
+  // Подписываемся на WebSocket обновления
+  wsClient.on('proposal_created', (data) => {
+    console.log('[WebSocket] Получено уведомление о новом предложении:', data);
+    if (data.dleAddress === dleAddress.value) {
+      loadDleData(); // Обновляем список предложений
+    }
+  });
+  
+  wsClient.on('proposal_voted', (data) => {
+    console.log('[WebSocket] Получено уведомление о подписи:', data);
+    if (data.dleAddress === dleAddress.value) {
+      loadDleData(); // Обновляем список предложений
+    }
+  });
+  
+  wsClient.on('proposal_executed', (data) => {
+    console.log('[WebSocket] Получено уведомление об исполнении:', data);
+    if (data.dleAddress === dleAddress.value) {
+      loadDleData(); // Обновляем список предложений
+    }
+  });
+});
+
+onUnmounted(() => {
+  // Отписываемся от WebSocket обновлений
+  wsClient.off('proposal_created');
+  wsClient.off('proposal_voted');
+  wsClient.off('proposal_executed');
 });
 </script>
 
@@ -750,7 +1149,8 @@ onMounted(() => {
   background: #f8f9fa;
   border-radius: 8px;
   padding: 1.5rem;
-  margin-bottom: 2rem;
+  margin-top: 2rem;
+  border-top: 2px solid #e9ecef;
 }
 
 .form-header {
@@ -866,6 +1266,12 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
+.list-filters {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .proposals-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -889,6 +1295,22 @@ onMounted(() => {
 
 .proposal-card.defeated {
   border-color: #dc3545;
+}
+
+.auth-notice {
+  text-align: center;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.auth-notice-form {
+  margin-bottom: 1rem;
+}
+
+.auth-notice-form .alert {
+  margin-bottom: 0;
 }
 
 .proposal-header {
@@ -934,18 +1356,58 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
-.votes {
+.votes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.votes-info {
   display: flex;
   gap: 1rem;
+  align-items: center;
 }
 
-.votes .for {
+.votes-info .for {
   color: #28a745;
+  font-weight: 500;
 }
 
-.votes .against {
+.votes-info .against {
   color: #dc3545;
+  font-weight: 500;
 }
+
+.quorum-info {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.quorum-info .quorum-percentage {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.quorum-progress {
+  width: 100%;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  transition: width 0.3s ease;
+}
+
+
 
 .proposal-actions {
   display: flex;
@@ -963,5 +1425,37 @@ onMounted(() => {
   font-size: 0.9rem;
   color: #666;
   margin-bottom: 1rem;
+}
+
+/* Стили для валидации */
+.form-control.is-invalid {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+.form-text {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.operation {
+  font-family: monospace;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.operation-details {
+  font-size: 0.9em;
+  color: #28a745;
+  font-weight: 500;
 }
 </style> 

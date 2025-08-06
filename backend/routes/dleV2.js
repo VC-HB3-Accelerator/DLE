@@ -71,9 +71,9 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
 /**
  * @route   GET /api/dle-v2
  * @desc    Получить список всех DLE v2
- * @access  Private (только для авторизованных пользователей)
+ * @access  Public (доступно всем пользователям)
  */
-router.get('/', auth.requireAuth, async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const dles = dleV2Service.getAllDLEs();
     

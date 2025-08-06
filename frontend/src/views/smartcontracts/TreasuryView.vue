@@ -270,49 +270,8 @@ const dailyChange = ref(25000);
 const assetsCount = ref(5);
 const yieldPercentage = ref(8.5);
 
-// Активы (временные данные)
-const assets = ref([
-  {
-    id: 'eth',
-    name: 'Ethereum',
-    symbol: 'ETH',
-    balance: 125.5,
-    value: 450000,
-    change: 2.5
-  },
-  {
-    id: 'usdc',
-    name: 'USD Coin',
-    symbol: 'USDC',
-    balance: 500000,
-    value: 500000,
-    change: 0.1
-  },
-  {
-    id: 'btc',
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    balance: 2.5,
-    value: 150000,
-    change: -1.2
-  },
-  {
-    id: 'matic',
-    name: 'Polygon',
-    symbol: 'MATIC',
-    balance: 50000,
-    value: 75000,
-    change: 5.8
-  },
-  {
-    id: 'link',
-    name: 'Chainlink',
-    symbol: 'LINK',
-    balance: 2500,
-    value: 75000,
-    change: 3.2
-  }
-]);
+// Активы (загружаются из блокчейна)
+const assets = ref([]);
 
 // Вкладки операций
 const operationTabs = ref([
@@ -335,32 +294,8 @@ const withdrawData = ref({
   reason: ''
 });
 
-// История операций (временные данные)
-const operationsHistory = ref([
-  {
-    id: 1,
-    type: 'deposit',
-    asset: 'Ethereum',
-    symbol: 'ETH',
-    amount: 10.5,
-    value: 37500,
-    reason: 'Пополнение казны от доходов',
-    timestamp: Date.now() - 3600000,
-    status: 'completed'
-  },
-  {
-    id: 2,
-    type: 'withdraw',
-    asset: 'USD Coin',
-    symbol: 'USDC',
-    amount: 25000,
-    value: 25000,
-    reason: 'Выплата партнерам',
-    recipient: '0x1234567890123456789012345678901234567890',
-    timestamp: Date.now() - 7200000,
-    status: 'completed'
-  }
-]);
+// История операций (загружается из блокчейна)
+const operationsHistory = ref([]);
 
 // Методы
 const depositAsset = (asset) => {

@@ -123,10 +123,17 @@ async function removeToken(index) {
   const token = props.authTokens[index];
   if (!token) return;
   if (!confirm(`Удалить токен ${token.name} (${token.address})?`)) return;
+  
+  console.log('[AuthTokensSettings] Удаление токена:', token);
+  console.log('[AuthTokensSettings] URL:', `/settings/auth-token/${token.address}/${token.network}`);
+  
   try {
-    await api.delete(`/api/settings/auth-token/${token.address}/${token.network}`);
+    const response = await api.delete(`/settings/auth-token/${token.address}/${token.network}`);
+    console.log('[AuthTokensSettings] Успешное удаление:', response.data);
     emit('update');
   } catch (e) {
+    console.error('[AuthTokensSettings] Ошибка при удалении токена:', e);
+    console.error('[AuthTokensSettings] Response:', e.response);
     alert('Ошибка при удалении токена: ' + (e.response?.data?.error || e.message));
   }
 }

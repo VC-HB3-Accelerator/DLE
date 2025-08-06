@@ -351,14 +351,8 @@ const networkSettings = ref({
   rpcEndpoint: 'https://mainnet.infura.io/v3/YOUR_PROJECT_ID'
 });
 
-// Доступные сети
-const availableNetworks = ref([
-  { id: 1, name: 'Ethereum Mainnet', chainId: 1 },
-  { id: 137, name: 'Polygon', chainId: 137 },
-  { id: 56, name: 'BSC', chainId: 56 },
-  { id: 42161, name: 'Arbitrum', chainId: 42161 },
-  { id: 10, name: 'Optimism', chainId: 10 }
-]);
+// Доступные сети (загружаются из конфигурации)
+const availableNetworks = ref([]);
 
 // Методы
 const saveMainSettings = async () => {

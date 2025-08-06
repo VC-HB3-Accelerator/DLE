@@ -890,6 +890,7 @@ class AuthService {
         tokenName: token.name,
         symbol: token.symbol || '',
         balance,
+        minBalance: token.min_balance,
       });
     }
     return results;

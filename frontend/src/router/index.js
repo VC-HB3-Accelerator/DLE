@@ -200,74 +200,63 @@ const routes = [
   {
     path: '/management',
     name: 'management',
-    component: () => import('../views/ManagementView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/ManagementView.vue')
   },
   {
     path: '/management/dle',
     name: 'management-dle',
-    component: () => import('../views/smartcontracts/DleModulesView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/DleModulesView.vue')
   },
   {
     path: '/management/dle-management',
     name: 'management-dle-management',
-    component: () => import('../views/smartcontracts/DleModulesView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/DleModulesView.vue')
   },
   {
     path: '/management/proposals',
     name: 'management-proposals',
-    component: () => import('../views/smartcontracts/DleProposalsView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/DleProposalsView.vue')
   },
   {
     path: '/management/tokens',
     name: 'management-tokens',
-    component: () => import('../views/smartcontracts/TokensView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/TokensView.vue')
   },
   {
     path: '/management/quorum',
     name: 'management-quorum',
-    component: () => import('../views/smartcontracts/QuorumView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/QuorumView.vue')
   },
   {
     path: '/management/modules',
     name: 'management-modules',
-    component: () => import('../views/smartcontracts/DleModulesView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/DleModulesView.vue')
   },
-  {
-    path: '/management/multisig',
-    name: 'management-multisig',
-    component: () => import('../views/smartcontracts/DleMultisigView.vue'),
-    meta: { requiresAuth: true }
-  },
+  // {
+  //   path: '/management/multisig',
+  //   name: 'management-multisig',
+  //   component: () => import('../views/smartcontracts/DleMultisigView.vue'),
+  //   meta: { requiresAuth: true }
+  // },
   {
     path: '/management/treasury',
     name: 'management-treasury',
-    component: () => import('../views/smartcontracts/TreasuryView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/TreasuryView.vue')
   },
   {
     path: '/management/analytics',
     name: 'management-analytics',
-    component: () => import('../views/smartcontracts/AnalyticsView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/AnalyticsView.vue')
   },
   {
     path: '/management/history',
     name: 'management-history',
-    component: () => import('../views/smartcontracts/HistoryView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/HistoryView.vue')
   },
   {
     path: '/management/settings',
     name: 'management-settings',
-    component: () => import('../views/smartcontracts/SettingsView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('../views/smartcontracts/SettingsView.vue')
   },
 ];
 
@@ -292,10 +281,12 @@ router.beforeEach(async (to, from, next) => {
       if (response.data.authenticated) {
         next();
       } else {
-        next('/login');
+        // Перенаправляем на главную страницу, где есть форма аутентификации
+        next({ name: 'home' });
       }
     } catch (error) {
-      next('/login');
+      // При ошибке также перенаправляем на главную
+      next({ name: 'home' });
     }
   } else {
     next();

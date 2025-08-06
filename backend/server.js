@@ -62,6 +62,8 @@ async function initServices() {
 const server = http.createServer(app);
 initWSS(server);
 
+// WebSocket уже инициализирован в wsHub.js
+
 async function startServer() {
   await initDbPool(); // Дождаться пересоздания пула!
   await seedAIAssistantSettings(); // Инициализация ассистента после загрузки модели Ollama

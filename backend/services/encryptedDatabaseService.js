@@ -323,48 +323,73 @@ class EncryptedDataService {
    */
   async deleteData(tableName, conditions) {
     try {
+      console.log(`[EncryptedDataService] deleteData: tableName=${tableName}, conditions=`, conditions);
+      
+      // Проверяем, включено ли шифрование
+      if (!this.isEncryptionEnabled) {
+        return await this.executeUnencryptedQuery(tableName, conditions);
+      }
+
+      // Получаем информацию о колонках
+      const { rows: columns } = await db.getQuery()(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = $1 
+        AND table_schema = 'public'
+        ORDER BY ordinal_position
+      `, [tableName]);
+
+      console.log(`[EncryptedDataService] Columns for ${tableName}:`, columns.map(c => c.column_name));
+
       // Функция для заключения зарезервированных слов в кавычки
       const quoteReservedWord = (word) => {
         const reservedWords = ['order', 'group', 'user', 'index', 'table', 'column', 'key', 'foreign', 'primary', 'unique', 'check', 'constraint', 'default', 'null', 'not', 'and', 'or', 'as', 'on', 'in', 'is', 'like', 'between', 'exists', 'all', 'any', 'some', 'distinct', 'case', 'when', 'then', 'else', 'end', 'limit', 'offset', 'having', 'union', 'intersect', 'except', 'with', 'recursive'];
         return reservedWords.includes(word.toLowerCase()) ? `"${word}"` : word;
       };
 
-      // Проверяем, включено ли шифрование
-      if (!this.isEncryptionEnabled) {
-        let query = `DELETE FROM ${tableName}`;
-        const params = [];
-        let paramIndex = 1;
-
-        if (Object.keys(conditions).length > 0) {
-          const whereClause = Object.keys(conditions)
-            .map(key => `${quoteReservedWord(key)} = $${paramIndex++}`)
-            .join(' AND ');
-          query += ` WHERE ${whereClause}`;
-          params.push(...Object.values(conditions));
-        }
-
-        const { rows } = await db.getQuery()(query, params);
-        return rows;
-      }
-
-      // Для зашифрованных таблиц - пока используем обычный DELETE
-      // TODO: Добавить логику для зашифрованных условий WHERE
       let query = `DELETE FROM ${tableName}`;
       const params = [];
       let paramIndex = 1;
 
       if (Object.keys(conditions).length > 0) {
         const whereClause = Object.keys(conditions)
-          .map(key => `${quoteReservedWord(key)} = $${paramIndex++}`)
+          .map((key, index) => {
+            const value = conditions[key];
+            
+            // Проверяем, есть ли зашифрованная версия колонки
+            const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
+            
+            if (encryptedColumn) {
+              // Для зашифрованных колонок используем прямое сравнение с зашифрованным значением
+              // Ключ шифрования всегда первый параметр ($1), затем значения
+              return `${key}_encrypted = encrypt_text($${index + 2}, $1)`;
+            } else {
+              // Для незашифрованных колонок используем обычное сравнение
+              const columnName = quoteReservedWord(key);
+              return `${columnName} = $${index + 1}`;
+            }
+          })
           .join(' AND ');
         query += ` WHERE ${whereClause}`;
-        params.push(...Object.values(conditions));
+        
+        // Добавляем параметры
+        const paramsToAdd = Object.values(conditions);
+        params.push(...paramsToAdd);
       }
+
+      // Добавляем ключ шифрования в начало, если есть зашифрованные поля
+      const hasEncryptedFields = columns.some(col => col.column_name.endsWith('_encrypted'));
+      if (hasEncryptedFields) {
+        params.unshift(this.encryptionKey);
+      }
+
+      console.log(`[EncryptedDataService] DELETE query: ${query}`);
+      console.log(`[EncryptedDataService] DELETE params:`, params);
 
       const result = await db.getQuery()(query, params);
       return result.rows;
     } catch (error) {
-      // console.error(`❌ Ошибка удаления данных из ${tableName}:`, error);
+      console.error(`[EncryptedDataService] ❌ Ошибка удаления данных из ${tableName}:`, error);
       throw error;
     }
   }

@@ -934,12 +934,12 @@ router.get('/check-tokens/:address', async (req, res) => {
   try {
     const { address } = req.params;
 
-    // Получаем балансы токенов на всех сетях
-    const balances = await authService.getTokenBalances(address);
+    // Получаем балансы токенов с минимальными балансами
+    const balances = await authService.getUserTokenBalances(address);
 
     res.json({
       success: true,
-      balances,
+      data: balances,
     });
   } catch (error) {
     logger.error('Error checking token balances:', error);
