@@ -35,6 +35,7 @@
   import { useAuth, provideAuth } from './composables/useAuth';
   import { fetchTokenBalances } from './services/tokens';
   import eventBus from './utils/eventBus';
+  import wsClient from './utils/websocket';
   
   // Импорт стилей
   import './assets/styles/variables.css';
@@ -158,6 +159,28 @@
     // Подписываемся на событие изменения настроек аутентификации
     const unsubscribe = eventBus.on('auth-settings-saved', () => {
       // console.log('[App] Получено событие сохранения настроек аутентификации, обновляем балансы');
+      if (auth.isAuthenticated.value) {
+        refreshTokenBalances();
+      }
+    });
+    
+    // Подписываемся на WebSocket события для токенов
+    wsClient.onAuthTokenAdded(() => {
+      console.log('[App] WebSocket: токен добавлен, обновляем балансы');
+      if (auth.isAuthenticated.value) {
+        refreshTokenBalances();
+      }
+    });
+    
+    wsClient.onAuthTokenDeleted(() => {
+      console.log('[App] WebSocket: токен удален, обновляем балансы');
+      if (auth.isAuthenticated.value) {
+        refreshTokenBalances();
+      }
+    });
+    
+    wsClient.onAuthTokenUpdated(() => {
+      console.log('[App] WebSocket: токен обновлен, обновляем балансы');
       if (auth.isAuthenticated.value) {
         refreshTokenBalances();
       }

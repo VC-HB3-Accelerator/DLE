@@ -313,23 +313,36 @@ class EmailBotService {
         return;
       }
       
-      // Проверяем, не обрабатывали ли мы уже это письмо
-      if (messageId) {
-        const existingMessage = await encryptedDb.getData('messages', {
-          metadata: { $like: `%"messageId":"${messageId}"%` }
-        }, 1);
-        
-        if (existingMessage.length > 0) {
-          logger.info(`[EmailBot] Письмо с Message-ID ${messageId} уже обработано, пропускаем`);
-          return;
-        }
-      }
-      
       // 1. Найти или создать пользователя
       const { userId, role } = await identityService.findOrCreateUserWithRole('email', fromEmail);
       if (await isUserBlocked(userId)) {
         logger.info(`Email от заблокированного пользователя ${userId} проигнорирован.`);
         return;
+      }
+      
+      // Проверяем, не обрабатывали ли мы уже это письмо
+      if (messageId) {
+        // Проверка дубликатов на основе Message-ID
+        try {
+          const existingMessage = await encryptedDb.getData(
+            'messages',
+            {
+              user_id: userId,
+              channel: 'email',
+              direction: 'in',
+              message_id: messageId
+            },
+            1
+          );
+          
+          if (existingMessage.length > 0) {
+            logger.info(`[EmailBot] Игнорируем дубликат письма от ${fromEmail} (Message-ID: ${messageId})`);
+            return;
+          }
+        } catch (error) {
+          logger.error(`[EmailBot] Ошибка при проверке дубликатов: ${error.message}`);
+          // Продолжаем обработку в случае ошибки
+        }
       }
       
       // 1.1 Найти или создать беседу
@@ -376,13 +389,7 @@ class EmailBotService {
               attachment_mimetype: att.contentType,
               attachment_size: att.size,
               attachment_data: att.content,
-              metadata: JSON.stringify({ 
-                subject, 
-                html, 
-                messageId: messageId,
-                uid: uid,
-                fromEmail: fromEmail
-              })
+              message_id: messageId // Сохраняем Message-ID для дедупликации (будет зашифрован в message_id_encrypted)
             }
           );
         }
@@ -398,13 +405,7 @@ class EmailBotService {
             role: role,
             direction: 'in',
             created_at: new Date(),
-            metadata: JSON.stringify({ 
-              subject, 
-              html, 
-              messageId: messageId,
-              uid: uid,
-              fromEmail: fromEmail
-            })
+            message_id: messageId // Сохраняем Message-ID для дедупликации (будет зашифрован в message_id_encrypted)
           }
         );
       }
@@ -421,7 +422,7 @@ class EmailBotService {
       if (ragTableId) {
         // Сначала ищем ответ через RAG
         const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: text });
-        if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.3) {
+        if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.1) {
           aiResponse = ragResult.answer;
         } else {
           aiResponse = await generateLLMResponse({

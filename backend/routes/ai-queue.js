@@ -49,7 +49,6 @@ router.post('/task', requireAuth, async (req, res) => {
 
     const taskData = {
       message,
-      language: language || 'auto',
       history: history || null,
       systemPrompt: systemPrompt || '',
       rules: rules || null,

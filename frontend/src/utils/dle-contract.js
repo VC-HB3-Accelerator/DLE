@@ -205,51 +205,63 @@ export async function executeProposal(dleAddress, proposalId) {
 }
 
 /**
- * Добавить модуль
+ * Создать предложение о добавлении модуля
  * @param {string} dleAddress - Адрес DLE контракта
+ * @param {string} description - Описание предложения
+ * @param {number} duration - Длительность голосования в секундах
  * @param {string} moduleId - ID модуля
  * @param {string} moduleAddress - Адрес модуля
- * @returns {Promise<Object>} - Результат добавления
+ * @param {number} chainId - ID цепочки для голосования
+ * @returns {Promise<Object>} - Результат создания предложения
  */
-export async function addModule(dleAddress, moduleId, moduleAddress) {
+export async function createAddModuleProposal(dleAddress, description, duration, moduleId, moduleAddress, chainId) {
   try {
-    const response = await axios.post('/blockchain/add-module', {
+    const response = await axios.post('/blockchain/create-add-module-proposal', {
       dleAddress: dleAddress,
+      description: description,
+      duration: duration,
       moduleId: moduleId,
-      moduleAddress: moduleAddress
+      moduleAddress: moduleAddress,
+      chainId: chainId
     });
     
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.message || 'Не удалось добавить модуль');
+      throw new Error(response.data.message || 'Не удалось создать предложение о добавлении модуля');
     }
   } catch (error) {
-    console.error('Ошибка добавления модуля:', error);
+    console.error('Ошибка создания предложения о добавлении модуля:', error);
     throw error;
   }
 }
 
 /**
- * Удалить модуль
+ * Создать предложение об удалении модуля
  * @param {string} dleAddress - Адрес DLE контракта
+ * @param {string} description - Описание предложения
+ * @param {number} duration - Длительность голосования в секундах
  * @param {string} moduleId - ID модуля
- * @returns {Promise<Object>} - Результат удаления
+ * @param {number} chainId - ID цепочки для голосования
+ * @returns {Promise<Object>} - Результат создания предложения
  */
-export async function removeModule(dleAddress, moduleId) {
+export async function createRemoveModuleProposal(dleAddress, description, duration, moduleId, chainId) {
   try {
-    const response = await axios.post('/blockchain/remove-module', {
+    const response = await axios.post('/blockchain/create-remove-module-proposal', {
       dleAddress: dleAddress,
-      moduleId: moduleId
+      description: description,
+      duration: duration,
+      moduleId: moduleId,
+      chainId: chainId
     });
     
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.message || 'Не удалось удалить модуль');
+      throw new Error(response.data.message || 'Не удалось создать предложение об удалении модуля');
     }
   } catch (error) {
-    console.error('Ошибка удаления модуля:', error);
+    console.error('Ошибка создания предложения об удалении модуля:', error);
     throw error;
   }
 }
@@ -462,6 +474,241 @@ export async function getSupportedChains(dleAddress) {
   } catch (error) {
     console.error('Ошибка получения поддерживаемых цепочек:', error);
     // Возвращаем пустой массив если API недоступен
+    return [];
+  }
+}
+
+/**
+ * Деактивировать DLE (только при достижении кворума)
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {string} userAddress - Адрес пользователя
+ * @returns {Promise<Object>} - Результат деактивации
+ */
+export async function deactivateDLE(dleAddress, userAddress) {
+  try {
+    // Проверяем наличие браузерного кошелька
+    if (!window.ethereum) {
+      throw new Error('Браузерный кошелек не установлен');
+    }
+
+    // Запрашиваем подключение к кошельку
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    // Проверяем, что подключенный адрес совпадает с userAddress
+    const connectedAddress = await signer.getAddress();
+    if (connectedAddress.toLowerCase() !== userAddress.toLowerCase()) {
+      throw new Error('Подключенный кошелек не совпадает с адресом пользователя');
+    }
+
+    // ABI для деактивации DLE
+    const dleAbi = [
+      "function deactivate() external",
+      "function balanceOf(address) external view returns (uint256)",
+      "function totalSupply() external view returns (uint256)",
+      "function createDeactivationProposal(string memory _description, uint256 _duration, uint256 _chainId) external returns (uint256)",
+      "function voteDeactivation(uint256 _proposalId, bool _support) external",
+      "function checkDeactivationProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached)",
+      "function executeDeactivationProposal(uint256 _proposalId) external"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, signer);
+
+    // Проверяем, что пользователь имеет токены
+    const balance = await dle.balanceOf(userAddress);
+    if (balance <= 0) {
+      throw new Error('Для деактивации DLE необходимо иметь токены');
+    }
+
+    // Проверяем, что DLE не пустой (есть токены)
+    const totalSupply = await dle.totalSupply();
+    if (totalSupply <= 0) {
+      throw new Error('DLE не имеет токенов');
+    }
+
+    // Выполняем деактивацию (функция проверит наличие валидного предложения с кворумом)
+    const tx = await dle.deactivate();
+    const receipt = await tx.wait();
+
+    console.log('DLE деактивирован, tx hash:', tx.hash);
+
+    return {
+      success: true,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      message: 'DLE успешно деактивирован'
+    };
+
+  } catch (error) {
+    console.error('Ошибка деактивации DLE:', error);
+    throw error;
+  }
+}
+
+/**
+ * Создать предложение о деактивации DLE
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {string} description - Описание предложения
+ * @param {number} duration - Длительность голосования в секундах
+ * @param {number} chainId - ID цепочки для деактивации
+ * @returns {Promise<Object>} - Результат создания предложения
+ */
+export async function createDeactivationProposal(dleAddress, description, duration, chainId) {
+  try {
+    // Проверяем наличие браузерного кошелька
+    if (!window.ethereum) {
+      throw new Error('Браузерный кошелек не установлен');
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    const dleAbi = [
+      "function createDeactivationProposal(string memory _description, uint256 _duration, uint256 _chainId) external returns (uint256)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, signer);
+
+    const tx = await dle.createDeactivationProposal(description, duration, chainId);
+    const receipt = await tx.wait();
+
+    console.log('Предложение о деактивации создано, tx hash:', tx.hash);
+
+    return {
+      success: true,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      message: 'Предложение о деактивации создано'
+    };
+
+  } catch (error) {
+    console.error('Ошибка создания предложения о деактивации:', error);
+    throw error;
+  }
+}
+
+/**
+ * Голосовать за предложение деактивации
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {number} proposalId - ID предложения
+ * @param {boolean} support - Поддержка предложения
+ * @returns {Promise<Object>} - Результат голосования
+ */
+export async function voteDeactivationProposal(dleAddress, proposalId, support) {
+  try {
+    if (!window.ethereum) {
+      throw new Error('Браузерный кошелек не установлен');
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    const dleAbi = [
+      "function voteDeactivation(uint256 _proposalId, bool _support) external"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, signer);
+
+    const tx = await dle.voteDeactivation(proposalId, support);
+    const receipt = await tx.wait();
+
+    console.log('Голосование за предложение деактивации, tx hash:', tx.hash);
+
+    return {
+      success: true,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      message: `Голосование ${support ? 'за' : 'против'} предложения деактивации`
+    };
+
+  } catch (error) {
+    console.error('Ошибка голосования за предложение деактивации:', error);
+    throw error;
+  }
+}
+
+/**
+ * Проверить результат предложения деактивации
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {number} proposalId - ID предложения
+ * @returns {Promise<Object>} - Результат проверки
+ */
+export async function checkDeactivationProposalResult(dleAddress, proposalId) {
+  try {
+    const response = await axios.post('http://localhost:8000/api/blockchain/check-deactivation-proposal-result', {
+      dleAddress: dleAddress,
+      proposalId: proposalId
+    });
+    
+    if (response.data.success) {
+      return response.data.data;
+    } else {
+      throw new Error(response.data.message || 'Не удалось проверить результат предложения деактивации');
+    }
+  } catch (error) {
+    console.error('Ошибка проверки результата предложения деактивации:', error);
+    throw error;
+  }
+}
+
+/**
+ * Исполнить предложение деактивации
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {number} proposalId - ID предложения
+ * @returns {Promise<Object>} - Результат исполнения
+ */
+export async function executeDeactivationProposal(dleAddress, proposalId) {
+  try {
+    if (!window.ethereum) {
+      throw new Error('Браузерный кошелек не установлен');
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    const dleAbi = [
+      "function executeDeactivationProposal(uint256 _proposalId) external"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, signer);
+
+    const tx = await dle.executeDeactivationProposal(proposalId);
+    const receipt = await tx.wait();
+
+    console.log('Предложение деактивации исполнено, tx hash:', tx.hash);
+
+    return {
+      success: true,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      message: 'Предложение деактивации успешно исполнено'
+    };
+
+  } catch (error) {
+    console.error('Ошибка исполнения предложения деактивации:', error);
+    throw error;
+  }
+}
+
+/**
+ * Загрузить предложения деактивации
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @returns {Promise<Array>} - Список предложений деактивации
+ */
+export async function loadDeactivationProposals(dleAddress) {
+  try {
+    const response = await axios.post('http://localhost:8000/api/blockchain/load-deactivation-proposals', {
+      dleAddress: dleAddress
+    });
+    
+    if (response.data.success) {
+      return response.data.data.proposals;
+    } else {
+      throw new Error(response.data.message || 'Не удалось загрузить предложения деактивации');
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки предложений деактивации:', error);
     return [];
   }
 } 

@@ -171,12 +171,9 @@ async function processGuestMessages(userId, guestId) {
                 role: msg.sender_type === 'user' ? 'user' : 'assistant',
                 content: msg.content
               }));
-              // Язык guestMessage.language или auto
-              const detectedLanguage = guestMessage.language === 'auto' ? aiAssistant.detectLanguage(guestMessage.content) : guestMessage.language;
               logger.info('Getting AI response for guest message:', guestMessage.content);
               const aiResponseContent = await aiAssistant.getResponse(
                 guestMessage.content,
-                detectedLanguage,
                 history,
                 aiSettings ? aiSettings.system_prompt : '',
                 rules ? rules.rules : null
@@ -310,7 +307,7 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       [
         guestId,
         messageContent, // Текст сообщения или NULL
-        language || 'auto',
+        'ru', // Устанавливаем русский язык по умолчанию
         attachmentFilename,
         attachmentMimetype,
         attachmentSize,
@@ -511,7 +508,14 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         if (aiSettings && aiSettings.rules_id) {
           rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
         }
-        // --- RAG автоответ ---
+        // --- RAG автоответ с поддержкой беседы ---
+        // Пример работы:
+        // 1. Пользователь: "Как подключить кошелек?"
+        //    RAG: находит точный ответ → возвращает его
+        // 2. Пользователь: "А какие документы нужны?"
+        //    RAG: анализирует контекст предыдущего ответа → ищет информацию о документах
+        // 3. Пользователь: "Сколько это займет времени?"
+        //    RAG: использует полный контекст беседы → дает уточненный ответ
         let ragTableId = null;
         if (aiSettings && aiSettings.selected_rag_tables) {
           ragTableId = Array.isArray(aiSettings.selected_rag_tables)
@@ -520,11 +524,29 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         }
         let ragResult = null;
         if (ragTableId) {
-          const { ragAnswer, generateLLMResponse } = require('../services/ragService');
-          const threshold = 0.3;
-          logger.info(`[RAG] Запуск поиска по RAG: tableId=${ragTableId}, вопрос="${messageContent}", threshold=${threshold}`);
-          const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: messageContent, threshold });
+          const { ragAnswerWithConversation, generateLLMResponse } = require('../services/ragService');
+          const threshold = 200; // Увеличиваем threshold для более широкого поиска
+          
+          // Получаем историю беседы
+          const historyResult = await db.getQuery()(
+            'SELECT decrypt_text(sender_type_encrypted, $3) as sender_type, decrypt_text(content_encrypted, $3) as content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
+            [conversationId, userMessage.id, encryptionKey]
+          );
+          const history = historyResult.rows.reverse().map(msg => ({
+            role: msg.sender_type === 'user' ? 'user' : 'assistant',
+            content: msg.content
+          }));
+          
+          logger.info(`[RAG] Запуск поиска по RAG с беседой: tableId=${ragTableId}, вопрос="${messageContent}", threshold=${threshold}, historyLength=${history.length}`);
+          const ragResult = await ragAnswerWithConversation({ 
+            tableId: ragTableId, 
+            userQuestion: messageContent, 
+            threshold,
+            history,
+            conversationId
+          });
           logger.info(`[RAG] Результат поиска по RAG:`, ragResult);
+          logger.info(`[RAG] Score type: ${typeof ragResult.score}, value: ${ragResult.score}, threshold: ${threshold}, isFollowUp: ${ragResult.isFollowUp}`);
           if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= threshold) {
             logger.info(`[RAG] Найден confident-ответ (score=${ragResult.score}), отправляем ответ из базы.`);
             // Прямой ответ из RAG
@@ -542,15 +564,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
             broadcastChatMessage(aiMessage);
           } else if (ragResult) {
             logger.info(`[RAG] Нет confident-ответа (score=${ragResult.score}), переходим к генерации через LLM.`);
-            // Генерация через LLM с подстановкой значений из RAG
-            const historyResult = await db.getQuery()(
-              'SELECT decrypt_text(sender_type_encrypted, $3) as sender_type, decrypt_text(content_encrypted, $3) as content FROM messages WHERE conversation_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT 10',
-              [conversationId, userMessage.id, encryptionKey]
-            );
-            const history = historyResult.rows.reverse().map(msg => ({
-              role: msg.sender_type === 'user' ? 'user' : 'assistant',
-              content: msg.content
-            }));
+            // Генерация через LLM с подстановкой значений из RAG и историей беседы
             const llmResponse = await generateLLMResponse({
               userQuestion: messageContent,
               context: ragResult.context,
@@ -558,9 +572,8 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
               clarifyingAnswer: ragResult.clarifyingAnswer,
               objectionAnswer: ragResult.objectionAnswer,
               systemPrompt: aiSettings ? aiSettings.system_prompt : '',
-              history,
-              model: aiSettings ? aiSettings.model : undefined,
-              language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+              history: ragResult.conversationContext ? ragResult.conversationContext.conversationHistory : history,
+              model: aiSettings ? aiSettings.model : undefined
             });
             if (llmResponse) {
               aiMessage = await encryptedDb.saveData('messages', {
@@ -824,7 +837,6 @@ router.post('/message-queued', requireAuth, upload.array('attachments'), async (
         // Добавляем задачу в очередь
         const taskData = {
           message: messageContent,
-          language: language || 'auto',
           history: history,
           systemPrompt: aiSettings ? aiSettings.system_prompt : '',
           rules: rules,
@@ -927,7 +939,10 @@ router.get('/history', requireAuth, async (req, res) => {
       whereConditions.conversation_id = conversationId;
     }
 
-    const messages = await encryptedDb.getData('messages', whereConditions, limit, 'created_at ASC', offset);
+    // Изменяем логику: загружаем ПОСЛЕДНИЕ сообщения, а не с offset
+    const messages = await encryptedDb.getData('messages', whereConditions, limit, 'created_at DESC', 0);
+    // Переворачиваем массив для правильного порядка
+    messages.reverse();
 
     // Обрабатываем результаты для фронтенда
     const formattedMessages = messages.map(msg => {
@@ -1057,7 +1072,6 @@ router.post('/ai-draft', requireAuth, async (req, res) => {
       logger.info(`[RAG] [DRAFT] Результат поиска по RAG:`, ragResult);
     }
     const { generateLLMResponse } = require('../services/ragService');
-    const detectedLanguage = language === 'auto' ? aiAssistant.detectLanguage(promptText) : language;
     const aiResponseContent = await generateLLMResponse({
       userQuestion: promptText,
       context: ragResult && ragResult.context ? ragResult.context : '',
@@ -1065,7 +1079,6 @@ router.post('/ai-draft', requireAuth, async (req, res) => {
       systemPrompt: aiSettings ? aiSettings.system_prompt : '',
       history,
       model: aiSettings ? aiSettings.model : undefined,
-      language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru',
       rules: rules ? rules.rules : null
     });
     res.json({ success: true, aiMessage: aiResponseContent });

@@ -519,6 +519,20 @@ class AuthService {
       } else {
         // Если пользователь не является администратором, сбрасываем роль на "user", если она была "admin"
         try {
+          // Получаем ключ шифрования
+          const fs = require('fs');
+          const path = require('path');
+          let encryptionKey = 'default-key';
+          
+          try {
+            const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+            if (fs.existsSync(keyPath)) {
+              encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+            }
+          } catch (keyError) {
+            console.error('Error reading encryption key:', keyError);
+          }
+
           const userResult = await db.getQuery()(
             `
             SELECT u.id, u.role FROM users u 
@@ -541,6 +555,76 @@ class AuthService {
     } catch (error) {
       logger.error(`Error in checkAdminTokens: ${error.message}`);
       return false; // При любой ошибке считаем, что пользователь не админ
+    }
+  }
+
+  /**
+   * Перепроверяет админский статус ВСЕХ пользователей с кошельками
+   * @returns {Promise<void>}
+   */
+  async recheckAllUsersAdminStatus() {
+    logger.info('Starting recheck of admin status for all users with wallets');
+
+    try {
+      // Получаем ключ шифрования
+      const fs = require('fs');
+      const path = require('path');
+      let encryptionKey = 'default-key';
+      
+      try {
+        const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+        if (fs.existsSync(keyPath)) {
+          encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+        }
+      } catch (keyError) {
+        console.error('Error reading encryption key:', keyError);
+      }
+
+      // Получаем всех пользователей с кошельками
+      const usersResult = await db.getQuery()(
+        `
+        SELECT DISTINCT u.id, u.role, decrypt_text(ui.provider_id_encrypted, $1) as address
+        FROM users u 
+        JOIN user_identities ui ON u.id = ui.user_id 
+        WHERE ui.provider_encrypted = encrypt_text('wallet', $1)
+        `,
+        [encryptionKey]
+      );
+
+      logger.info(`Found ${usersResult.rows.length} users with wallets to recheck`);
+
+      // Перепроверяем каждого пользователя
+      for (const user of usersResult.rows) {
+        try {
+          const address = user.address;
+          const currentRole = user.role;
+          
+          logger.info(`Rechecking admin status for user ${user.id} with address ${address}`);
+          
+          // Проверяем баланс токенов
+          const isAdmin = await checkAdminRole(address);
+          
+          // Определяем новую роль
+          const newRole = isAdmin ? 'admin' : 'user';
+          
+          // Обновляем роль только если она изменилась
+          if (currentRole !== newRole) {
+            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, user.id]);
+            logger.info(`Updated user ${user.id} role from ${currentRole} to ${newRole} (address: ${address})`);
+          } else {
+            logger.info(`User ${user.id} role unchanged: ${currentRole} (address: ${address})`);
+          }
+          
+        } catch (userError) {
+          logger.error(`Error rechecking user ${user.id}: ${userError.message}`);
+          // Продолжаем с другими пользователями
+        }
+      }
+
+      logger.info('Completed recheck of admin status for all users');
+    } catch (error) {
+      logger.error(`Error in recheckAllUsersAdminStatus: ${error.message}`);
+      throw error;
     }
   }
 

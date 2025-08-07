@@ -19,46 +19,42 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="dle-proposals-management">
-    <div class="proposals-header">
-      <div class="header-info">
-        <h3>🗳️ Управление предложениями</h3>
-        <div v-if="selectedDle" class="dle-info">
-          <span class="dle-name">{{ selectedDle.name }} ({{ selectedDle.symbol }})</span>
-          <span class="dle-address">{{ shortenAddress(selectedDle.dleAddress) }}</span>
+      <!-- Заголовок в стиле настроек -->
+      <div class="page-header">
+        <div class="header-content">
+          <h1>Предложения DLE</h1>
+          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
+          <p v-else-if="isLoadingDle">Загрузка...</p>
+          <p v-else>DLE не выбран</p>
         </div>
-        <div v-else-if="isLoadingDle" class="loading-info">
-          <span>Загрузка данных DLE...</span>
+        <button class="close-btn" @click="router.push('/management')">×</button>
         </div>
-        <div v-else class="no-dle-info">
-          <span>DLE не выбран</span>
+
+      <!-- Фильтры и управление -->
+      <div class="controls-section">
+        <div class="controls-header">
+          <h3>Фильтры</h3>
+        </div>
+        <div class="controls-content">
+          <div class="filters-row">
+            <select v-model="statusFilter" class="form-control">
+              <option value="">Все статусы</option>
+              <option value="active">Активные</option>
+              <option value="pending">Ожидающие</option>
+              <option value="succeeded">Принятые</option>
+              <option value="defeated">Отклоненные</option>
+              <option value="executed">Выполненные</option>
+            </select>
+            <button 
+              class="btn btn-sm btn-outline-secondary" 
+              @click="loadDleData"
+              :disabled="isLoadingDle"
+            >
+              <i class="fas fa-sync-alt"></i> Обновить
+            </button>
+      </div>
         </div>
       </div>
-      
-
-    </div>
-
-    <!-- Список предложений -->
-    <div class="proposals-list">
-      <div class="list-header">
-        <h4>📋 Список предложений</h4>
-        <div class="list-filters">
-          <select v-model="statusFilter" class="form-control">
-            <option value="">Все статусы</option>
-            <option value="active">Активные</option>
-            <option value="pending">Ожидающие</option>
-            <option value="succeeded">Принятые</option>
-            <option value="defeated">Отклоненные</option>
-            <option value="executed">Выполненные</option>
-          </select>
-          <button 
-            class="btn btn-sm btn-outline-secondary" 
-            @click="loadDleData"
-            :disabled="isLoadingDle"
-          >
-            <i class="fas fa-sync-alt"></i> Обновить
-      </button>
-        </div>
-    </div>
 
       <div v-if="filteredProposals.length === 0" class="no-proposals">
         <p>Предложений пока нет</p>
@@ -133,7 +129,7 @@
               :disabled="hasSigned(proposal.id)"
             >
               <i class="fas fa-signature"></i> Подписать
-            </button>
+      </button>
             <button 
               v-if="canVoteAgainst(proposal) && props.isAuthenticated && hasAdminRights()"
               class="btn btn-sm btn-warning" 
@@ -162,7 +158,7 @@
                 <i class="fas fa-lock"></i> 
                 Для участия в голосовании необходимы права администратора
               </small>
-            </div>
+    </div>
 
           </div>
         </div>
@@ -255,6 +251,9 @@
                 <option value="transfer">Передача токенов</option>
                 <option value="mint">Минтинг токенов</option>
                 <option value="burn">Сжигание токенов</option>
+                <option value="updateDLEInfo">Обновить данные DLE</option>
+                <option value="updateQuorum">Изменить кворум</option>
+                <option value="updateChain">Изменить текущую цепочку</option>
                 <option value="custom">Пользовательская операция</option>
               </select>
             </div>
@@ -351,6 +350,111 @@
                 ></textarea>
               </div>
             </div>
+
+            <!-- Параметры для обновления данных DLE -->
+            <div v-if="newProposal.operationType === 'updateDLEInfo'" class="operation-params">
+              <div class="form-group">
+                <label for="dleName">Новое название DLE:</label>
+                <input 
+                  type="text" 
+                  id="dleName" 
+                  v-model="newProposal.operationParams.name" 
+                  class="form-control"
+                  placeholder="Новое название"
+                >
+              </div>
+              <div class="form-group">
+                <label for="dleSymbol">Новый символ токена:</label>
+                <input 
+                  type="text" 
+                  id="dleSymbol" 
+                  v-model="newProposal.operationParams.symbol" 
+                  class="form-control"
+                  placeholder="Новый символ"
+                >
+              </div>
+              <div class="form-group">
+                <label for="dleLocation">Новое местонахождение:</label>
+                <input 
+                  type="text" 
+                  id="dleLocation" 
+                  v-model="newProposal.operationParams.location" 
+                  class="form-control"
+                  placeholder="Новое местонахождение"
+                >
+              </div>
+              <div class="form-group">
+                <label for="dleCoordinates">Новые координаты:</label>
+                <input 
+                  type="text" 
+                  id="dleCoordinates" 
+                  v-model="newProposal.operationParams.coordinates" 
+                  class="form-control"
+                  placeholder="44.0422736,43.062124"
+                >
+              </div>
+              <div class="form-group">
+                <label for="dleJurisdiction">Новая юрисдикция:</label>
+                <input 
+                  type="number" 
+                  id="dleJurisdiction" 
+                  v-model.number="newProposal.operationParams.jurisdiction" 
+                  class="form-control"
+                  placeholder="643"
+                >
+              </div>
+              <div class="form-group">
+                <label for="dleOktmo">Новый ОКТМО:</label>
+                <input 
+                  type="number" 
+                  id="dleOktmo" 
+                  v-model.number="newProposal.operationParams.oktmo" 
+                  class="form-control"
+                  placeholder="45000000000"
+                >
+              </div>
+              <div class="form-group">
+                <label for="dleKpp">Новый КПП:</label>
+                <input 
+                  type="number" 
+                  id="dleKpp" 
+                  v-model.number="newProposal.operationParams.kpp" 
+                  class="form-control"
+                  placeholder="770101001"
+                >
+              </div>
+            </div>
+
+            <!-- Параметры для изменения кворума -->
+            <div v-if="newProposal.operationType === 'updateQuorum'" class="operation-params">
+              <div class="form-group">
+                <label for="newQuorum">Новый процент кворума:</label>
+                <input 
+                  type="number" 
+                  id="newQuorum" 
+                  v-model.number="newProposal.operationParams.quorumPercentage" 
+                  class="form-control"
+                  min="1"
+                  max="100"
+                  placeholder="51"
+                >
+                <small class="form-text text-muted">Процент от общего количества токенов (1-100%)</small>
+              </div>
+            </div>
+
+            <!-- Параметры для изменения текущей цепочки -->
+            <div v-if="newProposal.operationType === 'updateChain'" class="operation-params">
+              <div class="form-group">
+                <label for="newChainId">Новая текущая цепочка:</label>
+                <select id="newChainId" v-model="newProposal.operationParams.chainId" class="form-control">
+                  <option value="">-- Выберите цепочку --</option>
+                  <option v-for="chain in availableChains" :key="chain.chainId" :value="chain.chainId">
+                    {{ chain.name }} ({{ chain.chainId }})
+                  </option>
+                </select>
+                <small class="form-text text-muted">Выберите новую цепочку для управления DLE</small>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -393,7 +497,6 @@
         </div>
       </div>
       </div> <!-- Закрываем div для авторизованных пользователей -->
-    </div>
   </div>
   </BaseLayout>
 </template>
@@ -405,6 +508,7 @@ import { useAuthContext } from '@/composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getDLEInfo, loadProposals, createProposal as createProposalAPI, voteForProposal as voteForProposalAPI, executeProposal as executeProposalAPI, getSupportedChains } from '../../utils/dle-contract.js';
 import wsClient from '../../utils/websocket.js';
+import { ethers } from 'ethers';
 
 const props = defineProps({
   dleAddress: { type: String, required: false, default: null },
@@ -453,7 +557,15 @@ const newProposal = ref({
     to: '',
     from: '',
     amount: 0,
-    customData: ''
+    customData: '',
+    name: '',
+    symbol: '',
+    location: '',
+    coordinates: '',
+    jurisdiction: 0,
+    oktmo: 0,
+    kpp: 0,
+    chainId: ''
   }
 });
 
@@ -546,6 +658,12 @@ function validateOperationParams() {
       return validateAddress(params.from) && params.amount > 0;
     case 'custom':
       return params.customData && params.customData.startsWith('0x') && params.customData.length >= 10;
+    case 'updateDLEInfo':
+      return params.name && params.symbol && params.location && params.coordinates && params.jurisdiction && params.oktmo && params.kpp;
+    case 'updateQuorum':
+      return params.quorumPercentage >= 1 && params.quorumPercentage <= 100;
+    case 'updateChain':
+      return params.chainId && params.chainId !== '';
     default:
       return false;
   }
@@ -580,7 +698,10 @@ function getOperationTypeName(type) {
     'transfer': 'Передача токенов',
     'mint': 'Минтинг токенов',
     'burn': 'Сжигание токенов',
-    'custom': 'Пользовательская операция'
+    'custom': 'Пользовательская операция',
+    'updateDLEInfo': 'Обновить данные DLE',
+    'updateQuorum': 'Изменить кворум',
+    'updateChain': 'Изменить текущую цепочку'
   };
   return types[type] || 'Неизвестный тип';
 }
@@ -597,6 +718,12 @@ function getOperationParamsPreview() {
       return `От: ${shortenAddress(params.from)}, Количество: ${params.amount}`;
     case 'custom':
       return `Данные: ${params.customData.substring(0, 20)}...`;
+    case 'updateDLEInfo':
+      return `Название: ${params.name}, Символ: ${params.symbol}, Местонахождение: ${params.location}, Координаты: ${params.coordinates}, Юрисдикция: ${params.jurisdiction}, ОКТМО: ${params.oktmo}, КПП: ${params.kpp}`;
+    case 'updateQuorum':
+      return `Процент кворума: ${params.quorumPercentage}%`;
+    case 'updateChain':
+      return `Новая цепочка: ${getChainName(params.chainId) || 'Не выбрана'}`;
     default:
       return 'Не указаны';
   }
@@ -620,8 +747,30 @@ function getProposalStatus(proposal) {
     return 'executed';
   }
   
+  // Проверяем, достигнут ли кворум
+  const quorumPercentage = getQuorumPercentage(proposal);
+  const requiredQuorum = getRequiredQuorum();
+  const hasReachedQuorum = quorumPercentage >= requiredQuorum;
+  
+  // Добавляем отладочную информацию
+  console.log('[getProposalStatus] Проверка предложения:', {
+    proposalId: proposal.id,
+    now,
+    deadline,
+    deadlinePassed: deadline > 0 && now >= deadline,
+    quorumPercentage,
+    requiredQuorum,
+    hasReachedQuorum
+  });
+  
+  // Если кворум достигнут, предложение можно выполнить
+  if (hasReachedQuorum) {
+    return 'succeeded';
+  }
+  
+  // Если дедлайн истек, но кворум не достигнут
   if (deadline > 0 && now >= deadline) {
-    return proposal.isPassed ? 'succeeded' : 'defeated';
+    return 'defeated';
   }
   
   return 'active';
@@ -754,7 +903,31 @@ function canSign(proposal) {
 }
 
 function canExecute(proposal) {
-  return proposal.status === 'succeeded' && !proposal.executed;
+  const now = Math.floor(Date.now() / 1000);
+  const deadline = proposal.deadline || 0;
+  
+  // Предложение можно выполнить только если:
+  // 1. Дедлайн истек
+  // 2. Кворум достигнут
+  // 3. Предложение еще не выполнено
+  const quorumPercentage = getQuorumPercentage(proposal);
+  const requiredQuorum = getRequiredQuorum();
+  const hasReachedQuorum = quorumPercentage >= requiredQuorum;
+  const deadlinePassed = deadline > 0 && now >= deadline;
+  
+  // Добавляем отладочную информацию
+  console.log('[canExecute] Проверка предложения:', {
+    proposalId: proposal.id,
+    quorumPercentage,
+    requiredQuorum,
+    hasReachedQuorum,
+    deadline,
+    now,
+    deadlinePassed,
+    executed: proposal.executed
+  });
+  
+  return deadlinePassed && hasReachedQuorum && !proposal.executed;
 }
 
 function hasSigned(proposalId) {
@@ -859,6 +1032,12 @@ function encodeOperation() {
       return encodeBurnOperation(params.from, params.amount);
     case 'custom':
       return params.customData;
+    case 'updateDLEInfo':
+      return encodeUpdateDLEInfoOperation(params.name, params.symbol, params.location, params.coordinates, params.jurisdiction, params.oktmo, params.kpp);
+    case 'updateQuorum':
+      return encodeUpdateQuorumOperation(params.quorumPercentage);
+    case 'updateChain':
+      return encodeUpdateChainOperation(params.chainId);
     default:
       throw new Error('Неизвестный тип операции');
   }
@@ -886,6 +1065,42 @@ function encodeBurnOperation(from, amount) {
   const paddedAddress = from.slice(2).padStart(64, '0');
   const paddedAmount = BigInt(amount).toString(16).padStart(64, '0');
   return selector + paddedAddress + paddedAmount;
+}
+
+function encodeUpdateDLEInfoOperation(name, symbol, location, coordinates, jurisdiction, oktmo, kpp) {
+  // Селектор для updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)
+  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)')).slice(0, 10);
+  
+  // Кодируем параметры
+  const abiCoder = new ethers.AbiCoder();
+  const encodedData = abiCoder.encode(
+    ['string', 'string', 'string', 'string', 'uint256', 'uint256', 'string[]', 'uint256'],
+    [name, symbol, location, coordinates, jurisdiction, oktmo, [], kpp] // okvedCodes пока пустой массив
+  );
+  
+  return selector + encodedData.slice(2);
+}
+
+function encodeUpdateQuorumOperation(quorumPercentage) {
+  // Селектор для updateQuorumPercentage(uint256)
+  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('updateQuorumPercentage(uint256)')).slice(0, 10);
+  
+  // Кодируем параметр
+  const abiCoder = new ethers.AbiCoder();
+  const encodedData = abiCoder.encode(['uint256'], [quorumPercentage]);
+  
+  return selector + encodedData.slice(2);
+}
+
+function encodeUpdateChainOperation(chainId) {
+  // Селектор для updateCurrentChainId(uint256)
+  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('updateCurrentChainId(uint256)')).slice(0, 10);
+  
+  // Кодируем параметр
+  const abiCoder = new ethers.AbiCoder();
+  const encodedData = abiCoder.encode(['uint256'], [chainId]);
+  
+  return selector + encodedData.slice(2);
 }
 
 // Подпись предложения
@@ -994,7 +1209,15 @@ function resetForm() {
       to: '',
       from: '',
       amount: 0,
-      customData: ''
+      customData: '',
+      name: '',
+      symbol: '',
+      location: '',
+      coordinates: '',
+      jurisdiction: 0,
+      oktmo: 0,
+      kpp: 0,
+      chainId: ''
     }
   };
 }
@@ -1094,9 +1317,128 @@ onUnmounted(() => {
 
 <style scoped>
 .dle-proposals-management {
-  padding: 1rem;
+  padding: 20px;
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
+/* Заголовок в стиле настроек */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.header-content {
+  flex-grow: 1;
+}
+
+.page-header h1 {
+  color: var(--color-primary);
+  font-size: 2rem;
+  margin: 0 0 5px 0;
+}
+
+.page-header p {
+  color: var(--color-grey-dark);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.close-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+/* Секция управления */
+.controls-section {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.controls-header {
+  background: #f8f9fa;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.controls-header h3 {
+  color: var(--color-primary);
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.controls-content {
+  padding: 20px;
+}
+
+.filters-row {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.form-control {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  min-width: 150px;
+}
+
+.btn {
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.btn-outline-secondary {
+  background: transparent;
+  color: var(--color-secondary);
+  border: 1px solid var(--color-secondary);
+}
+
+.btn-outline-secondary:hover {
+  background: var(--color-secondary);
+  color: white;
+}
+
+/* Устаревшие стили для совместимости */
 .proposals-header {
   display: flex;
   justify-content: space-between;

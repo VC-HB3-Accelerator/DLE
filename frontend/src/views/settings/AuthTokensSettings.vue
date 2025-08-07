@@ -90,6 +90,7 @@ import { reactive } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
+import eventBus from '@/utils/eventBus';
 const props = defineProps({
   authTokens: { type: Array, required: true }
 });
@@ -97,7 +98,7 @@ const emit = defineEmits(['update']);
 const newToken = reactive({ name: '', address: '', network: '', minBalance: 0 });
 
 const { networkGroups, networks } = useBlockchainNetworks();
-const { isAdmin } = useAuthContext();
+const { isAdmin, checkTokenBalances, address, checkAuth } = useAuthContext();
 
 async function addToken() {
   if (!newToken.name || !newToken.address || !newToken.network) {
@@ -109,7 +110,30 @@ async function addToken() {
       ...newToken,
       minBalance: Number(newToken.minBalance) || 0
     });
-    emit('update');
+    
+    // После добавления токена перепроверяем баланс пользователя и обновляем состояние аутентификации
+    try {
+      if (address.value) {
+        await checkTokenBalances(address.value);
+        console.log('[AuthTokensSettings] Баланс токенов перепроверен после добавления');
+      }
+      
+      // Обновляем состояние аутентификации чтобы отразить изменения роли
+      await checkAuth();
+      console.log('[AuthTokensSettings] Состояние аутентификации обновлено после добавления токена');
+      
+      // Уведомляем App.vue об изменении настроек аутентификации
+      eventBus.emit('auth-settings-saved');
+      console.log('[AuthTokensSettings] Событие auth-settings-saved отправлено');
+    } catch (balanceError) {
+      console.error('[AuthTokensSettings] Ошибка при перепроверке баланса:', balanceError);
+    }
+    
+    // Небольшая задержка для синхронизации с backend
+    setTimeout(() => {
+      emit('update');
+    }, 100);
+    
     newToken.name = '';
     newToken.address = '';
     newToken.network = '';
@@ -130,7 +154,29 @@ async function removeToken(index) {
   try {
     const response = await api.delete(`/settings/auth-token/${token.address}/${token.network}`);
     console.log('[AuthTokensSettings] Успешное удаление:', response.data);
-    emit('update');
+    
+    // После удаления токена перепроверяем баланс пользователя и обновляем состояние аутентификации
+    try {
+      if (address.value) {
+        await checkTokenBalances(address.value);
+        console.log('[AuthTokensSettings] Баланс токенов перепроверен после удаления');
+      }
+      
+      // Обновляем состояние аутентификации чтобы отразить изменения роли
+      await checkAuth();
+      console.log('[AuthTokensSettings] Состояние аутентификации обновлено после удаления токена');
+      
+      // Уведомляем App.vue об изменении настроек аутентификации
+      eventBus.emit('auth-settings-saved');
+      console.log('[AuthTokensSettings] Событие auth-settings-saved отправлено');
+    } catch (balanceError) {
+      console.error('[AuthTokensSettings] Ошибка при перепроверке баланса:', balanceError);
+    }
+    
+    // Небольшая задержка для синхронизации с backend
+    setTimeout(() => {
+      emit('update');
+    }, 100);
   } catch (e) {
     console.error('[AuthTokensSettings] Ошибка при удалении токена:', e);
     console.error('[AuthTokensSettings] Response:', e.response);

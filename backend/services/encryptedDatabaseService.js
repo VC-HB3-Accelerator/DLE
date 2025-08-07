@@ -410,9 +410,10 @@ class EncryptedDataService {
    */
   shouldEncryptColumn(column) {
     const encryptableTypes = ['text', 'varchar', 'character varying', 'json', 'jsonb'];
+    const excludedColumns = ['created_at', 'updated_at', 'id', 'metadata']; // Добавляем metadata в исключения
     return encryptableTypes.includes(column.data_type) && 
            !column.column_name.includes('_encrypted') &&
-           !['created_at', 'updated_at', 'id'].includes(column.column_name);
+           !excludedColumns.includes(column.column_name);
   }
 
   /**

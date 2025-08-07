@@ -124,6 +124,19 @@ class WebSocketClient {
       dleAddress: dleAddress
     });
   }
+
+  // Обработчики для токенов аутентификации
+  onAuthTokenAdded(callback) {
+    this.on('auth_token_added', callback);
+  }
+
+  onAuthTokenDeleted(callback) {
+    this.on('auth_token_deleted', callback);
+  }
+
+  onAuthTokenUpdated(callback) {
+    this.on('auth_token_updated', callback);
+  }
 }
 
 // Создаем глобальный экземпляр WebSocket клиента

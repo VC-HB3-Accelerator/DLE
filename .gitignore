@@ -128,6 +128,14 @@ id_ed25519
 ssh_host_*
 ssh_config
 
+# SSL Keys and certificates - КРИТИЧЕСКИ ВАЖНО!
+ssl/keys/
+ssl/certs/
+*.key
+*.pem
+*.crt
+*.p12
+
 # Docker
 .dockerignore
 
@@ -145,6 +153,14 @@ check_*.js
 debug_*.js
 test_*.js
 test-*.js
+
+# Test files - НЕ ПУБЛИКОВАТЬ!
+**/test-*.js
+**/test_*.js
+**/tests/
+**/test/
+test/
+tests/
 
 # Hardhat artifacts and cache
 backend/artifacts/

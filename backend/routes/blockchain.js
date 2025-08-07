@@ -77,6 +77,7 @@ router.post('/read-dle-info', async (req, res) => {
     const blockchainData = {
       name: dleInfo.name,
       symbol: dleInfo.symbol,
+      dleAddress: dleAddress, // Добавляем адрес контракта
       location: dleInfo.location,
       coordinates: dleInfo.coordinates,
       jurisdiction: Number(dleInfo.jurisdiction),
@@ -399,6 +400,309 @@ router.post('/get-proposal-info', async (req, res) => {
 
 
 
+
+// Проверка возможности деактивации DLE
+router.post('/deactivate-dle', async (req, res) => {
+  try {
+    const { dleAddress, userAddress } = req.body;
+    
+    if (!dleAddress || !userAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE и адрес пользователя обязательны'
+      });
+    }
+
+    console.log(`[Blockchain] Проверка возможности деактивации DLE: ${dleAddress} пользователем: ${userAddress}`);
+
+    // Получаем RPC URL для Sepolia
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // ABI для проверки деактивации DLE
+    const dleAbi = [
+      "function isActive() external view returns (bool)",
+      "function balanceOf(address) external view returns (uint256)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Проверяем, что пользователь имеет токены
+    const balance = await dle.balanceOf(userAddress);
+    if (balance <= 0) {
+      return res.status(403).json({
+        success: false,
+        error: 'Для деактивации DLE необходимо иметь токены'
+      });
+    }
+
+    // Проверяем текущий статус
+    const isActive = await dle.isActive();
+    if (!isActive) {
+      return res.status(400).json({
+        success: false,
+        error: 'DLE уже деактивирован'
+      });
+    }
+
+    console.log(`[Blockchain] DLE ${dleAddress} может быть деактивирован пользователем ${userAddress}`);
+
+    res.json({
+      success: true,
+      data: {
+        dleAddress: dleAddress,
+        canDeactivate: true,
+        message: 'DLE может быть деактивирован при наличии валидного предложения с кворумом.'
+      }
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при проверке возможности деактивации DLE:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при проверке возможности деактивации DLE: ' + error.message
+    });
+  }
+});
+
+// Проверить результат предложения деактивации
+router.post('/check-deactivation-proposal-result', async (req, res) => {
+  try {
+    const { dleAddress, proposalId } = req.body;
+    
+    if (!dleAddress || proposalId === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE и ID предложения обязательны'
+      });
+    }
+
+    console.log(`[Blockchain] Проверка результата предложения деактивации: ${proposalId} для DLE: ${dleAddress}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    const dleAbi = [
+      "function checkDeactivationProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    const [passed, quorumReached] = await dle.checkDeactivationProposalResult(proposalId);
+
+    const result = {
+      proposalId: proposalId,
+      passed: passed,
+      quorumReached: quorumReached,
+      canExecute: passed && quorumReached
+    };
+
+    console.log(`[Blockchain] Результат предложения деактивации:`, result);
+
+    res.json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при проверке результата предложения деактивации:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при проверке результата предложения деактивации: ' + error.message
+    });
+  }
+});
+
+// Загрузить предложения деактивации
+router.post('/load-deactivation-proposals', async (req, res) => {
+  try {
+    const { dleAddress } = req.body;
+    
+    if (!dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE обязателен'
+      });
+    }
+
+    console.log(`[Blockchain] Загрузка предложений деактивации для DLE: ${dleAddress}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    const dleAbi = [
+      "function deactivationProposalCounter() external view returns (uint256)",
+      "function getDeactivationProposal(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, uint256 deadline, address initiator, uint256 chainId)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    const proposalCounter = await dle.deactivationProposalCounter();
+    const proposals = [];
+
+    for (let i = 0; i < proposalCounter; i++) {
+      try {
+        const proposal = await dle.getDeactivationProposal(i);
+        proposals.push({
+          id: Number(proposal.id),
+          description: proposal.description,
+          forVotes: ethers.formatUnits(proposal.forVotes, 18),
+          againstVotes: ethers.formatUnits(proposal.againstVotes, 18),
+          executed: proposal.executed,
+          deadline: Number(proposal.deadline),
+          initiator: proposal.initiator,
+          chainId: Number(proposal.chainId),
+          isExpired: Date.now() / 1000 > Number(proposal.deadline)
+        });
+      } catch (error) {
+        console.error(`[Blockchain] Ошибка при загрузке предложения ${i}:`, error);
+      }
+    }
+
+    console.log(`[Blockchain] Загружено ${proposals.length} предложений деактивации`);
+
+    res.json({
+      success: true,
+      data: {
+        proposals: proposals
+      }
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при загрузке предложений деактивации:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при загрузке предложений деактивации: ' + error.message
+    });
+  }
+});
+
+// Создать предложение о добавлении модуля
+router.post('/create-add-module-proposal', async (req, res) => {
+  try {
+    const { dleAddress, description, duration, moduleId, moduleAddress, chainId } = req.body;
+    
+    if (!dleAddress || !description || !duration || !moduleId || !moduleAddress || !chainId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Все поля обязательны'
+      });
+    }
+
+    console.log(`[Blockchain] Создание предложения о добавлении модуля: ${moduleId} для DLE: ${dleAddress}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    const dleAbi = [
+      "function createAddModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) external returns (uint256)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Создаем предложение
+    const tx = await dle.createAddModuleProposal(description, duration, moduleId, moduleAddress, chainId);
+    const receipt = await tx.wait();
+
+    console.log(`[Blockchain] Предложение о добавлении модуля создано:`, receipt);
+
+    res.json({
+      success: true,
+      data: {
+        proposalId: receipt.logs[0].args.proposalId,
+        transactionHash: receipt.hash
+      }
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при создании предложения о добавлении модуля:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при создании предложения о добавлении модуля: ' + error.message
+    });
+  }
+});
+
+// Создать предложение об удалении модуля
+router.post('/create-remove-module-proposal', async (req, res) => {
+  try {
+    const { dleAddress, description, duration, moduleId, chainId } = req.body;
+    
+    if (!dleAddress || !description || !duration || !moduleId || !chainId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Все поля обязательны'
+      });
+    }
+
+    console.log(`[Blockchain] Создание предложения об удалении модуля: ${moduleId} для DLE: ${dleAddress}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    const dleAbi = [
+      "function createRemoveModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, uint256 _chainId) external returns (uint256)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Создаем предложение
+    const tx = await dle.createRemoveModuleProposal(description, duration, moduleId, chainId);
+    const receipt = await tx.wait();
+
+    console.log(`[Blockchain] Предложение об удалении модуля создано:`, receipt);
+
+    res.json({
+      success: true,
+      data: {
+        proposalId: receipt.logs[0].args.proposalId,
+        transactionHash: receipt.hash
+      }
+    });
+
+  } catch (error) {
+    console.error('[Blockchain] Ошибка при создании предложения об удалении модуля:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при создании предложения об удалении модуля: ' + error.message
+    });
+  }
+});
 
 // Импортируем WebSocket функции из wsHub
 const { broadcastProposalCreated, broadcastProposalVoted, broadcastProposalExecuted } = require('../wsHub');

@@ -10,7 +10,7 @@ class AIQueue extends EventEmitter {
     super();
     this.queue = [];
     this.processing = false;
-    this.maxConcurrent = 2; // Максимум 2 запроса одновременно
+    this.maxConcurrent = 1; // Максимум 1 запрос одновременно (последовательная обработка)
     this.activeRequests = 0;
     this.stats = {
       total: 0,
@@ -51,6 +51,7 @@ class AIQueue extends EventEmitter {
     }
 
     this.processing = true;
+    logger.info(`[AIQueue] Начинаем обработку очереди. Запросов в очереди: ${this.queue.length}`);
 
     while (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
       const item = this.queue.shift();
@@ -58,6 +59,7 @@ class AIQueue extends EventEmitter {
 
       this.activeRequests++;
       item.status = 'processing';
+      logger.info(`[AIQueue] Обрабатываем запрос ${item.id} (приоритет: ${item.priority})`);
 
       try {
         const startTime = Date.now();
@@ -71,7 +73,7 @@ class AIQueue extends EventEmitter {
         this.stats.completed++;
         this.updateAvgResponseTime(responseTime);
 
-        logger.info(`[AIQueue] Request ${item.id} completed in ${responseTime}ms`);
+        logger.info(`[AIQueue] Запрос ${item.id} завершен за ${responseTime}ms`);
 
         // Эмитим событие о завершении
         this.emit('completed', item);
@@ -81,7 +83,7 @@ class AIQueue extends EventEmitter {
         item.error = error.message;
 
         this.stats.failed++;
-        logger.error(`[AIQueue] Request ${item.id} failed:`, error.message);
+        logger.error(`[AIQueue] Запрос ${item.id} завершился с ошибкой:`, error.message);
 
         // Эмитим событие об ошибке
         this.emit('failed', item);
@@ -91,6 +93,7 @@ class AIQueue extends EventEmitter {
     }
 
     this.processing = false;
+    logger.info(`[AIQueue] Обработка очереди завершена. Осталось запросов: ${this.queue.length}`);
 
     // Если в очереди еще есть запросы, продолжаем обработку
     if (this.queue.length > 0) {
@@ -118,7 +121,7 @@ class AIQueue extends EventEmitter {
     messages.push({ role: 'user', content: request.message });
 
     // Прямой вызов API без очереди
-    return await aiAssistant.fallbackRequestOpenAI(messages, request.language, request.systemPrompt);
+    return await aiAssistant.fallbackRequestOpenAI(messages, request.systemPrompt);
   }
 
   // Обновление средней скорости ответа

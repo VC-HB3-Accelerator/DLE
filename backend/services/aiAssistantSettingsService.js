@@ -50,6 +50,7 @@ async function getSettings() {
     );
     supportEmail = em.rows[0] || null;
   }
+
   return {
     ...setting,
     telegramBot,
@@ -58,12 +59,12 @@ async function getSettings() {
   };
 }
 
-async function upsertSettings({ system_prompt, selected_rag_tables, languages, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {
+async function upsertSettings({ system_prompt, selected_rag_tables, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {
   const data = {
     id: 1,
     system_prompt,
     selected_rag_tables,
-    languages,
+    languages: ['ru'], // Устанавливаем русский язык по умолчанию
     model,
     embedding_model,
     rules,

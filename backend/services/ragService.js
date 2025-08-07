@@ -122,7 +122,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
   // Поиск
   let results = [];
   if (rowsForUpsert.length > 0) {
-    results = await vectorSearch.search(tableId, userQuestion, 2); // Уменьшаем до 2 результатов
+    results = await vectorSearch.search(tableId, userQuestion, 3); // Увеличиваем до 3 результатов для лучшего поиска
     // console.log(`[RAG] Search completed, got ${results.length} results`);
     
     // Подробное логирование результатов поиска
@@ -171,7 +171,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
     product: best?.metadata?.product,
     priority: best?.metadata?.priority,
     date: best?.metadata?.date,
-    score: best?.score,
+    score: best?.score !== undefined && best?.score !== null ? Number(best.score) : null,
   };
   
   // Кэшируем результат
@@ -188,17 +188,48 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
  * Возвращает объект: { placeholder1: value1, placeholder2: value2, ... }
  */
 async function getAllPlaceholdersWithValues() {
-  // Получаем все плейсхолдеры и их значения (берём первое значение для каждого плейсхолдера)
-  const result = await encryptedDb.getData('user_columns', {});
-  
-  // Группируем по плейсхолдеру (берём первое значение)
-  const map = {};
-  for (const row of result) {
-    if (row.placeholder && !(row.placeholder in map)) {
-      map[row.placeholder] = row.value;
+  try {
+    console.log('[RAG] Начинаем загрузку плейсхолдеров...');
+    
+    // Получаем все колонки с плейсхолдерами
+    const columns = await encryptedDb.getData('user_columns', {});
+    console.log(`[RAG] Получено колонок: ${columns.length}`);
+    
+    const columnsWithPlaceholders = columns.filter(col => col.placeholder && col.placeholder.trim() !== '');
+    console.log(`[RAG] Колонок с плейсхолдерами: ${columnsWithPlaceholders.length}`);
+    
+    if (columnsWithPlaceholders.length === 0) {
+      console.log('[RAG] Нет колонок с плейсхолдерами');
+      return {};
     }
+    
+    // Получаем значения для каждой колонки с плейсхолдером
+    const map = {};
+    for (const column of columnsWithPlaceholders) {
+      try {
+        console.log(`[RAG] Получаем значение для плейсхолдера: ${column.placeholder} (column_id: ${column.id})`);
+        
+        // Получаем первое значение для этой колонки
+        const values = await encryptedDb.getData('user_cell_values', { column_id: column.id }, 1);
+        console.log(`[RAG] Найдено значений для ${column.placeholder}: ${values ? values.length : 0}`);
+        
+        if (values && values.length > 0 && values[0].value) {
+          map[column.placeholder] = values[0].value;
+          console.log(`[RAG] Установлено значение для ${column.placeholder}: ${values[0].value.substring(0, 50)}...`);
+        } else {
+          console.log(`[RAG] Нет значений для плейсхолдера ${column.placeholder}`);
+        }
+      } catch (error) {
+        console.error(`[RAG] Ошибка получения значения для плейсхолдера ${column.placeholder}:`, error);
+      }
+    }
+    
+    console.log(`[RAG] Итоговый объект плейсхолдеров:`, Object.keys(map));
+    return map;
+  } catch (error) {
+    console.error('[RAG] Ошибка получения плейсхолдеров:', error);
+    return {};
   }
-  return map;
 }
 
 /**
@@ -235,38 +266,57 @@ async function generateLLMResponse({
   date,
   rules,
   history,
-  model,
-  language
+  model
 }) {
-  // console.log(`[RAG] generateLLMResponse called with:`, {
-  //   userQuestion,
-  //   context,
-  //   answer,
-  //   systemPrompt,
-  //   userTags,
-  //   product,
-  //   priority,
-  //   date,
-  //   model,
-  //   language
-  // });
+  console.log(`[RAG] generateLLMResponse called with:`, {
+    userQuestion,
+    context,
+    answer,
+    systemPrompt: systemPrompt ? systemPrompt.substring(0, 100) + '...' : 'null',
+    userTags,
+    product,
+    priority,
+    date,
+    model,
+    historyLength: history ? history.length : 0
+  });
 
   try {
     const aiAssistant = require('./ai-assistant');
     
-    // Формируем промпт для LLM
-    let prompt = userQuestion;
+    // Создаем контекст беседы с RAG данными
+    const conversationContext = createConversationContext({
+      userQuestion,
+      ragAnswer: answer,
+      ragContext: context,
+      history,
+      product,
+      priority,
+      date
+    });
     
-    if (context) {
-      prompt += `\n\nКонтекст: ${context}`;
+    // Формируем улучшенный промпт для LLM с учетом найденной информации
+    let prompt = `Вопрос пользователя: ${userQuestion}`;
+    
+    // Добавляем найденную информацию из RAG
+    if (answer) {
+      prompt += `\n\nНайденный ответ из базы знаний: ${answer}`;
     }
     
-    if (answer) {
-      prompt += `\n\nНайденный ответ: ${answer}`;
+    if (context) {
+      prompt += `\n\nДополнительный контекст: ${context}`;
     }
     
     if (product) {
       prompt += `\n\nПродукт: ${product}`;
+    }
+
+    if (priority) {
+      prompt += `\n\nПриоритет: ${priority}`;
+    }
+
+    if (date) {
+      prompt += `\n\nДата: ${date}`;
     }
 
     // --- ДОБАВЛЕНО: подстановка плейсхолдеров ---
@@ -274,28 +324,164 @@ async function generateLLMResponse({
     if (systemPrompt && systemPrompt.includes('{')) {
       const placeholders = await getAllPlaceholdersWithValues();
       finalSystemPrompt = replacePlaceholders(systemPrompt, placeholders);
+      console.log(`[RAG] Подставлены плейсхолдеры в системный промпт`);
     }
     // --- КОНЕЦ ДОБАВЛЕНИЯ ---
 
-    // Получаем ответ от AI
-    const llmResponse = await aiAssistant.getResponse(
-      prompt,
-      language || 'auto',
-      history,
-      finalSystemPrompt,
-      rules
-    );
+    // Используем системный промпт из настроек, если он есть
+    if (finalSystemPrompt && finalSystemPrompt.trim()) {
+      prompt += `\n\nСистемная инструкция: ${finalSystemPrompt}`;
+    } else {
+      // Fallback инструкция, если системный промпт не настроен
+      prompt += `\n\nИнструкция: Используй найденную информацию из базы знаний для ответа. Если найденный ответ подходит к вопросу пользователя, используй его как основу. Если нужно дополнить или уточнить ответ, сделай это. Поддерживай естественную беседу, учитывая предыдущие сообщения. Отвечай на русском языке кратко и по делу. Если пользователь задает уточняющие вопросы, используй контекст предыдущих ответов.`;
+    }
 
-    // console.log(`[RAG] LLM response generated:`, llmResponse);
+    console.log(`[RAG] Сформированный промпт:`, prompt.substring(0, 200) + '...');
+
+    // Получаем ответ от AI с учетом истории беседы
+    let llmResponse;
+    try {
+      llmResponse = await aiAssistant.getResponse(
+        prompt,
+        history,
+        finalSystemPrompt,
+        rules
+      );
+    } catch (error) {
+      console.error(`[RAG] Error in getResponse:`, error.message);
+      
+      // Fallback: если очередь перегружена, возвращаем найденный ответ напрямую
+      if (error.message.includes('очередь перегружена') && answer) {
+        console.log(`[RAG] Queue overloaded, returning direct answer from RAG`);
+        return answer;
+      }
+      
+      // Другой fallback для других ошибок
+      return 'Извините, произошла ошибка при генерации ответа.';
+    }
+
+    console.log(`[RAG] LLM response generated:`, llmResponse ? llmResponse.substring(0, 100) + '...' : 'null');
     return llmResponse;
   } catch (error) {
-    // console.error(`[RAG] Error generating LLM response:`, error);
+    console.error(`[RAG] Error generating LLM response:`, error);
     return 'Извините, произошла ошибка при генерации ответа.';
   }
+}
+
+/**
+ * Создает контекст беседы с RAG данными
+ */
+function createConversationContext({
+  userQuestion,
+  ragAnswer,
+  ragContext,
+  history,
+  product,
+  priority,
+  date
+}) {
+  const context = {
+    currentQuestion: userQuestion,
+    ragData: {
+      answer: ragAnswer,
+      context: ragContext,
+      product,
+      priority,
+      date
+    },
+    conversationHistory: history || [],
+    hasRagData: !!(ragAnswer || ragContext),
+    isFollowUpQuestion: history && history.length > 0
+  };
+
+  console.log(`[RAG] Создан контекст беседы:`, {
+    hasRagData: context.hasRagData,
+    historyLength: context.conversationHistory.length,
+    isFollowUp: context.isFollowUpQuestion
+  });
+
+  return context;
+}
+
+/**
+ * Улучшенная функция RAG с поддержкой беседы
+ */
+async function ragAnswerWithConversation({ 
+  tableId, 
+  userQuestion, 
+  product = null, 
+  threshold = 10,
+  history = [],
+  conversationId = null
+}) {
+  console.log(`[RAG] ragAnswerWithConversation: tableId=${tableId}, question="${userQuestion}", historyLength=${history.length}`);
+
+  // Получаем базовый RAG результат
+  const ragResult = await ragAnswer({ tableId, userQuestion, product, threshold });
+  
+  // Анализируем контекст беседы
+  const conversationContext = createConversationContext({
+    userQuestion,
+    ragAnswer: ragResult.answer,
+    ragContext: ragResult.context,
+    history,
+    product: ragResult.product,
+    priority: ragResult.priority,
+    date: ragResult.date
+  });
+
+  // Если это уточняющий вопрос и есть история
+  if (conversationContext.isFollowUpQuestion && conversationContext.hasRagData) {
+    console.log(`[RAG] Обнаружен уточняющий вопрос с RAG данными`);
+
+    // Проверяем, есть ли точный ответ в первом поиске
+    if (ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 200) {
+      console.log(`[RAG] Найден точный ответ (score=${ragResult.score}), модифицируем с учетом контекста беседы`);
+      
+      // Модифицируем точный ответ с учетом контекста беседы
+      let contextualAnswer = ragResult.answer;
+      if (history && history.length > 0) {
+        const contextSummary = history.slice(-3).map(msg => msg.content).join(' | ');
+        contextualAnswer = `Контекст: ${contextSummary}\n\nОтвет: ${ragResult.answer}`;
+      }
+      
+      return {
+        ...ragResult,
+        answer: contextualAnswer,
+        conversationContext,
+        isFollowUp: true
+      };
+    }
+    
+    // Модифицируем вопрос с учетом контекста (only if no confident match)
+    const contextualQuestion = `${userQuestion}\n\nКонтекст предыдущих ответов: ${history.map(msg => msg.content).join('\n')}`;
+    
+    // Повторяем поиск с контекстуализированным вопросом
+    const contextualRagResult = await ragAnswer({ 
+      tableId, 
+      userQuestion: contextualQuestion, 
+      product, 
+      threshold 
+    });
+    
+    // Объединяем результаты
+    return {
+      ...contextualRagResult,
+      conversationContext,
+      isFollowUp: true
+    };
+  }
+
+  return {
+    ...ragResult,
+    conversationContext,
+    isFollowUp: false
+  };
 }
 
 module.exports = {
   ragAnswer,
   getTableData,
-  generateLLMResponse
+  generateLLMResponse,
+  ragAnswerWithConversation
 }; 

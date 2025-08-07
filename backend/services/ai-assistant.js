@@ -70,41 +70,48 @@ class AIAssistant {
   }
 
   // Создание экземпляра ChatOllama с нужными параметрами
-  createChat(language = 'ru', customSystemPrompt = '') {
+  createChat(customSystemPrompt = '') {
     // Используем кастомный системный промпт, если он передан, иначе используем дефолтный
     let systemPrompt = customSystemPrompt;
     if (!systemPrompt) {
-      systemPrompt = language === 'ru'
-        ? 'Вы - полезный ассистент. Отвечайте на русском языке кратко и по делу.'
-        : 'You are a helpful assistant. Respond in English briefly and to the point.';
+      systemPrompt = 'Вы - полезный ассистент. Отвечайте на русском языке кратко и по делу.';
     }
 
     return new ChatOllama({
       baseUrl: this.baseUrl,
       model: this.defaultModel,
       system: systemPrompt,
-      temperature: 0.3, // Уменьшаем для более предсказуемых ответов
-      maxTokens: 100, // Еще больше уменьшаем для быстрого ответа
-      timeout: 60000, // Увеличиваем таймаут до 60 секунд
+      temperature: 0.7, // Восстанавливаем для более творческих ответов
+      maxTokens: 2048, // Восстанавливаем для полных ответов
+      timeout: 300000, // 5 минут для качественной обработки
+      numCtx: 4096, // Увеличиваем контекст для лучшего понимания
+      numGpu: 1, // Используем GPU
+      numThread: 8, // Оптимальное количество потоков
+      repeatPenalty: 1.1, // Штраф за повторения
+      topK: 40, // Разнообразие ответов
+      topP: 0.9, // Ядерная выборка
+      tfsZ: 1, // Tail free sampling
+      mirostat: 2, // Mirostat 2.0 для контроля качества
+      mirostatTau: 5, // Целевая перплексия
+      mirostatEta: 0.1, // Скорость адаптации
+      grammar: '', // Грамматика (если нужна)
+      seed: -1, // Случайный сид
+      numPredict: -1, // Неограниченная длина
+      stop: [], // Стоп-слова
+      stream: false, // Без стриминга для стабильности
       options: {
-        num_ctx: 512, // Еще больше уменьшаем контекст для экономии памяти
-        num_thread: 12, // Увеличиваем количество потоков еще больше
-        num_gpu: 1,
-        num_gqa: 8,
-        rope_freq_base: 1000000,
-        rope_freq_scale: 0.5,
-        repeat_penalty: 1.1, // Добавляем штраф за повторения
-        top_k: 20, // Еще больше ограничиваем выбор токенов
-        top_p: 0.8, // Уменьшаем nucleus sampling
-        temperature: 0.1, // Еще больше уменьшаем для более предсказуемых ответов
+        numCtx: 4096,
+        numGpu: 1,
+        numThread: 8,
+        repeatPenalty: 1.1,
+        topK: 40,
+        topP: 0.9,
+        tfsZ: 1,
+        mirostat: 2,
+        mirostatTau: 5,
+        mirostatEta: 0.1
       }
     });
-  }
-
-  // Определение языка сообщения
-  detectLanguage(message) {
-    const cyrillicPattern = /[а-яА-ЯёЁ]/;
-    return cyrillicPattern.test(message) ? 'ru' : 'en';
   }
 
   // Определение приоритета запроса
@@ -117,7 +124,7 @@ class AIAssistant {
     }
     
     // Приоритет по типу запроса
-    const urgentKeywords = ['срочно', 'urgent', 'важно', 'important', 'помоги', 'help'];
+    const urgentKeywords = ['срочно', 'важно', 'помоги'];
     if (urgentKeywords.some(keyword => message.toLowerCase().includes(keyword))) {
       priority += 20;
     }
@@ -140,9 +147,9 @@ class AIAssistant {
   }
 
   // Основной метод для получения ответа
-  async getResponse(message, language = 'auto', history = null, systemPrompt = '', rules = null) {
+  async getResponse(message, history = null, systemPrompt = '', rules = null) {
     try {
-      // console.log('getResponse called with:', { message, language, history, systemPrompt, rules });
+      // console.log('getResponse called with:', { message, history, systemPrompt, rules });
 
       // Очищаем старый кэш
       this.cleanupCache();
@@ -171,7 +178,6 @@ class AIAssistant {
       // Добавляем запрос в очередь
       const requestId = await aiQueue.addRequest({
         message,
-        language,
         history,
         systemPrompt,
         rules
@@ -181,7 +187,7 @@ class AIAssistant {
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Request timeout - очередь перегружена'));
-        }, 60000); // 60 секунд таймаут для очереди
+        }, 180000); // 180 секунд таймаут для очереди (увеличено с 60)
 
         const onCompleted = (item) => {
           if (item.id === requestId) {
@@ -204,62 +210,6 @@ class AIAssistant {
         aiQueue.on('completed', onCompleted);
         aiQueue.on('failed', onFailed);
       });
-
-      // Определяем язык, если не указан явно
-      const detectedLanguage = language === 'auto' ? this.detectLanguage(message) : language;
-      // console.log('Detected language:', detectedLanguage);
-
-      // Формируем system prompt с учётом правил
-      let fullSystemPrompt = systemPrompt || '';
-      if (rules && typeof rules === 'object') {
-        fullSystemPrompt += '\n' + JSON.stringify(rules, null, 2);
-      }
-
-      // Формируем массив сообщений для Qwen2.5/OpenAI API
-      const messages = [];
-      if (fullSystemPrompt) {
-        messages.push({ role: 'system', content: fullSystemPrompt });
-      }
-      if (Array.isArray(history) && history.length > 0) {
-        for (const msg of history) {
-          if (msg.role && msg.content) {
-            messages.push({ role: msg.role, content: msg.content });
-          }
-        }
-      }
-      // Добавляем текущее сообщение пользователя
-      messages.push({ role: 'user', content: message });
-
-      let response = null;
-
-      // Пробуем прямой API запрос (OpenAI-совместимый endpoint)
-      try {
-        // console.log('Trying direct API request...');
-        response = await this.fallbackRequestOpenAI(messages, detectedLanguage, fullSystemPrompt);
-                  // console.log('Direct API response received:', response);
-      } catch (error) {
-                  // console.error('Error in direct API request:', error);
-        
-        // Если прямой запрос не удался, пробуем через ChatOllama (склеиваем сообщения в текст)
-        const chat = this.createChat(detectedLanguage, fullSystemPrompt);
-        try {
-          const prompt = messages.map(m => `${m.role === 'user' ? 'Пользователь' : m.role === 'assistant' ? 'Ассистент' : 'Система'}: ${m.content}`).join('\n');
-          // console.log('Sending request to ChatOllama...');
-          const chatResponse = await chat.invoke(prompt);
-                      // console.log('ChatOllama response:', chatResponse);
-          response = chatResponse.content;
-        } catch (chatError) {
-                      // console.error('Error using ChatOllama:', chatError);
-          throw chatError;
-        }
-      }
-
-      // Кэшируем ответ
-      if (response) {
-        aiCache.set(cacheKey, response);
-      }
-
-      return response;
     } catch (error) {
       // console.error('Error in getResponse:', error);
       return 'Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.';
@@ -267,9 +217,9 @@ class AIAssistant {
   }
 
   // Новый метод для OpenAI/Qwen2.5 совместимого endpoint
-  async fallbackRequestOpenAI(messages, language, systemPrompt = '') {
+  async fallbackRequestOpenAI(messages, systemPrompt = '') {
     try {
-      // console.log('Using fallbackRequestOpenAI with:', { messages, language, systemPrompt });
+      // console.log('Using fallbackRequestOpenAI with:', { messages, systemPrompt });
       const model = this.defaultModel;
       
       // Создаем AbortController для таймаута
@@ -284,23 +234,25 @@ class AIAssistant {
           messages,
           stream: false,
           options: {
-            temperature: 0.3,
-            num_predict: 150, // Уменьшаем максимальную длину ответа для ускорения
-            num_ctx: 512, // Уменьшаем контекст для экономии памяти и ускорения
-            num_thread: 12, // Увеличиваем количество потоков для ускорения
+            temperature: 0.7,
+            num_predict: 2048, // Восстанавливаем для полных ответов
+            num_ctx: 4096, // Восстанавливаем контекст для лучшего понимания
+            num_thread: 8, // Оптимальное количество потоков
             num_gpu: 1, // Используем GPU если доступен
             num_gqa: 8, // Оптимизация для qwen2.5
             rope_freq_base: 1000000, // Оптимизация для qwen2.5
             rope_freq_scale: 0.5, // Оптимизация для qwen2.5
-            repeat_penalty: 1.1, // Добавляем штраф за повторения
-            top_k: 20, // Уменьшаем выбор токенов для ускорения
-            top_p: 0.8, // Уменьшаем nucleus sampling для ускорения
-            mirostat: 2, // Используем mirostat для стабильности
-            mirostat_tau: 5.0, // Настройка mirostat
-            mirostat_eta: 0.1, // Настройка mirostat
-          },
-        }),
-        signal: controller.signal,
+            repeat_penalty: 1.1, // Восстанавливаем штраф за повторения
+            top_k: 40, // Восстанавливаем разнообразие ответов
+            top_p: 0.9, // Восстанавливаем nucleus sampling
+            tfs_z: 1, // Tail free sampling
+            mirostat: 2, // Mirostat 2.0 для контроля качества
+            mirostat_tau: 5, // Целевая перплексия
+            mirostat_eta: 0.1, // Скорость адаптации
+            seed: -1, // Случайный сид
+            stop: [] // Стоп-слова
+          }
+        })
       });
       
       clearTimeout(timeoutId);

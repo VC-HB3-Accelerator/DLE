@@ -365,6 +365,43 @@ function broadcastToAllClients(message) {
   });
 }
 
+// Функции для уведомлений об изменениях токенов
+function broadcastAuthTokenAdded(tokenData) {
+  const message = JSON.stringify({
+    type: 'auth_token_added',
+    data: {
+      token: tokenData,
+      timestamp: Date.now()
+    }
+  });
+  
+  broadcastToAllClients(message);
+}
+
+function broadcastAuthTokenDeleted(tokenData) {
+  const message = JSON.stringify({
+    type: 'auth_token_deleted',
+    data: {
+      token: tokenData,
+      timestamp: Date.now()
+    }
+  });
+  
+  broadcastToAllClients(message);
+}
+
+function broadcastAuthTokenUpdated(tokenData) {
+  const message = JSON.stringify({
+    type: 'auth_token_updated',
+    data: {
+      token: tokenData,
+      timestamp: Date.now()
+    }
+  });
+  
+  broadcastToAllClients(message);
+}
+
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
@@ -378,6 +415,9 @@ module.exports = {
   broadcastProposalCreated,
   broadcastProposalVoted,
   broadcastProposalExecuted,
+  broadcastAuthTokenAdded,
+  broadcastAuthTokenDeleted,
+  broadcastAuthTokenUpdated,
   getConnectedUsers,
   getStats
 }; 

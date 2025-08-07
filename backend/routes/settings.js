@@ -27,6 +27,7 @@ const telegramBot = require('../services/telegramBot');
 const EmailBotService = require('../services/emailBot');
 const emailBotService = new EmailBotService();
 const dbSettingsService = require('../services/dbSettingsService');
+const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
 
 // Логируем версию ethers для отладки
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
@@ -163,6 +164,16 @@ router.post('/auth-tokens', requireAdmin, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Неверный формат данных' });
     }
     await authTokenService.saveAllAuthTokens(authTokens);
+    
+    // После сохранения токенов перепроверяем баланс ВСЕХ авторизованных пользователей
+    const authService = require('../services/auth-service');
+    try {
+      await authService.recheckAllUsersAdminStatus();
+      logger.info('Балансы всех пользователей перепроверены после сохранения токенов');
+    } catch (balanceError) {
+      logger.error(`Ошибка при перепроверке балансов всех пользователей: ${balanceError.message}`);
+    }
+    
     res.json({ success: true, message: 'Токены аутентификации успешно сохранены' });
   } catch (error) {
     logger.error('Ошибка при сохранении токенов аутентификации:', error);
@@ -178,6 +189,24 @@ router.post('/auth-token', requireAdmin, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'name, address и network обязательны' });
     }
     await authTokenService.upsertAuthToken({ name, address, network, minBalance });
+    
+    // Отправляем WebSocket уведомление о добавлении токена
+    try {
+      broadcastAuthTokenAdded({ name, address, network, minBalance });
+      logger.info('WebSocket уведомление о добавлении токена отправлено');
+    } catch (wsError) {
+      logger.error(`Ошибка при отправке WebSocket уведомления: ${wsError.message}`);
+    }
+    
+    // После добавления токена перепроверяем баланс ВСЕХ авторизованных пользователей
+    const authService = require('../services/auth-service');
+    try {
+      await authService.recheckAllUsersAdminStatus();
+      logger.info('Балансы всех пользователей перепроверены после добавления токена');
+    } catch (balanceError) {
+      logger.error(`Ошибка при перепроверке балансов всех пользователей: ${balanceError.message}`);
+    }
+    
     res.json({ success: true, message: 'Токен аутентификации сохранён' });
   } catch (error) {
     logger.error('Ошибка при сохранении токена аутентификации:', error);
@@ -190,6 +219,24 @@ router.delete('/auth-token/:address/:network', requireAdmin, async (req, res, ne
   try {
     const { address, network } = req.params;
     await authTokenService.deleteAuthToken(address, network);
+    
+    // Отправляем WebSocket уведомление об удалении токена
+    try {
+      broadcastAuthTokenDeleted({ address, network });
+      logger.info('WebSocket уведомление об удалении токена отправлено');
+    } catch (wsError) {
+      logger.error(`Ошибка при отправке WebSocket уведомления: ${wsError.message}`);
+    }
+    
+    // После удаления токена перепроверяем баланс ВСЕХ авторизованных пользователей
+    const authService = require('../services/auth-service');
+    try {
+      await authService.recheckAllUsersAdminStatus();
+      logger.info('Балансы всех пользователей перепроверены после удаления токена');
+    } catch (balanceError) {
+      logger.error(`Ошибка при перепроверке балансов всех пользователей: ${balanceError.message}`);
+    }
+    
     res.json({ success: true, message: 'Токен аутентификации удалён' });
   } catch (error) {
     logger.error('Ошибка при удалении токена аутентификации:', error);

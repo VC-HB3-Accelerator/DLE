@@ -77,6 +77,7 @@ import AuthTokensSettings from './AuthTokensSettings.vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import NoAccessModal from '@/components/NoAccessModal.vue';
+import wsClient from '@/utils/websocket';
 
 // Состояние для отображения/скрытия дополнительных настроек
 const showRpcSettings = ref(false);
@@ -234,6 +235,22 @@ const saveSecuritySettings = async () => {
 // Загрузка настроек при монтировании компонента
 onMounted(() => {
   loadSettings();
+  
+  // Подписываемся на WebSocket события для обновления списка токенов
+  wsClient.onAuthTokenAdded(() => {
+    console.log('[SecuritySettingsView] WebSocket: токен добавлен, обновляем список');
+    loadSettings();
+  });
+  
+  wsClient.onAuthTokenDeleted(() => {
+    console.log('[SecuritySettingsView] WebSocket: токен удален, обновляем список');
+    loadSettings();
+  });
+  
+  wsClient.onAuthTokenUpdated(() => {
+    console.log('[SecuritySettingsView] WebSocket: токен обновлен, обновляем список');
+    loadSettings();
+  });
 });
 
 // --- Методы для RPC ---
