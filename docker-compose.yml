@@ -40,8 +40,8 @@ services:
         max-file: "3"
     volumes:
       - ollama_data:/root/.ollama
-    # ports:
-    #   - '11434:11434'  # Закрываем - используется только backend'ом
+    ports:
+      - '11434:11434'  # Открываем для доступа к Ollama
     deploy:
       resources:
         limits:
@@ -55,12 +55,16 @@ services:
       - OLLAMA_ORIGINS=*
       - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_NUM_GPU=1
+      - OLLAMA_KEEP_ALIVE=1
+      - OLLAMA_MODEL_TIMEOUT=0
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 120s
+    # Современные версии ollama не поддерживают флаг --keep-alive; используем переменные окружения
+    # command: ["serve"]
   vector-search:
     build:
       context: ./vector-search

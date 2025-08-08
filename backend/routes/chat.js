@@ -303,15 +303,15 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       `INSERT INTO guest_messages
         (guest_id_encrypted, content_encrypted, language_encrypted, is_ai,
          attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
-       VALUES (encrypt_text($1, $8), ${messageContent ? 'encrypt_text($2, $8)' : 'NULL'}, encrypt_text($3, $8), false, ${attachmentFilename ? 'encrypt_text($4, $8)' : 'NULL'}, ${attachmentMimetype ? 'encrypt_text($5, $8)' : 'NULL'}, $6, $7) RETURNING id`,
+       VALUES (encrypt_text($1, $8), encrypt_text($2, $8), encrypt_text($3, $8), false, encrypt_text($4, $8), encrypt_text($5, $8), $6, $7) RETURNING id`,
       [
         guestId,
-        messageContent, // Текст сообщения или NULL
+        messageContent || '', // Текст сообщения или пустая строка
         'ru', // Устанавливаем русский язык по умолчанию
-        attachmentFilename,
-        attachmentMimetype,
-        attachmentSize,
-        attachmentData, // BYTEA данные файла или NULL
+        attachmentFilename || '', // Имя файла или пустая строка
+        attachmentMimetype || '', // MIME тип или пустая строка
+        attachmentSize || null,
+        attachmentData || null, // BYTEA данные файла или NULL
         encryptionKey
       ]
     );
@@ -330,8 +330,11 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       logger.info('Session saved after guest message');
     } catch (sessionError) {
       logger.error('Error saving session after guest message:', sessionError);
-      // Не прерываем ответ пользователю из-за ошибки сессии
+      // Не прерываем ответ пользователя из-за ошибки сессии
     }
+
+    // ВАЖНО: до авторизации ИИ-ответы гостям не отправляем. Только сохраняем гостевое сообщение и возвращаем системный текст.
+    let aiResponseContent = null;
 
     // Получаем настройки ассистента для systemMessage
     let telegramBotUrl = null;
@@ -352,6 +355,7 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       success: true,
       messageId: savedMessageId, // Возвращаем ID сохраненного сообщения
       guestId: guestId, // Возвращаем использованный guestId
+      aiResponse: aiResponseContent, // Возвращаем AI ответ
       systemMessage: 'Для продолжения диалога авторизуйтесь: подключите кошелек, перейдите в чат-бот Telegram или отправьте письмо на email.',
       telegramBotUrl,
       supportEmail: supportEmailAddr
@@ -525,7 +529,7 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         let ragResult = null;
         if (ragTableId) {
           const { ragAnswerWithConversation, generateLLMResponse } = require('../services/ragService');
-          const threshold = 200; // Увеличиваем threshold для более широкого поиска
+          const threshold = 10; // Жёстче порог совпадения, чтобы не подмешивать нерелевантный RAG
           
           // Получаем историю беседы
           const historyResult = await db.getQuery()(
@@ -533,28 +537,32 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
             [conversationId, userMessage.id, encryptionKey]
           );
           const history = historyResult.rows.reverse().map(msg => ({
-            role: msg.sender_type === 'user' ? 'user' : 'assistant',
+            // Любые человеческие сообщения (user/admin) считаем role='user'. Только 'assistant' — ассистент
+            role: msg.sender_type === 'assistant' ? 'assistant' : 'user',
             content: msg.content
           }));
           
           logger.info(`[RAG] Запуск поиска по RAG с беседой: tableId=${ragTableId}, вопрос="${messageContent}", threshold=${threshold}, historyLength=${history.length}`);
-          const ragResult = await ragAnswerWithConversation({ 
+          const ragSearchResult = await ragAnswerWithConversation({ 
             tableId: ragTableId, 
             userQuestion: messageContent, 
             threshold,
             history,
-            conversationId
+            conversationId,
+            // Не пересобираем индекс на каждом запросе. Кнопка /rebuild-index дергает rebuild.
+            forceReindex: false
           });
-          logger.info(`[RAG] Результат поиска по RAG:`, ragResult);
-          logger.info(`[RAG] Score type: ${typeof ragResult.score}, value: ${ragResult.score}, threshold: ${threshold}, isFollowUp: ${ragResult.isFollowUp}`);
-          if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= threshold) {
-            logger.info(`[RAG] Найден confident-ответ (score=${ragResult.score}), отправляем ответ из базы.`);
+          logger.info(`[RAG] Результат поиска по RAG:`, ragSearchResult);
+          logger.info(`[RAG] Score type: ${typeof ragSearchResult.score}, value: ${ragSearchResult.score}, threshold: ${threshold}, isFollowUp: ${ragSearchResult.isFollowUp}`);
+          const isConfident = ragSearchResult && typeof ragSearchResult.score === 'number' && Math.abs(ragSearchResult.score) <= threshold;
+          if (isConfident && ragSearchResult.answer) {
+            logger.info(`[RAG] Найден confident-ответ (score=${ragSearchResult.score}), отправляем ответ из базы.`);
             // Прямой ответ из RAG
-            logger.info(`[RAG] Сохраняем AI сообщение с контентом: "${ragResult.answer}"`);
+            logger.info(`[RAG] Сохраняем AI сообщение с контентом: "${ragSearchResult.answer}"`);
             aiMessage = await encryptedDb.saveData('messages', {
               conversation_id: conversationId,
               user_id: userId,
-              content: ragResult.answer,
+              content: ragSearchResult.answer,
               sender_type: 'assistant',
               role: 'assistant',
               channel: 'web'
@@ -562,17 +570,19 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
             logger.info(`[RAG] AI сообщение сохранено:`, aiMessage);
             // Пушим новое сообщение через WebSocket
             broadcastChatMessage(aiMessage);
-          } else if (ragResult) {
-            logger.info(`[RAG] Нет confident-ответа (score=${ragResult.score}), переходим к генерации через LLM.`);
+          } else if (ragSearchResult) {
+            logger.info(`[RAG] Нет confident-ответа (score=${ragSearchResult.score}), переходим к генерации через LLM.`);
             // Генерация через LLM с подстановкой значений из RAG и историей беседы
             const llmResponse = await generateLLMResponse({
               userQuestion: messageContent,
-              context: ragResult.context,
-              answer: ragResult.answer,
-              clarifyingAnswer: ragResult.clarifyingAnswer,
-              objectionAnswer: ragResult.objectionAnswer,
+              // ВАЖНО: если совпадение неуверенное — НЕ подмешиваем RAG-контент,
+              // иначе модель уходит в ответы про MetaMask и прочие нерелевантные темы
+              context: '',
+              answer: '',
+              clarifyingAnswer: ragSearchResult.clarifyingAnswer,
+              objectionAnswer: ragSearchResult.objectionAnswer,
               systemPrompt: aiSettings ? aiSettings.system_prompt : '',
-              history: ragResult.conversationContext ? ragResult.conversationContext.conversationHistory : history,
+              history: ragSearchResult.conversationContext ? ragSearchResult.conversationContext.conversationHistory : history,
               model: aiSettings ? aiSettings.model : undefined
             });
             if (llmResponse) {

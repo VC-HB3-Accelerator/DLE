@@ -131,6 +131,36 @@ start_project() {
   # Проверяем, что сервисы запустились
   if [ $? -eq 0 ]; then
     print_green "Сервисы успешно запущены!"
+    
+    # Предзагрузка моделей Ollama
+    print_blue "Предзагрузка моделей Ollama..."
+    print_yellow "Это может занять несколько минут..."
+    
+    # Ждем, пока Ollama запустится
+    print_blue "Ожидание запуска Ollama..."
+    for i in {1..30}; do
+      if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+        print_green "Ollama готов!"
+        break
+      fi
+      if [ $i -eq 30 ]; then
+        print_yellow "Ollama не ответил за 60 секунд, продолжаем без предзагрузки..."
+        break
+      fi
+      sleep 2
+    done
+    
+    # Предзагружаем модели
+    if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+      print_blue "Предзагрузка qwen2.5:7b..."
+      curl -X POST http://localhost:11434/api/generate -d '{"model": "qwen2.5:7b", "prompt": "test", "stream": false}' > /dev/null 2>&1
+      
+      print_blue "Предзагрузка mxbai-embed-large:latest..."
+      curl -X POST http://localhost:11434/api/generate -d '{"model": "mxbai-embed-large:latest", "prompt": "test", "stream": false}' > /dev/null 2>&1
+      
+      print_green "✅ Модели предзагружены и останутся в памяти!"
+    fi
+    
     print_green "----------------------------------------"
     print_green "Проект Digital_Legal_Entity(DLE) доступен по адресам:"
     print_green "Frontend: http://localhost:5173"
@@ -138,9 +168,7 @@ start_project() {
     print_green "Ollama API: http://localhost:11434"
     print_green "PostgreSQL: localhost:5432"
     print_green "----------------------------------------"
-    print_green "Загрузка модели qwen2.5:7b может занять некоторое время..."
-    print_green "Вы можете проверить статус загрузки модели командой:"
-    print_green "docker logs -f dapp-ollama-setup"
+    print_green "ИИ-ассистент готов к работе!"
     print_green "----------------------------------------"
   else
     print_red "Произошла ошибка при запуске сервисов."

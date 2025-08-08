@@ -10,25 +10,36 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-// console.log('[ai-assistant] loaded');
-
 const { ChatOllama } = require('@langchain/ollama');
-const { HNSWLib } = require('@langchain/community/vectorstores/hnswlib');
-const { OpenAIEmbeddings } = require('@langchain/openai');
-const logger = require('../utils/logger');
-const fetch = require('node-fetch');
 const aiCache = require('./ai-cache');
 const aiQueue = require('./ai-queue');
+const logger = require('../utils/logger');
 
-// Простой кэш для ответов
-const responseCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+// Константы для AI параметров
+const AI_CONFIG = {
+  temperature: 0.3,
+  maxTokens: 512,
+  timeout: 180000,
+  numCtx: 2048,
+  numGpu: 1,
+  numThread: 4,
+  repeatPenalty: 1.1,
+  topK: 40,
+  topP: 0.9,
+  // tfsZ не поддерживается в текущем Ollama — удаляем
+  mirostat: 2,
+  mirostatTau: 5,
+  mirostatEta: 0.1,
+  seed: -1,
+  // Ограничим количество генерируемых токенов для CPU, чтобы избежать таймаутов
+  numPredict: 256,
+  stop: []
+};
 
 class AIAssistant {
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.defaultModel = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
-    this.isModelLoaded = false;
     this.lastHealthCheck = 0;
     this.healthCheckInterval = 30000; // 30 секунд
   }
@@ -37,41 +48,34 @@ class AIAssistant {
   async checkModelHealth() {
     const now = Date.now();
     if (now - this.lastHealthCheck < this.healthCheckInterval) {
-      return this.isModelLoaded;
+      return true; // Используем кэшированный результат
     }
-    
+
     try {
-      const response = await fetch(`${this.baseUrl}/api/tags`, { 
-        timeout: 5000 
-      });
-      if (response.ok) {
-        const data = await response.json();
-        this.isModelLoaded = data.models?.some(m => m.name === this.defaultModel) || false;
-      } else {
-        this.isModelLoaded = false;
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama API returned ${response.status}`);
       }
+      const data = await response.json();
+      const modelExists = data.models?.some(model => model.name === this.defaultModel);
+      
+      this.lastHealthCheck = now;
+      return modelExists;
     } catch (error) {
-      // console.error('Model health check failed:', error);
-      this.isModelLoaded = false;
+      logger.error('Model health check failed:', error);
+      return false;
     }
-    
-    this.lastHealthCheck = now;
-    return this.isModelLoaded;
   }
 
-  // Очистка старых записей кэша
+  // Очистка старого кэша
   cleanupCache() {
     const now = Date.now();
-    for (const [key, value] of responseCache.entries()) {
-      if (now - value.timestamp > CACHE_TTL) {
-        responseCache.delete(key);
-      }
-    }
+    const maxAge = 3600000; // 1 час
+    aiCache.cleanup(maxAge);
   }
 
-  // Создание экземпляра ChatOllama с нужными параметрами
+  // Создание чата с кастомным системным промптом
   createChat(customSystemPrompt = '') {
-    // Используем кастомный системный промпт, если он передан, иначе используем дефолтный
     let systemPrompt = customSystemPrompt;
     if (!systemPrompt) {
       systemPrompt = 'Вы - полезный ассистент. Отвечайте на русском языке кратко и по делу.';
@@ -81,36 +85,8 @@ class AIAssistant {
       baseUrl: this.baseUrl,
       model: this.defaultModel,
       system: systemPrompt,
-      temperature: 0.7, // Восстанавливаем для более творческих ответов
-      maxTokens: 2048, // Восстанавливаем для полных ответов
-      timeout: 300000, // 5 минут для качественной обработки
-      numCtx: 4096, // Увеличиваем контекст для лучшего понимания
-      numGpu: 1, // Используем GPU
-      numThread: 8, // Оптимальное количество потоков
-      repeatPenalty: 1.1, // Штраф за повторения
-      topK: 40, // Разнообразие ответов
-      topP: 0.9, // Ядерная выборка
-      tfsZ: 1, // Tail free sampling
-      mirostat: 2, // Mirostat 2.0 для контроля качества
-      mirostatTau: 5, // Целевая перплексия
-      mirostatEta: 0.1, // Скорость адаптации
-      grammar: '', // Грамматика (если нужна)
-      seed: -1, // Случайный сид
-      numPredict: -1, // Неограниченная длина
-      stop: [], // Стоп-слова
-      stream: false, // Без стриминга для стабильности
-      options: {
-        numCtx: 4096,
-        numGpu: 1,
-        numThread: 8,
-        repeatPenalty: 1.1,
-        topK: 40,
-        topP: 0.9,
-        tfsZ: 1,
-        mirostat: 2,
-        mirostatTau: 5,
-        mirostatEta: 0.1
-      }
+      ...AI_CONFIG,
+      options: AI_CONFIG
     });
   }
 
@@ -149,15 +125,12 @@ class AIAssistant {
   // Основной метод для получения ответа
   async getResponse(message, history = null, systemPrompt = '', rules = null) {
     try {
-      // console.log('getResponse called with:', { message, history, systemPrompt, rules });
-
       // Очищаем старый кэш
       this.cleanupCache();
 
       // Проверяем здоровье модели
       const isHealthy = await this.checkModelHealth();
       if (!isHealthy) {
-        // console.warn('Model is not healthy, returning fallback response');
         return 'Извините, модель временно недоступна. Пожалуйста, попробуйте позже.';
       }
 
@@ -168,7 +141,6 @@ class AIAssistant {
       });
       const cachedResponse = aiCache.get(cacheKey);
       if (cachedResponse) {
-        // console.log('Returning cached response');
         return cachedResponse;
       }
 
@@ -187,13 +159,16 @@ class AIAssistant {
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Request timeout - очередь перегружена'));
-        }, 180000); // 180 секунд таймаут для очереди (увеличено с 60)
+        }, 180000); // 180 секунд таймаут для очереди
 
         const onCompleted = (item) => {
           if (item.id === requestId) {
             clearTimeout(timeout);
             aiQueue.off('completed', onCompleted);
             aiQueue.off('failed', onFailed);
+            try {
+              aiCache.set(cacheKey, item.result);
+            } catch {}
             resolve(item.result);
           }
         };
@@ -211,63 +186,110 @@ class AIAssistant {
         aiQueue.on('failed', onFailed);
       });
     } catch (error) {
-      // console.error('Error in getResponse:', error);
+      logger.error('Error in getResponse:', error);
       return 'Извините, я не смог обработать ваш запрос. Пожалуйста, попробуйте позже.';
     }
   }
 
-  // Новый метод для OpenAI/Qwen2.5 совместимого endpoint
-  async fallbackRequestOpenAI(messages, systemPrompt = '') {
+  // Алиас для getResponse (для совместимости)
+  async processMessage(message, history = null, systemPrompt = '', rules = null) {
+    return this.getResponse(message, history, systemPrompt, rules);
+  }
+
+  // Прямой запрос к API (для очереди)
+  async directRequest(messages, systemPrompt = '', optionsOverride = {}) {
     try {
-      // console.log('Using fallbackRequestOpenAI with:', { messages, systemPrompt });
       const model = this.defaultModel;
       
       // Создаем AbortController для таймаута
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // Увеличиваем до 120 секунд
-      
-      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: false,
-          options: {
-            temperature: 0.7,
-            num_predict: 2048, // Восстанавливаем для полных ответов
-            num_ctx: 4096, // Восстанавливаем контекст для лучшего понимания
-            num_thread: 8, // Оптимальное количество потоков
-            num_gpu: 1, // Используем GPU если доступен
-            num_gqa: 8, // Оптимизация для qwen2.5
-            rope_freq_base: 1000000, // Оптимизация для qwen2.5
-            rope_freq_scale: 0.5, // Оптимизация для qwen2.5
-            repeat_penalty: 1.1, // Восстанавливаем штраф за повторения
-            top_k: 40, // Восстанавливаем разнообразие ответов
-            top_p: 0.9, // Восстанавливаем nucleus sampling
-            tfs_z: 1, // Tail free sampling
-            mirostat: 2, // Mirostat 2.0 для контроля качества
-            mirostat_tau: 5, // Целевая перплексия
-            mirostat_eta: 0.1, // Скорость адаптации
-            seed: -1, // Случайный сид
-            stop: [] // Стоп-слова
-          }
-        })
+      const timeoutId = setTimeout(() => controller.abort(), AI_CONFIG.timeout);
+
+      // Маппинг camelCase → snake_case для опций Ollama
+      const mapOptionsToOllama = (opts) => ({
+        temperature: opts.temperature,
+        // Используем только num_predict; не мапим maxTokens, чтобы не завышать лимит генерации
+        num_predict: typeof opts.numPredict === 'number' && opts.numPredict > 0 ? opts.numPredict : undefined,
+        num_ctx: opts.numCtx,
+        num_gpu: opts.numGpu,
+        num_thread: opts.numThread,
+        repeat_penalty: opts.repeatPenalty,
+        top_k: opts.topK,
+        top_p: opts.topP,
+        tfs_z: opts.tfsZ,
+        mirostat: opts.mirostat,
+        mirostat_tau: opts.mirostatTau,
+        mirostat_eta: opts.mirostatEta,
+        seed: opts.seed,
+        stop: Array.isArray(opts.stop) ? opts.stop : []
       });
-      
-      clearTimeout(timeoutId);
+
+      const mergedConfig = { ...AI_CONFIG, ...optionsOverride };
+      const ollamaOptions = mapOptionsToOllama(mergedConfig);
+
+      // Вставляем системный промпт в начало, если задан
+      const finalMessages = Array.isArray(messages) ? [...messages] : [];
+      // Нормализация: только 'user' | 'assistant' | 'system'
+      for (const m of finalMessages) {
+        if (m && m.role) {
+          if (m.role !== 'assistant' && m.role !== 'system') m.role = 'user';
+        }
+      }
+      if (systemPrompt && !finalMessages.find(m => m.role === 'system')) {
+        finalMessages.unshift({ role: 'system', content: systemPrompt });
+      }
+
+      let response;
+      try {
+        response = await fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model,
+            messages: finalMessages,
+            stream: false,
+            options: ollamaOptions,
+            keep_alive: '3m'
+          })
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
       const data = await response.json();
-      // Qwen2.5/OpenAI API возвращает ответ в data.choices[0].message.content
-      if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-        return data.choices[0].message.content;
+      
+      // Ollama /api/chat возвращает ответ в data.message.content
+      if (data.message && typeof data.message.content === 'string') {
+        const content = data.message.content;
+        try {
+          const cacheKey = aiCache.generateKey(messages, { num_predict: ollamaOptions.num_predict, temperature: ollamaOptions.temperature });
+          aiCache.set(cacheKey, content);
+        } catch {}
+        return content;
       }
-      return data.response || '';
+      // OpenAI-совместимый /v1/chat/completions
+      if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+        const content = data.choices[0].message.content;
+        try {
+          const cacheKey = aiCache.generateKey(messages, { num_predict: ollamaOptions.num_predict, temperature: ollamaOptions.temperature });
+          aiCache.set(cacheKey, content);
+        } catch {}
+        return content;
+      }
+      
+      const content = data.response || '';
+      try {
+        const cacheKey = aiCache.generateKey(messages, { num_predict: ollamaOptions.num_predict, temperature: ollamaOptions.temperature });
+        aiCache.set(cacheKey, content);
+      } catch {}
+      return content;
     } catch (error) {
-      // console.error('Error in fallbackRequestOpenAI:', error);
+      logger.error('Error in directRequest:', error);
       if (error.name === 'AbortError') {
         throw new Error('Request timeout - модель не ответила в течение 120 секунд');
       }
@@ -320,6 +342,4 @@ class AIAssistant {
   }
 }
 
-// Создаем и экспортируем единственный экземпляр
-const aiAssistant = new AIAssistant();
-module.exports = aiAssistant;
+module.exports = new AIAssistant();

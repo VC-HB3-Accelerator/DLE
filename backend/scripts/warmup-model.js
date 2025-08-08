@@ -22,8 +22,8 @@ async function warmupModel() {
     
           // console.log('✅ Ollama доступен');
     
-    // Отправляем простой запрос для разогрева
-    const warmupResponse = await fetch(`${OLLAMA_URL}/v1/chat/completions`, {
+    // Отправляем простой запрос для разогрева (корректный эндпоинт)
+    const warmupResponse = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -34,18 +34,15 @@ async function warmupModel() {
         ],
         stream: false,
         options: {
-          temperature: 0.3,
-          num_predict: 50,
-          num_ctx: 512,
-          num_thread: 8,
+          temperature: 0.2,
+          num_predict: 64,
+          num_ctx: 1024,
+          num_thread: 4,
           num_gpu: 1,
-          num_gqa: 8,
-          rope_freq_base: 1000000,
-          rope_freq_scale: 0.5,
           repeat_penalty: 1.1,
-          top_k: 40,
-          top_p: 0.9,
-        },
+          top_k: 30,
+          top_p: 0.9
+        }
       }),
     });
     
@@ -55,7 +52,7 @@ async function warmupModel() {
     
     const data = await warmupResponse.json();
           // console.log('✅ Модель разогрета успешно');
-      // console.log(`📝 Ответ модели: ${data.choices?.[0]?.message?.content?.substring(0, 100)}...`);
+      // console.log(`📝 Ответ модели: ${(data.message?.content || data.response || '').substring(0, 100)}...`);
     
   } catch (error) {
           // console.error('❌ Ошибка разогрева модели:', error.message);

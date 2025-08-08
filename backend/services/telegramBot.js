@@ -444,7 +444,7 @@ async function getBot() {
           } else {
             // Используем системный промпт из настроек, если RAG не используется
             const systemPrompt = aiSettings ? aiSettings.system_prompt : '';
-            aiResponse = await aiAssistant.getResponse(content, 'auto', history, systemPrompt);
+            aiResponse = await aiAssistant.getResponse(content, history, systemPrompt);
           }
           
           return aiResponse;

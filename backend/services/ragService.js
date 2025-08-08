@@ -19,6 +19,8 @@ const { getProviderSettings } = require('./aiProviderSettingsService');
 // Простой кэш для RAG результатов
 const ragCache = new Map();
 const RAG_CACHE_TTL = 5 * 60 * 1000; // 5 минут
+// Управляет поведением: выполнять ли upsert всех строк на каждый запрос поиска
+const UPSERT_ON_QUERY = process.env.RAG_UPSERT_ON_QUERY === 'true';
 
 async function getTableData(tableId) {
       // console.log(`[RAG] getTableData called for tableId: ${tableId}`);
@@ -67,7 +69,7 @@ async function getTableData(tableId) {
   return data;
 }
 
-async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10 }) {
+async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10, forceReindex = false }) {
       // console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
   
   // Проверяем кэш
@@ -111,12 +113,9 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
   // console.log(`[RAG] Prepared ${rowsForUpsert.length} rows for upsert`);
   // console.log(`[RAG] First row:`, rowsForUpsert[0]);
   
-  // Upsert все вопросы в индекс (можно оптимизировать по изменению)
-  if (rowsForUpsert.length > 0) {
+  // Выполняем upsert ТОЛЬКО если явно разрешено флагом/параметром.
+  if ((UPSERT_ON_QUERY || forceReindex) && rowsForUpsert.length > 0) {
     await vectorSearch.upsert(tableId, rowsForUpsert);
-    // console.log(`[RAG] Upsert completed`);
-  } else {
-    // console.log(`[RAG] No rows to upsert, skipping`);
   }
   
   // Поиск
@@ -293,7 +292,7 @@ async function generateLLMResponse({
       product,
       priority,
       date
-    });
+    }, 'generateLLMResponse');
     
     // Формируем улучшенный промпт для LLM с учетом найденной информации
     let prompt = `Вопрос пользователя: ${userQuestion}`;
@@ -329,9 +328,7 @@ async function generateLLMResponse({
     // --- КОНЕЦ ДОБАВЛЕНИЯ ---
 
     // Используем системный промпт из настроек, если он есть
-    if (finalSystemPrompt && finalSystemPrompt.trim()) {
-      prompt += `\n\nСистемная инструкция: ${finalSystemPrompt}`;
-    } else {
+    if (!finalSystemPrompt || !finalSystemPrompt.trim()) {
       // Fallback инструкция, если системный промпт не настроен
       prompt += `\n\nИнструкция: Используй найденную информацию из базы знаний для ответа. Если найденный ответ подходит к вопросу пользователя, используй его как основу. Если нужно дополнить или уточнить ответ, сделай это. Поддерживай естественную беседу, учитывая предыдущие сообщения. Отвечай на русском языке кратко и по делу. Если пользователь задает уточняющие вопросы, используй контекст предыдущих ответов.`;
     }
@@ -341,12 +338,25 @@ async function generateLLMResponse({
     // Получаем ответ от AI с учетом истории беседы
     let llmResponse;
     try {
-      llmResponse = await aiAssistant.getResponse(
-        prompt,
-        history,
-        finalSystemPrompt,
-        rules
-      );
+      // Прямое обращение к модели без очереди для снижения задержек при fallback
+      const messages = [];
+      if (finalSystemPrompt) {
+        messages.push({ role: 'system', content: finalSystemPrompt });
+      }
+      for (const h of (history || [])) {
+        if (h && h.content) {
+          const role = h.role === 'assistant' ? 'assistant' : 'user';
+          messages.push({ role, content: h.content });
+        }
+      }
+      messages.push({ role: 'user', content: prompt });
+      // Облегченные опции для снижения времени ответа на CPU
+      llmResponse = await aiAssistant.directRequest(messages, finalSystemPrompt, {
+        temperature: 0.2,
+        numPredict: 192,
+        numCtx: 1024,
+        numThread: 4
+      });
     } catch (error) {
       console.error(`[RAG] Error in getResponse:`, error.message);
       
@@ -379,7 +389,7 @@ function createConversationContext({
   product,
   priority,
   date
-}) {
+}, source = 'generic') {
   const context = {
     currentQuestion: userQuestion,
     ragData: {
@@ -394,7 +404,7 @@ function createConversationContext({
     isFollowUpQuestion: history && history.length > 0
   };
 
-  console.log(`[RAG] Создан контекст беседы:`, {
+  console.log(`[RAG] Создан контекст беседы (${source}):`, {
     hasRagData: context.hasRagData,
     historyLength: context.conversationHistory.length,
     isFollowUp: context.isFollowUpQuestion
@@ -412,12 +422,13 @@ async function ragAnswerWithConversation({
   product = null, 
   threshold = 10,
   history = [],
-  conversationId = null
+  conversationId = null,
+  forceReindex = false
 }) {
   console.log(`[RAG] ragAnswerWithConversation: tableId=${tableId}, question="${userQuestion}", historyLength=${history.length}`);
 
   // Получаем базовый RAG результат
-  const ragResult = await ragAnswer({ tableId, userQuestion, product, threshold });
+  const ragResult = await ragAnswer({ tableId, userQuestion, product, threshold, forceReindex });
   
   // Анализируем контекст беседы
   const conversationContext = createConversationContext({
@@ -428,26 +439,19 @@ async function ragAnswerWithConversation({
     product: ragResult.product,
     priority: ragResult.priority,
     date: ragResult.date
-  });
+  }, 'ragAnswerWithConversation');
 
   // Если это уточняющий вопрос и есть история
   if (conversationContext.isFollowUpQuestion && conversationContext.hasRagData) {
     console.log(`[RAG] Обнаружен уточняющий вопрос с RAG данными`);
 
     // Проверяем, есть ли точный ответ в первом поиске
-    if (ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 200) {
-      console.log(`[RAG] Найден точный ответ (score=${ragResult.score}), модифицируем с учетом контекста беседы`);
-      
-      // Модифицируем точный ответ с учетом контекста беседы
-      let contextualAnswer = ragResult.answer;
-      if (history && history.length > 0) {
-        const contextSummary = history.slice(-3).map(msg => msg.content).join(' | ');
-        contextualAnswer = `Контекст: ${contextSummary}\n\nОтвет: ${ragResult.answer}`;
-      }
-      
+    if (ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= threshold) {
+      console.log(`[RAG] Найден точный ответ (score=${ragResult.score}), возвращаем ответ из базы без модификаций`);
       return {
         ...ragResult,
-        answer: contextualAnswer,
+        // Возвращаем чистый ответ
+        answer: ragResult.answer,
         conversationContext,
         isFollowUp: true
       };
@@ -461,7 +465,8 @@ async function ragAnswerWithConversation({
       tableId, 
       userQuestion: contextualQuestion, 
       product, 
-      threshold 
+      threshold,
+      forceReindex
     });
     
     // Объединяем результаты

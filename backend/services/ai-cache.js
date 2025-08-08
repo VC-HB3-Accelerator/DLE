@@ -59,6 +59,23 @@ class AICache {
     logger.info('[AICache] Cache cleared');
   }
 
+  // Очистка старых записей по времени
+  cleanup(maxAge = 3600000) { // По умолчанию 1 час
+    const now = Date.now();
+    let deletedCount = 0;
+    
+    for (const [key, value] of this.cache.entries()) {
+      if (now - value.timestamp > maxAge) {
+        this.cache.delete(key);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      logger.info(`[AICache] Cleaned up ${deletedCount} old entries`);
+    }
+  }
+
   // Статистика кэша
   getStats() {
     return {

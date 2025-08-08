@@ -53,7 +53,7 @@ async function search(tableId, query, topK = 3) {
 async function remove(tableId, rowIds) {
   logger.info(`[VectorSearch] remove: tableId=${tableId}, rowIds=${rowIds}`);
   try {
-    const res = await axios.post(`${VECTOR_SEARCH_URL}/remove`, {
+    const res = await axios.post(`${VECTOR_SEARCH_URL}/delete`, {
       table_id: String(tableId),
       row_ids: rowIds.map(String)
     });
