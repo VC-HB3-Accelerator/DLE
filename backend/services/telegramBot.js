@@ -416,8 +416,9 @@ async function getBot() {
             if (recentMessages && recentMessages.length > 0) {
               // Преобразуем сообщения в формат для AI
               history = recentMessages.reverse().map(msg => ({
-                role: msg.sender_type === 'user' ? 'user' : 'assistant',
-                content: msg.content || '' // content уже расшифрован encryptedDb
+                // Любые человеческие роли трактуем как 'user', только ответы ассистента — 'assistant'
+                role: msg.sender_type === 'assistant' ? 'assistant' : 'user',
+                content: msg.content || ''
               }));
             }
           } catch (historyError) {
@@ -465,7 +466,7 @@ async function getBot() {
           sender_type: 'assistant',
           content: aiResponse,
           channel: 'telegram',
-          role: role,
+          role: 'assistant',
           direction: 'out',
           created_at: new Date()
         });

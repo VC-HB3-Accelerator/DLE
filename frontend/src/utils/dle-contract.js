@@ -84,18 +84,20 @@ export async function createProposal(dleAddress, proposalData) {
     const signer = await provider.getSigner();
 
     // ABI для создания предложения
-    const dleAbi = [
-      "function createProposal(string memory _description, uint256 _duration, bytes memory _operation, uint256 _governanceChainId) external returns (uint256)"
+  const dleAbi = [
+      "function createProposal(string memory _description, uint256 _duration, bytes memory _operation, uint256 _governanceChainId, uint256[] memory _targetChains, uint256 _timelockDelay) external returns (uint256)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, signer);
 
     // Создаем предложение
-    const tx = await dle.createProposal(
+  const tx = await dle.createProposal(
       proposalData.description,
       proposalData.duration,
       proposalData.operation,
-      proposalData.governanceChainId
+      proposalData.governanceChainId,
+      proposalData.targetChains || [],
+      proposalData.timelockDelay || 0
     );
 
     // Ждем подтверждения транзакции

@@ -11,14 +11,18 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @title DLE (Digital Legal Entity)
- * @dev Основной контракт DLE с модульной архитектурой и мульти-чейн поддержкой
+ * @dev Основной контракт DLE с модульной архитектурой, Single-Chain Governance
+ * и безопасной мульти-чейн синхронизацией без сторонних мостов (через подписи холдеров).
  */
-contract DLE is ERC20, ReentrancyGuard {
+contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
+    using ECDSA for bytes32;
     struct DLEInfo {
         string name;
         string symbol;
@@ -53,11 +57,15 @@ contract DLE is ERC20, ReentrancyGuard {
         uint256 forVotes;
         uint256 againstVotes;
         bool executed;
-        uint256 deadline;
+        bool canceled;
+        uint256 deadline;             // конец периода голосования (sec)
         address initiator;
-        bytes operation; // Операция для исполнения
+        bytes operation;              // операция для исполнения
+        uint256 governanceChainId;    // сеть голосования (Single-Chain Governance)
+        uint256[] targetChains;       // целевые сети для исполнения
+        uint256 timelock;             // earliest execution timestamp (sec)
+        uint256 snapshotTimepoint;    // блок/временная точка для getPastVotes
         mapping(address => bool) hasVoted;
-        mapping(uint256 => bool) chainVoteSynced; // Синхронизация голосов между цепочками
     }
 
 
@@ -74,15 +82,11 @@ contract DLE is ERC20, ReentrancyGuard {
 
     // Предложения
     mapping(uint256 => Proposal) public proposals;
+    uint256[] public allProposalIds;
 
     // Мульти-чейн
     mapping(uint256 => bool) public supportedChains;
     uint256[] public supportedChainIds;
-    mapping(uint256 => bool) public executedProposals; // Синхронизация исполненных предложений
-    
-    // Merkle proofs для cross-chain синхронизации
-    mapping(uint256 => bytes32) public chainMerkleRoots; // chainId => merkleRoot
-    mapping(uint256 => mapping(uint256 => bool)) public processedProofs; // proposalId => proofHash => processed
 
     // События
     event DLEInitialized(
@@ -101,21 +105,29 @@ contract DLE is ERC20, ReentrancyGuard {
     event ProposalCreated(uint256 proposalId, address initiator, string description);
     event ProposalVoted(uint256 proposalId, address voter, bool support, uint256 votingPower);
     event ProposalExecuted(uint256 proposalId, bytes operation);
+    event ProposalCancelled(uint256 proposalId, string reason);
+    event ProposalTimelockSet(uint256 proposalId, uint256 timelock);
+    event ProposalTargetsSet(uint256 proposalId, uint256[] targetChains);
+    event ProposalGovernanceChainSet(uint256 proposalId, uint256 governanceChainId);
     event ModuleAdded(bytes32 moduleId, address moduleAddress);
     event ModuleRemoved(bytes32 moduleId);
-    event CrossChainExecutionSync(uint256 proposalId, uint256 fromChainId, uint256 toChainId);
-    event CrossChainVoteSync(uint256 proposalId, uint256 fromChainId, uint256 toChainId);
+    event ProposalExecutionApprovedInChain(uint256 proposalId, uint256 chainId);
     event ChainAdded(uint256 chainId);
     event ChainRemoved(uint256 chainId);
-    event ChainMerkleRootSet(uint256 chainId, bytes32 merkleRoot);
     event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
     event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId);
 
+    // EIP712 typehash для подписи одобрения исполнения предложения в целевой сети
+    // ExecutionApproval(uint256 proposalId, bytes32 operationHash, uint256 chainId, uint256 snapshotTimepoint)
+    bytes32 private constant EXECUTION_APPROVAL_TYPEHASH = keccak256(
+        "ExecutionApproval(uint256 proposalId,bytes32 operationHash,uint256 chainId,uint256 snapshotTimepoint)"
+    );
+
     constructor(
         DLEConfig memory config,
         uint256 _currentChainId
-    ) ERC20(config.name, config.symbol) {
+    ) ERC20(config.name, config.symbol) ERC20Permit(config.name) {
         dleInfo = DLEInfo({
             name: config.name,
             symbol: config.symbol,
@@ -143,9 +155,13 @@ contract DLE is ERC20, ReentrancyGuard {
         require(config.initialPartners.length > 0, "No initial partners");
         
         for (uint256 i = 0; i < config.initialPartners.length; i++) {
-            require(config.initialPartners[i] != address(0), "Zero address");
-            require(config.initialAmounts[i] > 0, "Zero amount");
-            _mint(config.initialPartners[i], config.initialAmounts[i]);
+            address partner = config.initialPartners[i];
+            uint256 amount = config.initialAmounts[i];
+            require(partner != address(0), "Zero address");
+            require(amount > 0, "Zero amount");
+            _mint(partner, amount);
+            // Авто-делегирование голосов себе, чтобы getPastVotes работал без действия пользователя
+            _delegate(partner, partner);
         }
         
         emit InitialTokensDistributed(config.initialPartners, config.initialAmounts);
@@ -174,12 +190,14 @@ contract DLE is ERC20, ReentrancyGuard {
         string memory _description, 
         uint256 _duration,
         bytes memory _operation,
-        uint256 _governanceChainId
+        uint256 _governanceChainId,
+        uint256[] memory _targetChains,
+        uint256 _timelockDelay
     ) external returns (uint256) {
         require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
         require(_duration > 0, "Duration must be positive");
         require(supportedChains[_governanceChainId], "Chain not supported");
-        require(checkChainConnection(_governanceChainId), "Chain not available");
+        require(_timelockDelay <= 365 days, "Timelock too big");
 
         uint256 proposalId = proposalCounter++;
         Proposal storage proposal = proposals[proposalId];
@@ -192,8 +210,22 @@ contract DLE is ERC20, ReentrancyGuard {
         proposal.deadline = block.timestamp + _duration;
         proposal.initiator = msg.sender;
         proposal.operation = _operation;
+        proposal.governanceChainId = _governanceChainId;
+        proposal.timelock = block.timestamp + _timelockDelay;
+        // Снимок голосов: используем прошлую точку времени, чтобы getPastVotes был валиден в текущем блоке
+        uint256 nowClock = clock();
+        proposal.snapshotTimepoint = nowClock == 0 ? 0 : nowClock - 1;
+        // запись целевых сетей
+        for (uint256 i = 0; i < _targetChains.length; i++) {
+            require(supportedChains[_targetChains[i]], "Target chain not supported");
+            proposal.targetChains.push(_targetChains[i]);
+        }
 
+        allProposalIds.push(proposalId);
         emit ProposalCreated(proposalId, msg.sender, _description);
+        emit ProposalGovernanceChainSet(proposalId, _governanceChainId);
+        emit ProposalTargetsSet(proposalId, _targetChains);
+        emit ProposalTimelockSet(proposalId, proposal.timelock);
         return proposalId;
     }
 
@@ -208,9 +240,10 @@ contract DLE is ERC20, ReentrancyGuard {
         require(block.timestamp < proposal.deadline, "Voting ended");
         require(!proposal.executed, "Proposal already executed");
         require(!proposal.hasVoted[msg.sender], "Already voted");
-        require(balanceOf(msg.sender) > 0, "No tokens to vote");
+        require(currentChainId == proposal.governanceChainId, "Wrong chain for voting");
 
-        uint256 votingPower = balanceOf(msg.sender);
+        // используем снапшот голосов для защиты от перелива
+        uint256 votingPower = getPastVotes(msg.sender, proposal.snapshotTimepoint);
         proposal.hasVoted[msg.sender] = true;
 
         if (_support) {
@@ -222,53 +255,7 @@ contract DLE is ERC20, ReentrancyGuard {
         emit ProposalVoted(_proposalId, msg.sender, _support, votingPower);
     }
 
-    /**
-     * @dev Синхронизировать голос из другой цепочки
-     * @param _proposalId ID предложения
-     * @param _fromChainId ID цепочки откуда синхронизируем
-     * @param _forVotes Голоса за
-     * @param _againstVotes Голоса против
-     */
-    function syncVoteFromChain(
-        uint256 _proposalId,
-        uint256 _fromChainId,
-        uint256 _forVotes,
-        uint256 _againstVotes,
-        bytes memory _proof
-    ) external {
-        Proposal storage proposal = proposals[_proposalId];
-        require(proposal.id == _proposalId, "Proposal does not exist");
-        require(supportedChains[_fromChainId], "Chain not supported");
-        require(!proposal.chainVoteSynced[_fromChainId], "Already synced");
-
-            // Проверяем доказательство cross-chain синхронизации
-    require(_proof.length > 0, "Proof required for cross-chain sync");
-    
-    // Проверяем Merkle proof для cross-chain синхронизации
-    bytes32 proofHash = keccak256(abi.encodePacked(_proposalId, _fromChainId, _forVotes, _againstVotes));
-    require(!processedProofs[_proposalId][uint256(proofHash)], "Proof already processed");
-    
-    // Проверяем, что Merkle root для цепочки установлен
-    bytes32 merkleRoot = chainMerkleRoots[_fromChainId];
-    require(merkleRoot != bytes32(0), "Merkle root not set for chain");
-    
-    // Проверяем Merkle proof
-    bytes32[] memory proof = abi.decode(_proof, (bytes32[]));
-    require(MerkleProof.verify(proof, merkleRoot, proofHash), "Invalid Merkle proof");
-    
-    // Отмечаем proof как обработанный
-    processedProofs[_proposalId][uint256(proofHash)] = true;
-    
-    // Проверяем, что голоса не превышают общее количество токенов
-    uint256 totalVotes = _forVotes + _againstVotes;
-    require(totalVotes <= totalSupply(), "Votes exceed total supply");
-
-        proposal.forVotes += _forVotes;
-        proposal.againstVotes += _againstVotes;
-        proposal.chainVoteSynced[_fromChainId] = true;
-
-        emit CrossChainVoteSync(_proposalId, _fromChainId, currentChainId);
-    }
+    // УДАЛЕНО: syncVoteFromChain с MerkleProof — небезопасно без доверенного моста
 
     /**
      * @dev Проверить результат предложения
@@ -281,7 +268,9 @@ contract DLE is ERC20, ReentrancyGuard {
         require(proposal.id == _proposalId, "Proposal does not exist");
 
         uint256 totalVotes = proposal.forVotes + proposal.againstVotes;
-        uint256 quorumRequired = (totalSupply() * quorumPercentage) / 100;
+        // Используем снапшот totalSupply на момент начала голосования
+        uint256 pastSupply = getPastTotalSupply(proposal.snapshotTimepoint);
+        uint256 quorumRequired = (pastSupply * quorumPercentage) / 100;
         
         quorumReached = totalVotes >= quorumRequired;
         passed = quorumReached && proposal.forVotes > proposal.againstVotes;
@@ -297,6 +286,7 @@ contract DLE is ERC20, ReentrancyGuard {
         Proposal storage proposal = proposals[_proposalId];
         require(proposal.id == _proposalId, "Proposal does not exist");
         require(!proposal.executed, "Proposal already executed");
+        require(currentChainId == proposal.governanceChainId, "Execute only in governance chain");
 
         (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
         
@@ -307,6 +297,7 @@ contract DLE is ERC20, ReentrancyGuard {
             "Voting not ended and quorum not reached"
         );
         require(passed && quorumReached, "Proposal not passed");
+        require(block.timestamp >= proposal.timelock, "Timelock not expired");
 
         proposal.executed = true;
         
@@ -317,49 +308,74 @@ contract DLE is ERC20, ReentrancyGuard {
     }
 
     /**
-     * @dev Синхронизировать исполнение из другой цепочки
-     * @param _proposalId ID предложения
-     * @param _fromChainId ID цепочки откуда синхронизируем
+     * @dev Отмена предложения до истечения голосования инициатором при наличии достаточной голосующей силы.
+     * Это soft-cancel для защиты от явных ошибок. Порог: >= 10% от снапшотного supply.
      */
-    function syncExecutionFromChain(
-        uint256 _proposalId,
-        uint256 _fromChainId,
-        bytes memory _proof
-    ) external {
-        require(supportedChains[_fromChainId], "Chain not supported");
-        require(!executedProposals[_proposalId], "Already executed");
+    function cancelProposal(uint256 _proposalId, string calldata reason) external {
+        Proposal storage proposal = proposals[_proposalId];
+        require(proposal.id == _proposalId, "Proposal does not exist");
+        require(!proposal.executed, "Already executed");
+        require(block.timestamp < proposal.deadline, "Voting ended");
+        require(msg.sender == proposal.initiator, "Only initiator");
+        uint256 vp = getPastVotes(msg.sender, proposal.snapshotTimepoint);
+        uint256 pastSupply = getPastTotalSupply(proposal.snapshotTimepoint);
+        require(vp * 10 >= pastSupply, "Insufficient voting power to cancel");
 
-            // Проверяем доказательство исполнения из другой цепочки
-    require(_proof.length > 0, "Proof required for cross-chain execution");
-    
-    // Проверяем Merkle proof для cross-chain исполнения
-    bytes32 proofHash = keccak256(abi.encodePacked(_proposalId, _fromChainId, "EXECUTION"));
-    require(!processedProofs[_proposalId][uint256(proofHash)], "Proof already processed");
-    
-    // Проверяем, что Merkle root для цепочки установлен
-    bytes32 merkleRoot = chainMerkleRoots[_fromChainId];
-    require(merkleRoot != bytes32(0), "Merkle root not set for chain");
-    
-    // Проверяем Merkle proof
-    bytes32[] memory proof = abi.decode(_proof, (bytes32[]));
-    require(MerkleProof.verify(proof, merkleRoot, proofHash), "Invalid Merkle proof");
-    
-    // Отмечаем proof как обработанный
-    processedProofs[_proposalId][uint256(proofHash)] = true;
-    
-        // Проверяем, что предложение существует и не было исполнено
+        proposal.canceled = true;
+        emit ProposalCancelled(_proposalId, reason);
+    }
+
+    // УДАЛЕНО: syncExecutionFromChain с MerkleProof — небезопасно без доверенного моста
+
+    /**
+     * @dev Исполнение предложения в НЕ governance-сети по подписям холдеров на снапшоте.
+     * Подходит для target chains. Не требует внешнего моста.
+     */
+    function executeProposalBySignatures(
+        uint256 _proposalId,
+        address[] calldata signers,
+        bytes[] calldata signatures
+    ) external nonReentrant {
     Proposal storage proposal = proposals[_proposalId];
     require(proposal.id == _proposalId, "Proposal does not exist");
-    require(!proposal.executed, "Proposal already executed");
+        require(!proposal.executed, "Proposal already executed in this chain");
+        require(currentChainId != proposal.governanceChainId, "Use executeProposal in governance chain");
+        require(_isTargetChain(proposal, currentChainId), "Chain not in targets");
+        require(block.timestamp >= proposal.timelock, "Timelock not expired");
 
-        executedProposals[_proposalId] = true;
-        
-    // Исполняем операцию из предложения
-        if (proposal.id == _proposalId) {
-            _executeOperation(proposal.operation);
+        require(signers.length == signatures.length, "Bad signatures");
+        bytes32 opHash = keccak256(proposal.operation);
+        bytes32 structHash = keccak256(abi.encode(
+            EXECUTION_APPROVAL_TYPEHASH,
+            _proposalId,
+            opHash,
+            currentChainId,
+            proposal.snapshotTimepoint
+        ));
+        bytes32 digest = _hashTypedDataV4(structHash);
+
+        uint256 votesFor = 0;
+        // простая защита от дублей адресов (O(n^2) по малому n)
+        for (uint256 i = 0; i < signers.length; i++) {
+            address recovered = ECDSA.recover(digest, signatures[i]);
+            require(recovered == signers[i], "Bad signature");
+            // проверка на дубли
+            for (uint256 j = 0; j < i; j++) {
+                require(signers[j] != recovered, "Duplicate signer");
+            }
+            uint256 vp = getPastVotes(recovered, proposal.snapshotTimepoint);
+            require(vp > 0, "No voting power at snapshot");
+            votesFor += vp;
         }
 
-        emit CrossChainExecutionSync(_proposalId, _fromChainId, currentChainId);
+        uint256 pastSupply = getPastTotalSupply(proposal.snapshotTimepoint);
+        uint256 quorumRequired = (pastSupply * quorumPercentage) / 100;
+        require(votesFor >= quorumRequired, "Quorum not reached by sigs");
+
+        proposal.executed = true;
+        _executeOperation(proposal.operation);
+        emit ProposalExecuted(_proposalId, proposal.operation);
+        emit ProposalExecutionApprovedInChain(_proposalId, currentChainId);
     }
 
     /**
@@ -368,19 +384,8 @@ contract DLE is ERC20, ReentrancyGuard {
      * @return isAvailable Доступна ли цепочка
      */
     function checkChainConnection(uint256 _chainId) public view returns (bool isAvailable) {
-        // Проверяем, поддерживается ли цепочка
-        if (!supportedChains[_chainId]) {
-            return false;
-        }
-        
-        // Проверяем, что Merkle root установлен для цепочки
-        // Это означает, что цепочка активна и готова к синхронизации
-        bytes32 merkleRoot = chainMerkleRoots[_chainId];
-        if (merkleRoot == bytes32(0)) {
-            return false;
-        }
-        
-        return true;
+        // Упрощенная проверка: цепочка объявлена как поддерживаемая
+        return supportedChains[_chainId];
     }
 
     /**
@@ -410,12 +415,8 @@ contract DLE is ERC20, ReentrancyGuard {
     function syncToAllChains(uint256 _proposalId) external {
         require(checkSyncReadiness(_proposalId), "Not all chains ready");
         
-        // Выполняем синхронизацию во все цепочки
-        for (uint256 i = 0; i < getSupportedChainCount(); i++) {
-            uint256 chainId = getSupportedChainId(i);
-            syncToChain(_proposalId, chainId);
-        }
-        
+        // В этой версии без внешнего моста синхронизация выполняется
+        // через executeProposalBySignatures в целевых сетях.
         emit SyncCompleted(_proposalId);
     }
 
@@ -424,26 +425,7 @@ contract DLE is ERC20, ReentrancyGuard {
      * @param _proposalId ID предложения
      * @param _chainId ID цепочки
      */
-    function syncToChain(uint256 _proposalId, uint256 _chainId) internal {
-        // Проверяем, что цепочка поддерживается
-        require(supportedChains[_chainId], "Chain not supported");
-        
-        // Получаем информацию о предложении
-        Proposal storage proposal = proposals[_proposalId];
-        require(proposal.id == _proposalId, "Proposal does not exist");
-        
-        // Проверяем, что цепочка готова к синхронизации
-        require(checkChainConnection(_chainId), "Chain not ready for sync");
-        
-        // Создаем Merkle root для синхронизации
-        bytes32 syncData = keccak256(abi.encodePacked(_proposalId, currentChainId, proposal.operation));
-        
-        // Обновляем Merkle root для целевой цепочки
-        chainMerkleRoots[_chainId] = syncData;
-        
-        // Эмитим событие для cross-chain bridge
-        emit CrossChainExecutionSync(_proposalId, currentChainId, _chainId);
-    }
+    // УДАЛЕНО: syncToChain — не используется в подпись‑ориентированной схеме
 
     /**
      * @dev Получить количество поддерживаемых цепочек
@@ -465,14 +447,12 @@ contract DLE is ERC20, ReentrancyGuard {
      * @dev Добавить поддерживаемую цепочку (только для владельцев токенов)
      * @param _chainId ID цепочки
      */
-    function addSupportedChain(uint256 _chainId) external {
-        require(balanceOf(msg.sender) > 0, "Must hold tokens to add chain");
+    // Управление списком сетей теперь выполняется только через предложения
+    function _addSupportedChain(uint256 _chainId) internal {
         require(!supportedChains[_chainId], "Chain already supported");
         require(_chainId != currentChainId, "Cannot add current chain");
-        
         supportedChains[_chainId] = true;
         supportedChainIds.push(_chainId);
-        
         emit ChainAdded(_chainId);
     }
 
@@ -480,13 +460,10 @@ contract DLE is ERC20, ReentrancyGuard {
      * @dev Удалить поддерживаемую цепочку (только для владельцев токенов)
      * @param _chainId ID цепочки
      */
-    function removeSupportedChain(uint256 _chainId) external {
-        require(balanceOf(msg.sender) > 0, "Must hold tokens to remove chain");
+    function _removeSupportedChain(uint256 _chainId) internal {
         require(supportedChains[_chainId], "Chain not supported");
         require(_chainId != currentChainId, "Cannot remove current chain");
-        
         supportedChains[_chainId] = false;
-        
         // Удаляем из массива
         for (uint256 i = 0; i < supportedChainIds.length; i++) {
             if (supportedChainIds[i] == _chainId) {
@@ -495,10 +472,6 @@ contract DLE is ERC20, ReentrancyGuard {
                 break;
             }
         }
-        
-        // Очищаем Merkle root для цепочки
-        delete chainMerkleRoots[_chainId];
-        
         emit ChainRemoved(_chainId);
     }
 
@@ -507,22 +480,13 @@ contract DLE is ERC20, ReentrancyGuard {
      * @param _chainId ID цепочки
      * @param _merkleRoot Merkle root для цепочки
      */
-    function setChainMerkleRoot(uint256 _chainId, bytes32 _merkleRoot) external {
-        require(balanceOf(msg.sender) > 0, "Must hold tokens to set merkle root");
-        require(supportedChains[_chainId], "Chain not supported");
-        
-        chainMerkleRoots[_chainId] = _merkleRoot;
-        
-        emit ChainMerkleRootSet(_chainId, _merkleRoot);
-    }
+    // УДАЛЕНО: setChainMerkleRoot — небезопасно отдавать любому холдеру
 
     /**
      * @dev Получить Merkle root для цепочки
      * @param _chainId ID цепочки
      */
-    function getChainMerkleRoot(uint256 _chainId) external view returns (bytes32) {
-        return chainMerkleRoots[_chainId];
-    }
+    // УДАЛЕНО: getChainMerkleRoot — устарело
 
     /**
      * @dev Исполнить операцию
@@ -532,19 +496,7 @@ contract DLE is ERC20, ReentrancyGuard {
         // Декодируем операцию
         (bytes4 selector, bytes memory data) = abi.decode(_operation, (bytes4, bytes));
         
-        if (selector == bytes4(keccak256("transfer(address,uint256)"))) {
-            // Операция передачи токенов
-            (address to, uint256 amount) = abi.decode(data, (address, uint256));
-            _transfer(msg.sender, to, amount);
-        } else if (selector == bytes4(keccak256("mint(address,uint256)"))) {
-            // Операция минтинга токенов
-            (address to, uint256 amount) = abi.decode(data, (address, uint256));
-            _mint(to, amount);
-        } else if (selector == bytes4(keccak256("burn(address,uint256)"))) {
-            // Операция сжигания токенов
-            (address from, uint256 amount) = abi.decode(data, (address, uint256));
-            _burn(from, amount);
-        } else if (selector == bytes4(keccak256("updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)"))) {
+        if (selector == bytes4(keccak256("updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)"))) {
             // Операция обновления информации DLE
             (string memory name, string memory symbol, string memory location, string memory coordinates, 
              uint256 jurisdiction, uint256 oktmo, string[] memory okvedCodes, uint256 kpp) = abi.decode(data, (string, string, string, string, uint256, uint256, string[], uint256));
@@ -565,6 +517,16 @@ contract DLE is ERC20, ReentrancyGuard {
             // Операция удаления модуля
             (bytes32 moduleId) = abi.decode(data, (bytes32));
             _removeModule(moduleId);
+        } else if (selector == bytes4(keccak256("_addSupportedChain(uint256)"))) {
+            (uint256 chainIdToAdd) = abi.decode(data, (uint256));
+            _addSupportedChain(chainIdToAdd);
+        } else if (selector == bytes4(keccak256("_removeSupportedChain(uint256)"))) {
+            (uint256 chainIdToRemove) = abi.decode(data, (uint256));
+            _removeSupportedChain(chainIdToRemove);
+        } else if (selector == bytes4(keccak256("offchainAction(bytes32,string,bytes32)"))) {
+            // Оффчейн операция для приложения: идентификатор, тип, хеш полезной нагрузки
+            // (bytes32 actionId, string memory kind, bytes32 payloadHash) = abi.decode(data, (bytes32, string, bytes32));
+            // Ончейн-побочных эффектов нет. Факт решения фиксируется событием ProposalExecuted.
         } else {
             // Неизвестная операция
             revert("Unknown operation");
@@ -654,7 +616,6 @@ contract DLE is ERC20, ReentrancyGuard {
         uint256 _chainId
     ) external returns (uint256) {
         require(supportedChains[_chainId], "Chain not supported");
-        require(checkChainConnection(_chainId), "Chain not available");
         require(_moduleAddress != address(0), "Zero address");
         require(!activeModules[_moduleId], "Module already exists");
         require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
@@ -693,7 +654,6 @@ contract DLE is ERC20, ReentrancyGuard {
         uint256 _chainId
     ) external returns (uint256) {
         require(supportedChains[_chainId], "Chain not supported");
-        require(checkChainConnection(_chainId), "Chain not available");
         require(activeModules[_moduleId], "Module does not exist");
         require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
 
@@ -782,192 +742,146 @@ contract DLE is ERC20, ReentrancyGuard {
         return currentChainId;
     }
 
-    // События для новых функций
-    event SyncCompleted(uint256 proposalId);
-    event DLEDeactivated(address indexed deactivatedBy, uint256 timestamp);
-    event DeactivationProposalCreated(uint256 proposalId, address indexed initiator, string description);
-    event DeactivationProposalVoted(uint256 proposalId, address indexed voter, bool support, uint256 votingPower);
-    event DeactivationProposalExecuted(uint256 proposalId, address indexed executedBy);
-
-    // Структура для предложения деактивации
-    struct DeactivationProposal {
-        uint256 id;
-        string description;
-        uint256 forVotes;
-        uint256 againstVotes;
-        bool executed;
-        uint256 deadline;
-        address initiator;
-        uint256 chainId;
-        mapping(address => bool) hasVoted;
-    }
-
-    // Предложения деактивации
-    mapping(uint256 => DeactivationProposal) public deactivationProposals;
-    uint256 public deactivationProposalCounter;
-    bool public isDeactivated;
-
-    /**
-     * @dev Создать предложение о деактивации DLE
-     * @param _description Описание предложения
-     * @param _duration Длительность голосования в секундах
-     * @param _chainId ID цепочки для деактивации
-     */
-    function createDeactivationProposal(
-        string memory _description, 
-        uint256 _duration,
-        uint256 _chainId
-    ) external returns (uint256) {
-        require(!isDeactivated, "DLE already deactivated");
-        require(balanceOf(msg.sender) > 0, "Must hold tokens to create deactivation proposal");
-        require(_duration > 0, "Duration must be positive");
-        require(supportedChains[_chainId], "Chain not supported");
-
-        uint256 proposalId = deactivationProposalCounter++;
-        DeactivationProposal storage proposal = deactivationProposals[proposalId];
-        
-        proposal.id = proposalId;
-        proposal.description = _description;
-        proposal.forVotes = 0;
-        proposal.againstVotes = 0;
-        proposal.executed = false;
-        proposal.deadline = block.timestamp + _duration;
-        proposal.initiator = msg.sender;
-        proposal.chainId = _chainId;
-
-        emit DeactivationProposalCreated(proposalId, msg.sender, _description);
-        return proposalId;
-    }
-
-    /**
-     * @dev Голосовать за предложение деактивации
-     * @param _proposalId ID предложения
-     * @param _support Поддержка предложения
-     */
-    function voteDeactivation(uint256 _proposalId, bool _support) external nonReentrant {
-        DeactivationProposal storage proposal = deactivationProposals[_proposalId];
-        require(proposal.id == _proposalId, "Deactivation proposal does not exist");
-        require(block.timestamp < proposal.deadline, "Voting ended");
-        require(!proposal.executed, "Proposal already executed");
-        require(!proposal.hasVoted[msg.sender], "Already voted");
-        require(balanceOf(msg.sender) > 0, "No tokens to vote");
-
-        uint256 votingPower = balanceOf(msg.sender);
-        
-        if (_support) {
-            proposal.forVotes += votingPower;
-        } else {
-            proposal.againstVotes += votingPower;
-        }
-        
-        proposal.hasVoted[msg.sender] = true;
-
-        emit DeactivationProposalVoted(_proposalId, msg.sender, _support, votingPower);
-    }
-
-    /**
-     * @dev Проверить результат предложения деактивации
-     * @param _proposalId ID предложения
-     */
-    function checkDeactivationProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached) {
-        DeactivationProposal storage proposal = deactivationProposals[_proposalId];
-        require(proposal.id == _proposalId, "Deactivation proposal does not exist");
-
-        uint256 totalVotes = proposal.forVotes + proposal.againstVotes;
-        uint256 totalSupply = totalSupply();
-        
-        quorumReached = totalVotes >= (totalSupply * quorumPercentage) / 100;
-        passed = quorumReached && proposal.forVotes > proposal.againstVotes;
-        
-        return (passed, quorumReached);
-    }
-
-    /**
-     * @dev Исполнить предложение деактивации
-     * @param _proposalId ID предложения
-     */
-    function executeDeactivationProposal(uint256 _proposalId) external {
-        DeactivationProposal storage proposal = deactivationProposals[_proposalId];
-        require(proposal.id == _proposalId, "Deactivation proposal does not exist");
-        require(!proposal.executed, "Proposal already executed");
-        require(block.timestamp >= proposal.deadline, "Voting not ended");
-
-        (bool passed, bool quorumReached) = checkDeactivationProposalResult(_proposalId);
-        require(quorumReached, "Quorum not reached");
-        require(passed, "Proposal not passed");
-
-        proposal.executed = true;
-        isDeactivated = true;
-        dleInfo.isActive = false;
-
-        emit DeactivationProposalExecuted(_proposalId, msg.sender);
-        emit DLEDeactivated(msg.sender, block.timestamp);
-    }
-
-    /**
-     * @dev Деактивировать DLE напрямую (только при достижении кворума)
-     * Может быть вызвана только если есть активное предложение деактивации с достигнутым кворумом
-     */
-    function deactivate() external {
-        require(!isDeactivated, "DLE already deactivated");
-        require(balanceOf(msg.sender) > 0, "Must hold tokens to deactivate DLE");
-
-        // Проверяем, есть ли активное предложение деактивации с достигнутым кворумом
-        bool hasValidDeactivationProposal = false;
-        
-        for (uint256 i = 0; i < deactivationProposalCounter; i++) {
-            DeactivationProposal storage proposal = deactivationProposals[i];
-            if (!proposal.executed && block.timestamp >= proposal.deadline) {
-                (bool passed, bool quorumReached) = checkDeactivationProposalResult(i);
-                if (quorumReached && passed) {
-                    hasValidDeactivationProposal = true;
-                    proposal.executed = true;
-                    break;
-                }
-            }
-        }
-
-        require(hasValidDeactivationProposal, "No valid deactivation proposal with quorum");
-
-        isDeactivated = true;
-        dleInfo.isActive = false;
-
-        emit DLEDeactivated(msg.sender, block.timestamp);
-    }
-
-    /**
-     * @dev Проверить, деактивирован ли DLE
-     */
-    function isActive() external view returns (bool) {
-        return !isDeactivated && dleInfo.isActive;
-    }
-
-    /**
-     * @dev Получить информацию о предложении деактивации
-     * @param _proposalId ID предложения
-     */
-    function getDeactivationProposal(uint256 _proposalId) external view returns (
+    // ===== Интерфейс аналитики для API =====
+    function getProposalSummary(uint256 _proposalId) external view returns (
         uint256 id,
         string memory description,
         uint256 forVotes,
         uint256 againstVotes,
         bool executed,
+        bool canceled,
         uint256 deadline,
         address initiator,
-        uint256 chainId
+        uint256 governanceChainId,
+        uint256 timelock,
+        uint256 snapshotTimepoint,
+        uint256[] memory targets
     ) {
-        DeactivationProposal storage proposal = deactivationProposals[_proposalId];
-        require(proposal.id == _proposalId, "Deactivation proposal does not exist");
-        
+        Proposal storage p = proposals[_proposalId];
+        require(p.id == _proposalId, "Proposal does not exist");
         return (
-            proposal.id,
-            proposal.description,
-            proposal.forVotes,
-            proposal.againstVotes,
-            proposal.executed,
-            proposal.deadline,
-            proposal.initiator,
-            proposal.chainId
+            p.id,
+            p.description,
+            p.forVotes,
+            p.againstVotes,
+            p.executed,
+            p.canceled,
+            p.deadline,
+            p.initiator,
+            p.governanceChainId,
+            p.timelock,
+            p.snapshotTimepoint,
+            p.targetChains
         );
     }
-} 
+
+    function getGovernanceParams() external view returns (
+        uint256 quorumPct,
+        uint256 chainId,
+        uint256 supportedCount
+    ) {
+        return (quorumPercentage, currentChainId, supportedChainIds.length);
+    }
+
+    function listSupportedChains() external view returns (uint256[] memory) {
+        return supportedChainIds;
+    }
+
+    function getVotingPowerAt(address voter, uint256 timepoint) external view returns (uint256) {
+        return getPastVotes(voter, timepoint);
+    }
+
+    // ===== Пагинация и агрегирование =====
+    function getProposalsCount() external view returns (uint256) {
+        return allProposalIds.length;
+    }
+
+    function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory) {
+        uint256 total = allProposalIds.length;
+        if (offset >= total) {
+            return new uint256[](0);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256[] memory page = new uint256[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            page[i - offset] = allProposalIds[i];
+        }
+        return page;
+    }
+
+    // 0=Pending, 1=Succeeded, 2=Defeated, 3=Executed, 4=Canceled, 5=ReadyForExecution
+    function getProposalState(uint256 _proposalId) public view returns (uint8 state) {
+        Proposal storage p = proposals[_proposalId];
+        require(p.id == _proposalId, "Proposal does not exist");
+        if (p.canceled) return 4;
+        if (p.executed) return 3;
+        (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
+        bool votingOver = block.timestamp >= p.deadline;
+        bool ready = passed && quorumReached && block.timestamp >= p.timelock;
+        if (ready) return 5; // ReadyForExecution
+        if (passed && (votingOver || quorumReached)) return 1; // Succeeded
+        if (votingOver && !passed) return 2; // Defeated
+        return 0; // Pending
+    }
+
+    function getQuorumAt(uint256 timepoint) external view returns (uint256) {
+        uint256 supply = getPastTotalSupply(timepoint);
+        return (supply * quorumPercentage) / 100;
+    }
+
+    function getProposalVotes(uint256 _proposalId) external view returns (
+        uint256 forVotes,
+        uint256 againstVotes,
+        uint256 totalVotes,
+        uint256 quorumRequired
+    ) {
+        Proposal storage p = proposals[_proposalId];
+        require(p.id == _proposalId, "Proposal does not exist");
+        uint256 supply = getPastTotalSupply(p.snapshotTimepoint);
+        uint256 quorumReq = (supply * quorumPercentage) / 100;
+        return (p.forVotes, p.againstVotes, p.forVotes + p.againstVotes, quorumReq);
+    }
+
+    // События для новых функций
+    event SyncCompleted(uint256 proposalId);
+    event DLEDeactivated(address indexed deactivatedBy, uint256 timestamp);
+
+    bool public isDeactivated;
+
+    // Деактивация вынесена в отдельный модуль. См. DeactivationModule.
+    function isActive() external view returns (bool) {
+        return !isDeactivated && dleInfo.isActive;
+    }
+    // ===== Вспомогательные функции =====
+    function _isTargetChain(Proposal storage p, uint256 chainId) internal view returns (bool) {
+        for (uint256 i = 0; i < p.targetChains.length; i++) {
+            if (p.targetChains[i] == chainId) return true;
+        }
+        return false;
+    }
+
+    // ===== Overrides для ERC20Votes =====
+    function _update(address from, address to, uint256 value)
+        internal
+        override(ERC20, ERC20Votes)
+    {
+        super._update(from, to, value);
+    }
+
+    // Разрешаем неоднозначность nonces из базовых классов
+    function nonces(address owner)
+        public
+        view
+        override(ERC20Permit, Nonces)
+        returns (uint256)
+    {
+        return super.nonces(owner);
+    }
+
+    // Запрет делегирования на третьих лиц: разрешено только делегировать самому себе
+    function _delegate(address delegator, address delegatee) internal override {
+        require(delegator == delegatee, "Delegation disabled");
+        super._delegate(delegator, delegatee);
+    }
+}

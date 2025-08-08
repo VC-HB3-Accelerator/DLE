@@ -683,6 +683,61 @@
           <div class="preview-item">
             <strong>💰 Общая стоимость:</strong> ~${{ totalDeployCost.toFixed(2) }}
           </div>
+
+          <!-- Предсказанные адреса (CREATE2) -->
+          <div class="preview-item predicted-addresses">
+            <div class="predicted-header">
+              <strong>📍 Предсказанные адреса DLE:</strong>
+            </div>
+            <ul class="networks-list" v-if="Object.keys(predictedAddresses).length">
+              <li v-for="net in selectedNetworkDetails" :key="net.chainId">
+                {{ net.name }} ({{ net.chainId }}):
+                <code class="addr">{{ predictedAddresses[net.chainId] || '—' }}</code>
+                <button
+                  v-if="predictedAddresses[net.chainId]"
+                  type="button"
+                  class="btn btn-xs btn-outline-secondary"
+                  @click="copyToClipboard(predictedAddresses[net.chainId])"
+                >Копировать</button>
+              </li>
+            </ul>
+            <small class="text-muted" v-else>Адреса вычисляются автоматически при выборе сетей.</small>
+          </div>
+        </div>
+
+        <!-- Ключи блокчейн-сканов (опционально) -->
+        <div v-if="selectedNetworks.length > 0" class="preview-section explorer-keys-section">
+          <h4>🧩 Ключи блокчейн-сканов (опционально для авто-верификации)</h4>
+          <div class="explorer-keys-grid">
+            <div
+              v-for="network in selectedNetworkDetails"
+              :key="network.chainId"
+              class="explorer-key-item"
+            >
+              <label class="explorer-key-label">
+                {{ network.name }} (Chain ID: {{ network.chainId }})
+              </label>
+              <div class="explorer-key-input">
+                <input
+                  :type="explorerKeyVisibility[network.chainId] ? 'text' : 'password'"
+                  class="form-control"
+                  :placeholder="`API ключ скана для ${network.name}`"
+                  v-model="explorerApiKeys[network.chainId]"
+                  autocomplete="off"
+                />
+                <button type="button" class="btn btn-secondary btn-sm"
+                  @click="explorerKeyVisibility[network.chainId] = !explorerKeyVisibility[network.chainId]">
+                  {{ explorerKeyVisibility[network.chainId] ? 'Скрыть' : 'Показать' }}
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm" @click="explorerApiKeys[network.chainId] = ''">
+                  Очистить
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="explorer-keys-actions">
+            <label><input type="checkbox" v-model="persistExplorerKeys" /> Сохранить локально до конца деплоя</label>
+          </div>
         </div>
 
         <!-- Приватный ключ -->
@@ -903,6 +958,13 @@ const availableNetworks = ref([]);
 const isLoadingNetworks = ref(false);
 const totalDeployCost = ref(0);
 const predictedAddress = ref('');
+const predictedAddresses = reactive({}); // { chainId: address }
+const isPredicting = ref(false);
+
+// Ключи блокчейн-сканов (локально)
+const explorerApiKeys = reactive({}); // { [chainId]: apiKey }
+const explorerKeyVisibility = reactive({});
+const persistExplorerKeys = ref(false);
 
 // Состояние для приватных ключей
 const useSameKeyForAllChains = ref(true);
@@ -957,6 +1019,61 @@ const selectedNetworkDetails = computed(() => {
 const hasSelectedNetworks = computed(() => {
   return selectedNetworks.value.length > 0;
 });
+
+// Инициализация полей ключей при смене выбранных сетей
+watch(selectedNetworkDetails, (nets) => {
+  nets.forEach(n => {
+    if (!(n.chainId in explorerKeyVisibility)) explorerKeyVisibility[n.chainId] = false;
+    if (persistExplorerKeys.value) {
+      const saved = localStorage.getItem(`scan_key_${n.chainId}`);
+      if (saved && !explorerApiKeys[n.chainId]) explorerApiKeys[n.chainId] = saved;
+    }
+  });
+  if (nets && nets.length > 0) predictAddresses();
+}, { immediate: true });
+
+watch(persistExplorerKeys, (val) => {
+  if (!val) return;
+  Object.entries(explorerApiKeys).forEach(([chainId, key]) => {
+    if (key) localStorage.setItem(`scan_key_${chainId}`, key);
+  });
+});
+
+function clearExplorerKeys() {
+  Object.keys(explorerApiKeys).forEach((k) => explorerApiKeys[k] = '');
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('scan_key_'))
+    .forEach(k => localStorage.removeItem(k));
+}
+
+// Предсказание адресов (упрощенно через бэкенд)
+async function predictAddresses() {
+  try {
+    isPredicting.value = true;
+    const payload = {
+      name: dleSettings.name,
+      symbol: dleSettings.tokenSymbol,
+      selectedNetworks: selectedNetworkDetails.value.map(n => n.chainId)
+    };
+    const resp = await axios.post('/dle-v2/predict-addresses', payload);
+    if (resp.data && resp.data.success && resp.data.data) {
+      // ожидаем вид { [chainId]: address }
+      Object.keys(predictedAddresses).forEach(k => delete predictedAddresses[k]);
+      Object.assign(predictedAddresses, resp.data.data);
+    }
+  } catch (e) {
+    console.error('Ошибка расчета предсказанных адресов:', e);
+    alert('Не удалось рассчитать предсказанные адреса');
+  } finally {
+    isPredicting.value = false;
+  }
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard?.writeText(text).then(() => {
+    // no-op
+  }).catch(() => {});
+}
 
 // Информация о выбранном стандарте токена
 const selectedTokenStandardInfo = computed(() => {
@@ -2306,7 +2423,8 @@ const deploySmartContracts = async () => {
       currentChainId: dleSettings.selectedNetworks[0] || 1,
       
       // Приватный ключ для деплоя
-      privateKey: unifiedPrivateKey.value
+      privateKey: unifiedPrivateKey.value,
+      explorerApiKeys: explorerApiKeys
     };
 
     console.log('Данные для деплоя DLE:', deployData);
@@ -2333,6 +2451,12 @@ const deploySmartContracts = async () => {
         // Перенаправляем на главную страницу управления
         router.push('/management');
       }, 2000);
+      if (!persistExplorerKeys.value) {
+        Object.keys(explorerApiKeys).forEach((k) => explorerApiKeys[k] = '');
+        Object.keys(localStorage)
+          .filter(k => k.startsWith('scan_key_'))
+          .forEach(k => localStorage.removeItem(k));
+      }
       
     } else {
       showDeployProgress.value = false;
@@ -2375,6 +2499,15 @@ const validateCoordinates = (coordinates) => {
 </script>
 
 <style scoped>
+.explorer-keys-section { margin-top: 16px; }
+.explorer-keys-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.explorer-key-item { display: flex; flex-direction: column; gap: 8px; }
+.explorer-key-input { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
+.explorer-key-input input { flex: 1 1 auto; width: auto; min-width: 0; }
+.explorer-keys-actions { margin-top: 8px; display: flex; gap: 12px; align-items: center; }
+@media (min-width: 768px) {
+  .explorer-keys-grid { grid-template-columns: 1fr 1fr; }
+}
 .settings-panel {
   padding: var(--block-padding);
   background-color: var(--color-light);

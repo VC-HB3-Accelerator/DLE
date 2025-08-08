@@ -214,6 +214,15 @@
           </div>
         </div>
 
+        <!-- Timelock -->
+        <div class="form-section">
+          <h5>⏳ Timelock</h5>
+          <div class="form-group-inline">
+            <label for="timelockHours">Задержка исполнения (часы):</label>
+            <input id="timelockHours" type="number" min="0" step="1" v-model.number="newProposal.timelockHours" class="form-control small" />
+          </div>
+        </div>
+
         <!-- Выбор цепочки для кворума -->
         <div class="form-section">
           <h5>🔗 Выбор цепочки для кворума</h5>
@@ -239,7 +248,23 @@
           </div>
         </div>
 
-        <!-- Тип операции -->
+        
+
+        <!-- Целевые сети для исполнения (мультиселект) -->
+        <div class="form-section" v-if="showTargetChains">
+          <h5>🎯 Целевые сети для исполнения</h5>
+          <div class="targets-grid">
+            <label v-for="chain in availableChains" :key="chain.chainId" class="target-item">
+              <input type="checkbox" :value="chain.chainId" v-model="newProposal.targetChains" />
+              <span>{{ chain.name }} ({{ chain.chainId }})</span>
+            </label>
+          </div>
+          <small class="text-muted">Для offchain‑действий целевые сети не требуются.</small>
+        </div>
+
+        
+
+        <!-- Тип операции (последним блоком) -->
         <div class="form-section">
           <h5>⚙️ Тип операции</h5>
           
@@ -458,7 +483,22 @@
           </div>
         </div>
 
-        <!-- Предварительный просмотр -->
+        <!-- Действия -->
+        <div class="form-actions">
+          <button 
+            class="btn btn-success" 
+            @click="createProposal" 
+            :disabled="!isFormValid || isCreating"
+          >
+            <i class="fas fa-paper-plane"></i> 
+            {{ isCreating ? 'Создание...' : 'Создать предложение' }}
+          </button>
+          <button class="btn btn-secondary" @click="resetForm">
+            <i class="fas fa-undo"></i> Сбросить
+          </button>
+        </div>
+
+        <!-- Предварительный просмотр (в конце формы) -->
         <div class="form-section">
           <h5>👁️ Предварительный просмотр</h5>
           <div class="preview-card">
@@ -480,21 +520,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Действия -->
-        <div class="form-actions">
-          <button 
-            class="btn btn-success" 
-            @click="createProposal" 
-            :disabled="!isFormValid || isCreating"
-          >
-            <i class="fas fa-paper-plane"></i> 
-            {{ isCreating ? 'Создание...' : 'Создать предложение' }}
-          </button>
-          <button class="btn btn-secondary" @click="resetForm">
-            <i class="fas fa-undo"></i> Сбросить
-          </button>
-        </div>
       </div>
       </div> <!-- Закрываем div для авторизованных пользователей -->
   </div>
@@ -507,6 +532,11 @@ import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getDLEInfo, loadProposals, createProposal as createProposalAPI, voteForProposal as voteForProposalAPI, executeProposal as executeProposalAPI, getSupportedChains } from '../../utils/dle-contract.js';
+const showTargetChains = computed(() => {
+  // Для offchain-действий не требуется ончейн исполнение (здесь типы пока ончейн)
+  // Можно расширить логику при появлении offchain типа
+  return true;
+});
 import wsClient from '../../utils/websocket.js';
 import { ethers } from 'ethers';
 
@@ -552,6 +582,8 @@ const newProposal = ref({
   description: '',
   duration: 7,
   governanceChainId: null,
+  timelockHours: 0,
+  targetChains: [],
   operationType: '',
   operationParams: {
     to: '',
@@ -584,6 +616,7 @@ const isFormValid = computed(() => {
     newProposal.value.duration > 0 &&
     newProposal.value.governanceChainId &&
     newProposal.value.operationType &&
+    newProposal.value.timelockHours >= 0 &&
     validateOperationParams()
   );
 });
@@ -981,7 +1014,9 @@ async function createProposal() {
       description: newProposal.value.description,
       duration: newProposal.value.duration * 24 * 60 * 60, // конвертируем в секунды
       operation: operation,
-      governanceChainId: newProposal.value.governanceChainId
+      governanceChainId: newProposal.value.governanceChainId,
+      targetChains: showTargetChains.value ? newProposal.value.targetChains : [],
+      timelockDelay: (newProposal.value.timelockHours || 0) * 3600
     });
     
     console.log('Предложение создано:', result);

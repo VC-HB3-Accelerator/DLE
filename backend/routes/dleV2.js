@@ -18,6 +18,7 @@ const auth = require('../middleware/auth');
 const path = require('path');
 const fs = require('fs');
 const ethers = require('ethers'); // Added ethers for private key validation
+const create2 = require('../utils/create2');
 
 /**
  * @route   POST /api/dle-v2
@@ -299,3 +300,33 @@ router.post('/validate-private-key', async (req, res, next) => {
 });
 
 module.exports = router; 
+
+/**
+ * Дополнительные маршруты (подключаются из app.js)
+ */
+
+// Предсказание адресов по выбранным сетям с использованием CREATE2
+router.post('/predict-addresses', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { name, symbol, selectedNetworks } = req.body || {};
+    if (!selectedNetworks || !Array.isArray(selectedNetworks) || selectedNetworks.length === 0) {
+      return res.status(400).json({ success: false, message: 'Не переданы сети' });
+    }
+
+    // Используем служебные секреты для фабрики и SALT
+    // Ожидаем, что на сервере настроены переменные окружения или конфиги на сеть
+    const result = {};
+    for (const chainId of selectedNetworks) {
+      const factory = process.env[`FACTORY_ADDRESS_${chainId}`] || process.env.FACTORY_ADDRESS;
+      const saltHex = process.env[`CREATE2_SALT_${chainId}`] || process.env.CREATE2_SALT;
+      const initCodeHash = process.env[`INIT_CODE_HASH_${chainId}`] || process.env.INIT_CODE_HASH;
+      if (!factory || !saltHex || !initCodeHash) continue;
+      result[chainId] = create2.computeCreate2Address(factory, saltHex, initCodeHash);
+    }
+
+    return res.json({ success: true, data: result });
+  } catch (e) {
+    logger.error('predict-addresses error', e);
+    return res.status(500).json({ success: false, message: 'Ошибка расчета адресов' });
+  }
+});

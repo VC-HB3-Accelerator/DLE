@@ -1,3 +1,71 @@
+/* eslint-disable no-console */
+const hre = require('hardhat');
+
+async function main() {
+  const { ethers } = hre;
+  const rpcUrl = process.env.RPC_URL;
+  const pk = process.env.PRIVATE_KEY;
+  if (!rpcUrl || !pk) throw new Error('RPC_URL/PRIVATE_KEY required');
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(pk, provider);
+
+  const salt = process.env.CREATE2_SALT;
+  const initCodeHash = process.env.INIT_CODE_HASH;
+  let factoryAddress = process.env.FACTORY_ADDRESS;
+
+  if (!salt || !initCodeHash) throw new Error('CREATE2_SALT/INIT_CODE_HASH required');
+
+  // Ensure factory
+  if (!factoryAddress) {
+    const Factory = await hre.ethers.getContractFactory('FactoryDeployer', wallet);
+    const factory = await Factory.deploy();
+    await factory.waitForDeployment();
+    factoryAddress = await factory.getAddress();
+  } else {
+    const code = await provider.getCode(factoryAddress);
+    if (code === '0x') {
+      const Factory = await hre.ethers.getContractFactory('FactoryDeployer', wallet);
+      const factory = await Factory.deploy();
+      await factory.waitForDeployment();
+      factoryAddress = await factory.getAddress();
+    }
+  }
+
+  // Prepare DLE init code = creation bytecode WITH constructor args
+  const DLE = await hre.ethers.getContractFactory('DLE', wallet);
+  const paramsPath = require('path').join(__dirname, './current-params.json');
+  const params = require(paramsPath);
+  const dleConfig = {
+    name: params.name,
+    symbol: params.symbol,
+    location: params.location,
+    coordinates: params.coordinates,
+    jurisdiction: params.jurisdiction,
+    oktmo: params.oktmo,
+    okvedCodes: params.okvedCodes || [],
+    kpp: params.kpp,
+    quorumPercentage: params.quorumPercentage,
+    initialPartners: params.initialPartners,
+    initialAmounts: params.initialAmounts,
+    supportedChainIds: params.supportedChainIds
+  };
+  const deployTx = await DLE.getDeployTransaction(dleConfig, params.currentChainId);
+  const dleInit = deployTx.data; // полноценный init code
+
+  // Deploy via factory
+  const Factory = await hre.ethers.getContractAt('FactoryDeployer', factoryAddress, wallet);
+  const tx = await Factory.deploy(salt, dleInit);
+  const rc = await tx.wait();
+  const addr = rc.logs?.[0]?.args?.addr || (await Factory.computeAddress(salt, initCodeHash));
+  console.log('DLE v2 задеплоен по адресу:', addr);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
+
 /**
  * Copyright (c) 2024-2025 Тарабанов Александр Викторович
  * All rights reserved.

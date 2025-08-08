@@ -49,59 +49,48 @@ class DLEV2Service {
       fs.copyFileSync(paramsFile, tempParamsFile);
       logger.info(`Файл параметров скопирован успешно`);
 
-      // Определяем сеть для деплоя (берем первую из выбранных сетей)
-      const chainId = deployParams.supportedChainIds && deployParams.supportedChainIds.length > 0 
-        ? deployParams.supportedChainIds[0] 
-        : 1; // По умолчанию Ethereum
-
-      // Получаем rpc_url из базы по chain_id
-      logger.info(`Поиск RPC URL для chain_id: ${chainId}`);
-      const rpcUrl = await getRpcUrlByChainId(chainId);
-      if (!rpcUrl) {
-        logger.error(`RPC URL для сети с chain_id ${chainId} не найден в базе данных`);
-        throw new Error(`RPC URL для сети с chain_id ${chainId} не найден в базе данных`);
+      // Готовим RPC для всех выбранных сетей
+      const rpcUrls = [];
+      for (const cid of deployParams.supportedChainIds) {
+        logger.info(`Поиск RPC URL для chain_id: ${cid}`);
+        const ru = await getRpcUrlByChainId(cid);
+        if (!ru) {
+          throw new Error(`RPC URL для сети с chain_id ${cid} не найден в базе данных`);
+        }
+        rpcUrls.push(ru);
       }
-      logger.info(`Найден RPC URL для chain_id ${chainId}: ${rpcUrl}`);
-      
-      // Проверяем баланс кошелька
-      const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-      const walletAddress = dleParams.privateKey ? new ethers.Wallet(dleParams.privateKey, provider).address : null;
-      
-      if (walletAddress) {
-        const balance = await provider.getBalance(walletAddress);
-        const minBalance = ethers.parseEther("0.00001"); // Временно уменьшено для тестирования
-        logger.info(`Баланс кошелька ${walletAddress}: ${ethers.formatEther(balance)} ETH`);
-        
-        if (balance < minBalance) {
-          logger.warn(`Недостаточно ETH для деплоя. Баланс: ${ethers.formatEther(balance)} ETH, требуется минимум: ${ethers.formatEther(minBalance)} ETH`);
-          throw new Error(`Недостаточно ETH для деплоя. Баланс: ${ethers.formatEther(balance)} ETH, требуется минимум: ${ethers.formatEther(minBalance)} ETH. Пополните кошелек через Sepolia faucet: https://sepoliafaucet.com/`);
+
+      // Лёгкая проверка баланса в первой сети
+      {
+        const { ethers } = require('ethers');
+        const provider = new ethers.JsonRpcProvider(rpcUrls[0]);
+        const walletAddress = dleParams.privateKey ? new ethers.Wallet(dleParams.privateKey, provider).address : null;
+        if (walletAddress) {
+          const balance = await provider.getBalance(walletAddress);
+          const minBalance = ethers.parseEther("0.00001");
+          logger.info(`Баланс кошелька ${walletAddress}: ${ethers.formatEther(balance)} ETH`);
+          if (balance < minBalance) {
+            throw new Error(`Недостаточно ETH для деплоя в ${deployParams.supportedChainIds[0]}. Баланс: ${ethers.formatEther(balance)} ETH`);
+          }
         }
       }
       if (!dleParams.privateKey) {
         throw new Error('Приватный ключ для деплоя не передан');
       }
 
-      // Маппинг chain_id к именам сетей в Hardhat
-      const chainIdToNetworkName = {
-        1: 'ethereum',
-        137: 'polygon', 
-        56: 'bsc',
-        42161: 'arbitrum',
-        11155111: 'sepolia'
-      };
-      
-      const networkName = chainIdToNetworkName[chainId];
-      if (!networkName) {
-        throw new Error(`Сеть с chain_id ${chainId} не поддерживается для деплоя`);
-      }
+      // Рассчитываем INIT_CODE_HASH автоматически из актуального initCode
+      const initCodeHash = await this.computeInitCodeHash(deployParams);
 
-      // Запускаем скрипт деплоя с нужными переменными окружения
-      const result = await this.runDeployScript(paramsFile, {
-        rpcUrl,
+      // Собираем адреса фабрик по сетям (если есть)
+      const factoryAddresses = deployParams.supportedChainIds.map(cid => process.env[`FACTORY_ADDRESS_${cid}`] || '').join(',');
+
+      // Мультисетевой деплой одним вызовом
+      const result = await this.runDeployMultichain(paramsFile, {
+        rpcUrls: rpcUrls.join(','),
         privateKey: dleParams.privateKey,
-        networkId: networkName,
-        envNetworkKey: chainId.toString().toUpperCase()
+        salt: process.env.CREATE2_SALT,
+        initCodeHash,
+        factories: factoryAddresses
       });
 
       // Очищаем временные файлы
@@ -237,14 +226,12 @@ class DLEV2Service {
         return;
       }
 
-      // Формируем переменные окружения для скрипта деплоя
       const envVars = {
         ...process.env,
         RPC_URL: extraEnv.rpcUrl,
         PRIVATE_KEY: extraEnv.privateKey
       };
 
-      // Запускаем скрипт без указания сети, передаем RPC URL и приватный ключ через переменные окружения
       const hardhatProcess = spawn('npx', ['hardhat', 'run', scriptPath], {
         cwd: path.join(__dirname, '..'),
         env: envVars,
@@ -266,7 +253,6 @@ class DLEV2Service {
 
       hardhatProcess.on('close', (code) => {
         try {
-          // Пытаемся извлечь результат из stdout независимо от кода завершения
           const result = this.extractDeployResult(stdout);
           resolve(result);
         } catch (error) {
@@ -283,6 +269,40 @@ class DLEV2Service {
         logger.error('Ошибка запуска скрипта деплоя DLE v2:', error);
         reject(error);
       });
+    });
+  }
+
+  // Мультисетевой деплой
+  runDeployMultichain(paramsFile, opts = {}) {
+    return new Promise((resolve, reject) => {
+      const scriptPath = path.join(__dirname, '../scripts/deploy/deploy-multichain.js');
+      if (!fs.existsSync(scriptPath)) return reject(new Error('Скрипт мультисетевого деплоя не найден'));
+      const envVars = {
+        ...process.env,
+        PRIVATE_KEY: opts.privateKey,
+        CREATE2_SALT: opts.salt,
+        INIT_CODE_HASH: opts.initCodeHash,
+        MULTICHAIN_RPC_URLS: opts.rpcUrls,
+        MULTICHAIN_FACTORY_ADDRESSES: opts.factories || ''
+      };
+      const p = spawn('npx', ['hardhat', 'run', scriptPath], { cwd: path.join(__dirname, '..'), env: envVars, stdio: 'pipe' });
+      let stdout = '', stderr = '';
+      p.stdout.on('data', (d) => { stdout += d.toString(); logger.info(`[MULTI] ${d.toString().trim()}`); });
+      p.stderr.on('data', (d) => { stderr += d.toString(); logger.error(`[MULTI_ERR] ${d.toString().trim()}`); });
+      p.on('close', () => {
+        try {
+          const m = stdout.match(/MULTICHAIN_DEPLOY_RESULT\s*(\[.*\])/s);
+          if (!m) throw new Error('Результат не найден');
+          const arr = JSON.parse(m[1]);
+          const addr = arr[0].address;
+          const allSame = arr.every(x => x.address.toLowerCase() === addr.toLowerCase());
+          if (!allSame) throw new Error('Адреса отличаются между сетями');
+          resolve({ success: true, data: { dleAddress: addr, networks: arr } });
+        } catch (e) {
+          reject(new Error(`Ошибка мультисетевого деплоя: ${e.message}\nSTDOUT:${stdout}\nSTDERR:${stderr}`));
+        }
+      });
+      p.on('error', (e) => reject(e));
     });
   }
 
@@ -357,6 +377,30 @@ class DLEV2Service {
       logger.error('Ошибка при получении списка DLE v2:', error);
       return [];
     }
+  }
+
+  // Авто-расчёт INIT_CODE_HASH
+  async computeInitCodeHash(params) {
+    const hre = require('hardhat');
+    const { ethers } = hre;
+    const DLE = await hre.ethers.getContractFactory('DLE');
+    const dleConfig = {
+      name: params.name,
+      symbol: params.symbol,
+      location: params.location,
+      coordinates: params.coordinates,
+      jurisdiction: params.jurisdiction,
+      oktmo: params.oktmo,
+      okvedCodes: params.okvedCodes || [],
+      kpp: params.kpp,
+      quorumPercentage: params.quorumPercentage,
+      initialPartners: params.initialPartners,
+      initialAmounts: params.initialAmounts,
+      supportedChainIds: params.supportedChainIds
+    };
+    const deployTx = await DLE.getDeployTransaction(dleConfig, params.currentChainId);
+    const initCode = deployTx.data;
+    return ethers.keccak256(initCode);
   }
 }
 
