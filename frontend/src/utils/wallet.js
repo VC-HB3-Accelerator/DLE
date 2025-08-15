@@ -151,8 +151,16 @@ export const connectWallet = async () => {
     // Формируем понятное сообщение об ошибке
     let errorMessage = 'Произошла ошибка при подключении кошелька.';
 
-    if (error.code === 4001) {
+    if (error.message && error.message.includes('MetaMask extension not found')) {
+      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
+    } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
+      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
+    } else if (error.code === 4001) {
       errorMessage = 'Вы отклонили запрос на подпись в MetaMask.';
+    } else if (error.message && error.message.includes('No accounts found')) {
+      errorMessage = 'Аккаунты не найдены. Пожалуйста, разблокируйте MetaMask и попробуйте снова.';
+    } else if (error.message && error.message.includes('MetaMask not detected')) {
+      errorMessage = 'MetaMask не обнаружен. Пожалуйста, установите расширение MetaMask.';
     } else if (error.response && error.response.data && error.response.data.error) {
       errorMessage = error.response.data.error;
     } else if (error.message) {

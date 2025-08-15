@@ -85,6 +85,13 @@ provide('identities', computed(() => props.identities));
 provide('tokenBalances', computed(() => props.tokenBalances));
 provide('isLoadingTokens', computed(() => props.isLoadingTokens));
 
+// Отладочная информация
+console.log('[BaseLayout] Props received:', {
+  isAuthenticated: props.isAuthenticated,
+  tokenBalances: props.tokenBalances,
+  isLoadingTokens: props.isLoadingTokens
+});
+
 // Callback после успешной аутентификации/привязки через Email/Telegram
 const handleAuthFlowSuccess = (authType) => {
       // console.log(`[BaseLayout] Auth flow success: ${authType}`);
@@ -151,7 +158,21 @@ const handleWalletAuth = async () => {
     }
   } catch (error) {
           // console.error('[BaseLayout] Ошибка при подключении кошелька:', error);
-    showErrorMessage('Произошла ошибка при подключении кошелька');
+    
+    // Улучшенная обработка ошибок MetaMask
+    let errorMessage = 'Произошла ошибка при подключении кошелька';
+    
+    if (error.message && error.message.includes('MetaMask extension not found')) {
+      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
+    } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
+      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
+    } else if (error.message && error.message.includes('Браузерный кошелек не установлен')) {
+      errorMessage = 'Браузерный кошелек не установлен. Пожалуйста, установите MetaMask.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    showErrorMessage(errorMessage);
   } finally {
     isConnectingWallet.value = false;
   }

@@ -22,10 +22,19 @@
         :isAuthenticated="auth.isAuthenticated.value"
         :identities="auth.identities.value"
         :tokenBalances="tokenBalances"
-        :isLoadingTokens="isLoadingTokens" 
+        :isLoadingTokens="isLoadingTokens"
+        :formattedLastUpdate="formattedLastUpdate" 
         @auth-action-completed="handleAuthActionCompleted"
       />
     </RouterView>
+    
+    <!-- Отладочная информация -->
+    <div v-if="false" style="position: fixed; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid black; z-index: 9999;">
+      <h4>Debug Info:</h4>
+      <p>isAuthenticated: {{ auth.isAuthenticated.value }}</p>
+      <p>tokenBalances: {{ JSON.stringify(tokenBalances) }}</p>
+      <p>isLoadingTokens: {{ isLoadingTokens }}</p>
+    </div>
   </div>
 </template>
 
@@ -33,7 +42,7 @@
   import { ref, watch, onMounted, computed, onUnmounted } from 'vue';
   import { RouterView } from 'vue-router';
   import { useAuth, provideAuth } from './composables/useAuth';
-  import { fetchTokenBalances } from './services/tokens';
+  import { useTokenBalancesWebSocket } from './composables/useTokenBalancesWebSocket';
   import eventBus from './utils/eventBus';
   import wsClient from './utils/websocket';
   
@@ -46,12 +55,26 @@
   // Состояние загрузки
   const isLoading = ref(false);
 
+  // Проверка наличия MetaMask
+  const isMetaMaskAvailable = ref(false);
+
   // Использование composable для аутентификации
   const auth = useAuth();
 
-  // --- Логика загрузки баланса токенов --- 
-  const tokenBalances = ref({});
-  const isLoadingTokens = ref(false);
+  // --- Логика загрузки баланса токенов через WebSocket --- 
+  // Предоставляем auth контекст
+  provideAuth();
+  
+  // Инициализируем WebSocket composable
+  const { 
+    tokenBalances, 
+    isLoadingTokens, 
+    lastUpdateTime, 
+    formattedLastUpdate,
+    requestTokenBalances,
+    startAutoUpdate,
+    stopAutoUpdate
+  } = useTokenBalancesWebSocket();
 
   const identities = computed(() => auth.identities.value);
 
@@ -66,60 +89,57 @@
     return identity ? identity.provider_id : null;
   };
 
-  const refreshTokenBalances = async () => {
+  const refreshTokenBalances = () => {
     if (!hasIdentityType('wallet') || !auth.isAuthenticated.value) {
-      tokenBalances.value = {}; // Очищаем, если нет кошелька или не авторизован
+      console.log('[App] Нет кошелька или не авторизован');
       return;
     }
     
-    isLoadingTokens.value = true;
-    try {
-      const walletAddress = getIdentityValue('wallet');
-      // console.log('[App] Обновление балансов для адреса:', walletAddress);
-      
-      const balances = await fetchTokenBalances(walletAddress);
-              // console.log('[App] Полученные балансы:', balances);
-      
-      tokenBalances.value = balances || {};
-    } catch (error) {
-      // console.error('[App] Ошибка при получении балансов:', error);
-      tokenBalances.value = {};
-    } finally {
-      isLoadingTokens.value = false;
-    }
+    const walletAddress = getIdentityValue('wallet');
+    console.log('[App] Запрашиваем обновление балансов через WebSocket для:', walletAddress, 'userId:', auth.userId.value);
+    requestTokenBalances(walletAddress, auth.userId.value);
   };
   
   // Следим за изменениями в идентификаторах
   watch(identities, (newIdentities, oldIdentities) => {
+    console.log('[App] identities changed:', { newIdentities, oldIdentities });
     if (auth.isAuthenticated.value) {
         const newWalletId = getIdentityValue('wallet');
         const oldWalletIdentity = oldIdentities ? oldIdentities.find(id => id.provider === 'wallet') : null;
         const oldWalletId = oldWalletIdentity ? oldWalletIdentity.provider_id : null;
         
+        console.log('[App] wallet IDs comparison:', { newWalletId, oldWalletId });
+        
         if (newWalletId !== oldWalletId) {
-            // console.log('[App] Обнаружено изменение идентификатора кошелька, обновляем балансы');
-            refreshTokenBalances();
-        } else if (hasIdentityType('wallet') && Object.keys(tokenBalances.value).length === 0 && !isLoadingTokens.value) {
-            // Если кошелек есть, но баланс пустой и не грузится - пробуем загрузить
-            // console.log('[App] Кошелек есть, но баланс пуст, пытаемся загрузить.');
-            refreshTokenBalances();
+            console.log('[App] Обнаружено изменение идентификатора кошелька, обновляем балансы');
+            if (newWalletId) {
+              startAutoUpdate(newWalletId, auth.userId.value);
+            } else {
+              stopAutoUpdate();
+            }
         }
     }
   }, { deep: true });
 
   // Мониторинг изменений состояния аутентификации
   watch(auth.isAuthenticated, (isAuth) => {
-    // console.log('[App] Состояние аутентификации изменилось:', isAuth);
+    console.log('[App] Состояние аутентификации изменилось:', isAuth);
     if (isAuth) {
-      // Убираем задержку, полагаемся на watch(identities) или прямо вызываем
-      // setTimeout(refreshTokenBalances, 500);
       refreshTokenBalances(); // Вызываем сразу, если нужно обновить при смене auth
-    } else {
-      // Очищаем баланс при выходе
-      tokenBalances.value = {};
     }
   });
   
+  // Проверка наличия MetaMask при загрузке
+  const checkMetaMaskAvailability = () => {
+    try {
+      isMetaMaskAvailable.value = !!window.ethereum && window.ethereum.isMetaMask;
+      console.log('[App] MetaMask доступен:', isMetaMaskAvailable.value);
+    } catch (error) {
+      console.error('[App] Ошибка проверки MetaMask:', error);
+      isMetaMaskAvailable.value = false;
+    }
+  };
+
   // --- Возвращаем и улучшаем функцию-обработчик --- 
   const handleAuthActionCompleted = async () => {
     // console.log('[App] Auth action completed, triggering updates...');
@@ -129,8 +149,8 @@
       await auth.checkAuth();
               // console.log('[App] auth.checkAuth() completed. isAuthenticated:', auth.isAuthenticated.value);
       
-      // 2. Обновляем баланс (использует обновленные identities)
-      await refreshTokenBalances();
+      // 2. Обновляем баланс через WebSocket
+      refreshTokenBalances();
               // console.log('[App] refreshTokenBalances() completed.');
 
       // 3. Явно оповещаем компоненты об изменении состояния авторизации
@@ -152,7 +172,13 @@
 
   // Первичная загрузка баланса при монтировании, если пользователь уже авторизован
   onMounted(() => {
+    console.log('[App] onMounted - auth.isAuthenticated:', auth.isAuthenticated.value);
+    console.log('[App] onMounted - identities:', auth.identities.value);
+    
+    // Проверяем наличие MetaMask
+    checkMetaMaskAvailability();
     if (auth.isAuthenticated.value) {
+      console.log('[App] onMounted - вызываем refreshTokenBalances');
       refreshTokenBalances();
     }
     
@@ -164,27 +190,7 @@
       }
     });
     
-    // Подписываемся на WebSocket события для токенов
-    wsClient.onAuthTokenAdded(() => {
-      console.log('[App] WebSocket: токен добавлен, обновляем балансы');
-      if (auth.isAuthenticated.value) {
-        refreshTokenBalances();
-      }
-    });
-    
-    wsClient.onAuthTokenDeleted(() => {
-      console.log('[App] WebSocket: токен удален, обновляем балансы');
-      if (auth.isAuthenticated.value) {
-        refreshTokenBalances();
-      }
-    });
-    
-    wsClient.onAuthTokenUpdated(() => {
-      console.log('[App] WebSocket: токен обновлен, обновляем балансы');
-      if (auth.isAuthenticated.value) {
-        refreshTokenBalances();
-      }
-    });
+    // WebSocket события для токенов обрабатываются в useTokenBalancesWebSocket
     
     // Отписываемся при размонтировании компонента
     onUnmounted(() => {
@@ -193,8 +199,6 @@
       }
     });
   });
-
-  provideAuth();
 </script>
 
 <style>

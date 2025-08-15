@@ -58,9 +58,10 @@ class AuthService {
   /**
    * Находит или создает пользователя по адресу кошелька
    * @param {string} address - Адрес кошелька
+   * @param {boolean} isAdmin - Предварительно проверенный статус админа
    * @returns {Promise<{userId: number, isAdmin: boolean}>}
    */
-  async findOrCreateUser(address) {
+  async findOrCreateUser(address, isAdmin = null) {
     try {
       // Нормализуем адрес - всегда приводим к нижнему регистру
       const normalizedAddress = ethers.getAddress(address).toLowerCase();
@@ -78,15 +79,15 @@ class AuthService {
         }
         const userData = user[0];
 
-        // Проверяем роль администратора при каждой аутентификации
-        const isAdmin = await checkAdminRole(normalizedAddress);
+        // Используем предварительно проверенный статус админа или проверяем заново
+        const adminStatus = isAdmin !== null ? isAdmin : await checkAdminRole(normalizedAddress);
 
         // Если статус админа изменился, обновляем роль в базе данных
-        if (userData.role === 'admin' && !isAdmin) {
+        if (userData.role === 'admin' && !adminStatus) {
           await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', userData.id]);
           logger.info(`Updated user ${userData.id} role to user (admin tokens no longer present)`);
           return { userId: userData.id, isAdmin: false };
-        } else if (userData.role !== 'admin' && isAdmin) {
+        } else if (userData.role !== 'admin' && adminStatus) {
           await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userData.id]);
           logger.info(`Updated user ${userData.id} role to admin (admin tokens found)`);
           return { userId: userData.id, isAdmin: true };
@@ -98,8 +99,11 @@ class AuthService {
         };
       }
 
-      // Если пользователь не найден, создаем нового
-      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', ['user']);
+      // Если пользователь не найден, создаем нового с правильной ролью
+      const adminStatus = isAdmin !== null ? isAdmin : await checkAdminRole(normalizedAddress);
+      const initialRole = adminStatus ? 'admin' : 'user';
+      
+      const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [initialRole]);
       const userId = newUserResult.rows[0].id;
 
       // Добавляем идентификатор кошелька (всегда в нижнем регистре)
@@ -109,21 +113,11 @@ class AuthService {
         provider_id: normalizedAddress
       });
 
-      // Проверяем, есть ли у пользователя роль админа
-      const isAdmin = await checkAdminRole(normalizedAddress);
-      logger.info(`New user ${userId} role check result: ${isAdmin ? 'admin' : 'user'}`);
-
-      // Если у пользователя есть админские токены, обновляем его роль
-      if (isAdmin) {
-        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
-        logger.info(
-          `New user ${userId} with wallet ${normalizedAddress} automatically granted admin role`
-        );
-      }
+      logger.info(`New user ${userId} created with role: ${initialRole} for wallet ${normalizedAddress}`);
 
       broadcastContactsUpdate();
 
-      return { userId, isAdmin };
+      return { userId, isAdmin: adminStatus };
     } catch (error) {
       logger.error('Error finding or creating user:', error);
       throw error;

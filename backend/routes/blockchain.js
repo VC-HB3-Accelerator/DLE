@@ -217,10 +217,11 @@ router.post('/get-proposals', async (req, res) => {
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
-    // ABI для чтения предложений (только читаемые поля)
+    // ABI для чтения предложений (используем правильные функции из смарт-контракта)
     const dleAbi = [
-      "function proposals(uint256) external view returns (uint256 id, string description, uint256 forVotes, uint256 againstVotes, bool executed, uint256 deadline, address initiator, bytes operation)",
-      "function checkProposalResult(uint256 _proposalId) external view returns (bool)",
+      "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targets)",
+      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+      "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
       "event ProposalCreated(uint256 proposalId, address initiator, string description)"
     ];
 
@@ -250,8 +251,9 @@ router.post('/get-proposals', async (req, res) => {
         
         while (retryCount < maxRetries) {
           try {
-            proposal = await dle.proposals(proposalId);
-            isPassed = await dle.checkProposalResult(proposalId);
+            proposal = await dle.getProposalSummary(proposalId);
+            const result = await dle.checkProposalResult(proposalId);
+            isPassed = result.passed;
             break; // Успешно прочитали
           } catch (error) {
             retryCount++;
@@ -264,19 +266,18 @@ router.post('/get-proposals', async (req, res) => {
           }
         }
         
-        // governanceChainId не сохраняется в предложении, используем текущую цепочку
-        const governanceChainId = 11155111; // Sepolia chain ID
-        
         console.log(`[Blockchain] Данные предложения ${proposalId}:`, {
           id: Number(proposal.id),
           description: proposal.description,
           forVotes: Number(proposal.forVotes),
           againstVotes: Number(proposal.againstVotes),
           executed: proposal.executed,
+          canceled: proposal.canceled,
           deadline: Number(proposal.deadline),
           initiator: proposal.initiator,
-          operation: proposal.operation,
-          governanceChainId: Number(governanceChainId)
+          governanceChainId: Number(proposal.governanceChainId),
+          snapshotTimepoint: Number(proposal.snapshotTimepoint),
+          targets: proposal.targets
         });
         
         const proposalInfo = {
@@ -285,10 +286,12 @@ router.post('/get-proposals', async (req, res) => {
           forVotes: Number(proposal.forVotes),
           againstVotes: Number(proposal.againstVotes),
           executed: proposal.executed,
+          canceled: proposal.canceled,
           deadline: Number(proposal.deadline),
           initiator: proposal.initiator,
-          operation: proposal.operation,
-          governanceChainId: Number(governanceChainId),
+          governanceChainId: Number(proposal.governanceChainId),
+          snapshotTimepoint: Number(proposal.snapshotTimepoint),
+          targetChains: proposal.targets.map(chainId => Number(chainId)),
           isPassed: isPassed,
           blockNumber: events[i].blockNumber
         };

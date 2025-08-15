@@ -43,5 +43,27 @@ app.use(ElementPlus);
 // console.log('API URL:', axios.defaults.baseURL);
 // console.log('main.js: Starting application with router');
 
+// Глобальная обработка ошибок MetaMask
+window.addEventListener('error', (event) => {
+  if (event.error && event.error.message && 
+      (event.error.message.includes('MetaMask extension not found') || 
+       event.error.message.includes('Failed to connect to MetaMask'))) {
+    console.warn('[MetaMask] Ошибка MetaMask перехвачена:', event.error.message);
+    // Предотвращаем показ ошибки в консоли
+    event.preventDefault();
+  }
+});
+
+// Обработка необработанных промисов
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason && event.reason.message && 
+      (event.reason.message.includes('MetaMask extension not found') || 
+       event.reason.message.includes('Failed to connect to MetaMask'))) {
+    console.warn('[MetaMask] Необработанная ошибка MetaMask перехвачена:', event.reason.message);
+    // Предотвращаем показ ошибки в консоли
+    event.preventDefault();
+  }
+});
+
 app.mount('#app');
 // console.log('main.js: Application with router mounted');

@@ -195,8 +195,12 @@ router.post('/verify', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
 
+    // СРАЗУ проверяем наличие админских токенов
+    const adminStatus = await authService.checkAdminTokens(normalizedAddress);
+    logger.info(`[verify] Admin status for ${normalizedAddress}: ${adminStatus}`);
+
     let userId;
-    let isAdmin = false;
+    let isAdmin = adminStatus;
 
     // Проверяем, авторизован ли пользователь уже
     if (req.session.authenticated && req.session.userId) {
@@ -214,11 +218,11 @@ router.post('/verify', async (req, res) => {
         `[verify] Wallet ${normalizedAddress} linked to user ${userId}: already exists`
       );
     } else {
-      // Находим или создаем пользователя, если не авторизован
-      const result = await authService.findOrCreateUser(address);
+      // Находим или создаем пользователя с уже известной ролью
+      const result = await authService.findOrCreateUser(address, adminStatus);
       userId = result.userId;
       isAdmin = result.isAdmin;
-      logger.info(`[verify] Found or created user ${userId} for wallet ${normalizedAddress}`);
+      logger.info(`[verify] Found or created user ${userId} for wallet ${normalizedAddress} with admin status: ${isAdmin}`);
     }
 
     // Сохраняем идентификаторы гостевой сессии
@@ -228,14 +232,6 @@ router.post('/verify', async (req, res) => {
 
     if (previousGuestId && previousGuestId !== guestId) {
       await identityService.saveIdentity(userId, 'guest', previousGuestId, true);
-    }
-
-    // Проверяем наличие админских токенов
-    const adminStatus = await authService.checkAdminTokens(normalizedAddress);
-
-    if (adminStatus) {
-      await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
-      isAdmin = true;
     }
 
     // Обновляем сессию

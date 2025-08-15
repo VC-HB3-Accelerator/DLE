@@ -25,7 +25,21 @@ export async function checkWalletConnection() {
     };
   } catch (error) {
     console.error('Ошибка подключения к кошельку:', error);
-    throw error;
+    
+    // Улучшенная обработка ошибок MetaMask
+    let errorMessage = 'Ошибка подключения к кошельку.';
+    
+    if (error.message && error.message.includes('MetaMask extension not found')) {
+      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
+    } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
+      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
+    } else if (error.message && error.message.includes('Браузерный кошелек не установлен')) {
+      errorMessage = 'Браузерный кошелек не установлен. Пожалуйста, установите MetaMask.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
   }
 }
 

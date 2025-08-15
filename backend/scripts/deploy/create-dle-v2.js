@@ -39,7 +39,6 @@ async function main() {
   const dleConfig = {
     name: params.name,
     symbol: params.symbol,
-    tokenImage: params.tokenImage || '',
     location: params.location,
     coordinates: params.coordinates,
     jurisdiction: params.jurisdiction,

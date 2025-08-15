@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/home/alex/Digital_Legal_Entity(DLE)/backend/contracts/DLE.sol": {
-      "lastModificationDate": 1755277189432,
-      "contentHash": "03b4ac83148b5b1246f64c54fa0e959c",
+      "lastModificationDate": 1755280436490,
+      "contentHash": "f676e9964a39b0fccdc62a9114266863",
       "sourceName": "contracts/DLE.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -160,47 +160,6 @@
         "ECDSA"
       ]
     },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol": {
-      "lastModificationDate": 1754306768254,
-      "contentHash": "51c2083b160453420aaa0a046c16d5ca",
-      "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../ERC20.sol",
-        "../../../governance/utils/Votes.sol",
-        "../../../utils/structs/Checkpoints.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "ERC20Votes"
-      ]
-    },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol": {
       "lastModificationDate": 1754306768254,
       "contentHash": "b1a8fc63b83ce00408e0c9ed1230b717",
@@ -242,6 +201,47 @@
       ],
       "artifacts": [
         "ERC20Permit"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol": {
+      "lastModificationDate": 1754306768254,
+      "contentHash": "51c2083b160453420aaa0a046c16d5ca",
+      "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../ERC20.sol",
+        "../../../governance/utils/Votes.sol",
+        "../../../utils/structs/Checkpoints.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ERC20Votes"
       ]
     },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/Context.sol": {
@@ -396,91 +396,6 @@
         "IERC20Metadata"
       ]
     },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/governance/utils/Votes.sol": {
-      "lastModificationDate": 1754306764456,
-      "contentHash": "95aceafdc639babdd22576e5e3774d64",
-      "sourceName": "@openzeppelin/contracts/governance/utils/Votes.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../../interfaces/IERC5805.sol",
-        "../../utils/Context.sol",
-        "../../utils/Nonces.sol",
-        "../../utils/cryptography/EIP712.sol",
-        "../../utils/structs/Checkpoints.sol",
-        "../../utils/math/SafeCast.sol",
-        "../../utils/cryptography/ECDSA.sol",
-        "../../utils/types/Time.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "Votes"
-      ]
-    },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/structs/Checkpoints.sol": {
-      "lastModificationDate": 1754306764456,
-      "contentHash": "657c6dfea3bae1af948de6113ba01cea",
-      "sourceName": "@openzeppelin/contracts/utils/structs/Checkpoints.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../math/Math.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "Checkpoints"
-      ]
-    },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/Nonces.sol": {
       "lastModificationDate": 1754306760451,
       "contentHash": "c32d108058718efb9061b88e83a83f79",
@@ -516,46 +431,6 @@
       ],
       "artifacts": [
         "Nonces"
-      ]
-    },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/interfaces/IERC5805.sol": {
-      "lastModificationDate": 1754306760460,
-      "contentHash": "65ba9f89b1057e2192e341b286d4e261",
-      "sourceName": "@openzeppelin/contracts/interfaces/IERC5805.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../governance/utils/IVotes.sol",
-        "./IERC6372.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "IERC5805"
       ]
     },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol": {
@@ -599,10 +474,10 @@
         "EIP712"
       ]
     },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol": {
-      "lastModificationDate": 1754306764456,
-      "contentHash": "2adca1150f58fc6f3d1f0a0f22ee7cca",
-      "sourceName": "@openzeppelin/contracts/utils/math/SafeCast.sol",
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol": {
+      "lastModificationDate": 1754306768254,
+      "contentHash": "94ec15baf0d5df863f45b8f351937ec7",
+      "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol",
       "solcConfig": {
         "version": "0.8.20",
         "settings": {
@@ -633,158 +508,7 @@
         "^0.8.20"
       ],
       "artifacts": [
-        "SafeCast"
-      ]
-    },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/types/Time.sol": {
-      "lastModificationDate": 1754306764456,
-      "contentHash": "d83e7814a059fc1287fd765f424ce004",
-      "sourceName": "@openzeppelin/contracts/utils/types/Time.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../math/Math.sol",
-        "../math/SafeCast.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "Time"
-      ]
-    },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/governance/utils/IVotes.sol": {
-      "lastModificationDate": 1754306764456,
-      "contentHash": "905ffceb29869fee4b5a649abe7e2927",
-      "sourceName": "@openzeppelin/contracts/governance/utils/IVotes.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "IVotes"
-      ]
-    },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/interfaces/IERC6372.sol": {
-      "lastModificationDate": 1754306760460,
-      "contentHash": "414cd6acf090e4009cf016ff62ecbd88",
-      "sourceName": "@openzeppelin/contracts/interfaces/IERC6372.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "IERC6372"
-      ]
-    },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/interfaces/IERC5267.sol": {
-      "lastModificationDate": 1754306760460,
-      "contentHash": "94364524cb1a39dcbc3d3afff6d8e53e",
-      "sourceName": "@openzeppelin/contracts/interfaces/IERC5267.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "viaIR": true,
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "IERC5267"
+        "IERC20Permit"
       ]
     },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/ShortStrings.sol": {
@@ -824,6 +548,43 @@
       ],
       "artifacts": [
         "ShortStrings"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/interfaces/IERC5267.sol": {
+      "lastModificationDate": 1754306760460,
+      "contentHash": "94364524cb1a39dcbc3d3afff6d8e53e",
+      "sourceName": "@openzeppelin/contracts/interfaces/IERC5267.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC5267"
       ]
     },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol": {
@@ -983,6 +744,43 @@
         "Math"
       ]
     },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol": {
+      "lastModificationDate": 1754306764456,
+      "contentHash": "2adca1150f58fc6f3d1f0a0f22ee7cca",
+      "sourceName": "@openzeppelin/contracts/utils/math/SafeCast.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "SafeCast"
+      ]
+    },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol": {
       "lastModificationDate": 1754306764456,
       "contentHash": "ae3528afb8bdb0a7dcfba5b115ee8074",
@@ -1059,10 +857,175 @@
         "Panic"
       ]
     },
-    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol": {
-      "lastModificationDate": 1754306768254,
-      "contentHash": "94ec15baf0d5df863f45b8f351937ec7",
-      "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol",
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/governance/utils/Votes.sol": {
+      "lastModificationDate": 1754306764456,
+      "contentHash": "95aceafdc639babdd22576e5e3774d64",
+      "sourceName": "@openzeppelin/contracts/governance/utils/Votes.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../../interfaces/IERC5805.sol",
+        "../../utils/Context.sol",
+        "../../utils/Nonces.sol",
+        "../../utils/cryptography/EIP712.sol",
+        "../../utils/structs/Checkpoints.sol",
+        "../../utils/math/SafeCast.sol",
+        "../../utils/cryptography/ECDSA.sol",
+        "../../utils/types/Time.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "Votes"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/structs/Checkpoints.sol": {
+      "lastModificationDate": 1754306764456,
+      "contentHash": "657c6dfea3bae1af948de6113ba01cea",
+      "sourceName": "@openzeppelin/contracts/utils/structs/Checkpoints.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../math/Math.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "Checkpoints"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/interfaces/IERC5805.sol": {
+      "lastModificationDate": 1754306760460,
+      "contentHash": "65ba9f89b1057e2192e341b286d4e261",
+      "sourceName": "@openzeppelin/contracts/interfaces/IERC5805.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../governance/utils/IVotes.sol",
+        "./IERC6372.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC5805"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/utils/types/Time.sol": {
+      "lastModificationDate": 1754306764456,
+      "contentHash": "d83e7814a059fc1287fd765f424ce004",
+      "sourceName": "@openzeppelin/contracts/utils/types/Time.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../math/Math.sol",
+        "../math/SafeCast.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "Time"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/governance/utils/IVotes.sol": {
+      "lastModificationDate": 1754306764456,
+      "contentHash": "905ffceb29869fee4b5a649abe7e2927",
+      "sourceName": "@openzeppelin/contracts/governance/utils/IVotes.sol",
       "solcConfig": {
         "version": "0.8.20",
         "settings": {
@@ -1093,7 +1056,44 @@
         "^0.8.20"
       ],
       "artifacts": [
-        "IERC20Permit"
+        "IVotes"
+      ]
+    },
+    "/home/alex/Digital_Legal_Entity(DLE)/backend/node_modules/@openzeppelin/contracts/interfaces/IERC6372.sol": {
+      "lastModificationDate": 1754306760460,
+      "contentHash": "414cd6acf090e4009cf016ff62ecbd88",
+      "sourceName": "@openzeppelin/contracts/interfaces/IERC6372.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC6372"
       ]
     },
     "/home/alex/Digital_Legal_Entity(DLE)/backend/contracts/FactoryDeployer.sol": {

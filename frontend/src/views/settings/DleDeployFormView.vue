@@ -260,7 +260,7 @@
                   <h5>Добавленные коды ОКВЭД:</h5>
                   <ul class="codes-list">
                     <li v-for="(code, index) in dleSettings.selectedOkved" :key="index" class="code-item">
-                      <span>{{ getOkvedTitle(code) }}</span>
+                                              <span>{{ code }}</span>
                       <button 
                         type="button" 
                         class="btn btn-danger btn-sm" 
@@ -325,37 +325,7 @@
                 <small class="form-help">3-10 символов для токена управления (Governance Token)</small>
               </div>
 
-              <!-- Картинка токена -->
-              <div class="form-group">
-                <label class="form-label" for="tokenImage">Картинка токена:</label>
-                <div class="token-image-upload">
-                  <input 
-                    type="file" 
-                    id="tokenImage" 
-                    ref="tokenImageInput"
-                    class="form-control" 
-                    accept="image/*"
-                    @change="handleTokenImageUpload"
-                    style="display: none;"
-                  >
-                  <div class="upload-area" @click="triggerImageUpload">
-                    <div v-if="!dleSettings.tokenImage" class="upload-placeholder">
-                      <i class="fas fa-image"></i>
-                      <p>Нажмите для выбора картинки токена</p>
-                      <small>Поддерживаются форматы: JPG, PNG, GIF (макс. 1MB, 200x200px)</small>
-                    </div>
-                    <div v-else class="image-preview">
-                      <img :src="dleSettings.tokenImage" alt="Картинка токена" class="token-image">
-                      <div class="image-overlay">
-                        <button type="button" @click.stop="removeTokenImage" class="btn btn-danger btn-sm">
-                          <i class="fas fa-trash"></i> Удалить
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <small class="form-help">Загрузите картинку для вашего токена (макс. 350 байт в base64, автоматически сжимается до 200x200px)</small>
-              </div>
+
 
 
 
@@ -379,13 +349,24 @@
                   <div class="form-row">
                     <div class="form-group flex-grow">
                       <label class="form-label">Адрес кошелька:</label>
-                      <input 
-                        type="text" 
-                        v-model="partner.address" 
-                        class="form-control" 
-                        placeholder="0x..."
-                        @input="validateEthereumAddress(partner, index)"
-                      >
+                      <div class="address-input-group">
+                        <input 
+                          type="text" 
+                          v-model="partner.address" 
+                          class="form-control" 
+                          placeholder="0x..."
+                          @input="validateEthereumAddress(partner, index)"
+                        >
+                        <button 
+                          v-if="index === 0 && address" 
+                          @click="useMyWalletAddress" 
+                          type="button" 
+                          class="btn btn-outline-primary btn-sm"
+                          title="Использовать мой адрес кошелька"
+                        >
+                          <i class="fas fa-wallet"></i> Мой кошелек
+                        </button>
+                      </div>
                     </div>
                     <div class="form-group">
                       <label class="form-label">Количество токенов:</label>
@@ -688,12 +669,7 @@
             <strong>🪙 Токен:</strong> {{ dleSettings.tokenSymbol }}
           </div>
           
-          <div v-if="dleSettings.tokenImage" class="preview-item">
-            <strong>🖼️ Картинка токена:</strong>
-            <div class="token-image-preview">
-              <img :src="dleSettings.tokenImage" alt="Картинка токена" class="preview-token-image">
-            </div>
-          </div>
+
         </div>
 
 
@@ -928,7 +904,6 @@ const dleSettings = reactive({
   selectedOkved: [],      // ОКВЭД - дополнительные коды деятельности
   name: '',                // Имя DLE
   tokenSymbol: '',        // Символ токена
-  tokenImage: '',         // Картинка токена (base64 или URL)
   partners: [{ address: '', amount: 1 }], // Партнеры и их доли токенов
   governanceQuorum: 51,   // Кворум для принятия решений (%)
   
@@ -1460,7 +1435,7 @@ const loadFormData = () => {
         selectedOkved: parsedData.selectedOkved || [],
         name: parsedData.name || '',
         tokenSymbol: parsedData.tokenSymbol || '',
-        tokenImage: parsedData.tokenImage || '',
+
         partners: parsedData.partners || [{ address: '', amount: 1 }],
         governanceQuorum: parsedData.governanceQuorum || 51,
         // Координаты
@@ -1541,7 +1516,7 @@ const clearAllData = () => {
   dleSettings.selectedOkved = [];
   dleSettings.name = '';
   dleSettings.tokenSymbol = '';
-  dleSettings.tokenImage = ''; // Очищаем картинку токена
+
   dleSettings.partners = [{ address: '', amount: 1 }]; // Сброс к одному пустому партнеру
   dleSettings.governanceQuorum = 51; // Сброс кворума к значению по умолчанию
   
@@ -1815,88 +1790,7 @@ const formatTokenSymbol = () => {
   }
 };
 
-// Функции для работы с картинкой токена
-const tokenImageInput = ref(null);
 
-// Запуск выбора файла
-const triggerImageUpload = () => {
-  tokenImageInput.value?.click();
-};
-
-// Обработка загрузки изображения
-const handleTokenImageUpload = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // Проверка типа файла
-  if (!file.type.startsWith('image/')) {
-    alert('Пожалуйста, выберите файл изображения (JPG, PNG, GIF)');
-    return;
-  }
-
-  // Проверка размера файла (максимум 1MB)
-  const maxSize = 1 * 1024 * 1024; // 1MB
-  if (file.size > maxSize) {
-    alert('Размер файла не должен превышать 1MB');
-    return;
-  }
-
-  // Создаем canvas для сжатия изображения
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-  
-  img.onload = () => {
-    // Ограничиваем размер изображения
-    const maxWidth = 200;
-    const maxHeight = 200;
-    
-    let { width, height } = img;
-    if (width > maxWidth) {
-      height = (height * maxWidth) / width;
-      width = maxWidth;
-    }
-    if (height > maxHeight) {
-      width = (width * maxHeight) / height;
-      height = maxHeight;
-    }
-    
-    canvas.width = width;
-    canvas.height = height;
-    ctx.drawImage(img, 0, 0, width, height);
-    
-    // Конвертируем в base64 с сжатием
-    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70% качество
-    
-    // Проверяем размер base64 (максимум 350 байт)
-    const base64Size = compressedDataUrl.length;
-    if (base64Size > 350) {
-      alert(`Изображение слишком большое (${base64Size} байт). Максимальный размер: 350 байт. Попробуйте уменьшить размер или качество изображения.`);
-      return;
-    }
-    
-    dleSettings.tokenImage = compressedDataUrl;
-    // Сохраняем в localStorage
-    saveFormData();
-  };
-  
-  img.onerror = () => {
-    alert('Ошибка при загрузке изображения');
-  };
-  
-  img.src = URL.createObjectURL(file);
-};
-
-// Удаление картинки токена
-const removeTokenImage = () => {
-  dleSettings.tokenImage = '';
-  // Очищаем input
-  if (tokenImageInput.value) {
-    tokenImageInput.value.value = '';
-  }
-  // Сохраняем в localStorage
-  saveFormData();
-};
 
 
 // Функция загрузки стран
@@ -2398,9 +2292,13 @@ onMounted(() => {
     loadRussianClassifiers();
   }
   
-  // Автозаполнение первого партнера подключенным кошельком (если данные не были загружены)
-  if (!dataLoaded && address.value && dleSettings.partners[0] && !dleSettings.partners[0].address) {
-    dleSettings.partners[0].address = address.value;
+  // Автозаполнение первого партнера подключенным кошельком
+  if (address.value && dleSettings.partners[0]) {
+    // Если адрес пустой или это новый пользователь, подставляем адрес кошелька
+    if (!dleSettings.partners[0].address || !dataLoaded) {
+      dleSettings.partners[0].address = address.value;
+      console.log('Автоматически подставлен адрес кошелька:', address.value);
+    }
   }
   
   // Добавляем слушатель события видимости страницы для обновления списка сетей
@@ -2417,8 +2315,12 @@ onUnmounted(() => {
 
 // Watcher для автоматического обновления адреса первого партнера при подключении кошелька
 watch(address, (newAddress) => {
-  if (newAddress && dleSettings.partners[0] && !dleSettings.partners[0].address) {
-    dleSettings.partners[0].address = newAddress;
+  if (newAddress && dleSettings.partners[0]) {
+    // Подставляем адрес, если поле пустое или пользователь только что подключил кошелек
+    if (!dleSettings.partners[0].address) {
+      dleSettings.partners[0].address = newAddress;
+      console.log('Кошелек подключен, подставлен адрес:', newAddress);
+    }
   }
 });
 
@@ -2469,6 +2371,16 @@ const validateEthereumAddress = (partner, index) => {
   }
 };
 
+// Функция для подставления адреса кошелька в первого партнера
+const useMyWalletAddress = () => {
+  if (address.value && dleSettings.partners[0]) {
+    dleSettings.partners[0].address = address.value;
+    console.log('Подставлен адрес кошелька:', address.value);
+  } else {
+    alert('Кошелек не подключен. Пожалуйста, подключите кошелек сначала.');
+  }
+};
+
 // Маскированный приватный ключ для превью (устаревшее)
 const maskedPrivateKey = computed(() => {
   if (!dleSettings.privateKey) return '';
@@ -2498,7 +2410,7 @@ const deploySmartContracts = async () => {
       // Основная информация DLE
       name: dleSettings.name,
       symbol: dleSettings.tokenSymbol,
-      tokenImage: dleSettings.tokenImage, // Картинка токена
+
       location: dleSettings.addressData.fullAddress || 'Не указан',
       coordinates: dleSettings.coordinates || '0,0',
       jurisdiction: parseInt(dleSettings.jurisdiction) || 0,
@@ -2704,6 +2616,21 @@ const validateCoordinates = (coordinates) => {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.address-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.address-input-group .form-control {
+  flex: 1;
+}
+
+.address-input-group .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .input-icon-wrapper {

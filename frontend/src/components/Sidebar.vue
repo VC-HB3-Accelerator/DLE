@@ -117,12 +117,14 @@
             Загрузка балансов...
           </div>
           <div v-else-if="!tokenBalances || tokenBalances.length === 0" class="token-no-data">
-            Баланс не доступен
+            Баланс не доступен (tokenBalances: {{ tokenBalances }}, length: {{ tokenBalances?.length }})
           </div>
           <div v-else>
             <div class="token-balance-header">
+              <small class="last-update">Обновлено: {{ formattedLastUpdate }}</small>
+              <small class="debug-info">Debug: {{ tokenBalances.length }} токенов</small>
             </div>
-            <div v-for="(token, index) in tokenBalances.data || []" :key="token.tokenAddress ? token.tokenAddress : 'token-' + index" class="token-balance-row">
+            <div v-for="(token, index) in tokenBalances" :key="token.tokenAddress ? token.tokenAddress : 'token-' + index" class="token-balance-row">
               <span class="token-name">{{ token.tokenName }}</span>
               <span class="token-network">{{ token.network }}</span>
               <span class="token-amount">{{ isNaN(Number(token.balance)) ? '—' : Number(token.balance).toLocaleString() }}</span>
@@ -172,9 +174,10 @@ const props = defineProps({
   isAuthenticated: Boolean,
   telegramAuth: Object,
   emailAuth: Object,
-  tokenBalances: Object,
+  tokenBalances: Array,
   identities: Array,
-  isLoadingTokens: Boolean
+  isLoadingTokens: Boolean,
+  formattedLastUpdate: String
 });
 
 const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth', 'cancel-email-auth']);
@@ -239,11 +242,20 @@ const handleDeleteIdentity = async (provider, providerId) => {
 
 // Добавляем watch для отслеживания props
 watch(() => props.tokenBalances, (newVal, oldVal) => {
-      // console.log('[Sidebar] tokenBalances prop changed:', JSON.stringify(newVal));
+  console.log('[Sidebar] tokenBalances prop changed:', JSON.stringify(newVal));
 }, { deep: true });
 
 watch(() => props.isLoadingTokens, (newVal, oldVal) => {
-      // console.log(`[Sidebar] isLoadingTokens prop changed: ${newVal}`);
+  console.log(`[Sidebar] isLoadingTokens prop changed: ${newVal}`);
+});
+
+// Добавляем отладочную информацию при монтировании
+onMounted(() => {
+  console.log('[Sidebar] Mounted with props:', {
+    isAuthenticated: props.isAuthenticated,
+    tokenBalances: props.tokenBalances,
+    isLoadingTokens: props.isLoadingTokens
+  });
 });
 </script>
 

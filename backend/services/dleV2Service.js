@@ -225,18 +225,7 @@ class DLEV2Service {
       throw new Error('Должна быть выбрана хотя бы одна сеть для деплоя');
     }
 
-    // Проверяем размер картинки токена (если передана)
-    if (params.tokenImage && params.tokenImage.trim() !== '') {
-      const base64Size = params.tokenImage.length;
-      if (base64Size > 350) {
-        throw new Error(`Размер картинки токена превышает лимит: ${base64Size} байт. Максимальный размер: 350 байт`);
-      }
-      
-      // Проверяем, что это валидный base64
-      if (!params.tokenImage.startsWith('data:image/')) {
-        throw new Error('Картинка токена должна быть в формате base64 data URL');
-      }
-    }
+
   }
 
   /**

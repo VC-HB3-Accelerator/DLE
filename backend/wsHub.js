@@ -11,6 +11,7 @@
  */
 
 const WebSocket = require('ws');
+const authService = require('./services/auth-service');
 
 let wss = null;
 // Храним клиентов по userId для персонализированных уведомлений
@@ -56,6 +57,11 @@ function initWSS(server) {
             type: 'pong', 
             timestamp: data.timestamp 
           }));
+        }
+        
+        if (data.type === 'request_token_balances' && data.address) {
+          // Запрос балансов токенов
+          handleTokenBalancesRequest(ws, data.address, data.userId);
         }
       } catch (error) {
         // console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
@@ -402,6 +408,49 @@ function broadcastAuthTokenUpdated(tokenData) {
   broadcastToAllClients(message);
 }
 
+// Функции для балансов токенов
+function broadcastTokenBalancesUpdate(userId, balances) {
+  const message = JSON.stringify({
+    type: 'token_balances_updated',
+    data: {
+      balances: balances,
+      timestamp: Date.now()
+    }
+  });
+  
+  // Отправляем конкретному пользователю
+  const userClients = wsClients.get(userId.toString());
+  if (userClients) {
+    for (const ws of userClients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    }
+  }
+}
+
+function broadcastTokenBalanceChanged(userId, tokenAddress, newBalance, network) {
+  const message = JSON.stringify({
+    type: 'token_balance_changed',
+    data: {
+      tokenAddress: tokenAddress,
+      balance: newBalance,
+      network: network,
+      timestamp: Date.now()
+    }
+  });
+  
+  // Отправляем конкретному пользователю
+  const userClients = wsClients.get(userId.toString());
+  if (userClients) {
+    for (const ws of userClients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    }
+  }
+}
+
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
@@ -418,6 +467,42 @@ module.exports = {
   broadcastAuthTokenAdded,
   broadcastAuthTokenDeleted,
   broadcastAuthTokenUpdated,
+  broadcastTokenBalancesUpdate,
+  broadcastTokenBalanceChanged,
   getConnectedUsers,
   getStats
-}; 
+};
+
+// Обработчик запроса балансов токенов
+async function handleTokenBalancesRequest(ws, address, userId) {
+  try {
+    console.log(`[WebSocket] Запрос балансов для адреса: ${address}`);
+    
+    // Получаем балансы через authService
+    const balances = await authService.getUserTokenBalances(address);
+    
+    // Отправляем ответ клиенту
+    ws.send(JSON.stringify({
+      type: 'token_balances_response',
+      data: {
+        address: address,
+        balances: balances,
+        timestamp: Date.now()
+      }
+    }));
+    
+    console.log(`[WebSocket] Отправлены балансы для ${address}:`, balances.length, 'токенов');
+  } catch (error) {
+    console.error('[WebSocket] Ошибка при получении балансов:', error);
+    
+    // Отправляем ошибку клиенту
+    ws.send(JSON.stringify({
+      type: 'token_balances_error',
+      data: {
+        address: address,
+        error: error.message,
+        timestamp: Date.now()
+      }
+    }));
+  }
+} 

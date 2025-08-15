@@ -44,6 +44,7 @@
               <option value="succeeded">Принятые</option>
               <option value="defeated">Отклоненные</option>
               <option value="executed">Выполненные</option>
+              <option value="canceled">Отмененные</option>
             </select>
             <button 
               class="btn btn-sm btn-outline-secondary" 
@@ -657,11 +658,11 @@ async function loadDleData() {
     
     // Преобразуем данные из API в формат для frontend
     proposals.value = proposalsData.map(proposal => {
-              const transformedProposal = {
-          ...proposal,
-          status: getProposalStatus(proposal),
-          deadline: proposal.deadline || (proposal.startTime + proposal.duration)
-        };
+      const transformedProposal = {
+        ...proposal,
+        status: getProposalStatus(proposal),
+        deadline: proposal.deadline || 0
+      };
       console.log('[Frontend] Преобразованное предложение:', transformedProposal);
       return transformedProposal;
     });
@@ -776,11 +777,28 @@ function getProposalStatus(proposal) {
   const now = Math.floor(Date.now() / 1000);
   const deadline = proposal.deadline || 0;
   
+  // Проверяем отменено ли предложение
+  if (proposal.canceled) {
+    return 'canceled';
+  }
+  
+  // Проверяем выполнено ли предложение
   if (proposal.executed) {
     return 'executed';
   }
   
-  // Проверяем, достигнут ли кворум
+  // Используем isPassed из API, если доступно
+  if (proposal.isPassed !== undefined) {
+    if (proposal.isPassed) {
+      return 'succeeded';
+    } else if (deadline > 0 && now >= deadline) {
+      return 'defeated';
+    } else {
+      return 'active';
+    }
+  }
+  
+  // Fallback логика для старых данных
   const quorumPercentage = getQuorumPercentage(proposal);
   const requiredQuorum = getRequiredQuorum();
   const hasReachedQuorum = quorumPercentage >= requiredQuorum;
@@ -793,7 +811,8 @@ function getProposalStatus(proposal) {
     deadlinePassed: deadline > 0 && now >= deadline,
     quorumPercentage,
     requiredQuorum,
-    hasReachedQuorum
+    hasReachedQuorum,
+    isPassed: proposal.isPassed
   });
   
   // Если кворум достигнут, предложение можно выполнить
@@ -815,7 +834,8 @@ function getProposalStatusText(status) {
     'active': 'Активно',
     'succeeded': 'Принято',
     'defeated': 'Отклонено',
-    'executed': 'Выполнено'
+    'executed': 'Выполнено',
+    'canceled': 'Отменено'
   };
   return statusMap[status] || status;
 }
@@ -1719,9 +1739,19 @@ onUnmounted(() => {
   color: #0c5460;
 }
 
+.proposal-status.executed {
+  background: #d4edda;
+  color: #155724;
+}
+
 .proposal-status.defeated {
   background: #f8d7da;
   color: #721c24;
+}
+
+.proposal-status.canceled {
+  background: #fff3cd;
+  color: #856404;
 }
 
 .proposal-details {
