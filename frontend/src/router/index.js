@@ -205,12 +205,12 @@ const routes = [
   {
     path: '/management/dle',
     name: 'management-dle',
-    component: () => import('../views/smartcontracts/DleModulesView.vue')
+    component: () => import('../views/smartcontracts/DleManagementView.vue')
   },
   {
     path: '/management/dle-management',
     name: 'management-dle-management',
-    component: () => import('../views/smartcontracts/DleModulesView.vue')
+    component: () => import('../views/smartcontracts/DleManagementView.vue')
   },
   {
     path: '/management/proposals',
@@ -230,7 +230,7 @@ const routes = [
   {
     path: '/management/modules',
     name: 'management-modules',
-    component: () => import('../views/smartcontracts/DleModulesView.vue')
+    component: () => import('../views/smartcontracts/ModulesView.vue')
   },
   // {
   //   path: '/management/multisig',
@@ -238,11 +238,7 @@ const routes = [
   //   component: () => import('../views/smartcontracts/DleMultisigView.vue'),
   //   meta: { requiresAuth: true }
   // },
-  {
-    path: '/management/treasury',
-    name: 'management-treasury',
-    component: () => import('../views/smartcontracts/TreasuryView.vue')
-  },
+
   {
     path: '/management/analytics',
     name: 'management-analytics',

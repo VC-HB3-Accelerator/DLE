@@ -120,10 +120,7 @@
             Баланс не доступен (tokenBalances: {{ tokenBalances }}, length: {{ tokenBalances?.length }})
           </div>
           <div v-else>
-            <div class="token-balance-header">
-              <small class="last-update">Обновлено: {{ formattedLastUpdate }}</small>
-              <small class="debug-info">Debug: {{ tokenBalances.length }} токенов</small>
-            </div>
+
             <div v-for="(token, index) in tokenBalances" :key="token.tokenAddress ? token.tokenAddress : 'token-' + index" class="token-balance-row">
               <span class="token-name">{{ token.tokenName }}</span>
               <span class="token-network">{{ token.network }}</span>
@@ -140,16 +137,15 @@
               <strong>Тарабанов Александр Викторович</strong><br>
               2024-2025. Все права защищены.
             </p>
-            <p class="copyright-status">DLE - Проприетарное ПО</p>
             <div class="copyright-links">
               <a href="mailto:info@hb3-accelerator.com" class="copyright-link" title="Связаться с автором">
-                📧 Контакты
+                Контакты
               </a>
               <a href="https://hb3-accelerator.com" target="_blank" class="copyright-link" title="Официальный сайт">
-                🌐 Сайт
+                Сайт
               </a>
               <a href="https://github.com/HB3-ACCELERATOR" target="_blank" class="copyright-link" title="GitHub">
-                📦 GitHub
+                GitHub
               </a>
             </div>
           </div>

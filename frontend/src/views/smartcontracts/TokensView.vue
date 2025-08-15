@@ -197,7 +197,8 @@
 import { ref, computed, onMounted, watch, defineProps, defineEmits } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
-import axios from 'axios';
+import { getTokenBalance, getTotalSupply, getTokenHolders } from '../../services/tokensService.js';
+import api from '../../api/axios';
 
 // Определяем props
 const props = defineProps({
@@ -263,12 +264,12 @@ async function loadDleData() {
   isLoadingDle.value = true;
   try {
     // Читаем актуальные данные из блокчейна
-    const blockchainResponse = await axios.post('/blockchain/read-dle-info', {
+    const response = await api.post('/dle-core/read-dle-info', {
       dleAddress: dleAddress.value
     });
     
-    if (blockchainResponse.data.success) {
-      const blockchainData = blockchainResponse.data.data;
+    if (response.data.success) {
+      const blockchainData = response.data.data;
       selectedDle.value = blockchainData;
       console.log('Загружены данные DLE из блокчейна:', blockchainData);
       

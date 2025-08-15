@@ -307,6 +307,30 @@ export async function isModuleActive(dleAddress, moduleId) {
 }
 
 /**
+ * Получить адрес модуля
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {string} moduleId - ID модуля
+ * @returns {Promise<string>} - Адрес модуля
+ */
+export async function getModuleAddress(dleAddress, moduleId) {
+  try {
+    const response = await axios.post('/dle-modules/get-module-address', {
+      dleAddress: dleAddress,
+      moduleId: moduleId
+    });
+    
+    if (response.data.success) {
+      return response.data.data.moduleAddress;
+    } else {
+      throw new Error(response.data.message || 'Не удалось получить адрес модуля');
+    }
+  } catch (error) {
+    console.error('Ошибка получения адреса модуля:', error);
+    return '';
+  }
+}
+
+/**
  * Проверить, поддерживается ли цепочка
  * @param {string} dleAddress - Адрес DLE контракта
  * @param {number} chainId - ID цепочки

@@ -61,9 +61,10 @@
 <script setup>
 import { ref, defineProps, defineEmits, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useAuthContext } from '@/composables/useAuth';
+import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
-import { getDLEInfo, deactivateDLE } from '../../utils/dle-contract.js';
+import { deactivateDLE } from '../../utils/dle-contract.js';
+import api from '../../api/axios';
 
 // Определяем props
 const props = defineProps({
@@ -103,14 +104,23 @@ const loadDLEInfo = async () => {
     console.log('Загружаем информацию о DLE:', address);
     
     // Загружаем данные DLE из блокчейна через API
-    const dleData = await getDLEInfo(address);
-    console.log('Загружены данные DLE из блокчейна:', dleData);
+    const response = await api.post('/dle-core/read-dle-info', {
+      dleAddress: address
+    });
     
-    dleInfo.value = {
-      name: dleData.name,           // Название DLE из блокчейна
-      symbol: dleData.symbol,       // Символ DLE из блокчейна
-      address: dleData.dleAddress || address  // Адрес из API или из URL
-    };
+    if (response.data.success) {
+      const dleData = response.data.data;
+      console.log('Загружены данные DLE из блокчейна:', dleData);
+      
+      dleInfo.value = {
+        name: dleData.name,           // Название DLE из блокчейна
+        symbol: dleData.symbol,       // Символ DLE из блокчейна
+        address: dleData.dleAddress || address  // Адрес из API или из URL
+      };
+    } else {
+      console.error('Ошибка загрузки DLE:', response.data.error);
+      throw new Error(response.data.error || 'Не удалось загрузить данные DLE');
+    }
     
   } catch (error) {
     console.error('Ошибка при загрузке информации о DLE:', error);

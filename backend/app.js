@@ -88,6 +88,13 @@ const ollamaRoutes = require('./routes/ollama'); // Добавляем импо�
 const aiQueueRoutes = require('./routes/ai-queue'); // Добавляем импорт AI Queue маршрутов
 const tagsRoutes = require('./routes/tags'); // Добавляем импорт маршрутов тегов
 const blockchainRoutes = require('./routes/blockchain'); // Добавляем импорт blockchain маршрутов
+const dleCoreRoutes = require('./routes/dleCore'); // Основные функции DLE
+const dleProposalsRoutes = require('./routes/dleProposals'); // Функции предложений
+const dleModulesRoutes = require('./routes/dleModules'); // Функции модулей
+const dleTokensRoutes = require('./routes/dleTokens'); // Функции токенов
+const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитика и история
+const dleMultichainRoutes = require('./routes/dleMultichain'); // Мультичейн функции
+const dleHistoryRoutes = require('./routes/dleHistory'); // Расширенная история
 
 const app = express();
 
@@ -214,6 +221,13 @@ app.use('/api/ollama', ollamaRoutes); // Добавляем маршрут Ollam
 app.use('/api/ai-queue', aiQueueRoutes); // Добавляем маршрут AI Queue
 app.use('/api/tags', tagsRoutes); // Добавляем маршрут тегов
 app.use('/api/blockchain', blockchainRoutes); // Добавляем маршрут blockchain
+app.use('/api/dle-core', dleCoreRoutes); // Основные функции DLE
+app.use('/api/dle-proposals', dleProposalsRoutes); // Функции предложений
+app.use('/api/dle-modules', dleModulesRoutes); // Функции модулей
+app.use('/api/dle-tokens', dleTokensRoutes); // Функции токенов
+app.use('/api/dle-analytics', dleAnalyticsRoutes); // Аналитика и история
+app.use('/api/dle-multichain', dleMultichainRoutes); // Мультичейн функции
+app.use('/api/dle-history', dleHistoryRoutes); // Расширенная история
 app.use('/api/messages', messagesRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут

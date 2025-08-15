@@ -530,9 +530,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, defineProps, defineEmits, inject } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useAuthContext } from '@/composables/useAuth';
+import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
-import { getDLEInfo, loadProposals, createProposal as createProposalAPI, voteForProposal as voteForProposalAPI, executeProposal as executeProposalAPI, getSupportedChains } from '../../utils/dle-contract.js';
+import { getDLEInfo, getSupportedChains } from '../../services/dleV2Service.js';
+import { getProposals, createProposal as createProposalAPI, voteOnProposal as voteForProposalAPI, executeProposal as executeProposalAPI } from '../../services/proposalsService.js';
+import api from '../../api/axios';
 const showTargetChains = computed(() => {
   // Для offchain-действий не требуется ончейн исполнение (здесь типы пока ончейн)
   // Можно расширить логику при появлении offchain типа
@@ -648,13 +650,24 @@ async function loadDleData() {
   isLoadingDle.value = true;
   try {
     // Загружаем данные DLE из блокчейна
-    const dleData = await getDLEInfo(dleAddress.value);
-    selectedDle.value = dleData;
-    console.log('Загружены данные DLE из блокчейна:', dleData);
+    const response = await api.post('/dle-core/read-dle-info', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      selectedDle.value = response.data.data;
+      console.log('Загружены данные DLE из блокчейна:', selectedDle.value);
+    } else {
+      console.error('Ошибка загрузки DLE:', response.data.error);
+    }
     
     // Загружаем предложения
-    const proposalsData = await loadProposals(dleAddress.value);
-    console.log('[Frontend] Загруженные предложения из API:', proposalsData);
+    const proposalsResponse = await getProposals(dleAddress.value);
+    console.log('[Frontend] Загруженные предложения из API:', proposalsResponse);
+    
+    // Извлекаем массив предложений из ответа API
+    const proposalsData = proposalsResponse.data?.proposals || [];
+    console.log('[Frontend] Массив предложений:', proposalsData);
     
     // Преобразуем данные из API в формат для frontend
     proposals.value = proposalsData.map(proposal => {
@@ -670,8 +683,8 @@ async function loadDleData() {
     console.log('[Frontend] Итоговый список предложений:', proposals.value);
     
     // Загружаем поддерживаемые цепочки
-    const chainsData = await getSupportedChains(dleAddress.value);
-    availableChains.value = chainsData;
+    const chainsResponse = await getSupportedChains(dleAddress.value);
+    availableChains.value = chainsResponse.data?.chains || [];
     
 
   } catch (error) {
@@ -712,8 +725,10 @@ function validateAddress(address) {
 
 function getChainName(chainId) {
   // Сначала ищем в availableChains
-  const chain = availableChains.value.find(c => c.chainId === chainId);
-  if (chain) return chain.name;
+  if (Array.isArray(availableChains.value)) {
+    const chain = availableChains.value.find(c => c.chainId === chainId);
+    if (chain) return chain.name;
+  }
   
   // Если не найдено, используем известные chain ID
   const knownChains = {
@@ -787,42 +802,30 @@ function getProposalStatus(proposal) {
     return 'executed';
   }
   
-  // Используем isPassed из API, если доступно
-  if (proposal.isPassed !== undefined) {
-    if (proposal.isPassed) {
+  // Проверяем дедлайн
+  if (deadline > 0 && now >= deadline) {
+    // Если дедлайн истек, определяем результат по голосам
+    const forVotes = Number(proposal.forVotes) || 0;
+    const againstVotes = Number(proposal.againstVotes) || 0;
+    
+    if (forVotes > againstVotes) {
       return 'succeeded';
-    } else if (deadline > 0 && now >= deadline) {
-      return 'defeated';
     } else {
-      return 'active';
+      return 'defeated';
     }
   }
   
-  // Fallback логика для старых данных
-  const quorumPercentage = getQuorumPercentage(proposal);
-  const requiredQuorum = getRequiredQuorum();
-  const hasReachedQuorum = quorumPercentage >= requiredQuorum;
+  // Если дедлайн не истек, но есть голоса, определяем текущий статус
+  const forVotes = Number(proposal.forVotes) || 0;
+  const againstVotes = Number(proposal.againstVotes) || 0;
   
-  // Добавляем отладочную информацию
-  console.log('[getProposalStatus] Проверка предложения:', {
-    proposalId: proposal.id,
-    now,
-    deadline,
-    deadlinePassed: deadline > 0 && now >= deadline,
-    quorumPercentage,
-    requiredQuorum,
-    hasReachedQuorum,
-    isPassed: proposal.isPassed
-  });
-  
-  // Если кворум достигнут, предложение можно выполнить
-  if (hasReachedQuorum) {
-    return 'succeeded';
-  }
-  
-  // Если дедлайн истек, но кворум не достигнут
-  if (deadline > 0 && now >= deadline) {
-    return 'defeated';
+  // Если есть голоса, определяем результат
+  if (forVotes > 0 || againstVotes > 0) {
+    if (forVotes > againstVotes) {
+      return 'succeeded';
+    } else if (againstVotes > forVotes) {
+      return 'defeated';
+    }
   }
   
   return 'active';
@@ -838,6 +841,18 @@ function getProposalStatusText(status) {
     'canceled': 'Отменено'
   };
   return statusMap[status] || status;
+}
+
+function getProposalStatusClass(status) {
+  const classMap = {
+    'pending': 'status-pending',
+    'active': 'status-active',
+    'succeeded': 'status-success',
+    'defeated': 'status-defeated',
+    'executed': 'status-executed',
+    'canceled': 'status-canceled'
+  };
+  return classMap[status] || 'status-default';
 }
 
 function decodeOperation(operation) {

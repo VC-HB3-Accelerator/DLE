@@ -184,6 +184,8 @@
 import { ref, defineProps, defineEmits } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import { getGovernanceParams } from '../../services/dleV2Service.js';
+import { getQuorumAt, getVotingPowerAt } from '../../services/proposalsService.js';
 
 // Определяем props
 const props = defineProps({

@@ -22,8 +22,10 @@
       <!-- Заголовок -->
       <div class="page-header">
         <div class="header-content">
-          <h1>История</h1>
-          <p>Лог операций, события и транзакции DLE</p>
+          <h1>История DLE</h1>
+          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
+          <p v-else-if="isLoadingDle">Загрузка...</p>
+          <p v-else>Лог операций, события и транзакции DLE</p>
         </div>
         <button class="close-btn" @click="router.push('/management')">×</button>
       </div>
@@ -37,12 +39,18 @@
               <label for="eventType">Тип события:</label>
               <select id="eventType" v-model="filters.eventType">
                 <option value="">Все события</option>
-                <option value="proposal">Предложения</option>
-                <option value="vote">Голосования</option>
-                <option value="transfer">Трансферы</option>
-                <option value="treasury">Казна</option>
-                <option value="module">Модули</option>
-                <option value="settings">Настройки</option>
+                <option value="dle_created">Создание DLE</option>
+                <option value="proposal_created">Создание предложений</option>
+                <option value="proposal_executed">Исполнение предложений</option>
+                <option value="proposal_cancelled">Отмена предложений</option>
+                <option value="module_added">Добавление модулей</option>
+                <option value="module_removed">Удаление модулей</option>
+                <option value="chain_added">Добавление сетей</option>
+                <option value="chain_removed">Удаление сетей</option>
+                <option value="chain_updated">Изменение текущей сети</option>
+                <option value="quorum_updated">Изменение кворума</option>
+                <option value="dle_info_updated">Обновление информации DLE</option>
+                <option value="proposal_execution_approved">Одобрение исполнения</option>
               </select>
             </div>
             
@@ -64,15 +72,7 @@
               >
             </div>
             
-            <div class="filter-group">
-              <label for="status">Статус:</label>
-              <select id="status" v-model="filters.status">
-                <option value="">Все статусы</option>
-                <option value="success">Успешно</option>
-                <option value="pending">В обработке</option>
-                <option value="failed">Ошибка</option>
-              </select>
-            </div>
+            <!-- Убираем фильтр по статусу, так как все события успешны -->
           </div>
           
           <div class="filters-actions">
@@ -87,33 +87,33 @@
         <h2>Статистика</h2>
         <div class="stats-grid">
           <div class="stat-card">
-            <h3>Всего операций</h3>
+            <h3>Всего событий</h3>
             <p class="stat-value">{{ totalOperations }}</p>
           </div>
           <div class="stat-card">
-            <h3>Успешных</h3>
-            <p class="stat-value success">{{ successfulOperations }}</p>
+            <h3>Предложения</h3>
+            <p class="stat-value">{{ history.filter(e => e.type.includes('proposal')).length }}</p>
           </div>
           <div class="stat-card">
-            <h3>Ошибок</h3>
-            <p class="stat-value error">{{ failedOperations }}</p>
+            <h3>Модули</h3>
+            <p class="stat-value">{{ history.filter(e => e.type.includes('module')).length }}</p>
           </div>
           <div class="stat-card">
-            <h3>В обработке</h3>
-            <p class="stat-value pending">{{ pendingOperations }}</p>
+            <h3>Сети</h3>
+            <p class="stat-value">{{ history.filter(e => e.type.includes('chain')).length }}</p>
           </div>
         </div>
       </div>
 
-      <!-- История операций -->
+      <!-- История событий -->
       <div class="history-section">
-        <h2>История операций</h2>
+        <h2>История событий</h2>
         <div class="history-controls">
           <div class="search-box">
             <input 
               v-model="searchQuery" 
               type="text" 
-              placeholder="Поиск по описанию или адресу..."
+              placeholder="Поиск по названию или описанию события..."
               @input="filterHistory"
             >
           </div>
@@ -121,7 +121,7 @@
             <select v-model="sortBy" @change="sortHistory">
               <option value="timestamp">По дате</option>
               <option value="type">По типу</option>
-              <option value="status">По статусу</option>
+              <option value="title">По названию</option>
             </select>
             <button @click="toggleSortOrder" class="sort-btn">
               {{ sortOrder === 'desc' ? '↓' : '↑' }}
@@ -130,14 +130,14 @@
         </div>
         
         <div v-if="filteredHistory.length === 0" class="empty-state">
-          <p>Нет операций, соответствующих фильтрам</p>
+          <p>Нет событий, соответствующих фильтрам</p>
         </div>
         <div v-else class="history-list">
           <div 
             v-for="event in filteredHistory" 
             :key="event.id" 
             class="history-item"
-            :class="event.status"
+            :class="event.type"
           >
             <div class="event-icon">
               <span class="icon">{{ getEventIcon(event.type) }}</span>
@@ -146,8 +146,8 @@
             <div class="event-content">
               <div class="event-header">
                 <h3>{{ getEventTitle(event) }}</h3>
-                <span class="event-status" :class="event.status">
-                  {{ getStatusText(event.status) }}
+                <span class="event-status success">
+                  Успешно
                 </span>
               </div>
               
@@ -158,8 +158,8 @@
                   <span class="event-hash">Tx: {{ formatHash(event.transactionHash) }}</span>
                   <span v-if="event.blockNumber" class="event-block">Block: {{ event.blockNumber }}</span>
                 </div>
-                <div v-if="event.data" class="event-data">
-                  <div v-for="(value, key) in event.data" :key="key" class="data-item">
+                <div v-if="event.details" class="event-data">
+                  <div v-for="(value, key) in event.details" :key="key" class="data-item">
                     <span class="data-label">{{ key }}:</span>
                     <span class="data-value">{{ formatDataValue(value) }}</span>
                   </div>
@@ -217,8 +217,8 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Статус:</span>
-                <span class="detail-value" :class="selectedEvent.status">
-                  {{ getStatusText(selectedEvent.status) }}
+                <span class="detail-value success">
+                  Успешно
                 </span>
               </div>
               <div class="detail-row">
@@ -237,11 +237,11 @@
                 <span class="detail-label">Описание:</span>
                 <span class="detail-value">{{ selectedEvent.description }}</span>
               </div>
-              <div v-if="selectedEvent.data" class="detail-section">
-                <h4>Данные операции:</h4>
+              <div v-if="selectedEvent.details" class="detail-section">
+                <h4>Детали события:</h4>
                 <div class="data-grid">
                   <div 
-                    v-for="(value, key) in selectedEvent.data" 
+                    v-for="(value, key) in selectedEvent.details" 
                     :key="key"
                     class="data-item-full"
                   >
@@ -259,9 +259,10 @@
 </template>
 
 <script setup>
-import { ref, computed, defineProps, defineEmits } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, defineProps, defineEmits, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import api from '../../api/axios';
 
 // Определяем props
 const props = defineProps({
@@ -275,8 +276,14 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const route = useRoute();
+
+// Получаем адрес DLE из URL параметров
+const dleAddress = ref(route.query.address || '');
 
 // Состояние
+const selectedDle = ref(null);
+const isLoadingDle = ref(false);
 const showDetailsModal = ref(false);
 const selectedEvent = ref(null);
 const searchQuery = ref('');
@@ -296,6 +303,71 @@ const filters = ref({
 // История операций (загружается из блокчейна)
 const history = ref([]);
 
+// Загрузка данных DLE
+async function loadDleData() {
+  try {
+    isLoadingDle.value = true;
+    
+    if (!dleAddress.value) {
+      console.error('Адрес DLE не указан');
+      return;
+    }
+
+    console.log('[HistoryView] Загрузка данных DLE:', dleAddress.value);
+    
+    // Читаем данные из блокчейна
+    const response = await api.post('/dle-core/read-dle-info', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      selectedDle.value = response.data.data;
+      console.log('[HistoryView] Данные DLE загружены:', selectedDle.value);
+      
+      // Загружаем историю событий
+      await loadEventHistory();
+    } else {
+      console.error('[HistoryView] Ошибка загрузки DLE:', response.data.error);
+    }
+  } catch (error) {
+    console.error('[HistoryView] Ошибка загрузки DLE:', error);
+  } finally {
+    isLoadingDle.value = false;
+  }
+}
+
+// Загрузка истории событий
+async function loadEventHistory() {
+  try {
+    console.log('[HistoryView] Загрузка расширенной истории событий для DLE:', dleAddress.value);
+    
+    // Загружаем расширенную историю из блокчейна
+    const response = await api.post('/dle-history/get-extended-history', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      const historyData = response.data.data;
+      history.value = historyData.history || [];
+      
+      console.log('[HistoryView] Расширенная история событий загружена:', history.value);
+    } else {
+      console.error('[HistoryView] Ошибка загрузки истории:', response.data.error);
+      history.value = [];
+    }
+  } catch (error) {
+    console.error('[HistoryView] Ошибка загрузки истории событий:', error);
+    history.value = [];
+  }
+}
+
+// Загружаем данные при монтировании компонента
+onMounted(() => {
+  if (dleAddress.value) {
+    loadDleData();
+  }
+});
+
 // Вычисляемые свойства
 const filteredHistory = computed(() => {
   let filtered = history.value;
@@ -305,10 +377,10 @@ const filteredHistory = computed(() => {
     filtered = filtered.filter(event => event.type === filters.value.eventType);
   }
   
-  // Фильтр по статусу
-  if (filters.value.status) {
-    filtered = filtered.filter(event => event.status === filters.value.status);
-  }
+  // Фильтр по статусу - убираем, так как все события успешны
+  // if (filters.value.status) {
+  //   filtered = filtered.filter(event => event.status === filters.value.status);
+  // }
   
   // Фильтр по датам
   if (filters.value.dateFrom) {
@@ -325,8 +397,9 @@ const filteredHistory = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(event => 
+      event.title.toLowerCase().includes(query) ||
       event.description.toLowerCase().includes(query) ||
-      event.transactionHash.toLowerCase().includes(query)
+      (event.transactionHash && event.transactionHash.toLowerCase().includes(query))
     );
   }
   
@@ -351,9 +424,9 @@ const filteredHistory = computed(() => {
 });
 
 const totalOperations = computed(() => history.value.length);
-const successfulOperations = computed(() => history.value.filter(e => e.status === 'success').length);
-const failedOperations = computed(() => history.value.filter(e => e.status === 'failed').length);
-const pendingOperations = computed(() => history.value.filter(e => e.status === 'pending').length);
+const successfulOperations = computed(() => history.value.length); // Все события из блокчейна успешны
+const failedOperations = computed(() => 0); // Нет неуспешных событий в блокчейне
+const pendingOperations = computed(() => 0); // Нет ожидающих событий в блокчейне
 
 const totalPages = computed(() => Math.ceil(filteredHistory.value.length / itemsPerPage.value));
 
@@ -394,12 +467,18 @@ const changePage = (page) => {
 
 const getEventIcon = (type) => {
   const icons = {
-    proposal: '📋',
-    vote: '🗳️',
-    transfer: '💸',
-    treasury: '🏦',
-    module: '🔧',
-    settings: '⚙️'
+    dle_created: '🏢',
+    proposal_created: '📋',
+    proposal_executed: '✅',
+    proposal_cancelled: '❌',
+    module_added: '🔧',
+    module_removed: '🔧',
+    chain_added: '🌐',
+    chain_removed: '🌐',
+    chain_updated: '🔄',
+    quorum_updated: '📊',
+    dle_info_updated: '📝',
+    proposal_execution_approved: '👍'
   };
   return icons[type] || '📄';
 };
@@ -409,12 +488,8 @@ const getEventTitle = (event) => {
 };
 
 const getStatusText = (status) => {
-  const statusMap = {
-    success: 'Успешно',
-    pending: 'В обработке',
-    failed: 'Ошибка'
-  };
-  return statusMap[status] || status;
+  // Все события из блокчейна считаются успешными, так как они уже произошли
+  return 'Успешно';
 };
 
 const formatDate = (timestamp) => {
@@ -430,6 +505,13 @@ const formatDataValue = (value) => {
   if (typeof value === 'object') {
     return JSON.stringify(value);
   }
+  if (typeof value === 'string' && value.startsWith('0x') && value.length === 42) {
+    // Это адрес - форматируем его
+    return value.substring(0, 6) + '...' + value.substring(value.length - 4);
+  }
+  if (typeof value === 'number') {
+    return value.toLocaleString();
+  }
   return value;
 };
 
@@ -439,8 +521,10 @@ const viewDetails = (event) => {
 };
 
 const viewOnExplorer = (event) => {
-  // Здесь будет логика открытия в блокчейн эксплорере
-  window.open(`https://etherscan.io/tx/${event.transactionHash}`, '_blank');
+  // Открываем в Sepolia Etherscan
+  if (event.transactionHash && event.transactionHash !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+    window.open(`https://sepolia.etherscan.io/tx/${event.transactionHash}`, '_blank');
+  }
 };
 </script>
 

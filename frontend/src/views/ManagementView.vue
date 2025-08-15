@@ -150,11 +150,7 @@
             <button class="details-btn" @click="openModulesWithDle">Подробнее</button>
           </div>
           
-          <div class="management-block">
-            <h3>Казна</h3>
-            <p>Управление средствами</p>
-            <button class="details-btn" @click="openTreasuryWithDle">Подробнее</button>
-          </div>
+
           
           <div class="management-block">
             <h3>Аналитика</h3>
@@ -177,11 +173,7 @@
             <button class="details-btn" @click="openSettingsWithDle">Подробнее</button>
           </div>
           
-          <div class="management-block">
-            <h3>Мультиподпись</h3>
-            <p>Управление мультиподписью</p>
-            <!-- Мультиподпись удалена - используется только голосование -->
-          </div>
+
         </div>
       </div>
 
@@ -241,9 +233,7 @@ const openDle = () => {
   router.push('/management/dle-management');
 };
 
-const openTreasury = () => {
-  router.push('/management/treasury');
-};
+
 
 const openAnalytics = () => {
   router.push('/management/analytics');
@@ -430,11 +420,7 @@ function openModulesWithDle() {
   }
 }
 
-function openTreasuryWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/treasury?address=${selectedDle.value.dleAddress}`);
-  }
-}
+
 
 function openAnalyticsWithDle() {
   if (selectedDle.value) {

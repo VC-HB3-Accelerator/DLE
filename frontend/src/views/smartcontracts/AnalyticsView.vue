@@ -22,142 +22,157 @@
       <!-- Заголовок -->
       <div class="page-header">
         <div class="header-content">
-          <h1>Аналитика</h1>
-          <p>Графики, статистика и отчеты DLE</p>
+          <h1>Аналитика DLE</h1>
+          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ formatAddress(dleAddress) }}</p>
+          <p v-else-if="isLoadingDle">Загрузка...</p>
+          <p v-else>Подробная аналитика и статистика DLE</p>
         </div>
         <button class="close-btn" @click="router.push('/management')">×</button>
       </div>
 
-      <!-- Ключевые метрики -->
-      <div class="metrics-section">
-        <h2>Ключевые метрики</h2>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <h3>Общая стоимость</h3>
-            <p class="metric-value">${{ totalValue.toLocaleString() }}</p>
-            <p class="metric-change positive">+{{ valueChange }}% (30д)</p>
+      <!-- Основная информация -->
+      <div class="info-section">
+        <h2>Основная информация</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>Название</h3>
+            <p class="info-value">{{ selectedDle?.name || 'Загрузка...' }}</p>
           </div>
-          <div class="metric-card">
-            <h3>Активные участники</h3>
-            <p class="metric-value">{{ activeParticipants }}</p>
-            <p class="metric-change positive">+{{ participantsChange }} (30д)</p>
+          <div class="info-card">
+            <h3>Символ</h3>
+            <p class="info-value">{{ selectedDle?.symbol || 'Загрузка...' }}</p>
           </div>
-          <div class="metric-card">
-            <h3>Предложения</h3>
-            <p class="metric-value">{{ totalProposals }}</p>
-            <p class="metric-change positive">+{{ proposalsChange }} (30д)</p>
+          <div class="info-card">
+            <h3>Статус</h3>
+            <p class="info-value" :class="selectedDle?.isActive ? 'status-active' : 'status-inactive'">
+              {{ selectedDle?.isActive ? 'Активен' : 'Неактивен' }}
+            </p>
           </div>
-          <div class="metric-card">
-            <h3>Доходность</h3>
-            <p class="metric-value">{{ yieldRate }}%</p>
-            <p class="metric-change positive">+{{ yieldChange }}% (30д)</p>
+          <div class="info-card">
+            <h3>Дата создания</h3>
+            <p class="info-value">{{ formatDate(selectedDle?.creationTimestamp) }}</p>
           </div>
-        </div>
-      </div>
-
-      <!-- Графики -->
-      <div class="charts-section">
-        <h2>Графики</h2>
-        <div class="charts-grid">
-          <!-- График стоимости токенов -->
-          <div class="chart-card">
-            <h3>Стоимость токенов</h3>
-            <div class="chart-placeholder">
-              <div class="chart-line">
-                <div class="chart-point" style="left: 10%; top: 80%"></div>
-                <div class="chart-point" style="left: 25%; top: 60%"></div>
-                <div class="chart-point" style="left: 40%; top: 40%"></div>
-                <div class="chart-point" style="left: 55%; top: 30%"></div>
-                <div class="chart-point" style="left: 70%; top: 20%"></div>
-                <div class="chart-point" style="left: 85%; top: 10%"></div>
-                <div class="chart-point" style="left: 100%; top: 5%"></div>
-              </div>
-            </div>
-            <div class="chart-legend">
-              <span class="legend-item">
-                <span class="legend-color" style="background: var(--color-primary)"></span>
-                Стоимость токена
-              </span>
-            </div>
+          <div class="info-card">
+            <h3>Местоположение</h3>
+            <p class="info-value">{{ selectedDle?.location || 'Не указано' }}</p>
           </div>
-
-          <!-- График активности -->
-          <div class="chart-card">
-            <h3>Активность участников</h3>
-            <div class="activity-chart">
-              <div class="activity-bar" style="height: 60%">
-                <span class="bar-label">Пн</span>
-              </div>
-              <div class="activity-bar" style="height: 80%">
-                <span class="bar-label">Вт</span>
-              </div>
-              <div class="activity-bar" style="height: 45%">
-                <span class="bar-label">Ср</span>
-              </div>
-              <div class="activity-bar" style="height: 90%">
-                <span class="bar-label">Чт</span>
-              </div>
-              <div class="activity-bar" style="height: 75%">
-                <span class="bar-label">Пт</span>
-              </div>
-              <div class="activity-bar" style="height: 55%">
-                <span class="bar-label">Сб</span>
-              </div>
-              <div class="activity-bar" style="height: 40%">
-                <span class="bar-label">Вс</span>
-              </div>
-            </div>
-            <div class="chart-legend">
-              <span class="legend-item">
-                <span class="legend-color" style="background: var(--color-secondary)"></span>
-                Количество операций
-              </span>
-            </div>
+          <div class="info-card">
+            <h3>Юрисдикция</h3>
+            <p class="info-value">{{ selectedDle?.jurisdiction || 'Не указано' }}</p>
           </div>
         </div>
       </div>
 
-      <!-- Статистика -->
-      <div class="statistics-section">
-        <h2>Статистика</h2>
-        <div class="stats-grid">
-          <div class="stats-card">
-            <h3>Распределение токенов</h3>
-            <div class="distribution-chart">
-              <div class="pie-segment" style="--percentage: 40; --color: #007bff">
-                <span class="segment-label">Крупные держатели</span>
-                <span class="segment-value">40%</span>
+      <!-- Токеномика -->
+      <div class="tokenomics-section">
+        <h2>Токеномика</h2>
+        <div class="tokenomics-grid">
+          <div class="tokenomics-card">
+            <h3>Общий объем токенов</h3>
+            <p class="tokenomics-value">{{ formatNumber(tokenomics.totalSupply) }}</p>
+            <p class="tokenomics-label">Токенов в обращении</p>
+          </div>
+          <div class="tokenomics-card">
+            <h3>Держатели токенов</h3>
+            <p class="tokenomics-value">{{ tokenomics.holdersCount }}</p>
+            <p class="tokenomics-label">Активных держателей</p>
+          </div>
+          <div class="tokenomics-card">
+            <h3>Крупнейший держатель</h3>
+            <p class="tokenomics-value">{{ tokenomics.topHolderPercentage }}%</p>
+            <p class="tokenomics-label">{{ formatAddress(tokenomics.topHolderAddress) }}</p>
+          </div>
               </div>
-              <div class="pie-segment" style="--percentage: 30; --color: #28a745">
-                <span class="segment-label">Средние держатели</span>
-                <span class="segment-value">30%</span>
+            </div>
+
+      <!-- Управление -->
+      <div class="governance-section">
+        <h2>Управление</h2>
+        <div class="governance-grid">
+          <div class="governance-card">
+            <h3>Всего предложений</h3>
+            <p class="governance-value">{{ governance.totalProposals }}</p>
+          </div>
+          <div class="governance-card">
+            <h3>Исполнено</h3>
+            <p class="governance-value">{{ governance.executedProposals }}</p>
+          </div>
+          <div class="governance-card">
+            <h3>Отклонено</h3>
+            <p class="governance-value">{{ governance.defeatedProposals }}</p>
+          </div>
+          <div class="governance-card">
+            <h3>Кворум</h3>
+            <p class="governance-value">{{ governance.quorumPercentage }}%</p>
+          </div>
+          <div class="governance-card">
+            <h3>Поддерживаемые сети</h3>
+            <p class="governance-value">{{ governance.supportedChainsCount }}</p>
+            </div>
+          <div class="governance-card">
+            <h3>Текущая сеть</h3>
+            <p class="governance-value">{{ getChainName(governance.currentChainId) }}</p>
+          </div>
+        </div>
               </div>
-              <div class="pie-segment" style="--percentage: 20; --color: #ffc107">
-                <span class="segment-label">Малые держатели</span>
-                <span class="segment-value">20%</span>
+
+      <!-- Статистика предложений -->
+      <div class="proposals-section">
+        <h2>Статистика предложений</h2>
+        <div class="proposals-grid">
+          <div class="proposals-card">
+            <h3>Статусы предложений</h3>
+            <div class="proposals-stats">
+              <div class="stat-item">
+                <span class="stat-label">Ожидают голосования</span>
+                <span class="stat-value">{{ proposalsStats.pending }}</span>
               </div>
-              <div class="pie-segment" style="--percentage: 10; --color: #dc3545">
-                <span class="segment-label">Резерв</span>
-                <span class="segment-value">10%</span>
+              <div class="stat-item">
+                <span class="stat-label">Успешные</span>
+                <span class="stat-value">{{ proposalsStats.succeeded }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Отклоненные</span>
+                <span class="stat-value">{{ proposalsStats.defeated }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Исполненные</span>
+                <span class="stat-value">{{ proposalsStats.executed }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Отмененные</span>
+                <span class="stat-value">{{ proposalsStats.canceled }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Готовы к исполнению</span>
+                <span class="stat-value">{{ proposalsStats.readyForExecution }}</span>
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div class="stats-card">
-            <h3>Топ участников</h3>
-            <div class="top-participants">
+      <!-- Модули -->
+      <div class="modules-section">
+        <h2>Модули</h2>
+        <div class="modules-grid">
+          <div class="modules-card">
+            <h3>Активные модули</h3>
+            <div class="modules-list">
+              <div v-if="modules.length === 0" class="no-modules">
+                <p>Нет активных модулей</p>
+              </div>
               <div 
-                v-for="participant in topParticipants" 
-                :key="participant.address"
-                class="participant-item"
+                v-for="module in modules" 
+                :key="module.id"
+                class="module-item"
               >
-                <div class="participant-info">
-                  <span class="participant-rank">#{{ participant.rank }}</span>
-                  <span class="participant-address">{{ formatAddress(participant.address) }}</span>
+                <div class="module-info">
+                  <span class="module-id">{{ module.id }}</span>
+                  <span class="module-address">{{ formatAddress(module.address) }}</span>
                 </div>
-                <div class="participant-stats">
-                  <span class="participant-balance">{{ participant.balance }} токенов</span>
-                  <span class="participant-percentage">{{ participant.percentage }}%</span>
+                <div class="module-status">
+                  <span class="status-badge active">Активен</span>
                 </div>
               </div>
             </div>
@@ -165,43 +180,47 @@
         </div>
       </div>
 
-      <!-- Отчеты -->
-      <div class="reports-section">
-        <h2>Отчеты</h2>
-        <div class="reports-grid">
-          <div class="report-card">
-            <h3>Ежемесячный отчет</h3>
-            <p>Подробный анализ деятельности DLE за последний месяц</p>
-            <div class="report-actions">
-              <button class="btn-secondary">Просмотреть</button>
-              <button class="btn-secondary">Скачать PDF</button>
+      <!-- Мульти-чейн -->
+      <div class="multichain-section">
+        <h2>Мульти-чейн</h2>
+        <div class="multichain-grid">
+          <div class="multichain-card">
+            <h3>Поддерживаемые сети</h3>
+            <div class="chains-list">
+              <div 
+                v-for="chainId in multichain.supportedChains" 
+                :key="chainId"
+                class="chain-item"
+              >
+                <span class="chain-name">{{ getChainName(chainId) }}</span>
+                <span class="chain-id">ID: {{ chainId }}</span>
+              </div>
+            </div>
+          </div>
             </div>
           </div>
 
-          <div class="report-card">
-            <h3>Финансовый отчет</h3>
-            <p>Анализ финансового состояния и доходности</p>
-            <div class="report-actions">
-              <button class="btn-secondary">Просмотреть</button>
-              <button class="btn-secondary">Скачать PDF</button>
+      <!-- Топ держатели -->
+      <div class="holders-section">
+        <h2>Топ держатели токенов</h2>
+        <div class="holders-grid">
+          <div class="holders-card">
+            <div class="holders-list">
+              <div 
+                v-for="(holder, index) in topHolders" 
+                :key="holder.address"
+                class="holder-item"
+              >
+                <div class="holder-rank">#{{ index + 1 }}</div>
+                <div class="holder-info">
+                  <div class="holder-address">{{ formatAddress(holder.address) }}</div>
+                  <div class="holder-balance">{{ formatNumber(holder.balance) }} токенов</div>
+                </div>
+                <div class="holder-percentage">{{ holder.percentage.toFixed(2) }}%</div>
             </div>
+              <div v-if="topHolders.length === 0" class="no-holders">
+                <p>Нет данных о держателях токенов</p>
           </div>
-
-          <div class="report-card">
-            <h3>Отчет по предложениям</h3>
-            <p>Статистика и анализ предложений за период</p>
-            <div class="report-actions">
-              <button class="btn-secondary">Просмотреть</button>
-              <button class="btn-secondary">Скачать PDF</button>
-            </div>
-          </div>
-
-          <div class="report-card">
-            <h3>Отчет по активности</h3>
-            <p>Анализ активности участников и операций</p>
-            <div class="report-actions">
-              <button class="btn-secondary">Просмотреть</button>
-              <button class="btn-secondary">Скачать PDF</button>
             </div>
           </div>
         </div>
@@ -211,9 +230,10 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, defineProps, defineEmits, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
+import api from '../../api/axios';
 
 // Определяем props
 const props = defineProps({
@@ -227,25 +247,313 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const route = useRoute();
 
-// Ключевые метрики
-const totalValue = ref(2500000);
-const valueChange = ref(12.5);
-const activeParticipants = ref(156);
-const participantsChange = ref(23);
-const totalProposals = ref(45);
-const proposalsChange = ref(8);
-const yieldRate = ref(8.7);
-const yieldChange = ref(1.2);
+// Получаем адрес DLE из URL параметров
+const dleAddress = ref(route.query.address || '');
 
-// Топ участников (загружаются из блокчейна)
-const topParticipants = ref([]);
+// Состояние
+const selectedDle = ref(null);
+const isLoadingDle = ref(false);
+
+// Данные аналитики
+const tokenomics = ref({
+  totalSupply: 0,
+  holdersCount: 0,
+  topHolderAddress: '',
+  topHolderPercentage: 0
+});
+
+const governance = ref({
+  totalProposals: 0,
+  executedProposals: 0,
+  defeatedProposals: 0,
+  quorumPercentage: 0,
+  supportedChainsCount: 0,
+  currentChainId: 0
+});
+
+const proposalsStats = ref({
+  pending: 0,
+  succeeded: 0,
+  defeated: 0,
+  executed: 0,
+  canceled: 0,
+  readyForExecution: 0
+});
+
+const modules = ref([]);
+const multichain = ref({
+  supportedChains: []
+});
+
+const topHolders = ref([]);
+
+// Загрузка данных DLE
+async function loadDleData() {
+  try {
+    isLoadingDle.value = true;
+    
+    if (!dleAddress.value) {
+      console.error('Адрес DLE не указан');
+      return;
+    }
+
+    console.log('[AnalyticsView] Загрузка данных DLE:', dleAddress.value);
+    
+    // Читаем данные из блокчейна
+    const response = await api.post('/dle-core/read-dle-info', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      selectedDle.value = response.data.data;
+      console.log('[AnalyticsView] Данные DLE загружены:', selectedDle.value);
+      
+      // Загружаем все аналитические данные
+      await Promise.all([
+        loadTokenomics(),
+        loadGovernance(),
+        loadProposalsStats(),
+        loadModules(),
+        loadMultichain(),
+        loadTopHolders()
+      ]);
+    } else {
+      console.error('[AnalyticsView] Ошибка загрузки DLE:', response.data.error);
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки DLE:', error);
+  } finally {
+    isLoadingDle.value = false;
+  }
+}
+
+// Загрузка токеномики
+async function loadTokenomics() {
+  try {
+    const response = await api.post('/dle-tokens/get-total-supply', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      tokenomics.value.totalSupply = response.data.data.totalSupply;
+      
+      // Получаем держателей токенов
+      const holdersResponse = await api.post('/dle-tokens/get-token-holders', {
+        dleAddress: dleAddress.value
+      });
+      
+      if (holdersResponse.data.success) {
+        const holders = holdersResponse.data.data.holders;
+        tokenomics.value.holdersCount = holders.length;
+        
+        if (holders.length > 0) {
+          const topHolder = holders[0];
+          tokenomics.value.topHolderAddress = topHolder.address;
+          tokenomics.value.topHolderPercentage = topHolder.percentage;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки токеномики:', error);
+  }
+}
+
+// Загрузка данных управления
+async function loadGovernance() {
+  try {
+    const response = await api.post('/dle-core/get-governance-params', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      const data = response.data.data;
+      governance.value.quorumPercentage = data.quorumPct;
+      governance.value.currentChainId = data.chainId;
+      governance.value.supportedChainsCount = data.supportedCount;
+    }
+    
+    // Получаем количество предложений
+    const proposalsResponse = await api.post('/dle-proposals/get-proposals-count', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (proposalsResponse.data.success) {
+      governance.value.totalProposals = proposalsResponse.data.data.count;
+    }
+    
+    // Получаем статистику предложений
+    const listResponse = await api.post('/dle-proposals/get-proposals', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (listResponse.data.success) {
+      const proposals = listResponse.data.data.proposals || [];
+      let executed = 0;
+      let defeated = 0;
+      
+      for (const proposal of proposals) {
+        if (proposal.executed) executed++;
+        else if (proposal.state === 2) defeated++; // Defeated
+      }
+      
+      governance.value.executedProposals = executed;
+      governance.value.defeatedProposals = defeated;
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки управления:', error);
+  }
+}
+
+// Загрузка статистики предложений
+async function loadProposalsStats() {
+  try {
+    const response = await api.post('/dle-proposals/get-proposals', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      const proposals = response.data.data.proposals || [];
+      const stats = {
+        pending: 0,
+        succeeded: 0,
+        defeated: 0,
+        executed: 0,
+        canceled: 0,
+        readyForExecution: 0
+      };
+      
+      for (const proposal of proposals) {
+        // Определяем статус предложения по той же логике что и в DleProposalsView
+        let status = 'active';
+        const now = Math.floor(Date.now() / 1000);
+        const deadline = proposal.deadline || 0;
+        
+        if (proposal.canceled) {
+          status = 'canceled';
+        } else if (proposal.executed) {
+          status = 'executed';
+        } else if (deadline > 0 && now >= deadline) {
+          // Если дедлайн истек, определяем результат по голосам
+          const forVotes = Number(proposal.forVotes) || 0;
+          const againstVotes = Number(proposal.againstVotes) || 0;
+          
+          if (forVotes > againstVotes) {
+            status = 'succeeded';
+          } else {
+            status = 'defeated';
+          }
+        } else {
+          // Если дедлайн не истек, но есть голоса, определяем текущий статус
+          const forVotes = Number(proposal.forVotes) || 0;
+          const againstVotes = Number(proposal.againstVotes) || 0;
+          
+          if (forVotes > 0 || againstVotes > 0) {
+            if (forVotes > againstVotes) {
+              status = 'succeeded';
+            } else if (againstVotes > forVotes) {
+              status = 'defeated';
+            }
+          }
+        }
+        
+        switch (status) {
+          case 'active': stats.pending++; break;
+          case 'succeeded': stats.succeeded++; break;
+          case 'defeated': stats.defeated++; break;
+          case 'executed': stats.executed++; break;
+          case 'canceled': stats.canceled++; break;
+          default: stats.pending++; break;
+        }
+      }
+      
+      proposalsStats.value = stats;
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки статистики предложений:', error);
+  }
+}
+
+// Загрузка модулей
+async function loadModules() {
+  try {
+    const response = await api.post('/dle-modules/get-all-modules', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      modules.value = response.data.data.modules || [];
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки модулей:', error);
+  }
+}
+
+// Загрузка мульти-чейн данных
+async function loadMultichain() {
+  try {
+    const response = await api.post('/dle-multichain/get-supported-chains', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      multichain.value.supportedChains = response.data.data.chains || [];
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки мульти-чейн данных:', error);
+  }
+}
+
+// Загрузка топ держателей
+async function loadTopHolders() {
+  try {
+    const response = await api.post('/dle-tokens/get-token-holders', {
+      dleAddress: dleAddress.value
+    });
+    
+    if (response.data.success) {
+      topHolders.value = response.data.data.holders || [];
+    }
+  } catch (error) {
+    console.error('[AnalyticsView] Ошибка загрузки топ держателей:', error);
+  }
+}
 
 // Методы
 const formatAddress = (address) => {
   if (!address) return '';
   return address.substring(0, 6) + '...' + address.substring(address.length - 4);
 };
+
+const formatNumber = (number) => {
+  if (!number) return '0';
+  return Number(number).toLocaleString();
+};
+
+const formatDate = (timestamp) => {
+  if (!timestamp) return 'Не указано';
+  return new Date(Number(timestamp) * 1000).toLocaleDateString('ru-RU');
+};
+
+const getChainName = (chainId) => {
+  const chains = {
+    1: 'Ethereum Mainnet',
+    11155111: 'Sepolia Testnet',
+    17000: 'Holesky Testnet',
+    137: 'Polygon',
+    56: 'BSC',
+    42161: 'Arbitrum One'
+  };
+  return chains[chainId] || `Chain ID: ${chainId}`;
+};
+
+// Загружаем данные при монтировании компонента
+onMounted(() => {
+  if (dleAddress.value) {
+    loadDleData();
+  }
+});
 </script>
 
 <style scoped>
@@ -306,369 +614,376 @@ const formatAddress = (address) => {
 }
 
 /* Секции */
-.metrics-section,
-.charts-section,
-.statistics-section,
-.reports-section {
+.info-section,
+.tokenomics-section,
+.governance-section,
+.proposals-section,
+.modules-section,
+.multichain-section,
+.holders-section {
   margin-bottom: 40px;
 }
 
-.metrics-section h2,
-.charts-section h2,
-.statistics-section h2,
-.reports-section h2 {
+.info-section h2,
+.tokenomics-section h2,
+.governance-section h2,
+.proposals-section h2,
+.modules-section h2,
+.multichain-section h2,
+.holders-section h2 {
   color: var(--color-primary);
   margin-bottom: 20px;
   font-size: 1.8rem;
 }
 
-/* Ключевые метрики */
-.metrics-grid {
+/* Основная информация */
+.info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
 }
 
-.metric-card {
+.info-card {
   background: #f8f9fa;
-  padding: 25px;
+  padding: 20px;
   border-radius: var(--radius-lg);
   border-left: 4px solid var(--color-primary);
-  text-align: center;
 }
 
-.metric-card h3 {
+.info-card h3 {
   color: var(--color-primary);
-  margin-bottom: 15px;
+  margin-bottom: 10px;
   font-size: 1rem;
   text-transform: uppercase;
   font-weight: 600;
 }
 
-.metric-value {
-  font-size: 2rem;
-  font-weight: 700;
-  margin: 0 0 10px 0;
-  color: var(--color-primary);
-}
-
-.metric-change {
-  font-size: 1rem;
+.info-value {
+  font-size: 1.2rem;
   font-weight: 600;
   margin: 0;
-}
-
-.metric-change.positive {
-  color: #28a745;
-}
-
-.metric-change.negative {
-  color: #dc3545;
-}
-
-/* Графики */
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 30px;
-}
-
-.chart-card {
-  background: white;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-}
-
-.chart-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 20px;
-  font-size: 1.3rem;
-}
-
-/* График стоимости токенов */
-.chart-placeholder {
-  height: 200px;
-  background: #f8f9fa;
-  border-radius: var(--radius-sm);
-  position: relative;
-  margin-bottom: 15px;
-  border: 1px solid #e9ecef;
-}
-
-.chart-line {
-  position: relative;
-  height: 100%;
-  width: 100%;
-}
-
-.chart-point {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background: var(--color-primary);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.chart-point::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  background: rgba(0, 123, 255, 0.2);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* График активности */
-.activity-chart {
-  height: 200px;
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.activity-bar {
-  background: var(--color-secondary);
-  border-radius: 4px 4px 0 0;
-  min-width: 30px;
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.activity-bar:hover {
-  background: var(--color-secondary-dark);
-}
-
-.bar-label {
-  position: absolute;
-  bottom: -25px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.8rem;
   color: var(--color-grey-dark);
 }
 
-/* Легенда графиков */
-.chart-legend {
-  display: flex;
-  justify-content: center;
+.status-active {
+  color: #28a745 !important;
+}
+
+.status-inactive {
+  color: #dc3545 !important;
+}
+
+/* Токеномика */
+.tokenomics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 20px;
 }
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
+.tokenomics-card {
+  background: white;
+  padding: 25px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.tokenomics-card h3 {
+  color: var(--color-primary);
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+}
+
+.tokenomics-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 10px 0;
+}
+
+.tokenomics-label {
   color: var(--color-grey-dark);
+  font-size: 0.9rem;
+  margin: 0;
 }
 
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-/* Статистика */
-.stats-grid {
+/* Управление */
+.governance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
 }
 
-.stats-card {
+.governance-card {
+  background: white;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.governance-card h3 {
+  color: var(--color-primary);
+  margin-bottom: 10px;
+  font-size: 1rem;
+}
+
+.governance-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  margin: 0;
+}
+
+/* Предложения */
+.proposals-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.proposals-card {
   background: white;
   padding: 25px;
   border-radius: var(--radius-lg);
   border: 1px solid #e9ecef;
 }
 
-.stats-card h3 {
+.proposals-card h3 {
   color: var(--color-primary);
   margin-bottom: 20px;
   font-size: 1.3rem;
 }
 
-/* Круговая диаграмма */
-.distribution-chart {
-  display: flex;
-  flex-direction: column;
+.proposals-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 15px;
 }
 
-.pie-segment {
+.stat-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 15px;
+  padding: 10px;
   background: #f8f9fa;
   border-radius: var(--radius-sm);
-  border-left: 4px solid var(--color);
 }
 
-.segment-label {
-  font-weight: 600;
+.stat-label {
   color: var(--color-grey-dark);
+  font-size: 0.9rem;
 }
 
-.segment-value {
-  font-weight: 700;
-  color: var(--color);
+.stat-value {
+  font-weight: 600;
+  color: var(--color-primary);
+  font-size: 1.1rem;
 }
 
-/* Топ участников */
-.top-participants {
+/* Модули */
+.modules-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.modules-card {
+  background: white;
+  padding: 25px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #e9ecef;
+}
+
+.modules-card h3 {
+  color: var(--color-primary);
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+}
+
+.modules-list {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 10px;
 }
 
-.participant-item {
+.module-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 15px;
   background: #f8f9fa;
   border-radius: var(--radius-sm);
-  transition: all 0.3s ease;
 }
 
-.participant-item:hover {
-  background: #e9ecef;
-}
-
-.participant-info {
+.module-info {
   display: flex;
-  align-items: center;
-  gap: 15px;
+  flex-direction: column;
+  gap: 5px;
 }
 
-.participant-rank {
-  background: var(--color-primary);
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
+.module-id {
   font-weight: 600;
+  color: var(--color-primary);
+  font-family: monospace;
 }
 
-.participant-address {
+.module-address {
   font-family: monospace;
   font-size: 0.9rem;
   color: var(--color-grey-dark);
 }
 
-.participant-stats {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-}
-
-.participant-balance {
-  font-weight: 600;
-  color: var(--color-primary);
-  font-size: 0.9rem;
-}
-
-.participant-percentage {
+.status-badge {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.no-modules {
+  text-align: center;
+  padding: 20px;
   color: var(--color-grey-dark);
 }
 
-/* Отчеты */
-.reports-grid {
+/* Мульти-чейн */
+.multichain-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: 1fr;
   gap: 20px;
 }
 
-.report-card {
+.multichain-card {
   background: white;
   padding: 25px;
   border-radius: var(--radius-lg);
   border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
 }
 
-.report-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.report-card h3 {
+.multichain-card h3 {
   color: var(--color-primary);
-  margin-bottom: 15px;
-  font-size: 1.2rem;
-}
-
-.report-card p {
-  color: var(--color-grey-dark);
   margin-bottom: 20px;
-  line-height: 1.5;
+  font-size: 1.3rem;
 }
 
-.report-actions {
+.chains-list {
   display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
-/* Кнопки */
-.btn-secondary {
-  background: var(--color-secondary);
-  color: white;
-  border: none;
-  padding: 8px 16px;
+.chain-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: #f8f9fa;
   border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
 }
 
-.btn-secondary:hover {
-  background: var(--color-secondary-dark);
+.chain-name {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.chain-id {
+  font-family: monospace;
+  color: var(--color-grey-dark);
+  font-size: 0.9rem;
+}
+
+/* Держатели */
+.holders-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.holders-card {
+  background: white;
+  padding: 25px;
+  border-radius: var(--radius-lg);
+  border: 1px solid #e9ecef;
+}
+
+.holders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.holder-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+}
+
+.holder-rank {
+  font-weight: 700;
+  color: var(--color-primary);
+  min-width: 30px;
+}
+
+.holder-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.holder-address {
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--color-grey-dark);
+}
+
+.holder-balance {
+  font-size: 0.9rem;
+  color: var(--color-grey-dark);
+}
+
+.holder-percentage {
+  font-weight: 600;
+  color: var(--color-secondary);
+  min-width: 60px;
+  text-align: right;
+}
+
+.no-holders {
+  text-align: center;
+  padding: 20px;
+  color: var(--color-grey-dark);
 }
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  .charts-grid {
+  .info-grid,
+  .tokenomics-grid,
+  .governance-grid {
     grid-template-columns: 1fr;
   }
   
-  .stats-grid {
+  .proposals-stats {
     grid-template-columns: 1fr;
   }
   
-  .reports-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .report-actions {
-    flex-direction: column;
-  }
-  
-  .participant-item {
+  .holder-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
   }
   
-  .participant-stats {
-    align-items: flex-start;
-  }
-  
-  .metrics-grid {
-    grid-template-columns: 1fr;
+  .holder-percentage {
+    align-self: flex-end;
   }
 }
 </style> 
