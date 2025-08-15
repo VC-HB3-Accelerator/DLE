@@ -112,7 +112,6 @@ class DLEV2Service {
           location: deployParams.location,
           coordinates: deployParams.coordinates,
           jurisdiction: deployParams.jurisdiction,
-          oktmo: deployParams.oktmo,
           okvedCodes: deployParams.okvedCodes || [],
           kpp: deployParams.kpp,
           quorumPercentage: deployParams.quorumPercentage,
@@ -224,6 +223,19 @@ class DLEV2Service {
     // Проверяем, что выбраны сети
     if (!params.supportedChainIds || !Array.isArray(params.supportedChainIds) || params.supportedChainIds.length === 0) {
       throw new Error('Должна быть выбрана хотя бы одна сеть для деплоя');
+    }
+
+    // Проверяем размер картинки токена (если передана)
+    if (params.tokenImage && params.tokenImage.trim() !== '') {
+      const base64Size = params.tokenImage.length;
+      if (base64Size > 350) {
+        throw new Error(`Размер картинки токена превышает лимит: ${base64Size} байт. Максимальный размер: 350 байт`);
+      }
+      
+      // Проверяем, что это валидный base64
+      if (!params.tokenImage.startsWith('data:image/')) {
+        throw new Error('Картинка токена должна быть в формате base64 data URL');
+      }
     }
   }
 
@@ -557,7 +569,6 @@ class DLEV2Service {
       location: params.location,
       coordinates: params.coordinates,
       jurisdiction: params.jurisdiction,
-      oktmo: params.oktmo,
       okvedCodes: params.okvedCodes || [],
       kpp: params.kpp,
       quorumPercentage: params.quorumPercentage,
@@ -732,7 +743,6 @@ class DLEV2Service {
       location: params.location,
       coordinates: params.coordinates,
       jurisdiction: params.jurisdiction,
-      oktmo: params.oktmo,
       okvedCodes: params.okvedCodes || [],
       kpp: params.kpp,
       quorumPercentage: params.quorumPercentage,

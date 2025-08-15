@@ -325,6 +325,38 @@
                 <small class="form-help">3-10 символов для токена управления (Governance Token)</small>
               </div>
 
+              <!-- Картинка токена -->
+              <div class="form-group">
+                <label class="form-label" for="tokenImage">Картинка токена:</label>
+                <div class="token-image-upload">
+                  <input 
+                    type="file" 
+                    id="tokenImage" 
+                    ref="tokenImageInput"
+                    class="form-control" 
+                    accept="image/*"
+                    @change="handleTokenImageUpload"
+                    style="display: none;"
+                  >
+                  <div class="upload-area" @click="triggerImageUpload">
+                    <div v-if="!dleSettings.tokenImage" class="upload-placeholder">
+                      <i class="fas fa-image"></i>
+                      <p>Нажмите для выбора картинки токена</p>
+                      <small>Поддерживаются форматы: JPG, PNG, GIF (макс. 1MB, 200x200px)</small>
+                    </div>
+                    <div v-else class="image-preview">
+                      <img :src="dleSettings.tokenImage" alt="Картинка токена" class="token-image">
+                      <div class="image-overlay">
+                        <button type="button" @click.stop="removeTokenImage" class="btn btn-danger btn-sm">
+                          <i class="fas fa-trash"></i> Удалить
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <small class="form-help">Загрузите картинку для вашего токена (макс. 350 байт в base64, автоматически сжимается до 200x200px)</small>
+              </div>
+
 
 
               <!-- Партнеры и распределение токенов -->
@@ -465,7 +497,7 @@
                   </div>
                 </div>
                 
-                <!-- Предсказанный адрес DLE - СКРЫТ -->
+                <!-- Предсказанный адрес DLE - отключено -->
                 <!-- <div v-if="selectedNetworks.length > 0" class="predicted-address-section">
                   <h5>📍 Адрес DLE во всех сетях:</h5>
                   <div class="address-display">
@@ -654,6 +686,13 @@
           
           <div v-if="dleSettings.tokenSymbol" class="preview-item">
             <strong>🪙 Токен:</strong> {{ dleSettings.tokenSymbol }}
+          </div>
+          
+          <div v-if="dleSettings.tokenImage" class="preview-item">
+            <strong>🖼️ Картинка токена:</strong>
+            <div class="token-image-preview">
+              <img :src="dleSettings.tokenImage" alt="Картинка токена" class="preview-token-image">
+            </div>
           </div>
         </div>
 
@@ -889,6 +928,7 @@ const dleSettings = reactive({
   selectedOkved: [],      // ОКВЭД - дополнительные коды деятельности
   name: '',                // Имя DLE
   tokenSymbol: '',        // Символ токена
+  tokenImage: '',         // Картинка токена (base64 или URL)
   partners: [{ address: '', amount: 1 }], // Партнеры и их доли токенов
   governanceQuorum: 51,   // Кворум для принятия решений (%)
   
@@ -931,9 +971,9 @@ const selectedNetworks = ref([]);
 const availableNetworks = ref([]);
 const isLoadingNetworks = ref(false);
 const totalDeployCost = ref(0);
-const predictedAddress = ref('');
-const predictedAddresses = reactive({}); // { chainId: address }
-const isPredicting = ref(false);
+// const predictedAddress = ref('');
+// const predictedAddresses = reactive({}); // { chainId: address }
+// const isPredicting = ref(false);
 
 // Ключ блокчейн-скана (единый Etherscan V2)
 // Единый ключ Etherscan V2 и авто-верификация
@@ -996,32 +1036,32 @@ const hasSelectedNetworks = computed(() => {
 });
 
 // Инициализация при смене выбранных сетей
-watch(selectedNetworkDetails, (nets) => {
-  if (nets && nets.length > 0) predictAddresses();
-}, { immediate: true });
+// watch(selectedNetworkDetails, (nets) => {
+//   if (nets && nets.length > 0) predictAddresses();
+// }, { immediate: true });
 
-// Предсказание адресов (упрощенно через бэкенд)
-async function predictAddresses() {
-  try {
-    isPredicting.value = true;
-    const payload = {
-      name: dleSettings.name,
-      symbol: dleSettings.tokenSymbol,
-      selectedNetworks: selectedNetworkDetails.value.map(n => n.chainId)
-    };
-    const resp = await axios.post('/dle-v2/predict-addresses', payload);
-    if (resp.data && resp.data.success && resp.data.data) {
-      // ожидаем вид { [chainId]: address }
-      Object.keys(predictedAddresses).forEach(k => delete predictedAddresses[k]);
-      Object.assign(predictedAddresses, resp.data.data);
-    }
-  } catch (e) {
-    console.error('Ошибка расчета предсказанных адресов:', e);
-    alert('Не удалось рассчитать предсказанные адреса');
-  } finally {
-    isPredicting.value = false;
-  }
-}
+// Предсказание адресов (упрощенно через бэкенд) - отключено
+// async function predictAddresses() {
+//   try {
+//     isPredicting.value = true;
+//     const payload = {
+//       name: dleSettings.name,
+//       symbol: dleSettings.tokenSymbol,
+//       selectedNetworks: selectedNetworkDetails.value.map(n => n.chainId)
+//     };
+//     const resp = await axios.post('/dle-v2/predict-addresses', payload);
+//     if (resp.data && resp.data.success && resp.data.data) {
+//       // ожидаем вид { [chainId]: address }
+//       Object.keys(predictedAddresses).forEach(k => delete predictedAddresses[k]);
+//       Object.assign(predictedAddresses, resp.data.data);
+//     }
+//   } catch (e) {
+//     console.error('Ошибка расчета предсказанных адресов:', e);
+//     alert('Не удалось рассчитать предсказанные адреса');
+//   } finally {
+//     isPredicting.value = false;
+//   }
+// }
 
 function copyToClipboard(text) {
   navigator.clipboard?.writeText(text).then(() => {
@@ -1340,7 +1380,7 @@ const hasSelectedData = computed(() => {
          // Мульти-чейн данные
          (dleSettings.selectedNetworks && dleSettings.selectedNetworks.length > 0) ||
          dleSettings.tokenStandard !== 'ERC20' ||
-         dleSettings.predictedAddress ||
+         // dleSettings.predictedAddress ||
          unifiedPrivateKey.value ||
          Object.keys(privateKeys).length > 0 ||
          // Устаревшие поля
@@ -1373,7 +1413,7 @@ const saveFormData = () => {
         // Мульти-чейн данные
         selectedNetworks: selectedNetworks.value,
         totalDeployCost: totalDeployCost.value,
-        predictedAddress: predictedAddress.value,
+        // predictedAddress: predictedAddress.value,
         useSameKeyForAllChains: useSameKeyForAllChains.value,
         unifiedPrivateKey: unifiedPrivateKey.value,
         privateKeys: { ...privateKeys },
@@ -1420,6 +1460,7 @@ const loadFormData = () => {
         selectedOkved: parsedData.selectedOkved || [],
         name: parsedData.name || '',
         tokenSymbol: parsedData.tokenSymbol || '',
+        tokenImage: parsedData.tokenImage || '',
         partners: parsedData.partners || [{ address: '', amount: 1 }],
         governanceQuorum: parsedData.governanceQuorum || 51,
         // Координаты
@@ -1427,7 +1468,7 @@ const loadFormData = () => {
         // Мульти-чейн настройки
         selectedNetworks: parsedData.selectedNetworks || [],
         tokenStandard: parsedData.tokenStandard || 'ERC20',
-        predictedAddress: parsedData.predictedAddress || '',
+        // predictedAddress: parsedData.predictedAddress || '',
         // Устаревшие поля
         deployNetwork: parsedData.deployNetwork || '',
         privateKey: parsedData.privateKey || ''
@@ -1446,7 +1487,7 @@ const loadFormData = () => {
       // Восстанавливаем мульти-чейн состояние
       selectedNetworks.value = parsedData.selectedNetworks || [];
       totalDeployCost.value = parsedData.totalDeployCost || 0;
-      predictedAddress.value = parsedData.predictedAddress || '';
+              // predictedAddress.value = parsedData.predictedAddress || '';
       useSameKeyForAllChains.value = parsedData.useSameKeyForAllChains !== undefined ? parsedData.useSameKeyForAllChains : true;
       unifiedPrivateKey.value = parsedData.unifiedPrivateKey || '';
       Object.assign(privateKeys, parsedData.privateKeys || {});
@@ -1500,13 +1541,14 @@ const clearAllData = () => {
   dleSettings.selectedOkved = [];
   dleSettings.name = '';
   dleSettings.tokenSymbol = '';
+  dleSettings.tokenImage = ''; // Очищаем картинку токена
   dleSettings.partners = [{ address: '', amount: 1 }]; // Сброс к одному пустому партнеру
   dleSettings.governanceQuorum = 51; // Сброс кворума к значению по умолчанию
   
   // Очищаем мульти-чейн настройки
   dleSettings.selectedNetworks = [];
   dleSettings.tokenStandard = 'ERC20'; // Сбрасываем к стандартному ERC-20
-  dleSettings.predictedAddress = '';
+          // dleSettings.predictedAddress = '';
   
   // Очищаем координаты
   dleSettings.coordinates = '';
@@ -1528,7 +1570,7 @@ const clearAllData = () => {
   // Очищаем мульти-чейн состояние
   selectedNetworks.value = [];
   totalDeployCost.value = 0;
-  predictedAddress.value = '';
+          // predictedAddress.value = '';
   useSameKeyForAllChains.value = true;
   unifiedPrivateKey.value = '';
   Object.keys(privateKeys).forEach(key => delete privateKeys[key]);
@@ -1771,6 +1813,89 @@ const formatTokenSymbol = () => {
   if (dleSettings.tokenSymbol.length > 10) {
     dleSettings.tokenSymbol = dleSettings.tokenSymbol.substring(0, 10);
   }
+};
+
+// Функции для работы с картинкой токена
+const tokenImageInput = ref(null);
+
+// Запуск выбора файла
+const triggerImageUpload = () => {
+  tokenImageInput.value?.click();
+};
+
+// Обработка загрузки изображения
+const handleTokenImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Проверка типа файла
+  if (!file.type.startsWith('image/')) {
+    alert('Пожалуйста, выберите файл изображения (JPG, PNG, GIF)');
+    return;
+  }
+
+  // Проверка размера файла (максимум 1MB)
+  const maxSize = 1 * 1024 * 1024; // 1MB
+  if (file.size > maxSize) {
+    alert('Размер файла не должен превышать 1MB');
+    return;
+  }
+
+  // Создаем canvas для сжатия изображения
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  
+  img.onload = () => {
+    // Ограничиваем размер изображения
+    const maxWidth = 200;
+    const maxHeight = 200;
+    
+    let { width, height } = img;
+    if (width > maxWidth) {
+      height = (height * maxWidth) / width;
+      width = maxWidth;
+    }
+    if (height > maxHeight) {
+      width = (width * maxHeight) / height;
+      height = maxHeight;
+    }
+    
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+    
+    // Конвертируем в base64 с сжатием
+    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70% качество
+    
+    // Проверяем размер base64 (максимум 350 байт)
+    const base64Size = compressedDataUrl.length;
+    if (base64Size > 350) {
+      alert(`Изображение слишком большое (${base64Size} байт). Максимальный размер: 350 байт. Попробуйте уменьшить размер или качество изображения.`);
+      return;
+    }
+    
+    dleSettings.tokenImage = compressedDataUrl;
+    // Сохраняем в localStorage
+    saveFormData();
+  };
+  
+  img.onerror = () => {
+    alert('Ошибка при загрузке изображения');
+  };
+  
+  img.src = URL.createObjectURL(file);
+};
+
+// Удаление картинки токена
+const removeTokenImage = () => {
+  dleSettings.tokenImage = '';
+  // Очищаем input
+  if (tokenImageInput.value) {
+    tokenImageInput.value.value = '';
+  }
+  // Сохраняем в localStorage
+  saveFormData();
 };
 
 
@@ -2026,16 +2151,16 @@ const updateDeployCost = () => {
     .reduce((sum, network) => sum + network.estimatedCost, 0);
 };
 
-// Копирование адреса DLE
-const copyAddress = async () => {
-  try {
-    await navigator.clipboard.writeText(predictedAddress.value);
-    console.log('Адрес скопирован:', predictedAddress.value);
-    // TODO: Показать уведомление об успешном копировании
-  } catch (error) {
-    console.error('Ошибка копирования адреса:', error);
-  }
-};
+// Копирование адреса DLE - отключено
+// const copyAddress = async () => {
+//   try {
+//     await navigator.clipboard.writeText(predictedAddress.value);
+//     console.log('Адрес скопирован:', predictedAddress.value);
+//     // TODO: Показать уведомление об успешном копировании
+//   } catch (error) {
+//     console.error('Ошибка копирования адреса:', error);
+//   }
+// };
 
 // Функция переключения использования одного ключа
 const toggleSameKey = () => {
@@ -2228,28 +2353,28 @@ watch(unifiedPrivateKey, (newValue) => {
   }, 100);
 });
 
-// Watcher для predictedAddress - синхронизация с dleSettings
-watch(predictedAddress, (newAddress) => {
-  if (dleSettings.predictedAddress !== newAddress) {
-    dleSettings.predictedAddress = newAddress;
-  }
-});
+// Watcher для predictedAddress - синхронизация с dleSettings - отключено
+// watch(predictedAddress, (newAddress) => {
+//   if (dleSettings.predictedAddress !== newAddress) {
+//     dleSettings.predictedAddress = newAddress;
+//   }
+// });
 
-// Вычисление предсказанного адреса при изменении ключевых данных
-watch([() => dleSettings.name, () => dleSettings.tokenSymbol, selectedNetworks], () => {
-  // TODO: Реализовать вычисление предсказанного адреса через API
-  if (dleSettings.name && dleSettings.tokenSymbol && selectedNetworks.value.length > 0) {
-    // Заглушка - в реальности будет API запрос
-    const newAddress = '0x' + Math.random().toString(16).substr(2, 40);
-    if (predictedAddress.value !== newAddress) {
-      predictedAddress.value = newAddress;
-    }
-  } else {
-    if (predictedAddress.value !== '') {
-      predictedAddress.value = '';
-    }
-  }
-}, { deep: true });
+// Вычисление предсказанного адреса при изменении ключевых данных - отключено
+// watch([() => dleSettings.name, () => dleSettings.tokenSymbol, selectedNetworks], () => {
+//   // TODO: Реализовать вычисление предсказанного адреса через API
+//   if (dleSettings.name && dleSettings.tokenSymbol && selectedNetworks.value.length > 0) {
+//     // Заглушка - в реальности будет API запрос
+//     const newAddress = '0x' + Math.random().toString(16).substr(2, 40);
+//     if (predictedAddress.value !== newAddress) {
+//       predictedAddress.value = newAddress;
+//     }
+//   } else {
+//     if (predictedAddress.value !== '') {
+//       predictedAddress.value = '';
+//     }
+//   }
+// }, { deep: true });
 
 // Инициализация
 onMounted(() => {
@@ -2373,6 +2498,7 @@ const deploySmartContracts = async () => {
       // Основная информация DLE
       name: dleSettings.name,
       symbol: dleSettings.tokenSymbol,
+      tokenImage: dleSettings.tokenImage, // Картинка токена
       location: dleSettings.addressData.fullAddress || 'Не указан',
       coordinates: dleSettings.coordinates || '0,0',
       jurisdiction: parseInt(dleSettings.jurisdiction) || 0,
@@ -2438,7 +2564,7 @@ const deploySmartContracts = async () => {
       deployStatus.value = '✅ DLE успешно развернут!';
       
       // Сохраняем адрес контракта
-      dleSettings.predictedAddress = response.data.data?.dleAddress || 'Адрес будет доступен после деплоя';
+      // dleSettings.predictedAddress = response.data.data?.dleAddress || 'Адрес будет доступен после деплоя';
       
       // Небольшая задержка для показа успешного завершения
       setTimeout(() => {
@@ -4257,5 +4383,110 @@ const validateCoordinates = (coordinates) => {
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Стили для загрузки картинки токена */
+  .token-image-upload {
+    margin-top: 0.5rem;
+  }
+
+  .upload-area {
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #fafafa;
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .upload-area:hover {
+    border-color: var(--color-primary);
+    background: #f0f8ff;
+  }
+
+  .upload-placeholder {
+    color: #666;
+  }
+
+  .upload-placeholder i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #ccc;
+  }
+
+  .upload-placeholder p {
+    margin: 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .upload-placeholder small {
+    color: #999;
+    font-size: 0.875rem;
+  }
+
+  .image-preview {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .token-image {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 8px;
+  }
+
+  .image-preview:hover .image-overlay {
+    opacity: 1;
+  }
+
+  .image-overlay .btn {
+    background: rgba(220, 53, 69, 0.9);
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  .image-overlay .btn:hover {
+    background: rgba(220, 53, 69, 1);
+  }
+
+  /* Стили для превью картинки токена */
+  .token-image-preview {
+    margin-top: 0.5rem;
+  }
+
+  .preview-token-image {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 </style> 

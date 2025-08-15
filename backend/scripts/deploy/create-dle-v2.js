@@ -39,10 +39,10 @@ async function main() {
   const dleConfig = {
     name: params.name,
     symbol: params.symbol,
+    tokenImage: params.tokenImage || '',
     location: params.location,
     coordinates: params.coordinates,
     jurisdiction: params.jurisdiction,
-    oktmo: params.oktmo,
     okvedCodes: params.okvedCodes || [],
     kpp: params.kpp,
     quorumPercentage: params.quorumPercentage,

@@ -26,10 +26,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     struct DLEInfo {
         string name;
         string symbol;
+        string tokenImage; // Картинка токена (base64 или URL)
         string location;
         string coordinates;
         uint256 jurisdiction;
-        uint256 oktmo;
         string[] okvedCodes;
         uint256 kpp;
         uint256 creationTimestamp;
@@ -39,10 +39,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     struct DLEConfig {
         string name;
         string symbol;
+        string tokenImage; // Картинка токена (base64 или URL)
         string location;
         string coordinates;
         uint256 jurisdiction;
-        uint256 oktmo;
         string[] okvedCodes;
         uint256 kpp;
         uint256 quorumPercentage;
@@ -91,10 +91,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     event DLEInitialized(
         string name,
         string symbol,
+        string tokenImage,
         string location,
         string coordinates,
         uint256 jurisdiction,
-        uint256 oktmo,
         string[] okvedCodes,
         uint256 kpp,
         address tokenAddress,
@@ -112,7 +112,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     event ProposalExecutionApprovedInChain(uint256 proposalId, uint256 chainId);
     event ChainAdded(uint256 chainId);
     event ChainRemoved(uint256 chainId);
-    event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp);
+    event DLEInfoUpdated(string name, string symbol, string tokenImage, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
     event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId);
 
@@ -129,10 +129,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         dleInfo = DLEInfo({
             name: config.name,
             symbol: config.symbol,
+            tokenImage: config.tokenImage,
             location: config.location,
             coordinates: config.coordinates,
             jurisdiction: config.jurisdiction,
-            oktmo: config.oktmo,
             okvedCodes: config.okvedCodes,
             kpp: config.kpp,
             creationTimestamp: block.timestamp,
@@ -166,10 +166,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         emit DLEInitialized(
             config.name,
             config.symbol,
+            config.tokenImage,
             config.location,
             config.coordinates,
             config.jurisdiction,
-            config.oktmo,
             config.okvedCodes,
             config.kpp,
             address(this),
@@ -509,11 +509,11 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         // Декодируем операцию
         (bytes4 selector, bytes memory data) = abi.decode(_operation, (bytes4, bytes));
         
-        if (selector == bytes4(keccak256("updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)"))) {
+        if (selector == bytes4(keccak256("updateDLEInfo(string,string,string,string,string,uint256,uint256,string[],uint256)"))) {
             // Операция обновления информации DLE
-            (string memory name, string memory symbol, string memory location, string memory coordinates, 
-             uint256 jurisdiction, uint256 oktmo, string[] memory okvedCodes, uint256 kpp) = abi.decode(data, (string, string, string, string, uint256, uint256, string[], uint256));
-            _updateDLEInfo(name, symbol, location, coordinates, jurisdiction, oktmo, okvedCodes, kpp);
+            (string memory name, string memory symbol, string memory tokenImage, string memory location, string memory coordinates, 
+             uint256 jurisdiction, string[] memory okvedCodes, uint256 kpp) = abi.decode(data, (string, string, string, string, string, uint256, string[], uint256));
+            _updateDLEInfo(name, symbol, tokenImage, location, coordinates, jurisdiction, okvedCodes, kpp);
         } else if (selector == bytes4(keccak256("updateQuorumPercentage(uint256)"))) {
             // Операция обновления процента кворума
             (uint256 newQuorumPercentage) = abi.decode(data, (uint256));
@@ -550,20 +550,20 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
      * @dev Обновить информацию DLE
      * @param _name Новое название
      * @param _symbol Новый символ
+     * @param _tokenImage Новая картинка токена
      * @param _location Новое местонахождение
      * @param _coordinates Новые координаты
      * @param _jurisdiction Новая юрисдикция
-     * @param _oktmo Новый ОКТМО
      * @param _okvedCodes Новые коды ОКВЭД
      * @param _kpp Новый КПП
      */
     function _updateDLEInfo(
         string memory _name,
         string memory _symbol,
+        string memory _tokenImage,
         string memory _location,
         string memory _coordinates,
         uint256 _jurisdiction,
-        uint256 _oktmo,
         string[] memory _okvedCodes,
         uint256 _kpp
     ) internal {
@@ -571,19 +571,18 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         require(bytes(_symbol).length > 0, "Symbol cannot be empty");
         require(bytes(_location).length > 0, "Location cannot be empty");
         require(_jurisdiction > 0, "Invalid jurisdiction");
-        require(_oktmo > 0, "Invalid OKTMO");
         require(_kpp > 0, "Invalid KPP");
 
         dleInfo.name = _name;
         dleInfo.symbol = _symbol;
+        dleInfo.tokenImage = _tokenImage;
         dleInfo.location = _location;
         dleInfo.coordinates = _coordinates;
         dleInfo.jurisdiction = _jurisdiction;
-        dleInfo.oktmo = _oktmo;
         dleInfo.okvedCodes = _okvedCodes;
         dleInfo.kpp = _kpp;
 
-        emit DLEInfoUpdated(_name, _symbol, _location, _coordinates, _jurisdiction, _oktmo, _okvedCodes, _kpp);
+        emit DLEInfoUpdated(_name, _symbol, _tokenImage, _location, _coordinates, _jurisdiction, _okvedCodes, _kpp);
     }
 
     /**
