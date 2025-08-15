@@ -44,7 +44,18 @@ router.post('/get-extended-history', async (req, res) => {
       "function getGovernanceParams() external view returns (uint256 quorumPct, uint256 chainId, uint256 supportedCount)",
       "function getCurrentChainId() external view returns (uint256)",
       "function listSupportedChains() external view returns (uint256[] memory)",
-      "function getProposalsCount() external view returns (uint256)"
+      "function getProposalsCount() external view returns (uint256)",
+      "event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage)",
+      "event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId)",
+      "event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp)",
+      "event ModuleAdded(bytes32 moduleId, address moduleAddress)",
+      "event ModuleRemoved(bytes32 moduleId)",
+      "event ChainAdded(uint256 chainId)",
+      "event ChainRemoved(uint256 chainId)",
+      "event ProposalExecutionApprovedInChain(uint256 proposalId, uint256 chainId)",
+      "event ProposalCreated(uint256 proposalId, address initiator, string description)",
+      "event ProposalExecuted(uint256 proposalId, bytes operation)",
+      "event ProposalCancelled(uint256 proposalId, string reason)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
