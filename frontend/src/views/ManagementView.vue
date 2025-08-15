@@ -75,6 +75,15 @@
                   <i class="fas fa-external-link-alt"></i>
                 </a>
               </div>
+              <div class="detail-item" v-if="dle.networks && dle.networks.length">
+                <strong>Адреса по сетям:</strong>
+                <ul class="networks-list">
+                  <li v-for="net in dle.networks" :key="net.chainId">
+                    Chain {{ net.chainId }}:
+                    <span class="address">{{ shortenAddress(net.address) }}</span>
+                  </li>
+                </ul>
+              </div>
               <div class="detail-item">
                 <strong>Местоположение:</strong> {{ dle.location }}
               </div>
@@ -90,6 +99,15 @@
               <div class="detail-item">
                 <strong>Статус:</strong> 
                 <span class="status active">Активен</span>
+              </div>
+              <div class="detail-item" v-if="verificationStatuses[dle.dleAddress]">
+                <strong>Верификация:</strong>
+                <ul class="verify-list">
+                  <li v-for="(info, chainId) in verificationStatuses[dle.dleAddress].chains" :key="chainId">
+                    Chain {{ chainId }}: {{ info.status || '—' }}<span v-if="info.guid"> (guid: {{ info.guid.slice(0,8) }}…)</span>
+                  </li>
+                </ul>
+                <button class="details-btn btn-sm" @click.stop="refreshVerification(dle.dleAddress)">Обновить статус</button>
               </div>
             </div>
 
@@ -175,7 +193,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, onMounted } from 'vue';
+import { defineProps, defineEmits, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import api from '@/api/axios';
@@ -197,6 +215,8 @@ const router = useRouter();
 const deployedDles = ref([]);
 const isLoadingDles = ref(false);
 const selectedDle = ref(null);
+const verificationStatuses = ref({}); // { [address]: { address, chains: { [chainId]: { guid, status } } } }
+let verifyPollTimer = null;
 
 
 
@@ -307,6 +327,18 @@ async function loadDeployedDles() {
       
       deployedDles.value = dlesWithBlockchainData;
       console.log('[ManagementView] Итоговый список DLE:', deployedDles.value);
+
+      // Подгружаем статусы верификации для всех адресов
+      for (const dle of deployedDles.value) {
+        try {
+          const st = await api.get(`/dle-v2/verify/status/${dle.dleAddress}`);
+          if (st.data?.success && st.data.data) {
+            verificationStatuses.value[dle.dleAddress] = st.data.data;
+          }
+        } catch (e) {
+          // no-op
+        }
+      }
     } else {
       console.error('[ManagementView] Ошибка при загрузке DLE:', response.data.message);
       deployedDles.value = [];
@@ -337,6 +369,36 @@ function openDleManagement(dleAddress) {
 function selectDle(dle) {
   selectedDle.value = dle;
   console.log('Выбран DLE:', dle);
+}
+
+async function refreshVerification(address) {
+  try {
+    const resp = await api.post(`/dle-v2/verify/refresh/${address}`, {});
+    if (resp.data?.success && resp.data.data) {
+      verificationStatuses.value[address] = resp.data.data;
+    }
+  } catch (e) {
+    // no-op
+  }
+}
+
+function isTerminalStatus(status) {
+  if (!status) return false;
+  const s = String(status).toLowerCase();
+  return s.includes('pass') || s.includes('verified') || s.startsWith('error');
+}
+
+async function pollVerifications() {
+  try {
+    const addresses = Object.keys(verificationStatuses.value || {});
+    for (const addr of addresses) {
+      const chains = verificationStatuses.value[addr]?.chains || {};
+      const hasPending = Object.values(chains).some((c) => !isTerminalStatus(c.status));
+      if (hasPending) {
+        await refreshVerification(addr);
+      }
+    }
+  } catch {}
 }
 
 // function openMultisig() {
@@ -402,6 +464,14 @@ function openSettingsWithDle() {
 
 onMounted(() => {
   loadDeployedDles();
+  verifyPollTimer = setInterval(pollVerifications, 15000);
+});
+
+onBeforeUnmount(() => {
+  if (verifyPollTimer) {
+    clearInterval(verifyPollTimer);
+    verifyPollTimer = null;
+  }
 });
 </script>
 

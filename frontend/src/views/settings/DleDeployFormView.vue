@@ -558,6 +558,29 @@
                   </div>
                 </div>
                 
+                <!-- Ключ блокчейн-скана (Etherscan V2) -->
+                <div v-if="selectedNetworks.length > 0" class="preview-item explorer-keys-inline">
+                  <div class="explorer-unified-key">
+                    <label class="explorer-key-label">Ключ блокчейн-скана (Etherscan V2, единый для всех сетей)</label>
+                    <div class="explorer-key-input">
+                      <input
+                        :type="unifiedScanKeyVisible ? 'text' : 'password'"
+                        class="form-control"
+                        placeholder="Введите единый API‑ключ Etherscan V2"
+                        v-model="etherscanApiKey"
+                        autocomplete="off"
+                      />
+                      <button type="button" class="btn btn-secondary btn-sm"
+                        @click="unifiedScanKeyVisible = !unifiedScanKeyVisible">
+                        {{ unifiedScanKeyVisible ? 'Скрыть' : 'Показать' }}
+                      </button>
+                    </div>
+                    <div class="explorer-keys-actions">
+                      <label><input type="checkbox" v-model="autoVerifyAfterDeploy" /> Авто-верификация после деплоя</label>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Требования к балансу -->
                 <div v-if="selectedNetworks.length > 0" class="balance-requirements">
                   <h5>💰 Требования к балансу:</h5>
@@ -684,61 +707,10 @@
             <strong>💰 Общая стоимость:</strong> ~${{ totalDeployCost.toFixed(2) }}
           </div>
 
-          <!-- Предсказанные адреса (CREATE2) -->
-          <div class="preview-item predicted-addresses">
-            <div class="predicted-header">
-              <strong>📍 Предсказанные адреса DLE:</strong>
-            </div>
-            <ul class="networks-list" v-if="Object.keys(predictedAddresses).length">
-              <li v-for="net in selectedNetworkDetails" :key="net.chainId">
-                {{ net.name }} ({{ net.chainId }}):
-                <code class="addr">{{ predictedAddresses[net.chainId] || '—' }}</code>
-                <button
-                  v-if="predictedAddresses[net.chainId]"
-                  type="button"
-                  class="btn btn-xs btn-outline-secondary"
-                  @click="copyToClipboard(predictedAddresses[net.chainId])"
-                >Копировать</button>
-              </li>
-            </ul>
-            <small class="text-muted" v-else>Адреса вычисляются автоматически при выборе сетей.</small>
-          </div>
+          <!-- Предсказанные адреса скрыты, чтобы не создавать шум при отсутствии данных -->
         </div>
 
-        <!-- Ключи блокчейн-сканов (опционально) -->
-        <div v-if="selectedNetworks.length > 0" class="preview-section explorer-keys-section">
-          <h4>🧩 Ключи блокчейн-сканов (опционально для авто-верификации)</h4>
-          <div class="explorer-keys-grid">
-            <div
-              v-for="network in selectedNetworkDetails"
-              :key="network.chainId"
-              class="explorer-key-item"
-            >
-              <label class="explorer-key-label">
-                {{ network.name }} (Chain ID: {{ network.chainId }})
-              </label>
-              <div class="explorer-key-input">
-                <input
-                  :type="explorerKeyVisibility[network.chainId] ? 'text' : 'password'"
-                  class="form-control"
-                  :placeholder="`API ключ скана для ${network.name}`"
-                  v-model="explorerApiKeys[network.chainId]"
-                  autocomplete="off"
-                />
-                <button type="button" class="btn btn-secondary btn-sm"
-                  @click="explorerKeyVisibility[network.chainId] = !explorerKeyVisibility[network.chainId]">
-                  {{ explorerKeyVisibility[network.chainId] ? 'Скрыть' : 'Показать' }}
-                </button>
-                <button type="button" class="btn btn-outline-danger btn-sm" @click="explorerApiKeys[network.chainId] = ''">
-                  Очистить
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="explorer-keys-actions">
-            <label><input type="checkbox" v-model="persistExplorerKeys" /> Сохранить локально до конца деплоя</label>
-          </div>
-        </div>
+        
 
         <!-- Приватный ключ -->
         <div v-if="hasSelectedNetworks && unifiedPrivateKey" class="preview-section">
@@ -751,6 +723,8 @@
           <div v-if="keyValidation.unified && keyValidation.unified.isValid" class="preview-item">
             <strong>📍 Адрес кошелька:</strong> {{ keyValidation.unified.address.substring(0, 10) }}...{{ keyValidation.unified.address.substring(keyValidation.unified.address.length - 8) }}
           </div>
+          
+          
           
           <div class="preview-item">
             <strong>💰 Требуемый баланс:</strong> ~${{ totalDeployCost.toFixed(2) }}
@@ -961,10 +935,11 @@ const predictedAddress = ref('');
 const predictedAddresses = reactive({}); // { chainId: address }
 const isPredicting = ref(false);
 
-// Ключи блокчейн-сканов (локально)
-const explorerApiKeys = reactive({}); // { [chainId]: apiKey }
-const explorerKeyVisibility = reactive({});
-const persistExplorerKeys = ref(false);
+// Ключ блокчейн-скана (единый Etherscan V2)
+// Единый ключ Etherscan V2 и авто-верификация
+const etherscanApiKey = ref('');
+const unifiedScanKeyVisible = ref(false);
+const autoVerifyAfterDeploy = ref(true);
 
 // Состояние для приватных ключей
 const useSameKeyForAllChains = ref(true);
@@ -1020,31 +995,10 @@ const hasSelectedNetworks = computed(() => {
   return selectedNetworks.value.length > 0;
 });
 
-// Инициализация полей ключей при смене выбранных сетей
+// Инициализация при смене выбранных сетей
 watch(selectedNetworkDetails, (nets) => {
-  nets.forEach(n => {
-    if (!(n.chainId in explorerKeyVisibility)) explorerKeyVisibility[n.chainId] = false;
-    if (persistExplorerKeys.value) {
-      const saved = localStorage.getItem(`scan_key_${n.chainId}`);
-      if (saved && !explorerApiKeys[n.chainId]) explorerApiKeys[n.chainId] = saved;
-    }
-  });
   if (nets && nets.length > 0) predictAddresses();
 }, { immediate: true });
-
-watch(persistExplorerKeys, (val) => {
-  if (!val) return;
-  Object.entries(explorerApiKeys).forEach(([chainId, key]) => {
-    if (key) localStorage.setItem(`scan_key_${chainId}`, key);
-  });
-});
-
-function clearExplorerKeys() {
-  Object.keys(explorerApiKeys).forEach((k) => explorerApiKeys[k] = '');
-  Object.keys(localStorage)
-    .filter(k => k.startsWith('scan_key_'))
-    .forEach(k => localStorage.removeItem(k));
-}
 
 // Предсказание адресов (упрощенно через бэкенд)
 async function predictAddresses() {
@@ -1425,7 +1379,11 @@ const saveFormData = () => {
         privateKeys: { ...privateKeys },
         privateKeyVisibility: { ...privateKeyVisibility },
         keyValidation: { ...keyValidation },
-        showUnifiedKey: showUnifiedKey.value
+        showUnifiedKey: showUnifiedKey.value,
+        // Ключи сканов/автоверификация
+        etherscanApiKey: etherscanApiKey.value,
+        autoVerifyAfterDeploy: autoVerifyAfterDeploy.value,
+        unifiedScanKeyVisible: unifiedScanKeyVisible.value
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
       console.log('[DleDeployForm] Данные формы сохранены в localStorage');
@@ -1495,6 +1453,11 @@ const loadFormData = () => {
       Object.assign(privateKeyVisibility, parsedData.privateKeyVisibility || {});
       Object.assign(keyValidation, parsedData.keyValidation || {});
       showUnifiedKey.value = parsedData.showUnifiedKey || false;
+
+      // Восстанавливаем ключи сканов/автопараметры
+      etherscanApiKey.value = parsedData.etherscanApiKey || '';
+      autoVerifyAfterDeploy.value = !!parsedData.autoVerifyAfterDeploy;
+      unifiedScanKeyVisible.value = !!parsedData.unifiedScanKeyVisible;
 
       console.log('[DleDeployForm] Данные формы восстановлены из localStorage');
       console.log('[DleDeployForm] Coordinates loaded:', dleSettings.coordinates);
@@ -2218,6 +2181,14 @@ watch([selectedOkvedLevel1, selectedOkvedLevel2, postalCodeInput], () => {
   }, 100);
 });
 
+// Сохраняем Etherscan API ключ и флаг авто-верификации при изменении
+watch(etherscanApiKey, () => {
+  saveFormData();
+});
+watch(autoVerifyAfterDeploy, () => {
+  saveFormData();
+});
+
 // Watcher для координат
 watch(() => dleSettings.coordinates, (newCoordinates) => {
   console.log('[Coordinates Watcher] Coordinates changed:', newCoordinates);
@@ -2424,10 +2395,34 @@ const deploySmartContracts = async () => {
       
       // Приватный ключ для деплоя
       privateKey: unifiedPrivateKey.value,
-      explorerApiKeys: explorerApiKeys
+      // Верификация через Etherscan V2
+      etherscanApiKey: etherscanApiKey.value,
+      autoVerifyAfterDeploy: autoVerifyAfterDeploy.value
     };
 
     console.log('Данные для деплоя DLE:', deployData);
+
+    // Предварительная проверка балансов во всех сетях
+    deployProgress.value = 20;
+    deployStatus.value = 'Проверка баланса во всех выбранных сетях...';
+    try {
+      const pre = await axios.post('/dle-v2/precheck', {
+        supportedChainIds: deployData.supportedChainIds,
+        privateKey: deployData.privateKey
+      });
+      const preData = pre.data?.data;
+      if (pre.data?.success && preData) {
+        const lacks = (preData.insufficient || []);
+        if (lacks.length > 0) {
+          const lines = (preData.balances || []).map(b => `- Chain ${b.chainId}: ${b.balanceEth} ETH${b.ok ? '' : ' (недостаточно)'}`);
+          alert('Недостаточно средств в некоторых сетях:\n' + lines.join('\n'));
+          showDeployProgress.value = false;
+          return;
+        }
+      }
+    } catch (e) {
+      // Если precheck недоступен, не блокируем — продолжаем
+    }
     
     deployProgress.value = 30;
     deployStatus.value = 'Отправка данных на сервер...';
@@ -2443,7 +2438,7 @@ const deploySmartContracts = async () => {
       deployStatus.value = '✅ DLE успешно развернут!';
       
       // Сохраняем адрес контракта
-      dleSettings.predictedAddress = response.data.data?.contractAddress || 'Адрес будет доступен после деплоя';
+      dleSettings.predictedAddress = response.data.data?.dleAddress || 'Адрес будет доступен после деплоя';
       
       // Небольшая задержка для показа успешного завершения
       setTimeout(() => {
@@ -2451,12 +2446,6 @@ const deploySmartContracts = async () => {
         // Перенаправляем на главную страницу управления
         router.push('/management');
       }, 2000);
-      if (!persistExplorerKeys.value) {
-        Object.keys(explorerApiKeys).forEach((k) => explorerApiKeys[k] = '');
-        Object.keys(localStorage)
-          .filter(k => k.startsWith('scan_key_'))
-          .forEach(k => localStorage.removeItem(k));
-      }
       
     } else {
       showDeployProgress.value = false;

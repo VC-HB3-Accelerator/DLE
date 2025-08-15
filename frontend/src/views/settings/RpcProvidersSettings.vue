@@ -98,7 +98,7 @@ async function removeRpc(index) {
   if (!rpc) return;
   if (!confirm(`Удалить RPC для сети ${rpc.networkId}?`)) return;
   try {
-    await api.delete(`/api/settings/rpc/${rpc.networkId}`);
+    await api.delete(`/settings/rpc/${rpc.networkId}`);
     emit('update');
   } catch (e) {
     alert('Ошибка при удалении RPC: ' + (e.response?.data?.error || e.message));

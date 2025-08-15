@@ -63,7 +63,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         bytes operation;              // операция для исполнения
         uint256 governanceChainId;    // сеть голосования (Single-Chain Governance)
         uint256[] targetChains;       // целевые сети для исполнения
-        uint256 timelock;             // earliest execution timestamp (sec)
         uint256 snapshotTimepoint;    // блок/временная точка для getPastVotes
         mapping(address => bool) hasVoted;
     }
@@ -106,7 +105,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     event ProposalVoted(uint256 proposalId, address voter, bool support, uint256 votingPower);
     event ProposalExecuted(uint256 proposalId, bytes operation);
     event ProposalCancelled(uint256 proposalId, string reason);
-    event ProposalTimelockSet(uint256 proposalId, uint256 timelock);
     event ProposalTargetsSet(uint256 proposalId, uint256[] targetChains);
     event ProposalGovernanceChainSet(uint256 proposalId, uint256 governanceChainId);
     event ModuleAdded(bytes32 moduleId, address moduleAddress);
@@ -192,29 +190,47 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         bytes memory _operation,
         uint256 _governanceChainId,
         uint256[] memory _targetChains,
-        uint256 _timelockDelay
+        uint256 /* _timelockDelay */
     ) external returns (uint256) {
         require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
         require(_duration > 0, "Duration must be positive");
         require(supportedChains[_governanceChainId], "Chain not supported");
-        require(_timelockDelay <= 365 days, "Timelock too big");
+        // _timelockDelay параметр игнорируется; timelock вынесем в отдельный модуль
+        return _createProposalInternal(
+            _description,
+            _duration,
+            _operation,
+            _governanceChainId,
+            _targetChains,
+            msg.sender
+        );
+    }
 
+    function _createProposalInternal(
+        string memory _description,
+        uint256 _duration,
+        bytes memory _operation,
+        uint256 _governanceChainId,
+        uint256[] memory _targetChains,
+        address _initiator
+    ) internal returns (uint256) {
         uint256 proposalId = proposalCounter++;
         Proposal storage proposal = proposals[proposalId];
-        
+
         proposal.id = proposalId;
         proposal.description = _description;
         proposal.forVotes = 0;
         proposal.againstVotes = 0;
         proposal.executed = false;
         proposal.deadline = block.timestamp + _duration;
-        proposal.initiator = msg.sender;
+        proposal.initiator = _initiator;
         proposal.operation = _operation;
         proposal.governanceChainId = _governanceChainId;
-        proposal.timelock = block.timestamp + _timelockDelay;
+
         // Снимок голосов: используем прошлую точку времени, чтобы getPastVotes был валиден в текущем блоке
         uint256 nowClock = clock();
         proposal.snapshotTimepoint = nowClock == 0 ? 0 : nowClock - 1;
+
         // запись целевых сетей
         for (uint256 i = 0; i < _targetChains.length; i++) {
             require(supportedChains[_targetChains[i]], "Target chain not supported");
@@ -222,10 +238,9 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         }
 
         allProposalIds.push(proposalId);
-        emit ProposalCreated(proposalId, msg.sender, _description);
+        emit ProposalCreated(proposalId, _initiator, _description);
         emit ProposalGovernanceChainSet(proposalId, _governanceChainId);
         emit ProposalTargetsSet(proposalId, _targetChains);
-        emit ProposalTimelockSet(proposalId, proposal.timelock);
         return proposalId;
     }
 
@@ -297,7 +312,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
             "Voting not ended and quorum not reached"
         );
         require(passed && quorumReached, "Proposal not passed");
-        require(block.timestamp >= proposal.timelock, "Timelock not expired");
 
         proposal.executed = true;
         
@@ -341,7 +355,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         require(!proposal.executed, "Proposal already executed in this chain");
         require(currentChainId != proposal.governanceChainId, "Use executeProposal in governance chain");
         require(_isTargetChain(proposal, currentChainId), "Chain not in targets");
-        require(block.timestamp >= proposal.timelock, "Timelock not expired");
 
         require(signers.length == signatures.length, "Bad signatures");
         bytes32 opHash = keccak256(proposal.operation);
@@ -620,24 +633,28 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         require(!activeModules[_moduleId], "Module already exists");
         require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
 
-        uint256 proposalId = proposalCounter++;
-        
-        Proposal storage proposal = proposals[proposalId];
-        proposal.id = proposalId;
-        proposal.description = _description;
-        proposal.deadline = block.timestamp + _duration;
-        proposal.initiator = msg.sender;
-        
-        // Кодируем операцию добавления модуля
+        // Операция добавления модуля
         bytes memory operation = abi.encodeWithSelector(
             bytes4(keccak256("_addModule(bytes32,address)")),
             _moduleId,
             _moduleAddress
         );
-        proposal.operation = operation;
 
-        emit ProposalCreated(proposalId, msg.sender, _description);
-        return proposalId;
+        // Целевые сети: по умолчанию все поддерживаемые сети
+        uint256[] memory targets = new uint256[](supportedChainIds.length);
+        for (uint256 i = 0; i < supportedChainIds.length; i++) {
+            targets[i] = supportedChainIds[i];
+        }
+
+        // Таймлок больше не используется в ядре; модуль Timelock будет добавлен отдельно
+        return _createProposalInternal(
+            _description,
+            _duration,
+            operation,
+            _chainId,
+            targets,
+            msg.sender
+        );
     }
 
     /**
@@ -657,23 +674,27 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         require(activeModules[_moduleId], "Module does not exist");
         require(balanceOf(msg.sender) > 0, "Must hold tokens to create proposal");
 
-        uint256 proposalId = proposalCounter++;
-        
-        Proposal storage proposal = proposals[proposalId];
-        proposal.id = proposalId;
-        proposal.description = _description;
-        proposal.deadline = block.timestamp + _duration;
-        proposal.initiator = msg.sender;
-        
-        // Кодируем операцию удаления модуля
+        // Операция удаления модуля
         bytes memory operation = abi.encodeWithSelector(
             bytes4(keccak256("_removeModule(bytes32)")),
             _moduleId
         );
-        proposal.operation = operation;
 
-        emit ProposalCreated(proposalId, msg.sender, _description);
-        return proposalId;
+        // Целевые сети: по умолчанию все поддерживаемые сети
+        uint256[] memory targets = new uint256[](supportedChainIds.length);
+        for (uint256 i = 0; i < supportedChainIds.length; i++) {
+            targets[i] = supportedChainIds[i];
+        }
+
+        // Таймлок больше не используется в ядре; модуль Timelock будет добавлен отдельно
+        return _createProposalInternal(
+            _description,
+            _duration,
+            operation,
+            _chainId,
+            targets,
+            msg.sender
+        );
     }
 
     /**
@@ -753,7 +774,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         uint256 deadline,
         address initiator,
         uint256 governanceChainId,
-        uint256 timelock,
+        
         uint256 snapshotTimepoint,
         uint256[] memory targets
     ) {
@@ -769,7 +790,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
             p.deadline,
             p.initiator,
             p.governanceChainId,
-            p.timelock,
+            
             p.snapshotTimepoint,
             p.targetChains
         );
@@ -818,7 +839,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         if (p.executed) return 3;
         (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
         bool votingOver = block.timestamp >= p.deadline;
-        bool ready = passed && quorumReached && block.timestamp >= p.timelock;
+        bool ready = passed && quorumReached;
         if (ready) return 5; // ReadyForExecution
         if (passed && (votingOver || quorumReached)) return 1; // Succeeded
         if (votingOver && !passed) return 2; // Defeated

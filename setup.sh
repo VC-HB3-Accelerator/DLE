@@ -63,40 +63,35 @@ print_no_git_instructions() {
   print_yellow "4. Запустите этот скрипт: ./setup.sh"
 }
 
-# Проверка и создание .env файлов
-check_env_files() {
-  print_blue "Проверка наличия файлов конфигурации..."
+# Все настройки хранятся в зашифрованной базе данных
+
+# Создание ключа шифрования
+create_encryption_key() {
+  print_blue "Проверка ключа шифрования..."
   
-  # Проверяем backend/.env
-  if [ ! -f backend/.env ]; then
-    if [ -f backend/.env.example ]; then
-      print_yellow "Файл backend/.env не найден. Создаю из примера..."
-      cp backend/.env.example backend/.env
-      print_green "Файл backend/.env создан. Рекомендуется настроить его вручную."
+  # Проверяем наличие OpenSSL
+  if ! command -v openssl &> /dev/null; then
+    print_yellow "OpenSSL не установлен. Установка..."
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+      sudo apt-get update && sudo apt-get install -y openssl
     else
-      print_red "Файл backend/.env.example не найден. Невозможно создать файл конфигурации."
+      print_red "Пожалуйста, установите OpenSSL вручную: https://www.openssl.org/"
       exit 1
     fi
-  else
-    print_green "Файл backend/.env уже существует."
   fi
   
-  # Проверяем frontend/.env
-  if [ ! -f frontend/.env ]; then
-    if [ -f frontend/.env.example ]; then
-      print_yellow "Файл frontend/.env не найден. Создаю из примера..."
-      cp frontend/.env.example frontend/.env
-      print_green "Файл frontend/.env создан. Рекомендуется настроить его вручную."
-    else
-      print_red "Файл frontend/.env.example не найден. Невозможно создать файл конфигурации."
-      exit 1
-    fi
-  else
-    print_green "Файл frontend/.env уже существует."
-  fi
+  # Создаём папку для ключей
+  mkdir -p ./ssl/keys
   
-  print_blue "Проверка файлов конфигурации завершена."
-  print_yellow "ВАЖНО: По соображениям безопасности используйте свои значения для паролей и ключей в .env файлах."
+  # Генерируем ключ шифрования (если его нет)
+  if [ ! -f "./ssl/keys/full_db_encryption.key" ]; then
+    print_blue "🔑 Генерация ключа шифрования..."
+    openssl rand -base64 32 > ./ssl/keys/full_db_encryption.key
+    chmod 600 ./ssl/keys/full_db_encryption.key
+    print_green "✅ Ключ создан: ./ssl/keys/full_db_encryption.key"
+  else
+    print_green "✅ Ключ шифрования уже существует."
+  fi
 }
 
 # Предварительная загрузка образов
@@ -115,6 +110,10 @@ pull_images() {
     fi
   done
 }
+
+
+
+
 
 # Запуск проекта
 start_project() {
@@ -161,12 +160,70 @@ start_project() {
       print_green "✅ Модели предзагружены и останутся в памяти!"
     fi
     
+    # Добавляем токены аутентификации
+    print_blue "🔑 Добавление токенов аутентификации..."
+    ./scripts/internal/db/db_init_helper.sh 2>/dev/null || print_yellow "Токены уже добавлены или скрипт недоступен"
+    
+    # Создаём функции шифрования в PostgreSQL
+    print_blue "📝 Создание функций шифрования в PostgreSQL..."
+    docker exec dapp-postgres psql -U dapp_user -d dapp_db << 'EOF' 2>/dev/null || print_yellow "Функции шифрования уже существуют или БД не готова"
+-- Создаём расширение для шифрования
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Функция для шифрования текста
+CREATE OR REPLACE FUNCTION encrypt_text(data text, key text)
+RETURNS text AS $$
+BEGIN
+    IF data IS NULL THEN
+        RETURN NULL;
+    END IF;
+    RETURN encode(encrypt_iv(data::bytea, decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'base64');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Функция для расшифровки текста
+CREATE OR REPLACE FUNCTION decrypt_text(encrypted_data text, key text)
+RETURNS text AS $$
+BEGIN
+    IF encrypted_data IS NULL THEN
+        RETURN NULL;
+    END IF;
+    RETURN convert_from(decrypt_iv(decode(encrypted_data, 'base64'), decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'utf8');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Функция для шифрования JSON
+CREATE OR REPLACE FUNCTION encrypt_json(data jsonb, key text)
+RETURNS text AS $$
+BEGIN
+    IF data IS NULL THEN
+        RETURN NULL;
+    END IF;
+    RETURN encode(encrypt_iv(data::text::bytea, decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'base64');
+END;
+$$ LANGUAGE plpgsql;
+
+-- Функция для расшифровки JSON
+CREATE OR REPLACE FUNCTION decrypt_json(encrypted_data text, key text)
+RETURNS jsonb AS $$
+BEGIN
+    IF encrypted_data IS NULL THEN
+        RETURN NULL;
+    END IF;
+    RETURN convert_from(decrypt_iv(decode(encrypted_data, 'base64'), decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'utf8')::jsonb;
+END;
+$$ LANGUAGE plpgsql;
+EOF
+    
     print_green "----------------------------------------"
     print_green "Проект Digital_Legal_Entity(DLE) доступен по адресам:"
     print_green "Frontend: http://localhost:5173"
     print_green "Backend API: http://localhost:8000"
     print_green "Ollama API: http://localhost:11434"
     print_green "PostgreSQL: localhost:5432"
+    print_green "----------------------------------------"
+    print_green "🔐 Ключ шифрования: ./ssl/keys/full_db_encryption.key"
+    print_green "📋 Все настройки хранятся в зашифрованной базе данных"
     print_green "----------------------------------------"
     print_green "ИИ-ассистент готов к работе!"
     print_green "----------------------------------------"
@@ -188,7 +245,7 @@ main() {
   print_no_git_instructions
 
   check_docker
-  check_env_files
+  create_encryption_key
   pull_images
   start_project
 }

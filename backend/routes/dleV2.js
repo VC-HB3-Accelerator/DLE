@@ -19,6 +19,8 @@ const path = require('path');
 const fs = require('fs');
 const ethers = require('ethers'); // Added ethers for private key validation
 const create2 = require('../utils/create2');
+const verificationStore = require('../services/verificationStore');
+const etherscanV2 = require('../services/etherscanV2VerificationService');
 
 /**
  * @route   POST /api/dle-v2
@@ -89,6 +91,47 @@ router.get('/', async (req, res, next) => {
       success: false,
       message: error.message || 'Произошла ошибка при получении списка DLE v2'
     });
+  }
+});
+
+/**
+ * @route   POST /api/dle-v2/manual-card
+ * @desc    Ручное сохранение карточки DLE по адресу (если деплой уже был)
+ * @access  Private (admin)
+ */
+router.post('/manual-card', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { dleAddress, name, symbol, location, coordinates, jurisdiction, oktmo, okvedCodes, kpp, quorumPercentage, initialPartners, initialAmounts, supportedChainIds, networks } = req.body || {};
+    if (!dleAddress) {
+      return res.status(400).json({ success: false, message: 'dleAddress обязателен' });
+    }
+    const data = {
+      name: name || '',
+      symbol: symbol || '',
+      location: location || '',
+      coordinates: coordinates || '',
+      jurisdiction: jurisdiction ?? 1,
+      oktmo: oktmo ?? null,
+      okvedCodes: Array.isArray(okvedCodes) ? okvedCodes : [],
+      kpp: kpp ?? null,
+      quorumPercentage: quorumPercentage ?? 51,
+      initialPartners: Array.isArray(initialPartners) ? initialPartners : [],
+      initialAmounts: Array.isArray(initialAmounts) ? initialAmounts : [],
+      governanceSettings: {
+        quorumPercentage: quorumPercentage ?? 51,
+        supportedChainIds: Array.isArray(supportedChainIds) ? supportedChainIds : [],
+        currentChainId: Array.isArray(supportedChainIds) && supportedChainIds.length ? supportedChainIds[0] : 1
+      },
+      dleAddress,
+      version: 'v2',
+      networks: Array.isArray(networks) ? networks : [],
+      createdAt: new Date().toISOString()
+    };
+    const savedPath = dleV2Service.saveDLEData(data);
+    return res.json({ success: true, data: { file: savedPath } });
+  } catch (e) {
+    logger.error('manual-card error', e);
+    return res.status(500).json({ success: false, message: e.message });
   }
 });
 
@@ -328,5 +371,146 @@ router.post('/predict-addresses', auth.requireAuth, auth.requireAdmin, async (re
   } catch (e) {
     logger.error('predict-addresses error', e);
     return res.status(500).json({ success: false, message: 'Ошибка расчета адресов' });
+  }
+});
+
+// Сохранить GUID верификации (если нужно отдельным вызовом)
+router.post('/verify/save-guid', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { address, chainId, guid } = req.body || {};
+    if (!address || !chainId || !guid) return res.status(400).json({ success: false, message: 'address, chainId, guid обязательны' });
+    const data = verificationStore.updateChain(address, chainId, { guid, status: 'submitted' });
+    return res.json({ success: true, data });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Получить статусы верификации по адресу DLE
+router.get('/verify/status/:address', auth.requireAuth, async (req, res) => {
+  try {
+    const { address } = req.params;
+    const data = verificationStore.read(address);
+    return res.json({ success: true, data });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Обновить статусы верификации, опросив Etherscan V2
+router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { address } = req.params;
+    let { etherscanApiKey } = req.body || {};
+    if (!etherscanApiKey) {
+      try {
+        const { getSecret } = require('../services/secretStore');
+        etherscanApiKey = await getSecret('ETHERSCAN_V2_API_KEY');
+      } catch(_) {}
+    }
+    const data = verificationStore.read(address);
+    if (!data || !data.chains) return res.json({ success: true, data });
+
+    // Если guid отсутствует или ранее была ошибка chainid — попробуем автоматически переотправить верификацию (resubmit)
+    const needResubmit = Object.values(data.chains).some(c => !c.guid || /Missing or unsupported chainid/i.test(c.status || ''));
+    if (needResubmit && etherscanApiKey) {
+      // Найти карточку DLE
+      const list = dleV2Service.getAllDLEs();
+      const card = list.find(x => x?.dleAddress && x.dleAddress.toLowerCase() === address.toLowerCase());
+      if (card) {
+        const deployParams = {
+          name: card.name,
+          symbol: card.symbol,
+          location: card.location,
+          coordinates: card.coordinates,
+          jurisdiction: card.jurisdiction,
+          oktmo: card.oktmo,
+          okvedCodes: Array.isArray(card.okvedCodes) ? card.okvedCodes : [],
+          kpp: card.kpp,
+          quorumPercentage: card.quorumPercentage,
+          initialPartners: Array.isArray(card.initialPartners) ? card.initialPartners : [],
+          initialAmounts: Array.isArray(card.initialAmounts) ? card.initialAmounts : [],
+          supportedChainIds: Array.isArray(card.networks) ? card.networks.map(n => n.chainId).filter(Boolean) : (card.governanceSettings?.supportedChainIds || []),
+          currentChainId: card.governanceSettings?.currentChainId || (Array.isArray(card.networks) && card.networks[0]?.chainId) || 1
+        };
+        const deployResult = { success: true, data: { dleAddress: card.dleAddress, networks: card.networks || [] } };
+        try {
+          await dleV2Service.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
+        } catch (_) {}
+      }
+    }
+
+    // Далее — обычный опрос по имеющимся guid
+    const latest = verificationStore.read(address);
+    const chains = Object.values(latest.chains);
+    for (const c of chains) {
+      if (!c.guid || !c.chainId) continue;
+      try {
+        const st = await etherscanV2.checkStatus(c.chainId, c.guid, etherscanApiKey);
+        verificationStore.updateChain(address, c.chainId, { status: st?.result || st?.message || 'unknown' });
+      } catch (e) {
+        verificationStore.updateChain(address, c.chainId, { status: `error: ${e.message}` });
+      }
+    }
+    const updated = verificationStore.read(address);
+    return res.json({ success: true, data: updated });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Повторно отправить верификацию на Etherscan V2 для уже созданного DLE
+router.post('/verify/resubmit/:address', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { address } = req.params;
+    const { etherscanApiKey } = req.body || {};
+    if (!etherscanApiKey && !process.env.ETHERSCAN_API_KEY) {
+      return res.status(400).json({ success: false, message: 'etherscanApiKey обязателен' });
+    }
+    // Найти карточку DLE по адресу
+    const list = dleV2Service.getAllDLEs();
+    const card = list.find(x => x?.dleAddress && x.dleAddress.toLowerCase() === address.toLowerCase());
+    if (!card) return res.status(404).json({ success: false, message: 'Карточка DLE не найдена' });
+
+    // Сформировать deployParams из карточки
+    const deployParams = {
+      name: card.name,
+      symbol: card.symbol,
+      location: card.location,
+      coordinates: card.coordinates,
+      jurisdiction: card.jurisdiction,
+      oktmo: card.oktmo,
+      okvedCodes: Array.isArray(card.okvedCodes) ? card.okvedCodes : [],
+      kpp: card.kpp,
+      quorumPercentage: card.quorumPercentage,
+      initialPartners: Array.isArray(card.initialPartners) ? card.initialPartners : [],
+      initialAmounts: Array.isArray(card.initialAmounts) ? card.initialAmounts : [],
+      supportedChainIds: Array.isArray(card.networks) ? card.networks.map(n => n.chainId).filter(Boolean) : (card.governanceSettings?.supportedChainIds || []),
+      currentChainId: card.governanceSettings?.currentChainId || (Array.isArray(card.networks) && card.networks[0]?.chainId) || 1
+    };
+
+    // Сформировать deployResult из карточки
+    const deployResult = { success: true, data: { dleAddress: card.dleAddress, networks: card.networks || [] } };
+
+    await dleV2Service.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
+    const updated = verificationStore.read(address);
+    return res.json({ success: true, data: updated });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Предварительная проверка балансов во всех выбранных сетях
+router.post('/precheck', auth.requireAuth, auth.requireAdmin, async (req, res) => {
+  try {
+    const { supportedChainIds, privateKey } = req.body || {};
+    if (!privateKey) return res.status(400).json({ success: false, message: 'Приватный ключ не передан' });
+    if (!Array.isArray(supportedChainIds) || supportedChainIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Не переданы сети для проверки' });
+    }
+    const result = await dleV2Service.checkBalances(supportedChainIds, privateKey);
+    return res.json({ success: true, data: result });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
   }
 });

@@ -12,6 +12,14 @@
 
 const encryptedDb = require('./encryptedDatabaseService');
 
+function normalizeNetworkId(networkId) {
+  if (!networkId || typeof networkId !== 'string') return networkId;
+  const v = networkId.trim().toLowerCase();
+  // Common normalizations
+  if (v === 'base sepolia testnet' || v === 'base sepolia') return 'base-sepolia';
+  return v.replace(/\s+/g, '-');
+}
+
 async function getAllRpcProviders() {
   const providers = await encryptedDb.getData('rpc_providers', {}, null, 'id');
   return providers;
@@ -24,7 +32,7 @@ async function saveAllRpcProviders(rpcConfigs) {
   // Сохраняем новые провайдеры
   for (const cfg of rpcConfigs) {
     await encryptedDb.saveData('rpc_providers', {
-      network_id: cfg.networkId,
+      network_id: normalizeNetworkId(cfg.networkId),
       rpc_url: cfg.rpcUrl,
       chain_id: cfg.chainId || null
     });
@@ -41,12 +49,12 @@ async function upsertRpcProvider(cfg) {
       rpc_url: cfg.rpcUrl,
       chain_id: cfg.chainId || null
     }, {
-      network_id: cfg.networkId
+      network_id: normalizeNetworkId(cfg.networkId)
     });
   } else {
     // Создаем новый провайдер
     await encryptedDb.saveData('rpc_providers', {
-      network_id: cfg.networkId,
+      network_id: normalizeNetworkId(cfg.networkId),
       rpc_url: cfg.rpcUrl,
       chain_id: cfg.chainId || null
     });
@@ -58,8 +66,14 @@ async function deleteRpcProvider(networkId) {
 }
 
 async function getRpcUrlByNetworkId(networkId) {
-  const providers = await encryptedDb.getData('rpc_providers', { network_id: networkId }, 1);
-  return providers[0]?.rpc_url || null;
+  // Сначала пробуем точное совпадение (для обратной совместимости)
+  let providers = await encryptedDb.getData('rpc_providers', { network_id: networkId }, 1);
+  if (providers.length > 0) return providers[0].rpc_url || null;
+  // Затем ищем по нормализованному ключу среди всех записей
+  const all = await encryptedDb.getData('rpc_providers', {}, null, 'id');
+  const norm = normalizeNetworkId(networkId);
+  const found = all.find(p => normalizeNetworkId(p.network_id) === norm);
+  return found ? found.rpc_url : null;
 }
 
 async function getRpcUrlByChainId(chainId) {
