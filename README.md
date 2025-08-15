@@ -35,7 +35,7 @@
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/DAO-HB3-Accelerator/DLE.git
+git clone https://github.com/VC-HB3-Accelerator/DLE.git
 cd Digital_Legal_Entity(DLE)
 ```
 2. Запустите скрипт установки:
@@ -49,7 +49,7 @@ docker exec -e NODE_ENV=migration dapp-backend yarn migrate
 
 ### Вариант 2: без git (через архив)
 
-1. Перейдите на страницу проекта: https://github.com/DAO-HB3-Accelerator/DLE
+1. Перейдите на страницу проекта: https://github.com/VC-HB3-Accelerator/DLE
 2. Нажмите кнопку **Code** → **Download ZIP**
 3. Распакуйте архив и перейдите в папку проекта:
 ```bash
@@ -103,7 +103,7 @@ docker compose down -v
 ## Контакты и поддержка
 
 ### Для вопросов по разработке:
-- **GitHub Issues:** [Создать issue](https://github.com/DAO-HB3-Accelerator/DLE/issues)
+- **GitHub Issues:** [Создать issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 - **Email:** info@hb3-accelerator.com
 
 ### Для коммерческого лицензирования:

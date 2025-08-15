@@ -16,7 +16,7 @@
 
 ### Для вопросов по авторским правам и лицензированию:
 - **Email:** info@hb3-accelerator.com
-- **GitHub Issues:** [Создать issue](https://github.com/DAO-HB3-Accelerator/DLE/issues)
+- **GitHub Issues:** [Создать issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 - **Сайт:** [hb3-accelerator.com](https://hb3-accelerator.com)
 
 ### Для коммерческого лицензирования:

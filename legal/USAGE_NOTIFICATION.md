@@ -90,7 +90,7 @@
 
 **Тарабанов Александр Викторович**  
 - **Email:** info@hb3-accelerator.com
-- **GitHub Issues:** [Создать issue](https://github.com/DAO-HB3-Accelerator/DLE/issues)
+- **GitHub Issues:** [Создать issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 - **Тема:** "DLE Usage Notification"
 
 ## Шаблоны уведомлений

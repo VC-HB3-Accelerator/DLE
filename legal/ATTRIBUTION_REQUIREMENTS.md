@@ -12,7 +12,7 @@
  * Источник: DLE (Digital Legal Entity)
  * Автор: Тарабанов Александр Викторович
  * Лицензия: Proprietary - требуется разрешение для коммерческого использования
- * Ссылка: https://github.com/DAO-HB3-Accelerator/DLE
+ * Ссылка: https://github.com/VC-HB3-Accelerator/DLE
  */
 ```
 
@@ -22,7 +22,7 @@
 
 - **DLE Authentication Module** - Тарабанов Александр Викторович
   - Лицензия: Proprietary
-  - Источник: https://github.com/DAO-HB3-Accelerator/DLE
+  - Источник: https://github.com/VC-HB3-Accelerator/DLE
 ```
 
 ### В файлах конфигурации
@@ -32,7 +32,7 @@
     "DLE": {
       "author": "Тарабанов Александр Викторович",
       "license": "Proprietary",
-      "source": "https://github.com/DAO-HB3-Accelerator/DLE",
+      "source": "https://github.com/VC-HB3-Accelerator/DLE",
       "contact": "info@hb3-accelerator.com"
     }
   }

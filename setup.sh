@@ -57,7 +57,7 @@ check_docker() {
 # Инструкция для пользователей без git
 print_no_git_instructions() {
   print_blue "Если у вас нет git, скачайте архив проекта с GitHub:"
-  print_yellow "1. Перейдите на https://github.com/DAO-HB3-Accelerator/DLE"
+  print_yellow "1. Перейдите на https://github.com/VC-HB3-Accelerator/DLE"
   print_yellow "2. Нажмите 'Code' > 'Download ZIP'"
   print_yellow "3. Распакуйте архив и перейдите в папку проекта"
   print_yellow "4. Запустите этот скрипт: ./setup.sh"

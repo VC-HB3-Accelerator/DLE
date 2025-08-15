@@ -64,7 +64,7 @@ test: добавить тесты для нового функционала
 
 ### По вопросам участия в проекте:
 - **Email:** info@hb3-accelerator.com
-- **GitHub Issues:** [Создать issue](https://github.com/DAO-HB3-Accelerator/DLE/issues)
+- **GitHub Issues:** [Создать issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 
 ### Автор проекта:
 **Тарабанов Александр Викторович**  
