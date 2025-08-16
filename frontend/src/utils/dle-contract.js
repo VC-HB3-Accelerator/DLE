@@ -752,3 +752,78 @@ export async function loadDeactivationProposals(dleAddress) {
     return [];
   }
 } 
+
+/**
+ * Создать предложение о переводе токенов через governance
+ * @param {string} dleAddress - Адрес DLE контракта
+ * @param {Object} transferData - Данные перевода
+ * @param {string} transferData.recipient - Адрес получателя
+ * @param {number} transferData.amount - Количество токенов
+ * @param {string} transferData.description - Описание предложения
+ * @param {number} transferData.duration - Длительность голосования в секундах
+ * @param {number} transferData.governanceChainId - ID сети для голосования
+ * @param {Array<number>} transferData.targetChains - Целевые сети для исполнения
+ * @returns {Promise<Object>} - Результат создания предложения
+ */
+export async function createTransferTokensProposal(dleAddress, transferData) {
+  try {
+    // Проверяем наличие браузерного кошелька
+    if (!window.ethereum) {
+      throw new Error('Браузерный кошелек не установлен');
+    }
+
+    // Запрашиваем подключение к кошельку
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    // ABI для создания предложения
+    const dleAbi = [
+      "function createProposal(string memory _description, uint256 _duration, bytes memory _operation, uint256 _governanceChainId, uint256[] memory _targetChains, uint256 _timelockDelay) external returns (uint256)"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, signer);
+
+    // Кодируем операцию перевода токенов
+    const transferFunctionSelector = ethers.id("_transferTokens(address,uint256)");
+    const transferDataEncoded = ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address", "uint256"],
+      [transferData.recipient, ethers.parseUnits(transferData.amount.toString(), 18)]
+    );
+    
+    // Объединяем селектор и данные
+    const operation = ethers.concat([transferFunctionSelector, transferDataEncoded]);
+
+    console.log('Создание предложения о переводе токенов:', {
+      recipient: transferData.recipient,
+      amount: transferData.amount,
+      description: transferData.description,
+      operation: operation
+    });
+
+    // Создаем предложение
+    const tx = await dle.createProposal(
+      transferData.description,
+      transferData.duration,
+      operation,
+      transferData.governanceChainId,
+      transferData.targetChains || [],
+      0 // timelockDelay
+    );
+
+    // Ждем подтверждения транзакции
+    const receipt = await tx.wait();
+
+    console.log('Предложение о переводе токенов создано, tx hash:', tx.hash);
+
+    return {
+      proposalId: receipt.logs[0]?.topics[1] || '0', // Извлекаем ID предложения из события
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber
+    };
+
+  } catch (error) {
+    console.error('Ошибка создания предложения о переводе токенов:', error);
+    throw error;
+  }
+} 

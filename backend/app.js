@@ -95,6 +95,7 @@ const dleTokensRoutes = require('./routes/dleTokens'); // Функции ток�
 const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитика и история
 const dleMultichainRoutes = require('./routes/dleMultichain'); // Мультичейн функции
 const dleHistoryRoutes = require('./routes/dleHistory'); // Расширенная история
+const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
 
 const app = express();
 
@@ -233,6 +234,7 @@ app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/pages', pagesRoutes); // Подключаем роутер страниц
+app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

@@ -48,6 +48,332 @@
         </div>
       </div>
 
+      <!-- Блоки для деплоя стандартных модулей -->
+      <div class="standard-modules">
+        <div class="modules-header">
+          <h3>🚀 Деплой стандартных модулей</h3>
+          <p>Быстрый деплой предустановленных модулей DLE</p>
+        </div>
+        
+        <div class="modules-grid">
+          <!-- TreasuryModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>TreasuryModule</h4>
+              <p>Казначейство DLE - управление финансами, депозиты, выводы, дивиденды</p>
+              <div class="module-features">
+                <span class="feature-tag">Финансы</span>
+                <span class="feature-tag">Бюджет</span>
+                <span class="feature-tag">Дивиденды</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/treasury?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- TimelockModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>TimelockModule</h4>
+              <p>Задержки исполнения - безопасность критических операций через таймлоки</p>
+              <div class="module-features">
+                <span class="feature-tag">Безопасность</span>
+                <span class="feature-tag">Таймлок</span>
+                <span class="feature-tag">Аудит</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/timelock?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- CommunicationModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>CommunicationModule</h4>
+              <p>Коммуникации - сообщения, звонки, история общения между участниками</p>
+              <div class="module-features">
+                <span class="feature-tag">Сообщения</span>
+                <span class="feature-tag">Звонки</span>
+                <span class="feature-tag">История</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/communication?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- ApplicationModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>ApplicationModule</h4>
+              <p>Управление вызовом функций приложения через предложения и голосование</p>
+              <div class="module-features">
+                <span class="feature-tag">API</span>
+                <span class="feature-tag">Голосование</span>
+                <span class="feature-tag">Управление</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/application?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- MintModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>MintModule</h4>
+              <p>Выпуск новых токенов DLE - создание дополнительных токенов через governance</p>
+              <div class="module-features">
+                <span class="feature-tag">Минтинг</span>
+                <span class="feature-tag">Токены</span>
+                <span class="feature-tag">Governance</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/mint?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- BurnModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>BurnModule</h4>
+              <p>Сжигание токенов DLE - уменьшение общего предложения через governance</p>
+              <div class="module-features">
+                <span class="feature-tag">Сжигание</span>
+                <span class="feature-tag">Токены</span>
+                <span class="feature-tag">Governance</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/burn?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- OracleModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>OracleModule</h4>
+              <p>Интеграция с внешними данными - автоматизация на основе IoT, API, датчиков</p>
+              <div class="module-features">
+                <span class="feature-tag">Оракулы</span>
+                <span class="feature-tag">Автоматизация</span>
+                <span class="feature-tag">IoT</span>
+                <span class="feature-tag">API</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/oracle?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- InheritanceModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>InheritanceModule</h4>
+              <p>Наследование токенов - автоматическая передача токенов наследникам</p>
+              <div class="module-features">
+                <span class="feature-tag">Наследование</span>
+                <span class="feature-tag">Безопасность</span>
+                <span class="feature-tag">Юридические</span>
+                <span class="feature-tag">Автоматизация</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/inheritance?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- VestingModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>VestingModule</h4>
+              <p>Вестинг токенов - постепенное разблокирование токенов по расписанию</p>
+              <div class="module-features">
+                <span class="feature-tag">Вестинг</span>
+                <span class="feature-tag">Мотивация</span>
+                <span class="feature-tag">Удержание</span>
+                <span class="feature-tag">Расписание</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/vesting?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- StakingModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>StakingModule</h4>
+              <p>Стейкинг токенов - заработок на удержании токенов</p>
+              <div class="module-features">
+                <span class="feature-tag">Стейкинг</span>
+                <span class="feature-tag">Доход</span>
+                <span class="feature-tag">Ликвидность</span>
+                <span class="feature-tag">APY</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/staking?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- InsuranceModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>InsuranceModule</h4>
+              <p>Страхование токенов - защита от рисков и потерь</p>
+              <div class="module-features">
+                <span class="feature-tag">Страхование</span>
+                <span class="feature-tag">Защита</span>
+                <span class="feature-tag">Риски</span>
+                <span class="feature-tag">Безопасность</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/insurance?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- ComplianceModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>ComplianceModule</h4>
+              <p>Соответствие требованиям - KYC/AML, налоги, аудит</p>
+              <div class="module-features">
+                <span class="feature-tag">KYC/AML</span>
+                <span class="feature-tag">Налоги</span>
+                <span class="feature-tag">Аудит</span>
+                <span class="feature-tag">Регуляторы</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/compliance?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- SupplyChainModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>SupplyChainModule</h4>
+              <p>Цепочка поставок - отслеживание и токенизация логистики</p>
+              <div class="module-features">
+                <span class="feature-tag">Логистика</span>
+                <span class="feature-tag">Отслеживание</span>
+                <span class="feature-tag">Качество</span>
+                <span class="feature-tag">Прозрачность</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/supplychain?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
+          <!-- EventModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>EventModule</h4>
+              <p>Событийный модуль - токенизация мероприятий и событий</p>
+              <div class="module-features">
+                <span class="feature-tag">События</span>
+                <span class="feature-tag">NFT-билеты</span>
+                <span class="feature-tag">Мероприятия</span>
+                <span class="feature-tag">VR/AR</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/event?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Форма добавления модуля -->
       <div class="add-module-form">
         <div class="form-header">
@@ -521,6 +847,116 @@ onMounted(() => {
   border: 1px solid #dee2e6;
 }
 
+/* Блоки для деплоя стандартных модулей */
+.standard-modules {
+  background: #f8f9fa;
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 30px;
+  border: 1px solid #e9ecef;
+}
+
+.modules-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.modules-header h3 {
+  margin: 0 0 10px 0;
+  color: var(--color-primary);
+}
+
+.modules-header p {
+  margin: 0 0 15px 0;
+  color: #666;
+}
+
+.module-deploy-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: var(--radius-md);
+  margin-bottom: 15px;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.module-deploy-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.module-content {
+  flex: 1;
+  margin-bottom: 20px;
+}
+
+.module-content h4 {
+  margin: 0 0 8px 0;
+  color: var(--color-primary);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.module-content p {
+  margin: 0 0 12px 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.module-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.feature-tag {
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  color: #1976d2;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #90caf9;
+}
+
+.module-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.btn-deploy {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-deploy:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary));
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-deploy:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Форма добавления модуля */
 .add-module-form {
   background: #f8f9fa;
@@ -768,6 +1204,22 @@ onMounted(() => {
   
   .info-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Адаптивность для блоков деплоя */
+@media (max-width: 768px) {
+  .module-deploy-card {
+    padding: 15px;
+  }
+  
+  .module-content {
+    margin-bottom: 15px;
+  }
+  
+  .btn-deploy {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>

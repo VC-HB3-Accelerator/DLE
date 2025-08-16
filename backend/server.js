@@ -19,6 +19,7 @@ const { getBot } = require('./services/telegramBot');
 const EmailBotService = require('./services/emailBot');
 const { initDbPool, seedAIAssistantSettings } = require('./db');
 const { warmupModel } = require('./scripts/warmup-model'); // Добавляем импорт разогрева модели
+const memoryMonitor = require('./utils/memoryMonitor');
 
 const PORT = process.env.PORT || 8000;
 
@@ -96,6 +97,27 @@ process.on('unhandledRejection', (err) => {
 
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
+});
+
+// Запускаем мониторинг памяти в production
+if (process.env.NODE_ENV === 'production') {
+  memoryMonitor.start(300000); // Каждые 5 минут
+  logger.info('[Server] Мониторинг памяти запущен в production режиме');
+}
+
+// Обработчики для корректного завершения
+process.on('SIGINT', async () => {
+  logger.info('[Server] Получен сигнал SIGINT, завершаем работу...');
+  memoryMonitor.stop();
+  await initDbPool().then(pool => pool.end()); // Use initDbPool to get the pool
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  logger.info('[Server] Получен сигнал SIGTERM, завершаем работу...');
+  memoryMonitor.stop();
+  await initDbPool().then(pool => pool.end()); // Use initDbPool to get the pool
+  process.exit(0);
 });
 
 module.exports = app;

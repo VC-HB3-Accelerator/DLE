@@ -22,7 +22,8 @@
       <!-- Заголовок -->
       <div class="page-header">
         <div class="header-content">
-          <h1>Токены DLE</h1>
+          <h1>Управление токенами DLE</h1>
+          <p>Создание предложений для перевода токенов через систему голосования</p>
           <div v-if="selectedDle" class="dle-info">
             <span class="dle-name">{{ selectedDle.name }} ({{ selectedDle.symbol }})</span>
             <span class="dle-address">{{ shortenAddress(selectedDle.dleAddress) }}</span>
@@ -48,10 +49,8 @@
           <div class="info-card">
             <h3>Ваш баланс</h3>
             <p class="token-amount">{{ userBalance }} {{ tokenSymbol }}</p>
-          </div>
-          <div class="info-card">
-            <h3>Кворум</h3>
-            <p class="token-amount">{{ quorumPercentage }}%</p>
+            <p v-if="currentUserAddress" class="user-address">{{ shortenAddress(currentUserAddress) }}</p>
+            <p v-else class="no-wallet">Кошелек не подключен</p>
           </div>
           <div class="info-card">
             <h3>Цена токена</h3>
@@ -60,110 +59,70 @@
         </div>
       </div>
 
-      <!-- Трансфер токенов -->
+      <!-- Перевод токенов через governance -->
       <div class="transfer-section">
-        <h2>Перевод токенов</h2>
-        <form @submit.prevent="transferTokens" class="transfer-form">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="recipient">Получатель:</label>
-              <input 
-                id="recipient"
-                v-model="transferData.recipient" 
-                type="text" 
-                placeholder="0x..."
-                required
-              >
-            </div>
-            
-            <div class="form-group">
-              <label for="amount">Количество токенов:</label>
-              <input 
-                id="amount"
-                v-model="transferData.amount" 
-                type="number" 
-                min="0.01" 
-                step="0.01"
-                placeholder="0.00"
-                required
-              >
-            </div>
-          </div>
-          
+        <h2>Перевод токенов через Governance</h2>
+        <p class="section-description">
+          Создайте предложение для перевода токенов через систему голосования. 
+          Токены будут переведены от имени DLE после одобрения кворумом.
+          <strong>Важно:</strong> Перевод через governance будет выполнен во всех поддерживаемых сетях DLE.
+        </p>
+        
+        <form @submit.prevent="createTransferProposal" class="transfer-form">
           <div class="form-group">
-            <label for="transferDescription">Описание (опционально):</label>
+            <label for="proposal-recipient">Адрес получателя:</label>
+            <input 
+              id="proposal-recipient"
+              v-model="proposalData.recipient" 
+              type="text" 
+              placeholder="0x..." 
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="proposal-amount">Количество токенов:</label>
+            <input 
+              id="proposal-amount"
+              v-model="proposalData.amount" 
+              type="number" 
+              step="0.000001" 
+              placeholder="0.0" 
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="proposal-description">Описание предложения:</label>
             <textarea 
-              id="transferDescription"
-              v-model="transferData.description" 
-              placeholder="Укажите причину перевода..."
-              rows="3"
+              id="proposal-description"
+              v-model="proposalData.description" 
+              placeholder="Опишите причину перевода токенов..." 
+              required
             ></textarea>
           </div>
-          
-          <button type="submit" class="btn-primary" :disabled="isTransferring">
-            {{ isTransferring ? 'Перевод...' : 'Перевести токены' }}
-          </button>
-        </form>
-      </div>
 
-      <!-- Распределение токенов -->
-      <div class="distribution-section">
-        <h2>Распределение токенов</h2>
-        <form @submit.prevent="distributeTokens" class="distribution-form">
           <div class="form-group">
-            <label for="distributionType">Тип распределения:</label>
-            <select id="distributionType" v-model="distributionData.type" required>
-              <option value="">Выберите тип</option>
-              <option value="partners">Партнерам</option>
-              <option value="employees">Сотрудникам</option>
-              <option value="investors">Инвесторам</option>
-              <option value="custom">Пользовательское</option>
-            </select>
+            <label for="proposal-duration">Длительность голосования (часы):</label>
+            <input 
+              id="proposal-duration"
+              v-model="proposalData.duration" 
+              type="number" 
+              min="1" 
+              max="168" 
+              placeholder="24" 
+              required
+            />
           </div>
-          
-          <div class="form-group">
-            <label>Получатели:</label>
-            <div class="recipients-list">
-              <div 
-                v-for="(recipient, index) in distributionData.recipients" 
-                :key="index"
-                class="recipient-item"
-              >
-                <input 
-                  v-model="recipient.address" 
-                  type="text" 
-                  placeholder="Адрес получателя"
-                  required
-                >
-                <input 
-                  v-model="recipient.amount" 
-                  type="number" 
-                  placeholder="Количество"
-                  min="0.01"
-                  step="0.01"
-                  required
-                >
-                <button 
-                  type="button" 
-                  @click="removeRecipient(index)"
-                  class="btn-remove"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <button 
-              type="button" 
-              @click="addRecipient"
-              class="btn-secondary"
-            >
-              + Добавить получателя
-            </button>
-          </div>
-          
-          <button type="submit" class="btn-primary" :disabled="isDistributing">
-            {{ isDistributing ? 'Распределение...' : 'Распределить токены' }}
+
+          <button type="submit" class="btn-primary" :disabled="isCreatingProposal">
+            {{ isCreatingProposal ? 'Создание предложения...' : 'Создать предложение' }}
           </button>
+          
+          <!-- Статус предложения -->
+          <div v-if="proposalStatus" class="proposal-status">
+            <p class="status-message">{{ proposalStatus }}</p>
+          </div>
         </form>
       </div>
 
@@ -199,6 +158,8 @@ import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getTokenBalance, getTotalSupply, getTokenHolders } from '../../services/tokensService.js';
 import api from '../../api/axios';
+import { ethers } from 'ethers';
+import { createTransferTokensProposal } from '../../utils/dle-contract.js';
 
 // Определяем props
 const props = defineProps({
@@ -225,30 +186,48 @@ const dleAddress = computed(() => {
 const selectedDle = ref(null);
 const isLoadingDle = ref(false);
 
-// Состояние
-const isTransferring = ref(false);
-const isDistributing = ref(false);
+// Состояние для предложения о переводе токенов через governance
+const isCreatingProposal = ref(false);
+const proposalStatus = ref('');
 
 // Данные токенов (загружаются из блокчейна)
-const tokenSymbol = computed(() => selectedDle.value?.symbol || '');
-const totalSupply = computed(() => selectedDle.value?.totalSupply || 0);
-const userBalance = computed(() => selectedDle.value?.deployerBalance || 0);
-const quorumPercentage = computed(() => selectedDle.value?.quorumPercentage || 0);
+const totalSupply = ref(0);
+const userBalance = ref(0);
+const deployerBalance = ref(0);
+const quorumPercentage = ref(0);
 const tokenPrice = ref(0);
 
-// Данные трансфера
-const transferData = ref({
+// Данные для формы
+const proposalData = ref({
   recipient: '',
   amount: '',
-  description: ''
+  description: '',
+  duration: 86400, // 24 часа по умолчанию
+  governanceChainId: 11155111, // Sepolia по умолчанию
+  targetChains: [11155111] // Sepolia по умолчанию
 });
 
-// Данные распределения
-const distributionData = ref({
-  type: '',
-  recipients: [
-    { address: '', amount: '' }
-  ]
+// Получаем адрес текущего пользователя
+const currentUserAddress = computed(() => {
+  console.log('Проверяем identities:', props.identities);
+  
+  // Получаем адрес из props или из window.ethereum
+  if (props.identities && props.identities.length > 0) {
+    const walletIdentity = props.identities.find(id => id.provider === 'wallet');
+    console.log('Найден wallet identity:', walletIdentity);
+    if (walletIdentity) {
+      return walletIdentity.provider_id;
+    }
+  }
+  
+  // Fallback: пытаемся получить из window.ethereum
+  if (window.ethereum && window.ethereum.selectedAddress) {
+    console.log('Получаем адрес из window.ethereum:', window.ethereum.selectedAddress);
+    return window.ethereum.selectedAddress;
+  }
+  
+  console.log('Адрес пользователя не найден');
+  return null;
 });
 
 // Держатели токенов (загружаются из блокчейна)
@@ -273,6 +252,9 @@ async function loadDleData() {
       selectedDle.value = blockchainData;
       console.log('Загружены данные DLE из блокчейна:', blockchainData);
       
+      // Загружаем баланс текущего пользователя
+      await loadUserBalance();
+      
       // Загружаем держателей токенов (если есть API)
       await loadTokenHolders();
     } else {
@@ -282,6 +264,35 @@ async function loadDleData() {
     console.error('Ошибка загрузки данных DLE из блокчейна:', error);
   } finally {
     isLoadingDle.value = false;
+  }
+}
+
+// Новая функция для загрузки баланса текущего пользователя
+async function loadUserBalance() {
+  if (!currentUserAddress.value || !dleAddress.value) {
+    userBalance.value = 0;
+    console.log('Не удается загрузить баланс: нет адреса пользователя или DLE');
+    return;
+  }
+
+  try {
+    console.log('Загружаем баланс для пользователя:', currentUserAddress.value);
+    
+    const response = await api.post('/blockchain/get-token-balance', {
+      dleAddress: dleAddress.value,
+      account: currentUserAddress.value
+    });
+    
+    if (response.data.success) {
+      userBalance.value = parseFloat(response.data.data.balance);
+      console.log('Баланс пользователя загружен:', userBalance.value);
+    } else {
+      console.warn('Не удалось загрузить баланс пользователя:', response.data.error);
+      userBalance.value = 0;
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки баланса пользователя:', error);
+    userBalance.value = 0;
   }
 }
 
@@ -301,97 +312,130 @@ function shortenAddress(address) {
 }
 
 // Методы
-const transferTokens = async () => {
-  if (isTransferring.value) return;
-  
-  try {
-    isTransferring.value = true;
-    
-    // Здесь будет логика трансфера токенов
-    // console.log('Трансфер токенов:', transferData.value);
-    
-    // Временная логика
-    const amount = parseFloat(transferData.value.amount);
-    if (amount > userBalance.value) {
-      alert('Недостаточно токенов для перевода');
-      return;
-    }
-    
-    userBalance.value -= amount;
-    
-    // Сброс формы
-    transferData.value = {
-      recipient: '',
-      amount: '',
-      description: ''
-    };
-    
-    alert('Токены успешно переведены!');
-    
-  } catch (error) {
-          // console.error('Ошибка трансфера токенов:', error);
-    alert('Ошибка при переводе токенов');
-  } finally {
-    isTransferring.value = false;
-  }
-};
-
-const distributeTokens = async () => {
-  if (isDistributing.value) return;
-  
-  try {
-    isDistributing.value = true;
-    
-    // Здесь будет логика распределения токенов
-    // console.log('Распределение токенов:', distributionData.value);
-    
-    // Временная логика
-    const totalAmount = distributionData.value.recipients.reduce((sum, recipient) => {
-      return sum + parseFloat(recipient.amount || 0);
-    }, 0);
-    
-    if (totalAmount > userBalance.value) {
-      alert('Недостаточно токенов для распределения');
-      return;
-    }
-    
-    userBalance.value -= totalAmount;
-    
-    // Сброс формы
-    distributionData.value = {
-      type: '',
-      recipients: [{ address: '', amount: '' }]
-    };
-    
-    alert('Токены успешно распределены!');
-    
-  } catch (error) {
-          // console.error('Ошибка распределения токенов:', error);
-    alert('Ошибка при распределении токенов');
-  } finally {
-    isDistributing.value = false;
-  }
-};
-
-const addRecipient = () => {
-  distributionData.value.recipients.push({ address: '', amount: '' });
-};
-
-const removeRecipient = (index) => {
-  if (distributionData.value.recipients.length > 1) {
-    distributionData.value.recipients.splice(index, 1);
-  }
-};
-
 const formatAddress = (address) => {
   if (!address) return '';
   return address.substring(0, 6) + '...' + address.substring(address.length - 4);
+};
+
+// Функция создания предложения о переводе токенов через governance
+const createTransferProposal = async () => {
+  if (isCreatingProposal.value) return;
+  
+  try {
+    // Проверяем подключение к кошельку
+    if (!window.ethereum) {
+      alert('Пожалуйста, установите MetaMask или другой Web3 кошелек');
+      return;
+    }
+
+    // Проверяем, что пользователь подключен
+    if (!currentUserAddress.value) {
+      alert('Пожалуйста, подключите кошелек');
+      return;
+    }
+
+    // Валидация данных
+    const recipient = proposalData.value.recipient.trim();
+    const amount = parseFloat(proposalData.value.amount);
+    const description = proposalData.value.description.trim();
+
+    if (!recipient) {
+      alert('Пожалуйста, укажите адрес получателя');
+      return;
+    }
+
+    // Проверяем, что адрес получателя является корректным Ethereum адресом
+    if (!ethers.isAddress(recipient)) {
+      alert('Пожалуйста, укажите корректный Ethereum адрес получателя');
+      return;
+    }
+
+    if (!amount || amount <= 0) {
+      alert('Пожалуйста, укажите корректное количество токенов');
+      return;
+    }
+
+    if (!description) {
+      alert('Пожалуйста, укажите описание предложения');
+      return;
+    }
+
+    // Проверяем, что получатель не является отправителем
+    if (recipient.toLowerCase() === currentUserAddress.value.toLowerCase()) {
+      alert('Нельзя отправить токены самому себе');
+      return;
+    }
+
+    isCreatingProposal.value = true;
+    proposalStatus.value = 'Создание предложения...';
+
+    // Создаем предложение
+    const result = await createTransferTokensProposal(dleAddress.value, {
+      recipient: recipient,
+      amount: amount,
+      description: description,
+      duration: proposalData.value.duration * 3600, // Конвертируем часы в секунды
+      governanceChainId: proposalData.value.governanceChainId,
+      targetChains: proposalData.value.targetChains
+    });
+
+    proposalStatus.value = 'Предложение создано!';
+    console.log('Предложение о переводе токенов создано:', result);
+
+    // Сброс формы
+    proposalData.value = {
+      recipient: '',
+      amount: '',
+      description: '',
+      duration: 86400,
+      governanceChainId: 11155111,
+      targetChains: [11155111]
+    };
+
+    // Очищаем статус через 5 секунд
+    setTimeout(() => {
+      proposalStatus.value = '';
+    }, 5000);
+
+    alert(`Предложение о переводе токенов создано!\nID предложения: ${result.proposalId}\nХеш транзакции: ${result.txHash}`);
+
+  } catch (error) {
+    console.error('Ошибка создания предложения о переводе токенов:', error);
+    
+    // Очищаем статус предложения
+    proposalStatus.value = '';
+    
+    let errorMessage = 'Ошибка создания предложения о переводе токенов';
+    
+    if (error.code === 4001) {
+      errorMessage = 'Транзакция отменена пользователем';
+    } else if (error.message && error.message.includes('insufficient funds')) {
+      errorMessage = 'Недостаточно ETH для оплаты газа';
+    } else if (error.message && error.message.includes('execution reverted')) {
+      errorMessage = 'Ошибка выполнения транзакции. Проверьте данные и попробуйте снова';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    alert(errorMessage);
+  } finally {
+    isCreatingProposal.value = false;
+  }
 };
 
 // Отслеживаем изменения в адресе DLE
 watch(dleAddress, (newAddress) => {
   if (newAddress) {
     loadDleData();
+  }
+}, { immediate: true });
+
+// Отслеживаем изменения адреса пользователя
+watch(currentUserAddress, (newAddress) => {
+  if (newAddress && dleAddress.value) {
+    loadUserBalance();
+  } else {
+    userBalance.value = 0;
   }
 }, { immediate: true });
 </script>
@@ -488,14 +532,12 @@ watch(dleAddress, (newAddress) => {
 /* Секции */
 .token-info-section,
 .transfer-section,
-.distribution-section,
 .holders-section {
   margin-bottom: 40px;
 }
 
 .token-info-section h2,
 .transfer-section h2,
-.distribution-section h2,
 .holders-section h2 {
   color: var(--color-primary);
   margin-bottom: 20px;
@@ -532,9 +574,26 @@ watch(dleAddress, (newAddress) => {
   color: var(--color-primary);
 }
 
+.user-address {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #666;
+  margin: 5px 0 0 0;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.no-wallet {
+  font-size: 0.75rem;
+  color: #dc3545;
+  margin: 5px 0 0 0;
+  font-style: italic;
+}
+
 /* Формы */
-.transfer-form,
-.distribution-form {
+.transfer-form {
   background: #f8f9fa;
   padding: 25px;
   border-radius: var(--radius-lg);
@@ -574,81 +633,25 @@ watch(dleAddress, (newAddress) => {
   min-height: 80px;
 }
 
-/* Получатели */
-.recipients-list {
-  display: grid;
-  gap: 15px;
-  margin-bottom: 15px;
+/* Статус предложения */
+.proposal-status {
+  margin-top: 20px;
+  padding: 15px;
+  background: #e8f5e8;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid #28a745;
 }
 
-.recipient-item {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 15px;
-  align-items: center;
+.proposal-status .status-message {
+  color: #28a745;
 }
 
-.btn-remove {
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-remove:hover {
-  background: #c82333;
-}
-
-/* Держатели токенов */
-.holders-list {
-  display: grid;
-  gap: 15px;
-}
-
-.holder-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  background: white;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-}
-
-.holder-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.holder-info {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.holder-address {
-  font-family: monospace;
-  font-size: 0.9rem;
+/* Описание секции */
+.section-description {
   color: var(--color-grey-dark);
-}
-
-.holder-balance {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.holder-percentage {
-  font-size: 0.9rem;
-  color: var(--color-grey-dark);
-  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+  line-height: 1.5;
 }
 
 /* Кнопки */

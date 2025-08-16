@@ -20,6 +20,12 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  * @title DLE (Digital Legal Entity)
  * @dev Основной контракт DLE с модульной архитектурой, Single-Chain Governance
  * и безопасной мульти-чейн синхронизацией без сторонних мостов (через подписи холдеров).
+ * 
+ * КЛЮЧЕВЫЕ ОСОБЕННОСТИ:
+ * - Прямые переводы токенов ЗАБЛОКИРОВАНЫ (transfer, transferFrom, approve)
+ * - Перевод токенов возможен ТОЛЬКО через governance предложения
+ * - Токены служат только для голосования и управления DLE
+ * - Все операции с токенами требуют коллективного решения
  */
 contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     using ECDSA for bytes32;
@@ -112,6 +118,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
     event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId);
+    event TokensTransferredByGovernance(address indexed recipient, uint256 amount);
 
     // EIP712 typehash для подписи одобрения исполнения предложения в целевой сети
     // ExecutionApproval(uint256 proposalId, bytes32 operationHash, uint256 chainId, uint256 snapshotTimepoint)
@@ -531,6 +538,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         } else if (selector == bytes4(keccak256("_removeSupportedChain(uint256)"))) {
             (uint256 chainIdToRemove) = abi.decode(data, (uint256));
             _removeSupportedChain(chainIdToRemove);
+        } else if (selector == bytes4(keccak256("_transferTokens(address,uint256)"))) {
+            // Операция перевода токенов через governance
+            (address recipient, uint256 amount) = abi.decode(data, (address, uint256));
+            _transferTokens(recipient, amount);
         } else if (selector == bytes4(keccak256("offchainAction(bytes32,string,bytes32)"))) {
             // Оффчейн операция для приложения: идентификатор, тип, хеш полезной нагрузки
             // (bytes32 actionId, string memory kind, bytes32 payloadHash) = abi.decode(data, (bytes32, string, bytes32));
@@ -602,6 +613,22 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
         currentChainId = _newChainId;
         
         emit CurrentChainIdUpdated(oldChainId, _newChainId);
+    }
+
+    /**
+     * @dev Перевести токены через governance (от имени DLE)
+     * @param _recipient Адрес получателя
+     * @param _amount Количество токенов для перевода
+     */
+    function _transferTokens(address _recipient, uint256 _amount) internal {
+        require(_recipient != address(0), "Cannot transfer to zero address");
+        require(_amount > 0, "Amount must be positive");
+        require(balanceOf(address(this)) >= _amount, "Insufficient DLE balance");
+        
+        // Переводим токены от имени DLE (address(this))
+        _transfer(address(this), _recipient, _amount);
+        
+        emit TokensTransferredByGovernance(_recipient, _amount);
     }
 
     /**
@@ -895,5 +922,39 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     function _delegate(address delegator, address delegatee) internal override {
         require(delegator == delegatee, "Delegation disabled");
         super._delegate(delegator, delegatee);
+    }
+
+    // ===== Блокировка прямых переводов токенов =====
+    // Токены DLE могут быть переведены только через governance
+    
+    /**
+     * @dev Блокирует прямые переводы токенов
+     * @param to Адрес получателя (не используется)
+     * @param amount Количество токенов (не используется)
+     * @return Всегда возвращает false
+     */
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        revert("Direct transfers disabled. Use governance proposals for token transfers.");
+    }
+
+    /**
+     * @dev Блокирует прямые переводы токенов через approve/transferFrom
+     * @param from Адрес отправителя (не используется)
+     * @param to Адрес получателя (не используется)
+     * @param amount Количество токенов (не используется)
+     * @return Всегда возвращает false
+     */
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        revert("Direct transfers disabled. Use governance proposals for token transfers.");
+    }
+
+    /**
+     * @dev Блокирует прямые разрешения на перевод токенов
+     * @param spender Адрес, которому разрешается тратить токены (не используется)
+     * @param amount Количество токенов (не используется)
+     * @return Всегда возвращает false
+     */
+    function approve(address spender, uint256 amount) public override returns (bool) {
+        revert("Direct approvals disabled. Use governance proposals for token transfers.");
     }
 }

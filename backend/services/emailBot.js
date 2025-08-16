@@ -29,6 +29,32 @@ const { isUserBlocked } = require('../utils/userUtils');
 class EmailBotService {
   constructor() {
     // console.log('[EmailBot] constructor called');
+    this.imap = null;
+    this.isChecking = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 3;
+  }
+
+  // Метод для очистки IMAP соединения
+  cleanupImapConnection() {
+    if (this.imap) {
+      try {
+        // Удаляем все обработчики событий
+        this.imap.removeAllListeners('error');
+        this.imap.removeAllListeners('ready');
+        this.imap.removeAllListeners('end');
+        this.imap.removeAllListeners('close');
+        
+        // Закрываем соединение
+        if (this.imap.state !== 'disconnected') {
+          this.imap.end();
+        }
+      } catch (error) {
+        logger.error('[EmailBot] Error cleaning up IMAP connection:', error);
+      } finally {
+        this.imap = null;
+      }
+    }
   }
 
   async getSettingsFromDb() {
@@ -533,56 +559,50 @@ class EmailBotService {
     try {
       // console.log('[EmailBot] start() called');
       logger.info('[EmailBot] start() called');
-      const imapConfig = await this.getImapConfig();
-      // Логируем IMAP-конфиг (без пароля)
-      const safeConfig = { ...imapConfig };
-      if (safeConfig.password) safeConfig.password = '***';
-      logger.info('[EmailBot] IMAP config:', safeConfig);
+
+      // Очищаем предыдущее соединение если есть
+      this.cleanupImapConnection();
+
       let attempt = 0;
       const maxAttempts = 3;
-      this.isChecking = false;
-      const tryConnect = () => {
+
+      const tryConnect = async () => {
         attempt++;
-        logger.info(`[EmailBot] IMAP connect attempt ${attempt}`);
-        this.imap = new Imap(imapConfig);
+        this.imap = new Imap(await this.getImapConfig());
+        
+        // Устанавливаем обработчики событий
         this.imap.once('ready', () => {
-          logger.info('[EmailBot] IMAP connection ready');
-          this.imap.openBox('INBOX', false, (err, box) => {
-            if (err) {
-              logger.error(`[EmailBot] Error opening INBOX: ${err.message}`);
-              this.imap.end();
-              return;
-            }
-            logger.info('[EmailBot] INBOX opened successfully');
-          });
-          // После успешного подключения — обычная логика
+          this.reconnectAttempts = 0; // Сбрасываем счетчик при успешном подключении
           this.checkEmails();
-          logger.info('[EmailBot] Email bot started and IMAP connection initiated');
-          // Периодическая проверка почты
-          setInterval(async () => {
-            if (this.isChecking) return;
-            this.isChecking = true;
-            try {
-              await this.checkEmails();
-            } catch (e) {
-              logger.error('[EmailBot] Error in periodic checkEmails:', e);
-            }
-            this.isChecking = false;
-          }, 60000); // 60 секунд
         });
+        
+        this.imap.once('end', () => {
+          logger.info('[EmailBot] IMAP connection ended');
+          this.cleanupImapConnection();
+        });
+        
+        this.imap.once('close', () => {
+          logger.info('[EmailBot] IMAP connection closed');
+          this.cleanupImapConnection();
+        });
+        
         this.imap.once('error', (err) => {
           logger.error(`[EmailBot] IMAP connection error: ${err.message}`);
+          this.cleanupImapConnection();
+          
           if (err.message && err.message.toLowerCase().includes('timed out') && attempt < maxAttempts) {
             logger.warn(`[EmailBot] IMAP reconnecting in 10 seconds (attempt ${attempt + 1})...`);
             setTimeout(tryConnect, 10000);
           }
         });
+        
         this.imap.connect();
       };
       tryConnect();
     } catch (err) {
       // console.error('[EmailBot] Ошибка при старте:', err);
       logger.error('[EmailBot] Ошибка при старте:', err);
+      this.cleanupImapConnection();
       throw err;
     }
   }

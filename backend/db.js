@@ -30,7 +30,38 @@ let pool = new Pool({
   user: process.env.DB_USER || 'dapp_user',
   password: process.env.DB_PASSWORD,
   ssl: false,
+  // Настройки для предотвращения утечек памяти
+  max: 10, // Максимальное количество клиентов в пуле
+  min: 0, // Минимальное количество клиентов в пуле
+  idleTimeoutMillis: 30000, // Время жизни неактивного клиента (30 сек)
+  connectionTimeoutMillis: 2000, // Таймаут подключения (2 сек)
+  maxUses: 7500, // Максимальное количество использований клиента
+  allowExitOnIdle: true, // Разрешить выход при отсутствии активных клиентов
 });
+
+// Увеличиваем лимит обработчиков событий для предотвращения предупреждений
+pool.setMaxListeners(20);
+
+// Добавляем обработчики для правильного закрытия пула
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+// Обработчик для очистки при завершении процесса
+process.on('SIGINT', async () => {
+  console.log('Closing database pool...');
+  await pool.end();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Closing database pool...');
+  await pool.end();
+  process.exit(0);
+});
+
+console.log('Пул создан:', pool.options || pool);
 
 // Проверяем подключение к базе данных
 pool.query('SELECT NOW()')
@@ -40,8 +71,6 @@ pool.query('SELECT NOW()')
   .catch(err => {
     console.error('Ошибка подключения к базе данных:', err);
   });
-
-console.log('Пул создан:', pool.options || pool);
 
 function getPool() {
   return pool;
@@ -69,10 +98,11 @@ async function reinitPoolFromDbSettings() {
     if (!res.rows.length) throw new Error('DB settings not found');
     const dbSettings = res.rows[0];
     
-    // Закрываем старый пул
+    // Закрываем старый пул правильно
+    console.log('Закрываем старый пул подключений...');
     await pool.end();
     
-    // Создаём новый пул с расшифрованными настройками
+    // Создаём новый пул с расшифрованными настройками и теми же параметрами для предотвращения утечек
     pool = new Pool({
       host: dbSettings.db_host_encrypted ? await decryptValue(dbSettings.db_host_encrypted) : process.env.DB_HOST || 'postgres',
       port: parseInt(dbSettings.db_port || process.env.DB_PORT || '5432'),
@@ -80,6 +110,22 @@ async function reinitPoolFromDbSettings() {
       user: dbSettings.db_user_encrypted ? await decryptValue(dbSettings.db_user_encrypted) : process.env.DB_USER || 'dapp_user',
       password: dbSettings.db_password_encrypted ? await decryptValue(dbSettings.db_password_encrypted) : process.env.DB_PASSWORD,
       ssl: false,
+      // Те же настройки для предотвращения утечек
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+      maxUses: 7500,
+      allowExitOnIdle: true,
+    });
+    
+    // Устанавливаем лимит обработчиков для нового пула
+    pool.setMaxListeners(20);
+    
+    // Добавляем обработчики ошибок для нового пула
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle client', err);
+      process.exit(-1);
     });
     
     // Пересоздаём session middleware
