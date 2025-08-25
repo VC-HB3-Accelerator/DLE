@@ -11,7 +11,7 @@
  */
 
 const WebSocket = require('ws');
-const authService = require('./services/auth-service');
+const tokenBalanceService = require('./services/tokenBalanceService');
 
 let wss = null;
 // Храним клиентов по userId для персонализированных уведомлений
@@ -477,9 +477,9 @@ module.exports = {
 async function handleTokenBalancesRequest(ws, address, userId) {
   try {
     console.log(`[WebSocket] Запрос балансов для адреса: ${address}`);
-    
-    // Получаем балансы через authService
-    const balances = await authService.getUserTokenBalances(address);
+
+    // Получаем балансы через отдельный сервис без зависимостей от wsHub
+    const balances = await tokenBalanceService.getUserTokenBalances(address);
     
     // Отправляем ответ клиенту
     ws.send(JSON.stringify({
