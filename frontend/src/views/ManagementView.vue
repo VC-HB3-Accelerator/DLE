@@ -58,8 +58,20 @@
             @click="selectDle(dle)"
           >
             <div class="dle-header">
-              <h3>{{ dle.name }} ({{ dle.symbol }})</h3>
-              <span class="dle-version">{{ dle.version || 'v2' }}</span>
+              <div class="dle-title-section">
+                <img 
+                  v-if="dle.logoURI" 
+                  :src="dle.logoURI" 
+                  :alt="dle.name" 
+                  class="dle-logo"
+                  @error="handleLogoError"
+                />
+                <div class="default-logo" v-else>DLE</div>
+                <div class="dle-title">
+                  <h3>{{ dle.name }} ({{ dle.symbol }})</h3>
+                  <span class="dle-version">{{ dle.version || 'v2' }}</span>
+                </div>
+              </div>
             </div>
 
             <div class="dle-details">
@@ -106,7 +118,22 @@
                 <strong>Коды ОКВЭД:</strong> {{ dle.okvedCodes?.join(', ') || 'Не указаны' }}
               </div>
               <div class="detail-item">
-                <strong>Партнеры:</strong> {{ dle.participantCount || 0 }} участников
+                <strong>Партнеры:</strong> 
+                <span v-if="dle.partnerBalances && dle.partnerBalances.length > 0">
+                  {{ dle.participantCount || dle.partnerBalances.length }} участников
+                  <div class="partners-details">
+                    <div v-for="(partner, index) in dle.partnerBalances.slice(0, 3)" :key="index" class="partner-info">
+                      <span class="partner-address">{{ shortenAddress(partner.address) }}</span>
+                      <span class="partner-balance">{{ partner.balance }} токенов ({{ partner.percentage.toFixed(1) }}%)</span>
+                    </div>
+                    <div v-if="dle.partnerBalances.length > 3" class="more-partners">
+                      +{{ dle.partnerBalances.length - 3 }} еще
+                    </div>
+                  </div>
+                </span>
+                <span v-else>
+                  {{ dle.participantCount || 0 }} участников
+                </span>
               </div>
               <div class="detail-item">
                 <strong>Статус:</strong> 
@@ -229,6 +256,16 @@ const openProposals = () => {
   router.push('/management/proposals');
 };
 
+// Обработка ошибки загрузки логотипа
+const handleLogoError = (event) => {
+  console.log('Ошибка загрузки логотипа:', event.target.src);
+  event.target.style.display = 'none';
+  const defaultLogo = event.target.parentElement.querySelector('.default-logo');
+  if (defaultLogo) {
+    defaultLogo.style.display = 'flex';
+  }
+};
+
 const openTokens = () => {
   router.push('/management/tokens');
 };
@@ -309,7 +346,8 @@ async function loadDeployedDles() {
                 kpp: blockchainData.kpp || dle.kpp,
                 // Информация о токенах из блокчейна
                 totalSupply: blockchainData.totalSupply,
-                deployerBalance: blockchainData.deployerBalance,
+                partnerBalances: blockchainData.partnerBalances || [], // Информация о партнерах
+                logoURI: blockchainData.logoURI || '', // URL логотипа
                 // Количество участников (держателей токенов)
                 participantCount: blockchainData.participantCount || 0
               };
@@ -867,6 +905,97 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
+/* Стили для отображения логотипа */
+.dle-title-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dle-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: contain;
+  border: 2px solid #e9ecef;
+  background: white;
+}
+
+.default-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--color-primary), #0056b3);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  border: 2px solid #e9ecef;
+}
+
+.dle-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dle-title h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--color-primary);
+}
+
+.dle-version {
+  font-size: 0.8rem;
+  color: #6c757d;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+/* Стили для отображения партнеров */
+.partners-details {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-primary);
+}
+
+.partner-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+  font-size: 0.875rem;
+}
+
+.partner-info:not(:last-child) {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.partner-address {
+  font-family: 'Courier New', monospace;
+  color: #495057;
+  font-weight: 600;
+}
+
+.partner-balance {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.more-partners {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
   .blocks-row {
@@ -879,6 +1008,25 @@ onBeforeUnmount(() => {
   
   .management-block h3 {
     font-size: 1.3rem;
+  }
+  
+  .partner-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .dle-title-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .dle-logo,
+  .default-logo {
+    width: 40px;
+    height: 40px;
+    font-size: 12px;
   }
 }
 

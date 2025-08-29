@@ -64,7 +64,8 @@ router.post('/read-dle-info', async (req, res) => {
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
       "function quorumPercentage() external view returns (uint256)",
-      "function getCurrentChainId() external view returns (uint256)"
+      "function getCurrentChainId() external view returns (uint256)",
+      "function logoURI() external view returns (string memory)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
@@ -74,22 +75,103 @@ router.post('/read-dle-info', async (req, res) => {
     const totalSupply = await dle.totalSupply();
     const quorumPercentage = await dle.quorumPercentage();
     const currentChainId = await dle.getCurrentChainId();
-
-    // Проверяем баланс создателя (адрес, который деплоил контракт)
-    const deployer = "0xF45aa4917b3775bA37f48Aeb3dc1a943561e9e0B";
-    const deployerBalance = await dle.balanceOf(deployer);
-
-    // Определяем количество участников (держателей токенов)
-    let participantCount = 0;
-    if (deployerBalance > 0) {
-      participantCount++;
+    
+    // Читаем логотип
+    let logoURI = '';
+    try {
+      logoURI = await dle.logoURI();
+    } catch (error) {
+      console.log(`[Blockchain] Ошибка при чтении logoURI:`, error.message);
     }
 
-    // Проверяем, есть ли другие держатели токенов
-    // Для простоты считаем, что если создатель имеет меньше 100% токенов, то есть другие участники
-    const deployerPercentage = (Number(deployerBalance) / Number(totalSupply)) * 100;
-    if (deployerPercentage < 100) {
-      participantCount = Math.max(participantCount, 2); // Минимум 2 участника
+    // Получаем информацию о партнерах из блокчейна
+    const partnerBalances = [];
+    let participantCount = 0;
+
+    // Получаем события InitialTokensDistributed для определения партнеров
+    try {
+      // Получаем последние блоки для поиска событий
+      const currentBlock = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 10000); // Ищем в последних 10000 блоках
+      
+      // ABI для события InitialTokensDistributed
+      const eventAbi = [
+        "event InitialTokensDistributed(address[] partners, uint256[] amounts)"
+      ];
+      
+      const dleWithEvents = new ethers.Contract(dleAddress, [...dleAbi, ...eventAbi], provider);
+      
+      // Ищем события InitialTokensDistributed
+      const events = await dleWithEvents.queryFilter(
+        dleWithEvents.filters.InitialTokensDistributed(),
+        fromBlock,
+        currentBlock
+      );
+      
+      if (events.length > 0) {
+        // Берем последнее событие
+        const lastEvent = events[events.length - 1];
+        const partners = lastEvent.args.partners;
+        const amounts = lastEvent.args.amounts;
+        
+        for (let i = 0; i < partners.length; i++) {
+          const partnerAddress = partners[i];
+          const amount = amounts[i];
+          
+          // Проверяем текущий баланс
+          const currentBalance = await dle.balanceOf(partnerAddress);
+          if (Number(currentBalance) > 0) {
+            participantCount++;
+            partnerBalances.push({
+              address: partnerAddress,
+              balance: ethers.formatUnits(currentBalance, 18),
+              percentage: (Number(currentBalance) / Number(totalSupply)) * 100,
+              initialAmount: ethers.formatUnits(amount, 18)
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`[Blockchain] Ошибка при получении событий партнеров:`, error.message);
+      
+      // Fallback: ищем держателей токенов через события Transfer
+      try {
+        const currentBlock = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 10000);
+        
+        const transferEventAbi = [
+          "event Transfer(address indexed from, address indexed to, uint256 value)"
+        ];
+        
+        const dleWithTransferEvents = new ethers.Contract(dleAddress, [...dleAbi, ...transferEventAbi], provider);
+        
+        // Ищем события Transfer с from = address(0) (mint события)
+        const mintEvents = await dleWithTransferEvents.queryFilter(
+          dleWithTransferEvents.filters.Transfer(ethers.ZeroAddress),
+          fromBlock,
+          currentBlock
+        );
+        
+        const uniqueRecipients = new Set();
+        for (const event of mintEvents) {
+          uniqueRecipients.add(event.args.to);
+        }
+        
+        // Проверяем текущие балансы всех получателей
+        for (const recipient of uniqueRecipients) {
+          const balance = await dle.balanceOf(recipient);
+          if (Number(balance) > 0) {
+            participantCount++;
+            partnerBalances.push({
+              address: recipient,
+              balance: ethers.formatUnits(balance, 18),
+              percentage: (Number(balance) / Number(totalSupply)) * 100
+            });
+          }
+        }
+      } catch (fallbackError) {
+        console.log(`[Blockchain] Ошибка при fallback поиске партнеров:`, fallbackError.message);
+      }
     }
 
     const blockchainData = {
@@ -106,7 +188,8 @@ router.post('/read-dle-info', async (req, res) => {
       creationTimestamp: Number(dleInfo.creationTimestamp),
       isActive: dleInfo.isActive,
       totalSupply: ethers.formatUnits(totalSupply, 18),
-      deployerBalance: ethers.formatUnits(deployerBalance, 18),
+      partnerBalances: partnerBalances, // Информация о партнерах и их балансах
+      logoURI: logoURI, // URL логотипа токена
       quorumPercentage: Number(quorumPercentage),
       currentChainId: Number(currentChainId),
       rpcUsed: rpcUrl,

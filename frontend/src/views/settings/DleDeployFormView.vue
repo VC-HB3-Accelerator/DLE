@@ -2475,6 +2475,28 @@ const deploySmartContracts = async () => {
       autoVerifyAfterDeploy: autoVerifyAfterDeploy.value
     };
 
+    // Обработка логотипа
+    try {
+      if (logoFile.value) {
+        const form = new FormData();
+        form.append('logo', logoFile.value);
+        const uploadResp = await axios.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const uploaded = uploadResp.data?.data?.url || uploadResp.data?.data?.path;
+        if (uploaded) {
+          deployData.logoURI = uploaded;
+        }
+      } else if (ensResolvedUrl.value) {
+        deployData.logoURI = ensResolvedUrl.value;
+      } else {
+        // фолбэк на дефолт
+        deployData.logoURI = '/uploads/logos/default-token.svg';
+      }
+    } catch (error) {
+      console.warn('Ошибка при обработке логотипа:', error.message);
+      // Используем fallback логотип
+      deployData.logoURI = '/uploads/logos/default-token.svg';
+    }
+
     console.log('Данные для деплоя DLE:', deployData);
 
     // Предварительная проверка балансов во всех сетях

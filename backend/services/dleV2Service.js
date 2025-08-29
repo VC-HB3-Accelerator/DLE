@@ -458,6 +458,18 @@ class DLEV2Service {
       deployParams.currentChainId = 1; // По умолчанию Ethereum
     }
 
+    // Обрабатываем logoURI
+    if (deployParams.logoURI) {
+      // Если logoURI относительный путь, делаем его абсолютным
+      if (deployParams.logoURI.startsWith('/uploads/')) {
+        deployParams.logoURI = `http://localhost:3000${deployParams.logoURI}`;
+      }
+      // Если это placeholder, оставляем как есть
+      if (deployParams.logoURI.includes('placeholder.com')) {
+        // Оставляем как есть
+      }
+    }
+
     return deployParams;
   }
 
@@ -573,8 +585,24 @@ class DLEV2Service {
           const resultMatch = stdout.match(/MULTICHAIN_DEPLOY_RESULT\s+(\[.*\])/);
           
           if (resultMatch) {
-            const result = JSON.parse(resultMatch[1]);
-            resolve(result);
+            const deployResults = JSON.parse(resultMatch[1]);
+            
+            // Преобразуем результат в нужный формат
+            const addresses = deployResults.map(r => r.address);
+            const allSame = addresses.every(addr => addr.toLowerCase() === addresses[0].toLowerCase());
+            
+            resolve({
+              success: true,
+              data: {
+                dleAddress: addresses[0],
+                networks: deployResults.map((r, index) => ({
+                  chainId: r.chainId,
+                  address: r.address,
+                  success: true
+                })),
+                allSame
+              }
+            });
           } else {
             // Fallback: ищем адреса DLE в выводе по новому формату
             const dleAddressMatches = stdout.match(/\[MULTI_DBG\] chainId=\d+ DLE deployed at=(0x[a-fA-F0-9]{40})/g);

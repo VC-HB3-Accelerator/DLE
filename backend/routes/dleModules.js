@@ -66,6 +66,37 @@ router.post('/is-module-active', async (req, res) => {
   }
 });
 
+// Получить информацию о задеплоенных модулях для DLE
+router.get('/deployed/:dleAddress', async (req, res) => {
+  try {
+    const { dleAddress } = req.params;
+    
+    if (!dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE обязателен'
+      });
+    }
+
+    console.log(`[DLE Modules] Получение информации о модулях для DLE: ${dleAddress}`);
+
+    // Получаем информацию о модулях из файлов деплоя
+    const modulesInfo = await getDeployedModulesInfo(dleAddress);
+
+    res.json({
+      success: true,
+      data: modulesInfo
+    });
+
+  } catch (error) {
+    console.error('[DLE Modules] Ошибка при получении информации о модулях:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при получении информации о модулях: ' + error.message
+    });
+  }
+});
+
 // Получить адрес модуля
 router.post('/get-module-address', async (req, res) => {
   try {
@@ -299,5 +330,46 @@ router.post('/create-remove-module-proposal', async (req, res) => {
     });
   }
 });
+
+// Функция для получения информации о задеплоенных модулях
+async function getDeployedModulesInfo(dleAddress) {
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    // Ищем файл модулей для конкретного DLE
+    const deployDir = path.join(__dirname, '../temp');
+    if (!fs.existsSync(deployDir)) {
+      return { modules: [], verification: {} };
+    }
+    
+    // Ищем файл по адресу DLE
+    const modulesFileName = `modules-${dleAddress.toLowerCase()}.json`;
+    const modulesFilePath = path.join(deployDir, modulesFileName);
+    
+    if (!fs.existsSync(modulesFilePath)) {
+      console.log(`[DLE Modules] Файл модулей не найден: ${modulesFileName}`);
+      return { modules: [], verification: {} };
+    }
+    
+    try {
+      const data = JSON.parse(fs.readFileSync(modulesFilePath, 'utf8'));
+      console.log(`[DLE Modules] Загружена информация о модулях для DLE: ${dleAddress}`);
+      
+      return {
+        modules: data.modules || [],
+        verification: data.verification || {},
+        deployTimestamp: data.deployTimestamp
+      };
+    } catch (error) {
+      console.error(`Ошибка при чтении файла ${modulesFileName}:`, error);
+      return { modules: [], verification: {} };
+    }
+    
+  } catch (error) {
+    console.error('Ошибка при получении информации о модулях:', error);
+    return { modules: [], verification: {} };
+  }
+}
 
 module.exports = router;

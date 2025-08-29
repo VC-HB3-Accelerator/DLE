@@ -173,6 +173,230 @@ async function deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, d
   return { address: deployedAddress, chainId: Number(net.chainId) };
 }
 
+// Деплой модулей в одной сети
+async function deployModulesInNetwork(rpcUrl, pk, dleAddress) {
+  const { ethers } = hre;
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(pk, provider);
+  const net = await provider.getNetwork();
+  
+  console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying modules...`);
+  
+  const modules = {};
+  
+                    try {
+                    // Деплой TreasuryModule
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying TreasuryModule...`);
+                    const TreasuryModule = await hre.ethers.getContractFactory('TreasuryModule');
+                    const treasuryModule = await TreasuryModule.connect(wallet).deploy(
+                      dleAddress, // _dleContract
+                      Number(net.chainId), // _chainId
+                      wallet.address // _emergencyAdmin
+                    );
+                    await treasuryModule.waitForDeployment();
+                    const treasuryAddress = await treasuryModule.getAddress();
+                    modules.treasuryModule = treasuryAddress;
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TreasuryModule deployed at: ${treasuryAddress}`);
+                    
+                    // Деплой TimelockModule
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying TimelockModule...`);
+                    const TimelockModule = await hre.ethers.getContractFactory('TimelockModule');
+                    const timelockModule = await TimelockModule.connect(wallet).deploy(
+                      dleAddress // _dleContract
+                    );
+                    await timelockModule.waitForDeployment();
+                    const timelockAddress = await timelockModule.getAddress();
+                    modules.timelockModule = timelockAddress;
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TimelockModule deployed at: ${timelockAddress}`);
+                    
+                    // Деплой DLEReader
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying DLEReader...`);
+                    const DLEReader = await hre.ethers.getContractFactory('DLEReader');
+                    const dleReader = await DLEReader.connect(wallet).deploy(
+                      dleAddress // _dleContract
+                    );
+                    await dleReader.waitForDeployment();
+                    const readerAddress = await dleReader.getAddress();
+                    modules.dleReader = readerAddress;
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLEReader deployed at: ${readerAddress}`);
+    
+    // Инициализация модулей в DLE
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing modules in DLE...`);
+    const dleContract = await hre.ethers.getContractAt('DLE', dleAddress, wallet);
+    
+    // Инициализация базовых модулей
+    await dleContract.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} base modules initialized`);
+    
+    // Инициализация logoURI
+    try {
+      // Используем логотип из параметров деплоя или fallback
+      const logoURL = params.logoURI || "https://via.placeholder.com/200x200/0066cc/ffffff?text=DLE";
+      await dleContract.initializeLogoURI(logoURL);
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized: ${logoURL}`);
+    } catch (e) {
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed: ${e.message}`);
+      // Fallback на базовый логотип
+      try {
+        await dleContract.initializeLogoURI("https://via.placeholder.com/200x200/0066cc/ffffff?text=DLE");
+        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} fallback logoURI initialized`);
+      } catch (fallbackError) {
+        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} fallback logoURI also failed: ${fallbackError.message}`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`[MULTI_DBG] chainId=${Number(net.chainId)} module deployment failed:`, error.message);
+    throw error;
+  }
+  
+  return modules;
+}
+
+// Деплой модулей во всех сетях
+async function deployModulesInAllNetworks(networks, pk, dleAddress) {
+  const moduleResults = [];
+  
+  for (let i = 0; i < networks.length; i++) {
+    const rpcUrl = networks[i];
+    console.log(`[MULTI_DBG] deploying modules to network ${i + 1}/${networks.length}: ${rpcUrl}`);
+    
+    try {
+      const modules = await deployModulesInNetwork(rpcUrl, pk, dleAddress);
+      moduleResults.push(modules);
+    } catch (error) {
+      console.error(`[MULTI_DBG] Failed to deploy modules in network ${i + 1}:`, error.message);
+      moduleResults.push({ error: error.message });
+    }
+  }
+  
+  return moduleResults;
+}
+
+// Верификация контрактов в одной сети
+async function verifyContractsInNetwork(rpcUrl, pk, dleAddress, modules, params) {
+  const { ethers } = hre;
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(pk, provider);
+  const net = await provider.getNetwork();
+  
+  console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} starting verification...`);
+  
+  const verification = {};
+  
+  try {
+    // Верификация DLE
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} verifying DLE...`);
+    await hre.run("verify:verify", {
+      address: dleAddress,
+      constructorArguments: [
+        {
+          name: params.name || '',
+          symbol: params.symbol || '',
+          location: params.location || '',
+          coordinates: params.coordinates || '',
+          jurisdiction: params.jurisdiction || 0,
+          oktmo: params.oktmo || '',
+          okvedCodes: params.okvedCodes || [],
+          kpp: params.kpp ? BigInt(params.kpp) : 0n,
+          quorumPercentage: params.quorumPercentage || 51,
+          initialPartners: params.initialPartners || [],
+          initialAmounts: (params.initialAmounts || []).map(amount => BigInt(amount)),
+          supportedChainIds: (params.supportedChainIds || []).map(id => BigInt(id))
+        },
+        BigInt(params.currentChainId || params.supportedChainIds?.[0] || 1),
+        params.initializer || params.initialPartners?.[0] || "0x0000000000000000000000000000000000000000"
+      ],
+    });
+    verification.dle = 'success';
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE verification successful`);
+  } catch (error) {
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE verification failed: ${error.message}`);
+    verification.dle = 'failed';
+  }
+  
+                    // Верификация модулей
+                  if (modules && !modules.error) {
+                    try {
+                      // Верификация TreasuryModule
+                      if (modules.treasuryModule) {
+                        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} verifying TreasuryModule...`);
+                        await hre.run("verify:verify", {
+                          address: modules.treasuryModule,
+                          constructorArguments: [
+                            dleAddress, // _dleContract
+                            Number(net.chainId), // _chainId
+                            wallet.address // _emergencyAdmin
+                          ],
+                        });
+                        verification.treasuryModule = 'success';
+                        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TreasuryModule verification successful`);
+                      }
+                    } catch (error) {
+                      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TreasuryModule verification failed: ${error.message}`);
+                      verification.treasuryModule = 'failed';
+                    }
+                    
+                    try {
+                      // Верификация TimelockModule
+                      if (modules.timelockModule) {
+                        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} verifying TimelockModule...`);
+                        await hre.run("verify:verify", {
+                          address: modules.timelockModule,
+                          constructorArguments: [
+                            dleAddress // _dleContract
+                          ],
+                        });
+                        verification.timelockModule = 'success';
+                        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TimelockModule verification successful`);
+                      }
+                    } catch (error) {
+                      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TimelockModule verification failed: ${error.message}`);
+                      verification.timelockModule = 'failed';
+                    }
+                    
+                    try {
+                      // Верификация DLEReader
+                      if (modules.dleReader) {
+                        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} verifying DLEReader...`);
+                        await hre.run("verify:verify", {
+                          address: modules.dleReader,
+                          constructorArguments: [
+                            dleAddress // _dleContract
+                          ],
+                        });
+                        verification.dleReader = 'success';
+                        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLEReader verification successful`);
+                      }
+                    } catch (error) {
+                      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLEReader verification failed: ${error.message}`);
+                      verification.dleReader = 'failed';
+                    }
+                  }
+  
+  return verification;
+}
+
+// Верификация контрактов во всех сетях
+async function verifyContractsInAllNetworks(networks, pk, dleAddress, moduleResults, params) {
+  const verificationResults = [];
+  
+  for (let i = 0; i < networks.length; i++) {
+    const rpcUrl = networks[i];
+    console.log(`[MULTI_DBG] verifying contracts in network ${i + 1}/${networks.length}: ${rpcUrl}`);
+    
+    try {
+      const verification = await verifyContractsInNetwork(rpcUrl, pk, dleAddress, moduleResults[i], params);
+      verificationResults.push(verification);
+    } catch (error) {
+      console.error(`[MULTI_DBG] Failed to verify contracts in network ${i + 1}:`, error.message);
+      verificationResults.push({ error: error.message });
+    }
+  }
+  
+  return verificationResults;
+}
+
 async function main() {
   const { ethers } = hre;
   
@@ -258,7 +482,41 @@ async function main() {
   }
   
   console.log('[MULTI_DBG] SUCCESS: All DLE addresses are identical:', uniqueAddresses[0]);
-  console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify(results));
+  
+  // Деплой модулей во всех сетях
+  console.log('[MULTI_DBG] Starting module deployment...');
+  const moduleResults = await deployModulesInAllNetworks(networks, pk, uniqueAddresses[0]);
+  
+  // Верификация контрактов
+  console.log('[MULTI_DBG] Starting contract verification...');
+  const verificationResults = await verifyContractsInAllNetworks(networks, pk, uniqueAddresses[0], moduleResults, params);
+  
+  // Объединяем результаты
+  const finalResults = results.map((result, index) => ({
+    ...result,
+    modules: moduleResults[index] || {},
+    verification: verificationResults[index] || {}
+  }));
+  
+  console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify(finalResults));
+  
+  // Сохраняем информацию о модулях в отдельный файл для каждого DLE
+  const modulesInfo = {
+    dleAddress: uniqueAddresses[0],
+    modules: moduleResults,
+    verification: verificationResults,
+    deployTimestamp: new Date().toISOString()
+  };
+  
+  // Создаем директорию temp если её нет
+  const tempDir = path.join(__dirname, '../temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+  
+  const deployResultPath = path.join(tempDir, `modules-${uniqueAddresses[0].toLowerCase()}.json`);
+  fs.writeFileSync(deployResultPath, JSON.stringify(modulesInfo, null, 2));
+  console.log(`[MULTI_DBG] Modules info saved to: ${deployResultPath}`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
