@@ -28,13 +28,18 @@ const messagesRoutes = require('./routes/messages');
 const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 const monitoringRoutes = require('./routes/monitoring');
 const pagesRoutes = require('./routes/pages'); // Добавляем импорт роутера страниц
+const uploadsRoutes = require('./routes/uploads');
+const ensRoutes = require('./routes/ens');
+// Factory routes removed - no longer needed
 
 // Проверка и создание директорий для хранения данных контрактов
 const ensureDirectoriesExist = () => {
   const directories = [
     path.join(__dirname, 'contracts-data'),
     path.join(__dirname, 'contracts-data/dles'),
-    path.join(__dirname, 'temp')
+    path.join(__dirname, 'temp'),
+    path.join(__dirname, 'uploads'),
+    path.join(__dirname, 'uploads/logos')
   ];
   
   for (const dir of directories) {
@@ -93,6 +98,7 @@ const dleProposalsRoutes = require('./routes/dleProposals'); // Функции �
 const dleModulesRoutes = require('./routes/dleModules'); // Функции модулей
 const dleTokensRoutes = require('./routes/dleTokens'); // Функции токенов
 const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитика и история
+const compileRoutes = require('./routes/compile'); // Компиляция контрактов
 const dleMultichainRoutes = require('./routes/dleMultichain'); // Мультичейн функции
 const dleHistoryRoutes = require('./routes/dleHistory'); // Расширенная история
 const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
@@ -188,6 +194,10 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Статическая раздача загруженных файлов (для dev и prod)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Настройка безопасности
 app.use(
   helmet({
@@ -235,6 +245,10 @@ app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/pages', pagesRoutes); // Подключаем роутер страниц
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
+app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы)
+app.use('/api/ens', ensRoutes); // ENS utilities
+// app.use('/api/factory', factoryRoutes); // Factory routes removed - no longer needed
+app.use('/api/compile-contracts', compileRoutes); // Компиляция контрактов
 
 const nonceStore = new Map(); // или любая другая реализация хранилища nonce
 

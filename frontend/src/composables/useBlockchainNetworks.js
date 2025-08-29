@@ -56,10 +56,13 @@ export default function useBlockchainNetworks() {
         { value: 'holesky', label: 'Holesky (Ethereum testnet)', chainId: 17000 },
         { value: 'bsc-testnet', label: 'BSC Testnet', chainId: 97 },
         { value: 'mumbai', label: 'Mumbai (Polygon testnet)', chainId: 80001 },
+        { value: 'polygon-amoy', label: 'Polygon Amoy (testnet)', chainId: 80002 },
         { value: 'arbitrum-goerli', label: 'Arbitrum Goerli', chainId: 421613 },
+        { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia', chainId: 421614 },
         { value: 'optimism-goerli', label: 'Optimism Goerli', chainId: 420 },
         { value: 'avalanche-fuji', label: 'Avalanche Fuji', chainId: 43113 },
-        { value: 'fantom-testnet', label: 'Fantom Testnet', chainId: 4002 }
+        { value: 'fantom-testnet', label: 'Fantom Testnet', chainId: 4002 },
+        { value: 'base-sepolia', label: 'Base Sepolia Testnet', chainId: 84532 }
       ]
     },
     {

@@ -357,14 +357,12 @@ router.post('/predict-addresses', auth.requireAuth, auth.requireAdmin, async (re
     }
 
     // Используем служебные секреты для фабрики и SALT
-    // Ожидаем, что на сервере настроены переменные окружения или конфиги на сеть
+    // Factory больше не используется - адреса DLE теперь вычисляются через CREATE с выровненным nonce
     const result = {};
     for (const chainId of selectedNetworks) {
-      const factory = process.env[`FACTORY_ADDRESS_${chainId}`] || process.env.FACTORY_ADDRESS;
-      const saltHex = process.env[`CREATE2_SALT_${chainId}`] || process.env.CREATE2_SALT;
-      const initCodeHash = process.env[`INIT_CODE_HASH_${chainId}`] || process.env.INIT_CODE_HASH;
-      if (!factory || !saltHex || !initCodeHash) continue;
-      result[chainId] = create2.computeCreate2Address(factory, saltHex, initCodeHash);
+      // Адрес DLE будет одинаковым во всех сетях благодаря выравниванию nonce
+      // Вычисляется в deploy-multichain.js во время деплоя
+      result[chainId] = 'Вычисляется во время деплоя';
     }
 
     return res.json({ success: true, data: result });
@@ -514,3 +512,4 @@ router.post('/precheck', auth.requireAuth, auth.requireAdmin, async (req, res) =
     return res.status(500).json({ success: false, message: e.message });
   }
 });
+

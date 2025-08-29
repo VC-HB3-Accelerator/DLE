@@ -18,6 +18,12 @@ contract FactoryDeployer {
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash));
         return address(uint160(uint256(hash)));
     }
+
+    function computeAddressWithCreationCode(bytes32 salt, bytes memory creationCode) external view returns (address) {
+        bytes32 initCodeHash = keccak256(creationCode);
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash));
+        return address(uint160(uint256(hash)));
+    }
 }
 
 

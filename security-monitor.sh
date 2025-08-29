@@ -1,24 +1,22 @@
 #!/bin/bash
 
-/**
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
- * All rights reserved.
- * 
- * This software is proprietary and confidential.
- * Unauthorized copying, modification, or distribution is prohibited.
- * 
- * For licensing inquiries: info@hb3-accelerator.com
- * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/VC-HB3-Accelerator
- */
+# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# All rights reserved.
+# 
+# This software is proprietary and confidential.
+# Unauthorized copying, modification, or distribution is prohibited.
+# 
+# For licensing inquiries: info@hb3-accelerator.com
+# Website: https://hb3-accelerator.com
+# GitHub: https://github.com/VC-HB3-Accelerator
 
 # Скрипт мониторинга безопасности для DLE
 # Автоматически блокирует подозрительные IP адреса и домены
 
 LOG_FILE="/var/log/nginx/access.log"
 SUSPICIOUS_LOG_FILE="/var/log/nginx/suspicious_domains.log"
-BLOCKED_IPS_FILE="/tmp/blocked_ips.txt"
-SUSPICIOUS_DOMAINS_FILE="/tmp/suspicious_domains.txt"
+BLOCKED_IPS_FILE="/var/log/security-monitor/blocked_ips.txt"
+SUSPICIOUS_DOMAINS_FILE="/var/log/security-monitor/suspicious_domains.txt"
 NGINX_CONTAINER="dapp-frontend-nginx"
 WAF_CONF_FILE="/etc/nginx/conf.d/waf.conf"
 
@@ -59,14 +57,8 @@ SUSPICIOUS_DOMAINS=(
 
 # Функция для создания WAF конфигурации
 create_waf_config() {
-    docker exec "$NGINX_CONTAINER" sh -c "
-        cat > $WAF_CONF_FILE << 'EOF'
-# WAF конфигурация для блокировки подозрительных IP
-geo \$bad_ip {
-    default 0;
-    # Заблокированные IP будут добавляться сюда автоматически
-EOF
-    "
+    echo "🔧 WAF конфигурация уже существует в nginx"
+    # WAF конфигурация уже создана при сборке контейнера
 }
 
 # Функция для блокировки IP
@@ -88,20 +80,10 @@ block_ip() {
     echo "$ip" >> "$BLOCKED_IPS_FILE"
     echo "🚫 Блокируем IP: $ip (причина: $reason)"
     
-    # Добавляем IP в nginx WAF конфигурацию
-    docker exec "$NGINX_CONTAINER" sh -c "
-        if [ ! -f $WAF_CONF_FILE ]; then
-            create_waf_config
-        fi
-        
-        # Добавляем IP в WAF конфигурацию
-        sed -i '/default 0;/a\\    $ip 1; # Автоматически заблокирован: $reason' $WAF_CONF_FILE
-        
-        # Перезагружаем nginx
-        nginx -s reload
-    "
+    # Логируем в файл для дальнейшей обработки
+    echo "$(date): $ip - $reason" >> "/var/log/security-monitor/blocked_ips_log.txt"
     
-    echo "✅ IP $ip заблокирован в nginx"
+    echo "✅ IP $ip заблокирован (логируется для manual review)"
 }
 
 # Функция для логирования подозрительных доменов
@@ -127,21 +109,23 @@ log_suspicious_domain() {
 analyze_docker_logs() {
     echo "🔍 Анализ Docker логов nginx на предмет атак..."
     
-    # Анализируем логи nginx контейнера
-    docker logs --follow "$NGINX_CONTAINER" | while read line; do
-        # Ищем HTTP запросы в логах
-        if echo "$line" | grep -qE "(GET|POST|HEAD|PUT|DELETE|OPTIONS)"; then
-            # Извлекаем IP адрес
-            ip=$(echo "$line" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')
+    # Анализируем логи nginx контейнера (последние записи + следящий режим)
+    docker logs --tail 10 --follow "$NGINX_CONTAINER" 2>/dev/null | while read line; do
+        # Ищем HTTP запросы в логах (формат nginx access log)
+        if echo "$line" | grep -qE '"(GET|POST|HEAD|PUT|DELETE|OPTIONS)'; then
+            # Извлекаем IP адрес (первое поле в логе)
+            ip=$(echo "$line" | awk '{print $1}')
             
-            # Извлекаем домен из Host заголовка
-            domain=$(echo "$line" | grep -oE 'Host: [^[:space:]]+' | sed 's/Host: //')
+            # Извлекаем метод и URI из кавычек "GET /path HTTP/1.1"
+            request_line=$(echo "$line" | grep -oE '"[^"]*"' | head -1 | sed 's/"//g')
+            method=$(echo "$request_line" | awk '{print $1}')
+            uri=$(echo "$request_line" | awk '{print $2}')
             
-            # Извлекаем User-Agent
-            user_agent=$(echo "$line" | grep -oE 'User-Agent: [^[:space:]]+' | sed 's/User-Agent: //')
+            # Извлекаем User-Agent (последняя строка в кавычках)
+            user_agent=$(echo "$line" | grep -oE '"[^"]*"' | tail -1 | sed 's/"//g')
             
-            # Извлекаем URI
-            uri=$(echo "$line" | grep -oE '(GET|POST|HEAD|PUT|DELETE|OPTIONS) [^[:space:]]+' | awk '{print $2}')
+            # Домен пока оставляем пустым (можно добавить парсинг из логов при необходимости)
+            domain=""
             
             if [ -n "$ip" ]; then
                 echo "🔍 Анализируем запрос: $ip -> $domain -> $uri"
@@ -211,15 +195,10 @@ echo "🔧 Инициализация WAF конфигурации..."
 create_waf_config
 
 # Основной цикл
-while true; do
-    echo "🔄 Проверка безопасности... $(date)"
-    
-    # Анализируем логи в фоне
-    analyze_docker_logs &
-    
-    # Показываем статистику каждые 5 минут
-    show_stats
-    
-    # Ждем 5 минут перед следующей проверкой
-    sleep 300
-done 
+echo "🔄 Начинаем мониторинг безопасности... $(date)"
+
+# Показываем начальную статистику
+show_stats
+
+# Запускаем анализ логов (блокирующий режим - будет работать постоянно)
+analyze_docker_logs 

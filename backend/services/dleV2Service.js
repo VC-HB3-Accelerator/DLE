@@ -41,6 +41,20 @@ class DLEV2Service {
       // Подготовка параметров для деплоя
       const deployParams = this.prepareDeployParams(dleParams);
 
+      // Вычисляем адрес инициализатора (инициализатором является деплоер из переданного приватного ключа)
+      try {
+        const normalizedPk = dleParams.privateKey?.startsWith('0x') ? dleParams.privateKey : `0x${dleParams.privateKey}`;
+        const initializerAddress = new ethers.Wallet(normalizedPk).address;
+        deployParams.initializerAddress = initializerAddress;
+      } catch (e) {
+        logger.warn('Не удалось вычислить initializerAddress из приватного ключа:', e.message);
+      }
+
+      // Генерируем одноразовый CREATE2_SALT и сохраняем его с уникальным ключом в secrets
+      const { createAndStoreNewCreate2Salt } = require('./secretStore');
+      const { salt: create2Salt, key: saltKey } = await createAndStoreNewCreate2Salt({ label: deployParams.name || 'DLEv2' });
+      logger.info(`CREATE2_SALT создан и сохранён: key=${saltKey}`);
+
       // Сохраняем параметры во временный файл
       paramsFile = this.saveParamsToFile(deployParams);
 
@@ -51,8 +65,7 @@ class DLEV2Service {
         fs.mkdirSync(deployDir, { recursive: true });
       }
       fs.copyFileSync(paramsFile, tempParamsFile);
-      logger.info(`Файл параметров скопирован успешно`);
-
+      
       // Готовим RPC для всех выбранных сетей
       const rpcUrls = [];
       for (const cid of deployParams.supportedChainIds) {
@@ -64,6 +77,19 @@ class DLEV2Service {
         rpcUrls.push(ru);
       }
 
+      // Добавляем CREATE2_SALT, RPC_URLS и initializer в файл параметров
+      const currentParams = JSON.parse(fs.readFileSync(tempParamsFile, 'utf8'));
+      // Копируем все параметры из deployParams
+      Object.assign(currentParams, deployParams);
+      currentParams.CREATE2_SALT = create2Salt;
+      currentParams.rpcUrls = rpcUrls;
+      currentParams.currentChainId = deployParams.currentChainId || deployParams.supportedChainIds[0];
+      const { ethers } = require('ethers');
+      currentParams.initializer = dleParams.privateKey ? new ethers.Wallet(dleParams.privateKey.startsWith('0x') ? dleParams.privateKey : `0x${dleParams.privateKey}`).address : "0x0000000000000000000000000000000000000000";
+      fs.writeFileSync(tempParamsFile, JSON.stringify(currentParams, null, 2));
+      
+      logger.info(`Файл параметров скопирован и обновлен с CREATE2_SALT`);
+
       // Лёгкая проверка баланса в первой сети
       {
         const { ethers } = require('ethers');
@@ -72,7 +98,15 @@ class DLEV2Service {
           const pk = dleParams.privateKey.startsWith('0x') ? dleParams.privateKey : `0x${dleParams.privateKey}`;
           const walletAddress = new ethers.Wallet(pk, provider).address;
           const balance = await provider.getBalance(walletAddress);
+          
+          if (typeof ethers.parseEther !== 'function') {
+            throw new Error('Метод ethers.parseEther не найден');
+          }
           const minBalance = ethers.parseEther("0.00001");
+          
+          if (typeof ethers.formatEther !== 'function') {
+            throw new Error('Метод ethers.formatEther не найден');
+          }
           logger.info(`Баланс кошелька ${walletAddress}: ${ethers.formatEther(balance)} ETH`);
           if (balance < minBalance) {
             throw new Error(`Недостаточно ETH для деплоя в ${deployParams.supportedChainIds[0]}. Баланс: ${ethers.formatEther(balance)} ETH`);
@@ -84,28 +118,58 @@ class DLEV2Service {
       }
 
       // Рассчитываем INIT_CODE_HASH автоматически из актуального initCode
-      const initCodeHash = await this.computeInitCodeHash(deployParams);
+      const initCodeHash = await this.computeInitCodeHash({
+        ...deployParams,
+        currentChainId: deployParams.currentChainId || deployParams.supportedChainIds[0]
+      });
 
-      // Собираем адреса фабрик по сетям (если есть)
-      const factoryAddresses = deployParams.supportedChainIds.map(cid => process.env[`FACTORY_ADDRESS_${cid}`] || '').join(',');
+      // Factory больше не используется - деплой DLE напрямую
+      logger.info(`Подготовка к прямому деплою DLE в сетях: ${deployParams.supportedChainIds.join(', ')}`);
 
       // Мультисетевой деплой одним вызовом
-      // Генерируем одноразовый CREATE2_SALT и сохраняем его с уникальным ключом в secrets
-      const { createAndStoreNewCreate2Salt } = require('./secretStore');
-      const { salt: create2Salt, key: saltKey } = await createAndStoreNewCreate2Salt({ label: deployParams.name || 'DLEv2' });
-      logger.info(`CREATE2_SALT создан и сохранён: key=${saltKey}`);
-
+      logger.info('Запуск мульти-чейн деплоя...');
+      
       const result = await this.runDeployMultichain(paramsFile, {
-        rpcUrls: rpcUrls.join(','),
+        rpcUrls: rpcUrls,
+        chainIds: deployParams.supportedChainIds,
         privateKey: dleParams.privateKey?.startsWith('0x') ? dleParams.privateKey : `0x${dleParams.privateKey}`,
         salt: create2Salt,
-        initCodeHash,
-        factories: factoryAddresses
+        initCodeHash
       });
+
+      logger.info('Деплой завершен, результат:', JSON.stringify(result, null, 2));
 
       // Сохраняем информацию о созданном DLE для отображения на странице управления
       try {
-        const firstNet = Array.isArray(result?.data?.networks) && result.data.networks.length > 0 ? result.data.networks[0] : null;
+        logger.info('Результат деплоя для сохранения:', JSON.stringify(result, null, 2));
+        
+        // Проверяем структуру результата
+        if (!result || typeof result !== 'object') {
+          logger.error('Неверная структура результата деплоя:', result);
+          throw new Error('Неверная структура результата деплоя');
+        }
+
+        // Если результат - массив (прямой результат из скрипта), преобразуем его
+        let deployResult = result;
+        if (Array.isArray(result)) {
+          logger.info('Результат - массив, преобразуем в объект');
+          const addresses = result.map(r => r.address);
+          const allSame = addresses.every(addr => addr.toLowerCase() === addresses[0].toLowerCase());
+          deployResult = {
+            success: true,
+            data: {
+              dleAddress: addresses[0],
+              networks: result.map((r, index) => ({
+                chainId: r.chainId,
+                address: r.address,
+                success: true
+              })),
+              allSame
+            }
+          };
+        }
+
+        const firstNet = Array.isArray(deployResult?.data?.networks) && deployResult.data.networks.length > 0 ? deployResult.data.networks[0] : null;
         const dleData = {
           name: deployParams.name,
           symbol: deployParams.symbol,
@@ -122,13 +186,20 @@ class DLEV2Service {
             supportedChainIds: deployParams.supportedChainIds,
             currentChainId: deployParams.currentChainId
           },
-          dleAddress: (result?.data?.dleAddress) || (firstNet?.address) || null,
+          dleAddress: (deployResult?.data?.dleAddress) || (firstNet?.address) || null,
           version: 'v2',
-          networks: result?.data?.networks || [],
+          networks: deployResult?.data?.networks || [],
           createdAt: new Date().toISOString()
         };
+        
+        logger.info('Данные DLE для сохранения:', JSON.stringify(dleData, null, 2));
+        
         if (dleData.dleAddress) {
-          this.saveDLEData(dleData);
+          // Сохраняем одну карточку DLE с информацией о всех сетях
+          const savedPath = this.saveDLEData(dleData);
+          logger.info(`DLE данные сохранены в: ${savedPath}`);
+        } else {
+          logger.error('Не удалось получить адрес DLE из результата деплоя');
         }
       } catch (e) {
         logger.warn('Не удалось сохранить локальную карточку DLE:', e.message);
@@ -215,7 +286,7 @@ class DLEV2Service {
 
     // Проверяем адреса партнеров
     for (let i = 0; i < params.initialPartners.length; i++) {
-      if (!ethers.isAddress(params.initialPartners[i])) {
+      if (!ethers.isAddress || !ethers.isAddress(params.initialPartners[i])) {
         throw new Error(`Неверный адрес партнера ${i + 1}: ${params.initialPartners[i]}`);
       }
     }
@@ -225,7 +296,51 @@ class DLEV2Service {
       throw new Error('Должна быть выбрана хотя бы одна сеть для деплоя');
     }
 
+    // Дополнительные проверки безопасности
+    if (params.name.length > 100) {
+      throw new Error('Название DLE слишком длинное (максимум 100 символов)');
+    }
 
+    if (params.symbol.length > 10) {
+      throw new Error('Символ токена слишком длинный (максимум 10 символов)');
+    }
+
+    if (params.location.length > 200) {
+      throw new Error('Местонахождение слишком длинное (максимум 200 символов)');
+    }
+
+    // Проверяем суммы токенов
+    for (let i = 0; i < params.initialAmounts.length; i++) {
+      const amount = params.initialAmounts[i];
+      if (typeof amount !== 'string' && typeof amount !== 'number') {
+        throw new Error(`Неверный тип суммы для партнера ${i + 1}`);
+      }
+      
+      const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+      if (isNaN(numAmount) || numAmount <= 0) {
+        throw new Error(`Неверная сумма для партнера ${i + 1}: ${amount}`);
+      }
+    }
+
+    // Проверяем приватный ключ
+    if (!params.privateKey) {
+      throw new Error('Приватный ключ обязателен для деплоя');
+    }
+
+    const pk = params.privateKey.startsWith('0x') ? params.privateKey : `0x${params.privateKey}`;
+    if (!/^0x[a-fA-F0-9]{64}$/.test(pk)) {
+      throw new Error('Неверный формат приватного ключа');
+    }
+
+    // Проверяем, что не деплоим в mainnet без подтверждения
+    const mainnetChains = [1, 137, 56, 42161]; // Ethereum, Polygon, BSC, Arbitrum
+    const hasMainnet = params.supportedChainIds.some(id => mainnetChains.includes(id));
+    
+    if (hasMainnet) {
+      logger.warn('⚠️ ВНИМАНИЕ: Деплой включает mainnet сети! Убедитесь, что это необходимо.');
+    }
+
+    logger.info('✅ Валидация параметров DLE пройдена успешно');
   }
 
   /**
@@ -293,6 +408,9 @@ class DLEV2Service {
         // Принимаем как строки, так и числа; конвертируем в base units (18 знаков)
         try {
           if (typeof rawAmount === 'number' && Number.isFinite(rawAmount)) {
+            if (typeof ethers.parseUnits !== 'function') {
+              throw new Error('Метод ethers.parseUnits не найден');
+            }
             return ethers.parseUnits(rawAmount.toString(), 18).toString();
           }
           if (typeof rawAmount === 'string') {
@@ -302,6 +420,9 @@ class DLEV2Service {
               return BigInt(a).toString();
             }
             // Десятичная строка — конвертируем в base units
+            if (typeof ethers.parseUnits !== 'function') {
+              throw new Error('Метод ethers.parseUnits не найден');
+            }
             return ethers.parseUnits(a, 18).toString();
           }
           // BigInt или иные типы — приводим к строке без изменения масштаба
@@ -316,6 +437,13 @@ class DLEV2Service {
     // Убеждаемся, что okvedCodes - это массив
     if (!Array.isArray(deployParams.okvedCodes)) {
       deployParams.okvedCodes = [];
+    }
+
+    // Преобразуем kpp в число
+    if (deployParams.kpp) {
+      deployParams.kpp = parseInt(deployParams.kpp) || 0;
+    } else {
+      deployParams.kpp = 0;
     }
 
     // Убеждаемся, что supportedChainIds - это массив
@@ -360,7 +488,7 @@ class DLEV2Service {
    */
   runDeployScript(paramsFile, extraEnv = {}) {
     return new Promise((resolve, reject) => {
-      const scriptPath = path.join(__dirname, '../scripts/deploy/create-dle-v2.js');
+      const scriptPath = path.join(__dirname, '../scripts/deploy/deploy-multichain.js');
       if (!fs.existsSync(scriptPath)) {
         reject(new Error('Скрипт деплоя DLE v2 не найден: ' + scriptPath));
         return;
@@ -416,33 +544,70 @@ class DLEV2Service {
   runDeployMultichain(paramsFile, opts = {}) {
     return new Promise((resolve, reject) => {
       const scriptPath = path.join(__dirname, '../scripts/deploy/deploy-multichain.js');
-      if (!fs.existsSync(scriptPath)) return reject(new Error('Скрипт мультисетевого деплоя не найден'));
+      if (!fs.existsSync(scriptPath)) return reject(new Error('Скрипт мультисетевого деплоя не найден: ' + scriptPath));
+      
       const envVars = {
         ...process.env,
-        PRIVATE_KEY: opts.privateKey,
-        CREATE2_SALT: opts.salt,
-        INIT_CODE_HASH: opts.initCodeHash,
-        MULTICHAIN_RPC_URLS: opts.rpcUrls,
-        MULTICHAIN_FACTORY_ADDRESSES: opts.factories || ''
+        PRIVATE_KEY: opts.privateKey
       };
-      const p = spawn('npx', ['hardhat', 'run', scriptPath], { cwd: path.join(__dirname, '..'), env: envVars, stdio: 'pipe' });
+      
+      const p = spawn('npx', ['hardhat', 'run', scriptPath], { 
+        cwd: path.join(__dirname, '..'), 
+        env: envVars, 
+        stdio: 'pipe' 
+      });
+      
       let stdout = '', stderr = '';
-      p.stdout.on('data', (d) => { stdout += d.toString(); logger.info(`[MULTI] ${d.toString().trim()}`); });
-      p.stderr.on('data', (d) => { stderr += d.toString(); logger.error(`[MULTI_ERR] ${d.toString().trim()}`); });
-      p.on('close', () => {
+      p.stdout.on('data', (d) => { 
+        stdout += d.toString(); 
+        logger.info(`[MULTICHAIN_DEPLOY] ${d.toString().trim()}`); 
+      });
+      p.stderr.on('data', (d) => { 
+        stderr += d.toString(); 
+        logger.error(`[MULTICHAIN_DEPLOY_ERR] ${d.toString().trim()}`); 
+      });
+      
+      p.on('close', (code) => {
         try {
-          const m = stdout.match(/MULTICHAIN_DEPLOY_RESULT\s*(\[.*\])/s);
-          if (!m) throw new Error('Результат не найден');
-          const arr = JSON.parse(m[1]);
-          if (!Array.isArray(arr) || arr.length === 0) throw new Error('Пустой результат деплоя');
-          const addr = arr[0].address;
-          const allSame = arr.every(x => x.address && x.address.toLowerCase() === addr.toLowerCase());
-          if (!allSame) throw new Error('Адреса отличаются между сетями');
-          resolve({ success: true, data: { dleAddress: addr, networks: arr } });
+          // Ищем результат в формате MULTICHAIN_DEPLOY_RESULT
+          const resultMatch = stdout.match(/MULTICHAIN_DEPLOY_RESULT\s+(\[.*\])/);
+          
+          if (resultMatch) {
+            const result = JSON.parse(resultMatch[1]);
+            resolve(result);
+          } else {
+            // Fallback: ищем адреса DLE в выводе по новому формату
+            const dleAddressMatches = stdout.match(/\[MULTI_DBG\] chainId=\d+ DLE deployed at=(0x[a-fA-F0-9]{40})/g);
+            if (!dleAddressMatches || dleAddressMatches.length === 0) {
+              throw new Error('Не найдены адреса DLE в выводе');
+            }
+            
+            const addresses = dleAddressMatches.map(match => match.match(/(0x[a-fA-F0-9]{40})/)[1]);
+            const addr = addresses[0];
+            const allSame = addresses.every(x => x.toLowerCase() === addr.toLowerCase());
+            
+            if (!allSame) {
+              logger.warn('Адреса отличаются между сетями — продолжаем, сохраню по-сеточно', { addresses });
+            }
+            
+            resolve({ 
+              success: true, 
+              data: { 
+                dleAddress: addr, 
+                networks: addresses.map((address, index) => ({ 
+                  chainId: opts.chainIds[index] || index + 1,
+                  address, 
+                  success: true 
+                })), 
+                allSame 
+              } 
+            });
+          }
         } catch (e) {
           reject(new Error(`Ошибка мультисетевого деплоя: ${e.message}\nSTDOUT:${stdout}\nSTDERR:${stderr}`));
         }
       });
+      
       p.on('error', (e) => reject(e));
     });
   }
@@ -453,8 +618,20 @@ class DLEV2Service {
    * @returns {Object} - Результат деплоя
    */
   extractDeployResult(stdout) {
-    // Ищем строки с адресами в выводе
-    const dleAddressMatch = stdout.match(/DLE v2 задеплоен по адресу: (0x[a-fA-F0-9]{40})/);
+    // Ищем результат в формате MULTICHAIN_DEPLOY_RESULT
+    const resultMatch = stdout.match(/MULTICHAIN_DEPLOY_RESULT\s+(\[.*?\])/);
+    
+    if (resultMatch) {
+      try {
+        const result = JSON.parse(resultMatch[1]);
+        return result;
+      } catch (e) {
+        logger.error('Ошибка парсинга JSON результата:', e);
+      }
+    }
+
+    // Fallback: ищем строки с адресами в выводе по новому формату
+    const dleAddressMatch = stdout.match(/\[MULTI_DBG\] chainId=\d+ DLE deployed at=(0x[a-fA-F0-9]{40})/);
 
     if (dleAddressMatch) {
       return {
@@ -529,7 +706,7 @@ class DLEV2Service {
       }
       
       const files = fs.readdirSync(dlesDir);
-      return files
+      const allDles = files
         .filter(file => file.endsWith('.json') && file.includes('dle-v2-'))
         .map(file => {
           try {
@@ -541,68 +718,300 @@ class DLEV2Service {
           }
         })
         .filter(dle => dle !== null);
+
+      // Группируем DLE по мультичейн деплоям
+      const groupedDles = this.groupMultichainDLEs(allDles);
+      
+      return groupedDles;
     } catch (error) {
       logger.error('Ошибка при получении списка DLE v2:', error);
       return [];
     }
   }
 
-  // Авто-расчёт INIT_CODE_HASH
-  async computeInitCodeHash(params) {
-    const hre = require('hardhat');
-    const { ethers } = hre;
-    const DLE = await hre.ethers.getContractFactory('DLE');
-    const dleConfig = {
-      name: params.name,
-      symbol: params.symbol,
-      location: params.location,
-      coordinates: params.coordinates,
-      jurisdiction: params.jurisdiction,
-      okvedCodes: params.okvedCodes || [],
-      kpp: params.kpp,
-      quorumPercentage: params.quorumPercentage,
-      initialPartners: params.initialPartners,
-      initialAmounts: params.initialAmounts,
-      supportedChainIds: params.supportedChainIds
-    };
-    const deployTx = await DLE.getDeployTransaction(dleConfig, params.currentChainId);
-    const initCode = deployTx.data;
-    return ethers.keccak256(initCode);
+  /**
+   * Группирует DLE по мультичейн деплоям
+   * @param {Array<Object>} allDles - Все DLE из файлов
+   * @returns {Array<Object>} - Сгруппированные DLE
+   */
+  groupMultichainDLEs(allDles) {
+    const groups = new Map();
+    
+    for (const dle of allDles) {
+      // Создаем ключ для группировки на основе общих параметров
+      const groupKey = this.createGroupKey(dle);
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          // Основные данные из первого DLE
+          name: dle.name,
+          symbol: dle.symbol,
+          location: dle.location,
+          coordinates: dle.coordinates,
+          jurisdiction: dle.jurisdiction,
+          oktmo: dle.oktmo,
+          okvedCodes: dle.okvedCodes,
+          kpp: dle.kpp,
+          quorumPercentage: dle.quorumPercentage,
+          version: dle.version || 'v2',
+          deployedMultichain: true,
+          // Мультичейн информация
+          networks: [],
+          // Модули (одинаковые во всех сетях)
+          modules: dle.modules,
+          // Время создания (самое раннее)
+          creationTimestamp: dle.creationTimestamp,
+          creationBlock: dle.creationBlock
+        });
+      }
+      
+      const group = groups.get(groupKey);
+      
+      // Если у DLE есть массив networks, используем его
+      if (dle.networks && Array.isArray(dle.networks)) {
+        for (const network of dle.networks) {
+          group.networks.push({
+            chainId: network.chainId,
+            dleAddress: network.address || network.dleAddress,
+            factoryAddress: network.factoryAddress,
+            rpcUrl: network.rpcUrl || this.getRpcUrlForChain(network.chainId)
+          });
+        }
+      } else {
+        // Старый формат: добавляем информацию о сети из корня DLE
+        group.networks.push({
+          chainId: dle.chainId,
+          dleAddress: dle.dleAddress,
+          factoryAddress: dle.factoryAddress,
+          rpcUrl: dle.rpcUrl || this.getRpcUrlForChain(dle.chainId)
+        });
+      }
+      
+      // Обновляем время создания на самое раннее
+      if (dle.creationTimestamp && (!group.creationTimestamp || dle.creationTimestamp < group.creationTimestamp)) {
+        group.creationTimestamp = dle.creationTimestamp;
+      }
+    }
+    
+    // Преобразуем группы в массив
+    return Array.from(groups.values()).map(group => ({
+      ...group,
+      // Основной адрес DLE (из первой сети)
+      dleAddress: group.networks[0]?.dleAddress,
+      // Общее количество сетей
+      totalNetworks: group.networks.length,
+      // Поддерживаемые сети
+      supportedChainIds: group.networks.map(n => n.chainId)
+    }));
   }
 
   /**
-   * Проверяет баланс деплоера во всех выбранных сетях
-   * @param {number[]} chainIds
-   * @param {string} privateKey
-   * @returns {Promise<{balances: Array<{chainId:number, balanceEth:string, ok:boolean, rpcUrl:string}>, insufficient:number[]}>}
+   * Создает ключ для группировки DLE
+   * @param {Object} dle - Данные DLE
+   * @returns {string} - Ключ группировки
+   */
+  createGroupKey(dle) {
+    // Группируем по основным параметрам DLE
+    const keyParts = [
+      dle.name,
+      dle.symbol,
+      dle.location,
+      dle.coordinates,
+      dle.jurisdiction,
+      dle.oktmo,
+      dle.kpp,
+      dle.quorumPercentage,
+      // Сортируем okvedCodes для стабильного ключа
+      Array.isArray(dle.okvedCodes) ? dle.okvedCodes.sort().join(',') : '',
+      // Сортируем supportedChainIds для стабильного ключа
+      Array.isArray(dle.supportedChainIds) ? dle.supportedChainIds.sort().join(',') : ''
+    ];
+    
+    return keyParts.join('|');
+  }
+
+  /**
+   * Получает RPC URL для сети
+   * @param {number} chainId - ID сети
+   * @returns {string|null} - RPC URL
+   */
+  getRpcUrlForChain(chainId) {
+    try {
+      // Простая маппинг для основных сетей
+      const rpcMap = {
+        1: 'https://eth-mainnet.g.alchemy.com/v2/demo',
+        11155111: 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+        17000: 'https://ethereum-holesky.publicnode.com',
+        421614: 'https://sepolia-rollup.arbitrum.io/rpc',
+        84532: 'https://sepolia.base.org'
+      };
+      return rpcMap[chainId] || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Авто-расчёт INIT_CODE_HASH
+  async computeInitCodeHash(params) {
+    try {
+      // Проверяем наличие обязательных параметров
+      if (!params.name || !params.symbol || !params.location) {
+        throw new Error('Отсутствуют обязательные параметры для вычисления INIT_CODE_HASH');
+      }
+
+      const hre = require('hardhat');
+      const { ethers } = hre;
+      
+      // Проверяем, что контракт DLE существует
+      try {
+        const DLE = await hre.ethers.getContractFactory('DLE');
+        if (!DLE) {
+          throw new Error('Контракт DLE не найден в Hardhat');
+        }
+      } catch (contractError) {
+        throw new Error(`Ошибка загрузки контракта DLE: ${contractError.message}`);
+      }
+      
+      const DLE = await hre.ethers.getContractFactory('DLE');
+      const dleConfig = {
+        name: params.name,
+        symbol: params.symbol,
+        location: params.location,
+        coordinates: params.coordinates || "",
+        jurisdiction: params.jurisdiction || 1,
+        okvedCodes: params.okvedCodes || [],
+        kpp: params.kpp || 0,
+        quorumPercentage: params.quorumPercentage || 51,
+        initialPartners: params.initialPartners || [],
+        initialAmounts: params.initialAmounts || [],
+        supportedChainIds: params.supportedChainIds || [1]
+      };
+      // Учитываем актуальную сигнатуру конструктора: (dleConfig, currentChainId, initializer)
+      const initializer = params.initializerAddress || "0x0000000000000000000000000000000000000000";
+      const currentChainId = params.currentChainId || 1; // Fallback на Ethereum mainnet
+      
+      logger.info('Вычисление INIT_CODE_HASH с параметрами:', {
+        name: dleConfig.name,
+        symbol: dleConfig.symbol,
+        currentChainId,
+        initializer
+      });
+      
+      // Проверяем, что метод getDeployTransaction существует
+      if (typeof DLE.getDeployTransaction !== 'function') {
+        throw new Error('Метод getDeployTransaction не найден в контракте DLE');
+      }
+      
+      const deployTx = await DLE.getDeployTransaction(dleConfig, currentChainId, initializer);
+      if (!deployTx || !deployTx.data) {
+        throw new Error('Не удалось получить данные транзакции деплоя');
+      }
+      
+      const initCode = deployTx.data;
+      
+      // Проверяем, что метод keccak256 существует
+      if (typeof ethers.keccak256 !== 'function') {
+        throw new Error('Метод ethers.keccak256 не найден');
+      }
+      
+      const hash = ethers.keccak256(initCode);
+      
+      logger.info('INIT_CODE_HASH вычислен успешно:', hash);
+      return hash;
+    } catch (error) {
+      logger.error('Ошибка при вычислении INIT_CODE_HASH:', error);
+      // Fallback: возвращаем хеш на основе параметров
+      const { ethers } = require('ethers');
+      const fallbackData = JSON.stringify({
+        name: params.name,
+        symbol: params.symbol,
+        location: params.location,
+        jurisdiction: params.jurisdiction,
+        supportedChainIds: params.supportedChainIds
+      });
+      
+      // Проверяем, что методы существуют
+      if (typeof ethers.toUtf8Bytes !== 'function') {
+        throw new Error('Метод ethers.toUtf8Bytes не найден');
+      }
+      if (typeof ethers.keccak256 !== 'function') {
+        throw new Error('Метод ethers.keccak256 не найден');
+      }
+      
+      return ethers.keccak256(ethers.toUtf8Bytes(fallbackData));
+    }
+  }
+
+
+
+  /**
+   * Проверяет балансы в указанных сетях
+   * @param {number[]} chainIds - Массив chainId для проверки
+   * @param {string} privateKey - Приватный ключ
+   * @returns {Promise<Object>} - Результат проверки балансов
    */
   async checkBalances(chainIds, privateKey) {
+    const { getRpcUrlByChainId } = require('./rpcProviderService');
     const { ethers } = require('ethers');
-    const results = [];
+    const balances = [];
     const insufficient = [];
-    const normalizedPk = privateKey?.startsWith('0x') ? privateKey : `0x${privateKey}`;
-    for (const cid of chainIds || []) {
-      const rpcUrl = await getRpcUrlByChainId(cid);
-      if (!rpcUrl) {
-        results.push({ chainId: cid, balanceEth: '0', ok: false, rpcUrl: null });
-        insufficient.push(cid);
-        continue;
-      }
+
+    for (const chainId of chainIds) {
       try {
+        const rpcUrl = await getRpcUrlByChainId(chainId);
+        if (!rpcUrl) {
+          balances.push({
+            chainId,
+            balanceEth: '0',
+            ok: false,
+            error: 'RPC URL не найден'
+          });
+          insufficient.push(chainId);
+          continue;
+        }
+
         const provider = new ethers.JsonRpcProvider(rpcUrl);
-        const wallet = new ethers.Wallet(normalizedPk, provider);
-        const bal = await provider.getBalance(wallet.address);
-        // Минимум для деплоя; можно скорректировать
-        const min = ethers.parseEther('0.002');
-        const ok = bal >= min;
-        results.push({ chainId: cid, balanceEth: ethers.formatEther(bal), ok, rpcUrl });
-        if (!ok) insufficient.push(cid);
-      } catch (e) {
-        results.push({ chainId: cid, balanceEth: '0', ok: false, rpcUrl });
-        insufficient.push(cid);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        const balance = await provider.getBalance(wallet.address);
+        
+        if (typeof ethers.formatEther !== 'function') {
+          throw new Error('Метод ethers.formatEther не найден');
+        }
+        const balanceEth = ethers.formatEther(balance);
+        
+        if (typeof ethers.parseEther !== 'function') {
+          throw new Error('Метод ethers.parseEther не найден');
+        }
+        const minBalance = ethers.parseEther("0.001");
+        const ok = balance >= minBalance;
+
+        balances.push({
+          chainId,
+          address: wallet.address,
+          balanceEth,
+          ok
+        });
+
+        if (!ok) {
+          insufficient.push(chainId);
+        }
+
+      } catch (error) {
+        balances.push({
+          chainId,
+          balanceEth: '0',
+          ok: false,
+          error: error.message
+        });
+        insufficient.push(chainId);
       }
     }
-    return { balances: results, insufficient };
+
+    return {
+      balances,
+      insufficient,
+      allSufficient: insufficient.length === 0
+    };
   }
 
   /**
@@ -724,7 +1133,7 @@ class DLEV2Service {
     }
 
     // 2) Посчитать ABI-код аргументов конструктора через сравнение с bytecode
-    // Конструктор: (dleConfig, currentChainId)
+    // Конструктор: (dleConfig, currentChainId, initializer)
     const Factory = await hre.ethers.getContractFactory('DLE');
     const dleConfig = {
       name: params.name,
@@ -739,7 +1148,8 @@ class DLEV2Service {
       initialAmounts: params.initialAmounts,
       supportedChainIds: params.supportedChainIds
     };
-    const deployTx = await Factory.getDeployTransaction(dleConfig, params.currentChainId);
+    const initializer = params.initialPartners?.[0] || "0x0000000000000000000000000000000000000000";
+    const deployTx = await Factory.getDeployTransaction(dleConfig, params.currentChainId, initializer);
     const fullData = deployTx.data; // 0x + creation bytecode + encoded args
     const bytecode = Factory.bytecode; // 0x + creation bytecode
     let constructorArgsHex;

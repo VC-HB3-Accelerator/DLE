@@ -96,9 +96,6 @@ docker-compose restart
 # Остановка сервисов
 docker compose down
 
-# Остановка сервисов и удаление томов
-docker compose down -v
-```
 
 ## Контакты и поддержка
 

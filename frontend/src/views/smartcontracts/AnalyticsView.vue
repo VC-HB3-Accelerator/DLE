@@ -541,6 +541,9 @@ const getChainName = (chainId) => {
     1: 'Ethereum Mainnet',
     11155111: 'Sepolia Testnet',
     17000: 'Holesky Testnet',
+    84532: 'Base Sepolia Testnet',
+    80002: 'Polygon Amoy Testnet',
+    421614: 'Arbitrum Sepolia Testnet',
     137: 'Polygon',
     56: 'BSC',
     42161: 'Arbitrum One'

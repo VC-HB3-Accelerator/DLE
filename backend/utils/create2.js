@@ -12,7 +12,7 @@ function computeCreate2Address(factory, saltHex, initCodeHash) {
     saltHex.toLowerCase(),
     initCodeHash.toLowerCase()
   ].map(x => x.startsWith('0x') ? x.slice(2) : x).join('');
-  const hash = '0x' + require('crypto').createHash('sha3-256').update(Buffer.from(parts, 'hex')).digest('hex');
+  const hash = keccak256('0x' + parts);
   return '0x' + hash.slice(-40);
 }
 

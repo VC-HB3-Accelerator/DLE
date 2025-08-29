@@ -118,6 +118,13 @@ tmp/
 *.db
 *.sqlite
 
+# Uploads and user files
+backend/uploads/
+frontend/uploads/
+
+# Database migrations (may contain sensitive data)
+backend/db/migrations/
+
 # Keys and certificates
 *.key
 *.pem
@@ -138,6 +145,10 @@ ssl/certs/
 *.pem
 *.crt
 *.p12
+
+# Database encryption keys - КРИТИЧЕСКИ ВАЖНО!
+**/full_db_encryption.key
+**/ssl/full_db_encryption.key
 
 # Docker
 .dockerignore

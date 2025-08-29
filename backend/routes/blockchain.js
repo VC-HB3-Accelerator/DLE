@@ -29,20 +29,38 @@ router.post('/read-dle-info', async (req, res) => {
 
     console.log(`[Blockchain] Чтение данных DLE из блокчейна: ${dleAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
+    // Определяем корректную сеть для данного адреса (или используем chainId из запроса)
+    let provider, rpcUrl, targetChainId = req.body.chainId;
+    const candidateChainIds = [11155111, 17000, 421614, 84532];
+    if (targetChainId) {
+      rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
+      if (!rpcUrl) {
+        return res.status(500).json({ success: false, error: `RPC URL для сети ${targetChainId} не найден` });
+      }
+      provider = new ethers.JsonRpcProvider(rpcUrl);
+      const code = await provider.getCode(dleAddress);
+      if (!code || code === '0x') {
+        return res.status(400).json({ success: false, error: `По адресу ${dleAddress} нет контракта в сети ${targetChainId}` });
+      }
+    } else {
+      for (const cid of candidateChainIds) {
+        try {
+          const url = await rpcProviderService.getRpcUrlByChainId(cid);
+          if (!url) continue;
+          const prov = new ethers.JsonRpcProvider(url);
+          const code = await prov.getCode(dleAddress);
+          if (code && code !== '0x') { provider = prov; rpcUrl = url; targetChainId = cid; break; }
+        } catch (_) {}
+      }
+      if (!provider) {
+        return res.status(400).json({ success: false, error: 'Не удалось найти сеть, где по адресу есть контракт' });
+      }
     }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
     
     // ABI для чтения данных DLE
     const dleAbi = [
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
+      // Актуальная сигнатура без oktmo
+      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
       "function quorumPercentage() external view returns (uint256)",
@@ -81,7 +99,8 @@ router.post('/read-dle-info', async (req, res) => {
       location: dleInfo.location,
       coordinates: dleInfo.coordinates,
       jurisdiction: Number(dleInfo.jurisdiction),
-      oktmo: Number(dleInfo.oktmo),
+      // Поле oktmo удалено в актуальной версии контракта; сохраняем 0 для обратной совместимости
+      oktmo: 0,
       okvedCodes: dleInfo.okvedCodes,
       kpp: Number(dleInfo.kpp),
       creationTimestamp: Number(dleInfo.creationTimestamp),
@@ -90,6 +109,7 @@ router.post('/read-dle-info', async (req, res) => {
       deployerBalance: ethers.formatUnits(deployerBalance, 18),
       quorumPercentage: Number(quorumPercentage),
       currentChainId: Number(currentChainId),
+      rpcUsed: rpcUrl,
       participantCount: participantCount
     };
 
@@ -153,6 +173,10 @@ router.post('/get-supported-chains', async (req, res) => {
       { chainId: 43114, name: 'Avalanche', description: 'Avalanche C-Chain' },
       { chainId: 250, name: 'Fantom', description: 'Fantom Opera' },
       { chainId: 11155111, name: 'Sepolia', description: 'Ethereum Testnet Sepolia' },
+      { chainId: 17000, name: 'Holesky', description: 'Ethereum Testnet Holesky' },
+      { chainId: 80002, name: 'Polygon Amoy', description: 'Polygon Testnet Amoy' },
+      { chainId: 84532, name: 'Base Sepolia', description: 'Base Sepolia Testnet' },
+      { chainId: 421614, name: 'Arbitrum Sepolia', description: 'Arbitrum Sepolia Testnet' },
       { chainId: 80001, name: 'Mumbai', description: 'Polygon Testnet Mumbai' },
       { chainId: 97, name: 'BSC Testnet', description: 'Binance Smart Chain Testnet' },
       { chainId: 421613, name: 'Arbitrum Goerli', description: 'Arbitrum Testnet Goerli' }

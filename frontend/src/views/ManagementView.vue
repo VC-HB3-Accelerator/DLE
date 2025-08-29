@@ -63,7 +63,28 @@
             </div>
 
             <div class="dle-details">
-              <div class="detail-item">
+              <div class="detail-item" v-if="dle.deployedMultichain">
+                <strong>🌐 Мультичейн деплой:</strong> 
+                <span class="multichain-badge">{{ dle.totalNetworks }}/{{ dle.supportedChainIds?.length || dle.totalNetworks }} сетей</span>
+              </div>
+              <div class="detail-item" v-if="dle.networks && dle.networks.length">
+                <strong>Адреса по сетям:</strong>
+                <ul class="networks-list">
+                  <li v-for="net in dle.networks" :key="net.chainId" class="network-item">
+                    <span class="chain-name">{{ getChainName(net.chainId) }}:</span>
+                    <a 
+                      :href="getExplorerUrl(net.chainId, net.dleAddress)" 
+                      target="_blank" 
+                      class="address-link"
+                      @click.stop
+                    >
+                      {{ shortenAddress(net.dleAddress) }}
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div class="detail-item" v-else>
                 <strong>Адрес контракта:</strong> 
                 <a 
                   :href="`https://sepolia.etherscan.io/address/${dle.dleAddress}`" 
@@ -74,15 +95,6 @@
                   {{ shortenAddress(dle.dleAddress) }}
                   <i class="fas fa-external-link-alt"></i>
                 </a>
-              </div>
-              <div class="detail-item" v-if="dle.networks && dle.networks.length">
-                <strong>Адреса по сетям:</strong>
-                <ul class="networks-list">
-                  <li v-for="net in dle.networks" :key="net.chainId">
-                    Chain {{ net.chainId }}:
-                    <span class="address">{{ shortenAddress(net.address) }}</span>
-                  </li>
-                </ul>
               </div>
               <div class="detail-item">
                 <strong>Местоположение:</strong> {{ dle.location }}
@@ -345,6 +357,35 @@ async function loadDeployedDles() {
 function shortenAddress(address) {
   if (!address) return '';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function getChainName(chainId) {
+  const chainNames = {
+    1: 'Ethereum',
+    11155111: 'Sepolia',
+    17000: 'Holesky',
+    421614: 'Arbitrum Sepolia',
+    84532: 'Base Sepolia',
+    137: 'Polygon',
+    56: 'BSC',
+    42161: 'Arbitrum'
+  };
+  return chainNames[chainId] || `Chain ${chainId}`;
+}
+
+function getExplorerUrl(chainId, address) {
+  const explorers = {
+    1: 'https://etherscan.io',
+    11155111: 'https://sepolia.etherscan.io',
+    17000: 'https://holesky.etherscan.io',
+    421614: 'https://sepolia.arbiscan.io',
+    84532: 'https://sepolia.basescan.org',
+    137: 'https://polygonscan.com',
+    56: 'https://bscscan.com',
+    42161: 'https://arbiscan.io'
+  };
+  const baseUrl = explorers[chainId] || 'https://etherscan.io';
+  return `${baseUrl}/address/${address}`;
 }
 
 function openDleOnEtherscan(address) {
@@ -722,6 +763,40 @@ onBeforeUnmount(() => {
 .address-link i {
   font-size: 0.75rem;
   opacity: 0.7;
+}
+
+.multichain-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.networks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.network-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.network-item:last-child {
+  border-bottom: none;
+}
+
+.chain-name {
+  font-weight: 600;
+  color: #333;
+  min-width: 120px;
 }
 
 .status {

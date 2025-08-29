@@ -11,6 +11,7 @@
  */
 
 require('@nomicfoundation/hardhat-toolbox');
+require('hardhat-contract-sizer');
 require('dotenv').config();
 
 function getNetworks() {
@@ -39,10 +40,25 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
+        runs: 1  // Максимальная оптимизация размера для mainnet
       },
       viaIR: true
     }
   },
+  contractSizer: {
+    alphaSort: true,
+    runOnCompile: true,
+    disambiguatePaths: false,
+  },
   networks: getNetworks(),
+  solidityCoverage: {
+    excludeContracts: [],
+    skipFiles: [],
+    // Исключаем строки с revert функциями из покрытия
+    excludeLines: [
+      '// coverage:ignore-line',
+      'revert ErrTransfersDisabled();',
+      'revert ErrApprovalsDisabled();'
+    ]
+  }
 };

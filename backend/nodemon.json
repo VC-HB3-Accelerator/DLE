@@ -1,9 +1,15 @@
 {
-  "verbose": true,
-  "ignore": [".git", "node_modules/**/node_modules", "sessions", "data/vector_store", "logs"],
-  "watch": ["*.js", "routes/**/*", "services/**/*", "utils/**/*", "middleware/**/*"],
-  "env": {
-    "NODE_ENV": "development"
-  },
-  "ext": "js,json,env"
+  "watch": [
+    "backend/src",
+    "backend/routes",
+    "backend/services"
+  ],
+  "ignore": [
+    "backend/artifacts/**",
+    "backend/cache/**",
+    "backend/contracts-data/**",
+    "backend/temp/**",
+    "backend/scripts/deploy/current-params*.json"
+  ],
+  "ext": "js,json"
 }

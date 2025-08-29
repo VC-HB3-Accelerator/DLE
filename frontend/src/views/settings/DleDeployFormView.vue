@@ -325,6 +325,41 @@
                 <small class="form-help">3-10 символов для токена управления (Governance Token)</small>
               </div>
 
+              <!-- Логотип токена -->
+              <div class="form-group">
+                <label class="form-label" for="tokenLogo">Логотип токена (изображение):</label>
+                <input
+                  id="tokenLogo"
+                  type="file"
+                  accept="image/*"
+                  class="form-control"
+                  @change="onLogoSelected"
+                >
+                <small class="form-help">Поддерживаются PNG/JPG/GIF/WEBP, до 5MB</small>
+                <div v-if="logoPreviewUrl" class="logo-preview" style="margin-top:8px;display:flex;gap:10px;align-items:center;">
+                  <img :src="logoPreviewUrl" alt="logo preview" style="width:48px;height:48px;border-radius:6px;object-fit:contain;border:1px solid #e9ecef;" />
+                  <span class="address">{{ logoFile?.name || 'Предпросмотр' }}</span>
+                </div>
+              </div>
+
+              <!-- ENS домен для логотипа -->
+              <div class="form-group">
+                <label class="form-label" for="ensDomain">ENS‑домен для логотипа (опционально):</label>
+                <input
+                  id="ensDomain"
+                  type="text"
+                  v-model="ensDomain"
+                  placeholder="например: vc-hb3-accelerator.eth"
+                  class="form-control"
+                  @blur="resolveEnsAvatar"
+                >
+                <small class="form-help">Если указан, попытаемся получить аватар ENS и использовать его как logoURI</small>
+                <div v-if="ensResolvedUrl" style="margin-top:8px;display:flex;gap:10px;align-items:center;">
+                  <img :src="ensResolvedUrl" alt="ens avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #e9ecef;" />
+                  <span class="address">{{ ensResolvedUrl }}</span>
+                </div>
+              </div>
+
 
 
 
@@ -866,6 +901,7 @@ import { reactive, ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import axios from 'axios';
+import api from '@/api/axios';
 
 const router = useRouter();
 
@@ -2393,6 +2429,7 @@ const maskedPrivateKey = computed(() => {
 
 // Функция деплоя смарт-контрактов DLE
 const deploySmartContracts = async () => {
+  console.log('🚀 Начало деплоя DLE...');
   try {
     // Валидация данных
     if (!isFormValid.value) {
@@ -2451,43 +2488,115 @@ const deploySmartContracts = async () => {
       const preData = pre.data?.data;
       if (pre.data?.success && preData) {
         const lacks = (preData.insufficient || []);
+        const warnings = (preData.warnings || []);
+        
         if (lacks.length > 0) {
-          const lines = (preData.balances || []).map(b => `- Chain ${b.chainId}: ${b.balanceEth} ETH${b.ok ? '' : ' (недостаточно)'}`);
-          alert('Недостаточно средств в некоторых сетях:\n' + lines.join('\n'));
-          showDeployProgress.value = false;
-          return;
+          const lines = (preData.balances || []).map(b => {
+            const status = b.ok ? '✅' : '❌';
+            const warning = warnings.includes(b.chainId) ? ' ⚠️' : '';
+            return `${status} Chain ${b.chainId}: ${b.balanceEth} ETH (мин. ${b.minRequiredEth} ETH)${warning}`;
+          });
+          
+          const message = `Проверка балансов завершена:\n\n${lines.join('\n')}\n\n${lacks.length > 0 ? '❌ Недостаточно средств в некоторых сетях!' : ''}\n${warnings.length > 0 ? '⚠️ Предупреждения в некоторых сетях!' : ''}`;
+          
+          if (lacks.length > 0) {
+            alert(message);
+            showDeployProgress.value = false;
+            return;
+          } else if (warnings.length > 0) {
+            const proceed = confirm(message + '\n\nПродолжить деплой?');
+            if (!proceed) {
+              showDeployProgress.value = false;
+              return;
+            }
+          }
         }
+        
+        console.log('✅ Проверка балансов пройдена:', preData.summary);
       }
     } catch (e) {
+      console.warn('⚠️ Ошибка проверки балансов:', e.message);
       // Если precheck недоступен, не блокируем — продолжаем
     }
     
     deployProgress.value = 30;
+    deployStatus.value = 'Компиляция смарт-контрактов...';
+
+    // Автокомпиляция контрактов перед деплоем
+    console.log('🔨 Запуск автокомпиляции...');
+    try {
+      const compileResponse = await axios.post('/compile-contracts');
+      console.log('✅ Контракты скомпилированы:', compileResponse.data);
+    } catch (compileError) {
+      console.warn('⚠️ Ошибка автокомпиляции:', compileError.message);
+      // Продолжаем деплой даже если компиляция не удалась
+    }
+
+    deployProgress.value = 40;
     deployStatus.value = 'Отправка данных на сервер...';
 
     // Вызов API для деплоя
-    const response = await axios.post('/dle-v2', deployData);
-    
-    deployProgress.value = 70;
+    deployProgress.value = 50;
     deployStatus.value = 'Деплой смарт-контракта в блокчейне...';
     
+    const response = await axios.post('/dle-v2', deployData);
+    
+    deployProgress.value = 80;
+    deployStatus.value = 'Проверка результатов деплоя...';
+    
     if (response.data.success) {
-      deployProgress.value = 100;
-      deployStatus.value = '✅ DLE успешно развернут!';
+      const result = response.data.data;
       
-      // Сохраняем адрес контракта
-      // dleSettings.predictedAddress = response.data.data?.dleAddress || 'Адрес будет доступен после деплоя';
-      
-      // Небольшая задержка для показа успешного завершения
-      setTimeout(() => {
-        showDeployProgress.value = false;
-        // Перенаправляем на главную страницу управления
-        router.push('/management');
-      }, 2000);
+      // Проверяем результаты мульти-чейн деплоя
+      if (result.networks && Array.isArray(result.networks)) {
+        const successfulNetworks = result.networks.filter(n => n.success);
+        const failedNetworks = result.networks.filter(n => !n.success);
+        
+        if (failedNetworks.length > 0) {
+          console.warn('Некоторые сети не удалось развернуть:', failedNetworks);
+        }
+        
+        if (successfulNetworks.length > 0) {
+          // Проверяем, что все адреса одинаковые
+          const addresses = successfulNetworks.map(n => n.address);
+          const uniqueAddresses = [...new Set(addresses)];
+          
+          if (uniqueAddresses.length === 1) {
+            deployProgress.value = 100;
+            deployStatus.value = `✅ DLE успешно развернут в ${successfulNetworks.length} сетях с одинаковым адресом!`;
+            
+            console.log('🎉 Мульти-чейн деплой завершен успешно!');
+            console.log('Адрес DLE:', uniqueAddresses[0]);
+            console.log('Сети:', successfulNetworks.map(n => `Chain ${n.chainId}: ${n.address}`));
+            
+            // Небольшая задержка для показа успешного завершения
+            setTimeout(() => {
+              showDeployProgress.value = false;
+              // Перенаправляем на главную страницу управления
+              router.push('/management');
+            }, 3000);
+          } else {
+            showDeployProgress.value = false;
+            alert('❌ ОШИБКА: Адреса DLE в разных сетях не совпадают! Это может указывать на проблему с CREATE2.');
+          }
+        } else {
+          showDeployProgress.value = false;
+          alert('❌ Не удалось развернуть DLE ни в одной сети');
+        }
+      } else {
+        // Fallback для одиночного деплоя
+        deployProgress.value = 100;
+        deployStatus.value = '✅ DLE успешно развернут!';
+        
+        setTimeout(() => {
+          showDeployProgress.value = false;
+          router.push('/management');
+        }, 2000);
+      }
       
     } else {
       showDeployProgress.value = false;
-      alert('❌ Ошибка при деплое: ' + response.data.error);
+      alert('❌ Ошибка при деплое: ' + (response.data.message || response.data.error));
     }
     
   } catch (error) {
@@ -2499,16 +2608,15 @@ const deploySmartContracts = async () => {
 
 // Валидация формы
 const isFormValid = computed(() => {
-  return (
+  return Boolean(
     dleSettings.jurisdiction &&
     dleSettings.name &&
-    dleSettings.tokenSymbol ||
-    dleSettings.tokenStandard !== 'ERC20' ||
-    dleSettings.partners.length > 0 &&
+    dleSettings.tokenSymbol &&
+    (dleSettings.partners.length > 0) &&
     dleSettings.partners.every(partner => partner.address && partner.amount > 0) &&
     dleSettings.governanceQuorum > 0 &&
     dleSettings.governanceQuorum <= 100 &&
-    dleSettings.selectedNetworks.length > 0 &&
+    (dleSettings.selectedNetworks.length > 0) &&
     // Проверка приватного ключа
     unifiedPrivateKey.value &&
     keyValidation.unified?.isValid &&
@@ -2523,6 +2631,88 @@ const validateCoordinates = (coordinates) => {
   const coordRegex = /^-?\d+\.\d+,-?\d+\.\d+$/;
   return coordRegex.test(coordinates);
 };
+
+const logoFile = ref(null);
+const logoPreviewUrl = ref('');
+const ensDomain = ref('');
+const ensResolvedUrl = ref('');
+
+function onLogoSelected(e) {
+  const file = e?.target?.files?.[0];
+  logoFile.value = file || null;
+  logoPreviewUrl.value = '';
+  if (file) {
+    try { logoPreviewUrl.value = URL.createObjectURL(file); } catch (_) {}
+  }
+}
+
+async function resolveEnsAvatar() {
+  ensResolvedUrl.value = '';
+  const name = (ensDomain.value || '').trim();
+  if (!name) return;
+  try {
+    const resp = await api.get(`/ens/avatar`, { params: { name } });
+    const url = resp.data?.data?.url;
+    if (url) {
+      ensResolvedUrl.value = url;
+      // если файл не выбран – используем ENS для предпросмотра
+      if (!logoFile.value) logoPreviewUrl.value = url;
+    } else {
+      // фолбэк на дефолт
+      ensResolvedUrl.value = '/uploads/logos/default-token.svg';
+      if (!logoFile.value) logoPreviewUrl.value = ensResolvedUrl.value;
+    }
+  } catch (_) {
+    ensResolvedUrl.value = '/uploads/logos/default-token.svg';
+    if (!logoFile.value) logoPreviewUrl.value = ensResolvedUrl.value;
+  }
+}
+
+async function submitDeploy() {
+  try {
+    // Подготовка данных формы
+    const deployData = {
+      name: dleSettings.name,
+      symbol: dleSettings.tokenSymbol,
+      location: locationText.value,
+      coordinates: dleSettings.coordinates || '',
+      jurisdiction: Number(dleSettings.jurisdiction) || 1,
+      oktmo: Number(dleSettings.selectedOktmo) || null,
+      okvedCodes: Array.isArray(dleSettings.selectedOkved) ? dleSettings.selectedOkved.map(x => String(x)) : [],
+      kpp: dleSettings.kppCode ? Number(dleSettings.kppCode) : null,
+      initialPartners: dleSettings.partners.map(p => p.address).filter(Boolean),
+      initialAmounts: dleSettings.partners.map(p => p.amount).filter(a => a > 0),
+      supportedChainIds: dleSettings.selectedNetworks || [],
+      currentChainId: dleSettings.selectedNetworks[0] || 1,
+      privateKey: unifiedPrivateKey.value,
+      etherscanApiKey: etherscanApiKey.value,
+      autoVerifyAfterDeploy: autoVerifyAfterDeploy.value
+    };
+
+    // Если выбран логотип — загружаем и подставляем logoURI
+    if (logoFile.value) {
+      const form = new FormData();
+      form.append('logo', logoFile.value);
+      const uploadResp = await axios.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const uploaded = uploadResp.data?.data?.url || uploadResp.data?.data?.path;
+      if (uploaded) {
+        deployData.logoURI = uploaded;
+      }
+    } else if (ensResolvedUrl.value) {
+      deployData.logoURI = ensResolvedUrl.value;
+    } else {
+      // фолбэк на дефолт
+      deployData.logoURI = '/uploads/logos/default-token.svg';
+    }
+
+    console.log('Данные для деплоя DLE:', deployData);
+
+    // ... остальные данные остаются без изменений
+  } catch (error) {
+    console.error('Ошибка при отправке данных:', error);
+    // Обработка ошибки
+  }
+}
 </script>
 
 <style scoped>
@@ -4416,4 +4606,6 @@ const validateCoordinates = (coordinates) => {
     border-radius: 6px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
+
+  .logo-preview img { box-shadow: 0 1px 4px rgba(0,0,0,0.06); background:#fff; }
 </style> 

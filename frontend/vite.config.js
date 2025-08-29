@@ -50,6 +50,13 @@ export default defineConfig({
         rewrite: (path) => path,
         ws: true,
       },
+      '/compile-contracts': {
+        target: 'http://dapp-backend:8000',
+        changeOrigin: true,
+        secure: false,
+        credentials: true,
+        rewrite: (path) => path,
+      },
       '/ws': {
         target: 'ws://dapp-backend:8000',
         ws: true,
