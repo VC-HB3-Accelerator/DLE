@@ -73,7 +73,7 @@ class EmailBotService {
     }
     
     const { rows } = await db.getQuery()(
-      'SELECT id, smtp_port, imap_port, created_at, updated_at, decrypt_text(smtp_host_encrypted, $1) as smtp_host, decrypt_text(smtp_user_encrypted, $1) as smtp_user, decrypt_text(smtp_password_encrypted, $1) as smtp_password, decrypt_text(imap_host_encrypted, $1) as imap_host, decrypt_text(from_email_encrypted, $1) as from_email FROM email_settings ORDER BY id LIMIT 1',
+      'SELECT id, smtp_port, imap_port, created_at, updated_at, decrypt_text(smtp_host_encrypted, $1) as smtp_host, decrypt_text(smtp_user_encrypted, $1) as smtp_user, decrypt_text(smtp_password_encrypted, $1) as smtp_password, decrypt_text(imap_host_encrypted, $1) as imap_host, decrypt_text(imap_user_encrypted, $1) as imap_user, decrypt_text(imap_password_encrypted, $1) as imap_password, decrypt_text(from_email_encrypted, $1) as from_email FROM email_settings ORDER BY id LIMIT 1',
       [encryptionKey]
     );
     if (!rows.length) throw new Error('Email settings not found in DB');
@@ -84,8 +84,8 @@ class EmailBotService {
     const settings = await this.getSettingsFromDb();
     return nodemailer.createTransport({
       host: settings.smtp_host,
-      port: settings.smtp_port,
-      secure: true,
+      port: 465,                       // Используем порт 465 для SSMTP (SSL)
+      secure: true,                    // Включаем SSL
       auth: {
         user: settings.smtp_user,
         pass: settings.smtp_password,
@@ -93,7 +93,10 @@ class EmailBotService {
       pool: false, // Отключаем пул соединений
       maxConnections: 1, // Ограничиваем до 1 соединения
       maxMessages: 1, // Ограничиваем до 1 сообщения на соединение
-      tls: { rejectUnauthorized: false },
+      tls: { 
+        rejectUnauthorized: false
+        // Убираем minVersion и maxVersion для избежания конфликтов TLS
+      },
       connectionTimeout: 30000, // 30 секунд на подключение
       greetingTimeout: 30000, // 30 секунд на приветствие
       socketTimeout: 60000, // 60 секунд на операции сокета
@@ -103,18 +106,27 @@ class EmailBotService {
   async getImapConfig() {
     const settings = await this.getSettingsFromDb();
     return {
-      user: settings.smtp_user,
-      password: settings.smtp_password,
+      user: settings.imap_user,        // Используем IMAP пользователя
+      password: settings.imap_password, // Используем IMAP пароль
       host: settings.imap_host,
-      port: settings.imap_port,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
+      port: 993,                       // Используем порт 993 для IMAPS (SSL)
+      tls: true,                       // Включаем SSL
+      tlsOptions: { 
+        rejectUnauthorized: false,
+        servername: settings.imap_host,
+        // Убираем minVersion и maxVersion для избежания конфликтов TLS
+        ciphers: 'HIGH:!aNULL:!MD5:!RC4' // Безопасные шифры
+      },
       keepalive: {
         interval: 10000,
         idleInterval: 300000,
         forceNoop: true,
       },
-      connTimeout: 30000, // 30 секунд
+      connTimeout: 60000,    // 60 секунд
+      authTimeout: 60000,    // Таймаут на аутентификацию - 60 секунд
+      greetingTimeout: 30000, // Таймаут на приветствие сервера
+      socketTimeout: 60000,   // Таймаут на операции сокета
+      debug: console.log      // Включаем отладку для диагностики
     };
   }
 
@@ -328,16 +340,7 @@ class EmailBotService {
         return;
       }
       
-      // Проверяем время письма - не обрабатываем письма старше 1 часа
-      const emailDate = parsed.date || new Date();
-      const now = new Date();
-      const timeDiff = now.getTime() - emailDate.getTime();
-      const hoursDiff = timeDiff / (1000 * 60 * 60);
-      
-      if (hoursDiff > 1) {
-        logger.info(`[EmailBot] Игнорируем старое письмо от ${fromEmail} (${hoursDiff.toFixed(1)} часов назад)`);
-        return;
-      }
+      // Временные ограничения удалены - обрабатываем все письма независимо от возраста
       
       // 1. Найти или создать пользователя
       const { userId, role } = await identityService.findOrCreateUserWithRole('email', fromEmail);
@@ -368,6 +371,40 @@ class EmailBotService {
         } catch (error) {
           logger.error(`[EmailBot] Ошибка при проверке дубликатов: ${error.message}`);
           // Продолжаем обработку в случае ошибки
+        }
+      }
+      
+      // Проверяем, не обрабатывали ли мы уже это письмо (улучшенная проверка)
+      if (messageId) {
+        try {
+          // Проверяем, есть ли уже ответ от AI для этого письма
+          // Ищем сообщения с direction='out' и metadata, содержащим originalMessageId
+          const existingResponse = await encryptedDb.getData(
+            'messages',
+            {
+              user_id: userId,
+              channel: 'email',
+              direction: 'out'
+            },
+            1
+          );
+          
+          // Проверяем в результатах, есть ли сообщение с metadata.originalMessageId = messageId
+          const hasResponse = existingResponse.some(msg => {
+            try {
+              const metadata = msg.metadata;
+              return metadata && metadata.originalMessageId === messageId;
+            } catch (e) {
+              return false;
+            }
+          });
+          
+          if (hasResponse) {
+            logger.info(`[EmailBot] Письмо ${messageId} уже обработано - найден ответ от AI`);
+            return;
+          }
+        } catch (error) {
+          logger.error(`[EmailBot] Ошибка при проверке существующих ответов: ${error.message}`);
         }
       }
       
@@ -451,18 +488,78 @@ class EmailBotService {
         if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.1) {
           aiResponse = ragResult.answer;
         } else {
-          aiResponse = await generateLLMResponse({
-            userQuestion: text,
-            context: ragResult && ragResult.context ? ragResult.context : '',
-            answer: ragResult && ragResult.answer ? ragResult.answer : '',
-            systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+          // Используем очередь AIQueue для LLM генерации
+          const requestId = await aiAssistant.addToQueue({
+            message: text,
             history: null,
-            model: aiSettings ? aiSettings.model : undefined,
-            language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+            systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+            rules: null
+          }, 0);
+          
+          // Ждем ответ из очереди
+          aiResponse = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('AI response timeout'));
+            }, 120000); // 2 минуты таймаут
+            
+            const onCompleted = (item) => {
+              if (item.id === requestId) {
+                clearTimeout(timeout);
+                aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+                aiAssistant.aiQueue.off('requestFailed', onFailed);
+                resolve(item.result);
+              }
+            };
+            
+            const onFailed = (item) => {
+              if (item.id === requestId) {
+                clearTimeout(timeout);
+                aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+                aiAssistant.aiQueue.off('requestFailed', onFailed);
+                reject(new Error(item.error));
+              }
+            };
+            
+            aiAssistant.aiQueue.on('requestCompleted', onCompleted);
+            aiAssistant.aiQueue.on('requestFailed', onFailed);
           });
         }
       } else {
-        aiResponse = await aiAssistant.getResponse(text, 'auto');
+        // Используем очередь AIQueue для обработки
+        const requestId = await aiAssistant.addToQueue({
+          message: text,
+          history: null,
+          systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+          rules: null
+        }, 0);
+        
+        // Ждем ответ из очереди
+        aiResponse = await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('AI response timeout'));
+          }, 120000); // 2 минуты таймаут
+          
+          const onCompleted = (item) => {
+            if (item.id === requestId) {
+              clearTimeout(timeout);
+              aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+              aiAssistant.aiQueue.off('requestFailed', onFailed);
+              resolve(item.result);
+            }
+          };
+          
+          const onFailed = (item) => {
+            if (item.id === requestId) {
+              clearTimeout(timeout);
+              aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+              aiAssistant.aiQueue.off('requestFailed', onFailed);
+              reject(new Error(item.error));
+            }
+          };
+          
+          aiAssistant.aiQueue.on('requestCompleted', onCompleted);
+          aiAssistant.aiQueue.on('requestFailed', onFailed);
+        });
       }
       
       if (await isUserBlocked(userId)) {
@@ -588,11 +685,36 @@ class EmailBotService {
         
         this.imap.once('error', (err) => {
           logger.error(`[EmailBot] IMAP connection error: ${err.message}`);
+          logger.error(`[EmailBot] Error details:`, {
+            code: err.code,
+            errno: err.errno,
+            syscall: err.syscall,
+            hostname: err.hostname,
+            port: err.port,
+            stack: err.stack
+          });
           this.cleanupImapConnection();
           
-          if (err.message && err.message.toLowerCase().includes('timed out') && attempt < maxAttempts) {
-            logger.warn(`[EmailBot] IMAP reconnecting in 10 seconds (attempt ${attempt + 1})...`);
-            setTimeout(tryConnect, 10000);
+          // Более детальная логика переподключения
+          if (attempt < maxAttempts) {
+            let reconnectDelay = 10000;
+            let reconnectReason = 'default';
+            
+            if (err.message && err.message.toLowerCase().includes('timed out')) {
+              reconnectDelay = 15000; // Увеличиваем задержку для таймаутов
+              reconnectReason = 'timeout';
+            } else if (err.code === 'ECONNREFUSED') {
+              reconnectDelay = 30000; // Дольше ждем для отказа в соединении
+              reconnectReason = 'connection refused';
+            } else if (err.code === 'ENOTFOUND') {
+              reconnectDelay = 60000; // Еще дольше для проблем с DNS
+              reconnectReason = 'DNS resolution failed';
+            }
+            
+            logger.warn(`[EmailBot] IMAP reconnecting in ${reconnectDelay/1000} seconds (attempt ${attempt + 1}/${maxAttempts}, reason: ${reconnectReason})...`);
+            setTimeout(tryConnect, reconnectDelay);
+          } else {
+            logger.error(`[EmailBot] Max reconnection attempts reached (${maxAttempts}). Stopping reconnection.`);
           }
         });
         
@@ -611,6 +733,112 @@ class EmailBotService {
      const settings = await encryptedDb.getData('email_settings', {}, null, 'id');
      return settings;
     }
+
+  // Сохранение email настроек
+  async saveEmailSettings(settings) {
+    try {
+      // Проверяем, существуют ли уже настройки
+      const existingSettings = await encryptedDb.getData('email_settings', {}, 1);
+      
+      let result;
+      if (existingSettings.length > 0) {
+        // Если настройки существуют, обновляем их
+        const existingId = existingSettings[0].id;
+        result = await encryptedDb.saveData('email_settings', settings, { id: existingId });
+      } else {
+        // Если настроек нет, создаем новые
+        result = await encryptedDb.saveData('email_settings', settings, null);
+      }
+      
+      logger.info('Email settings saved successfully');
+      return { success: true, data: result };
+    } catch (error) {
+      logger.error('Error saving email settings:', error);
+      throw error;
+    }
+  }
+
+  // Тест IMAP подключения
+  async testImapConnection() {
+    return new Promise(async (resolve, reject) => {
+      try {
+        logger.info('[EmailBot] Testing IMAP connection...');
+        
+        // Получаем конфигурацию IMAP
+        const imapConfig = await this.getImapConfig();
+        
+        // Создаем временное IMAP соединение для теста
+        const testImap = new Imap(imapConfig);
+        
+        let connectionTimeout = setTimeout(() => {
+          testImap.end();
+          reject(new Error('IMAP connection timeout after 30 seconds'));
+        }, 30000);
+        
+        testImap.once('ready', () => {
+          clearTimeout(connectionTimeout);
+          logger.info('[EmailBot] IMAP connection test successful');
+          testImap.end();
+          resolve({ 
+            success: true, 
+            message: 'IMAP подключение успешно установлено',
+            details: {
+              host: imapConfig.host,
+              port: imapConfig.port,
+              user: imapConfig.user
+            }
+          });
+        });
+        
+        testImap.once('error', (err) => {
+          clearTimeout(connectionTimeout);
+          logger.error(`[EmailBot] IMAP connection test failed: ${err.message}`);
+          testImap.end();
+          reject(new Error(`IMAP подключение не удалось: ${err.message}`));
+        });
+        
+        testImap.once('end', () => {
+          clearTimeout(connectionTimeout);
+          logger.info('[EmailBot] IMAP connection test ended');
+        });
+        
+        testImap.connect();
+        
+      } catch (error) {
+        reject(new Error(`Ошибка при тестировании IMAP: ${error.message}`));
+      }
+    });
+  }
+
+  // Тест SMTP подключения
+  async testSmtpConnection() {
+    return new Promise(async (resolve, reject) => {
+      try {
+        logger.info('[EmailBot] Testing SMTP connection...');
+        
+        // Получаем транспортер SMTP
+        const transporter = await this.getTransporter();
+        
+        // Тестируем подключение
+        await transporter.verify();
+        
+        logger.info('[EmailBot] SMTP connection test successful');
+        resolve({ 
+          success: true, 
+          message: 'SMTP подключение успешно установлено',
+          details: {
+            host: transporter.options.host,
+            port: transporter.options.port,
+            secure: transporter.options.secure
+          }
+        });
+        
+      } catch (error) {
+        logger.error(`[EmailBot] SMTP connection test failed: ${error.message}`);
+        reject(new Error(`SMTP подключение не удалось: ${error.message}`));
+      }
+    });
+  }
 }
 
 // console.log('[EmailBot] module.exports = EmailBotService');

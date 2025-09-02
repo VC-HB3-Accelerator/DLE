@@ -76,7 +76,7 @@ onMounted(async () => {
 
 const saveTelegramSettings = async () => {
   try {
-    await api.put('/telegram-settings', {
+    await api.put('/settings/telegram-settings', {
       bot_token: form.botToken,
       bot_username: form.botUsername
     });

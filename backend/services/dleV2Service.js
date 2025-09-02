@@ -462,7 +462,7 @@ class DLEV2Service {
     if (deployParams.logoURI) {
       // Если logoURI относительный путь, делаем его абсолютным
       if (deployParams.logoURI.startsWith('/uploads/')) {
-        deployParams.logoURI = `http://localhost:3000${deployParams.logoURI}`;
+        deployParams.logoURI = `http://localhost:8000${deployParams.logoURI}`;
       }
       // Если это placeholder, оставляем как есть
       if (deployParams.logoURI.includes('placeholder.com')) {

@@ -50,39 +50,56 @@ const requireAuth = async (req, res, next) => {
  */
 async function requireAdmin(req, res, next) {
   try {
+    // Подробное логирование для отладки
+    logger.info(`[requireAdmin] Проверка доступа для ${req.method} ${req.url}`);
+    logger.info(`[requireAdmin] Session:`, {
+      exists: !!req.session,
+      authenticated: req.session?.authenticated,
+      isAdmin: req.session?.isAdmin,
+      userId: req.session?.userId,
+      address: req.session?.address
+    });
+    
     // Проверка аутентификации
     if (!req.session || !req.session.authenticated) {
+      logger.warn(`[requireAdmin] Сессия не аутентифицирована`);
       return next(createError('Требуется аутентификация', 401));
     }
 
     // Проверка через сессию
     if (req.session.isAdmin) {
+      logger.info(`[requireAdmin] Доступ разрешен через сессию isAdmin`);
       return next();
     }
 
     // Проверка через кошелек
     if (req.session.address) {
+      logger.info(`[requireAdmin] Проверка через кошелек: ${req.session.address}`);
       const isAdmin = await authService.checkAdminTokens(req.session.address);
       if (isAdmin) {
         // Обновляем сессию
         req.session.isAdmin = true;
+        logger.info(`[requireAdmin] Доступ разрешен через кошелек`);
         return next();
       }
     }
 
     // Проверка через ID пользователя
     if (req.session.userId) {
+      logger.info(`[requireAdmin] Проверка через userId: ${req.session.userId}`);
       const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
         req.session.userId,
       ]);
       if (userResult.rows.length > 0 && userResult.rows[0].role === USER_ROLES.ADMIN) {
         // Обновляем сессию
         req.session.isAdmin = true;
+        logger.info(`[requireAdmin] Доступ разрешен через userId`);
         return next();
       }
     }
 
     // Если ни одна проверка не прошла
+    logger.warn(`[requireAdmin] Доступ запрещен - все проверки не прошли`);
     return next(createError('Доступ запрещен', 403));
   } catch (error) {
     logger.error(`Error in requireAdmin middleware: ${error.message}`);

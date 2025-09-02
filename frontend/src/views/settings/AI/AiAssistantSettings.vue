@@ -68,13 +68,17 @@
           <input v-else v-model="settings.embedding_model" placeholder="bge-base-zh" />
           <label>Выбранные RAG-таблицы</label>
           <select v-model="settings.selected_rag_tables" :multiple="false">
-            <option v-for="table in ragTables" :key="table.id" :value="table.id">{{ table.name }} (id: {{ table.id }})</option>
+            <option value="">Выберите таблицу</option>
+            <option v-for="table in ragTables" :key="table.id" :value="table.id">
+              {{ getTableDisplayName(table) }}
+            </option>
           </select>
           <label>Набор правил</label>
           <div class="rules-row">
             <select v-model="settings.rules_id">
+              <option value="">Выберите набор правил</option>
               <option v-for="rule in rulesList" :key="rule.id" :value="rule.id">
-                {{ rule.name }}
+                {{ getRuleDisplayName(rule) }}
               </option>
             </select>
             <button type="button" @click="openRuleEditor()">Создать</button>
@@ -150,7 +154,18 @@ async function loadRules() {
 async function loadSettings() {
   const { data } = await axios.get('/settings/ai-assistant');
   if (data.success && data.settings) {
-    settings.value = data.settings;
+    // Обрабатываем selected_rag_tables - если это массив, берем первый элемент для single select
+    const settingsData = { ...data.settings };
+    if (Array.isArray(settingsData.selected_rag_tables) && settingsData.selected_rag_tables.length > 0) {
+      // Для single select берем первый элемент массива
+      settingsData.selected_rag_tables = settingsData.selected_rag_tables[0];
+    } else if (!Array.isArray(settingsData.selected_rag_tables)) {
+      // Если это не массив, устанавливаем пустое значение
+      settingsData.selected_rag_tables = '';
+    }
+    
+    settings.value = settingsData;
+    console.log('[AiAssistantSettings] Loaded settings:', settings.value);
   }
 }
 async function loadTelegramBots() {
@@ -204,7 +219,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('placeholders-updated', loadPlaceholders);
 });
 async function saveSettings() {
-  await axios.put('/settings/ai-assistant', settings.value);
+  // Преобразуем selected_rag_tables в массив перед сохранением
+  const settingsToSave = { ...settings.value };
+  if (settingsToSave.selected_rag_tables && !Array.isArray(settingsToSave.selected_rag_tables)) {
+    settingsToSave.selected_rag_tables = [settingsToSave.selected_rag_tables];
+  }
+  
+  console.log('[AiAssistantSettings] Saving settings:', settingsToSave);
+  await axios.put('/settings/ai-assistant', settingsToSave);
   goBack();
 }
 function openRuleEditor(ruleId = null) {
@@ -225,6 +247,16 @@ async function onRuleEditorClose(updated) {
   showRuleEditor.value = false;
   editingRule.value = null;
   if (updated) await loadRules();
+}
+
+function getTableDisplayName(table) {
+  if (!table) return '';
+  return table.name || `Таблица ${table.id}`;
+}
+
+function getRuleDisplayName(rule) {
+  if (!rule) return '';
+  return rule.name || `Набор правил ${rule.id}`;
 }
 </script>
 

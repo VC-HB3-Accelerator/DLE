@@ -168,6 +168,9 @@ function autoResize() {
 
 watch(editing, (val) => {
   if (val) {
+    if (props.column.type === 'multiselect-relation') {
+      loadMultiRelationOptions();
+    }
     nextTick(() => {
       if (textareaRef.value) {
         autoResize();
@@ -220,6 +223,7 @@ let unsubscribeFromTags = null;
 // Флаг для предотвращения повторных вызовов
 let isInitialized = false;
 let isMultiRelationValuesLoaded = false;
+let lastLoadedOptionsKey = null;
 
 onMounted(async () => {
   const startTime = Date.now();
@@ -250,14 +254,12 @@ onMounted(async () => {
   } else if (props.column.type === 'multiselect-relation') {
     // Загружаем опции только один раз
     if (!isInitialized) {
-      // console.log(`[TableCell] 📥 Загружаем опции для row:${props.rowId} col:${props.column.id}`);
       await loadMultiRelationOptions();
       isInitialized = true;
     }
     
     // Загружаем relations только один раз для каждой комбинации rowId + columnId
     if (!isMultiRelationValuesLoaded) {
-      // console.log(`[TableCell] 📥 Загружаем relations для row:${props.rowId} col:${props.column.id}`);
       await loadMultiRelationValues();
       isMultiRelationValuesLoaded = true;
     }
@@ -326,6 +328,12 @@ onUnmounted(() => {
 watch(
   () => [props.rowId, props.column.id, props.cellValues],
   async () => {
+    // Сбрасываем флаги при изменении столбца
+    if (props.column.type === 'multiselect-relation') {
+      isMultiRelationValuesLoaded = false;
+      lastLoadedOptionsKey = null;
+      isInitialized = false;
+    }
     if (props.column.type === 'multiselect') {
       multiOptions.value = (props.column.options && props.column.options.options) || [];
       const cell = props.cellValues.find(
@@ -485,9 +493,9 @@ async function loadLookupValues() {
 }
 
 async function loadMultiRelationOptions() {
-  // Проверяем, не загружены ли уже опции
-  if (multiRelationOptions.value.length > 0) {
-    // console.log('[loadMultiRelationOptions] Опции уже загружены, пропускаем');
+  // Проверяем, не загружены ли уже опции для текущего столбца
+  const cacheKey = `${props.column.id}_${props.column.options?.relatedTableId}`;
+  if (multiRelationOptions.value.length > 0 && lastLoadedOptionsKey === cacheKey) {
     return;
   }
   
@@ -517,7 +525,16 @@ async function loadMultiRelationOptions() {
         opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
       }
       multiRelationOptions.value = opts;
-      // console.log(`[loadMultiRelationOptions] Загружено ${opts.length} опций для таблицы ${rel.relatedTableId}`);
+      lastLoadedOptionsKey = cacheKey;
+      
+      // Обновляем selectedMultiRelationNames на основе текущих значений
+      if (editMultiRelationValues.value.length > 0) {
+        selectedMultiRelationNames.value = opts
+          .filter(opt => editMultiRelationValues.value.includes(String(opt.id)))
+          .map(opt => opt.display);
+      } else {
+        selectedMultiRelationNames.value = [];
+      }
     } catch (e) {
       // console.error('[loadMultiRelationOptions] Error:', e);
     }
@@ -531,7 +548,6 @@ const LOAD_DEBOUNCE_DELAY = 50; // 50ms (уменьшено для ускоре�
 async function loadMultiRelationValues() {
   // Проверяем, не загружены ли уже данные
   if (isMultiRelationValuesLoaded) {
-    // console.log('[loadMultiRelationValues] Данные уже загружены, пропускаем');
     return;
   }
   
@@ -603,7 +619,6 @@ async function loadMultiRelationValues() {
         selectedMultiRelationNames.value = multiRelationOptions.value
           .filter(opt => relatedRowIds.includes(String(opt.id)))
           .map(opt => opt.display);
-        // console.log('[loadMultiRelationValues] selectedMultiRelationNames:', selectedMultiRelationNames.value);
         
         // Отмечаем, что данные загружены
         isMultiRelationValuesLoaded = true;

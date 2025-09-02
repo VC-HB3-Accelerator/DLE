@@ -13,50 +13,81 @@
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const TABLE = 'ai_assistant_settings';
+const logger = require('../utils/logger');
 
 async function getSettings() {
-  const settings = await encryptedDb.getData(TABLE, {}, 1, 'id');
-  const setting = settings[0] || null;
-  if (!setting) return null;
-
-  // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-  
   try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+    logger.info('[aiAssistantSettingsService] getSettings called');
+    
+    const settings = await encryptedDb.getData(TABLE, {}, 1, 'id');
+    logger.info(`[aiAssistantSettingsService] Raw settings from DB:`, settings);
+    
+    const setting = settings[0] || null;
+    if (!setting) {
+      logger.warn('[aiAssistantSettingsService] No settings found in DB');
+      return null;
     }
-  } catch (keyError) {
-    // console.error('Error reading encryption key:', keyError);
-  }
-  
-  // Получаем связанные данные из telegram_settings и email_settings
-  let telegramBot = null;
-  let supportEmail = null;
-  if (setting.telegram_settings_id) {
-    const tg = await db.getQuery()(
-      'SELECT id, created_at, updated_at, decrypt_text(bot_token_encrypted, $2) as bot_token, decrypt_text(bot_username_encrypted, $2) as bot_username FROM telegram_settings WHERE id = $1',
-      [setting.telegram_settings_id, encryptionKey]
-    );
-    telegramBot = tg.rows[0] || null;
-  }
-  if (setting.email_settings_id) {
-    const em = await db.getQuery()(
-      'SELECT id, smtp_port, imap_port, created_at, updated_at, decrypt_text(smtp_host_encrypted, $2) as smtp_host, decrypt_text(smtp_user_encrypted, $2) as smtp_user, decrypt_text(smtp_password_encrypted, $2) as smtp_password, decrypt_text(imap_host_encrypted, $2) as imap_host, decrypt_text(from_email_encrypted, $2) as from_email FROM email_settings WHERE id = $1',
-      [setting.email_settings_id, encryptionKey]
-    );
-    supportEmail = em.rows[0] || null;
-  }
 
-  return {
-    ...setting,
-    telegramBot,
-    supportEmail,
-    embedding_model: setting.embedding_model
-  };
+    // Получаем ключ шифрования
+    const fs = require('fs');
+    const path = require('path');
+    let encryptionKey = 'default-key';
+    
+    try {
+      const keyPath = path.join(__dirname, '../ssl/keys/full_chain.pem');
+      if (fs.existsSync(keyPath)) {
+        encryptionKey = fs.readFileSync(keyPath, 'utf8');
+      }
+    } catch (keyError) {
+      logger.warn('[aiAssistantSettingsService] Could not read encryption key:', keyError.message);
+    }
+
+    // Обрабатываем selected_rag_tables
+    if (setting.selected_rag_tables) {
+      try {
+        // Если это строка JSON, парсим её
+        if (typeof setting.selected_rag_tables === 'string') {
+          setting.selected_rag_tables = JSON.parse(setting.selected_rag_tables);
+        }
+        
+        // Убеждаемся, что это массив
+        if (!Array.isArray(setting.selected_rag_tables)) {
+          setting.selected_rag_tables = [setting.selected_rag_tables];
+        }
+        
+        logger.info(`[aiAssistantSettingsService] Processed selected_rag_tables:`, setting.selected_rag_tables);
+      } catch (parseError) {
+        logger.error('[aiAssistantSettingsService] Error parsing selected_rag_tables:', parseError);
+        setting.selected_rag_tables = [];
+      }
+    } else {
+      setting.selected_rag_tables = [];
+    }
+
+    // Обрабатываем rules_id
+    if (setting.rules_id && typeof setting.rules_id === 'string') {
+      try {
+        setting.rules_id = parseInt(setting.rules_id);
+      } catch (parseError) {
+        logger.error('[aiAssistantSettingsService] Error parsing rules_id:', parseError);
+        setting.rules_id = null;
+      }
+    }
+
+    logger.info(`[aiAssistantSettingsService] Final settings result:`, {
+      id: setting.id,
+      selected_rag_tables: setting.selected_rag_tables,
+      rules_id: setting.rules_id,
+      hasSupportEmail: setting.hasSupportEmail,
+      hasTelegramBot: setting.hasTelegramBot,
+      timestamp: setting.timestamp
+    });
+
+    return setting;
+  } catch (error) {
+    logger.error('[aiAssistantSettingsService] Error in getSettings:', error);
+    throw error;
+  }
 }
 
 async function upsertSettings({ system_prompt, selected_rag_tables, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {

@@ -213,7 +213,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     // --- Формируем ответ ---
     const contacts = users.map(u => ({
       id: u.id,
-      name: null, // Имена теперь только в зашифрованных колонках
+      name: [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || null,
       email: u.email || null,
       telegram: u.telegram || null,
       wallet: u.wallet || null,
@@ -446,9 +446,19 @@ router.get('/:id', async (req, res, next) => {
     for (const id of identitiesResult.rows) {
       identityMap[id.provider] = id.provider_id;
     }
+    // Получаем имя пользователя из зашифрованных полей
+    const nameResult = await query('SELECT CASE WHEN first_name_encrypted IS NULL OR first_name_encrypted = \'\' THEN NULL ELSE decrypt_text(first_name_encrypted, $2) END as first_name, CASE WHEN last_name_encrypted IS NULL OR last_name_encrypted = \'\' THEN NULL ELSE decrypt_text(last_name_encrypted, $2) END as last_name FROM users WHERE id = $1', [userId, encryptionKey]);
+    
+    let fullName = null;
+    if (nameResult.rows.length > 0) {
+      const firstName = nameResult.rows[0].first_name || '';
+      const lastName = nameResult.rows[0].last_name || '';
+      fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || null;
+    }
+    
     res.json({
       id: user.id,
-      name: null, // Пока не используем имена
+      name: fullName,
       email: identityMap.email || null,
       telegram: identityMap.telegram || null,
       wallet: identityMap.wallet || null,

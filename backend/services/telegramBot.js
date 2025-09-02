@@ -432,20 +432,77 @@ async function getBot() {
             if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.1) {
               aiResponse = ragResult.answer;
             } else {
-              aiResponse = await generateLLMResponse({
-                userQuestion: content,
-                context: ragResult && ragResult.context ? ragResult.context : '',
-                answer: ragResult && ragResult.answer ? ragResult.answer : '',
-                systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+              // Используем очередь AIQueue для LLM генерации
+              const requestId = await aiAssistant.addToQueue({
+                message: content,
                 history: history,
-                model: aiSettings ? aiSettings.model : undefined,
-                language: aiSettings && aiSettings.languages && aiSettings.languages.length > 0 ? aiSettings.languages[0] : 'ru'
+                systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+                rules: null
+              }, 0);
+              
+              // Ждем ответ из очереди
+              aiResponse = await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                  reject(new Error('AI response timeout'));
+                }, 120000); // 2 минуты таймаут
+                
+                const onCompleted = (item) => {
+                  if (item.id === requestId) {
+                    clearTimeout(timeout);
+                    aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+                    aiAssistant.aiQueue.off('requestFailed', onFailed);
+                    resolve(item.result);
+                  }
+                };
+                
+                const onFailed = (item) => {
+                  if (item.id === requestId) {
+                    clearTimeout(timeout);
+                    aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+                    aiAssistant.aiQueue.off('requestFailed', onFailed);
+                    reject(new Error(item.error));
+                  }
+                };
+                
+                aiAssistant.aiQueue.on('requestCompleted', onCompleted);
+                aiAssistant.aiQueue.on('requestFailed', onFailed);
               });
             }
           } else {
-            // Используем системный промпт из настроек, если RAG не используется
-            const systemPrompt = aiSettings ? aiSettings.system_prompt : '';
-            aiResponse = await aiAssistant.getResponse(content, history, systemPrompt);
+            // Используем очередь AIQueue для обработки
+            const requestId = await aiAssistant.addToQueue({
+              message: content,
+              history: history,
+              systemPrompt: aiSettings ? aiSettings.system_prompt : '',
+              rules: null
+            }, 0);
+            
+            // Ждем ответ из очереди
+            aiResponse = await new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error('AI response timeout'));
+              }, 120000); // 2 минуты таймаут
+              
+              const onCompleted = (item) => {
+                if (item.id === requestId) {
+                  clearTimeout(timeout);
+                  aiAssistant.aiQueue.off('requestCompleted', onCompleted);
+                  aiAssistant.aiQueue.off('requestFailed', onFailed);
+                  resolve(item.result);
+                }
+              };
+              
+              const onFailed = (item) => {
+                if (item.id === requestId) {
+                  clearTimeout(timeout);
+                  aiAssistant.aiQueue.off('requestFailed', onFailed);
+                  reject(new Error(item.error));
+                }
+              };
+              
+              aiAssistant.aiQueue.on('requestCompleted', onCompleted);
+              aiAssistant.aiQueue.on('requestFailed', onFailed);
+            });
           }
           
           return aiResponse;
@@ -576,6 +633,36 @@ function clearSettingsCache() {
   telegramSettingsCache = null;
 }
 
+// Сохранение настроек Telegram
+async function saveTelegramSettings(settings) {
+  try {
+    // Очищаем кэш настроек
+    clearSettingsCache();
+    
+    // Проверяем, существуют ли уже настройки
+    const existingSettings = await encryptedDb.getData('telegram_settings', {}, 1);
+    
+    let result;
+    if (existingSettings.length > 0) {
+      // Если настройки существуют, обновляем их
+      const existingId = existingSettings[0].id;
+      result = await encryptedDb.saveData('telegram_settings', settings, { id: existingId });
+    } else {
+      // Если настроек нет, создаем новые
+      result = await encryptedDb.saveData('telegram_settings', settings, null);
+    }
+    
+    // Обновляем кэш
+    telegramSettingsCache = settings;
+    
+    logger.info('Telegram settings saved successfully');
+    return { success: true, data: result };
+  } catch (error) {
+    logger.error('Error saving Telegram settings:', error);
+    throw error;
+  }
+}
+
 async function getAllBots() {
   const settings = await encryptedDb.getData('telegram_settings', {}, 1, 'id');
   return settings;
@@ -587,5 +674,6 @@ module.exports = {
   stopBot,
   initTelegramAuth,
   clearSettingsCache,
+  saveTelegramSettings,
   getAllBots,
 };

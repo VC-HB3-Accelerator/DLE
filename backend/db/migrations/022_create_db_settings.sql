@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS db_settings (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Пропускаем INSERT, так как данные должны быть зашифрованы
--- INSERT INTO db_settings (db_host, db_port, db_name, db_user, db_password)
--- VALUES ('postgres', 5432, 'dapp_db', 'dapp_user', 'dapp_password')
--- ON CONFLICT DO NOTHING; 
+-- Добавляем дефолтные настройки базы данных
+INSERT INTO db_settings (id, db_port, created_at, updated_at)
+VALUES (1, 5432, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET
+    db_port = EXCLUDED.db_port,
+    updated_at = NOW(); 

@@ -40,7 +40,8 @@ router.post('/logo', auth.requireAuth, auth.requireAdmin, upload.single('logo'),
     if (!req.file) return res.status(400).json({ success: false, message: 'Файл не получен' });
     const rel = path.posix.join('uploads', 'logos', path.basename(req.file.filename));
     const urlPath = `/uploads/logos/${path.basename(req.file.filename)}`;
-    return res.json({ success: true, data: { path: rel, url: urlPath } });
+    const fullUrl = `http://localhost:8000${urlPath}`;
+    return res.json({ success: true, data: { path: rel, url: fullUrl } });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }

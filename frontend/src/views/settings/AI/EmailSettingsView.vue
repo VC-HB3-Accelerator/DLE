@@ -42,6 +42,14 @@
             <input id="imapPort" v-model.number="form.imapPort" type="number" required />
           </div>
           <div class="form-group">
+            <label for="imapUser">IMAP User</label>
+            <input id="imapUser" v-model="form.imapUser" type="text" required />
+          </div>
+          <div class="form-group">
+            <label for="imapPassword">IMAP Password</label>
+            <input id="imapPassword" v-model="form.imapPassword" type="password" :placeholder="form.imapPassword ? 'Изменить пароль' : 'Введите пароль'" />
+          </div>
+          <div class="form-group">
             <label for="fromEmail">From Email</label>
             <input id="fromEmail" v-model="form.fromEmail" type="email" required />
           </div>
@@ -54,6 +62,8 @@
           <div class="view-row"><span>SMTP User:</span> <b>{{ form.smtpUser }}</b></div>
           <div class="view-row"><span>IMAP Host:</span> <b>{{ form.imapHost }}</b></div>
           <div class="view-row"><span>IMAP Port:</span> <b>{{ form.imapPort }}</b></div>
+          <div class="view-row"><span>IMAP User:</span> <b>{{ form.imapUser }}</b></div>
+          <div class="view-row"><span>IMAP Password:</span> <b>{{ form.imapPassword ? '••••••••' : 'Не установлен' }}</b></div>
           <div class="view-row"><span>From Email:</span> <b>{{ form.fromEmail }}</b></div>
           <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
           <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
@@ -79,6 +89,8 @@ const form = reactive({
   smtpPassword: '',
   imapHost: '',
   imapPort: 993,
+  imapUser: '',
+  imapPassword: '',
   fromEmail: ''
 });
 const original = reactive({});
@@ -94,6 +106,8 @@ const loadEmailSettings = async () => {
       form.smtpUser = s.smtp_user;
       form.imapHost = s.imap_host || '';
       form.imapPort = s.imap_port || 993;
+      form.imapUser = s.imap_user || '';
+      form.imapPassword = '';
       form.fromEmail = s.from_email;
       form.smtpPassword = '';
       Object.assign(original, JSON.parse(JSON.stringify(form)));
@@ -117,10 +131,13 @@ const saveEmailSettings = async () => {
       smtp_password: form.smtpPassword || undefined,
       imap_host: form.imapHost,
       imap_port: form.imapPort,
+      imap_user: form.imapUser,
+      imap_password: form.imapPassword || undefined,
       from_email: form.fromEmail
     });
     alert('Настройки Email сохранены');
     form.smtpPassword = '';
+    form.imapPassword = '';
     Object.assign(original, JSON.parse(JSON.stringify(form)));
     editMode.value = false;
   } catch (e) {
@@ -131,6 +148,7 @@ const saveEmailSettings = async () => {
 const cancelEdit = () => {
   Object.assign(form, JSON.parse(JSON.stringify(original)));
   form.smtpPassword = '';
+  form.imapPassword = '';
   editMode.value = false;
 };
 </script>

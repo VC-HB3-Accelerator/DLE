@@ -174,7 +174,7 @@ async function deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, d
 }
 
 // Деплой модулей в одной сети
-async function deployModulesInNetwork(rpcUrl, pk, dleAddress) {
+async function deployModulesInNetwork(rpcUrl, pk, dleAddress, params) {
   const { ethers } = hre;
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const wallet = new ethers.Wallet(pk, provider);
@@ -184,77 +184,130 @@ async function deployModulesInNetwork(rpcUrl, pk, dleAddress) {
   
   const modules = {};
   
-                    try {
-                    // Деплой TreasuryModule
-                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying TreasuryModule...`);
-                    const TreasuryModule = await hre.ethers.getContractFactory('TreasuryModule');
-                    const treasuryModule = await TreasuryModule.connect(wallet).deploy(
-                      dleAddress, // _dleContract
-                      Number(net.chainId), // _chainId
-                      wallet.address // _emergencyAdmin
-                    );
-                    await treasuryModule.waitForDeployment();
-                    const treasuryAddress = await treasuryModule.getAddress();
-                    modules.treasuryModule = treasuryAddress;
-                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TreasuryModule deployed at: ${treasuryAddress}`);
-                    
-                    // Деплой TimelockModule
-                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying TimelockModule...`);
-                    const TimelockModule = await hre.ethers.getContractFactory('TimelockModule');
-                    const timelockModule = await TimelockModule.connect(wallet).deploy(
-                      dleAddress // _dleContract
-                    );
-                    await timelockModule.waitForDeployment();
-                    const timelockAddress = await timelockModule.getAddress();
-                    modules.timelockModule = timelockAddress;
-                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} TimelockModule deployed at: ${timelockAddress}`);
-                    
-                    // Деплой DLEReader
-                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying DLEReader...`);
-                    const DLEReader = await hre.ethers.getContractFactory('DLEReader');
-                    const dleReader = await DLEReader.connect(wallet).deploy(
-                      dleAddress // _dleContract
-                    );
-                    await dleReader.waitForDeployment();
-                    const readerAddress = await dleReader.getAddress();
-                    modules.dleReader = readerAddress;
-                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLEReader deployed at: ${readerAddress}`);
-    
-    // Инициализация модулей в DLE
-    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing modules in DLE...`);
-    const dleContract = await hre.ethers.getContractAt('DLE', dleAddress, wallet);
-    
-    // Инициализация базовых модулей
-    await dleContract.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
-    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} base modules initialized`);
-    
-    // Инициализация logoURI
+  // Получаем начальный nonce для всех модулей
+  let currentNonce = await wallet.getNonce();
+  console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} starting nonce for modules: ${currentNonce}`);
+  
+  // Функция для безопасного деплоя с правильным nonce
+  async function deployWithNonce(contractFactory, args, moduleName) {
     try {
-      // Используем логотип из параметров деплоя или fallback
-      const logoURL = params.logoURI || "https://via.placeholder.com/200x200/0066cc/ffffff?text=DLE";
-      await dleContract.initializeLogoURI(logoURL);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized: ${logoURL}`);
-    } catch (e) {
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed: ${e.message}`);
-      // Fallback на базовый логотип
-      try {
-        await dleContract.initializeLogoURI("https://via.placeholder.com/200x200/0066cc/ffffff?text=DLE");
-        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} fallback logoURI initialized`);
-      } catch (fallbackError) {
-        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} fallback logoURI also failed: ${fallbackError.message}`);
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying ${moduleName} with nonce: ${currentNonce}`);
+      
+      // Проверяем, что nonce актуален
+      const actualNonce = await wallet.getNonce();
+      if (actualNonce > currentNonce) {
+        console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce mismatch, updating from ${currentNonce} to ${actualNonce}`);
+        currentNonce = actualNonce;
       }
+      
+      const contract = await contractFactory.connect(wallet).deploy(...args);
+      await contract.waitForDeployment();
+      const address = await contract.getAddress();
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} ${moduleName} deployed at: ${address}`);
+      currentNonce++;
+      return address;
+    } catch (error) {
+      console.error(`[MULTI_DBG] chainId=${Number(net.chainId)} ${moduleName} deployment failed:`, error.message);
+      // Даже при ошибке увеличиваем nonce, чтобы не было конфликтов
+      currentNonce++;
+      return null;
+    }
+  }
+  
+  // Деплой TreasuryModule
+  const TreasuryModule = await hre.ethers.getContractFactory('TreasuryModule');
+  modules.treasuryModule = await deployWithNonce(
+    TreasuryModule,
+    [dleAddress, Number(net.chainId), wallet.address], // _dleContract, _chainId, _emergencyAdmin
+    'TreasuryModule'
+  );
+                    
+  // Деплой TimelockModule
+  const TimelockModule = await hre.ethers.getContractFactory('TimelockModule');
+  modules.timelockModule = await deployWithNonce(
+    TimelockModule,
+    [dleAddress], // _dleContract
+    'TimelockModule'
+  );
+  
+  // Деплой DLEReader
+  const DLEReader = await hre.ethers.getContractFactory('DLEReader');
+  modules.dleReader = await deployWithNonce(
+    DLEReader,
+    [dleAddress], // _dleContract
+    'DLEReader'
+  );
+  
+  // Инициализация модулей в DLE
+  try {
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing modules in DLE with nonce: ${currentNonce}`);
+    
+    // Проверяем, что nonce актуален
+    const actualNonce = await wallet.getNonce();
+    if (actualNonce > currentNonce) {
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce mismatch before module init, updating from ${currentNonce} to ${actualNonce}`);
+      currentNonce = actualNonce;
     }
     
+    const dleContract = await hre.ethers.getContractAt('DLE', dleAddress, wallet);
+    
+    // Проверяем, что все модули задеплоены
+    const treasuryAddress = modules.treasuryModule;
+    const timelockAddress = modules.timelockModule;
+    const readerAddress = modules.dleReader;
+    
+    if (treasuryAddress && timelockAddress && readerAddress) {
+      // Инициализация базовых модулей
+      await dleContract.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} base modules initialized`);
+      currentNonce++;
+    } else {
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} skipping module initialization - not all modules deployed`);
+    }
   } catch (error) {
-    console.error(`[MULTI_DBG] chainId=${Number(net.chainId)} module deployment failed:`, error.message);
-    throw error;
+    console.error(`[MULTI_DBG] chainId=${Number(net.chainId)} module initialization failed:`, error.message);
+    // Даже при ошибке увеличиваем nonce
+    currentNonce++;
+  }
+  
+  // Инициализация logoURI
+  try {
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing logoURI with nonce: ${currentNonce}`);
+    
+    // Проверяем, что nonce актуален
+    const actualNonce = await wallet.getNonce();
+    if (actualNonce > currentNonce) {
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce mismatch before logoURI init, updating from ${currentNonce} to ${actualNonce}`);
+      currentNonce = actualNonce;
+    }
+    
+    // Используем логотип из параметров деплоя или fallback
+    const logoURL = params.logoURI || "https://via.placeholder.com/200x200/0066cc/ffffff?text=DLE";
+    const dleContract = await hre.ethers.getContractAt('DLE', dleAddress, wallet);
+    await dleContract.initializeLogoURI(logoURL);
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized: ${logoURL}`);
+    currentNonce++;
+  } catch (e) {
+    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed: ${e.message}`);
+    // Fallback на базовый логотип
+    try {
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} trying fallback logoURI with nonce: ${currentNonce}`);
+      const dleContract = await hre.ethers.getContractAt('DLE', dleAddress, wallet);
+      await dleContract.initializeLogoURI("https://via.placeholder.com/200x200/0066cc/ffffff?text=DLE");
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} fallback logoURI initialized`);
+      currentNonce++;
+    } catch (fallbackError) {
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} fallback logoURI also failed: ${fallbackError.message}`);
+      // Даже при ошибке увеличиваем nonce
+      currentNonce++;
+    }
   }
   
   return modules;
 }
 
 // Деплой модулей во всех сетях
-async function deployModulesInAllNetworks(networks, pk, dleAddress) {
+async function deployModulesInAllNetworks(networks, pk, dleAddress, params) {
   const moduleResults = [];
   
   for (let i = 0; i < networks.length; i++) {
@@ -262,7 +315,7 @@ async function deployModulesInAllNetworks(networks, pk, dleAddress) {
     console.log(`[MULTI_DBG] deploying modules to network ${i + 1}/${networks.length}: ${rpcUrl}`);
     
     try {
-      const modules = await deployModulesInNetwork(rpcUrl, pk, dleAddress);
+      const modules = await deployModulesInNetwork(rpcUrl, pk, dleAddress, params);
       moduleResults.push(modules);
     } catch (error) {
       console.error(`[MULTI_DBG] Failed to deploy modules in network ${i + 1}:`, error.message);
@@ -310,10 +363,11 @@ async function verifyContractsInNetwork(rpcUrl, pk, dleAddress, modules, params)
     });
     verification.dle = 'success';
     console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE verification successful`);
-  } catch (error) {
-    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE verification failed: ${error.message}`);
-    verification.dle = 'failed';
-  }
+                    } catch (error) {
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE verification failed: ${error.message}`);
+                    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE verification error details:`, error);
+                    verification.dle = 'failed';
+                  }
   
                     // Верификация модулей
                   if (modules && !modules.error) {
@@ -485,7 +539,7 @@ async function main() {
   
   // Деплой модулей во всех сетях
   console.log('[MULTI_DBG] Starting module deployment...');
-  const moduleResults = await deployModulesInAllNetworks(networks, pk, uniqueAddresses[0]);
+  const moduleResults = await deployModulesInAllNetworks(networks, pk, uniqueAddresses[0], params);
   
   // Верификация контрактов
   console.log('[MULTI_DBG] Starting contract verification...');

@@ -12,14 +12,14 @@
 
 const { ChatOllama } = require('@langchain/ollama');
 const aiCache = require('./ai-cache');
-const aiQueue = require('./ai-queue');
+const AIQueue = require('./ai-queue');
 const logger = require('../utils/logger');
 
 // Константы для AI параметров
 const AI_CONFIG = {
   temperature: 0.3,
   maxTokens: 512,
-  timeout: 180000,
+  timeout: 120000, // Уменьшаем до 120 секунд, чтобы соответствовать EmailBot
   numCtx: 2048,
   numGpu: 1,
   numThread: 4,
@@ -42,6 +42,110 @@ class AIAssistant {
     this.defaultModel = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
     this.lastHealthCheck = 0;
     this.healthCheckInterval = 30000; // 30 секунд
+    
+    // Создаем экземпляр AIQueue
+    this.aiQueue = new AIQueue();
+    this.isProcessingQueue = false;
+    
+    // Запускаем обработку очереди
+    this.startQueueProcessing();
+  }
+
+  // Запуск обработки очереди
+  async startQueueProcessing() {
+    if (this.isProcessingQueue) return;
+    
+    this.isProcessingQueue = true;
+    logger.info('[AIAssistant] Запущена обработка очереди AIQueue');
+    
+    while (this.isProcessingQueue) {
+      try {
+        // Получаем следующий запрос из очереди
+        const requestItem = this.aiQueue.getNextRequest();
+        
+        if (!requestItem) {
+          // Если очередь пуста, ждем немного
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        logger.info(`[AIAssistant] Обрабатываем запрос ${requestItem.id} из очереди`);
+        
+        // Обновляем статус на "processing"
+        this.aiQueue.updateRequestStatus(requestItem.id, 'processing');
+        
+        const startTime = Date.now();
+        
+        try {
+          // Обрабатываем запрос
+          const result = await this.processQueueRequest(requestItem.request);
+          const responseTime = Date.now() - startTime;
+          
+          // Обновляем статус на "completed"
+          this.aiQueue.updateRequestStatus(requestItem.id, 'completed', result, null, responseTime);
+          
+          logger.info(`[AIAssistant] Запрос ${requestItem.id} завершен за ${responseTime}ms`);
+          
+        } catch (error) {
+          const responseTime = Date.now() - startTime;
+          
+          // Обновляем статус на "failed"
+          this.aiQueue.updateRequestStatus(requestItem.id, 'failed', null, error.message, responseTime);
+          
+          logger.error(`[AIAssistant] Запрос ${requestItem.id} завершился с ошибкой:`, error.message);
+          logger.error(`[AIAssistant] Детали ошибки:`, error.stack || error);
+        }
+        
+      } catch (error) {
+        logger.error('[AIAssistant] Ошибка в обработке очереди:', error);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+  }
+
+  // Остановка обработки очереди
+  stopQueueProcessing() {
+    this.isProcessingQueue = false;
+    logger.info('[AIAssistant] Остановлена обработка очереди AIQueue');
+  }
+
+  // Обработка запроса из очереди
+  async processQueueRequest(request) {
+    try {
+      const { message, history, systemPrompt, rules } = request;
+      
+      logger.info(`[AIAssistant] Обрабатываю запрос: message="${message?.substring(0, 50)}...", history=${history?.length || 0}, systemPrompt="${systemPrompt?.substring(0, 50)}..."`);
+      
+      // Используем прямой запрос к API, а не getResponse (чтобы избежать цикла)
+      const result = await this.directRequest(
+        [{ role: 'user', content: message }],
+        systemPrompt,
+        { temperature: 0.3, maxTokens: 150 }
+      );
+      
+      logger.info(`[AIAssistant] Запрос успешно обработан, результат: "${result?.substring(0, 100)}..."`);
+      
+      return result;
+    } catch (error) {
+      logger.error(`[AIAssistant] Ошибка в processQueueRequest:`, error.message);
+      logger.error(`[AIAssistant] Stack trace:`, error.stack);
+      throw error; // Перебрасываем ошибку дальше
+    }
+  }
+
+  // Добавление запроса в очередь
+  async addToQueue(request, priority = 0) {
+    return await this.aiQueue.addRequest(request, priority);
+  }
+
+  // Получение статистики очереди
+  getQueueStats() {
+    return this.aiQueue.getStats();
+  }
+
+  // Получение размера очереди
+  getQueueSize() {
+    return this.aiQueue.getQueueSize();
   }
 
   // Проверка здоровья модели
@@ -148,7 +252,7 @@ class AIAssistant {
       const priority = this.getRequestPriority(message, history, rules);
       
       // Добавляем запрос в очередь
-      const requestId = await aiQueue.addRequest({
+      const requestId = await this.addToQueue({
         message,
         history,
         systemPrompt,
@@ -164,8 +268,8 @@ class AIAssistant {
         const onCompleted = (item) => {
           if (item.id === requestId) {
             clearTimeout(timeout);
-            aiQueue.off('completed', onCompleted);
-            aiQueue.off('failed', onFailed);
+            this.aiQueue.off('requestCompleted', onCompleted);
+            this.aiQueue.off('requestFailed', onFailed);
             try {
               aiCache.set(cacheKey, item.result);
             } catch {}
@@ -176,14 +280,14 @@ class AIAssistant {
         const onFailed = (item) => {
           if (item.id === requestId) {
             clearTimeout(timeout);
-            aiQueue.off('completed', onCompleted);
-            aiQueue.off('failed', onFailed);
+            this.aiQueue.off('requestCompleted', onCompleted);
+            this.aiQueue.off('requestFailed', onFailed);
             reject(new Error(item.error));
           }
         };
 
-        aiQueue.on('completed', onCompleted);
-        aiQueue.on('failed', onFailed);
+        this.aiQueue.on('requestCompleted', onCompleted);
+        this.aiQueue.on('requestFailed', onFailed);
       });
     } catch (error) {
       logger.error('Error in getResponse:', error);
@@ -200,6 +304,8 @@ class AIAssistant {
   async directRequest(messages, systemPrompt = '', optionsOverride = {}) {
     try {
       const model = this.defaultModel;
+      
+      logger.info(`[AIAssistant] directRequest: модель=${model}, сообщений=${messages?.length || 0}, systemPrompt="${systemPrompt?.substring(0, 50)}..."`);
       
       // Создаем AbortController для таймаута
       const controller = new AbortController();
@@ -241,6 +347,7 @@ class AIAssistant {
 
       let response;
       try {
+        logger.info(`[AIAssistant] Вызываю Ollama API: ${this.baseUrl}/api/chat`);
         response = await fetch(`${this.baseUrl}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -253,6 +360,7 @@ class AIAssistant {
             keep_alive: '3m'
           })
         });
+        logger.info(`[AIAssistant] Ollama API ответил: status=${response.status}`);
       } finally {
         clearTimeout(timeoutId);
       }

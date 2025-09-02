@@ -483,6 +483,105 @@ router.get('/email-settings', requireAdmin, async (req, res) => {
   }
 });
 
+// Обновить настройки Email
+router.put('/email-settings', requireAdmin, async (req, res, next) => {
+  try {
+    const { 
+      imap_host, 
+      imap_port, 
+      imap_user, 
+      imap_password, 
+      smtp_host, 
+      smtp_port, 
+      smtp_user, 
+      smtp_password, 
+      from_email, 
+      is_active 
+    } = req.body;
+    
+    // Валидация обязательных полей
+    if (!imap_host || !imap_port || !imap_user || !imap_password || 
+        !smtp_host || !smtp_port || !smtp_user || !smtp_password || !from_email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Все поля обязательны для заполнения' 
+      });
+    }
+    
+    const settings = {
+      imap_host,
+      imap_port: parseInt(imap_port),
+      imap_user,
+      imap_password,
+      smtp_host,
+      smtp_port: parseInt(smtp_port),
+      smtp_user,
+      smtp_password,
+      from_email,
+      is_active: is_active !== undefined ? is_active : true,
+      updated_at: new Date()
+    };
+    
+    const result = await emailBotService.saveEmailSettings(settings);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Ошибка при обновлении email настроек:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Тест email функциональности
+router.post('/email-settings/test', requireAdmin, async (req, res, next) => {
+  try {
+    const { test_email } = req.body;
+    
+    if (!test_email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'test_email обязателен для тестирования' 
+      });
+    }
+    
+    // Отправляем тестовое письмо
+    const result = await emailBotService.sendEmail(
+      test_email,
+      'Тест Email системы DLE',
+      'Это тестовое письмо для проверки работы email системы. Если вы его получили, значит настройки работают корректно!'
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Тестовое письмо отправлено успешно',
+      data: result 
+    });
+  } catch (error) {
+    logger.error('Ошибка при тестировании email:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Тест IMAP подключения
+router.post('/email-settings/test-imap', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await emailBotService.testImapConnection();
+    res.json(result);
+  } catch (error) {
+    logger.error('Ошибка при тестировании IMAP подключения:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Тест SMTP подключения
+router.post('/email-settings/test-smtp', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await emailBotService.testSmtpConnection();
+    res.json(result);
+  } catch (error) {
+    logger.error('Ошибка при тестировании SMTP подключения:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Получить список всех email (для ассистента)
 router.get('/email-settings/list', requireAdmin, async (req, res) => {
   try {
@@ -500,6 +599,35 @@ router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
     res.json({ success: true, settings });
   } catch (error) {
     res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+// Обновить настройки Telegram-бота
+router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
+  try {
+    const { bot_token, bot_username, webhook_url, is_active } = req.body;
+    
+    // Валидация обязательных полей
+    if (!bot_token || !bot_username) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'bot_token и bot_username обязательны' 
+      });
+    }
+    
+    const settings = {
+      bot_token,
+      bot_username,
+      webhook_url: webhook_url || null,
+      is_active: is_active !== undefined ? is_active : true,
+      updated_at: new Date()
+    };
+    
+    const result = await telegramBot.saveTelegramSettings(settings);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Ошибка при обновлении настроек Telegram:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

@@ -53,7 +53,7 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_ORIGINS=*
-      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_NUM_PARALLEL=2
       - OLLAMA_NUM_GPU=0
       - OLLAMA_KEEP_ALIVE=-1
       - OLLAMA_MODEL_TIMEOUT=0
@@ -64,8 +64,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
-    # Современные версии ollama не поддерживают флаг --keep-alive; используем переменные окружения
-    # command: ["serve"]
+    # Предзагружаем модель при запуске контейнера
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 10 && ollama run --keepalive 0 qwen2.5:7b & wait"]
   vector-search:
     build:
       context: ./vector-search
