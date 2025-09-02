@@ -138,15 +138,15 @@ class VerificationService {
   // Очистка истекших кодов
   async cleanupExpiredCodes() {
     try {
-      const expiredCodes = await encryptedDb.getData('verification_codes', {
-        expires_at: { $lt: new Date() }
-      });
-
-      for (const code of expiredCodes) {
-        await encryptedDb.deleteData('verification_codes', { id: code.id });
+      // Удаляем истекшие коды
+      const expiredCodes = await encryptedDb.getData('verification_codes', { expires_at: { $lt: new Date() } });
+      
+      if (expiredCodes.length > 0) {
+        for (const expiredCode of expiredCodes) {
+          await encryptedDb.deleteData('verification_codes', { id: expiredCode.id });
+        }
+        // logger.info(`Cleaned up ${expiredCodes.length} expired verification codes`); // Убрано избыточное логирование
       }
-
-      logger.info(`Cleaned up ${expiredCodes.length} expired verification codes`);
     } catch (error) {
       logger.error('Error cleaning up expired codes:', error);
     }

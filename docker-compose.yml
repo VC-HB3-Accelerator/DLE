@@ -36,7 +36,7 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
+        max-size: "20m"
         max-file: "3"
     volumes:
       - ollama_data:/root/.ollama
@@ -97,8 +97,8 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "5m"
+        max-file: "2"
     depends_on:
       postgres:
         condition: service_healthy
@@ -228,6 +228,8 @@ services:
           /backup.sh
         done
       "
+
+
 
 volumes:
   postgres_data:

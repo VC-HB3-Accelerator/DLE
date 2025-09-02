@@ -14,13 +14,13 @@ const { Pool } = require('pg');
 require('dotenv').config();
 const axios = require('axios');
 
-// Выводим настройки подключения (без пароля)
-console.log('Настройки подключения к базе данных:');
-console.log('DATABASE_URL:', process.env.DATABASE_URL?.replace(/:([^:@]+)@/, ':***@'));
-console.log('DB_HOST:', process.env.DB_HOST);
-console.log('DB_PORT:', process.env.DB_PORT);
-console.log('DB_NAME:', process.env.DB_NAME);
-console.log('DB_USER:', process.env.DB_USER);
+// Убираем избыточное логирование настроек подключения
+// console.log('Настройки подключения к базе данных:');
+// console.log('DATABASE_URL:', process.env.DATABASE_URL?.replace(/:([^:@]+)@/, ':***@'));
+// console.log('DB_HOST:', process.env.DB_HOST);
+// console.log('DB_PORT:', process.env.DB_PORT);
+// console.log('DB_NAME:', process.env.DB_NAME);
+// console.log('DB_USER:', process.env.DB_USER);
 
 // Первичное подключение по дефолтным значениям
 let pool = new Pool({
@@ -50,23 +50,23 @@ pool.on('error', (err) => {
 
 // Обработчик для очистки при завершении процесса
 process.on('SIGINT', async () => {
-  console.log('Closing database pool...');
+  // console.log('Closing database pool...'); // Убрано избыточное логирование
   await pool.end();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('Closing database pool...');
+  // console.log('Closing database pool...'); // Убрано избыточное логирование
   await pool.end();
   process.exit(0);
 });
 
-console.log('Пул создан:', pool.options || pool);
+// console.log('Пул создан:', pool.options || pool); // Убрано избыточное логирование
 
 // Проверяем подключение к базе данных
 pool.query('SELECT NOW()')
   .then(res => {
-    console.log('Успешное подключение к базе данных:', res.rows[0]);
+    // console.log('Успешное подключение к базе данных:', res.rows[0]); // Убрано избыточное логирование
   })
   .catch(err => {
     console.error('Ошибка подключения к базе данных:', err);
@@ -203,7 +203,7 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
     `,
       [guestId, message, language]
     );
-    console.log('Гостевое сообщение успешно сохранено:', message);
+    // console.log('Гостевое сообщение успешно сохранено:', message); // Убрано избыточное логирование
   } catch (error) {
     console.error('Ошибка при сохранении гостевого сообщения:', error);
     throw error; // Пробрасываем ошибку дальше
@@ -219,9 +219,9 @@ async function waitForOllamaModel(modelName) {
       if (models.includes(modelName)) {
         return true;
       }
-      console.log(`[seedAIAssistantSettings] Ожидание загрузки модели ${modelName}...`);
+      // console.log(`[seedAIAssistantSettings] Ожидание загрузки модели ${modelName}...`); // Убрано избыточное логирование
     } catch (e) {
-      console.log('[seedAIAssistantSettings] Ollama недоступна, ожидание...');
+      // console.log('[seedAIAssistantSettings] Ollama недоступна, ожидание...'); // Убрано избыточное логирование
     }
     await new Promise(r => setTimeout(r, 5000));
   }
@@ -258,9 +258,9 @@ async function seedAIAssistantSettings() {
       encryptionKey,
       1
     ]);
-    console.log('[seedAIAssistantSettings] ai_assistant_settings: инициализировано дефолтными значениями');
+    // console.log('[seedAIAssistantSettings] ai_assistant_settings: инициализировано дефолтными значениями'); // Убрано избыточное логирование
   } else {
-    console.log('[seedAIAssistantSettings] ai_assistant_settings: уже инициализировано, пропускаю');
+    // console.log('[seedAIAssistantSettings] ai_assistant_settings: уже инициализировано, пропускаю'); // Убрано избыточное логирование
   }
 }
 

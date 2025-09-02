@@ -323,8 +323,6 @@ class EncryptedDataService {
    */
   async deleteData(tableName, conditions) {
     try {
-      console.log(`[EncryptedDataService] deleteData: tableName=${tableName}, conditions=`, conditions);
-      
       // Проверяем, включено ли шифрование
       if (!this.isEncryptionEnabled) {
         return await this.executeUnencryptedQuery(tableName, conditions);
@@ -338,8 +336,6 @@ class EncryptedDataService {
         AND table_schema = 'public'
         ORDER BY ordinal_position
       `, [tableName]);
-
-      console.log(`[EncryptedDataService] Columns for ${tableName}:`, columns.map(c => c.column_name));
 
       // Функция для заключения зарезервированных слов в кавычки
       const quoteReservedWord = (word) => {
@@ -382,9 +378,6 @@ class EncryptedDataService {
       if (hasEncryptedFields) {
         params.unshift(this.encryptionKey);
       }
-
-      console.log(`[EncryptedDataService] DELETE query: ${query}`);
-      console.log(`[EncryptedDataService] DELETE params:`, params);
 
       const result = await db.getQuery()(query, params);
       return result.rows;

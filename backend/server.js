@@ -102,19 +102,19 @@ process.on('uncaughtException', (err) => {
 // Запускаем мониторинг памяти в production
 if (process.env.NODE_ENV === 'production') {
   memoryMonitor.start(300000); // Каждые 5 минут
-  logger.info('[Server] Мониторинг памяти запущен в production режиме');
+  // logger.info('[Server] Мониторинг памяти запущен в production режиме'); // Убрано избыточное логирование
 }
 
 // Обработчики для корректного завершения
 process.on('SIGINT', async () => {
-  logger.info('[Server] Получен сигнал SIGINT, завершаем работу...');
+  // logger.info('[Server] Получен сигнал SIGINT, завершаем работу...'); // Убрано избыточное логирование
   memoryMonitor.stop();
   await initDbPool().then(pool => pool.end()); // Use initDbPool to get the pool
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  logger.info('[Server] Получен сигнал SIGTERM, завершаем работу...');
+  // logger.info('[Server] Получен сигнал SIGTERM, завершаем работу...'); // Убрано избыточное логирование
   memoryMonitor.stop();
   await initDbPool().then(pool => pool.end()); // Use initDbPool to get the pool
   process.exit(0);

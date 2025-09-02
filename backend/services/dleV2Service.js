@@ -192,14 +192,29 @@ class DLEV2Service {
           createdAt: new Date().toISOString()
         };
         
-        logger.info('Данные DLE для сохранения:', JSON.stringify(dleData, null, 2));
-        
+        // logger.info('Данные DLE для сохранения:', JSON.stringify(dleData, null, 2)); // Убрано избыточное логирование
+          
         if (dleData.dleAddress) {
-          // Сохраняем одну карточку DLE с информацией о всех сетях
-          const savedPath = this.saveDLEData(dleData);
-          logger.info(`DLE данные сохранены в: ${savedPath}`);
+          // Сохраняем данные DLE в файл
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const fileName = `dle-v2-${timestamp}.json`;
+          const savedPath = path.join(__dirname, '../contracts-data/dles', fileName);
+          
+          // Создаем директорию, если её нет
+          const dlesDir = path.dirname(savedPath);
+          if (!fs.existsSync(dlesDir)) {
+            fs.mkdirSync(dlesDir, { recursive: true });
+          }
+          
+          fs.writeFileSync(savedPath, JSON.stringify(dleData, null, 2));
+          // logger.info(`DLE данные сохранены в: ${savedPath}`); // Убрано избыточное логирование
+          
+          return {
+            success: true,
+            data: dleData
+          };
         } else {
-          logger.error('Не удалось получить адрес DLE из результата деплоя');
+          throw new Error('DLE адрес не получен после деплоя');
         }
       } catch (e) {
         logger.warn('Не удалось сохранить локальную карточку DLE:', e.message);

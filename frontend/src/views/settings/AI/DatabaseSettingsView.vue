@@ -26,8 +26,10 @@
             <input id="dbPort" v-model.number="form.dbPort" type="number" required />
           </div>
           <div class="form-group">
-            <label for="dbName">Database</label>
-            <input id="dbName" v-model="form.dbName" type="text" required />
+            <label class="info-label">
+              <i class="info-icon">ℹ️</i>
+              Database name: <strong>{{ form.dbName }}</strong> (неизменяемо)
+            </label>
           </div>
           <div class="form-group">
             <label for="dbUser">User</label>
@@ -43,7 +45,7 @@
         <div v-else class="settings-view">
           <div class="view-row"><span>Host:</span> <b>{{ form.dbHost }}</b></div>
           <div class="view-row"><span>Port:</span> <b>{{ form.dbPort }}</b></div>
-          <div class="view-row"><span>Database:</span> <b>{{ form.dbName }}</b></div>
+          <div class="view-row"><span>Database:</span> <b>{{ form.dbName }}</b> <span class="readonly-badge">(неизменяемо)</span></div>
           <div class="view-row"><span>User:</span> <b>{{ form.dbUser }}</b></div>
           <div class="view-row"><span>Password:</span> <b>••••••••••••••••••••••••••••••••</b></div>
           <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
@@ -97,12 +99,13 @@ onMounted(async () => {
 
 const saveDbSettings = async () => {
   try {
+    // Отправляем только безопасные для изменения поля
     await api.put('/settings/db-settings', {
       db_host: form.dbHost,
       db_port: form.dbPort,
-      db_name: form.dbName,
       db_user: form.dbUser,
       db_password: form.dbPassword || undefined
+      // db_name не отправляем - он неизменяем
     });
     alert('Настройки базы данных сохранены');
     form.dbPassword = '';
@@ -218,5 +221,33 @@ h2 {
 }
 .edit-btn:hover {
   background: var(--color-primary-dark);
+}
+.empty-placeholder {
+  color: #888;
+  font-size: 1em;
+  margin: 0.7em 0;
+}
+
+.info-label {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 0.75rem;
+  color: #495057;
+  font-size: 0.95em;
+}
+
+.info-icon {
+  margin-right: 0.5rem;
+  color: #007bff;
+}
+
+.readonly-badge {
+  background: #6c757d;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8em;
+  margin-left: 0.5rem;
 }
 </style> 

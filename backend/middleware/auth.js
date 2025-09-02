@@ -50,15 +50,15 @@ const requireAuth = async (req, res, next) => {
  */
 async function requireAdmin(req, res, next) {
   try {
-    // Подробное логирование для отладки
-    logger.info(`[requireAdmin] Проверка доступа для ${req.method} ${req.url}`);
-    logger.info(`[requireAdmin] Session:`, {
-      exists: !!req.session,
-      authenticated: req.session?.authenticated,
-      isAdmin: req.session?.isAdmin,
-      userId: req.session?.userId,
-      address: req.session?.address
-    });
+    // Убираем избыточное логирование
+    // logger.info(`[requireAdmin] Проверка доступа для ${req.method} ${req.url}`);
+    // logger.info(`[requireAdmin] Session:`, {
+    //   exists: !!req.session,
+    //   authenticated: req.session?.authenticated,
+    //   isAdmin: req.session?.isAdmin,
+    //   userId: req.session?.userId,
+    //   address: req.session?.address
+    // });
     
     // Проверка аутентификации
     if (!req.session || !req.session.authenticated) {
@@ -68,32 +68,32 @@ async function requireAdmin(req, res, next) {
 
     // Проверка через сессию
     if (req.session.isAdmin) {
-      logger.info(`[requireAdmin] Доступ разрешен через сессию isAdmin`);
+      // logger.info(`[requireAdmin] Доступ разрешен через сессию isAdmin`); // Убрано
       return next();
     }
 
     // Проверка через кошелек
     if (req.session.address) {
-      logger.info(`[requireAdmin] Проверка через кошелек: ${req.session.address}`);
+      // logger.info(`[requireAdmin] Проверка через кошелек: ${req.session.address}`); // Убрано
       const isAdmin = await authService.checkAdminTokens(req.session.address);
       if (isAdmin) {
         // Обновляем сессию
         req.session.isAdmin = true;
-        logger.info(`[requireAdmin] Доступ разрешен через кошелек`);
+        // logger.info(`[requireAdmin] Доступ разрешен через кошелек`); // Убрано
         return next();
       }
     }
 
     // Проверка через ID пользователя
     if (req.session.userId) {
-      logger.info(`[requireAdmin] Проверка через userId: ${req.session.userId}`);
+      // logger.info(`[requireAdmin] Проверка через userId: ${req.session.userId}`); // Убрано
       const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
         req.session.userId,
       ]);
       if (userResult.rows.length > 0 && userResult.rows[0].role === USER_ROLES.ADMIN) {
         // Обновляем сессию
         req.session.isAdmin = true;
-        logger.info(`[requireAdmin] Доступ разрешен через userId`);
+        // logger.info(`[requireAdmin] Доступ разрешен через userId`); // Убрано
         return next();
       }
     }

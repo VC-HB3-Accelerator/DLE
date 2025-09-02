@@ -125,12 +125,10 @@ class AIQueue extends EventEmitter {
   // Пауза/возобновление очереди
   pause() {
     this.isPaused = true;
-    logger.info('[AIQueue] Очередь приостановлена');
   }
 
   resume() {
     this.isPaused = false;
-    logger.info('[AIQueue] Очередь возобновлена');
   }
 
   // Проверка статуса паузы

@@ -669,11 +669,31 @@ router.get('/db-settings', async (req, res) => {
 });
 
 // Обновить настройки базы данных
-router.put('/db-settings', requireAdmin, async (req, res) => {
+router.put('/db-settings', requireAdmin, async (req, res, next) => {
   try {
     const { db_host, db_port, db_name, db_user, db_password } = req.body;
     const updated = await dbSettingsService.upsertSettings({ db_host, db_port, db_name, db_user, db_password });
     res.json({ success: true, settings: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Получить статус подключения к БД
+router.get('/db-settings/connection-status', requireAdmin, async (req, res, next) => {
+  try {
+    const status = await dbSettingsService.getConnectionStatus();
+    res.json({ success: true, status });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Принудительное переподключение к БД
+router.post('/db-settings/reconnect', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await dbSettingsService.reconnect();
+    res.json({ success: true, result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

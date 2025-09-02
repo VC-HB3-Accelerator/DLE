@@ -165,20 +165,18 @@ class IdentityService {
     } catch (error) {
       logger.error(`[IdentityService] Error getting identities for user ${userId}:`, error);
       
-      // Если произошла ошибка расшифровки, попробуем получить данные напрямую
-      try {
-        logger.info(`[IdentityService] Trying to get unencrypted data for user ${userId}`);
-        const { rows } = await db.getQuery()(
-          'SELECT id, user_id, created_at, provider_encrypted as provider, provider_id_encrypted as provider_id FROM user_identities WHERE user_id = $1',
-          [userId]
-        );
-        
-        logger.info(`[IdentityService] Found ${rows.length} unencrypted identities for user ${userId}`);
-        return rows;
-      } catch (fallbackError) {
-        logger.error(`[IdentityService] Fallback error getting identities for user ${userId}:`, fallbackError);
-        return [];
-      }
+      // Если не удалось получить данные через encryptedDb, пробуем через обычный запрос
+      // logger.info(`[IdentityService] Trying to get unencrypted data for user ${userId}`); // Убрано избыточное логирование
+      
+      const { rows } = await db.getQuery()(`
+        SELECT provider, provider_id, provider_username, provider_avatar, created_at, updated_at
+        FROM user_identities 
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+      `, [userId]);
+      
+      // logger.info(`[IdentityService] Found ${rows.length} unencrypted identities for user ${userId}`); // Убрано избыточное логирование
+      return rows;
     }
   }
 

@@ -218,8 +218,8 @@ router.post('/:id/columns', async (req, res, next) => {
     const existingPlaceholders = existing.map(c => c.placeholder).filter(Boolean);
     const placeholder = generatePlaceholder(name, existingPlaceholders);
     const result = await db.getQuery()(
-      'INSERT INTO user_columns (table_id, name_encrypted, type_encrypted, placeholder_encrypted, "order", placeholder) VALUES ($1, encrypt_text($2, $7), encrypt_text($3, $7), encrypt_text($6, $7), $4, $5) RETURNING *',
-      [tableId, name, type, order || 0, placeholder, placeholder, encryptionKey]
+      'INSERT INTO user_columns (table_id, name_encrypted, type_encrypted, placeholder_encrypted, "order", placeholder, options) VALUES ($1, encrypt_text($2, $7), encrypt_text($3, $7), encrypt_text($6, $7), $4, $5, $8) RETURNING *',
+      [tableId, name, type, order || 0, placeholder, placeholder, encryptionKey, JSON.stringify(finalOptions)]
     );
     res.json(result.rows[0]);
     broadcastTableUpdate(tableId);

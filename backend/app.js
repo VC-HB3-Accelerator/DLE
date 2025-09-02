@@ -45,14 +45,11 @@ const ensureDirectoriesExist = () => {
   for (const dir of directories) {
     if (!fs.existsSync(dir)) {
       try {
-        logger.info(`Создание директории: ${dir}`);
         fs.mkdirSync(dir, { recursive: true });
-        logger.info(`Директория успешно создана: ${dir}`);
       } catch (error) {
         logger.error(`Ошибка при создании директории ${dir}: ${error.message}`);
       }
     } else {
-      logger.info(`Директория существует: ${dir}`);
     }
     
     // Проверка прав на запись
@@ -60,7 +57,6 @@ const ensureDirectoriesExist = () => {
       const testFile = path.join(dir, '.write-test');
       fs.writeFileSync(testFile, 'test');
       fs.unlinkSync(testFile);
-      logger.info(`Директория доступна для записи: ${dir}`);
     } catch (error) {
       logger.error(`Директория ${dir} недоступна для записи: ${error.message}`);
     }
@@ -137,46 +133,18 @@ app.use(async (req, res, next) => {
     const result = await db.getQuery()('SELECT sess FROM session WHERE sid = $1', [req.sessionID]);
     // console.log('Session from DB:', result.rows[0]?.sess);
   }
-
-  // Если сессия уже есть, используем её
-  if (req.session.authenticated) {
-    next();
-    return;
-  }
-
-  // Проверяем заголовок авторизации
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    try {
-      // Находим пользователя по токену
-      const { rows } = await db.getQuery(
-        `
-        SELECT u.id, 
-        (u.role = 'admin') as is_admin,
-        u.address 
-        FROM users u 
-        WHERE u.id = $1
-      `,
-        [token]
-      );
-
-      if (rows.length > 0) {
-        const user = rows[0];
-        req.session.userId = user.id;
-        req.session.address = user.address;
-        req.session.isAdmin = user.is_admin;
-        req.session.authenticated = true;
-
-        await new Promise((resolve) => req.session.save(resolve));
-      }
-    } catch (error) {
-      // console.error('Error checking auth header:', error);
-    }
-  }
-
+  
   next();
 });
+
+// Логирование запросов (только для отладки)
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    // console.log('[APP] Глобальный лог:', req.method, req.originalUrl); // Убрано
+    // logger.info(`${req.method} ${req.url}`); // Убрано
+    next();
+  });
+}
 
 // Middleware для подстановки req.user из сессии
 app.use((req, res, next) => {
@@ -204,13 +172,6 @@ app.use(
     contentSecurityPolicy: false, // Отключаем CSP для разработки
   })
 );
-
-// Логирование запросов
-app.use((req, res, next) => {
-  // console.log('[APP] Глобальный лог:', req.method, req.originalUrl);
-  logger.info(`${req.method} ${req.url}`);
-  next();
-});
 
 // Маршруты API
 app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
@@ -340,5 +301,21 @@ setInterval(
   },
   15 * 60 * 1000
 ); // Каждые 15 минут
+
+// Инициализация сервиса настроек БД для динамического обновления подключений
+const initializeDbSettingsService = async () => {
+  try {
+    const dbSettingsService = require('./services/dbSettingsService');
+    await dbSettingsService.initialize();
+    // logger.info('[App] Сервис настроек БД инициализирован'); // Убрано избыточное логирование
+  } catch (error) {
+    logger.error('[App] Ошибка инициализации сервиса настроек БД:', error);
+  }
+};
+
+// Инициализируем сервис настроек БД при запуске
+if (process.env.NODE_ENV !== 'migration') {
+  initializeDbSettingsService();
+}
 
 module.exports = { app, nonceStore };

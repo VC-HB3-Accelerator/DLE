@@ -5,7 +5,10 @@ const requestLogger = (req, res, next) => {
 
   res.on('finish', () => {
     const duration = Date.now() - start;
-    logger.info(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${duration}ms`);
+    // Логируем только медленные запросы (>1000ms) и ошибки
+    if (duration > 1000 || res.statusCode >= 400) {
+      logger.warn(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${duration}ms`);
+    }
   });
 
   next();

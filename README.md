@@ -94,8 +94,7 @@ docker compose up
 docker-compose restart
 
 # Остановка сервисов
-docker compose down
-
+docker-compose-down
 
 ## Контакты и поддержка
 

@@ -65,7 +65,7 @@
   </template>
   <template v-else-if="column.type === 'multiselect-relation'">
     <div v-if="!editing" @click="editing = true" class="tags-cell-view">
-      <span v-if="selectedMultiRelationNames.length">{{ selectedMultiRelationNames.map(prettyDisplay).join(', ') }}</span>
+      <span v-if="selectedMultiRelationNames.length">{{ selectedMultiRelationNames.join(', ') }}</span>
       <span v-else class="cell-plus-icon" title="Добавить">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
@@ -78,7 +78,7 @@
       <div class="tags-multiselect">
         <div v-for="option in multiRelationOptions" :key="option.id" class="tag-option">
           <input type="checkbox" :id="'cell-multirel-' + option.id + '-' + rowId" :value="String(option.id)" v-model="editMultiRelationValues" />
-          <label :for="'cell-multirel-' + option.id + '-' + rowId">{{ prettyDisplay(option.display, multiRelationOptions.value) }}</label>
+          <label :for="'cell-multirel-' + option.id + '-' + rowId">{{ option.display }}</label>
           <button class="delete-tag-btn" @click.prevent="deleteTag(option.id)" title="Удалить тег">×</button>
         </div>
       </div>
@@ -500,44 +500,55 @@ async function loadMultiRelationOptions() {
   }
   
   const rel = props.column.options || {};
-  if (rel.relatedTableId && rel.relatedColumnId) {
-    try {
-      // Проверяем кэш для данных таблицы
-      const cachedTableData = cacheService.getTableData(rel.relatedTableId, 'default');
-      let tableData;
-      
-      if (cachedTableData) {
-        // console.log(`[loadMultiRelationOptions] ✅ Используем предварительно загруженные данные таблицы ${rel.relatedTableId}`);
-        tableData = cachedTableData;
-      } else {
-        // console.log(`[loadMultiRelationOptions] ⚠️ Данные таблицы ${rel.relatedTableId} не найдены в кэше, загружаем заново`);
-        const response = await fetch(`/api/tables/${rel.relatedTableId}`);
-        tableData = await response.json();
-        // Сохраняем в кэш
-        cacheService.setTableData(rel.relatedTableId, 'default', tableData);
-      }
-      
-      // Формируем опции из данных таблицы
-      const colId = rel.relatedColumnId || (tableData.columns[0] && tableData.columns[0].id);
-      const opts = [];
-      for (const row of tableData.rows) {
-        const cell = tableData.cellValues.find(c => c.row_id === row.id && c.column_id === colId);
-        opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
-      }
-      multiRelationOptions.value = opts;
-      lastLoadedOptionsKey = cacheKey;
-      
-      // Обновляем selectedMultiRelationNames на основе текущих значений
-      if (editMultiRelationValues.value.length > 0) {
-        selectedMultiRelationNames.value = opts
-          .filter(opt => editMultiRelationValues.value.includes(String(opt.id)))
-          .map(opt => opt.display);
-      } else {
-        selectedMultiRelationNames.value = [];
-      }
-    } catch (e) {
-      // console.error('[loadMultiRelationOptions] Error:', e);
+  
+  // Проверяем, что options содержат необходимые данные
+  if (!rel.relatedTableId || !rel.relatedColumnId) {
+    console.warn('[loadMultiRelationOptions] Отсутствуют relatedTableId или relatedColumnId в options:', rel);
+    multiRelationOptions.value = [];
+    selectedMultiRelationNames.value = [];
+    return;
+  }
+  
+  try {
+    // Проверяем кэш для данных таблицы
+    const cachedTableData = cacheService.getTableData(rel.relatedTableId, 'default');
+    let tableData;
+    
+    if (cachedTableData) {
+      console.log(`[loadMultiRelationOptions] ✅ Используем предварительно загруженные данные таблицы ${rel.relatedTableId}`);
+      tableData = cachedTableData;
+    } else {
+      console.log(`[loadMultiRelationOptions] ⚠️ Данные таблицы ${rel.relatedTableId} не найдены в кэше, загружаем заново`);
+      const response = await fetch(`/api/tables/${rel.relatedTableId}`);
+      tableData = await response.json();
+      // Сохраняем в кэш
+      cacheService.setTableData(rel.relatedTableId, 'default', tableData);
     }
+    
+    // Формируем опции из данных таблицы
+    const colId = rel.relatedColumnId || (tableData.columns[0] && tableData.columns[0].id);
+    const opts = [];
+    for (const row of tableData.rows) {
+      const cell = tableData.cellValues.find(c => c.row_id === row.id && c.column_id === colId);
+      opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
+    }
+    multiRelationOptions.value = opts;
+    lastLoadedOptionsKey = cacheKey;
+    
+    console.log('[loadMultiRelationOptions] Загружено опций:', opts.length);
+    
+    // Обновляем selectedMultiRelationNames на основе текущих значений
+    if (editMultiRelationValues.value.length > 0) {
+      selectedMultiRelationNames.value = opts
+        .filter(opt => editMultiRelationValues.value.includes(String(opt.id)))
+        .map(opt => opt.display);
+    } else {
+      selectedMultiRelationNames.value = [];
+    }
+  } catch (e) {
+    console.error('[loadMultiRelationOptions] Error:', e);
+    multiRelationOptions.value = [];
+    selectedMultiRelationNames.value = [];
   }
 }
 

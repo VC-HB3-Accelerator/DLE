@@ -70,8 +70,8 @@ class MemoryMonitor {
 
     this.lastMemoryUsage = memUsageMB;
 
-    // Логируем текущее использование памяти
-    logger.info('[MemoryMonitor] Использование памяти:', memUsageMB);
+    // Логируем только при значительном росте памяти
+    // logger.info('[MemoryMonitor] Использование памяти:', memUsageMB); // Убрано избыточное логирование
   }
 
   getMemoryUsage() {
@@ -90,7 +90,7 @@ class MemoryMonitor {
     const eventEmitter = require('events');
     const defaultMaxListeners = eventEmitter.defaultMaxListeners;
     
-    logger.info('[MemoryMonitor] EventEmitter defaultMaxListeners:', defaultMaxListeners);
+    // logger.info('[MemoryMonitor] EventEmitter defaultMaxListeners:', defaultMaxListeners); // Убрано избыточное логирование
     
     // Можно добавить дополнительную логику для проверки конкретных EventEmitter'ов
   }

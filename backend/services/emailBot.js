@@ -126,7 +126,7 @@ class EmailBotService {
       authTimeout: 60000,    // Таймаут на аутентификацию - 60 секунд
       greetingTimeout: 30000, // Таймаут на приветствие сервера
       socketTimeout: 60000,   // Таймаут на операции сокета
-      debug: console.log      // Включаем отладку для диагностики
+      debug: false      // Включаем отладку для диагностики
     };
   }
 
@@ -156,7 +156,7 @@ class EmailBotService {
         html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;"><h2 style="color: #333;">Код подтверждения</h2><p style="font-size: 16px; color: #666;">Ваш код подтверждения:</p><div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;"><span style="font-size: 24px; font-weight: bold; color: #333;">${code}</span></div><p style="font-size: 14px; color: #999;">Код действителен в течение 15 минут.</p></div>`,
       };
       await transporter.sendMail(mailOptions);
-      logger.info(`Verification code sent to ${email}`);
+      // logger.info(`Verification code sent to ${email}`); // Убрано логирование email адреса
     } catch (error) {
       logger.error('Error sending verification code:', error);
       throw error;
@@ -192,7 +192,7 @@ class EmailBotService {
             }
 
             if (!results || results.length === 0) {
-              logger.info('No messages found');
+              // logger.info('No messages found'); // Убрано избыточное логирование
               this.imap.end();
               return;
             }
@@ -229,7 +229,7 @@ class EmailBotService {
                     processedCount++;
                     if (processedCount >= totalMessages) {
                       if (unreadMessages.length === 0) {
-                        logger.info('No unread messages found');
+                        // logger.info('No unread messages found'); // Убрано избыточное логирование
                       }
                       this.imap.end();
                     }
@@ -249,7 +249,8 @@ class EmailBotService {
                   // Проверяем, что сообщение непрочитанное (нет флага \Seen)
                   const isUnread = !flags.includes('\\Seen');
                   
-                  logger.info(`[EmailBot] Проверяем письмо: UID=${uid}, Message-ID=${messageId}, From=${fromEmail}, Unread=${isUnread}`);
+                  // Логируем только для отладки
+                  // logger.info(`[EmailBot] Проверяем письмо: UID=${uid}, Message-ID=${messageId}, From=${fromEmail}, Unread=${isUnread}`); // Убрано избыточное логирование
                   
                   // Обрабатываем ВСЕ новые письма, независимо от статуса "прочитано"
                   // Проверка на уже обработанные письма будет в processIncomingEmail
@@ -271,12 +272,13 @@ class EmailBotService {
                       return;
                     }
                     
-                    logger.info(`[EmailBot] Найдено ${unreadMessages.length} непрочитанных сообщений`);
+                    // logger.info(`[EmailBot] Найдено ${unreadMessages.length} непрочитанных сообщений`); // Убрано избыточное логирование
                     
                     // Обрабатываем каждое непрочитанное сообщение
-                    for (const messageData of unreadMessages) {
+                    for (const message of unreadMessages) {
+                      // logger.info(`[EmailBot] Обрабатываем письмо: UID=${message.uid}, Message-ID=${message.messageId}, From=${message.fromEmail}`); // Убрано избыточное логирование
                       try {
-                        await this.processIncomingEmail(messageData);
+                        await this.processIncomingEmail(message);
                       } catch (processErr) {
                         logger.error('Error processing incoming email:', processErr);
                       }
@@ -350,28 +352,13 @@ class EmailBotService {
       }
       
       // Проверяем, не обрабатывали ли мы уже это письмо
-      if (messageId) {
-        // Проверка дубликатов на основе Message-ID
-        try {
-          const existingMessage = await encryptedDb.getData(
-            'messages',
-            {
-              user_id: userId,
-              channel: 'email',
-              direction: 'in',
-              message_id: messageId
-            },
-            1
-          );
-          
-          if (existingMessage.length > 0) {
-            logger.info(`[EmailBot] Игнорируем дубликат письма от ${fromEmail} (Message-ID: ${messageId})`);
-            return;
-          }
-        } catch (error) {
-          logger.error(`[EmailBot] Ошибка при проверке дубликатов: ${error.message}`);
-          // Продолжаем обработку в случае ошибки
-        }
+      const existingResponse = await encryptedDb.getData('ai_responses', { 
+        message_id: messageId 
+      });
+      
+      if (existingResponse.length > 0) {
+        // logger.info(`[EmailBot] Игнорируем дубликат письма от ${fromEmail} (Message-ID: ${messageId})`); // Убрано логирование email адреса
+        return;
       }
       
       // Проверяем, не обрабатывали ли мы уже это письмо (улучшенная проверка)
@@ -624,7 +611,7 @@ class EmailBotService {
         };
         
         await transporter.sendMail(mailOptions);
-        logger.info(`Email sent to ${to} (attempt ${attempt})`);
+        // logger.info(`Email sent to ${to} (attempt ${attempt})`); // Убрано логирование email адреса
         
         // Закрываем соединение после успешной отправки
         transporter.close();

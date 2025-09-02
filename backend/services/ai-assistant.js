@@ -41,7 +41,7 @@ class AIAssistant {
     this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.defaultModel = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
     this.lastHealthCheck = 0;
-    this.healthCheckInterval = 30000; // 30 секунд
+    this.healthCheckInterval = 300000; // 5 минут (увеличено с 30 секунд для уменьшения логов)
     
     // Создаем экземпляр AIQueue
     this.aiQueue = new AIQueue();
@@ -114,16 +114,12 @@ class AIAssistant {
     try {
       const { message, history, systemPrompt, rules } = request;
       
-      logger.info(`[AIAssistant] Обрабатываю запрос: message="${message?.substring(0, 50)}...", history=${history?.length || 0}, systemPrompt="${systemPrompt?.substring(0, 50)}..."`);
-      
       // Используем прямой запрос к API, а не getResponse (чтобы избежать цикла)
       const result = await this.directRequest(
         [{ role: 'user', content: message }],
         systemPrompt,
         { temperature: 0.3, maxTokens: 150 }
       );
-      
-      logger.info(`[AIAssistant] Запрос успешно обработан, результат: "${result?.substring(0, 100)}..."`);
       
       return result;
     } catch (error) {

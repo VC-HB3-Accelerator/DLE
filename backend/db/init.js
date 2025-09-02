@@ -113,17 +113,14 @@ async function initializeDatabase() {
         const filePath = path.join(migrationsPath, file);
         const sql = fs.readFileSync(filePath, 'utf8');
 
-        logger.info(`Executing migration: ${file}`);
         await pool.query(sql);
 
         // Записываем выполненную миграцию
         await pool.query('INSERT INTO migrations (name) VALUES ($1)', [file]);
 
-        logger.info(`Migration completed: ${file}`);
       }
     }
 
-    logger.info('All migrations completed successfully');
   } catch (error) {
     logger.error('Error during database initialization:', error);
     throw error;

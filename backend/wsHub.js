@@ -476,7 +476,7 @@ module.exports = {
 // Обработчик запроса балансов токенов
 async function handleTokenBalancesRequest(ws, address, userId) {
   try {
-    console.log(`[WebSocket] Запрос балансов для адреса: ${address}`);
+    // console.log(`[WebSocket] Запрос балансов для адреса: ${address}`); // Убрано избыточное логирование
 
     // Получаем балансы через отдельный сервис без зависимостей от wsHub
     const balances = await tokenBalanceService.getUserTokenBalances(address);
@@ -491,7 +491,7 @@ async function handleTokenBalancesRequest(ws, address, userId) {
       }
     }));
     
-    console.log(`[WebSocket] Отправлены балансы для ${address}:`, balances.length, 'токенов');
+    // console.log(`[WebSocket] Отправлены балансы для ${address}:`, balances.length, 'токенов'); // Убрано избыточное логирование
   } catch (error) {
     console.error('[WebSocket] Ошибка при получении балансов:', error);
     
