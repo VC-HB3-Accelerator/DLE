@@ -40,8 +40,8 @@ services:
         max-file: "3"
     volumes:
       - ollama_data:/root/.ollama
-    ports:
-      - '11434:11434'  # Открываем для доступа к Ollama
+    # ports:
+    #   - '11434:11434'  # ЗАКРЫТЬ! Доступ только через backend
     deploy:
       resources:
         limits:
@@ -79,7 +79,7 @@ services:
         max-file: "3"
     depends_on:
       ollama:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./vector-search:/app
       - vector_search_data:/app/data
@@ -88,6 +88,12 @@ services:
       - OLLAMA_EMBED_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
     # ports:
     #   - '8001:8001'  # Закрываем - используется только backend'ом
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
   backend:
     build:
       context: ./backend
@@ -103,16 +109,15 @@ services:
       postgres:
         condition: service_healthy
       ollama:
-        condition: service_started
+        condition: service_healthy
       vector-search:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
       - backend_node_modules:/app/node_modules
       - ./frontend/dist:/app/frontend_dist:ro
       - ./ssl:/app/ssl:ro
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=${PORT:-8000}
@@ -133,6 +138,12 @@ services:
       - '8000:8000'
     extra_hosts:
       - host.docker.internal:host-gateway
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
   frontend:
     build:
       context: ./frontend
@@ -145,7 +156,8 @@ services:
         max-size: "10m"
         max-file: "3"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
@@ -185,26 +197,7 @@ services:
     depends_on:
       - backend
 
-  # Мониторинг безопасности
-  security-monitor:
-    image: alpine:latest
-    container_name: dapp-security-monitor
-    restart: unless-stopped
-    volumes:
-      - ./security-monitor.sh:/app/security-monitor.sh:ro
-      - ./start-security-monitor.sh:/app/start-security-monitor.sh:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - security_monitor_data:/var/log/security-monitor
-    depends_on:
-      - frontend-nginx
-    working_dir: /app
-    command: >
-      sh -c "
-        apk add --no-cache docker-cli bash curl jq &&
-        cp security-monitor.sh /tmp/security-monitor.sh &&
-        chmod +x /tmp/security-monitor.sh &&
-        exec bash /tmp/security-monitor.sh
-      "
+
 
   # Автоматический бэкап базы данных
   backup-service:
@@ -234,7 +227,6 @@ services:
 volumes:
   postgres_data:
   ollama_data:
-  security_monitor_data:
   vector_search_data:
   frontend_node_modules:
   backend_node_modules:
