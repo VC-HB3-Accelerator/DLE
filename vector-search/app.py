@@ -51,7 +51,7 @@ def get_embedding(text: str) -> list:
         resp = requests.post(f"{OLLAMA_BASE_URL}/api/embeddings", json={
             "model": EMBED_MODEL,
             "prompt": text
-        }, timeout=30)
+        }, timeout=300)
         print(f"[DEBUG] Ollama response status: {resp.status_code}")
         
         if not resp.ok:

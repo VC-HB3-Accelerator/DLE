@@ -46,26 +46,28 @@ services:
       resources:
         limits:
           cpus: '2.0'
-          memory: 8G
+          memory: 6G
         reservations:
           cpus: '1.0'
           memory: 4G
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_ORIGINS=*
-      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_NUM_GPU=0
       - OLLAMA_KEEP_ALIVE=86400
       - OLLAMA_MODEL_TIMEOUT=0
       - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_FLASH_ATTENTION=0
+      - OLLAMA_LLM_LIBRARY=auto
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 120s
-    # Предзагружаем модель при запуске контейнера
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 15 && ollama run qwen2.5:7b 'test' && tail -f /dev/null"]
+    # Предзагружаем модель при запуске контейнера с keepalive
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 15 && ollama run --keepalive 24h qwen2.5:7b 'test' && tail -f /dev/null"]
   vector-search:
     build:
       context: ./vector-search
