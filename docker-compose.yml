@@ -55,7 +55,7 @@ services:
       - OLLAMA_ORIGINS=*
       - OLLAMA_NUM_PARALLEL=2
       - OLLAMA_NUM_GPU=0
-      - OLLAMA_KEEP_ALIVE=-1
+      - OLLAMA_KEEP_ALIVE=86400
       - OLLAMA_MODEL_TIMEOUT=0
       - OLLAMA_MAX_LOADED_MODELS=1
     healthcheck:
@@ -65,7 +65,7 @@ services:
       retries: 5
       start_period: 120s
     # Предзагружаем модель при запуске контейнера
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 10 && ollama run --keepalive 0 qwen2.5:7b & wait"]
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 15 && ollama run qwen2.5:7b 'test' && tail -f /dev/null"]
   vector-search:
     build:
       context: ./vector-search
