@@ -18,7 +18,6 @@ const logger = require('./utils/logger');
 const { getBot } = require('./services/telegramBot');
 const EmailBotService = require('./services/emailBot');
 const { initDbPool, seedAIAssistantSettings } = require('./db');
-const { warmupModel } = require('./scripts/warmup-model'); // Добавляем импорт разогрева модели
 const memoryMonitor = require('./utils/memoryMonitor');
 
 const PORT = process.env.PORT || 8000;
@@ -72,9 +71,6 @@ async function startServer() {
   // Разогрев модели Ollama
       // console.log('🔥 Запуск разогрева модели...');
   setTimeout(() => {
-    warmupModel().catch(err => {
-              // console.error('❌ Ошибка разогрева модели:', err.message);
-    });
   }, 10000); // Задержка 10 секунд для полной инициализации
   
   await initServices(); // Только теперь запускать сервисы

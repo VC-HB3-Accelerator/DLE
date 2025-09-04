@@ -352,8 +352,7 @@ class AIAssistant {
             model,
             messages: finalMessages,
             stream: false,
-            options: ollamaOptions,
-            keep_alive: '3m'
+            options: ollamaOptions
           })
         });
         logger.info(`[AIAssistant] Ollama API ответил: status=${response.status}`);

@@ -21,7 +21,6 @@ const errorHandler = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
 const db = require('./db'); // Добавляем импорт db
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
-const { warmupModel } = require('./scripts/warmup-model'); // Добавляем импорт разогрева модели
 const fs = require('fs');
 const path = require('path');
 const messagesRoutes = require('./routes/messages');
