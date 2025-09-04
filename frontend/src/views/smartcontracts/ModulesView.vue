@@ -44,6 +44,9 @@
             <div class="info-item">
               <strong>Неактивных модулей:</strong> {{ inactiveModulesCount }}
             </div>
+            <div class="info-item" v-if="modules.length > 0">
+              <strong>Последнее обновление:</strong> {{ lastUpdateTime }}
+            </div>
           </div>
         </div>
       </div>
@@ -484,23 +487,50 @@
             :class="{ 'active': module.isActive, 'inactive': !module.isActive }"
           >
             <div class="module-header">
-              <h5>{{ module.moduleId }}</h5>
+              <h5>{{ module.moduleName || 'Неизвестный модуль' }}</h5>
               <span class="module-status" :class="{ 'active': module.isActive, 'inactive': !module.isActive }">
                 {{ module.isActive ? 'Активен' : 'Неактивен' }}
               </span>
             </div>
 
             <div class="module-details">
+              <div class="detail-item" v-if="module.moduleDescription">
+                <strong>Описание:</strong> 
+                <span>{{ module.moduleDescription }}</span>
+              </div>
+              
+              <!-- Адреса модуля в разных сетях -->
               <div class="detail-item">
-                <strong>Адрес:</strong> 
-                <a 
-                  :href="`https://sepolia.etherscan.io/address/${module.moduleAddress}`" 
-                  target="_blank" 
-                  class="address-link"
-                >
-                  {{ shortenAddress(module.moduleAddress) }}
-                  <i class="fas fa-external-link-alt"></i>
-                </a>
+                <strong>Адреса в сетях:</strong>
+                <div class="addresses-list">
+                  <div 
+                    v-for="addr in module.addresses" 
+                    :key="`${module.moduleId}-${addr.networkIndex}`"
+                    class="address-item"
+                  >
+                    <span class="network-badge">{{ addr.networkName }}</span>
+                    <a 
+                      :href="getEtherscanUrl(addr.address, addr.networkIndex, addr.chainId)" 
+                      target="_blank" 
+                      class="address-link"
+                    >
+                      {{ shortenAddress(addr.address) }}
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <span class="verification-status" :class="addr.verificationStatus">
+                      <i class="fas fa-check-circle" v-if="addr.verificationStatus === 'success'"></i>
+                      <i class="fas fa-times-circle" v-else-if="addr.verificationStatus === 'failed'"></i>
+                      <i class="fas fa-clock" v-else></i>
+                      {{ addr.verificationStatus === 'success' ? 'Верифицирован' : 
+                         addr.verificationStatus === 'failed' ? 'Ошибка' : 'Ожидает' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="detail-item" v-if="module.deployedAt">
+                <strong>Дата деплоя:</strong> 
+                <span>{{ formatDate(module.deployedAt) }}</span>
               </div>
             </div>
 
@@ -523,6 +553,25 @@
                 <i class="fas fa-check"></i> 
                 {{ isActivating === module.moduleId ? 'Активация...' : 'Активировать' }}
               </button>
+              
+              <!-- Кнопки верификации для каждой сети -->
+              <div class="verification-buttons">
+                <button 
+                  v-for="addr in module.addresses"
+                  :key="`verify-${module.moduleId}-${addr.networkIndex}`"
+                  class="btn btn-sm btn-info verification-btn" 
+                  @click="verifyModule(module, addr)"
+                  :disabled="isVerifying === `${module.moduleId}-${addr.networkIndex}`"
+                  :title="getVerificationButtonTitle(addr.verificationStatus)"
+                >
+                  <i class="fas fa-check-circle" v-if="addr.verificationStatus === 'success'"></i>
+                  <i class="fas fa-times-circle" v-else-if="addr.verificationStatus === 'failed'"></i>
+                  <i class="fas fa-spinner fa-spin" v-else-if="isVerifying === `${module.moduleId}-${addr.networkIndex}`"></i>
+                  <i class="fas fa-shield-alt" v-else></i>
+                  {{ getVerificationButtonText(addr.verificationStatus) }}
+                  <span class="network-indicator">{{ addr.networkName }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -567,6 +616,8 @@ const isLoadingModules = ref(false);
 const isCreating = ref(false);
 const isRemoving = ref(null);
 const isActivating = ref(null);
+const isVerifying = ref(null);
+const lastUpdateTime = ref('');
 
 // Форма нового модуля
 const newModule = ref({
@@ -628,7 +679,8 @@ async function loadModules() {
     const dleAddress = route.query.address;
     
     if (!dleAddress) {
-      console.error('Адрес DLE не указан');
+      console.error('[ModulesView] Адрес DLE не указан');
+      modules.value = [];
       return;
     }
 
@@ -637,9 +689,30 @@ async function loadModules() {
     // Загружаем модули через modulesService
     const modulesResponse = await getAllModules(dleAddress);
     
+    console.log('[ModulesView] Ответ от API:', modulesResponse);
+    
     if (modulesResponse.success) {
       modules.value = modulesResponse.data.modules || [];
-      console.log('[ModulesView] Модули загружены:', modules.value);
+      console.log('[ModulesView] Модули загружены успешно:', {
+        count: modules.value.length,
+        modules: modules.value.map(m => ({ 
+          name: m.moduleName, 
+          address: m.moduleAddress, 
+          active: m.isActive,
+          id: m.moduleId 
+        })),
+        modulesInitialized: modulesResponse.data.modulesInitialized,
+        totalModules: modulesResponse.data.totalModules,
+        activeModules: modulesResponse.data.activeModules
+      });
+      
+      // Обновляем счетчики
+      if (modulesResponse.data.modulesInitialized === false) {
+        console.log('[ModulesView] Модули для DLE не инициализированы');
+      }
+      
+      // Обновляем время последнего обновления
+      lastUpdateTime.value = new Date().toLocaleTimeString('ru-RU');
     } else {
       console.error('[ModulesView] Ошибка загрузки модулей:', modulesResponse.error);
       modules.value = [];
@@ -647,6 +720,11 @@ async function loadModules() {
     
   } catch (error) {
     console.error('[ModulesView] Ошибка загрузки модулей:', error);
+    console.error('[ModulesView] Детали ошибки:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
     modules.value = [];
   } finally {
     isLoadingModules.value = false;
@@ -758,10 +836,110 @@ async function activateModule(moduleId) {
   }
 }
 
+// Верификация модуля в конкретной сети
+async function verifyModule(module, addressInfo) {
+  try {
+    const verificationKey = `${module.moduleId}-${addressInfo.networkIndex}`;
+    isVerifying.value = verificationKey;
+    console.log('[ModulesView] Верификация модуля в сети:', { module, addressInfo });
+    
+    const dleAddress = route.query.address;
+    if (!dleAddress) {
+      alert('Адрес DLE не указан');
+      return;
+    }
+    
+    // Вызываем API для верификации модуля
+    const response = await api.post('/dle-modules/verify-module', {
+      dleAddress: dleAddress,
+      moduleId: module.moduleId,
+      moduleAddress: addressInfo.address,
+      moduleName: module.moduleName
+    });
+    
+    if (response.data.success) {
+      console.log('[ModulesView] Модуль верифицирован:', response.data);
+      alert(`✅ Модуль ${module.moduleName} успешно верифицирован в сети ${addressInfo.networkName}!`);
+      
+      // Перезагружаем модули для обновления данных
+      await loadModules();
+    } else {
+      console.error('[ModulesView] Ошибка верификации:', response.data.error);
+      alert('❌ Ошибка верификации: ' + response.data.error);
+    }
+    
+  } catch (error) {
+    console.error('[ModulesView] Ошибка верификации модуля:', error);
+    alert('❌ Ошибка верификации: ' + error.message);
+  } finally {
+    isVerifying.value = null;
+  }
+}
+
+function getVerificationButtonText(verificationStatus) {
+  if (verificationStatus === 'success') {
+    return 'Верифицирован';
+  } else if (verificationStatus === 'failed') {
+    return 'Ошибка';
+  } else {
+    return 'Верифицировать';
+  }
+}
+
+function getVerificationButtonTitle(verificationStatus) {
+  if (verificationStatus === 'success') {
+    return 'Модуль уже верифицирован';
+  } else if (verificationStatus === 'failed') {
+    return 'Попробовать верификацию снова';
+  } else {
+    return 'Верифицировать модуль на Etherscan';
+  }
+}
+
 // Утилиты
+function getEtherscanUrl(address, networkIndex, chainId) {
+  // Если есть chainId, используем его для определения правильного URL
+  if (chainId) {
+    const networkUrls = {
+      11155111: `https://sepolia.etherscan.io/address/${address}`,      // Sepolia
+      17000: `https://holesky.etherscan.io/address/${address}`,         // Holesky
+      421614: `https://sepolia.arbiscan.io/address/${address}`,         // Arbitrum Sepolia
+      84532: `https://sepolia.basescan.org/address/${address}`          // Base Sepolia
+    };
+    
+    return networkUrls[chainId] || `https://etherscan.io/address/${address}`;
+  }
+  
+  // Fallback на старую логику по networkIndex (для обратной совместимости)
+  const networkUrls = {
+    0: `https://sepolia.etherscan.io/address/${address}`,      // Sepolia
+    1: `https://mumbai.polygonscan.com/address/${address}`,   // Mumbai
+    2: `https://testnet.bscscan.com/address/${address}`,      // BSC Testnet
+    3: `https://sepolia.arbiscan.io/address/${address}`       // Arbitrum Sepolia
+  };
+  
+  return networkUrls[networkIndex] || networkUrls[0]; // fallback на Sepolia
+}
+
 function shortenAddress(address) {
   if (!address) return '';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    return dateString;
+  }
 }
 
 // Инициализация
@@ -1124,6 +1302,15 @@ onMounted(() => {
 
 .address-link:hover {
   text-decoration: underline;
+}
+
+.network-badge {
+  background: var(--color-primary);
+  color: white;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .module-actions {

@@ -555,12 +555,51 @@ async function main() {
   console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify(finalResults));
   
   // Сохраняем информацию о модулях в отдельный файл для каждого DLE
+  // Добавляем информацию о сетях (chainId, rpcUrl)
   const modulesInfo = {
     dleAddress: uniqueAddresses[0],
+    networks: networks.map((rpcUrl, index) => ({
+      rpcUrl: rpcUrl,
+      chainId: null, // Будет заполнено ниже
+      networkName: null // Будет заполнено ниже
+    })),
     modules: moduleResults,
     verification: verificationResults,
     deployTimestamp: new Date().toISOString()
   };
+  
+  // Получаем chainId для каждой сети
+  for (let i = 0; i < networks.length; i++) {
+    try {
+      const provider = new hre.ethers.JsonRpcProvider(networks[i]);
+      const network = await provider.getNetwork();
+      modulesInfo.networks[i].chainId = Number(network.chainId);
+      
+      // Определяем название сети по chainId
+      const networkNames = {
+        1: 'Ethereum Mainnet',
+        5: 'Goerli',
+        11155111: 'Sepolia',
+        137: 'Polygon Mainnet',
+        80001: 'Mumbai',
+        56: 'BSC Mainnet',
+        97: 'BSC Testnet',
+        42161: 'Arbitrum One',
+        421614: 'Arbitrum Sepolia',
+        10: 'Optimism',
+        11155420: 'Optimism Sepolia',
+        8453: 'Base',
+        84532: 'Base Sepolia'
+      };
+      modulesInfo.networks[i].networkName = networkNames[Number(network.chainId)] || `Chain ID ${Number(network.chainId)}`;
+      
+      console.log(`[MULTI_DBG] Сеть ${i + 1}: chainId=${Number(network.chainId)}, name=${modulesInfo.networks[i].networkName}`);
+    } catch (error) {
+      console.error(`[MULTI_DBG] Ошибка получения chainId для сети ${i + 1}:`, error.message);
+      modulesInfo.networks[i].chainId = null;
+      modulesInfo.networks[i].networkName = `Сеть ${i + 1}`;
+    }
+  }
   
   // Создаем директорию temp если её нет
   const tempDir = path.join(__dirname, '../temp');

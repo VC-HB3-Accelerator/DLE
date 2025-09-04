@@ -352,16 +352,6 @@ class EmailBotService {
       }
       
       // Проверяем, не обрабатывали ли мы уже это письмо
-      const existingResponse = await encryptedDb.getData('ai_responses', { 
-        message_id: messageId 
-      });
-      
-      if (existingResponse.length > 0) {
-        // logger.info(`[EmailBot] Игнорируем дубликат письма от ${fromEmail} (Message-ID: ${messageId})`); // Убрано логирование email адреса
-        return;
-      }
-      
-      // Проверяем, не обрабатывали ли мы уже это письмо (улучшенная проверка)
       if (messageId) {
         try {
           // Проверяем, есть ли уже ответ от AI для этого письма
