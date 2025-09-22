@@ -21,7 +21,6 @@
     "format:check": "prettier --check \"**/*.{js,vue,json,md}\"",
     "run-migrations": "node scripts/run-migrations.js",
     "fix-duplicates": "node scripts/fix-duplicate-identities.js",
-    "deploy:factory": "node scripts/deploy/deploy-factory.js",
     "deploy:multichain": "node scripts/deploy/deploy-multichain.js",
     "deploy:complete": "node scripts/deploy/deploy-dle-complete.js"
   },

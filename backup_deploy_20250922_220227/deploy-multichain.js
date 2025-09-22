@@ -1,15 +1,3 @@
-/**
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
- * All rights reserved.
- * 
- * This software is proprietary and confidential.
- * Unauthorized copying, modification, or distribution is prohibited.
- * 
- * For licensing inquiries: info@hb3-accelerator.com
- * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/HB3-ACCELERATOR
- */
-
 /* eslint-disable no-console */
 const hre = require('hardhat');
 const path = require('path');
@@ -61,12 +49,6 @@ async function deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, d
   }
   
   if (current < targetDLENonce) {
-    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} starting nonce alignment: ${current} -> ${targetDLENonce} (${targetDLENonce - current} transactions needed)`);
-  } else {
-    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce already aligned: ${current} = ${targetDLENonce}`);
-  }
-  
-  if (current < targetDLENonce) {
     console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} aligning nonce from ${current} to ${targetDLENonce} (${targetDLENonce - current} transactions needed)`);
     
     // Используем burn address для более надежных транзакций
@@ -88,11 +70,9 @@ async function deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, d
             ...overrides
           };
           console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} sending filler tx nonce=${current} attempt=${attempt + 1}`);
-          console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} tx details: to=${burnAddress}, value=0, gasLimit=${gasLimit}`);
           const txFill = await wallet.sendTransaction(txReq);
-          console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} filler tx sent, hash=${txFill.hash}, waiting for confirmation...`);
           await txFill.wait();
-          console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} confirmed, hash=${txFill.hash}`);
+          console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} confirmed`);
           sent = true;
         } catch (e) {
           lastErr = e;
@@ -123,7 +103,6 @@ async function deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, d
     }
     
     console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce alignment completed, current nonce=${current}`);
-    console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} ready for DLE deployment with nonce=${current}`);
   } else {
     console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce already aligned at ${current}`);
   }
@@ -278,22 +257,12 @@ async function deployModulesInNetwork(rpcUrl, pk, dleAddress, params) {
     const readerAddress = modules.dleReader;
     
     if (treasuryAddress && timelockAddress && readerAddress) {
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} All modules deployed, initializing...`);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Treasury: ${treasuryAddress}`);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Timelock: ${timelockAddress}`);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Reader: ${readerAddress}`);
-      
       // Инициализация базовых модулей
-      const initTx = await dleContract.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Module initialization tx: ${initTx.hash}`);
-      await initTx.wait();
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} base modules initialized successfully`);
+      await dleContract.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} base modules initialized`);
       currentNonce++;
     } else {
       console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} skipping module initialization - not all modules deployed`);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Treasury: ${treasuryAddress || 'MISSING'}`);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Timelock: ${timelockAddress || 'MISSING'}`);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Reader: ${readerAddress || 'MISSING'}`);
     }
   } catch (error) {
     console.error(`[MULTI_DBG] chainId=${Number(net.chainId)} module initialization failed:`, error.message);
@@ -547,52 +516,18 @@ async function main() {
   }
   const targetDLENonce = Math.max(...nonces);
   console.log(`[MULTI_DBG] nonces=${JSON.stringify(nonces)} targetDLENonce=${targetDLENonce}`);
-  console.log(`[MULTI_DBG] Starting deployment to ${networks.length} networks:`, networks);
 
-  // ПАРАЛЛЕЛЬНЫЙ деплой во всех сетях одновременно
-  console.log(`[MULTI_DBG] Starting PARALLEL deployment to ${networks.length} networks`);
-  
-  const deploymentPromises = networks.map(async (rpcUrl, i) => {
-    console.log(`[MULTI_DBG] 🚀 Starting deployment to network ${i + 1}/${networks.length}: ${rpcUrl}`);
-    
-    try {
-      // Получаем chainId динамически из сети
-      const provider = new hre.ethers.JsonRpcProvider(rpcUrl);
-      const network = await provider.getNetwork();
-      const chainId = Number(network.chainId);
-      
-      console.log(`[MULTI_DBG] 📡 Network ${i + 1} chainId: ${chainId}`);
-      
-      const r = await deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, dleInit);
-      console.log(`[MULTI_DBG] ✅ Network ${i + 1} (chainId: ${chainId}) deployment SUCCESS: ${r.address}`);
-      return { rpcUrl, chainId, ...r };
-    } catch (error) {
-      console.error(`[MULTI_DBG] ❌ Network ${i + 1} deployment FAILED:`, error.message);
-      return { rpcUrl, error: error.message };
-    }
-  });
-  
-  // Ждем завершения всех деплоев
-  const results = await Promise.all(deploymentPromises);
-  console.log(`[MULTI_DBG] All ${networks.length} deployments completed`);
-  
-  // Логируем результаты для каждой сети
-  results.forEach((result, index) => {
-    if (result.address) {
-      console.log(`[MULTI_DBG] ✅ Network ${index + 1} (chainId: ${result.chainId}) SUCCESS: ${result.address}`);
-    } else {
-      console.log(`[MULTI_DBG] ❌ Network ${index + 1} (chainId: ${result.chainId}) FAILED: ${result.error}`);
-    }
-  });
+  const results = [];
+  for (let i = 0; i < networks.length; i++) {
+    const rpcUrl = networks[i];
+    console.log(`[MULTI_DBG] deploying to network ${i + 1}/${networks.length}: ${rpcUrl}`);
+    const r = await deployInNetwork(rpcUrl, pk, salt, initCodeHash, targetDLENonce, dleInit);
+    results.push({ rpcUrl, ...r });
+  }
   
   // Проверяем, что все адреса одинаковые
-  const addresses = results.map(r => r.address).filter(addr => addr);
+  const addresses = results.map(r => r.address);
   const uniqueAddresses = [...new Set(addresses)];
-  
-  console.log('[MULTI_DBG] All addresses:', addresses);
-  console.log('[MULTI_DBG] Unique addresses:', uniqueAddresses);
-  console.log('[MULTI_DBG] Results count:', results.length);
-  console.log('[MULTI_DBG] Networks count:', networks.length);
   
   if (uniqueAddresses.length > 1) {
     console.error('[MULTI_DBG] ERROR: DLE addresses are different across networks!');
@@ -600,17 +535,15 @@ async function main() {
     throw new Error('Nonce alignment failed - addresses are different');
   }
   
-  if (uniqueAddresses.length === 0) {
-    console.error('[MULTI_DBG] ERROR: No successful deployments!');
-    throw new Error('No successful deployments');
-  }
-  
   console.log('[MULTI_DBG] SUCCESS: All DLE addresses are identical:', uniqueAddresses[0]);
   
-  // Деплой модулей ОТКЛЮЧЕН - модули будут деплоиться отдельно
-  console.log('[MULTI_DBG] Module deployment DISABLED - modules will be deployed separately');
-  const moduleResults = [];
-  const verificationResults = [];
+  // Деплой модулей во всех сетях
+  console.log('[MULTI_DBG] Starting module deployment...');
+  const moduleResults = await deployModulesInAllNetworks(networks, pk, uniqueAddresses[0], params);
+  
+  // Верификация контрактов
+  console.log('[MULTI_DBG] Starting contract verification...');
+  const verificationResults = await verifyContractsInAllNetworks(networks, pk, uniqueAddresses[0], moduleResults, params);
   
   // Объединяем результаты
   const finalResults = results.map((result, index) => ({
@@ -621,62 +554,62 @@ async function main() {
   
   console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify(finalResults));
   
-  // Сохраняем каждый модуль в отдельный файл
-  const dleAddress = uniqueAddresses[0];
-  const modulesDir = path.join(__dirname, '../contracts-data/modules');
-  if (!fs.existsSync(modulesDir)) {
-    fs.mkdirSync(modulesDir, { recursive: true });
-  }
+  // Сохраняем информацию о модулях в отдельный файл для каждого DLE
+  // Добавляем информацию о сетях (chainId, rpcUrl)
+  const modulesInfo = {
+    dleAddress: uniqueAddresses[0],
+    networks: networks.map((rpcUrl, index) => ({
+      rpcUrl: rpcUrl,
+      chainId: null, // Будет заполнено ниже
+      networkName: null // Будет заполнено ниже
+    })),
+    modules: moduleResults,
+    verification: verificationResults,
+    deployTimestamp: new Date().toISOString()
+  };
   
-  // Создаем файлы для каждого типа модуля
-  const moduleTypes = ['treasury', 'timelock', 'reader'];
-  const moduleKeys = ['treasuryModule', 'timelockModule', 'dleReader'];
-  
-  for (let moduleIndex = 0; moduleIndex < moduleTypes.length; moduleIndex++) {
-    const moduleType = moduleTypes[moduleIndex];
-    const moduleKey = moduleKeys[moduleIndex];
-    
-    const moduleInfo = {
-      moduleType: moduleType,
-      dleAddress: dleAddress,
-      networks: [],
-      deployTimestamp: new Date().toISOString()
-    };
-    
-    // Собираем адреса модуля во всех сетях
-    for (let i = 0; i < networks.length; i++) {
-      const rpcUrl = networks[i];
-      const moduleResult = moduleResults[i];
+  // Получаем chainId для каждой сети
+  for (let i = 0; i < networks.length; i++) {
+    try {
+      const provider = new hre.ethers.JsonRpcProvider(networks[i]);
+      const network = await provider.getNetwork();
+      modulesInfo.networks[i].chainId = Number(network.chainId);
       
-      try {
-        const provider = new hre.ethers.JsonRpcProvider(rpcUrl);
-        const network = await provider.getNetwork();
-        
-        moduleInfo.networks.push({
-          chainId: Number(network.chainId),
-          rpcUrl: rpcUrl,
-          address: moduleResult && moduleResult[moduleKey] ? moduleResult[moduleKey] : null,
-          verification: verificationResults[i] && verificationResults[i][moduleKey] ? verificationResults[i][moduleKey] : 'unknown'
-        });
-      } catch (error) {
-        console.error(`[MULTI_DBG] Ошибка получения chainId для модуля ${moduleType} в сети ${i + 1}:`, error.message);
-        moduleInfo.networks.push({
-          chainId: null,
-          rpcUrl: rpcUrl,
-          address: null,
-          verification: 'error'
-        });
-      }
+      // Определяем название сети по chainId
+      const networkNames = {
+        1: 'Ethereum Mainnet',
+        5: 'Goerli',
+        11155111: 'Sepolia',
+        137: 'Polygon Mainnet',
+        80001: 'Mumbai',
+        56: 'BSC Mainnet',
+        97: 'BSC Testnet',
+        42161: 'Arbitrum One',
+        421614: 'Arbitrum Sepolia',
+        10: 'Optimism',
+        11155420: 'Optimism Sepolia',
+        8453: 'Base',
+        84532: 'Base Sepolia'
+      };
+      modulesInfo.networks[i].networkName = networkNames[Number(network.chainId)] || `Chain ID ${Number(network.chainId)}`;
+      
+      console.log(`[MULTI_DBG] Сеть ${i + 1}: chainId=${Number(network.chainId)}, name=${modulesInfo.networks[i].networkName}`);
+    } catch (error) {
+      console.error(`[MULTI_DBG] Ошибка получения chainId для сети ${i + 1}:`, error.message);
+      modulesInfo.networks[i].chainId = null;
+      modulesInfo.networks[i].networkName = `Сеть ${i + 1}`;
     }
-    
-    // Сохраняем файл модуля
-    const moduleFileName = `${moduleType}-${dleAddress.toLowerCase()}.json`;
-    const moduleFilePath = path.join(modulesDir, moduleFileName);
-    fs.writeFileSync(moduleFilePath, JSON.stringify(moduleInfo, null, 2));
-    console.log(`[MULTI_DBG] Module ${moduleType} saved to: ${moduleFilePath}`);
   }
   
-  console.log(`[MULTI_DBG] All modules saved to separate files in: ${modulesDir}`);
+  // Создаем директорию temp если её нет
+  const tempDir = path.join(__dirname, '../temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+  
+  const deployResultPath = path.join(tempDir, `modules-${uniqueAddresses[0].toLowerCase()}.json`);
+  fs.writeFileSync(deployResultPath, JSON.stringify(modulesInfo, null, 2));
+  console.log(`[MULTI_DBG] Modules info saved to: ${deployResultPath}`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

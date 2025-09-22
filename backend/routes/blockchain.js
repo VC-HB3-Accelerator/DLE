@@ -65,7 +65,8 @@ router.post('/read-dle-info', async (req, res) => {
       "function balanceOf(address account) external view returns (uint256)",
       "function quorumPercentage() external view returns (uint256)",
       "function getCurrentChainId() external view returns (uint256)",
-      "function logoURI() external view returns (string memory)"
+      "function logoURI() external view returns (string memory)",
+      "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
@@ -174,6 +175,36 @@ router.post('/read-dle-info', async (req, res) => {
       }
     }
 
+    // Читаем информацию о модулях
+    const modules = {};
+    try {
+      console.log(`[Blockchain] Читаем модули для DLE: ${dleAddress}`);
+      
+      // Определяем известные модули
+      const moduleNames = ['reader', 'treasury', 'timelock'];
+      
+      for (const moduleName of moduleNames) {
+        try {
+          // Вычисляем moduleId (keccak256 от имени модуля)
+          const moduleId = ethers.keccak256(ethers.toUtf8Bytes(moduleName));
+          
+          // Получаем адрес модуля
+          const moduleAddress = await dle.getModuleAddress(moduleId);
+          
+          if (moduleAddress && moduleAddress !== ethers.ZeroAddress) {
+            modules[moduleName] = moduleAddress;
+            console.log(`[Blockchain] Модуль ${moduleName}: ${moduleAddress}`);
+          } else {
+            console.log(`[Blockchain] Модуль ${moduleName} не инициализирован`);
+          }
+        } catch (moduleError) {
+          console.log(`[Blockchain] Ошибка при чтении модуля ${moduleName}:`, moduleError.message);
+        }
+      }
+    } catch (modulesError) {
+      console.log(`[Blockchain] Ошибка при чтении модулей:`, modulesError.message);
+    }
+
     const blockchainData = {
       name: dleInfo.name,
       symbol: dleInfo.symbol,
@@ -193,7 +224,8 @@ router.post('/read-dle-info', async (req, res) => {
       quorumPercentage: Number(quorumPercentage),
       currentChainId: Number(currentChainId),
       rpcUsed: rpcUrl,
-      participantCount: participantCount
+      participantCount: participantCount,
+      modules: modules // Информация о модулях
     };
 
     console.log(`[Blockchain] Данные DLE прочитаны из блокчейна:`, blockchainData);
@@ -212,92 +244,7 @@ router.post('/read-dle-info', async (req, res) => {
   }
 });
 
-// Получение поддерживаемых сетей из смарт-контракта
-router.post('/get-supported-chains', async (req, res) => {
-  try {
-    const { dleAddress } = req.body;
-    
-    if (!dleAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE обязателен'
-      });
-    }
-
-    console.log(`[Blockchain] Получение поддерживаемых сетей для DLE: ${dleAddress}`);
-
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    // ABI для проверки поддерживаемых сетей
-    const dleAbi = [
-      "function isChainSupported(uint256 _chainId) external view returns (bool)",
-      "function getCurrentChainId() external view returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Список всех возможных сетей для проверки
-    const allChains = [
-      { chainId: 1, name: 'Ethereum', description: 'Основная сеть Ethereum' },
-      { chainId: 137, name: 'Polygon', description: 'Сеть Polygon' },
-      { chainId: 56, name: 'BSC', description: 'Binance Smart Chain' },
-      { chainId: 42161, name: 'Arbitrum', description: 'Arbitrum One' },
-      { chainId: 10, name: 'Optimism', description: 'Optimism' },
-      { chainId: 8453, name: 'Base', description: 'Base' },
-      { chainId: 43114, name: 'Avalanche', description: 'Avalanche C-Chain' },
-      { chainId: 250, name: 'Fantom', description: 'Fantom Opera' },
-      { chainId: 11155111, name: 'Sepolia', description: 'Ethereum Testnet Sepolia' },
-      { chainId: 17000, name: 'Holesky', description: 'Ethereum Testnet Holesky' },
-      { chainId: 80002, name: 'Polygon Amoy', description: 'Polygon Testnet Amoy' },
-      { chainId: 84532, name: 'Base Sepolia', description: 'Base Sepolia Testnet' },
-      { chainId: 421614, name: 'Arbitrum Sepolia', description: 'Arbitrum Sepolia Testnet' },
-      { chainId: 80001, name: 'Mumbai', description: 'Polygon Testnet Mumbai' },
-      { chainId: 97, name: 'BSC Testnet', description: 'Binance Smart Chain Testnet' },
-      { chainId: 421613, name: 'Arbitrum Goerli', description: 'Arbitrum Testnet Goerli' }
-    ];
-
-    const supportedChains = [];
-
-    // Проверяем каждую сеть через смарт-контракт
-    for (const chain of allChains) {
-      try {
-        const isSupported = await dle.isChainSupported(chain.chainId);
-        if (isSupported) {
-          supportedChains.push(chain);
-        }
-      } catch (error) {
-        console.log(`[Blockchain] Ошибка при проверке сети ${chain.chainId}:`, error.message);
-        // Продолжаем проверку других сетей
-      }
-    }
-
-    console.log(`[Blockchain] Найдено поддерживаемых сетей: ${supportedChains.length}`);
-
-    res.json({
-      success: true,
-      data: {
-        chains: supportedChains,
-        totalCount: supportedChains.length
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при получении поддерживаемых сетей:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при получении поддерживаемых сетей: ' + error.message
-    });
-  }
-});
+// УДАЛЕНО: дублируется в dleMultichain.js
 
 // Получение списка всех предложений
 router.post('/get-proposals', async (req, res) => {
@@ -354,7 +301,7 @@ router.post('/get-proposals', async (req, res) => {
         // Пробуем несколько раз для новых предложений
         let proposal, isPassed;
         let retryCount = 0;
-        const maxRetries = 3;
+        const maxRetries = 1;
         
         while (retryCount < maxRetries) {
           try {
@@ -708,111 +655,9 @@ router.post('/load-deactivation-proposals', async (req, res) => {
   }
 });
 
-// Создать предложение о добавлении модуля
-router.post('/create-add-module-proposal', async (req, res) => {
-  try {
-    const { dleAddress, description, duration, moduleId, moduleAddress, chainId } = req.body;
-    
-    if (!dleAddress || !description || !duration || !moduleId || !moduleAddress || !chainId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
+// УДАЛЕНО: дублируется в dleModules.js
 
-    console.log(`[Blockchain] Создание предложения о добавлении модуля: ${moduleId} для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function createAddModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) external returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Создаем предложение
-    const tx = await dle.createAddModuleProposal(description, duration, moduleId, moduleAddress, chainId);
-    const receipt = await tx.wait();
-
-    console.log(`[Blockchain] Предложение о добавлении модуля создано:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        proposalId: receipt.logs[0].args.proposalId,
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при создании предложения о добавлении модуля:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при создании предложения о добавлении модуля: ' + error.message
-    });
-  }
-});
-
-// Создать предложение об удалении модуля
-router.post('/create-remove-module-proposal', async (req, res) => {
-  try {
-    const { dleAddress, description, duration, moduleId, chainId } = req.body;
-    
-    if (!dleAddress || !description || !duration || !moduleId || !chainId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[Blockchain] Создание предложения об удалении модуля: ${moduleId} для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function createRemoveModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, uint256 _chainId) external returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Создаем предложение
-    const tx = await dle.createRemoveModuleProposal(description, duration, moduleId, chainId);
-    const receipt = await tx.wait();
-
-    console.log(`[Blockchain] Предложение об удалении модуля создано:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        proposalId: receipt.logs[0].args.proposalId,
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при создании предложения об удалении модуля:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при создании предложения об удалении модуля: ' + error.message
-    });
-  }
-});
+// УДАЛЕНО: дублируется в dleModules.js
 
 // УДАЛЯЕМ эту функцию - создание предложений выполняется только через frontend с MetaMask
 // router.post('/create-proposal', ...) - УДАЛЕНО
@@ -925,264 +770,15 @@ router.post('/cancel-proposal', async (req, res) => {
   }
 });
 
-// Проверить подключение к сети
-router.post('/check-chain-connection', async (req, res) => {
-  try {
-    const { dleAddress, chainId } = req.body;
-    
-    if (!dleAddress || chainId === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
+// УДАЛЕНО: дублируется в dleMultichain.js
 
-    console.log(`[Blockchain] Проверка подключения к сети ${chainId} для DLE: ${dleAddress}`);
+// УДАЛЕНО: дублируется в dleMultichain.js
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
+// УДАЛЕНО: дублируется в dleMultichain.js
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function checkChainConnection(uint256 _chainId) public view returns (bool isAvailable)"
-    ];
+// УДАЛЕНО: дублируется в dleMultichain.js
 
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Проверяем подключение
-    const isAvailable = await dle.checkChainConnection(chainId);
-
-    console.log(`[Blockchain] Подключение к сети ${chainId}: ${isAvailable}`);
-
-    res.json({
-      success: true,
-      data: {
-        chainId: chainId,
-        isAvailable: isAvailable
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при проверке подключения к сети:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при проверке подключения к сети: ' + error.message
-    });
-  }
-});
-
-// Синхронизировать во все сети
-router.post('/sync-to-all-chains', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, userAddress } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[Blockchain] Синхронизация предложения ${proposalId} во все сети для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function syncToAllChains(uint256 _proposalId) external"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Синхронизируем во все сети
-    const tx = await dle.syncToAllChains(proposalId);
-    const receipt = await tx.wait();
-
-    console.log(`[Blockchain] Синхронизация выполнена:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при синхронизации во все сети:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при синхронизации во все сети: ' + error.message
-    });
-  }
-});
-
-// Получить количество поддерживаемых сетей
-router.post('/get-supported-chain-count', async (req, res) => {
-  try {
-    const { dleAddress } = req.body;
-    
-    if (!dleAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE обязателен'
-      });
-    }
-
-    console.log(`[Blockchain] Получение количества поддерживаемых сетей для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function getSupportedChainCount() public view returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Получаем количество сетей
-    const count = await dle.getSupportedChainCount();
-
-    console.log(`[Blockchain] Количество поддерживаемых сетей: ${count}`);
-
-    res.json({
-      success: true,
-      data: {
-        count: Number(count)
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при получении количества поддерживаемых сетей:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при получении количества поддерживаемых сетей: ' + error.message
-    });
-  }
-});
-
-// Получить ID поддерживаемой сети по индексу
-router.post('/get-supported-chain-id', async (req, res) => {
-  try {
-    const { dleAddress, index } = req.body;
-    
-    if (!dleAddress || index === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[Blockchain] Получение ID сети по индексу ${index} для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function getSupportedChainId(uint256 _index) public view returns (uint256)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Получаем ID сети
-    const chainId = await dle.getSupportedChainId(index);
-
-    console.log(`[Blockchain] ID сети по индексу ${index}: ${chainId}`);
-
-    res.json({
-      success: true,
-      data: {
-        index: Number(index),
-        chainId: Number(chainId)
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при получении ID поддерживаемой сети:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при получении ID поддерживаемой сети: ' + error.message
-    });
-  }
-});
-
-// Исполнить предложение по подписям
-router.post('/execute-proposal-by-signatures', async (req, res) => {
-  try {
-    const { dleAddress, proposalId, signers, signatures, userAddress } = req.body;
-    
-    if (!dleAddress || proposalId === undefined || !signers || !signatures || !userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Все поля обязательны'
-      });
-    }
-
-    console.log(`[Blockchain] Исполнение предложения ${proposalId} по подписям в DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function executeProposalBySignatures(uint256 _proposalId, address[] calldata signers, bytes[] calldata signatures) external"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Исполняем предложение по подписям
-    const tx = await dle.executeProposalBySignatures(proposalId, signers, signatures);
-    const receipt = await tx.wait();
-
-    console.log(`[Blockchain] Предложение исполнено по подписям:`, receipt);
-
-    res.json({
-      success: true,
-      data: {
-        transactionHash: receipt.hash
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при исполнении предложения по подписям:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при исполнении предложения по подписям: ' + error.message
-    });
-  }
-});
+// УДАЛЕНО: дублируется в dleMultichain.js
 
 // Получить параметры управления
 router.post('/get-governance-params', async (req, res) => {
@@ -1707,139 +1303,11 @@ router.post('/is-active', async (req, res) => {
   }
 });
 
-// Проверить активность модуля
-router.post('/is-module-active', async (req, res) => {
-  try {
-    const { dleAddress, moduleId } = req.body;
-    
-    if (!dleAddress || !moduleId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE и ID модуля обязательны'
-      });
-    }
+// УДАЛЕНО: дублируется в dleModules.js
 
-    console.log(`[Blockchain] Проверка активности модуля: ${moduleId} для DLE: ${dleAddress}`);
+// УДАЛЕНО: дублируется в dleModules.js
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Проверяем активность модуля
-    const isActive = await dle.isModuleActive(moduleId);
-
-    console.log(`[Blockchain] Активность модуля ${moduleId}: ${isActive}`);
-
-    res.json({
-      success: true,
-      data: {
-        isActive: isActive
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при проверке активности модуля:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при проверке активности модуля: ' + error.message
-    });
-  }
-});
-
-// Получить адрес модуля
-router.post('/get-module-address', async (req, res) => {
-  try {
-    const { dleAddress, moduleId } = req.body;
-    
-    if (!dleAddress || !moduleId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE и ID модуля обязательны'
-      });
-    }
-
-    console.log(`[Blockchain] Получение адреса модуля: ${moduleId} для DLE: ${dleAddress}`);
-
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    const dleAbi = [
-      "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Получаем адрес модуля
-    const moduleAddress = await dle.getModuleAddress(moduleId);
-
-    console.log(`[Blockchain] Адрес модуля ${moduleId}: ${moduleAddress}`);
-
-    res.json({
-      success: true,
-      data: {
-        moduleAddress: moduleAddress
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при получении адреса модуля:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при получении адреса модуля: ' + error.message
-    });
-  }
-});
-
-// Получить все модули (заглушка)
-router.post('/get-all-modules', async (req, res) => {
-  try {
-    const { dleAddress } = req.body;
-    
-    if (!dleAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE обязателен'
-      });
-    }
-
-    console.log(`[Blockchain] Получение всех модулей для DLE: ${dleAddress}`);
-
-    // Пока возвращаем заглушку, так как в смарт контракте нет функции для получения всех модулей
-    // В реальности нужно будет реализовать через события или другие методы
-    res.json({
-      success: true,
-      data: {
-        modules: []
-      }
-    });
-
-  } catch (error) {
-    console.error('[Blockchain] Ошибка при получении всех модулей:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Ошибка при получении всех модулей: ' + error.message
-    });
-  }
-});
+// УДАЛЕНО: дублируется в dleModules.js
 
 // Получить аналитику DLE
 router.post('/get-dle-analytics', async (req, res) => {

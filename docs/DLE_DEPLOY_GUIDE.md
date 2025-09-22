@@ -1,3 +1,15 @@
+<!--
+  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  All rights reserved.
+  
+  This software is proprietary and confidential.
+  Unauthorized copying, modification, or distribution is prohibited.
+  
+  For licensing inquiries: info@hb3-accelerator.com
+  Website: https://hb3-accelerator.com
+  GitHub: https://github.com/HB3-ACCELERATOR
+-->
+
 # Руководство по деплою DLE v2
 
 ## Обзор
@@ -9,7 +21,7 @@ DLE v2 (Digital Legal Entity) - это система для создания ц
 ### Компоненты системы
 
 1. **DLE.sol** - Основной смарт-контракт с ERC-20 токенами управления
-2. **FactoryDeployer.sol** - Фабрика для детерминистического деплоя через CREATE2
+2. **Детерминированный деплой** - через CREATE с выровненным nonce для одинаковых адресов
 3. **Модули** - Дополнительная функциональность (Treasury, Timelock, etc.)
 
 ### Мульти-чейн поддержка
@@ -60,10 +72,9 @@ DLE v2 (Digital Legal Entity) - это система для создания ц
 1. **Проверяет балансы** во всех выбранных сетях
 2. **Компилирует контракты** через Hardhat
 3. **Проверяет Factory адреса** в базе данных
-4. **Деплоит FactoryDeployer** (если не найден) с одинаковым адресом
-5. **Сохраняет Factory адреса** в базу данных для переиспользования
-6. **Создает CREATE2 salt** на основе параметров DLE
-7. **Деплоит DLE** через FactoryDeployer с одинаковым адресом
+4. **Выравнивает nonce** для детерминированного деплоя
+5. **Вычисляет адрес DLE** через CREATE с выровненным nonce
+6. **Деплоит DLE** с одинаковым адресом во всех сетях
 8. **Деплоит базовые модули** (Treasury, Timelock, Reader) в каждой сети
 9. **Инициализирует модули** в DLE контракте
 10. **Верифицирует контракты** в Etherscan (опционально)

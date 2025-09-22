@@ -70,7 +70,7 @@
         >
 
           <div class="proposal-header">
-            <h5>{{ proposal.description || 'Без описания' }}</h5>
+            <h5>{{ getProposalTitle(proposal) }}</h5>
             <span class="proposal-status" :class="proposal.status">
               {{ getProposalStatusText(proposal.status) }}
             </span>
@@ -92,6 +92,27 @@
             <div class="detail-item">
               <strong>Дедлайн:</strong> {{ formatDate(proposal.deadline) }}
             </div>
+            
+            <!-- Детальная информация о модуле -->
+            <div v-if="proposal.decodedData" class="module-details">
+              <div class="detail-item">
+                <strong>Тип модуля:</strong> {{ getModuleName(proposal.decodedData.moduleId) }}
+              </div>
+              <div class="detail-item">
+                <strong>Адрес модуля:</strong> 
+                <a :href="getEtherscanUrl(proposal.decodedData.moduleAddress, proposal.decodedData.chainId)" 
+                   target="_blank" class="address-link">
+                  {{ shortenAddress(proposal.decodedData.moduleAddress) }}
+                </a>
+              </div>
+              <div class="detail-item">
+                <strong>Сеть:</strong> {{ getChainName(proposal.decodedData.chainId) }}
+              </div>
+              <div class="detail-item">
+                <strong>Длительность:</strong> {{ formatDuration(proposal.decodedData.duration) }}
+              </div>
+            </div>
+            
             <div class="detail-item">
               <strong>Голоса:</strong> 
               <div class="votes-container">
@@ -100,7 +121,7 @@
                   <span class="against">Против: {{ formatVotes(proposal.againstVotes) }}</span>
                 </div>
                 <div class="quorum-info">
-                  <span class="quorum-percentage">Кворум: {{ getQuorumPercentage(proposal) }}% из {{ getRequiredQuorum() }}%</span>
+                  <span class="quorum-percentage">Кворум: {{ getQuorumPercentage(proposal) }}% из {{ getRequiredQuorum(proposal) }}%</span>
                 </div>
                 <div class="quorum-progress">
                   <div class="progress-bar">
@@ -140,12 +161,20 @@
               <i class="fas fa-times"></i> Против
             </button>
             <button 
-              v-if="canExecute(proposal) && props.isAuthenticated && hasAdminRights()"
+              v-if="canExecute(proposal) && props.isAuthenticated"
               class="btn btn-sm btn-primary" 
               @click="executeProposalLocal(proposal.id)"
             >
               <i class="fas fa-play"></i> Исполнить
             </button>
+            
+            <!-- Информация для не-инициаторов -->
+            <div v-else-if="proposal.state === 5 && !proposal.executed && props.isAuthenticated" class="execution-notice">
+              <small class="text-muted">
+                <i class="fas fa-info-circle"></i> 
+                Только инициатор предложения может его исполнить
+              </small>
+            </div>
             
             <!-- Информация для неавторизованных пользователей -->
             <div v-if="!props.isAuthenticated" class="auth-notice">
@@ -533,7 +562,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getDLEInfo, getSupportedChains } from '../../services/dleV2Service.js';
-import { getProposals, createProposal as createProposalAPI, voteOnProposal as voteForProposalAPI, executeProposal as executeProposalAPI } from '../../services/proposalsService.js';
+import { getProposals, createProposal as createProposalAPI, voteOnProposal as voteForProposalAPI, executeProposal as executeProposalAPI, decodeProposalData } from '../../services/proposalsService.js';
 import api from '../../api/axios';
 const showTargetChains = computed(() => {
   // Для offchain-действий не требуется ончейн исполнение (здесь типы пока ончейн)
@@ -542,6 +571,306 @@ const showTargetChains = computed(() => {
 });
 import wsClient from '../../utils/websocket.js';
 import { ethers } from 'ethers';
+
+// Best Practice: WebSocket-based подписка на обновления голосования
+function subscribeToVoteUpdates(txHash, proposalId, actionType) {
+  console.log('[DleProposalsView] Подписываемся на WebSocket уведомления для:', { txHash, proposalId, actionType });
+  
+  // Создаем уникальный обработчик для этой транзакции
+  const voteHandler = (data) => {
+    console.log('[DleProposalsView] Получено WebSocket уведомление о голосовании:', data);
+    
+    // Проверяем, что это наша транзакция
+    if (data.txHash === txHash || data.proposalId === proposalId) {
+      console.log('[DleProposalsView] Найдено совпадение транзакции, обновляем данные');
+      
+      // Обновляем данные
+      loadDleData().then(() => {
+        // Показываем успешное уведомление
+        showSuccessNotification(txHash, actionType);
+      });
+      
+      // Отписываемся от уведомлений
+      wsClient.off('proposal_voted', voteHandler);
+    }
+  };
+  
+  // Подписываемся на уведомления о голосовании
+  wsClient.on('proposal_voted', voteHandler);
+  
+  // Устанавливаем таймаут на случай, если WebSocket не сработает
+  setTimeout(() => {
+    console.warn('[DleProposalsView] Таймаут WebSocket уведомлений, отписываемся');
+    wsClient.off('proposal_voted', voteHandler);
+    
+    // Fallback: обновляем данные в любом случае
+    loadDleData().then(() => {
+      showTimeoutNotification(txHash, actionType);
+    });
+  }, 60000); // 60 секунд таймаут
+}
+
+// WebSocket-based подписка на обновления исполнения
+function subscribeToExecutionUpdates(txHash, proposalId) {
+  console.log('[DleProposalsView] Подписываемся на WebSocket уведомления для исполнения:', { txHash, proposalId });
+  
+  // Создаем уникальный обработчик для этой транзакции
+  const executionHandler = (data) => {
+    console.log('[DleProposalsView] Получено WebSocket уведомление об исполнении:', data);
+    
+    // Проверяем, что это наша транзакция
+    if (data.txHash === txHash || data.proposalId === proposalId) {
+      console.log('[DleProposalsView] Найдено совпадение транзакции исполнения, обновляем данные');
+      
+      // Обновляем данные
+      loadDleData().then(() => {
+        // Показываем успешное уведомление
+        showSuccessNotification(txHash, 'execution');
+      });
+      
+      // Отписываемся от уведомлений
+      wsClient.off('proposal_executed', executionHandler);
+    }
+  };
+  
+  // Подписываемся на уведомления об исполнении
+  wsClient.on('proposal_executed', executionHandler);
+  
+  // Устанавливаем таймаут на случай, если WebSocket не сработает
+  setTimeout(() => {
+    console.warn('[DleProposalsView] Таймаут WebSocket уведомлений об исполнении, отписываемся');
+    wsClient.off('proposal_executed', executionHandler);
+    
+    // Fallback: обновляем данные в любом случае
+    loadDleData().then(() => {
+      showTimeoutNotification(txHash, 'execution');
+    });
+  }, 60000); // 60 секунд таймаут
+}
+
+// Функция для отслеживания транзакции исполнения на backend
+async function trackExecutionTransaction(txHash, dleAddress, proposalId) {
+  try {
+    console.log('[DleProposalsView] Запускаем отслеживание транзакции исполнения на backend:', { txHash, dleAddress, proposalId });
+    
+    const response = await api.post('/dle-proposals/track-execution-transaction', {
+      txHash: txHash,
+      dleAddress: dleAddress,
+      proposalId: proposalId
+    });
+    
+    if (response.data.success) {
+      console.log('[DleProposalsView] Backend подтвердил транзакцию исполнения:', response.data);
+    } else {
+      console.warn('[DleProposalsView] Backend не смог подтвердить транзакцию исполнения:', response.data.error);
+    }
+  } catch (error) {
+    console.error('[DleProposalsView] Ошибка при отслеживании транзакции исполнения на backend:', error);
+  }
+}
+
+// Функция для отслеживания транзакции голосования на backend
+async function trackVoteTransaction(txHash, dleAddress, proposalId, support) {
+  try {
+    console.log('[DleProposalsView] Запускаем отслеживание транзакции на backend:', { txHash, dleAddress, proposalId, support });
+    
+    const response = await api.post('/dle-proposals/track-vote-transaction', {
+      txHash: txHash,
+      dleAddress: dleAddress,
+      proposalId: proposalId,
+      support: support
+    });
+    
+    if (response.data.success) {
+      console.log('[DleProposalsView] Backend подтвердил транзакцию:', response.data);
+    } else {
+      console.warn('[DleProposalsView] Backend не смог подтвердить транзакцию:', response.data.error);
+    }
+  } catch (error) {
+    console.error('[DleProposalsView] Ошибка при отслеживании транзакции на backend:', error);
+  }
+}
+
+// Показ уведомления о транзакции
+function showTransactionNotification(txHash, message) {
+  // Создаем уведомление с ссылкой на Etherscan
+  const etherscanUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
+  
+  // Можно использовать toast-библиотеку или создать кастомное уведомление
+  const notification = document.createElement('div');
+  notification.className = 'transaction-notification';
+  notification.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-header">
+        <span class="notification-icon">⏳</span>
+        <span class="notification-title">${message}</span>
+      </div>
+      <div class="notification-body">
+        <p>Ожидаем подтверждения транзакции...</p>
+        <a href="${etherscanUrl}" target="_blank" class="etherscan-link">
+          Посмотреть в Etherscan
+        </a>
+      </div>
+    </div>
+  `;
+  
+  // Добавляем стили
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Автоматически удаляем через 10 секунд
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 10000);
+}
+
+// Показ успешного уведомления
+function showSuccessNotification(txHash, actionType) {
+  const actionText = actionType === 'vote' ? 'Голосование подтверждено!' : 'Голосование "против" подтверждено!';
+  const etherscanUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
+  
+  const notification = document.createElement('div');
+  notification.className = 'success-notification';
+  notification.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-header">
+        <span class="notification-icon">✅</span>
+        <span class="notification-title">${actionText}</span>
+      </div>
+      <div class="notification-body">
+        <p>Данные обновлены</p>
+        <a href="${etherscanUrl}" target="_blank" class="etherscan-link">
+          Посмотреть в Etherscan
+        </a>
+      </div>
+    </div>
+  `;
+  
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 5000);
+}
+
+// Показ уведомления об ошибке
+function showErrorNotification(txHash, message) {
+  const etherscanUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
+  
+  const notification = document.createElement('div');
+  notification.className = 'error-notification';
+  notification.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-header">
+        <span class="notification-icon">❌</span>
+        <span class="notification-title">${message}</span>
+      </div>
+      <div class="notification-body">
+        <a href="${etherscanUrl}" target="_blank" class="etherscan-link">
+          Посмотреть в Etherscan
+        </a>
+      </div>
+    </div>
+  `;
+  
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 8000);
+}
+
+// Показ уведомления о таймауте
+function showTimeoutNotification(txHash, actionType) {
+  const actionText = actionType === 'vote' ? 'Голосование' : 'Голосование "против"';
+  const etherscanUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
+  
+  const notification = document.createElement('div');
+  notification.className = 'timeout-notification';
+  notification.innerHTML = `
+    <div class="notification-content">
+      <div class="notification-header">
+        <span class="notification-icon">⏰</span>
+        <span class="notification-title">${actionText} отправлено</span>
+      </div>
+      <div class="notification-body">
+        <p>Подтверждение не получено, но данные обновлены</p>
+        <a href="${etherscanUrl}" target="_blank" class="etherscan-link">
+          Посмотреть в Etherscan
+        </a>
+      </div>
+    </div>
+  `;
+  
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 8000);
+}
 
 const props = defineProps({
   dleAddress: { type: String, required: false, default: null },
@@ -670,15 +999,30 @@ async function loadDleData() {
     console.log('[Frontend] Массив предложений:', proposalsData);
     
     // Преобразуем данные из API в формат для frontend
-    proposals.value = proposalsData.map(proposal => {
+    proposals.value = await Promise.all(proposalsData.map(async (proposal) => {
       const transformedProposal = {
         ...proposal,
         status: getProposalStatus(proposal),
         deadline: proposal.deadline || 0
       };
+
+      // Если есть transactionHash, декодируем данные предложения
+      if (proposal.transactionHash) {
+        try {
+          console.log('[Frontend] Декодируем данные предложения:', proposal.transactionHash);
+          const decodedData = await decodeProposalData(proposal.transactionHash);
+          if (decodedData.success) {
+            transformedProposal.decodedData = decodedData.data;
+            console.log('[Frontend] Декодированные данные:', decodedData.data);
+          }
+        } catch (error) {
+          console.error('[Frontend] Ошибка декодирования данных предложения:', error);
+        }
+      }
+
       console.log('[Frontend] Преобразованное предложение:', transformedProposal);
       return transformedProposal;
-    });
+    }));
     
     console.log('[Frontend] Итоговый список предложений:', proposals.value);
     
@@ -819,8 +1163,13 @@ function getProposalStatus(proposal) {
   const forVotes = Number(proposal.forVotes) || 0;
   const againstVotes = Number(proposal.againstVotes) || 0;
   
-  // Если есть голоса, определяем результат
-  if (forVotes > 0 || againstVotes > 0) {
+  // Проверяем, достигнут ли кворум
+  const quorumPercentage = getQuorumPercentage(proposal);
+  const requiredQuorum = getRequiredQuorum(proposal);
+  const quorumReached = quorumPercentage >= requiredQuorum;
+  
+  // Если есть голоса И кворум достигнут, определяем результат
+  if ((forVotes > 0 || againstVotes > 0) && quorumReached) {
     if (forVotes > againstVotes) {
       return 'succeeded';
     } else if (againstVotes > forVotes) {
@@ -828,6 +1177,7 @@ function getProposalStatus(proposal) {
     }
   }
   
+  // Если кворум не достигнут или нет голосов, предложение активно
   return 'active';
 }
 
@@ -841,6 +1191,61 @@ function getProposalStatusText(status) {
     'canceled': 'Отменено'
   };
   return statusMap[status] || status;
+}
+
+function getProposalTitle(proposal) {
+  // Если есть декодированные данные, показываем детальную информацию
+  if (proposal.decodedData) {
+    const { moduleId, moduleAddress, chainId, duration } = proposal.decodedData;
+    
+    // Декодируем moduleId из hex в строку
+    let moduleName = 'Неизвестный модуль';
+    try {
+      moduleName = ethers.toUtf8String(moduleId).replace(/\0/g, '');
+    } catch (e) {
+      console.log('Не удалось декодировать moduleId:', moduleId);
+    }
+    
+    return `Добавить модуль: ${moduleName}`;
+  }
+  
+  // Иначе показываем обычное описание
+  return proposal.description || 'Без описания';
+}
+
+function getModuleName(moduleId) {
+  try {
+    return ethers.toUtf8String(moduleId).replace(/\0/g, '');
+  } catch (e) {
+    return 'Неизвестный модуль';
+  }
+}
+
+function getEtherscanUrl(address, chainId) {
+  const chainMap = {
+    1: 'https://etherscan.io',
+    11155111: 'https://sepolia.etherscan.io',
+    17000: 'https://holesky.etherscan.io',
+    421614: 'https://sepolia.arbiscan.io',
+    84532: 'https://sepolia.basescan.org'
+  };
+  
+  const baseUrl = chainMap[chainId] || 'https://etherscan.io';
+  return `${baseUrl}/address/${address}`;
+}
+
+function formatDuration(seconds) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (days > 0) {
+    return `${days} дн. ${hours} ч.`;
+  } else if (hours > 0) {
+    return `${hours} ч. ${minutes} мин.`;
+  } else {
+    return `${minutes} мин.`;
+  }
 }
 
 function getProposalStatusClass(status) {
@@ -901,16 +1306,25 @@ function getQuorumPercentage(proposal) {
 
 function getQuorumProgress(proposal) {
   const percentage = getQuorumPercentage(proposal);
-  const requiredQuorum = getRequiredQuorum();
+  const requiredQuorum = getRequiredQuorum(proposal);
   const progress = Math.min((percentage / requiredQuorum) * 100, 100);
   console.log('[Quorum] Прогресс кворума:', { percentage, requiredQuorum, progress });
   return progress;
 }
 
-function getRequiredQuorum() {
+function getRequiredQuorum(proposal = null) {
+  // Если есть данные о предложении с quorumRequired, используем их
+  if (proposal && proposal.quorumRequired && selectedDle.value?.totalSupply) {
+    const totalSupplyWei = parseFloat(selectedDle.value.totalSupply) * Math.pow(10, 18);
+    const quorumPercentage = (proposal.quorumRequired / totalSupplyWei) * 100;
+    console.log('[Quorum] Требуемый кворум из предложения:', quorumPercentage, 'quorumRequired:', proposal.quorumRequired, 'totalSupply:', totalSupplyWei);
+    return Math.round(quorumPercentage * 100) / 100;
+  }
+  
+  // Fallback к данным DLE
   const quorum = selectedDle.value?.quorumPercentage || 51;
   console.log('[Quorum] Требуемый кворум из DLE:', quorum, 'DLE данные:', selectedDle.value);
-  return quorum; // По умолчанию 51% если данные не загружены
+  return quorum;
 }
 
 function formatVotes(votes) {
@@ -974,14 +1388,16 @@ function canExecute(proposal) {
   const now = Math.floor(Date.now() / 1000);
   const deadline = proposal.deadline || 0;
   
-  // Предложение можно выполнить только если:
-  // 1. Дедлайн истек
-  // 2. Кворум достигнут
-  // 3. Предложение еще не выполнено
+  // Предложение можно выполнить если:
+  // 1. Кворум достигнут ИЛИ предложение уже принято (state: 5)
+  // 2. Предложение еще не выполнено
   const quorumPercentage = getQuorumPercentage(proposal);
-  const requiredQuorum = getRequiredQuorum();
+  const requiredQuorum = getRequiredQuorum(proposal);
   const hasReachedQuorum = quorumPercentage >= requiredQuorum;
   const deadlinePassed = deadline > 0 && now >= deadline;
+  
+  // Если предложение уже принято (state: 5), можно исполнять
+  const isProposalPassed = proposal.state === 5 || proposal.isPassed === true;
   
   // Добавляем отладочную информацию
   console.log('[canExecute] Проверка предложения:', {
@@ -992,10 +1408,29 @@ function canExecute(proposal) {
     deadline,
     now,
     deadlinePassed,
-    executed: proposal.executed
+    executed: proposal.executed,
+    state: proposal.state,
+    isPassed: proposal.isPassed,
+    isProposalPassed
   });
   
-  return deadlinePassed && hasReachedQuorum && !proposal.executed;
+  // Проверяем, что текущий пользователь - инициатор предложения
+  const isInitiator = address.value && proposal.initiator && 
+    address.value.toLowerCase() === proposal.initiator.toLowerCase();
+  
+  console.log('[canExecute] Проверка инициатора:', {
+    currentAddress: address.value,
+    proposalInitiator: proposal.initiator,
+    isInitiator
+  });
+  
+  // Можно исполнять если: 
+  // 1. (кворум достигнут И дедлайн истек) ИЛИ предложение уже принято
+  // 2. Пользователь - инициатор предложения
+  // 3. Предложение не выполнено
+  return ((hasReachedQuorum && deadlinePassed) || isProposalPassed) && 
+         isInitiator && 
+         !proposal.executed;
 }
 
 function hasSigned(proposalId) {
@@ -1191,10 +1626,107 @@ async function signProposalLocal(proposalId) {
     console.log('[Debug] Попытка подписи для предложения:', proposalId);
     console.log('[Debug] Адрес кошелька:', address.value);
     
-    await voteForProposalAPI(dleAddress.value, proposalId, true); // Подпись = голос "за"
+    // Получаем данные транзакции от backend
+    const result = await voteForProposalAPI(dleAddress.value, proposalId, true);
     
-    await loadDleData();
-    alert('✅ Предложение подписано!');
+    if (result.success) {
+      console.log('[DleProposalsView] Данные транзакции голосования получены:', result);
+
+      // Отправляем транзакцию через MetaMask
+      try {
+        // Проверяем валидность адреса
+        if (!result.data.to || !result.data.to.startsWith('0x') || result.data.to.length !== 42) {
+          throw new Error(`Неверный адрес контракта: ${result.data.to}`);
+        }
+
+        // Проверяем, что есть подключенный аккаунт
+        let accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (!accounts || accounts.length === 0) {
+          console.log('[DleProposalsView] Запрашиваем разрешение на подключение к MetaMask');
+          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        }
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error('Не удалось получить доступ к аккаунтам MetaMask');
+        }
+
+        console.log('[DleProposalsView] Подключенный аккаунт:', accounts[0]);
+
+        // Проверяем подключение к правильной сети
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const expectedChainId = '0xaa36a7'; // Sepolia
+
+        if (chainId !== expectedChainId) {
+          console.log(`[DleProposalsView] Переключаемся с сети ${chainId} на ${expectedChainId}`);
+
+          try {
+            // Пытаемся переключиться на Sepolia
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: expectedChainId }],
+            });
+            console.log('[DleProposalsView] Успешно переключились на Sepolia');
+          } catch (switchError) {
+            // Если сеть не добавлена, добавляем её
+            if (switchError.code === 4902) {
+              console.log('[DleProposalsView] Добавляем Sepolia сеть');
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: expectedChainId,
+                  chainName: 'Sepolia',
+                  nativeCurrency: {
+                    name: 'SepoliaETH',
+                    symbol: 'ETH',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52'],
+                  blockExplorerUrls: ['https://sepolia.etherscan.io']
+                }]
+              });
+            } else {
+              throw new Error(`Не удалось переключиться на Sepolia: ${switchError.message}`);
+            }
+          }
+        }
+
+        console.log('[DleProposalsView] Отправляем транзакцию голосования:', {
+          from: accounts[0],
+          to: result.data.to,
+          data: result.data.data,
+          value: result.data.value,
+          gas: result.data.gasLimit
+        });
+
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: accounts[0],
+            to: result.data.to,
+            data: result.data.data,
+            value: result.data.value,
+            gas: result.data.gasLimit
+          }]
+        });
+
+        console.log('[DleProposalsView] Транзакция голосования отправлена:', txHash);
+        
+        // Показываем уведомление с возможностью отслеживания
+        showTransactionNotification(txHash, 'Голосование отправлено!');
+        
+        // Подписываемся на WebSocket уведомления о голосовании
+        subscribeToVoteUpdates(txHash, proposalId, 'vote');
+        
+        // Запускаем отслеживание транзакции на backend
+        trackVoteTransaction(txHash, dleAddress.value, proposalId, true);
+
+      } catch (txError) {
+        console.error('[DleProposalsView] Ошибка отправки транзакции голосования:', txError);
+        alert('❌ Ошибка отправки транзакции голосования: ' + txError.message);
+      }
+    } else {
+      alert('❌ Ошибка получения данных транзакции: ' + result.error);
+    }
     
   } catch (error) {
     console.error('Ошибка при подписании:', error);
@@ -1225,10 +1757,107 @@ async function cancelSignatureLocal(proposalId) {
     console.log('[Debug] Попытка голосования "против" для предложения:', proposalId);
     console.log('[Debug] Адрес кошелька:', address.value);
     
-    await voteForProposalAPI(dleAddress.value, proposalId, false); // Голос "против"
+    // Получаем данные транзакции от backend
+    const result = await voteForProposalAPI(dleAddress.value, proposalId, false);
     
-    await loadDleData();
-    alert('✅ Ваш голос "против" учтен!');
+    if (result.success) {
+      console.log('[DleProposalsView] Данные транзакции голосования "против" получены:', result);
+
+      // Отправляем транзакцию через MetaMask
+      try {
+        // Проверяем валидность адреса
+        if (!result.data.to || !result.data.to.startsWith('0x') || result.data.to.length !== 42) {
+          throw new Error(`Неверный адрес контракта: ${result.data.to}`);
+        }
+
+        // Проверяем, что есть подключенный аккаунт
+        let accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (!accounts || accounts.length === 0) {
+          console.log('[DleProposalsView] Запрашиваем разрешение на подключение к MetaMask');
+          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        }
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error('Не удалось получить доступ к аккаунтам MetaMask');
+        }
+
+        console.log('[DleProposalsView] Подключенный аккаунт:', accounts[0]);
+
+        // Проверяем подключение к правильной сети
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const expectedChainId = '0xaa36a7'; // Sepolia
+
+        if (chainId !== expectedChainId) {
+          console.log(`[DleProposalsView] Переключаемся с сети ${chainId} на ${expectedChainId}`);
+
+          try {
+            // Пытаемся переключиться на Sepolia
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: expectedChainId }],
+            });
+            console.log('[DleProposalsView] Успешно переключились на Sepolia');
+          } catch (switchError) {
+            // Если сеть не добавлена, добавляем её
+            if (switchError.code === 4902) {
+              console.log('[DleProposalsView] Добавляем Sepolia сеть');
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: expectedChainId,
+                  chainName: 'Sepolia',
+                  nativeCurrency: {
+                    name: 'SepoliaETH',
+                    symbol: 'ETH',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52'],
+                  blockExplorerUrls: ['https://sepolia.etherscan.io']
+                }]
+              });
+            } else {
+              throw new Error(`Не удалось переключиться на Sepolia: ${switchError.message}`);
+            }
+          }
+        }
+
+        console.log('[DleProposalsView] Отправляем транзакцию голосования "против":', {
+          from: accounts[0],
+          to: result.data.to,
+          data: result.data.data,
+          value: result.data.value,
+          gas: result.data.gasLimit
+        });
+
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: accounts[0],
+            to: result.data.to,
+            data: result.data.data,
+            value: result.data.value,
+            gas: result.data.gasLimit
+          }]
+        });
+
+        console.log('[DleProposalsView] Транзакция голосования "против" отправлена:', txHash);
+        
+        // Показываем уведомление с возможностью отслеживания
+        showTransactionNotification(txHash, 'Голосование "против" отправлено!');
+        
+        // Подписываемся на WebSocket уведомления о голосовании
+        subscribeToVoteUpdates(txHash, proposalId, 'vote-against');
+        
+        // Запускаем отслеживание транзакции на backend
+        trackVoteTransaction(txHash, dleAddress.value, proposalId, false);
+
+      } catch (txError) {
+        console.error('[DleProposalsView] Ошибка отправки транзакции голосования "против":', txError);
+        alert('❌ Ошибка отправки транзакции голосования "против": ' + txError.message);
+      }
+    } else {
+      alert('❌ Ошибка получения данных транзакции: ' + result.error);
+    }
     
   } catch (error) {
     console.error('Ошибка при голосовании "против":', error);
@@ -1243,23 +1872,131 @@ async function cancelSignatureLocal(proposalId) {
 
 // Исполнение предложения
 async function executeProposalLocal(proposalId) {
-  // Проверка прав админа для исполнения
+  // Проверка авторизации
   if (!props.isAuthenticated) {
     alert('❌ Для исполнения предложений необходимо авторизоваться в приложении');
     return;
   }
   
-  // Дополнительная проверка на права админа
-  if (!hasAdminRights()) {
-    alert('❌ Для исполнения предложений необходимы права администратора');
+  // Проверка, что пользователь - инициатор предложения
+  const proposal = proposals.value.find(p => p.id === proposalId);
+  if (!proposal) {
+    alert('❌ Предложение не найдено');
+    return;
+  }
+  
+  const isInitiator = address.value && proposal.initiator && 
+    address.value.toLowerCase() === proposal.initiator.toLowerCase();
+    
+  if (!isInitiator) {
+    alert('❌ Только инициатор предложения может его исполнить');
     return;
   }
 
   try {
-    await executeProposalAPI(dleAddress.value, proposalId);
+    console.log('[Debug] Попытка исполнения предложения:', proposalId);
+    console.log('[Debug] Адрес кошелька:', address.value);
     
-    await loadDleData();
-    alert('✅ Предложение успешно исполнено!');
+    // Получаем данные транзакции от backend
+    const result = await executeProposalAPI(dleAddress.value, proposalId);
+    
+    if (result.success) {
+      console.log('[DleProposalsView] Данные транзакции исполнения получены:', result);
+
+      // Отправляем транзакцию через MetaMask
+      try {
+        // Проверяем валидность адреса
+        if (!result.data.to || !result.data.to.startsWith('0x') || result.data.to.length !== 42) {
+          throw new Error(`Неверный адрес контракта: ${result.data.to}`);
+        }
+
+        // Проверяем подключение к MetaMask
+        if (!window.ethereum) {
+          throw new Error('MetaMask не установлен');
+        }
+
+        // Запрашиваем разрешение на подключение к MetaMask
+        console.log('[DleProposalsView] Запрашиваем разрешение на подключение к MetaMask');
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        
+        if (accounts.length === 0) {
+          throw new Error('Нет подключенных аккаунтов в MetaMask');
+        }
+
+        console.log('[DleProposalsView] Подключенный аккаунт:', accounts[0]);
+
+        // Проверяем сеть
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const expectedChainId = '0xaa36a7'; // Sepolia (11155111)
+        
+        if (chainId !== expectedChainId) {
+          console.log(`[DleProposalsView] Неправильная сеть! Текущая: ${chainId}, ожидается: ${expectedChainId}`);
+          
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: expectedChainId }],
+            });
+          } catch (switchError) {
+            if (switchError.code === 4902) {
+              console.log('[DleProposalsView] Добавляем Sepolia сеть');
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: expectedChainId,
+                  chainName: 'Sepolia',
+                  nativeCurrency: {
+                    name: 'SepoliaETH',
+                    symbol: 'ETH',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52'],
+                  blockExplorerUrls: ['https://sepolia.etherscan.io']
+                }]
+              });
+            } else {
+              throw new Error(`Не удалось переключиться на Sepolia: ${switchError.message}`);
+            }
+          }
+        }
+
+        console.log('[DleProposalsView] Отправляем транзакцию исполнения:', {
+          from: accounts[0],
+          to: result.data.to,
+          data: result.data.data,
+          value: result.data.value,
+          gas: result.data.gasLimit
+        });
+
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: accounts[0],
+            to: result.data.to,
+            data: result.data.data,
+            value: result.data.value,
+            gas: result.data.gasLimit
+          }]
+        });
+
+        console.log('[DleProposalsView] Транзакция исполнения отправлена:', txHash);
+        
+        // Показываем уведомление с возможностью отслеживания
+        showTransactionNotification(txHash, 'Исполнение предложения отправлено!');
+        
+        // Подписываемся на WebSocket уведомления о исполнении
+        subscribeToExecutionUpdates(txHash, proposalId);
+        
+        // Запускаем отслеживание транзакции на backend
+        trackExecutionTransaction(txHash, dleAddress.value, proposalId);
+
+      } catch (txError) {
+        console.error('[DleProposalsView] Ошибка отправки транзакции исполнения:', txError);
+        alert('❌ Ошибка отправки транзакции исполнения: ' + txError.message);
+      }
+    } else {
+      alert('❌ Ошибка получения данных транзакции: ' + result.error);
+    }
     
   } catch (error) {
     console.error('Ошибка при исполнении предложения:', error);
@@ -1764,6 +2501,14 @@ onUnmounted(() => {
   color: #721c24;
 }
 
+.execution-notice {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #e2e3e5;
+  border-radius: 4px;
+  border-left: 3px solid #6c757d;
+}
+
 .proposal-status.canceled {
   background: #fff3cd;
   color: #856404;
@@ -1776,6 +2521,28 @@ onUnmounted(() => {
 .detail-item {
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
+}
+
+.module-details {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.module-details .detail-item {
+  margin-bottom: 0.75rem;
+}
+
+.address-link {
+  color: #007bff;
+  text-decoration: none;
+  font-family: monospace;
+}
+
+.address-link:hover {
+  text-decoration: underline;
 }
 
 .votes-container {

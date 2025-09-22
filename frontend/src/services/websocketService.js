@@ -40,7 +40,7 @@ class WebSocketService {
     try {
       // Определяем WebSocket URL
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // В Docker окружении используем тот же хост, что и для HTTP
+      // Подключаемся к бэкенду через Vite proxy
       const wsUrl = `${protocol}//${window.location.host}/ws`;
       
       // console.log('🔌 [WebSocket] Подключение к:', wsUrl);

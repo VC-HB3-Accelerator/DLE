@@ -827,14 +827,42 @@
           
           <!-- Кнопка деплоя смарт-контрактов -->
           <div class="deploy-section">
+            <!-- Информация о поэтапном деплое -->
+            <div class="deployment-info">
+              <h4>🚀 Поэтапный деплой DLE</h4>
+              <p class="deployment-description">
+                Автоматический деплой DLE контракта и всех модулей с проверками, верификацией и инициализацией во всех выбранных сетях
+              </p>
+              <div class="deployment-features">
+                <div class="feature-item">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Деплой DLE контракта во всех сетях</span>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Автоматическая верификация контрактов</span>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Деплой и инициализация всех модулей</span>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-check-circle"></i>
+                  <span>Повторы при ошибках сети</span>
+                </div>
+              </div>
+            </div>
+
             <div class="deploy-buttons">
               <button 
                 @click="deploySmartContracts" 
                 type="button" 
                 class="btn btn-primary btn-lg deploy-btn"
                 :disabled="!isFormValid || !adminTokenCheck.isAdmin || adminTokenCheck.isLoading || showDeployProgress"
+                :title="`isFormValid: ${isFormValid}, isAdmin: ${adminTokenCheck.isAdmin}, isLoading: ${adminTokenCheck.isLoading}, showDeployProgress: ${showDeployProgress}`"
               >
-                <i class="fas fa-rocket"></i> Деплой смарт контрактов
+                <i class="fas fa-cogs"></i> 
+                Поэтапный деплой DLE
               </button>
               <button 
                 v-if="hasSelectedData" 
@@ -893,6 +921,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Мастер поэтапного деплоя -->
+    <div v-if="showDeploymentWizard" class="deployment-wizard-overlay">
+      <div class="wizard-container">
+        <DeploymentWizard
+          :private-key="unifiedPrivateKey"
+          :selected-networks="selectedNetworks"
+          :dle-data="dleSettings"
+          :etherscan-api-key="etherscanApiKey"
+          @deployment-completed="handleDeploymentCompleted"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -900,10 +941,21 @@
 import { reactive, ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
-import axios from 'axios';
 import api from '@/api/axios';
+import DeploymentWizard from '@/components/deployment/DeploymentWizard.vue';
 
 const router = useRouter();
+// Нормализация приватного ключа: убираем пробелы/"0x", посторонние символы,
+// приводим к нижнему регистру и дополняем ведущими нулями до 64 символов
+function normalizePrivateKey(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let pk = raw.trim().replace(/^0x/i, '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+  if (pk.length === 64) return '0x' + pk;
+  if (pk.length > 64) return '';
+  if (/^[0-9a-fA-F]*$/.test(pk)) return '0x' + pk.padStart(64, '0');
+  return '';
+}
+
 
 // Получаем контекст авторизации для адреса кошелька
 const { address, isAdmin } = useAuthContext();
@@ -995,6 +1047,10 @@ const autoVerifyAfterDeploy = ref(true);
 // Состояние для приватных ключей
 const useSameKeyForAllChains = ref(true);
 const unifiedPrivateKey = ref('');
+
+// Состояние мастера деплоя
+const showDeploymentWizard = ref(false);
+const deployedDLEAddress = ref('');
 const privateKeys = reactive({});
 const privateKeyVisibility = reactive({});
 const keyValidation = reactive({});
@@ -1060,7 +1116,6 @@ const hasSelectedNetworks = computed(() => {
 //       symbol: dleSettings.tokenSymbol,
 //       selectedNetworks: selectedNetworkDetails.value.map(n => n.chainId)
 //     };
-//     const resp = await axios.post('/dle-v2/predict-addresses', payload);
 //     if (resp.data && resp.data.success && resp.data.data) {
 //       // ожидаем вид { [chainId]: address }
 //       Object.keys(predictedAddresses).forEach(k => delete predictedAddresses[k]);
@@ -1618,7 +1673,7 @@ const searchByPostalCode = async () => {
     }
 
     // console.log(`[SearchByPostalCode] Querying Nominatim: ${params.toString()}`);
-    const response = await axios.get(`/geocoding/nominatim-search?${params.toString()}`);
+    const response = await api.get(`/geocoding/nominatim-search?${params.toString()}`);
     
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
       // Преобразуем результаты Nominatim для отображения
@@ -1757,7 +1812,7 @@ const verifyAddress = async () => {
       params.append('countrycodes', 'RU');
     }
 
-    const response = await axios.get(`/geocoding/nominatim-search?${params.toString()}`);
+    const response = await api.get(`/geocoding/nominatim-search?${params.toString()}`);
     
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
       const verificationResult = response.data[0];
@@ -1833,7 +1888,7 @@ const formatTokenSymbol = () => {
 const loadCountries = async () => {
   isLoadingCountries.value = true;
   try {
-    const response = await axios.get('/countries');
+    const response = await api.get('/countries');
     if (response.data && response.data.success) {
       countriesOptions.value = response.data.data || [];
       console.log(`Загружено стран: ${countriesOptions.value.length}`);
@@ -1857,7 +1912,7 @@ const loadRussianClassifiers = async () => {
     console.log('Загружаем российские классификаторы...');
     
     // Загружаем все классификаторы одним запросом для оптимизации
-    const response = await axios.get('/russian-classifiers/all');
+    const response = await api.get('/russian-classifiers/all');
     
     if (response.data && response.data.success) {
       const data = response.data.data;
@@ -1905,7 +1960,7 @@ const loadKppCodes = async () => {
   
   try {
     console.log('Загружаем КПП коды...');
-    const response = await axios.get('/kpp/codes');
+    const response = await api.get('/kpp/codes');
     
     if (response.data && Array.isArray(response.data.codes)) {
       kppCodes.value = response.data.codes;
@@ -1928,65 +1983,19 @@ const loadAvailableNetworks = async () => {
   
   try {
     console.log('Загружаем доступные сети из базы данных...');
-    const response = await axios.get('/settings/rpc');
+    console.log('URL:', '/api/settings/rpc');
+    const response = await api.get('/settings/rpc');
+    console.log('Response:', response.data);
     
     if (response.data && response.data.success) {
       const networksData = response.data.data || [];
       
       // Преобразуем данные из базы в формат для мульти-чейн деплоя
       availableNetworks.value = networksData.map(network => {
-        // Определяем примерную стоимость на основе chain_id
-        const estimatedCosts = {
-          1: 45.50,    // Ethereum Mainnet
-          137: 0.01,   // Polygon
-          42161: 2.30, // Arbitrum One
-          10: 1.20,    // Optimism
-          56: 0.50,    // BSC
-          43114: 0.15, // Avalanche
-          11155111: 0.001, // Sepolia testnet
-          80001: 0.001,    // Mumbai testnet
-          421613: 0.001,   // Arbitrum Goerli
-          420: 0.001,      // Optimism Goerli
-          97: 0.001,       // BSC Testnet
-          43113: 0.001     // Avalanche Fuji
-        };
-        
-        // Определяем описания сетей
-        const networkDescriptions = {
-          1: 'Максимальная безопасность и децентрализация',
-          137: 'Низкие комиссии, быстрые транзакции',
-          42161: 'Оптимистичные rollups, средние комиссии',
-          10: 'Оптимистичные rollups, низкие комиссии',
-          56: 'Совместимость с экосистемой Binance',
-          43114: 'Высокая пропускная способность',
-          11155111: 'Тестовая сеть Ethereum',
-          80001: 'Тестовая сеть Polygon',
-          421613: 'Тестовая сеть Arbitrum',
-          420: 'Тестовая сеть Optimism',
-          97: 'Тестовая сеть BSC',
-          43113: 'Тестовая сеть Avalanche'
-        };
-        
-        // Определяем названия сетей
-        const networkNames = {
-          1: 'Ethereum Mainnet',
-          137: 'Polygon',
-          42161: 'Arbitrum One',
-          10: 'Optimism',
-          56: 'BSC',
-          43114: 'Avalanche',
-          11155111: 'Sepolia Testnet',
-          80001: 'Mumbai Testnet',
-          421613: 'Arbitrum Goerli',
-          420: 'Optimism Goerli',
-          97: 'BSC Testnet',
-          43113: 'Avalanche Fuji'
-        };
-        
-                 const chainId = network.chain_id || parseInt(network.network_id);
-         const estimatedCost = estimatedCosts[chainId] || 1.00;
-         const description = networkDescriptions[chainId] || 'Блокчейн сеть';
-         const name = networkNames[chainId] || network.network_id || 'Unknown Network';
+        const chainId = network.chain_id || parseInt(network.network_id);
+        const estimatedCost = getFallbackCost(chainId);
+        const description = network.description || 'Блокчейн сеть';
+        const name = network.name || network.network_id || `Chain ${chainId}`;
          
          return {
            chainId: chainId,
@@ -2042,7 +2051,7 @@ const validateTokenStandardCompatibility = () => {
   
   // Проверяем совместимость ERC-4626 с тестовыми сетями
   if (standard === 'ERC4626') {
-    const testnetChains = [11155111, 80001, 421613, 420, 97, 43113]; // Sepolia, Mumbai, etc.
+    const testnetChains = [11155111, 80001, 421613, 420, 97]; // Sepolia, Mumbai, etc.
     const hasTestnet = networks.some(network => testnetChains.includes(network.chainId));
     
     if (hasTestnet) {
@@ -2075,11 +2084,79 @@ const showTokenStandardWarnings = () => {
 
 // ==================== МУЛЬТИ-ЧЕЙН ФУНКЦИИ ====================
 
-// Обновление общей стоимости деплоя
-const updateDeployCost = () => {
-  totalDeployCost.value = selectedNetworkDetails.value
-    .reduce((sum, network) => sum + network.estimatedCost, 0);
+// Обновление общей стоимости деплоя (динамический расчет)
+const updateDeployCost = async () => {
+  if (selectedNetworkDetails.value.length === 0) {
+    totalDeployCost.value = 0;
+    return;
+  }
+
+  try {
+    // Получаем chainId выбранных сетей
+    const chainIds = selectedNetworkDetails.value.map(network => network.chainId);
+
+    // Вызываем API для расчета стоимости
+    const response = await api.post('/dle-v2/estimate-cost', {
+      supportedChainIds: chainIds
+    });
+
+    if (response.data.success && response.data.data) {
+      const costData = response.data.data;
+      
+      // Обновляем информацию о каждой сети
+      selectedNetworkDetails.value.forEach(network => {
+        const estimate = costData.estimates.find(e => e.chainId === network.chainId);
+        
+        if (estimate && estimate.ok) {
+          network.estimatedCost = parseFloat(estimate.costEth);
+          network.gasPrice = estimate.gasPrice;
+          network.estimatedGas = estimate.gasLimit;
+        } else {
+          // Fallback для сетей без RPC
+          network.estimatedCost = getFallbackCost(network.chainId);
+        }
+      });
+
+      totalDeployCost.value = parseFloat(costData.totalCostEth);
+      console.log('✅ Стоимость деплоя обновлена:', costData);
+    } else {
+      throw new Error('Ошибка получения стоимости деплоя');
+    }
+  } catch (error) {
+    console.warn('⚠️ Ошибка расчета стоимости, используем fallback:', error.message);
+    
+    // Fallback к статическим ценам
+    selectedNetworkDetails.value.forEach(network => {
+      network.estimatedCost = getFallbackCost(network.chainId);
+    });
+    
+    totalDeployCost.value = selectedNetworkDetails.value
+      .reduce((sum, network) => sum + network.estimatedCost, 0);
+  }
 };
+
+// Вспомогательная функция для получения fallback стоимости
+const getFallbackCost = (chainId) => {
+  const fallbackCosts = {
+    1: 45.50,    // Ethereum Mainnet
+    137: 0.01,   // Polygon
+    42161: 2.30, // Arbitrum One
+    10: 1.20,    // Optimism
+    56: 0.50,    // BSC
+    43114: 0.15, // Avalanche
+    11155111: 0.001, // Sepolia testnet
+    80001: 0.001,    // Mumbai testnet
+    421613: 0.001,   // Arbitrum Goerli
+    420: 0.001,      // Optimism Goerli
+    97: 0.001,       // BSC Testnet
+    17000: 0.001,    // Holesky testnet
+    421614: 0.001,   // Arbitrum Sepolia
+    84532: 0.001,    // Base Sepolia
+    80002: 0.001     // Polygon Amoy
+  };
+  return fallbackCosts[chainId] || 1.00;
+};
+
 
 // Копирование адреса DLE - отключено
 // const copyAddress = async () => {
@@ -2152,7 +2229,7 @@ const validatePrivateKey = async (chainId) => {
     
     try {
       // Отправляем запрос на бэкенд для валидации
-      const response = await axios.post('/dle-v2/validate-private-key', {
+      const response = await api.post('/dle-v2/validate-private-key', {
         privateKey: key
       });
       
@@ -2275,12 +2352,14 @@ const handleVisibilityChange = () => {
   }
 };
 
-// Watcher для unifiedPrivateKey с дебаунсом
+// Watcher: нормализуем PK и обновляем связанные состояния
 watch(unifiedPrivateKey, (newValue) => {
-  // Добавляем небольшую задержку для предотвращения рекурсии
-  setTimeout(() => {
-    updateAllKeys();
-  }, 100);
+  const normalized = normalizePrivateKey(newValue);
+  if (normalized && normalized !== newValue) {
+    unifiedPrivateKey.value = normalized;
+    return;
+  }
+  updateAllKeys();
 });
 
 // Watcher для predictedAddress - синхронизация с dleSettings - отключено
@@ -2309,6 +2388,11 @@ watch(unifiedPrivateKey, (newValue) => {
 // Инициализация
 onMounted(() => {
   
+  // Сбрасываем состояние деплоя при загрузке страницы
+  showDeployProgress.value = false;
+  deployProgress.value = 0;
+  deployStatus.value = '';
+  
   // Загружаем список стран
   loadCountries();
   
@@ -2335,6 +2419,11 @@ onMounted(() => {
       dleSettings.partners[0].address = address.value;
       console.log('Автоматически подставлен адрес кошелька:', address.value);
     }
+  }
+  
+  // Проверяем, есть ли приватный ключ
+  if (!unifiedPrivateKey.value) {
+    console.log('⚠️ Приватный ключ не введен. Пожалуйста, введите приватный ключ для деплоя.');
   }
   
   // Добавляем слушатель события видимости страницы для обновления списка сетей
@@ -2367,23 +2456,22 @@ const checkAdminTokens = async () => {
     return;
   }
 
-  adminTokenCheck.value.isLoading = true;
-  adminTokenCheck.value.error = null;
+  adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: true, error: null };
 
   try {
-    const response = await axios.get(`/dle-v2/check-admin-tokens?address=${address.value}`);
+    const response = await api.get(`/dle-v2/check-admin-tokens?address=${address.value}`);
     
     if (response.data.success) {
-      adminTokenCheck.value.isAdmin = response.data.data.isAdmin;
+      adminTokenCheck.value = { ...adminTokenCheck.value, isAdmin: response.data.data.isAdmin };
       console.log('Проверка админских токенов:', response.data.data);
     } else {
-      adminTokenCheck.value.error = response.data.message || 'Ошибка проверки токенов';
+      adminTokenCheck.value = { ...adminTokenCheck.value, error: response.data.message || 'Ошибка проверки токенов' };
     }
   } catch (error) {
     console.error('Ошибка проверки админских токенов:', error);
-    adminTokenCheck.value.error = error.response?.data?.message || 'Ошибка проверки токенов';
+    adminTokenCheck.value = { ...adminTokenCheck.value, error: error.response?.data?.message || 'Ошибка проверки токенов' };
   } finally {
-    adminTokenCheck.value.isLoading = false;
+    adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: false };
   }
 };
 
@@ -2429,7 +2517,7 @@ const maskedPrivateKey = computed(() => {
 
 // Функция деплоя смарт-контрактов DLE
 const deploySmartContracts = async () => {
-  console.log('🚀 Начало деплоя DLE...');
+  console.log('🚀 Начало поэтапного деплоя DLE...');
   try {
     // Валидация данных
     if (!isFormValid.value) {
@@ -2437,12 +2525,33 @@ const deploySmartContracts = async () => {
       return;
     }
 
+    // Сразу показываем мастер деплоя
+    showDeploymentWizard.value = true;
+    
+    // Запускаем деплой DLE в фоне
+    startStagedDeployment();
+    
+  } catch (error) {
+    console.error('Ошибка деплоя DLE:', error);
+    showDeployProgress.value = false;
+    alert('❌ Ошибка при деплое смарт-контракта: ' + error.message);
+  }
+};
+
+// Функция запуска поэтапного деплоя
+const startStagedDeployment = async () => {
+  console.log('🚀 Запуск поэтапного деплоя...');
+  
+  // Сначала выполняем стандартный деплой DLE контракта
+  try {
     // Показываем индикатор процесса
     showDeployProgress.value = true;
     deployProgress.value = 10;
-    deployStatus.value = 'Подготовка данных для деплоя...';
+    deployStatus.value = 'Подготовка данных для деплоя DLE...';
 
     // Подготовка данных для деплоя
+    console.log('DEBUG: dleSettings.selectedNetworks:', dleSettings.selectedNetworks);
+    console.log('DEBUG: selectedNetworks.value:', selectedNetworks.value);
     const deployData = {
       // Основная информация DLE
       name: dleSettings.name,
@@ -2463,16 +2572,15 @@ const deploySmartContracts = async () => {
       initialAmounts: dleSettings.partners.map(p => p.amount).filter(amount => amount > 0),
       
       // Мульти-чейн настройки
-      supportedChainIds: dleSettings.selectedNetworks || [],
+      supportedChainIds: selectedNetworks.value || [],
       
       // Текущая цепочка (будет установлена при деплое)
-      currentChainId: dleSettings.selectedNetworks[0] || 1,
-      
+      currentChainId: selectedNetworks.value[0] || 1,
       // Приватный ключ для деплоя
       privateKey: unifiedPrivateKey.value,
       // Верификация через Etherscan V2
       etherscanApiKey: etherscanApiKey.value,
-      autoVerifyAfterDeploy: autoVerifyAfterDeploy.value
+      autoVerifyAfterDeploy: false // Отключаем автоверификацию для поэтапного деплоя
     };
 
     // Обработка логотипа
@@ -2480,7 +2588,7 @@ const deploySmartContracts = async () => {
       if (logoFile.value) {
         const form = new FormData();
         form.append('logo', logoFile.value);
-        const uploadResp = await axios.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const uploadResp = await api.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
         const uploaded = uploadResp.data?.data?.url || uploadResp.data?.data?.path;
         if (uploaded) {
           deployData.logoURI = uploaded;
@@ -2488,162 +2596,113 @@ const deploySmartContracts = async () => {
       } else if (ensResolvedUrl.value) {
         deployData.logoURI = ensResolvedUrl.value;
       } else {
-        // фолбэк на дефолт
         deployData.logoURI = '/uploads/logos/default-token.svg';
       }
     } catch (error) {
       console.warn('Ошибка при обработке логотипа:', error.message);
-      // Используем fallback логотип
       deployData.logoURI = '/uploads/logos/default-token.svg';
     }
 
     console.log('Данные для деплоя DLE:', deployData);
 
-    // Предварительная проверка балансов во всех сетях
+    // Предварительная проверка балансов (через приватный ключ)
     deployProgress.value = 20;
     deployStatus.value = 'Проверка баланса во всех выбранных сетях...';
     try {
-      const pre = await axios.post('/dle-v2/precheck', {
+      const pre = await api.post('/dle-v2/precheck', {
         supportedChainIds: deployData.supportedChainIds,
-        privateKey: deployData.privateKey
+        privateKey: unifiedPrivateKey.value
       });
       const preData = pre.data?.data;
       if (pre.data?.success && preData) {
         const lacks = (preData.insufficient || []);
-        const warnings = (preData.warnings || []);
-        
         if (lacks.length > 0) {
-          const lines = (preData.balances || []).map(b => {
-            const status = b.ok ? '✅' : '❌';
-            const warning = warnings.includes(b.chainId) ? ' ⚠️' : '';
-            return `${status} Chain ${b.chainId}: ${b.balanceEth} ETH (мин. ${b.minRequiredEth} ETH)${warning}`;
-          });
-          
-          const message = `Проверка балансов завершена:\n\n${lines.join('\n')}\n\n${lacks.length > 0 ? '❌ Недостаточно средств в некоторых сетях!' : ''}\n${warnings.length > 0 ? '⚠️ Предупреждения в некоторых сетях!' : ''}`;
-          
-          if (lacks.length > 0) {
-            alert(message);
-            showDeployProgress.value = false;
-            return;
-          } else if (warnings.length > 0) {
-            const proceed = confirm(message + '\n\nПродолжить деплой?');
-            if (!proceed) {
-              showDeployProgress.value = false;
-              return;
-            }
-          }
+          const message = `❌ Недостаточно средств в некоторых сетях!`;
+          alert(message);
+          showDeployProgress.value = false;
+          return;
         }
-        
         console.log('✅ Проверка балансов пройдена:', preData.summary);
       }
     } catch (e) {
       console.warn('⚠️ Ошибка проверки балансов:', e.message);
-      // Если precheck недоступен, не блокируем — продолжаем
     }
     
     deployProgress.value = 30;
     deployStatus.value = 'Компиляция смарт-контрактов...';
 
-    // Автокомпиляция контрактов перед деплоем
-    console.log('🔨 Запуск автокомпиляции...');
+    // Автокомпиляция контрактов
     try {
-      const compileResponse = await axios.post('/compile-contracts');
+      const compileResponse = await api.post('/compile-contracts');
       console.log('✅ Контракты скомпилированы:', compileResponse.data);
     } catch (compileError) {
       console.warn('⚠️ Ошибка автокомпиляции:', compileError.message);
-      // Продолжаем деплой даже если компиляция не удалась
     }
 
     deployProgress.value = 40;
-    deployStatus.value = 'Отправка данных на сервер...';
+    deployStatus.value = 'Деплой DLE контракта...';
 
-    // Вызов API для деплоя
-    deployProgress.value = 50;
-    deployStatus.value = 'Деплой смарт-контракта в блокчейне...';
-    
-    const response = await axios.post('/dle-v2', deployData);
-    
+    // Деплой будет выполнен в DeploymentWizard
+    // Здесь только показываем мастер деплоя
     deployProgress.value = 80;
-    deployStatus.value = 'Проверка результатов деплоя...';
+    deployStatus.value = 'Запуск мастера деплоя...';
     
-    if (response.data.success) {
-      const result = response.data.data;
-      
-      // Проверяем результаты мульти-чейн деплоя
-      if (result.networks && Array.isArray(result.networks)) {
-        const successfulNetworks = result.networks.filter(n => n.success);
-        const failedNetworks = result.networks.filter(n => !n.success);
-        
-        if (failedNetworks.length > 0) {
-          console.warn('Некоторые сети не удалось развернуть:', failedNetworks);
-        }
-        
-        if (successfulNetworks.length > 0) {
-          // Проверяем, что все адреса одинаковые
-          const addresses = successfulNetworks.map(n => n.address);
-          const uniqueAddresses = [...new Set(addresses)];
-          
-          if (uniqueAddresses.length === 1) {
-            deployProgress.value = 100;
-            deployStatus.value = `✅ DLE успешно развернут в ${successfulNetworks.length} сетях с одинаковым адресом!`;
-            
-            console.log('🎉 Мульти-чейн деплой завершен успешно!');
-            console.log('Адрес DLE:', uniqueAddresses[0]);
-            console.log('Сети:', successfulNetworks.map(n => `Chain ${n.chainId}: ${n.address}`));
-            
-            // Небольшая задержка для показа успешного завершения
-            setTimeout(() => {
-              showDeployProgress.value = false;
-              // Перенаправляем на главную страницу управления
-              router.push('/management');
-            }, 3000);
-          } else {
-            showDeployProgress.value = false;
-            alert('❌ ОШИБКА: Адреса DLE в разных сетях не совпадают! Это может указывать на проблему с CREATE2.');
-          }
-        } else {
-          showDeployProgress.value = false;
-          alert('❌ Не удалось развернуть DLE ни в одной сети');
-        }
-      } else {
-        // Fallback для одиночного деплоя
-        deployProgress.value = 100;
-        deployStatus.value = '✅ DLE успешно развернут!';
-        
-        setTimeout(() => {
-          showDeployProgress.value = false;
-          router.push('/management');
-        }, 2000);
-      }
-      
-    } else {
-      showDeployProgress.value = false;
-      alert('❌ Ошибка при деплое: ' + (response.data.message || response.data.error));
-    }
+    // Показываем мастер деплоя
+    showDeploymentWizard.value = true;
     
+    // Мастер деплоя сам выполнит деплой
+    return;
   } catch (error) {
-    console.error('Ошибка деплоя DLE:', error);
-    showDeployProgress.value = false;
-    alert('❌ Ошибка при деплое смарт-контракта: ' + error.message);
+    console.error('Ошибка при запуске деплоя:', error);
+    deployStatus.value = `❌ Ошибка: ${error.message}`;
+    deployProgress.value = 0;
   }
+}
+
+// Обработчик завершения поэтапного деплоя
+const handleDeploymentCompleted = (result) => {
+  console.log('🎉 Поэтапный деплой завершен:', result);
+  showDeploymentWizard.value = false;
+  
+  // Перенаправляем на главную страницу управления
+  router.push('/management');
 };
 
 // Валидация формы
-const isFormValid = computed(() => {
+    const isFormValid = computed(() => {
+  const validation = {
+    jurisdiction: !!dleSettings.jurisdiction,
+    name: !!dleSettings.name,
+    tokenSymbol: !!dleSettings.tokenSymbol,
+    partners: dleSettings.partners.length > 0,
+    partnersValid: dleSettings.partners.every(partner => partner.address && partner.amount > 0),
+    quorum: dleSettings.governanceQuorum > 0 && dleSettings.governanceQuorum <= 100,
+    networks: selectedNetworks.value.length > 0,
+    privateKey: !!unifiedPrivateKey.value,
+    keyValid: !!keyValidation.unified?.isValid,
+    coordinates: validateCoordinates(dleSettings.coordinates)
+  };
+  
+  console.log('🔍 Валидация формы:', validation);
+  console.log('🔍 selectedNetworks.value:', selectedNetworks.value);
+  console.log('🔍 adminTokenCheck:', adminTokenCheck.value);
+  console.log('🔍 showDeployProgress:', showDeployProgress.value);
+  console.log('🔍 unifiedPrivateKey.value:', unifiedPrivateKey.value);
+  console.log('🔍 keyValidation.unified:', keyValidation.unified);
+  console.log('🔍 dleSettings.coordinates:', dleSettings.coordinates);
+  console.log('🔍 Кнопка должна быть активна:', !(!validation.jurisdiction || !validation.name || !validation.tokenSymbol || !validation.partners || !validation.partnersValid || !validation.quorum || !validation.networks || !validation.privateKey || !validation.keyValid || !validation.coordinates) && adminTokenCheck.value.isAdmin && !adminTokenCheck.value.isLoading && !showDeployProgress.value);
+  
   return Boolean(
-    dleSettings.jurisdiction &&
-    dleSettings.name &&
-    dleSettings.tokenSymbol &&
-    (dleSettings.partners.length > 0) &&
-    dleSettings.partners.every(partner => partner.address && partner.amount > 0) &&
-    dleSettings.governanceQuorum > 0 &&
-    dleSettings.governanceQuorum <= 100 &&
-    (dleSettings.selectedNetworks.length > 0) &&
-    // Проверка приватного ключа
-    unifiedPrivateKey.value &&
-    keyValidation.unified?.isValid &&
-    // Валидация координат
-    validateCoordinates(dleSettings.coordinates)
+    validation.jurisdiction &&
+    validation.name &&
+    validation.tokenSymbol &&
+    validation.partners &&
+    validation.partnersValid &&
+    validation.quorum &&
+    validation.networks &&
+    validation.privateKey &&
+    validation.keyValid &&
+    validation.coordinates
   );
 });
 
@@ -2715,7 +2774,7 @@ async function submitDeploy() {
     if (logoFile.value) {
       const form = new FormData();
       form.append('logo', logoFile.value);
-      const uploadResp = await axios.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const uploadResp = await api.post('/uploads/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
       const uploaded = uploadResp.data?.data?.url || uploadResp.data?.data?.path;
       if (uploaded) {
         deployData.logoURI = uploaded;
@@ -4383,6 +4442,85 @@ async function submitDeploy() {
     margin-top: 2rem;
     padding-top: 1.5rem;
     border-top: 1px solid #e9ecef;
+  }
+
+  /* Стили для информации о деплое */
+  .deployment-info {
+    margin-bottom: 2rem;
+    width: 100%;
+    max-width: 800px;
+    padding: 2rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 16px;
+    border: 1px solid #dee2e6;
+  }
+
+  .deployment-info h4 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    text-align: center;
+    font-size: 1.4rem;
+    font-weight: 600;
+  }
+
+  .deployment-description {
+    color: #6c757d;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .deployment-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background-color: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+  }
+
+  .feature-item i {
+    color: #28a745;
+    font-size: 1.1rem;
+  }
+
+  .feature-item span {
+    color: #495057;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  /* Стили для мастера деплоя */
+  .deployment-wizard-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+
+  .wizard-container {
+    background-color: white;
+    border-radius: 16px;
+    max-width: 1200px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
   }
 
   .deploy-buttons {

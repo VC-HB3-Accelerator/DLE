@@ -16,6 +16,41 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
+// ERC-4337 интерфейсы для оплаты газа любым токеном
+interface IPaymaster {
+    function validatePaymasterUserOp(
+        UserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    ) external returns (bytes memory context, uint256 validationData);
+    
+    function postOp(
+        PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGasCost
+    ) external;
+}
+
+struct UserOperation {
+    address sender;
+    uint256 nonce;
+    bytes initCode;
+    bytes callData;
+    uint256 callGasLimit;
+    uint256 verificationGasLimit;
+    uint256 preVerificationGas;
+    uint256 maxFeePerGas;
+    uint256 maxPriorityFeePerGas;
+    bytes paymasterAndData;
+    bytes signature;
+}
+
+enum PostOpMode {
+    opSucceeded,
+    opReverted,
+    postOpReverted
+}
+
 /**
  * @title TreasuryModule
  * @dev Модуль казны для управления активами DLE
@@ -72,6 +107,11 @@ contract TreasuryModule is ReentrancyGuard {
     // Система экстренного останова
     bool public emergencyPaused;
     address public emergencyAdmin;
+    
+    // ERC-4337 Paymaster для оплаты газа любым токеном
+    address public paymaster;
+    mapping(address => bool) public gasPaymentTokens; // Токены, которыми можно платить за газ
+    mapping(address => uint256) public gasTokenRates; // Курсы обмена токенов на нативную монету
 
     // События
     event TokenAdded(
@@ -103,6 +143,10 @@ contract TreasuryModule is ReentrancyGuard {
     );
     event EmergencyPauseToggled(bool isPaused, address admin);
     event BalanceUpdated(address indexed tokenAddress, uint256 oldBalance, uint256 newBalance);
+    event PaymasterUpdated(address indexed oldPaymaster, address indexed newPaymaster);
+    event GasPaymentTokenAdded(address indexed tokenAddress, uint256 rate);
+    event GasPaymentTokenRemoved(address indexed tokenAddress);
+    event GasPaidWithToken(address indexed tokenAddress, uint256 tokenAmount, uint256 nativeAmount);
 
     // Модификаторы
     modifier onlyDLE() {
@@ -143,6 +187,11 @@ contract TreasuryModule is ReentrancyGuard {
      */
     receive() external payable {
         if (msg.value > 0) {
+            // Автоматически добавляем нативную монету, если её нет
+            if (!supportedTokens[address(0)].isActive) {
+                _addNativeToken();
+            }
+            
             _updateTokenBalance(address(0), supportedTokens[address(0)].balance + msg.value);
             emit FundsDeposited(address(0), msg.sender, msg.value, supportedTokens[address(0)].balance);
         }
@@ -373,6 +422,169 @@ contract TreasuryModule is ReentrancyGuard {
         emergencyPaused = !emergencyPaused;
         emit EmergencyPauseToggled(emergencyPaused, msg.sender);
     }
+    
+    // ===== ФУНКЦИИ ДЛЯ ОПЛАТЫ ГАЗА ЛЮБЫМ ТОКЕНОМ =====
+    
+    /**
+     * @dev Установить Paymaster для ERC-4337 (только через DLE governance)
+     * @param _paymaster Адрес Paymaster контракта
+     */
+    function setPaymaster(address _paymaster) external onlyDLE {
+        require(_paymaster != address(0), "Paymaster cannot be zero");
+        address oldPaymaster = paymaster;
+        paymaster = _paymaster;
+        emit PaymasterUpdated(oldPaymaster, _paymaster);
+    }
+    
+    /**
+     * @dev Добавить токен для оплаты газа (только через DLE governance)
+     * @param tokenAddress Адрес токена
+     * @param rate Курс обмена (сколько токенов за 1 нативную монету)
+     */
+    function addGasPaymentToken(address tokenAddress, uint256 rate) external onlyDLE {
+        require(rate > 0, "Rate must be positive");
+        
+        // Для нативной монеты проверяем, что она активна
+        if (tokenAddress == address(0)) {
+            require(supportedTokens[tokenAddress].isActive, "Native token must be supported");
+        } else {
+            require(supportedTokens[tokenAddress].isActive, "Token must be supported");
+        }
+        
+        gasPaymentTokens[tokenAddress] = true;
+        gasTokenRates[tokenAddress] = rate;
+        
+        emit GasPaymentTokenAdded(tokenAddress, rate);
+    }
+    
+    /**
+     * @dev Удалить токен для оплаты газа (только через DLE governance)
+     * @param tokenAddress Адрес токена
+     */
+    function removeGasPaymentToken(address tokenAddress) external onlyDLE {
+        require(gasPaymentTokens[tokenAddress], "Token not set for gas payment");
+        
+        gasPaymentTokens[tokenAddress] = false;
+        gasTokenRates[tokenAddress] = 0;
+        
+        emit GasPaymentTokenRemoved(tokenAddress);
+    }
+    
+    /**
+     * @dev Обновить курс обмена токена (только через DLE governance)
+     * @param tokenAddress Адрес токена
+     * @param newRate Новый курс обмена
+     */
+    function updateGasTokenRate(address tokenAddress, uint256 newRate) external onlyDLE {
+        require(gasPaymentTokens[tokenAddress], "Token not set for gas payment");
+        require(newRate > 0, "Rate must be positive");
+        
+        gasTokenRates[tokenAddress] = newRate;
+        emit GasPaymentTokenAdded(tokenAddress, newRate); // Переиспользуем событие
+    }
+    
+    /**
+     * @dev Оплатить газ токенами (через ERC-4337 Paymaster)
+     * @param tokenAddress Адрес токена для оплаты (0x0 для нативной монеты)
+     * @param gasAmount Количество газа для оплаты
+     * @param userOp UserOperation для ERC-4337
+     */
+    function payGasWithToken(
+        address tokenAddress,
+        uint256 gasAmount,
+        UserOperation calldata userOp
+    ) external onlyDLE whenNotPaused nonReentrant {
+        _payGasWithToken(tokenAddress, gasAmount, userOp);
+    }
+    
+    /**
+     * @dev Проверить, можно ли оплатить газ токеном
+     * @param tokenAddress Адрес токена (0x0 для нативной монеты)
+     * @param gasAmount Количество газа
+     * @return canPay Можно ли оплатить
+     * @return tokenAmount Количество токенов для оплаты
+     */
+    function canPayGasWithToken(
+        address tokenAddress, 
+        uint256 gasAmount
+    ) external view returns (bool canPay, uint256 tokenAmount) {
+        if (!gasPaymentTokens[tokenAddress] || !supportedTokens[tokenAddress].isActive) {
+            return (false, 0);
+        }
+        
+        tokenAmount = (gasAmount * gasTokenRates[tokenAddress]) / 1e18;
+        canPay = supportedTokens[tokenAddress].balance >= tokenAmount;
+        
+        return (canPay, tokenAmount);
+    }
+    
+    /**
+     * @dev Проверить, можно ли оплатить газ нативной монетой
+     * @param gasAmount Количество газа
+     * @return canPay Можно ли оплатить
+     * @return nativeAmount Количество нативной монеты для оплаты
+     */
+    function canPayGasWithNative(
+        uint256 gasAmount
+    ) external view returns (bool canPay, uint256 nativeAmount) {
+        return this.canPayGasWithToken(address(0), gasAmount);
+    }
+    
+    /**
+     * @dev Оплатить газ нативной монетой (упрощенная версия)
+     * @param gasAmount Количество газа для оплаты
+     * @param userOp UserOperation для ERC-4337
+     */
+    function payGasWithNative(
+        uint256 gasAmount,
+        UserOperation calldata userOp
+    ) external onlyDLE whenNotPaused nonReentrant {
+        // Используем нативную монету (address(0))
+        _payGasWithToken(address(0), gasAmount, userOp);
+    }
+    
+    /**
+     * @dev Внутренняя функция для оплаты газа токенами
+     * @param tokenAddress Адрес токена для оплаты (0x0 для нативной монеты)
+     * @param gasAmount Количество газа для оплаты
+     * @param userOp UserOperation для ERC-4337
+     */
+    function _payGasWithToken(
+        address tokenAddress,
+        uint256 gasAmount,
+        UserOperation calldata userOp
+    ) internal {
+        require(gasPaymentTokens[tokenAddress], "Token not supported for gas payment");
+        require(paymaster != address(0), "Paymaster not set");
+        
+        TokenInfo storage tokenInfo = supportedTokens[tokenAddress];
+        require(tokenInfo.isActive, "Token not active");
+        
+        // Вычисляем количество токенов для оплаты газа
+        uint256 tokenAmount = (gasAmount * gasTokenRates[tokenAddress]) / 1e18;
+        require(tokenInfo.balance >= tokenAmount, "Insufficient token balance");
+        
+        // Обновляем баланс токена
+        _updateTokenBalance(tokenAddress, tokenInfo.balance - tokenAmount);
+        
+        // Переводим токены на Paymaster (поддержка нативных и ERC20 токенов)
+        if (tokenInfo.isNative) {
+            // Для нативных токенов (ETH, BNB, MATIC и т.д.)
+            payable(paymaster).sendValue(tokenAmount);
+        } else {
+            // Для ERC20 токенов
+            IERC20(tokenAddress).safeTransfer(paymaster, tokenAmount);
+        }
+        
+        // Вызываем Paymaster для оплаты газа
+        IPaymaster(paymaster).validatePaymasterUserOp(
+            userOp,
+            keccak256(abi.encode(userOp)),
+            gasAmount
+        );
+        
+        emit GasPaidWithToken(tokenAddress, tokenAmount, gasAmount);
+    }
 
     // ===== VIEW ФУНКЦИИ =====
 
@@ -396,16 +608,27 @@ contract TreasuryModule is ReentrancyGuard {
     function getActiveTokens() external view returns (address[] memory) {
         uint256 activeCount = 0;
         
-        // Считаем активные токены
+        // Считаем активные токены (включая нативную монету)
         for (uint256 i = 0; i < tokenList.length; i++) {
             if (supportedTokens[tokenList[i]].isActive) {
                 activeCount++;
             }
         }
+        
+        // Нативная монета всегда активна
+        if (address(this).balance > 0 || supportedTokens[address(0)].isActive) {
+            activeCount++;
+        }
 
         // Создаём массив активных токенов
         address[] memory activeTokens = new address[](activeCount);
         uint256 index = 0;
+        
+        // Добавляем нативную монету первой, если есть баланс
+        if (address(this).balance > 0 || supportedTokens[address(0)].isActive) {
+            activeTokens[index] = address(0);
+            index++;
+        }
         
         for (uint256 i = 0; i < tokenList.length; i++) {
             if (supportedTokens[tokenList[i]].isActive) {
@@ -421,6 +644,10 @@ contract TreasuryModule is ReentrancyGuard {
      * @dev Получить баланс токена
      */
     function getTokenBalance(address tokenAddress) external view returns (uint256) {
+        // Для нативной монеты возвращаем реальный баланс, если токен не зарегистрирован
+        if (tokenAddress == address(0) && !supportedTokens[address(0)].isActive) {
+            return address(this).balance;
+        }
         return supportedTokens[tokenAddress].balance;
     }
 
@@ -439,6 +666,10 @@ contract TreasuryModule is ReentrancyGuard {
      * @dev Проверить, поддерживается ли токен
      */
     function isTokenSupported(address tokenAddress) external view returns (bool) {
+        // Нативная монета всегда поддерживается
+        if (tokenAddress == address(0)) {
+            return true;
+        }
         return supportedTokens[tokenAddress].isActive;
     }
 
@@ -449,13 +680,25 @@ contract TreasuryModule is ReentrancyGuard {
         uint256 totalTokens,
         uint256 totalTxs,
         uint256 currentChainId,
-        bool isPaused
+        bool isPaused,
+        address paymasterAddress,
+        uint256 gasPaymentTokensCount
     ) {
+        // Считаем количество токенов для оплаты газа
+        uint256 gasTokensCount = 0;
+        for (uint256 i = 0; i < tokenList.length; i++) {
+            if (gasPaymentTokens[tokenList[i]]) {
+                gasTokensCount++;
+            }
+        }
+        
         return (
             totalTokensSupported,
             totalTransactions,
             chainId,
-            emergencyPaused
+            emergencyPaused,
+            paymaster,
+            gasTokensCount
         );
     }
 

@@ -585,7 +585,7 @@ class EmailBotService {
   }
 
   async sendEmail(to, subject, text) {
-    const maxRetries = 3;
+    const maxRetries = 1;
     const retryDelay = 5000; // 5 секунд между попытками
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {

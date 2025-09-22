@@ -17,6 +17,32 @@ const logger = require('../utils/logger');
 const { ethers } = require('ethers');
 const db = require('../db');
 const rpcProviderService = require('../services/rpcProviderService');
+
+// Функция для получения информации о сети по chain_id
+function getNetworkInfo(chainId) {
+  const networkInfo = {
+    1: { name: 'Ethereum Mainnet', description: 'Максимальная безопасность и децентрализация' },
+    137: { name: 'Polygon', description: 'Низкие комиссии, быстрые транзакции' },
+    42161: { name: 'Arbitrum One', description: 'Оптимистичные rollups, средние комиссии' },
+    10: { name: 'Optimism', description: 'Оптимистичные rollups, низкие комиссии' },
+    56: { name: 'BSC', description: 'Совместимость с экосистемой Binance' },
+    43114: { name: 'Avalanche', description: 'Высокая пропускная способность' },
+    11155111: { name: 'Sepolia Testnet', description: 'Тестовая сеть Ethereum' },
+    80001: { name: 'Mumbai Testnet', description: 'Тестовая сеть Polygon' },
+    421613: { name: 'Arbitrum Goerli', description: 'Тестовая сеть Arbitrum' },
+    420: { name: 'Optimism Goerli', description: 'Тестовая сеть Optimism' },
+    97: { name: 'BSC Testnet', description: 'Тестовая сеть BSC' },
+    17000: { name: 'Holesky Testnet', description: 'Тестовая сеть Holesky' },
+    421614: { name: 'Arbitrum Sepolia', description: 'Тестовая сеть Arbitrum Sepolia' },
+    84532: { name: 'Base Sepolia', description: 'Тестовая сеть Base Sepolia' },
+    80002: { name: 'Polygon Amoy', description: 'Тестовая сеть Polygon Amoy' }
+  };
+  
+  return networkInfo[chainId] || { 
+    name: `Chain ${chainId}`, 
+    description: 'Блокчейн сеть' 
+  };
+}
 const authTokenService = require('../services/authTokenService');
 const aiProviderSettingsService = require('../services/aiProviderSettingsService');
 const aiAssistant = require('../services/ai-assistant');
@@ -65,7 +91,15 @@ router.get('/rpc', async (req, res, next) => {
       'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
       [encryptionKey]
     );
-    const rpcConfigs = rpcProvidersResult.rows;
+    const rpcConfigs = rpcProvidersResult.rows.map(config => {
+      // Добавляем name и description на основе chain_id
+      const networkInfo = getNetworkInfo(config.chain_id);
+      return {
+        ...config,
+        name: networkInfo.name,
+        description: networkInfo.description
+      };
+    });
     
     if (isAdmin) {
       // Для админов возвращаем полные данные

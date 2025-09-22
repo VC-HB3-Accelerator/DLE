@@ -1,4 +1,16 @@
 /**
+ * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * All rights reserved.
+ * 
+ * This software is proprietary and confidential.
+ * Unauthorized copying, modification, or distribution is prohibited.
+ * 
+ * For licensing inquiries: info@hb3-accelerator.com
+ * Website: https://hb3-accelerator.com
+ * GitHub: https://github.com/HB3-ACCELERATOR
+ */
+
+/**
  * WebSocket клиент для автоматического обновления данных
  */
 
@@ -91,6 +103,23 @@ class WebSocketClient {
       const index = callbacks.indexOf(callback);
       if (index > -1) {
         callbacks.splice(index, 1);
+      }
+    }
+  }
+
+  // Алиас для on() - для совместимости с useDeploymentWebSocket
+  subscribe(event, callback) {
+    this.on(event, callback);
+  }
+
+  // Алиас для off() - для совместимости с useDeploymentWebSocket  
+  unsubscribe(event, callback) {
+    if (this.listeners.has(event)) {
+      const callbacks = this.listeners.get(event);
+      const index = callbacks.indexOf(callback);
+      if (index > -1) {
+        callbacks.splice(index, 1);
+        console.log(`[WebSocket] Отписались от события: ${event}`);
       }
     }
   }

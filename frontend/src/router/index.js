@@ -243,6 +243,11 @@ const routes = [
     component: () => import('../views/smartcontracts/modules/TimelockModuleDeployView.vue')
   },
   {
+    path: '/management/modules/deploy/reader',
+    name: 'module-deploy-reader',
+    component: () => import('../views/smartcontracts/modules/DLEReaderDeployView.vue')
+  },
+  {
     path: '/management/modules/deploy/communication',
     name: 'module-deploy-communication',
     component: () => import('../views/smartcontracts/modules/CommunicationModuleDeployView.vue')

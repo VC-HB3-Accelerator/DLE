@@ -66,15 +66,22 @@ initWSS(server);
 
 async function startServer() {
   await initDbPool(); // Дождаться пересоздания пула!
-  await seedAIAssistantSettings(); // Инициализация ассистента после загрузки модели Ollama
+  
+  // Инициализация AI ассистента В ФОНЕ (неблокирующая)
+  seedAIAssistantSettings().catch(error => {
+    console.warn('[Server] Ollama недоступен, AI ассистент будет инициализирован позже:', error.message);
+  });
   
   // Разогрев модели Ollama
       // console.log('🔥 Запуск разогрева модели...');
   setTimeout(() => {
   }, 10000); // Задержка 10 секунд для полной инициализации
   
-  await initServices(); // Только теперь запускать сервисы
-  // console.log(`Server is running on port ${PORT}`);
+  // Запускаем сервисы в фоне (неблокирующе)
+  initServices().catch(error => {
+    console.warn('[Server] Ошибка инициализации сервисов:', error.message);
+  });
+  console.log(`✅ Server is running on port ${PORT}`);
 }
 
 server.listen(PORT, async () => {

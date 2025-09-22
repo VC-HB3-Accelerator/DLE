@@ -40,13 +40,21 @@ router.post('/get-supported-chains', async (req, res) => {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
     const dleAbi = [
-      "function listSupportedChains() external view returns (uint256[] memory)"
+      "function getSupportedChainCount() external view returns (uint256)",
+      "function getSupportedChainId(uint256 _index) external view returns (uint256)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Получаем поддерживаемые сети
-    const supportedChains = await dle.listSupportedChains();
+    // Получаем количество поддерживаемых сетей
+    const chainCount = await dle.getSupportedChainCount();
+    
+    // Получаем ID каждой сети
+    const supportedChains = [];
+    for (let i = 0; i < Number(chainCount); i++) {
+      const chainId = await dle.getSupportedChainId(i);
+      supportedChains.push(chainId);
+    }
 
     console.log(`[DLE Multichain] Поддерживаемые сети:`, supportedChains);
 

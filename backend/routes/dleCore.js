@@ -42,7 +42,7 @@ router.post('/read-dle-info', async (req, res) => {
     
     // ABI для чтения данных DLE
     const dleAbi = [
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
+      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
       "function quorumPercentage() external view returns (uint256)",
@@ -163,7 +163,6 @@ router.post('/read-dle-info', async (req, res) => {
       location: dleInfo.location,
       coordinates: dleInfo.coordinates,
       jurisdiction: Number(dleInfo.jurisdiction),
-      oktmo: Number(dleInfo.oktmo),
       okvedCodes: dleInfo.okvedCodes,
       kpp: Number(dleInfo.kpp),
       creationTimestamp: Number(dleInfo.creationTimestamp),

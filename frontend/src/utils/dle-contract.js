@@ -1,4 +1,16 @@
-import axios from 'axios';
+/**
+ * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * All rights reserved.
+ * 
+ * This software is proprietary and confidential.
+ * Unauthorized copying, modification, or distribution is prohibited.
+ * 
+ * For licensing inquiries: info@hb3-accelerator.com
+ * Website: https://hb3-accelerator.com
+ * GitHub: https://github.com/HB3-ACCELERATOR
+ */
+
+import api from '@/api/axios';
 import { ethers } from 'ethers';
 
 /**
@@ -55,7 +67,7 @@ export async function checkWalletConnection() {
  */
 export async function getDLEInfo(dleAddress) {
   try {
-    const response = await axios.post('http://localhost:8000/api/blockchain/read-dle-info', {
+    const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress
     });
     
@@ -232,7 +244,7 @@ export async function executeProposal(dleAddress, proposalId) {
  */
 export async function createAddModuleProposal(dleAddress, description, duration, moduleId, moduleAddress, chainId) {
   try {
-    const response = await axios.post('/blockchain/create-add-module-proposal', {
+    const response = await api.post('/blockchain/create-add-module-proposal', {
       dleAddress: dleAddress,
       description: description,
       duration: duration,
@@ -263,7 +275,7 @@ export async function createAddModuleProposal(dleAddress, description, duration,
  */
 export async function createRemoveModuleProposal(dleAddress, description, duration, moduleId, chainId) {
   try {
-    const response = await axios.post('/blockchain/create-remove-module-proposal', {
+    const response = await api.post('/blockchain/create-remove-module-proposal', {
       dleAddress: dleAddress,
       description: description,
       duration: duration,
@@ -290,7 +302,7 @@ export async function createRemoveModuleProposal(dleAddress, description, durati
  */
 export async function isModuleActive(dleAddress, moduleId) {
   try {
-    const response = await axios.post('/blockchain/is-module-active', {
+    const response = await api.post('/blockchain/is-module-active', {
       dleAddress: dleAddress,
       moduleId: moduleId
     });
@@ -312,11 +324,12 @@ export async function isModuleActive(dleAddress, moduleId) {
  * @param {string} moduleId - ID модуля
  * @returns {Promise<string>} - Адрес модуля
  */
-export async function getModuleAddress(dleAddress, moduleId) {
+export async function getModuleAddress(dleAddress, moduleId, chainId) {
   try {
-    const response = await axios.post('/dle-modules/get-module-address', {
+    const response = await api.post('/dle-modules/get-module-address', {
       dleAddress: dleAddress,
-      moduleId: moduleId
+      moduleId: moduleId,
+      chainId: chainId
     });
     
     if (response.data.success) {
@@ -338,7 +351,7 @@ export async function getModuleAddress(dleAddress, moduleId) {
  */
 export async function isChainSupported(dleAddress, chainId) {
   try {
-    const response = await axios.post('/blockchain/is-chain-supported', {
+    const response = await api.post('/blockchain/is-chain-supported', {
       dleAddress: dleAddress,
       chainId: chainId
     });
@@ -361,7 +374,7 @@ export async function isChainSupported(dleAddress, chainId) {
  */
 export async function getCurrentChainId(dleAddress) {
   try {
-    const response = await axios.post('/blockchain/get-current-chain-id', {
+    const response = await api.post('/blockchain/get-current-chain-id', {
       dleAddress: dleAddress
     });
     
@@ -384,7 +397,7 @@ export async function getCurrentChainId(dleAddress) {
  */
 export async function checkProposalResult(dleAddress, proposalId) {
   try {
-    const response = await axios.post('/blockchain/check-proposal-result', {
+    const response = await api.post('/blockchain/check-proposal-result', {
       dleAddress: dleAddress,
       proposalId: proposalId
     });
@@ -410,7 +423,7 @@ export async function checkProposalResult(dleAddress, proposalId) {
  */
 export async function loadProposals(dleAddress) {
   try {
-    const response = await axios.post('http://localhost:8000/api/blockchain/get-proposals', {
+    const response = await api.post('/blockchain/get-proposals', {
       dleAddress: dleAddress
     });
     
@@ -502,7 +515,7 @@ export async function loadAnalytics(dleAddress) {
  */
 export async function getSupportedChains(dleAddress) {
   try {
-    const response = await axios.post('http://localhost:8000/api/blockchain/get-supported-chains', {
+    const response = await api.post('/blockchain/get-supported-chains', {
       dleAddress: dleAddress
     });
     
@@ -676,7 +689,7 @@ export async function voteDeactivationProposal(dleAddress, proposalId, support) 
  */
 export async function checkDeactivationProposalResult(dleAddress, proposalId) {
   try {
-    const response = await axios.post('http://localhost:8000/api/blockchain/check-deactivation-proposal-result', {
+    const response = await api.post('/blockchain/check-deactivation-proposal-result', {
       dleAddress: dleAddress,
       proposalId: proposalId
     });
@@ -738,7 +751,7 @@ export async function executeDeactivationProposal(dleAddress, proposalId) {
  */
 export async function loadDeactivationProposals(dleAddress) {
   try {
-    const response = await axios.post('http://localhost:8000/api/blockchain/load-deactivation-proposals', {
+    const response = await api.post('/blockchain/load-deactivation-proposals', {
       dleAddress: dleAddress
     });
     

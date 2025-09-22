@@ -18,35 +18,9 @@ const auth = require('../middleware/auth');
 const path = require('path');
 const fs = require('fs');
 const ethers = require('ethers'); // Added ethers for private key validation
-const deploymentTracker = require('../utils/deploymentTracker');
 const create2 = require('../utils/create2');
 const verificationStore = require('../services/verificationStore');
 const etherscanV2 = require('../services/etherscanV2VerificationService');
-
-/**
- * Асинхронная функция для выполнения деплоя в фоне
- */
-async function executeDeploymentInBackground(deploymentId, dleParams) {
-  try {
-    // Отправляем уведомление о начале
-    deploymentTracker.updateDeployment(deploymentId, {
-      status: 'in_progress',
-      stage: 'initializing'
-    });
-    
-    deploymentTracker.addLog(deploymentId, '🚀 Начинаем деплой DLE контракта и модулей', 'info');
-    
-    // Выполняем деплой с передачей deploymentId для WebSocket обновлений
-    const result = await dleV2Service.createDLE(dleParams, deploymentId);
-    
-    // Завершаем успешно
-    deploymentTracker.completeDeployment(deploymentId, result.data);
-    
-  } catch (error) {
-    // Завершаем с ошибкой
-    deploymentTracker.failDeployment(deploymentId, error);
-  }
-}
 
 /**
  * @route   POST /api/dle-v2
@@ -56,7 +30,7 @@ async function executeDeploymentInBackground(deploymentId, dleParams) {
 router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
   try {
     const dleParams = req.body;
-    logger.info('🔥 Получен запрос на асинхронный деплой DLE v2');
+    logger.info('Получен запрос на создание DLE v2:', dleParams);
     
     // Если параметр initialPartners не был передан явно, используем адрес авторизованного пользователя
     if (!dleParams.initialPartners || dleParams.initialPartners.length === 0) {
@@ -77,26 +51,22 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
       }
     }
     
-    // Создаем запись о деплое
-    const deploymentId = deploymentTracker.createDeployment(dleParams);
+    // Создаем DLE v2
+    const result = await dleV2Service.createDLE(dleParams);
     
-    // Запускаем деплой в фоне (без await!)
-    executeDeploymentInBackground(deploymentId, dleParams);
+    logger.info('DLE v2 успешно создано:', result);
     
-    logger.info(`📤 Деплой запущен асинхронно: ${deploymentId}`);
-    
-    // Сразу возвращаем ответ с ID деплоя
     res.json({
       success: true,
-      message: 'Деплой запущен в фоновом режиме',
-      deploymentId: deploymentId
+      message: 'DLE v2 успешно создано',
+      data: result.data
     });
     
   } catch (error) {
-    logger.error('❌ Ошибка при запуске асинхронного деплоя:', error);
+    logger.error('Ошибка при создании DLE v2:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Произошла ошибка при запуске деплоя'
+      message: error.message || 'Произошла ошибка при создании DLE v2'
     });
   }
 });
@@ -328,124 +298,6 @@ router.post('/validate-private-key', async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Произошла ошибка при валидации приватного ключа'
-    });
-  }
-});
-
-/**
- * @route   GET /api/dle-v2/deployment-status/:deploymentId
- * @desc    Получить статус деплоя
- * @access  Private
- */
-router.get('/deployment-status/:deploymentId', auth.requireAuth, auth.requireAdmin, async (req, res) => {
-  try {
-    const { deploymentId } = req.params;
-    
-    const deployment = deploymentTracker.getDeployment(deploymentId);
-    
-    if (!deployment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Деплой не найден'
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        id: deployment.id,
-        status: deployment.status,
-        stage: deployment.stage,
-        progress: deployment.progress,
-        networks: deployment.networks,
-        startedAt: deployment.startedAt,
-        updatedAt: deployment.updatedAt,
-        logs: deployment.logs.slice(-50), // Последние 50 логов
-        error: deployment.error
-      }
-    });
-    
-  } catch (error) {
-    logger.error('Ошибка при получении статуса деплоя:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при получении статуса'
-    });
-  }
-});
-
-/**
- * @route   GET /api/dle-v2/deployment-result/:deploymentId
- * @desc    Получить результат завершенного деплоя
- * @access  Private
- */
-router.get('/deployment-result/:deploymentId', auth.requireAuth, auth.requireAdmin, async (req, res) => {
-  try {
-    const { deploymentId } = req.params;
-    
-    const deployment = deploymentTracker.getDeployment(deploymentId);
-    
-    if (!deployment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Деплой не найден'
-      });
-    }
-    
-    if (deployment.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: `Деплой не завершен. Текущий статус: ${deployment.status}`,
-        status: deployment.status
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        result: deployment.result,
-        completedAt: deployment.completedAt,
-        duration: deployment.completedAt ? deployment.completedAt - deployment.startedAt : null
-      }
-    });
-    
-  } catch (error) {
-    logger.error('Ошибка при получении результата деплоя:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при получении результата'
-    });
-  }
-});
-
-/**
- * @route   GET /api/dle-v2/deployment-stats
- * @desc    Получить статистику деплоев
- * @access  Private
- */
-router.get('/deployment-stats', auth.requireAuth, auth.requireAdmin, async (req, res) => {
-  try {
-    const stats = deploymentTracker.getStats();
-    const activeDeployments = deploymentTracker.getActiveDeployments();
-    
-    res.json({
-      success: true,
-      data: {
-        stats,
-        activeDeployments: activeDeployments.map(d => ({
-          id: d.id,
-          stage: d.stage,
-          progress: d.progress,
-          startedAt: d.startedAt
-        }))
-      }
-    });
-    
-  } catch (error) {
-    logger.error('Ошибка при получении статистики деплоев:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Произошла ошибка при получении статистики'
     });
   }
 });

@@ -1,0 +1,31 @@
+{
+  "moduleType": "treasury",
+  "dleAddress": "0x4e2A2B5FcA4edaBb537710D9682C40C3dc3e8dE2",
+  "networks": [
+    {
+      "chainId": 11155111,
+      "rpcUrl": "https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52",
+      "address": null,
+      "verification": "unknown"
+    },
+    {
+      "chainId": 17000,
+      "rpcUrl": "https://ethereum-holesky.publicnode.com",
+      "address": null,
+      "verification": "unknown"
+    },
+    {
+      "chainId": 421614,
+      "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+      "address": null,
+      "verification": "unknown"
+    },
+    {
+      "chainId": 84532,
+      "rpcUrl": "https://sepolia.base.org",
+      "address": null,
+      "verification": "unknown"
+    }
+  ],
+  "deployTimestamp": "2025-09-22T23:19:11.085Z"
+}

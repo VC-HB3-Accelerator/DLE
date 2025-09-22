@@ -42,9 +42,11 @@ router.post('/get-proposals', async (req, res) => {
     
     // ABI для чтения предложений (используем правильные функции из смарт-контракта)
     const dleAbi = [
-      "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targets)",
-      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
       "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
+      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+      "function proposals(uint256) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, bytes memory operation, uint256 governanceChainId, uint256 snapshotTimepoint)",
+      "function quorumPercentage() external view returns (uint256)",
+      "function getPastTotalSupply(uint256 timepoint) external view returns (uint256)",
       "event ProposalCreated(uint256 proposalId, address initiator, string description)"
     ];
 
@@ -68,15 +70,34 @@ router.post('/get-proposals', async (req, res) => {
         console.log(`[DLE Proposals] Читаем предложение ID: ${proposalId}`);
         
         // Пробуем несколько раз для новых предложений
-        let proposal, isPassed;
+        let proposalState, isPassed, quorumReached, forVotes, againstVotes, quorumRequired;
         let retryCount = 0;
-        const maxRetries = 3;
+        const maxRetries = 1;
         
         while (retryCount < maxRetries) {
           try {
-            proposal = await dle.getProposalSummary(proposalId);
+            proposalState = await dle.getProposalState(proposalId);
             const result = await dle.checkProposalResult(proposalId);
             isPassed = result.passed;
+            quorumReached = result.quorumReached;
+            
+            // Получаем данные о голосах из структуры Proposal
+            try {
+              const proposalData = await dle.proposals(proposalId);
+              forVotes = Number(proposalData.forVotes);
+              againstVotes = Number(proposalData.againstVotes);
+              
+              // Вычисляем требуемый кворум
+              const quorumPct = Number(await dle.quorumPercentage());
+              const pastSupply = Number(await dle.getPastTotalSupply(proposalData.snapshotTimepoint));
+              quorumRequired = Math.floor((pastSupply * quorumPct) / 100);
+            } catch (voteError) {
+              console.log(`[DLE Proposals] Ошибка получения голосов для предложения ${proposalId}:`, voteError.message);
+              forVotes = 0;
+              againstVotes = 0;
+              quorumRequired = 0;
+            }
+            
             break; // Успешно прочитали
           } catch (error) {
             retryCount++;
@@ -90,33 +111,29 @@ router.post('/get-proposals', async (req, res) => {
         }
         
         console.log(`[DLE Proposals] Данные предложения ${proposalId}:`, {
-          id: Number(proposal.id),
-          description: proposal.description,
-          forVotes: Number(proposal.forVotes),
-          againstVotes: Number(proposal.againstVotes),
-          executed: proposal.executed,
-          canceled: proposal.canceled,
-          deadline: Number(proposal.deadline),
-          initiator: proposal.initiator,
-          governanceChainId: Number(proposal.governanceChainId),
-          snapshotTimepoint: Number(proposal.snapshotTimepoint),
-          targets: proposal.targets
+          id: Number(proposalId),
+          description: events[i].args.description,
+          state: Number(proposalState),
+          isPassed: isPassed,
+          quorumReached: quorumReached,
+          forVotes: Number(forVotes),
+          againstVotes: Number(againstVotes),
+          quorumRequired: Number(quorumRequired),
+          initiator: events[i].args.initiator
         });
         
         const proposalInfo = {
-          id: Number(proposal.id),
-          description: proposal.description,
-          forVotes: Number(proposal.forVotes),
-          againstVotes: Number(proposal.againstVotes),
-          executed: proposal.executed,
-          canceled: proposal.canceled,
-          deadline: Number(proposal.deadline),
-          initiator: proposal.initiator,
-          governanceChainId: Number(proposal.governanceChainId),
-          snapshotTimepoint: Number(proposal.snapshotTimepoint),
-          targetChains: proposal.targets.map(chainId => Number(chainId)),
+          id: Number(proposalId),
+          description: events[i].args.description,
+          state: Number(proposalState),
           isPassed: isPassed,
-          blockNumber: events[i].blockNumber
+          quorumReached: quorumReached,
+          forVotes: Number(forVotes),
+          againstVotes: Number(againstVotes),
+          quorumRequired: Number(quorumRequired),
+          initiator: events[i].args.initiator,
+          blockNumber: events[i].blockNumber,
+          transactionHash: events[i].transactionHash
         };
         
         proposals.push(proposalInfo);
@@ -182,29 +199,40 @@ router.post('/get-proposal-info', async (req, res) => {
     
     // ABI для чтения информации о предложении
     const dleAbi = [
-      "function proposals(uint256) external view returns (tuple(string description, uint256 duration, bytes operation, uint256 governanceChainId, uint256 startTime, bool executed, uint256 forVotes, uint256 againstVotes))",
-      "function checkProposalResult(uint256 _proposalId) external view returns (bool)"
+      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+      "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
+      "event ProposalCreated(uint256 proposalId, address initiator, string description)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Читаем информацию о предложении
-    const proposal = await dle.proposals(proposalId);
-    const isPassed = await dle.checkProposalResult(proposalId);
+    // Ищем событие ProposalCreated для этого предложения
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 10000);
     
-    // governanceChainId не сохраняется в предложении, используем текущую цепочку
-    const governanceChainId = 11155111; // Sepolia chain ID
-
+    const events = await dle.queryFilter('ProposalCreated', fromBlock, currentBlock);
+    const proposalEvent = events.find(event => Number(event.args.proposalId) === proposalId);
+    
+    if (!proposalEvent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Предложение не найдено'
+      });
+    }
+    
+    // Получаем состояние и результат предложения
+    const result = await dle.checkProposalResult(proposalId);
+    const state = await dle.getProposalState(proposalId);
+    
     const proposalInfo = {
-      description: proposal.description,
-      duration: Number(proposal.duration),
-      operation: proposal.operation,
-      governanceChainId: Number(proposal.governanceChainId),
-      startTime: Number(proposal.startTime),
-      executed: proposal.executed,
-      forVotes: Number(proposal.forVotes),
-      againstVotes: Number(proposal.againstVotes),
-      isPassed: isPassed
+      id: Number(proposalId),
+      description: proposalEvent.args.description,
+      initiator: proposalEvent.args.initiator,
+      blockNumber: proposalEvent.blockNumber,
+      transactionHash: proposalEvent.transactionHash,
+      state: Number(state),
+      isPassed: result.passed,
+      quorumReached: result.quorumReached
     };
 
     console.log(`[DLE Proposals] Информация о предложении получена:`, proposalInfo);
@@ -300,24 +328,30 @@ router.post('/get-proposal-votes', async (req, res) => {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
     const dleAbi = [
-      "function getProposalVotes(uint256 _proposalId) external view returns (uint256 forVotes, uint256 againstVotes, uint256 totalVotes, uint256 quorumRequired)"
+      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+      "function getProposalState(uint256 _proposalId) external view returns (uint8 state)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Получаем голоса по предложению
-    const votes = await dle.getProposalVotes(proposalId);
+    // Получаем результат предложения
+    const result = await dle.checkProposalResult(proposalId);
+    const state = await dle.getProposalState(proposalId);
 
-    console.log(`[DLE Proposals] Голоса по предложению ${proposalId}:`, votes);
+    console.log(`[DLE Proposals] Результат предложения ${proposalId}:`, { result, state });
 
     res.json({
       success: true,
       data: {
         proposalId: Number(proposalId),
-        forVotes: Number(votes.forVotes),
-        againstVotes: Number(votes.againstVotes),
-        totalVotes: Number(votes.totalVotes),
-        quorumRequired: Number(votes.quorumRequired)
+        isPassed: result.passed,
+        quorumReached: result.quorumReached,
+        state: Number(state),
+        // Пока не можем получить точные голоса, так как функция не существует в контракте
+        forVotes: 0,
+        againstVotes: 0,
+        totalVotes: 0,
+        quorumRequired: 0
       }
     });
 
@@ -539,19 +573,22 @@ router.post('/get-quorum-at', async (req, res) => {
   }
 });
 
-// Исполнить предложение
+// Исполнить предложение (подготовка транзакции для MetaMask)
 router.post('/execute-proposal', async (req, res) => {
   try {
-    const { dleAddress, proposalId, userAddress, privateKey } = req.body;
+    console.log('[DLE Proposals] Получен запрос на исполнение предложения:', req.body);
     
-    if (!dleAddress || proposalId === undefined || !userAddress || !privateKey) {
+    const { dleAddress, proposalId } = req.body;
+    
+    if (!dleAddress || proposalId === undefined) {
+      console.log('[DLE Proposals] Ошибка валидации: отсутствуют обязательные поля');
       return res.status(400).json({
         success: false,
-        error: 'Все поля обязательны, включая приватный ключ'
+        error: 'Необходимы dleAddress и proposalId'
       });
     }
 
-    console.log(`[DLE Proposals] Исполнение предложения ${proposalId} в DLE: ${dleAddress}`);
+    console.log(`[DLE Proposals] Подготовка исполнения предложения ${proposalId} в DLE: ${dleAddress}`);
 
     const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
     if (!rpcUrl) {
@@ -562,32 +599,34 @@ router.post('/execute-proposal', async (req, res) => {
     }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const wallet = new ethers.Wallet(privateKey, provider);
     
     const dleAbi = [
       "function executeProposal(uint256 _proposalId) external"
     ];
 
-    const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Исполняем предложение
-    const tx = await dle.executeProposal(proposalId);
-    const receipt = await tx.wait();
+    // Подготавливаем данные для транзакции (не отправляем)
+    const txData = await dle.executeProposal.populateTransaction(proposalId);
 
-    console.log(`[DLE Proposals] Предложение исполнено:`, receipt);
+    console.log(`[DLE Proposals] Данные транзакции исполнения подготовлены:`, txData);
 
     res.json({
       success: true,
       data: {
-        transactionHash: receipt.hash
+        to: dleAddress,
+        data: txData.data,
+        value: "0x0",
+        gasLimit: "0x1e8480", // 2,000,000 gas
+        message: `Подготовлены данные для исполнения предложения ${proposalId}. Отправьте транзакцию через MetaMask.`
       }
     });
 
   } catch (error) {
-    console.error('[DLE Proposals] Ошибка при исполнении предложения:', error);
+    console.error('[DLE Proposals] Ошибка при подготовке исполнения предложения:', error);
     res.status(500).json({
       success: false,
-      error: 'Ошибка при исполнении предложения: ' + error.message
+      error: 'Ошибка при подготовке исполнения предложения: ' + error.message
     });
   }
 });
@@ -791,6 +830,250 @@ router.post('/list-proposals', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Ошибка при получении списка предложений: ' + error.message
+    });
+  }
+});
+
+// Голосовать за предложение
+router.post('/vote-proposal', async (req, res) => {
+  try {
+    const { dleAddress, proposalId, support } = req.body;
+    
+    if (!dleAddress || proposalId === undefined || support === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимы dleAddress, proposalId и support'
+      });
+    }
+
+    console.log(`[DLE Proposals] Голосование за предложение ${proposalId} в DLE: ${dleAddress}, поддержка: ${support}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    const dleAbi = [
+      "function vote(uint256 _proposalId, bool _support) external"
+    ];
+
+    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+    // Подготавливаем данные для транзакции (не отправляем)
+    const txData = await dle.vote.populateTransaction(proposalId, support);
+
+    console.log(`[DLE Proposals] Данные транзакции голосования подготовлены:`, txData);
+
+    res.json({
+      success: true,
+      data: {
+        to: dleAddress,
+        data: txData.data,
+        value: "0x0",
+        gasLimit: "0x1e8480", // 2,000,000 gas
+        message: `Подготовлены данные для голосования ${support ? 'за' : 'против'} предложения ${proposalId}. Отправьте транзакцию через MetaMask.`
+      }
+    });
+
+  } catch (error) {
+    console.error('[DLE Proposals] Ошибка при подготовке голосования:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при подготовке голосования: ' + error.message
+    });
+  }
+});
+
+// Endpoint для отслеживания подтверждения транзакций голосования
+router.post('/track-vote-transaction', async (req, res) => {
+  try {
+    const { txHash, dleAddress, proposalId, support } = req.body;
+    
+    if (!txHash || !dleAddress || proposalId === undefined || support === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимы txHash, dleAddress, proposalId и support'
+      });
+    }
+
+    console.log(`[DLE Proposals] Отслеживание транзакции голосования: ${txHash}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // Ждем подтверждения транзакции
+    const receipt = await provider.waitForTransaction(txHash, 1, 60000); // 60 секунд таймаут
+    
+    if (receipt && receipt.status === 1) {
+      console.log(`[DLE Proposals] Транзакция голосования подтверждена: ${txHash}`);
+      
+      // Отправляем WebSocket уведомление
+      const wsHub = require('../wsHub');
+      wsHub.broadcastProposalVoted(dleAddress, proposalId, support, txHash);
+      
+      res.json({
+        success: true,
+        data: {
+          txHash: txHash,
+          status: 'confirmed',
+          receipt: receipt
+        }
+      });
+    } else {
+      res.json({
+        success: false,
+        error: 'Транзакция не подтверждена или провалилась'
+      });
+    }
+
+  } catch (error) {
+    console.error('[DLE Proposals] Ошибка при отслеживании транзакции:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при отслеживании транзакции: ' + error.message
+    });
+  }
+});
+
+// Endpoint для отслеживания подтверждения транзакций исполнения
+router.post('/track-execution-transaction', async (req, res) => {
+  try {
+    const { txHash, dleAddress, proposalId } = req.body;
+    
+    if (!txHash || !dleAddress || proposalId === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимы txHash, dleAddress и proposalId'
+      });
+    }
+
+    console.log(`[DLE Proposals] Отслеживание транзакции исполнения: ${txHash}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // Ждем подтверждения транзакции
+    const receipt = await provider.waitForTransaction(txHash, 1, 60000); // 60 секунд таймаут
+    
+    if (receipt && receipt.status === 1) {
+      console.log(`[DLE Proposals] Транзакция исполнения подтверждена: ${txHash}`);
+      
+      // Отправляем WebSocket уведомление
+      const wsHub = require('../wsHub');
+      wsHub.broadcastProposalExecuted(dleAddress, proposalId, txHash);
+      
+      res.json({
+        success: true,
+        data: {
+          txHash: txHash,
+          status: 'confirmed',
+          receipt: receipt
+        }
+      });
+    } else {
+      res.json({
+        success: false,
+        error: 'Транзакция не подтверждена или провалилась'
+      });
+    }
+
+  } catch (error) {
+    console.error('[DLE Proposals] Ошибка при отслеживании транзакции исполнения:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при отслеживании транзакции исполнения: ' + error.message
+    });
+  }
+});
+
+// Декодировать данные предложения о добавлении модуля
+router.post('/decode-proposal-data', async (req, res) => {
+  try {
+    const { transactionHash } = req.body;
+    
+    if (!transactionHash) {
+      return res.status(400).json({
+        success: false,
+        error: 'Хеш транзакции обязателен'
+      });
+    }
+
+    console.log(`[DLE Proposals] Декодирование данных транзакции: ${transactionHash}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // Получаем данные транзакции
+    const tx = await provider.getTransaction(transactionHash);
+    if (!tx) {
+      return res.status(404).json({
+        success: false,
+        error: 'Транзакция не найдена'
+      });
+    }
+
+    // Декодируем данные транзакции
+    const iface = new ethers.Interface([
+      "function createAddModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) external returns (uint256)"
+    ]);
+
+    try {
+      const decoded = iface.parseTransaction({ data: tx.data });
+      
+      const proposalData = {
+        description: decoded.args._description,
+        duration: Number(decoded.args._duration),
+        moduleId: decoded.args._moduleId,
+        moduleAddress: decoded.args._moduleAddress,
+        chainId: Number(decoded.args._chainId)
+      };
+
+      console.log(`[DLE Proposals] Декодированные данные:`, proposalData);
+
+      res.json({
+        success: true,
+        data: proposalData
+      });
+
+    } catch (decodeError) {
+      console.log(`[DLE Proposals] Ошибка декодирования:`, decodeError.message);
+      res.status(400).json({
+        success: false,
+        error: 'Не удалось декодировать данные транзакции: ' + decodeError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('[DLE Proposals] Ошибка при декодировании данных предложения:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при декодировании данных предложения: ' + error.message
     });
   }
 });

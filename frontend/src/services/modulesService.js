@@ -11,7 +11,7 @@
  */
 
 // Сервис для работы с модулями DLE
-import axios from 'axios';
+import api from '@/api/axios';
 
 /**
  * Создает предложение о добавлении модуля
@@ -21,7 +21,7 @@ import axios from 'axios';
  */
 export const createAddModuleProposal = async (dleAddress, moduleData) => {
   try {
-    const response = await axios.post('/dle-modules/create-add-module-proposal', {
+    const response = await api.post('/dle-modules/create-add-module-proposal', {
       dleAddress,
       ...moduleData
     });
@@ -40,7 +40,7 @@ export const createAddModuleProposal = async (dleAddress, moduleData) => {
  */
 export const createRemoveModuleProposal = async (dleAddress, moduleData) => {
   try {
-    const response = await axios.post('/dle-modules/create-remove-module-proposal', {
+    const response = await api.post('/dle-modules/create-remove-module-proposal', {
       dleAddress,
       ...moduleData
     });
@@ -59,7 +59,7 @@ export const createRemoveModuleProposal = async (dleAddress, moduleData) => {
  */
 export const isModuleActive = async (dleAddress, moduleId) => {
   try {
-    const response = await axios.post('/dle-modules/is-module-active', {
+    const response = await api.post('/dle-modules/is-module-active', {
       dleAddress,
       moduleId
     });
@@ -76,11 +76,12 @@ export const isModuleActive = async (dleAddress, moduleId) => {
  * @param {string} moduleId - ID модуля
  * @returns {Promise<Object>} - Адрес модуля
  */
-export const getModuleAddress = async (dleAddress, moduleId) => {
+export const getModuleAddress = async (dleAddress, moduleId, chainId) => {
   try {
-    const response = await axios.post('/dle-modules/get-module-address', {
+    const response = await api.post('/dle-modules/get-module-address', {
       dleAddress,
-      moduleId
+      moduleId,
+      chainId
     });
     return response.data;
   } catch (error) {
@@ -96,12 +97,29 @@ export const getModuleAddress = async (dleAddress, moduleId) => {
  */
 export const getAllModules = async (dleAddress) => {
   try {
-    const response = await axios.post('/dle-modules/get-all-modules', {
+    const response = await api.post('/dle-modules/get-all-modules', {
       dleAddress
     });
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении списка модулей:', error);
+    throw error;
+  }
+};
+
+/**
+ * Получает информацию о поддерживаемых сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @returns {Promise<Object>} - Информация о сетях
+ */
+export const getNetworksInfo = async (dleAddress) => {
+  try {
+    const response = await api.post('/dle-modules/get-networks-info', {
+      dleAddress
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении информации о сетях:', error);
     throw error;
   }
 };
@@ -114,7 +132,7 @@ export const getAllModules = async (dleAddress) => {
  */
 export const getModuleInfo = async (dleAddress, moduleId) => {
   try {
-    const response = await axios.post('/blockchain/get-module-info', {
+    const response = await api.post('/blockchain/get-module-info', {
       dleAddress,
       moduleId
     });
@@ -132,7 +150,7 @@ export const getModuleInfo = async (dleAddress, moduleId) => {
  */
 export const getModulesStats = async (dleAddress) => {
   try {
-    const response = await axios.post('/blockchain/get-modules-stats', {
+    const response = await api.post('/blockchain/get-modules-stats', {
       dleAddress
     });
     return response.data;
@@ -150,7 +168,7 @@ export const getModulesStats = async (dleAddress) => {
  */
 export const getModulesHistory = async (dleAddress, filters = {}) => {
   try {
-    const response = await axios.post('/blockchain/get-modules-history', {
+    const response = await api.post('/blockchain/get-modules-history', {
       dleAddress,
       ...filters
     });
@@ -168,7 +186,7 @@ export const getModulesHistory = async (dleAddress, filters = {}) => {
  */
 export const getActiveModules = async (dleAddress) => {
   try {
-    const response = await axios.post('/blockchain/get-active-modules', {
+    const response = await api.post('/blockchain/get-active-modules', {
       dleAddress
     });
     return response.data;
@@ -185,7 +203,7 @@ export const getActiveModules = async (dleAddress) => {
  */
 export const getInactiveModules = async (dleAddress) => {
   try {
-    const response = await axios.post('/blockchain/get-inactive-modules', {
+    const response = await api.post('/blockchain/get-inactive-modules', {
       dleAddress
     });
     return response.data;
@@ -204,7 +222,7 @@ export const getInactiveModules = async (dleAddress) => {
  */
 export const checkModuleCompatibility = async (dleAddress, moduleId, moduleAddress) => {
   try {
-    const response = await axios.post('/blockchain/check-module-compatibility', {
+    const response = await api.post('/blockchain/check-module-compatibility', {
       dleAddress,
       moduleId,
       moduleAddress
@@ -224,7 +242,7 @@ export const checkModuleCompatibility = async (dleAddress, moduleId, moduleAddre
  */
 export const getModuleConfig = async (dleAddress, moduleId) => {
   try {
-    const response = await axios.post('/blockchain/get-module-config', {
+    const response = await api.post('/blockchain/get-module-config', {
       dleAddress,
       moduleId
     });
@@ -244,7 +262,7 @@ export const getModuleConfig = async (dleAddress, moduleId) => {
  */
 export const updateModuleConfig = async (dleAddress, moduleId, config) => {
   try {
-    const response = await axios.post('/blockchain/update-module-config', {
+    const response = await api.post('/blockchain/update-module-config', {
       dleAddress,
       moduleId,
       config
@@ -265,7 +283,7 @@ export const updateModuleConfig = async (dleAddress, moduleId, config) => {
  */
 export const getModuleEvents = async (dleAddress, moduleId, filters = {}) => {
   try {
-    const response = await axios.post('/blockchain/get-module-events', {
+    const response = await api.post('/blockchain/get-module-events', {
       dleAddress,
       moduleId,
       ...filters
@@ -285,13 +303,241 @@ export const getModuleEvents = async (dleAddress, moduleId, filters = {}) => {
  */
 export const getModulePerformance = async (dleAddress, moduleId) => {
   try {
-    const response = await axios.post('/blockchain/get-module-performance', {
+    const response = await api.post('/blockchain/get-module-performance', {
       dleAddress,
       moduleId
     });
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении производительности модуля:', error);
+    throw error;
+  }
+};
+
+/**
+ * Инициализирует модули во всех сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} privateKey - Приватный ключ
+ * @returns {Promise<Object>} - Результат инициализации
+ */
+export const initializeModulesAllNetworks = async (dleAddress, privateKey) => {
+  try {
+    const response = await api.post('/dle-modules/initialize-modules-all-networks', {
+      dleAddress,
+      privateKey
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при инициализации модулей во всех сетях:', error);
+    throw error;
+  }
+};
+
+/**
+ * Верифицирует модули во всех сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} privateKey - Приватный ключ
+ * @returns {Promise<Object>} - Результат верификации
+ */
+export const verifyModulesAllNetworks = async (dleAddress, privateKey) => {
+  try {
+    const response = await api.post('/dle-modules/verify-modules-all-networks', {
+      dleAddress,
+      privateKey
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при верификации модулей во всех сетях:', error);
+    throw error;
+  }
+};
+
+/**
+ * Проверяет статус деплоя DLE контракта
+ * @param {string} dleAddress - Адрес DLE
+ * @param {Array<number>} chainIds - Список ID сетей
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Статус деплоя DLE
+ */
+export const checkDLEDeploymentStatus = async (dleAddress, chainIds, maxRetries = 3, retryDelay = 30000) => {
+  try {
+    const response = await api.post('/dle-modules/check-dle-deployment-status', {
+      dleAddress,
+      chainIds,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при проверке статуса деплоя DLE:', error);
+    throw error;
+  }
+};
+
+/**
+ * Проверяет статус деплоя модуля
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} moduleType - Тип модуля (treasury, timelock, reader)
+ * @param {Array<number>} chainIds - Список ID сетей
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Статус деплоя модуля
+ */
+export const checkModuleDeploymentStatus = async (dleAddress, moduleType, chainIds, maxRetries = 3, retryDelay = 30000) => {
+  try {
+    const response = await api.post('/dle-modules/check-module-deployment-status', {
+      dleAddress,
+      moduleType,
+      chainIds,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при проверке статуса деплоя модуля:', error);
+    throw error;
+  }
+};
+
+/**
+ * Деплоит модуль во всех сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} moduleType - Тип модуля (treasury, timelock, reader)
+ * @param {string} privateKey - Приватный ключ
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Результат деплоя модуля
+ */
+export const deployModuleAllNetworks = async (dleAddress, moduleType, privateKey, maxRetries = 3, retryDelay = 45000) => {
+  try {
+    const response = await api.post('/dle-modules/deploy-module-all-networks', {
+      dleAddress,
+      moduleType,
+      privateKey,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при деплое модуля во всех сетях:', error);
+    throw error;
+  }
+};
+
+/**
+ * Верифицирует DLE контракт во всех сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} privateKey - Приватный ключ
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Результат верификации DLE
+ */
+export const verifyDLEAllNetworks = async (dleAddress, privateKey, maxRetries = 3, retryDelay = 60000) => {
+  try {
+    const response = await api.post('/dle-modules/verify-dle-all-networks', {
+      dleAddress,
+      privateKey,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при верификации DLE во всех сетях:', error);
+    throw error;
+  }
+};
+
+/**
+ * Верифицирует модуль во всех сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} moduleType - Тип модуля (treasury, timelock, reader)
+ * @param {string} privateKey - Приватный ключ
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Результат верификации модуля
+ */
+export const verifyModuleAllNetworks = async (dleAddress, moduleType, privateKey, maxRetries = 3, retryDelay = 60000) => {
+  try {
+    const response = await api.post('/dle-modules/verify-module-all-networks', {
+      dleAddress,
+      moduleType,
+      privateKey,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при верификации модуля во всех сетях:', error);
+    throw error;
+  }
+};
+
+/**
+ * Инициализирует модуль во всех сетях
+ * @param {string} dleAddress - Адрес DLE
+ * @param {string} moduleType - Тип модуля (treasury, timelock, reader)
+ * @param {string} privateKey - Приватный ключ
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Результат инициализации модуля
+ */
+export const initializeModuleAllNetworks = async (dleAddress, moduleType, privateKey, maxRetries = 3, retryDelay = 30000) => {
+  try {
+    const response = await api.post('/dle-modules/initialize-module-all-networks', {
+      dleAddress,
+      moduleType,
+      privateKey,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при инициализации модуля во всех сетях:', error);
+    throw error;
+  }
+};
+
+/**
+ * Выполняет финальную проверку готовности деплоя
+ * @param {string} dleAddress - Адрес DLE
+ * @param {Array<number>} chainIds - Список ID сетей
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Результат финальной проверки
+ */
+export const finalDeploymentCheck = async (dleAddress, chainIds, maxRetries = 3, retryDelay = 30000) => {
+  try {
+    const response = await api.post('/dle-modules/final-deployment-check', {
+      dleAddress,
+      chainIds,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при финальной проверке деплоя:', error);
+    throw error;
+  }
+};
+
+/**
+ * Получает общий статус деплоя
+ * @param {string} dleAddress - Адрес DLE
+ * @param {number} maxRetries - Максимальное количество попыток
+ * @param {number} retryDelay - Задержка между попытками (мс)
+ * @returns {Promise<Object>} - Статус деплоя
+ */
+export const getDeploymentStatus = async (dleAddress, maxRetries = 3, retryDelay = 30000) => {
+  try {
+    const response = await api.post('/dle-modules/get-deployment-status', {
+      dleAddress,
+      maxRetries,
+      retryDelay
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении статуса деплоя:', error);
     throw error;
   }
 };

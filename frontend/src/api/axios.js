@@ -12,10 +12,11 @@
 
 import axios from 'axios';
 
-// Создаем экземпляр axios с базовым URL
+// Создаем экземпляр axios с базовым URL и таймаутами
 const api = axios.create({
   baseURL: '/api',
   withCredentials: true,
+  timeout: 10 * 60 * 1000, // 10 минут таймаут для деплоя
   headers: {
     'Content-Type': 'application/json',
   },
@@ -25,15 +26,36 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     config.withCredentials = true; // Важно для каждого запроса
+    
+    // DEBUG: логируем все исходящие запросы
+    console.log('🌐 [AXIOS] Отправляем запрос:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: config.baseURL + config.url,
+      data: config.data ? '[ДАННЫЕ]' : 'нет данных'
+    });
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('🌐 [AXIOS] Ошибка перед отправкой:', error);
+    return Promise.reject(error);
+  }
 );
 
 // Добавляем перехватчик ответов для обработки ошибок
 api.interceptors.response.use(
   (response) => {
+    // DEBUG: логируем успешные ответы
+    console.log('🌐 [AXIOS] Получен ответ:', {
+      method: response.config.method?.toUpperCase(),
+      url: response.config.url,
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers['content-type']
+    });
+    
     // Проверяем, что ответ действительно JSON
     if (response.headers['content-type'] && 
         !response.headers['content-type'].includes('application/json')) {
@@ -46,6 +68,16 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // DEBUG: логируем ошибки
+    console.error('🌐 [AXIOS] Ошибка ответа:', {
+      method: error.config?.method?.toUpperCase(),
+      url: error.config?.url,
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
+    
     // Если ошибка содержит HTML в response
     if (error.response && error.response.data && 
         typeof error.response.data === 'string' && 

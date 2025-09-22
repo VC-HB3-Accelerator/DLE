@@ -58,7 +58,7 @@ export default defineConfig({
         rewrite: (path) => path,
       },
       '/ws': {
-        target: 'ws://dapp-backend:8000',
+        target: 'http://dapp-backend:8000',
         ws: true,
         changeOrigin: true,
         secure: false,

@@ -16,7 +16,6 @@ const fs = require('fs');
 const { ethers } = require('ethers');
 const logger = require('../utils/logger');
 const { getRpcUrlByChainId } = require('./rpcProviderService');
-const deploymentTracker = require('../utils/deploymentTracker');
 const etherscanV2 = require('./etherscanV2VerificationService');
 const verificationStore = require('./verificationStore');
 
@@ -30,18 +29,13 @@ class DLEV2Service {
    * @param {Object} dleParams - Параметры DLE
    * @returns {Promise<Object>} - Результат создания DLE
    */
-  async createDLE(dleParams, deploymentId = null) {
+  async createDLE(dleParams) {
     console.log("🔥 [DLEV2-SERVICE] ФУНКЦИЯ createDLE ВЫЗВАНА!");
     logger.info("🚀 DEBUG: ВХОДИМ В createDLE ФУНКЦИЮ");
     let paramsFile = null;
     let tempParamsFile = null;
     try {
       logger.info('Начало создания DLE v2 с параметрами:', dleParams);
-      
-      // WebSocket обновление: начало процесса
-      if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Валидация параметров', 5, 'Проверяем входные данные');
-      }
 
       // Валидация входных данных
       this.validateDLEParams(dleParams);
@@ -56,11 +50,6 @@ class DLEV2Service {
         deployParams.initializerAddress = initializerAddress;
       } catch (e) {
         logger.warn('Не удалось вычислить initializerAddress из приватного ключа:', e.message);
-      }
-
-      // WebSocket обновление: генерация CREATE2_SALT
-      if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Генерация CREATE2 SALT', 10, 'Создаем уникальный идентификатор для детерминированного адреса');
       }
 
       // Генерируем одноразовый CREATE2_SALT и сохраняем его с уникальным ключом в secrets
@@ -78,11 +67,6 @@ class DLEV2Service {
         fs.mkdirSync(deployDir, { recursive: true });
       }
       fs.copyFileSync(paramsFile, tempParamsFile);
-      
-      // WebSocket обновление: поиск RPC URLs
-      if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Поиск RPC endpoints', 15, 'Подключаемся к блокчейн сетям');
-      }
       
       // Готовим RPC для всех выбранных сетей
       const rpcUrls = [];
@@ -128,37 +112,39 @@ class DLEV2Service {
         throw new Error('Приватный ключ для деплоя не передан');
       }
 
-      // Сохраняем ключ Etherscan V2 ПЕРЕД деплоем
-      logger.info(`🔑 Etherscan API Key получен: ${dleParams.etherscanApiKey ? '[ЕСТЬ]' : '[НЕТ]'}`);
+      // Сначала компилируем контракты
+      logger.info("🔨 Компилируем контракты перед вычислением INIT_CODE_HASH...");
       try {
-        if (dleParams.etherscanApiKey) {
-          logger.info('🔑 Сохраняем Etherscan API Key в secretStore...');
-          const { setSecret } = require('./secretStore');
-          await setSecret('ETHERSCAN_V2_API_KEY', dleParams.etherscanApiKey);
-          logger.info('🔑 Etherscan API Key успешно сохранен в базу данных');
+        const { spawn } = require('child_process');
+        await new Promise((resolve, reject) => {
+          const compile = spawn('npx', ['hardhat', 'compile'], { 
+            cwd: process.cwd(),
+            stdio: 'inherit'
+          });
+          
+          compile.on('close', (code) => {
+            if (code === 0) {
+              logger.info('✅ Контракты скомпилированы успешно');
+              resolve();
             } else {
-          logger.warn('🔑 Etherscan API Key не передан, пропускаем сохранение');
-        }
-      } catch (e) {
-        logger.error('🔑 Ошибка при сохранении Etherscan API Key:', e.message);
-      }
-
-      // WebSocket обновление: компиляция произойдет автоматически в deploy-multichain.js
-      if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Подготовка к деплою', 25, 'Подготавливаем параметры для деплоя');
+              logger.warn(`⚠️ Компиляция завершилась с кодом: ${code}`);
+              resolve(); // Продолжаем даже при ошибке компиляции
+            }
+          });
+          
+          compile.on('error', (error) => {
+            logger.warn('⚠️ Ошибка компиляции:', error.message);
+            resolve(); // Продолжаем даже при ошибке
+          });
+        });
+      } catch (compileError) {
+        logger.warn('⚠️ Ошибка компиляции:', compileError.message);
       }
 
       // INIT_CODE_HASH будет вычислен в deploy-multichain.js
 
       // Factory больше не используется - деплой DLE напрямую
       logger.info(`Подготовка к прямому деплою DLE в сетях: ${deployParams.supportedChainIds.join(', ')}`);
-
-      // WebSocket обновление: начало мульти-чейн деплоя
-      if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Мульти-чейн деплой', 40);
-        deploymentTracker.addLog(deploymentId, `🌐 Деплой в ${deployParams.supportedChainIds.length} сетях: ${deployParams.supportedChainIds.join(', ')}`, 'info');
-        deploymentTracker.addLog(deploymentId, `📋 Этапы: 1) DLE контракт → 2) Модули → 3) Инициализация → 4) Верификация`, 'info');
-      }
 
       // Мультисетевой деплой одним вызовом
       logger.info('Запуск мульти-чейн деплоя...');
@@ -168,47 +154,11 @@ class DLEV2Service {
         rpcUrls: rpcUrls,
         chainIds: deployParams.supportedChainIds,
         privateKey: dleParams.privateKey?.startsWith('0x') ? dleParams.privateKey : `0x${dleParams.privateKey}`,
-        salt: create2Salt,
-        etherscanApiKey: dleParams.etherscanApiKey
+        salt: create2Salt
       });
 
       logger.info('Деплой завершен, результат:', JSON.stringify(result, null, 2));
       logger.info("🔍 DEBUG: Запуск мультисетевого деплоя...");
-      
-      // WebSocket обновление: деплой завершен, начинаем обработку результатов
-      if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Обработка результатов', 85, 'Деплой завершен, сохраняем результаты');
-        deploymentTracker.addLog(deploymentId, `✅ DLE контракт задеплоен в ${result.networks?.length || 0} сетях`, 'success');
-        if (result.networks) {
-          result.networks.forEach(network => {
-            deploymentTracker.addLog(deploymentId, `📍 ${network.networkName || `Chain ${network.chainId}`}: ${network.address}`, 'info');
-          });
-        }
-        
-        // Логируем информацию о модулях
-        if (result.modules) {
-          deploymentTracker.addLog(deploymentId, `🔧 Модули задеплоены в ${result.modules.length} сетях`, 'info');
-          result.modules.forEach((moduleSet, index) => {
-            if (moduleSet && !moduleSet.error) {
-              deploymentTracker.addLog(deploymentId, `📦 Сеть ${index + 1}: Treasury=${moduleSet.treasuryModule?.substring(0, 10)}..., Timelock=${moduleSet.timelockModule?.substring(0, 10)}..., Reader=${moduleSet.dleReader?.substring(0, 10)}...`, 'info');
-            }
-          });
-        }
-        
-        // Логируем информацию о верификации
-        if (result.verification) {
-          deploymentTracker.addLog(deploymentId, `🔍 Верификация выполнена в ${result.verification.length} сетях`, 'info');
-          result.verification.forEach((verification, index) => {
-            if (verification && !verification.error) {
-              const dleStatus = verification.dle === 'success' ? '✅' : '❌';
-              const treasuryStatus = verification.treasuryModule === 'success' ? '✅' : '❌';
-              const timelockStatus = verification.timelockModule === 'success' ? '✅' : '❌';
-              const readerStatus = verification.dleReader === 'success' ? '✅' : '❌';
-              deploymentTracker.addLog(deploymentId, `🔍 Сеть ${index + 1}: DLE${dleStatus} Treasury${treasuryStatus} Timelock${timelockStatus} Reader${readerStatus}`, 'info');
-            }
-          });
-        }
-      }
 
       // Сохраняем информацию о созданном DLE для отображения на странице управления
       try {
@@ -281,14 +231,6 @@ class DLEV2Service {
           fs.writeFileSync(savedPath, JSON.stringify(dleData, null, 2));
           // logger.info(`DLE данные сохранены в: ${savedPath}`); // Убрано избыточное логирование
           
-        // WebSocket обновление: финализация
-        if (deploymentId) {
-          deploymentTracker.updateProgress(deploymentId, 'Завершение', 100, 'Деплой успешно завершен!');
-          deploymentTracker.addLog(deploymentId, `🎉 DLE ${result.data.name} (${result.data.symbol}) успешно создан!`, 'success');
-          deploymentTracker.addLog(deploymentId, `📊 Партнеров: ${result.data.partnerBalances?.length || 0}`, 'info');
-          deploymentTracker.addLog(deploymentId, `💰 Общий supply: ${result.data.totalSupply || 'N/A'}`, 'info');
-        }
-          
           return {
             success: true,
             data: dleData
@@ -300,25 +242,20 @@ class DLEV2Service {
         logger.warn('Не удалось сохранить локальную карточку DLE:', e.message);
       }
 
-      // Etherscan API Key уже сохранен в начале функции
+      // Сохраняем ключ Etherscan V2 для последующих авто‑обновлений статуса, если он передан
+      try {
+        if (dleParams.etherscanApiKey) {
+          const { setSecret } = require('./secretStore');
+          await setSecret('ETHERSCAN_V2_API_KEY', dleParams.etherscanApiKey);
+        }
+      } catch (_) {}
 
       // Верификация выполняется в deploy-multichain.js
-
-      // WebSocket обновление: деплой успешно завершен
-      if (deploymentId) {
-        deploymentTracker.completeDeployment(deploymentId, result);
-      }
 
       return result;
 
     } catch (error) {
       logger.error('Ошибка при создании DLE v2:', error);
-      
-      // WebSocket обновление: деплой завершился с ошибкой
-      if (deploymentId) {
-        deploymentTracker.failDeployment(deploymentId, error);
-      }
-      
       throw error;
     } finally {
       try {
@@ -643,14 +580,8 @@ class DLEV2Service {
       
       const envVars = {
         ...process.env,
-        PRIVATE_KEY: opts.privateKey,
-        ETHERSCAN_API_KEY: opts.etherscanApiKey || ''
+        PRIVATE_KEY: opts.privateKey
       };
-      
-      logger.info(`🔑 Передаем в deploy-multichain.js: ETHERSCAN_API_KEY=${opts.etherscanApiKey ? '[ЕСТЬ]' : '[НЕТ]'}`);
-      logger.info(`🔑 Передаем в deploy-multichain.js: PRIVATE_KEY=${opts.privateKey ? '[ЕСТЬ]' : '[НЕТ]'}`);
-      logger.info(`🔑 PRIVATE_KEY длина: ${opts.privateKey ? opts.privateKey.length : 0}`);
-      logger.info(`🔑 PRIVATE_KEY значение: ${opts.privateKey ? opts.privateKey.substring(0, 10) + '...' : 'undefined'}`);
       
       const p = spawn('npx', ['hardhat', 'run', scriptPath], { 
         cwd: path.join(__dirname, '..'), 
@@ -912,11 +843,11 @@ class DLEV2Service {
     
     // Преобразуем группы в массив
     return Array.from(groups.values()).map(group => ({
-        ...group,
-        // Основной адрес DLE (из первой сети)
-        dleAddress: group.networks[0]?.dleAddress,
+      ...group,
+      // Основной адрес DLE (из первой сети)
+      dleAddress: group.networks[0]?.dleAddress,
       // Общее количество сетей
-        totalNetworks: group.networks.length,
+      totalNetworks: group.networks.length,
       // Поддерживаемые сети
       supportedChainIds: group.networks.map(n => n.chainId)
     }));

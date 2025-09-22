@@ -12,6 +12,7 @@
 
 const WebSocket = require('ws');
 const tokenBalanceService = require('./services/tokenBalanceService');
+const deploymentTracker = require('./utils/deploymentTracker');
 
 let wss = null;
 // Храним клиентов по userId для персонализированных уведомлений
@@ -27,6 +28,11 @@ const TAGS_UPDATE_DEBOUNCE = 100; // 100ms
 
 function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
+  
+  // Подключаем deployment tracker к WebSocket
+  deploymentTracker.on('deployment_updated', (data) => {
+    broadcastDeploymentUpdate(data);
+  });
   
   wss.on('connection', (ws, req) => {
     // console.log('🔌 [WebSocket] Новое подключение');
@@ -451,6 +457,29 @@ function broadcastTokenBalanceChanged(userId, tokenAddress, newBalance, network)
   }
 }
 
+// Функции для деплоя
+function broadcastDeploymentUpdate(data) {
+  if (!wss) return;
+  
+  const message = JSON.stringify({
+    type: 'deployment_update',
+    data: data
+  });
+  
+  // Отправляем всем подключенным клиентам
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(message);
+      } catch (error) {
+        console.error('[WebSocket] Ошибка при отправке deployment update:', error);
+      }
+    }
+  });
+  
+  console.log(`📡 [WebSocket] Отправлено deployment update: ${data.type || 'unknown'}`);
+}
+
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
@@ -469,6 +498,7 @@ module.exports = {
   broadcastAuthTokenUpdated,
   broadcastTokenBalancesUpdate,
   broadcastTokenBalanceChanged,
+  broadcastDeploymentUpdate,
   getConnectedUsers,
   getStats
 };

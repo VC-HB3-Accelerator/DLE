@@ -261,3 +261,20 @@ export const getQuorumAt = async (dleAddress, timepoint) => {
     throw error;
   }
 };
+
+/**
+ * Декодирует данные предложения о добавлении модуля
+ * @param {string} transactionHash - Хеш транзакции создания предложения
+ * @returns {Promise<Object>} - Декодированные данные предложения
+ */
+export const decodeProposalData = async (transactionHash) => {
+  try {
+    const response = await axios.post('/dle-proposals/decode-proposal-data', {
+      transactionHash
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при декодировании данных предложения:', error);
+    throw error;
+  }
+};

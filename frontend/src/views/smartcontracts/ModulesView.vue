@@ -103,6 +103,29 @@
             </div>
           </div>
 
+          <!-- DLEReader -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>DLEReader</h4>
+              <p>Чтение данных DLE - API для получения информации о контракте и предложениях</p>
+              <div class="module-features">
+                <span class="feature-tag">API</span>
+                <span class="feature-tag">Чтение</span>
+                <span class="feature-tag">Данные</span>
+                <span class="feature-tag">Интеграция</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="router.push(`/management/modules/deploy/reader?address=${route.query.address}`)"
+              >
+                <i class="fas fa-rocket"></i>
+                Деплой
+              </button>
+            </div>
+          </div>
+
           <!-- CommunicationModule -->
           <div class="module-deploy-card">
             <div class="module-content">
@@ -465,12 +488,44 @@
       <div class="modules-list">
         <div class="list-header">
           <h3>📋 Модули DLE</h3>
-          <button class="btn btn-sm btn-outline-secondary" @click="loadModules" :disabled="isLoadingModules">
-            <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingModules }"></i> Обновить
+          <button class="btn btn-sm btn-outline-secondary" @click="loadModules" :disabled="isLoadingModules || isLoadingDeploymentStatus">
+            <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingModules || isLoadingDeploymentStatus }"></i> Обновить
           </button>
         </div>
 
-        <div v-if="isLoadingModules" class="loading-modules">
+        <!-- Статус деплоя -->
+        <div v-if="isLoadingDeploymentStatus" class="deployment-status">
+          <div class="status-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Проверка статуса деплоя...</span>
+          </div>
+        </div>
+
+        <div v-else-if="!canShowModules" class="deployment-status">
+          <div class="status-message" :class="deploymentStatus">
+            <div class="status-icon">
+              <i v-if="deploymentStatus === 'completed'" class="fas fa-check-circle"></i>
+              <i v-else-if="deploymentStatus === 'in_progress'" class="fas fa-spinner fa-spin"></i>
+              <i v-else-if="deploymentStatus === 'failed'" class="fas fa-exclamation-triangle"></i>
+              <i v-else-if="deploymentStatus === 'not_started'" class="fas fa-play-circle"></i>
+              <i v-else class="fas fa-question-circle"></i>
+            </div>
+            <div class="status-content">
+              <h4>{{ deploymentStatusMessage }}</h4>
+              <p v-if="deploymentStatus === 'not_started'">
+                Для активации модулей необходимо запустить поэтапный деплой DLE.
+              </p>
+              <p v-else-if="deploymentStatus === 'failed'">
+                Проверьте логи деплоя и повторите попытку через форму деплоя.
+              </p>
+              <p v-else-if="deploymentStatus === 'in_progress'">
+                Дождитесь завершения деплоя. Модули станут доступны автоматически.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="isLoadingModules" class="loading-modules">
           <p>Загрузка модулей...</p>
         </div>
 
@@ -479,7 +534,7 @@
           <p>Используйте форму выше для добавления первого модуля</p>
         </div>
 
-        <div v-else class="modules-grid">
+        <div v-else-if="canShowModules && modules.length > 0" class="modules-grid">
           <div 
             v-for="module in modules" 
             :key="module.moduleId" 
@@ -590,7 +645,9 @@ import {
   createRemoveModuleProposal,
   isModuleActive,
   getModuleAddress,
-  getAllModules
+  getAllModules,
+  getNetworksInfo,
+  getDeploymentStatus
 } from '../../services/modulesService.js';
 import api from '../../api/axios';
 
@@ -612,11 +669,16 @@ const route = useRoute();
 const selectedDle = ref(null);
 const isLoadingDle = ref(false);
 const modules = ref([]);
+const supportedNetworks = ref([]);
 const isLoadingModules = ref(false);
 const isCreating = ref(false);
 const isRemoving = ref(null);
 const isActivating = ref(null);
 const isVerifying = ref(null);
+
+// Состояние деплоя
+const deploymentStatus = ref('unknown'); // 'unknown', 'completed', 'in_progress', 'failed', 'not_started'
+const isLoadingDeploymentStatus = ref(false);
 const lastUpdateTime = ref('');
 
 // Форма нового модуля
@@ -640,6 +702,23 @@ const isFormValid = computed(() => {
 const modulesCount = computed(() => modules.value.length);
 const activeModulesCount = computed(() => modules.value.filter(m => m.isActive).length);
 const inactiveModulesCount = computed(() => modules.value.filter(m => !m.isActive).length);
+
+// Статус деплоя
+const canShowModules = computed(() => deploymentStatus.value === 'completed');
+const deploymentStatusMessage = computed(() => {
+  switch (deploymentStatus.value) {
+    case 'completed':
+      return 'Деплой завершен. Модули готовы к использованию.';
+    case 'in_progress':
+      return 'Деплой в процессе. Модули будут доступны после завершения.';
+    case 'failed':
+      return 'Деплой не удался. Проверьте логи и повторите попытку.';
+    case 'not_started':
+      return 'Деплой не начат. Запустите деплой для активации модулей.';
+    default:
+      return 'Статус деплоя неизвестен. Проверьте состояние системы.';
+  }
+});
 
 // Загрузка данных DLE
 async function loadDleData() {
@@ -672,6 +751,37 @@ async function loadDleData() {
   }
 }
 
+// Проверка статуса деплоя
+async function checkDeploymentStatus() {
+  try {
+    isLoadingDeploymentStatus.value = true;
+    const dleAddress = route.query.address;
+    
+    if (!dleAddress) {
+      console.warn('[ModulesView] Адрес DLE не найден для проверки статуса деплоя');
+      deploymentStatus.value = 'unknown';
+      return;
+    }
+
+    console.log('[ModulesView] Проверка статуса деплоя для DLE:', dleAddress);
+    
+    const statusResponse = await getDeploymentStatus(dleAddress);
+    console.log('[ModulesView] Статус деплоя:', statusResponse);
+    
+    if (statusResponse.success) {
+      deploymentStatus.value = statusResponse.data.status || 'unknown';
+    } else {
+      deploymentStatus.value = 'unknown';
+    }
+    
+  } catch (error) {
+    console.error('[ModulesView] Ошибка при проверке статуса деплоя:', error);
+    deploymentStatus.value = 'unknown';
+  } finally {
+    isLoadingDeploymentStatus.value = false;
+  }
+}
+
 // Загрузка модулей
 async function loadModules() {
   try {
@@ -681,15 +791,30 @@ async function loadModules() {
     if (!dleAddress) {
       console.error('[ModulesView] Адрес DLE не указан');
       modules.value = [];
+      supportedNetworks.value = [];
       return;
     }
 
     console.log('[ModulesView] Загрузка модулей для DLE:', dleAddress);
     
-    // Загружаем модули через modulesService
-    const modulesResponse = await getAllModules(dleAddress);
+    // Сначала проверяем статус деплоя
+    await checkDeploymentStatus();
     
-    console.log('[ModulesView] Ответ от API:', modulesResponse);
+    // Если деплой не завершен, не загружаем модули
+    if (deploymentStatus.value !== 'completed') {
+      console.log('[ModulesView] Деплой не завершен, модули не загружаются. Статус:', deploymentStatus.value);
+      modules.value = [];
+      return;
+    }
+    
+    // Загружаем модули и информацию о сетях параллельно
+    const [modulesResponse, networksResponse] = await Promise.all([
+      getAllModules(dleAddress),
+      getNetworksInfo(dleAddress)
+    ]);
+    
+    console.log('[ModulesView] Ответ от API модулей:', modulesResponse);
+    console.log('[ModulesView] Ответ от API сетей:', networksResponse);
     
     if (modulesResponse.success) {
       modules.value = modulesResponse.data.modules || [];
@@ -697,7 +822,7 @@ async function loadModules() {
         count: modules.value.length,
         modules: modules.value.map(m => ({ 
           name: m.moduleName, 
-          address: m.moduleAddress, 
+          addresses: m.addresses?.length || 0,
           active: m.isActive,
           id: m.moduleId 
         })),
@@ -717,6 +842,20 @@ async function loadModules() {
       console.error('[ModulesView] Ошибка загрузки модулей:', modulesResponse.error);
       modules.value = [];
     }
+
+    if (networksResponse.success) {
+      supportedNetworks.value = networksResponse.data.networks || [];
+      console.log('[ModulesView] Сети загружены успешно:', {
+        count: supportedNetworks.value.length,
+        networks: supportedNetworks.value.map(n => ({
+          name: n.networkName,
+          chainId: n.chainId
+        }))
+      });
+    } else {
+      console.error('[ModulesView] Ошибка загрузки сетей:', networksResponse.error);
+      supportedNetworks.value = [];
+    }
     
   } catch (error) {
     console.error('[ModulesView] Ошибка загрузки модулей:', error);
@@ -726,6 +865,7 @@ async function loadModules() {
       status: error.response?.status
     });
     modules.value = [];
+    supportedNetworks.value = [];
   } finally {
     isLoadingModules.value = false;
   }
@@ -754,22 +894,112 @@ async function handleCreateAddModuleProposal() {
     });
     
     if (result.success) {
-      console.log('[ModulesView] Предложение создано:', result);
-      alert('✅ Предложение для добавления модуля создано!');
+      console.log('[ModulesView] Данные транзакции получены:', result);
       
-      // Очищаем форму
-      newModule.value = {
-        moduleId: '',
-        moduleAddress: '',
-        description: '',
-        duration: 86400,
-        chainId: 11155111
-      };
-      
-      // Перезагружаем модули
-      await loadModules();
+      // Отправляем транзакцию через MetaMask
+      try {
+        // Проверяем валидность адреса
+        if (!result.data.to || !result.data.to.startsWith('0x') || result.data.to.length !== 42) {
+          throw new Error(`Неверный адрес контракта: ${result.data.to}`);
+        }
+        
+        // Проверяем, что адрес в правильном формате (checksum)
+        const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(result.data.to);
+        if (!isValidAddress) {
+          throw new Error(`Адрес не в правильном формате: ${result.data.to}`);
+        }
+        
+        // Проверяем, что есть подключенный аккаунт
+        let accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (!accounts || accounts.length === 0) {
+          console.log('[ModulesView] Запрашиваем разрешение на подключение к MetaMask');
+          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        }
+        
+        if (!accounts || accounts.length === 0) {
+          throw new Error('Не удалось получить доступ к аккаунтам MetaMask');
+        }
+        
+        console.log('[ModulesView] Подключенный аккаунт:', accounts[0]);
+        
+        // Проверяем подключение к правильной сети
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const expectedChainId = '0x' + newModule.value.chainId.toString(16);
+        
+        if (chainId !== expectedChainId) {
+          console.log(`[ModulesView] Переключаемся с сети ${chainId} на ${expectedChainId}`);
+          
+          try {
+            // Пытаемся переключиться на Sepolia
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: expectedChainId }],
+            });
+            console.log('[ModulesView] Успешно переключились на Sepolia');
+          } catch (switchError) {
+            // Если сеть не добавлена, добавляем её
+            if (switchError.code === 4902) {
+              console.log('[ModulesView] Добавляем Sepolia сеть');
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: expectedChainId,
+                  chainName: 'Sepolia',
+                  nativeCurrency: {
+                    name: 'SepoliaETH',
+                    symbol: 'ETH',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52'],
+                  blockExplorerUrls: ['https://sepolia.etherscan.io']
+                }]
+              });
+            } else {
+              throw new Error(`Не удалось переключиться на Sepolia: ${switchError.message}`);
+            }
+          }
+        }
+        
+        console.log('[ModulesView] Отправляем транзакцию:', {
+          from: accounts[0],
+          to: result.data.to,
+          data: result.data.data,
+          value: result.data.value,
+          gas: result.data.gasLimit
+        });
+        
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: accounts[0],
+            to: result.data.to,
+            data: result.data.data,
+            value: result.data.value,
+            gas: result.data.gasLimit
+          }]
+        });
+        
+        console.log('[ModulesView] Транзакция отправлена:', txHash);
+        alert(`✅ Транзакция отправлена! Hash: ${txHash}`);
+        
+        // Очищаем форму
+        newModule.value = {
+          moduleId: '',
+          moduleAddress: '',
+          description: '',
+          duration: 86400,
+          chainId: 11155111
+        };
+        
+        // Перезагружаем модули
+        await loadModules();
+        
+      } catch (txError) {
+        console.error('[ModulesView] Ошибка отправки транзакции:', txError);
+        alert('❌ Ошибка отправки транзакции: ' + txError.message);
+      }
     } else {
-      alert('❌ Ошибка создания предложения: ' + result.error);
+      alert('❌ Ошибка получения данных транзакции: ' + result.error);
     }
     
   } catch (error) {
@@ -854,7 +1084,8 @@ async function verifyModule(module, addressInfo) {
       dleAddress: dleAddress,
       moduleId: module.moduleId,
       moduleAddress: addressInfo.address,
-      moduleName: module.moduleName
+      moduleName: module.moduleName,
+      chainId: addressInfo.chainId
     });
     
     if (response.data.success) {
@@ -898,16 +1129,12 @@ function getVerificationButtonTitle(verificationStatus) {
 
 // Утилиты
 function getEtherscanUrl(address, networkIndex, chainId) {
-  // Если есть chainId, используем его для определения правильного URL
-  if (chainId) {
-    const networkUrls = {
-      11155111: `https://sepolia.etherscan.io/address/${address}`,      // Sepolia
-      17000: `https://holesky.etherscan.io/address/${address}`,         // Holesky
-      421614: `https://sepolia.arbiscan.io/address/${address}`,         // Arbitrum Sepolia
-      84532: `https://sepolia.basescan.org/address/${address}`          // Base Sepolia
-    };
-    
-    return networkUrls[chainId] || `https://etherscan.io/address/${address}`;
+  // Если есть chainId, ищем информацию о сети в supportedNetworks
+  if (chainId && supportedNetworks.value.length > 0) {
+    const network = supportedNetworks.value.find(n => n.chainId === chainId);
+    if (network && network.etherscanUrl) {
+      return `${network.etherscanUrl}/address/${address}`;
+    }
   }
   
   // Fallback на старую логику по networkIndex (для обратной совместимости)
@@ -1202,6 +1429,102 @@ onMounted(() => {
   border-radius: var(--radius-md);
   padding: 20px;
   border: 1px solid #e9ecef;
+}
+
+/* Статус деплоя */
+.deployment-status {
+  margin: 20px 0;
+}
+
+.status-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.status-loading i {
+  color: #007bff;
+  font-size: 1.2rem;
+}
+
+.status-loading span {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.status-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid;
+}
+
+.status-message.completed {
+  background-color: #e8f5e8;
+  border-color: #28a745;
+}
+
+.status-message.in_progress {
+  background-color: #e3f2fd;
+  border-color: #007bff;
+}
+
+.status-message.failed {
+  background-color: #ffebee;
+  border-color: #dc3545;
+}
+
+.status-message.not_started {
+  background-color: #fff3cd;
+  border-color: #ffc107;
+}
+
+.status-message.unknown {
+  background-color: #f8f9fa;
+  border-color: #6c757d;
+}
+
+.status-icon {
+  font-size: 2rem;
+  margin-top: 5px;
+}
+
+.status-message.completed .status-icon {
+  color: #28a745;
+}
+
+.status-message.in_progress .status-icon {
+  color: #007bff;
+}
+
+.status-message.failed .status-icon {
+  color: #dc3545;
+}
+
+.status-message.not_started .status-icon {
+  color: #ffc107;
+}
+
+.status-message.unknown .status-icon {
+  color: #6c757d;
+}
+
+.status-content h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.status-content p {
+  margin: 0;
+  color: #6c757d;
+  line-height: 1.5;
 }
 
 .list-header {

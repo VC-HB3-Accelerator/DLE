@@ -60,7 +60,6 @@ export default function useBlockchainNetworks() {
         { value: 'arbitrum-goerli', label: 'Arbitrum Goerli', chainId: 421613 },
         { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia', chainId: 421614 },
         { value: 'optimism-goerli', label: 'Optimism Goerli', chainId: 420 },
-        { value: 'avalanche-fuji', label: 'Avalanche Fuji', chainId: 43113 },
         { value: 'fantom-testnet', label: 'Fantom Testnet', chainId: 4002 },
         { value: 'base-sepolia', label: 'Base Sepolia Testnet', chainId: 84532 }
       ]
