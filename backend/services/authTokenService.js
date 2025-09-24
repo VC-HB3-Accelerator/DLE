@@ -27,13 +27,25 @@ async function saveAllAuthTokens(authTokens) {
       name: token.name,
       address: token.address,
       network: token.network,
-      min_balance: token.minBalance == null ? 0 : Number(token.minBalance)
+      min_balance: token.minBalance == null ? 0 : Number(token.minBalance),
+      readonly_threshold: token.readonlyThreshold == null ? 1 : Number(token.readonlyThreshold),
+      editor_threshold: token.editorThreshold == null ? 2 : Number(token.editorThreshold)
     });
   }
 }
 
 async function upsertAuthToken(token) {
+  console.log('[AuthTokenService] Получены данные токена:', token);
+  console.log('[AuthTokenService] token.readonlyThreshold:', token.readonlyThreshold, 'тип:', typeof token.readonlyThreshold);
+  console.log('[AuthTokenService] token.editorThreshold:', token.editorThreshold, 'тип:', typeof token.editorThreshold);
+  
   const minBalance = token.minBalance == null ? 0 : Number(token.minBalance);
+  const readonlyThreshold = (token.readonlyThreshold === null || token.readonlyThreshold === undefined || token.readonlyThreshold === '') ? 1 : Number(token.readonlyThreshold);
+  const editorThreshold = (token.editorThreshold === null || token.editorThreshold === undefined || token.editorThreshold === '') ? 2 : Number(token.editorThreshold);
+  
+  console.log('[AuthTokenService] Вычисленные значения:');
+  console.log('[AuthTokenService] readonlyThreshold:', readonlyThreshold);
+  console.log('[AuthTokenService] editorThreshold:', editorThreshold);
   
   // Проверяем, существует ли токен
   const existingTokens = await encryptedDb.getData('auth_tokens', {
@@ -45,7 +57,9 @@ async function upsertAuthToken(token) {
     // Обновляем существующий токен
     await encryptedDb.saveData('auth_tokens', {
       name: token.name,
-      min_balance: minBalance
+      min_balance: minBalance,
+      readonly_threshold: readonlyThreshold,
+      editor_threshold: editorThreshold
     }, {
       address: token.address,
       network: token.network
@@ -56,7 +70,9 @@ async function upsertAuthToken(token) {
       name: token.name,
       address: token.address,
       network: token.network,
-      min_balance: minBalance
+      min_balance: minBalance,
+      readonly_threshold: readonlyThreshold,
+      editor_threshold: editorThreshold
     });
   }
 }

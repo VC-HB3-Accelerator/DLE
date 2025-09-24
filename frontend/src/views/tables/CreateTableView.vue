@@ -14,7 +14,7 @@
   <BaseLayout>
     <div class="create-table-container">
       <h2>Создать новую таблицу</h2>
-      <form v-if="isAdmin" @submit.prevent="handleCreateTable" class="create-table-form">
+      <form v-if="canEdit" @submit.prevent="handleCreateTable" class="create-table-form">
         <label>Название таблицы</label>
         <input v-model="newTableName" required placeholder="Введите название" />
         <label>Описание</label>
@@ -29,7 +29,10 @@
           <button type="button" @click="goBack">Отмена</button>
         </div>
       </form>
-      <div v-else class="empty-table-placeholder">Нет прав для создания таблицы</div>
+      <div v-else class="empty-table-placeholder">
+        <p>Нет прав для создания таблицы</p>
+        <button type="button" @click="goBack" class="btn btn-primary">Назад</button>
+      </div>
     </div>
   </BaseLayout>
 </template>
@@ -40,12 +43,14 @@ import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import tablesService from '../../services/tablesService';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 
 const router = useRouter();
 const newTableName = ref('');
 const newTableDescription = ref('');
 const newTableIsRagSourceId = ref(2);
 const { isAdmin } = useAuthContext();
+const { canEdit } = usePermissions();
 
 async function handleCreateTable() {
   if (!newTableName.value) return;
@@ -127,5 +132,31 @@ function goBack() {
 }
 .form-actions button[type="button"]:hover {
   background: #d5d5d5;
+}
+
+.empty-table-placeholder {
+  text-align: center;
+  padding: 2em;
+  color: #666;
+}
+
+.empty-table-placeholder p {
+  margin-bottom: 1.5em;
+  font-size: 1.1em;
+}
+
+.empty-table-placeholder .btn {
+  background: #2ecc40;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5em 1.2em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.empty-table-placeholder .btn:hover {
+  background: #27ae38;
 }
 </style> 

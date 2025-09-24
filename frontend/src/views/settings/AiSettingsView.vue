@@ -70,6 +70,7 @@
 import { ref } from 'vue';
 import AIProviderSettings from './AIProviderSettings.vue';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
 
 const showProvider = ref(null);
@@ -80,6 +81,7 @@ const showAiAssistantSettings = ref(false);
 const showNoAccessModal = ref(false);
 
 const { isAdmin } = useAuthContext();
+const { canManageSettings } = usePermissions();
 
 const providerLabels = {
   openai: {
@@ -117,7 +119,7 @@ const providerLabels = {
 };
 
 function goTo(path) {
-  if (!isAdmin.value) {
+  if (!canManageSettings.value) {
     showNoAccessModal.value = true;
     return;
   }

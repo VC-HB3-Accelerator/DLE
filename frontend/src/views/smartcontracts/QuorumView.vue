@@ -25,7 +25,7 @@
           <h1>Кворум</h1>
           <p>Настройки голосования и кворума</p>
         </div>
-        <button class="close-btn" @click="router.push('/management')">×</button>
+        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
       <!-- Текущие настройки -->
@@ -181,8 +181,8 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, defineProps, defineEmits } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getGovernanceParams } from '../../services/dleV2Service.js';
 import { getQuorumAt, getVotingPowerAt } from '../../services/proposalsService.js';
@@ -199,6 +199,21 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const route = useRoute();
+
+// Получаем адрес DLE из URL
+const dleAddress = computed(() => {
+  return route.query.address;
+});
+
+// Функция возврата к блокам управления
+const goBackToBlocks = () => {
+  if (dleAddress.value) {
+    router.push(`/management/dle-blocks?address=${dleAddress.value}`);
+  } else {
+    router.push('/management');
+  }
+};
 
 // Состояние
 const isUpdating = ref(false);

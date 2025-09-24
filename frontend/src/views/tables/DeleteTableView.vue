@@ -16,10 +16,10 @@
       <h2>Удалить таблицу?</h2>
       <p>Вы уверены, что хотите удалить эту таблицу? Это действие необратимо.</p>
       <div class="actions">
-        <button v-if="isAdmin" class="danger" @click="remove">Удалить</button>
+        <button v-if="canDelete" class="danger" @click="remove">Удалить</button>
         <button @click="cancel">Отмена</button>
       </div>
-      <div v-if="!isAdmin" class="empty-table-placeholder">Нет прав для удаления таблицы</div>
+      <div v-if="!canDelete" class="empty-table-placeholder">Нет прав для удаления таблицы</div>
     </div>
   </BaseLayout>
 </template>
@@ -28,9 +28,11 @@ import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import axios from 'axios';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 const $route = useRoute();
 const router = useRouter();
 const { isAdmin } = useAuthContext();
+const { canDelete } = usePermissions();
 
 async function remove() {
       await axios.delete(`/tables/${$route.params.id}`);

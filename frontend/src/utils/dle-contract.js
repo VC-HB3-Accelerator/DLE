@@ -555,32 +555,47 @@ export async function deactivateDLE(dleAddress, userAddress) {
       throw new Error('Подключенный кошелек не совпадает с адресом пользователя');
     }
 
+    // Сначала проверяем возможность деактивации через API
+    console.log('Проверяем возможность деактивации DLE через API...');
+    const checkResponse = await api.post('/blockchain/deactivate-dle', {
+      dleAddress: dleAddress,
+      userAddress: userAddress
+    });
+
+    if (!checkResponse.data.success) {
+      throw new Error(checkResponse.data.error || 'Не удалось проверить возможность деактивации');
+    }
+
+    console.log('Проверка деактивации прошла успешно, выполняем деактивацию...');
+
     // ABI для деактивации DLE
     const dleAbi = [
       "function deactivate() external",
       "function balanceOf(address) external view returns (uint256)",
       "function totalSupply() external view returns (uint256)",
-      "function createDeactivationProposal(string memory _description, uint256 _duration, uint256 _chainId) external returns (uint256)",
-      "function voteDeactivation(uint256 _proposalId, bool _support) external",
-      "function checkDeactivationProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached)",
-      "function executeDeactivationProposal(uint256 _proposalId) external"
+      "function isActive() external view returns (bool)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, signer);
 
-    // Проверяем, что пользователь имеет токены
+    // Дополнительные проверки перед деактивацией
     const balance = await dle.balanceOf(userAddress);
     if (balance <= 0) {
       throw new Error('Для деактивации DLE необходимо иметь токены');
     }
 
-    // Проверяем, что DLE не пустой (есть токены)
     const totalSupply = await dle.totalSupply();
     if (totalSupply <= 0) {
       throw new Error('DLE не имеет токенов');
     }
 
-    // Выполняем деактивацию (функция проверит наличие валидного предложения с кворумом)
+    const isActive = await dle.isActive();
+    if (!isActive) {
+      throw new Error('DLE уже деактивирован');
+    }
+
+    // Выполняем деактивацию
+    console.log('Выполняем деактивацию DLE...');
     const tx = await dle.deactivate();
     const receipt = await tx.wait();
 
@@ -595,7 +610,25 @@ export async function deactivateDLE(dleAddress, userAddress) {
 
   } catch (error) {
     console.error('Ошибка деактивации DLE:', error);
-    throw error;
+    
+    // Улучшенная обработка ошибок
+    let errorMessage = 'Ошибка при деактивации DLE';
+    
+    if (error.message.includes('execution reverted')) {
+      errorMessage = '❌ Деактивация невозможна: не выполнены условия смарт-контракта. Возможно, требуется голосование участников или DLE уже деактивирован.';
+    } else if (error.message.includes('владелец')) {
+      errorMessage = '❌ Только владелец DLE может его деактивировать';
+    } else if (error.message.includes('кошелек')) {
+      errorMessage = '❌ Необходимо подключить кошелек';
+    } else if (error.message.includes('деактивирован')) {
+      errorMessage = '❌ DLE уже деактивирован';
+    } else if (error.message.includes('токены')) {
+      errorMessage = '❌ Для деактивации DLE необходимо иметь токены';
+    } else {
+      errorMessage = `❌ Ошибка: ${error.message}`;
+    }
+    
+    throw new Error(errorMessage);
   }
 }
 

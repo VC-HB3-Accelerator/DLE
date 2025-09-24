@@ -21,20 +21,28 @@ const { requireAuth } = require('../middleware/auth');
 // Проверка статуса подключения к Ollama
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    // Проверяем, что контейнер Ollama запущен
-    const { stdout } = await execAsync('docker ps --filter "name=dapp-ollama" --format "{{.Names}}"');
-    const isContainerRunning = stdout.trim() === 'dapp-ollama';
+    const axios = require('axios');
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
     
-    if (!isContainerRunning) {
-      return res.json({ connected: false, error: 'Ollama container not running' });
-    }
-
-    // Проверяем API Ollama
+    // Проверяем API Ollama через HTTP запрос
     try {
-      const { stdout: apiResponse } = await execAsync('docker exec dapp-ollama ollama list');
-      return res.json({ connected: true, message: 'Ollama is running' });
+      const response = await axios.get(`${ollamaUrl}/api/tags`, { 
+        timeout: 5000 // 5 секунд таймаут
+      });
+      
+      const models = response.data.models || [];
+      return res.json({ 
+        connected: true, 
+        message: 'Ollama is running',
+        models: models.length,
+        availableModels: models.map(m => m.name)
+      });
     } catch (apiError) {
-      return res.json({ connected: false, error: 'Ollama API not responding' });
+      logger.error('Ollama API error:', apiError.message);
+      return res.json({ 
+        connected: false, 
+        error: `Ollama API not responding: ${apiError.message}` 
+      });
     }
   } catch (error) {
     logger.error('Error checking Ollama status:', error);
@@ -45,21 +53,19 @@ router.get('/status', requireAuth, async (req, res) => {
 // Получение списка установленных моделей
 router.get('/models', requireAuth, async (req, res) => {
   try {
-    const { stdout } = await execAsync('docker exec dapp-ollama ollama list');
-    const lines = stdout.trim().split('\n').slice(1); // Пропускаем заголовок
+    const axios = require('axios');
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
     
-    const models = lines.map(line => {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 4) {
-        return {
-          name: parts[0],
-          id: parts[1],
-          size: parseInt(parts[2]) || 0,
-          modified: parts.slice(3).join(' ')
-        };
-      }
-      return null;
-    }).filter(model => model !== null);
+    const response = await axios.get(`${ollamaUrl}/api/tags`, { 
+      timeout: 5000 
+    });
+    
+    const models = (response.data.models || []).map(model => ({
+      name: model.name,
+      id: model.model || model.name,
+      size: model.size || 0,
+      modified: model.modified_at || 'Unknown'
+    }));
 
     res.json({ models });
   } catch (error) {

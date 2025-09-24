@@ -54,8 +54,7 @@
             v-for="dle in deployedDles" 
             :key="dle.dleAddress" 
             class="dle-card"
-            :class="{ 'selected': selectedDle && selectedDle.dleAddress === dle.dleAddress }"
-            @click="selectDle(dle)"
+            @click="openDleManagement(dle.dleAddress)"
           >
             <div class="dle-header">
               <div class="dle-title-section">
@@ -148,6 +147,7 @@
                 </ul>
                 <button class="details-btn btn-sm" @click.stop="refreshVerification(dle.dleAddress)">Обновить статус</button>
               </div>
+              
             </div>
 
 
@@ -157,64 +157,6 @@
 
 
 
-      <!-- Блоки управления выбранным DLE -->
-      <div v-if="selectedDle" class="management-blocks">
-
-        <!-- Первый ряд -->
-        <div class="blocks-row">
-          <div class="management-block">
-            <h3>Предложения</h3>
-            <p>Создание, подписание, выполнение</p>
-            <button class="details-btn" @click="openProposalsWithDle">Подробнее</button>
-          </div>
-          
-          <div class="management-block">
-            <h3>Токены DLE</h3>
-            <p>Балансы, трансферы, распределение</p>
-            <button class="details-btn" @click="openTokensWithDle">Подробнее</button>
-          </div>
-          
-          <div class="management-block">
-            <h3>Кворум</h3>
-            <p>Настройки голосования</p>
-            <button class="details-btn" @click="openQuorumWithDle">Подробнее</button>
-          </div>
-        </div>
-
-        <!-- Второй ряд -->
-        <div class="blocks-row">
-          <div class="management-block">
-            <h3>Модули DLE</h3>
-            <p>Установка, настройка, управление</p>
-            <button class="details-btn" @click="openModulesWithDle">Подробнее</button>
-          </div>
-          
-
-          
-          <div class="management-block">
-            <h3>Аналитика</h3>
-            <p>Графики, статистика, отчеты</p>
-            <button class="details-btn" @click="openAnalyticsWithDle">Подробнее</button>
-          </div>
-        </div>
-
-        <!-- Третий ряд -->
-        <div class="blocks-row">
-          <div class="management-block">
-            <h3>История</h3>
-            <p>Лог операций, события, транзакции</p>
-            <button class="details-btn" @click="openHistoryWithDle">Подробнее</button>
-          </div>
-          
-          <div class="management-block">
-            <h3>Настройки</h3>
-            <p>Параметры DLE, конфигурация</p>
-            <button class="details-btn" @click="openSettingsWithDle">Подробнее</button>
-          </div>
-          
-
-        </div>
-      </div>
 
 
     </div>
@@ -245,7 +187,6 @@ const router = useRouter();
 // Состояние для DLE
 const deployedDles = ref([]);
 const isLoadingDles = ref(false);
-const selectedDle = ref(null);
 const verificationStatuses = ref({}); // { [address]: { address, chains: { [chainId]: { guid, status } } } }
 let verifyPollTimer = null;
 
@@ -431,14 +372,10 @@ function openDleOnEtherscan(address) {
 }
 
 function openDleManagement(dleAddress) {
-  // Переход к детальному управлению DLE (если нужно)
-  router.push(`/management/dle-management?address=${dleAddress}`);
+  // Переход к блокам управления DLE
+  router.push(`/management/dle-blocks?address=${dleAddress}`);
 }
 
-function selectDle(dle) {
-  selectedDle.value = dle;
-  console.log('Выбран DLE:', dle);
-}
 
 async function refreshVerification(address) {
   try {
@@ -474,56 +411,6 @@ async function pollVerifications() {
 //   router.push('/management/multisig');
 // }
 
-// Функции с передачей адреса DLE
-function openProposalsWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/proposals?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-function openTokensWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/tokens?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-function openQuorumWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/quorum?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-function openModulesWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/modules?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-
-
-function openAnalyticsWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/analytics?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-function openHistoryWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/history?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-function openSettingsWithDle() {
-  if (selectedDle.value) {
-    router.push(`/management/settings?address=${selectedDle.value.dleAddress}`);
-  }
-}
-
-// function openMultisigWithDle() {
-//   if (selectedDle.value) {
-//     router.push(`/management/multisig?address=${selectedDle.value.dleAddress}`);
-//   }
-// }
 
 
 
@@ -586,37 +473,6 @@ onBeforeUnmount(() => {
   color: #333;
 }
 
-/* Блоки управления */
-.management-blocks {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  margin-top: 2rem;
-}
-
-.blocks-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.management-block {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  padding: 2rem;
-  min-width: 260px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-}
-
-.management-block:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  transform: translateY(-2px);
-}
 
 /* Секция деплоированных DLE */
 .deployed-dles-section {
@@ -905,6 +761,7 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
+
 /* Стили для отображения логотипа */
 .dle-title-section {
   display: flex;
@@ -998,17 +855,6 @@ onBeforeUnmount(() => {
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  .blocks-row {
-    grid-template-columns: 1fr;
-  }
-  
-  .management-block {
-    padding: 1.5rem;
-  }
-  
-  .management-block h3 {
-    font-size: 1.3rem;
-  }
   
   .partner-info {
     flex-direction: column;

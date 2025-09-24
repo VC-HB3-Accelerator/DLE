@@ -12,7 +12,7 @@
 
 <template>
   <template v-if="column.type === 'multiselect'">
-    <div v-if="!editing" @click="editing = true" class="tags-cell-view">
+    <div v-if="!editing" @click="canEdit && (editing = true)" class="tags-cell-view">
       <span v-if="selectedMultiNames.length">{{ selectedMultiNames.join(', ') }}</span>
       <span v-else class="cell-plus-icon" title="Добавить">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -39,7 +39,7 @@
     </div>
   </template>
   <template v-else-if="column.type === 'relation'">
-    <div v-if="!editing" @click="editing = true" class="tags-cell-view">
+    <div v-if="!editing" @click="canEdit && (editing = true)" class="tags-cell-view">
       <span v-if="selectedRelationName">{{ selectedRelationName }}</span>
       <span v-else class="cell-plus-icon" title="Добавить">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -64,7 +64,7 @@
     </div>
   </template>
   <template v-else-if="column.type === 'multiselect-relation'">
-    <div v-if="!editing" @click="editing = true" class="tags-cell-view">
+    <div v-if="!editing" @click="canEdit && (editing = true)" class="tags-cell-view">
       <span v-if="selectedMultiRelationNames.length">{{ selectedMultiRelationNames.join(', ') }}</span>
       <span v-else class="cell-plus-icon" title="Добавить">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -97,7 +97,7 @@
     </div>
   </template>
   <template v-else>
-    <div v-if="!editing" class="cell-view-value" @click="editing = true">
+    <div v-if="!editing" class="cell-view-value" @click="canEdit && (editing = true)">
     <span v-if="isArrayString(localValue)">{{ parseArrayString(localValue).join(', ') }}</span>
       <span v-else-if="localValue">{{ localValue }}</span>
       <span v-else class="cell-plus-icon" title="Добавить">
@@ -128,8 +128,11 @@ import tablesService from '../../services/tablesService';
 import { useTablesWebSocket } from '../../composables/useTablesWebSocket';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
 import cacheService from '../../services/cacheService';
+import { usePermissions } from '@/composables/usePermissions';
+
 const props = defineProps(['rowId', 'column', 'cellValues']);
 const emit = defineEmits(['update']);
+const { canEdit } = usePermissions();
 
 const localValue = ref('');
 const editing = ref(false);

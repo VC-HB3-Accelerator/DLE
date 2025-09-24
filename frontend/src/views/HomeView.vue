@@ -18,7 +18,7 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <template v-if="auth.isAdmin.value">
+    <template v-if="auth.userAccessLevel.value && auth.userAccessLevel.value.hasAccess">
       <ChatInterface 
         :messages="messages" 
         :is-loading="isLoading || isConnectingWallet"

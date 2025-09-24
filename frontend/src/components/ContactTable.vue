@@ -13,10 +13,10 @@
 <template>
   <div class="contact-table-modal">
     <div class="contact-table-header">
-      <el-button type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
-      <el-button type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
-      <el-button type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
-      <el-button type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
+      <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
+      <el-button v-if="canDelete" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
+      <el-button v-if="canDelete" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
+      <el-button v-if="canEdit" type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
     <el-form :inline="true" class="filters-form" label-position="top">
@@ -74,7 +74,7 @@
     <table class="contact-table">
       <thead>
         <tr>
-          <th><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
+          <th v-if="canEdit || canDelete || canManageSettings"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
           <th>Имя</th>
           <th>Email</th>
           <th>Telegram</th>
@@ -85,7 +85,7 @@
       </thead>
       <tbody>
         <tr v-for="contact in contactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
-          <td><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
+          <td v-if="canEdit || canDelete || canManageSettings"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
           <td>{{ contact.name || '-' }}</td>
           <td>{{ contact.email || '-' }}</td>
           <td>{{ contact.telegram || '-' }}</td>
@@ -112,6 +112,7 @@ import BroadcastModal from './BroadcastModal.vue';
 import tablesService from '../services/tablesService';
 import messagesService from '../services/messagesService';
 import { useTagsWebSocket } from '../composables/useTagsWebSocket';
+import { usePermissions } from '@/composables/usePermissions';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -123,6 +124,7 @@ const contactsArray = ref([]); // теперь управляем вручную
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
+const { canEdit, canDelete, canManageSettings } = usePermissions();
 
 // Фильтры
 const filterSearch = ref('');

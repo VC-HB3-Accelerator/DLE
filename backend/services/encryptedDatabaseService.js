@@ -289,11 +289,22 @@ class EncryptedDataService {
           .map((key, index) => `${quoteReservedWord(key)} = ${allData[key]}`)
           .join(', ');
         const whereClause = Object.keys(whereConditions)
-          .map((key, index) => `${quoteReservedWord(key)} = $${paramIndex + index}`)
+          .map((key, index) => {
+            // Для WHERE условий используем зашифрованные имена колонок
+            const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
+            if (encryptedColumn) {
+              // Для зашифрованных колонок используем encrypt_text для сравнения
+              return `${quoteReservedWord(`${key}_encrypted`)} = encrypt_text($${paramIndex + index}, ${hasEncryptedFields ? '$1' : 'NULL'})`;
+            } else {
+              // Для незашифрованных колонок используем обычное сравнение
+              return `${quoteReservedWord(key)} = $${paramIndex + index}`;
+            }
+          })
           .join(' AND ');
 
         const query = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause} RETURNING *`;
         const allParams = hasEncryptedFields ? [this.encryptionKey, ...Object.values(filteredData), ...Object.values(whereConditions)] : [...Object.values(filteredData), ...Object.values(whereConditions)];
+
 
         const { rows } = await db.getQuery()(query, allParams);
         return rows[0];

@@ -27,7 +27,7 @@
           <p v-else-if="isLoadingDle">Загрузка...</p>
           <p v-else>Лог операций, события и транзакции DLE</p>
         </div>
-        <button class="close-btn" @click="router.push('/management')">×</button>
+        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
       <!-- Фильтры -->
@@ -280,6 +280,15 @@ const route = useRoute();
 
 // Получаем адрес DLE из URL параметров
 const dleAddress = ref(route.query.address || '');
+
+// Функция возврата к блокам управления
+const goBackToBlocks = () => {
+  if (dleAddress.value) {
+    router.push(`/management/dle-blocks?address=${dleAddress.value}`);
+  } else {
+    router.push('/management');
+  }
+};
 
 // Состояние
 const selectedDle = ref(null);

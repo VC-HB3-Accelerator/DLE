@@ -12,7 +12,7 @@
 
 <template>
   <BaseLayout>
-    <div v-if="!isAdmin" class="empty-table-placeholder">Нет доступа</div>
+    <div v-if="!canRead" class="empty-table-placeholder">Нет доступа</div>
     <div v-else class="contact-details-page">
     <div v-if="isLoading">Загрузка...</div>
     <div v-else-if="!contact">Контакт не найден</div>
@@ -24,7 +24,7 @@
       <div class="contact-info-block">
         <div>
           <strong>Имя:</strong>
-            <template v-if="isAdmin">
+            <template v-if="canEdit">
           <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
           <span v-if="isSavingName" class="saving">Сохранение...</span>
             </template>
@@ -41,9 +41,10 @@
             <div class="selected-langs">
               <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
                 {{ getLanguageLabel(lang) }}
-                <span class="remove-tag" @click="removeLanguage(lang)">×</span>
+                <span v-if="canEdit" class="remove-tag" @click="removeLanguage(lang)">×</span>
               </span>
               <input
+                v-if="canEdit"
                 v-model="langInput"
                 @focus="showLangDropdown = true"
                 @input="showLangDropdown = true"
@@ -52,7 +53,7 @@
                 placeholder="Добавить язык..."
               />
             </div>
-            <ul v-if="showLangDropdown" class="lang-dropdown">
+            <ul v-if="showLangDropdown && canEdit" class="lang-dropdown">
               <li
                 v-for="lang in filteredLanguages"
                 :key="lang.value"
@@ -71,15 +72,15 @@
           <strong>Теги пользователя:</strong>
           <span v-for="tag in userTags" :key="tag.id" class="user-tag">
             {{ tag.name }}
-            <span class="remove-tag" @click="removeUserTag(tag.id)">×</span>
+            <span v-if="canEdit" class="remove-tag" @click="removeUserTag(tag.id)">×</span>
           </span>
-          <button class="add-tag-btn" @click="openTagModal">Добавить тег</button>
+          <button v-if="canEdit" class="add-tag-btn" @click="openTagModal">Добавить тег</button>
         </div>
         <div class="block-user-section">
           <strong>Статус блокировки:</strong>
           <span v-if="contact.is_blocked" class="blocked-status">Заблокирован</span>
           <span v-else class="unblocked-status">Не заблокирован</span>
-          <template v-if="isAdmin">
+          <template v-if="canEdit">
             <el-button
               v-if="!contact.is_blocked"
               type="danger"
@@ -108,14 +109,14 @@
           :isLoading="isLoadingMessages"
           :attachments="chatAttachments"
           :newMessage="chatNewMessage"
-          :isAdmin="isAdmin"
+          :isAdmin="canEdit"
           @send-message="handleSendMessage"
           @update:newMessage="val => chatNewMessage = val"
           @update:attachments="val => chatAttachments = val"
           @ai-reply="handleAiReply"
         />
       </div>
-      <el-dialog v-model="showTagModal" title="Добавить тег пользователю">
+      <el-dialog v-if="canEdit" v-model="showTagModal" title="Добавить тег пользователю">
         <div v-if="allTags.length">
           <el-select
             v-model="selectedTags"
@@ -158,6 +159,7 @@ import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 import { ElMessageBox } from 'element-plus';
 import tablesService from '../../services/tablesService';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
@@ -182,6 +184,7 @@ const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
 const { isAdmin } = useAuthContext();
+const { canRead, canEdit, canDelete } = usePermissions();
 const isAiLoading = ref(false);
 const conversationId = ref(null);
 
@@ -250,6 +253,7 @@ async function loadAllTags() {
 }
 
 function openTagModal() {
+  if (!canEdit.value) return;
   showTagModal.value = true;
   loadAllTags();
 }
@@ -289,6 +293,7 @@ function getLanguageLabel(val) {
   return found ? found.label : val;
 }
 function addLanguage(lang) {
+  if (!canEdit.value) return;
   if (!selectedLanguages.value.includes(lang)) {
     selectedLanguages.value.push(lang);
     saveLanguages();
@@ -297,14 +302,17 @@ function addLanguage(lang) {
   showLangDropdown.value = false;
 }
 function addLanguageFromInput() {
+  if (!canEdit.value) return;
   const found = filteredLanguages.value[0];
   if (found) addLanguage(found.value);
 }
 function removeLanguage(lang) {
+  if (!canEdit.value) return;
   selectedLanguages.value = selectedLanguages.value.filter(l => l !== lang);
   saveLanguages();
 }
 function saveLanguages() {
+  if (!canEdit.value) return;
   isSavingLangs.value = true;
   contactsService.updateContact(contact.value.id, { language: selectedLanguages.value })
     .then(() => reloadContact())
@@ -529,6 +537,7 @@ async function unblockUser() {
 
 // --- Теги ---
 async function createTag() {
+  if (!canEdit.value) return;
   if (!newTagName.value) return;
   const tableId = await ensureTagsTable();
   const table = await tablesService.getTable(tableId);
@@ -588,6 +597,7 @@ async function loadUserTags() {
 
 // После добавления/удаления тегов всегда обновляем userTags
 async function addTagsToUser() {
+  if (!canEdit.value) return;
   if (!contact.value || !contact.value.id) return;
   if (!selectedTags.value || selectedTags.value.length === 0) return;
   try {
@@ -601,6 +611,7 @@ async function addTagsToUser() {
 }
 
 async function removeUserTag(tagId) {
+  if (!canEdit.value) return;
   if (!contact.value || !contact.value.id) return;
   try {
     await contactsService.removeTagFromContact(contact.value.id, tagId);

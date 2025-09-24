@@ -49,11 +49,11 @@
         </div>
       </div>
 
-      <!-- Форма деплоя модуля во всех сетях -->
-      <div class="deploy-form">
+      <!-- Форма деплоя модуля администратором -->
+      <div v-if="canManageSettings" class="deploy-form">
         <div class="form-header">
-          <h3>🌐 Деплой DLEReader во всех сетях</h3>
-          <p>Деплой API модуля для чтения данных во всех 4 сетях одновременно</p>
+          <h3>🔧 Деплой DLEReader администратором</h3>
+          <p>Администратор деплоит модуль, затем создает предложение для добавления в DLE</p>
         </div>
         
         <div class="form-content">
@@ -85,21 +85,38 @@
             <h4>⚙️ Настройки DLEReader:</h4>
             
             <div class="settings-form">
-              <div class="form-group">
-                <label for="chainId">ID сети:</label>
-                <select 
-                  id="chainId" 
-                  v-model="moduleSettings.chainId" 
-                  class="form-control"
-                  required
-                >
-                  <option value="11155111">Sepolia (11155111)</option>
-                  <option value="17000">Holesky (17000)</option>
-                  <option value="421614">Arbitrum Sepolia (421614)</option>
-                  <option value="84532">Base Sepolia (84532)</option>
-                </select>
-                <small class="form-help">ID сети для деплоя модуля</small>
+              <!-- Поля администратора -->
+              <div class="admin-section">
+                <h5>🔐 Настройки администратора:</h5>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="adminPrivateKey">Приватный ключ администратора:</label>
+                    <input 
+                      type="password" 
+                      id="adminPrivateKey" 
+                      v-model="moduleSettings.adminPrivateKey" 
+                      class="form-control"
+                      placeholder="0x..."
+                      required
+                    >
+                    <small class="form-help">Приватный ключ для деплоя модуля (администратор платит газ)</small>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="etherscanApiKey">Etherscan API ключ:</label>
+                    <input 
+                      type="text" 
+                      id="etherscanApiKey" 
+                      v-model="moduleSettings.etherscanApiKey" 
+                      class="form-control"
+                      placeholder="YourAPIKey..."
+                    >
+                    <small class="form-help">API ключ для автоматической верификации контрактов</small>
+                  </div>
+                </div>
               </div>
+              
               
               <div class="simple-info">
                 <h5>📋 Информация о DLEReader:</h5>
@@ -122,11 +139,16 @@
             <button 
               class="btn btn-primary btn-large deploy-module" 
               @click="deployDLEReader"
-              :disabled="isDeploying || !dleAddress"
+              :disabled="isDeploying || !dleAddress || !isFormValid"
             >
               <i class="fas fa-rocket" :class="{ 'fa-spin': isDeploying }"></i>
               {{ isDeploying ? 'Деплой модуля...' : 'Деплой DLEReader' }}
             </button>
+            
+            <div v-if="!isFormValid && !isDeploying" class="form-validation-info">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>Заполните приватный ключ и API ключ для деплоя</span>
+            </div>
             
             <div v-if="deploymentProgress" class="deployment-progress">
               <div class="progress-info">
@@ -141,14 +163,26 @@
         </div>
       </div>
 
+      <!-- Сообщение для пользователей без прав доступа -->
+      <div v-if="!canManageSettings" class="no-access-message">
+        <div class="message-content">
+          <h3>🔒 Нет прав доступа</h3>
+          <p>У вас нет прав для деплоя смарт-контрактов. Только пользователи с ролью Editor могут выполнять деплой.</p>
+          <button class="btn btn-secondary" @click="router.push('/management/modules')">
+            ← Вернуться к модулям
+          </button>
+        </div>
+      </div>
+
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../../components/BaseLayout.vue';
+import { usePermissions } from '@/composables/usePermissions';
 
 // Props
 const props = defineProps({
@@ -162,6 +196,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { canEdit, canManageSettings } = usePermissions();
 
 // Состояние
 const isLoading = ref(false);
@@ -171,12 +206,23 @@ const deploymentProgress = ref(null);
 
 // Настройки модуля
 const moduleSettings = ref({
-  // Единственный параметр - ID сети
-  chainId: 11155111
+  // Поля администратора
+  adminPrivateKey: '',
+  etherscanApiKey: ''
+});
+
+// Проверка валидности формы
+const isFormValid = computed(() => {
+  return moduleSettings.value.adminPrivateKey && moduleSettings.value.etherscanApiKey;
 });
 
 // Функция деплоя DLEReader
 async function deployDLEReader() {
+  if (!canManageSettings.value) {
+    alert('У вас нет прав для деплоя смарт-контрактов');
+    return;
+  }
+  
   try {
     isDeploying.value = true;
     deploymentProgress.value = {
@@ -186,8 +232,8 @@ async function deployDLEReader() {
     
     console.log('[DLEReaderDeployView] Начинаем деплой DLEReader для DLE:', dleAddress.value);
     
-    // Вызываем API для деплоя модуля во всех сетях
-    const response = await fetch('/api/dle-modules/deploy-reader', {
+    // Вызываем API для деплоя модуля администратором
+    const response = await fetch('/api/dle-modules/deploy-reader-admin', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -195,9 +241,11 @@ async function deployDLEReader() {
       body: JSON.stringify({
         dleAddress: dleAddress.value,
         moduleType: 'reader',
+        adminPrivateKey: moduleSettings.value.adminPrivateKey,
+        etherscanApiKey: moduleSettings.value.etherscanApiKey,
         settings: {
-          // Единственный параметр - ID сети
-          chainId: moduleSettings.value.chainId
+          // Используем настройки по умолчанию
+          useDefaultSettings: true
         }
       })
     });
@@ -217,12 +265,31 @@ async function deployDLEReader() {
         percentage: 100
       };
       
-      alert('✅ Деплой DLEReader запущен во всех сетях!');
+      // Показываем детальную информацию о деплое
+      const deployInfo = result.data || {};
+      const deployedAddresses = deployInfo.addresses || [];
+      
+      let successMessage = '✅ DLEReader успешно задеплоен!\n\n';
+      successMessage += `📊 Детали деплоя:\n`;
+      successMessage += `• DLE: ${dleAddress.value}\n`;
+      successMessage += `• Тип модуля: DLEReader\n`;
+      successMessage += `• Адрес модуля: ${deployInfo.moduleAddress || 'Не указан'}\n`;
+      
+      if (deployedAddresses.length > 0) {
+        successMessage += `\n🌐 Задеплоенные адреса:\n`;
+        deployedAddresses.forEach((addr, index) => {
+          successMessage += `${index + 1}. ${addr.network}: ${addr.address}\n`;
+        });
+      }
+      
+      successMessage += `\n📝 Следующий шаг: Создайте предложение для добавления модуля в DLE через governance.`;
+      
+      alert(successMessage);
       
       // Перенаправляем обратно к модулям
       setTimeout(() => {
         router.push(`/management/modules?address=${dleAddress.value}`);
-      }, 2000);
+      }, 3000);
       
     } else {
       throw new Error(result.error || 'Неизвестная ошибка');
@@ -440,6 +507,22 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
+/* Секция администратора */
+.admin-section {
+  margin-bottom: 20px;
+  padding: 20px;
+  background: #fff3cd;
+  border-radius: var(--radius-sm);
+  border: 1px solid #ffeaa7;
+}
+
+.admin-section h5 {
+  margin: 0 0 15px 0;
+  color: #856404;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
 /* Простая информация */
 .simple-info {
   margin-top: 20px;
@@ -581,5 +664,44 @@ onMounted(() => {
   font-size: 12px;
   color: #666;
   font-family: 'Courier New', monospace;
+}
+
+/* Сообщение об отсутствии прав доступа */
+.no-access-message {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: var(--radius-md);
+  padding: 30px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.message-content h3 {
+  color: #856404;
+  margin-bottom: 15px;
+  font-size: 1.4em;
+}
+
+.message-content p {
+  color: #856404;
+  margin-bottom: 20px;
+  font-size: 1.1em;
+  line-height: 1.5;
+}
+
+.message-content .btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.message-content .btn:hover {
+  background: #5a6268;
 }
 </style>

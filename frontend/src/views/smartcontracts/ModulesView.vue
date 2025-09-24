@@ -27,7 +27,7 @@
           <p v-else-if="isLoadingDle">Загрузка...</p>
           <p v-else>DLE не выбран</p>
         </div>
-        <button class="close-btn" @click="router.push('/management')">×</button>
+        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
       <!-- Информация о модулях -->
@@ -664,6 +664,20 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+
+// Получаем адрес DLE из URL
+const dleAddress = computed(() => {
+  return route.query.address;
+});
+
+// Функция возврата к блокам управления
+const goBackToBlocks = () => {
+  if (dleAddress.value) {
+    router.push(`/management/dle-blocks?address=${dleAddress.value}`);
+  } else {
+    router.push('/management');
+  }
+};
 
 // Состояние
 const selectedDle = ref(null);

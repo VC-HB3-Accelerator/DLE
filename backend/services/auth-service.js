@@ -466,6 +466,191 @@ class AuthService {
     }
   }
 
+  /**
+   * Определяет уровень доступа пользователя на основе количества токенов
+   * @param {string} address - Адрес кошелька
+   * @returns {Promise<{level: string, tokenCount: number, hasAccess: boolean}>}
+   */
+  async getUserAccessLevel(address) {
+    if (!address) {
+      return { level: 'user', tokenCount: 0, hasAccess: false };
+    }
+
+    logger.info(`Checking access level for address: ${address}`);
+
+    try {
+      // Получаем токены из базы данных напрямую (как в checkAdminRole)
+      const fs = require('fs');
+      const path = require('path');
+      let encryptionKey = 'default-key';
+
+      try {
+        const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
+        if (fs.existsSync(keyPath)) {
+          encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
+        }
+      } catch (keyError) {
+        console.error('Error reading encryption key:', keyError);
+      }
+
+      // Получаем токены из базы с расшифровкой
+      const tokensResult = await db.getQuery()(
+        'SELECT id, min_balance, readonly_threshold, editor_threshold, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+        [encryptionKey]
+      );
+      const tokens = tokensResult.rows;
+
+      // Получаем RPC провайдеры
+      const rpcProvidersResult = await db.getQuery()(
+        'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
+        [encryptionKey]
+      );
+      const rpcProviders = rpcProvidersResult.rows;
+      
+      const rpcMap = {};
+      for (const rpc of rpcProviders) {
+        rpcMap[rpc.network_id] = rpc.rpc_url;
+      }
+
+      // Получаем балансы токенов из блокчейна
+      const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
+      const tokenBalances = [];
+
+      for (const token of tokens) {
+        const rpcUrl = rpcMap[token.network];
+        if (!rpcUrl) continue;
+        
+        try {
+          const provider = new ethers.JsonRpcProvider(rpcUrl);
+          const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
+          
+          // Получаем баланс с таймаутом
+          const balancePromise = tokenContract.balanceOf(address);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 5000) // Увеличиваем таймаут до 5 секунд
+          );
+          
+          const rawBalance = await Promise.race([balancePromise, timeoutPromise]);
+          const balance = ethers.formatUnits(rawBalance, 18);
+          
+          tokenBalances.push({
+            network: token.network,
+            tokenAddress: token.address,
+            tokenName: token.name,
+            symbol: '',
+            balance,
+            minBalance: token.min_balance,
+            readonlyThreshold: token.readonly_threshold || 1,
+            editorThreshold: token.editor_threshold || 2,
+          });
+          
+          logger.info(`[getUserAccessLevel] Token balance for ${token.name} (${token.address}): ${balance}`);
+        } catch (error) {
+          logger.error(`[getUserAccessLevel] Error getting balance for ${token.name} (${token.address}):`, error.message);
+          // Добавляем токен с нулевым балансом
+          tokenBalances.push({
+            network: token.network,
+            tokenAddress: token.address,
+            tokenName: token.name,
+            symbol: '',
+            balance: '0',
+            minBalance: token.min_balance,
+            readonlyThreshold: token.readonly_threshold || 1,
+            editorThreshold: token.editor_threshold || 2,
+          });
+        }
+      }
+      
+      if (!tokenBalances || !Array.isArray(tokenBalances)) {
+        logger.warn(`No token balances found for address: ${address}`);
+        return { level: 'user', tokenCount: 0, hasAccess: false };
+      }
+
+      // Подсчитываем сумму токенов с достаточным балансом
+      let validTokenCount = 0;
+      const validTokens = [];
+
+      for (const token of tokenBalances) {
+        const balance = parseFloat(token.balance || '0');
+        const minBalance = parseFloat(token.minBalance || '0');
+        
+        if (balance >= minBalance) {
+          validTokenCount += balance; // Суммируем баланс токенов, а не количество сетей
+          validTokens.push({
+            name: token.name,
+            network: token.network,
+            balance: balance,
+            minBalance: minBalance
+          });
+        }
+      }
+
+      logger.info(`Token validation for ${address}:`, {
+        totalTokens: tokenBalances.length,
+        validTokens: validTokenCount,
+        validTokenDetails: validTokens
+      });
+
+      // Определяем уровень доступа на основе настроек токенов
+      let accessLevel = 'user';
+      let hasAccess = false;
+      
+      // Получаем настройки порогов из токенов (используем самые низкие требования для максимального доступа)
+      let readonlyThreshold = Infinity;
+      let editorThreshold = Infinity;
+      
+      if (tokenBalances.length > 0) {
+        // Находим самые низкие пороги среди всех токенов
+        for (const token of tokenBalances) {
+          const tokenReadonlyThreshold = token.readonlyThreshold || 1;
+          const tokenEditorThreshold = token.editorThreshold || 2;
+          
+          if (tokenReadonlyThreshold < readonlyThreshold) {
+            readonlyThreshold = tokenReadonlyThreshold;
+          }
+          if (tokenEditorThreshold < editorThreshold) {
+            editorThreshold = tokenEditorThreshold;
+          }
+        }
+        
+        // Если не нашли токены с порогами, используем дефолтные значения
+        if (readonlyThreshold === Infinity) readonlyThreshold = 1;
+        if (editorThreshold === Infinity) editorThreshold = 2;
+        
+        logger.info(`[AuthService] Определены пороги доступа: readonly=${readonlyThreshold}, editor=${editorThreshold} (из ${tokenBalances.length} токенов)`);
+      } else {
+        readonlyThreshold = 1;
+        editorThreshold = 2;
+      }
+
+      if (validTokenCount >= editorThreshold) {
+        // Достаточно токенов для полных прав редактора
+        accessLevel = 'editor';
+        hasAccess = true;
+      } else if (validTokenCount > 0) {
+        // Есть токены, но недостаточно для редактора - права только на чтение
+        accessLevel = 'readonly';
+        hasAccess = true;
+      } else {
+        // Нет токенов - обычный пользователь
+        accessLevel = 'user';
+        hasAccess = false;
+      }
+
+      logger.info(`Access level determined for ${address}: ${accessLevel} (${validTokenCount} tokens)`);
+
+      return {
+        level: accessLevel,
+        tokenCount: validTokenCount,
+        hasAccess: hasAccess,
+        validTokens: validTokens
+      };
+    } catch (error) {
+      logger.error(`Error in getUserAccessLevel: ${error.message}`);
+      return { level: 'user', tokenCount: 0, hasAccess: false };
+    }
+  }
+
   // Добавляем псевдоним функции checkAdminRole для обратной совместимости
   async checkAdminTokens(address) {
     if (!address) return false;
@@ -473,9 +658,11 @@ class AuthService {
     logger.info(`Checking admin tokens for address: ${address}`);
 
     try {
-      const isAdmin = await checkAdminRole(address);
+      // Используем новую функцию для определения уровня доступа
+      const accessLevel = await this.getUserAccessLevel(address);
+      const isAdmin = accessLevel.hasAccess; // Любой доступ выше 'user' считается админским
 
-      // Обновляем роль пользователя в базе данных, если есть админские токены
+      // Обновляем роль пользователя в базе данных
       if (isAdmin) {
         try {
           // Получаем ключ шифрования
@@ -503,16 +690,17 @@ class AuthService {
 
           if (userResult.rows.length > 0) {
             const userId = userResult.rows[0].id;
-            // Обновляем роль пользователя
-            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
-            logger.info(`Updated user ${userId} role to admin based on token holdings`);
+            // Обновляем роль пользователя с учетом уровня доступа
+            const role = accessLevel.level;
+            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+            logger.info(`Updated user ${userId} role to ${role} based on token holdings (${accessLevel.tokenCount} tokens)`);
           }
         } catch (error) {
           logger.error('Error updating user role:', error);
           // Продолжаем выполнение, даже если обновление роли не удалось
         }
       } else {
-        // Если пользователь не является администратором, сбрасываем роль на "user", если она была "admin"
+        // Если пользователь не имеет доступа, сбрасываем роль на "user"
         try {
           // Получаем ключ шифрования
           const fs = require('fs');
@@ -536,10 +724,10 @@ class AuthService {
             [address.toLowerCase(), encryptionKey]
           );
 
-          if (userResult.rows.length > 0 && userResult.rows[0].role === 'admin') {
+          if (userResult.rows.length > 0 && userResult.rows[0].role !== 'user') {
             const userId = userResult.rows[0].id;
             await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', userId]);
-            logger.info(`Reset user ${userId} role from admin to user (no tokens found)`);
+            logger.info(`Reset user ${userId} role to user (no valid tokens found)`);
           }
         } catch (error) {
           logger.error('Error updating user role:', error);
@@ -594,20 +782,18 @@ class AuthService {
           const address = user.address;
           const currentRole = user.role;
           
-          logger.info(`Rechecking admin status for user ${user.id} with address ${address}`);
+          logger.info(`Rechecking access level for user ${user.id} with address ${address}`);
           
-          // Проверяем баланс токенов
-          const isAdmin = await checkAdminRole(address);
-          
-          // Определяем новую роль
-          const newRole = isAdmin ? 'admin' : 'user';
+          // Получаем новый уровень доступа
+          const accessLevel = await this.getUserAccessLevel(address);
+          const newRole = accessLevel.hasAccess ? accessLevel.level : 'user';
           
           // Обновляем роль только если она изменилась
           if (currentRole !== newRole) {
             await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, user.id]);
-            logger.info(`Updated user ${user.id} role from ${currentRole} to ${newRole} (address: ${address})`);
+            logger.info(`Updated user ${user.id} role from ${currentRole} to ${newRole} (address: ${address}, tokens: ${accessLevel.tokenCount})`);
           } else {
-            logger.info(`User ${user.id} role unchanged: ${currentRole} (address: ${address})`);
+            logger.info(`User ${user.id} role unchanged: ${currentRole} (address: ${address}, tokens: ${accessLevel.tokenCount})`);
           }
           
         } catch (userError) {

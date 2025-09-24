@@ -49,11 +49,11 @@
         </div>
       </div>
 
-      <!-- Форма деплоя модуля во всех сетях -->
-      <div class="deploy-form">
+      <!-- Форма деплоя модуля администратором -->
+      <div v-if="canManageSettings" class="deploy-form">
         <div class="form-header">
           <h3>🌐 Деплой TreasuryModule во всех сетях</h3>
-          <p>Деплой модуля казначейства во всех 4 сетях одновременно</p>
+          <p>Администратор деплоит модуль во всех 4 сетях одновременно, затем создает предложение для добавления в DLE</p>
         </div>
         
         <div class="form-content">
@@ -85,203 +85,52 @@
             <h4>⚙️ Настройки TreasuryModule:</h4>
             
             <div class="settings-form">
-              <div class="form-row">
-                 <div class="form-group">
-                   <label for="emergencyAdmin">Адрес экстренного администратора:</label>
-                   <input 
-                     type="text" 
-                     id="emergencyAdmin" 
-                     v-model="moduleSettings.emergencyAdmin" 
-                     class="form-control"
-                     placeholder="0x..."
-                     required
-                   >
-                   <small class="form-help">Адрес экстренного администратора для управления модулем</small>
-                 </div>
-                 
-                 <div class="form-group">
-                   <label for="chainId">ID сети:</label>
-                   <select 
-                     id="chainId" 
-                     v-model="moduleSettings.chainId" 
-                     class="form-control"
-                     required
-                   >
-                     <option value="11155111">Sepolia (11155111)</option>
-                     <option value="17000">Holesky (17000)</option>
-                     <option value="421614">Arbitrum Sepolia (421614)</option>
-                     <option value="84532">Base Sepolia (84532)</option>
-                   </select>
-                   <small class="form-help">ID сети для деплоя модуля</small>
-                 </div>
-              </div>
-              
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="defaultDelay">Стандартная задержка (часы):</label>
-                  <input 
-                    type="number" 
-                    id="defaultDelay" 
-                    v-model="moduleSettings.defaultDelay" 
-                    class="form-control"
-                    min="1"
-                    max="720"
-                    placeholder="24"
-                  >
-                  <small class="form-help">Стандартная задержка для операций (1-720 часов)</small>
-                </div>
-                
-                <div class="form-group">
-                  <label for="emergencyDelay">Экстренная задержка (минуты):</label>
-                  <input 
-                    type="number" 
-                    id="emergencyDelay" 
-                    v-model="moduleSettings.emergencyDelay" 
-                    class="form-control"
-                    min="5"
-                    max="1440"
-                    placeholder="30"
-                  >
-                  <small class="form-help">Экстренная задержка для критических операций (5-1440 минут)</small>
-                </div>
-              </div>
-              
-              <div class="form-group">
-                <label for="supportedTokens">Поддерживаемые токены (адреса через запятую):</label>
-                <textarea 
-                  id="supportedTokens" 
-                  v-model="moduleSettings.supportedTokens" 
-                  class="form-control" 
-                  rows="3"
-                  placeholder="0x1234..., 0x5678..., 0x9abc..."
-                ></textarea>
-                <small class="form-help">Адреса ERC20 токенов, которые будет поддерживать казначейство (через запятую)</small>
-              </div>
-              
-              <div class="form-group">
-                <label for="gasPaymentTokens">Токены для оплаты газа (адреса через запятую):</label>
-                <textarea 
-                  id="gasPaymentTokens" 
-                  v-model="moduleSettings.gasPaymentTokens" 
-                  class="form-control" 
-                  rows="2"
-                  placeholder="0x1234..., 0x5678..."
-                ></textarea>
-                <small class="form-help">Токены, которыми можно оплачивать газ (через запятую)</small>
-              </div>
-              
-              <!-- Дополнительные настройки казны -->
-              <div class="advanced-settings">
-                <h5>🔧 Дополнительные настройки казны:</h5>
-                
-                 <div class="form-row">
-                   <div class="form-group">
-                     <label for="paymasterAddress">Адрес Paymaster:</label>
-                     <input 
-                       type="text" 
-                       id="paymasterAddress" 
-                       v-model="moduleSettings.paymasterAddress" 
-                       class="form-control"
-                       placeholder="0x..."
-                     >
-                     <small class="form-help">Адрес Paymaster для ERC-4337 (оплата газа любым токеном)</small>
-                   </div>
-                   
-                   <div class="form-group">
-                     <label for="maxBatchTransfers">Максимум batch переводов:</label>
-                     <input 
-                       type="number" 
-                       id="maxBatchTransfers" 
-                       v-model="moduleSettings.maxBatchTransfers" 
-                       class="form-control"
-                       min="1"
-                       max="100"
-                       placeholder="50"
-                     >
-                     <small class="form-help">Максимальное количество переводов в batch операции (1-100)</small>
-                   </div>
-                 </div>
-                
-                 <div class="form-row">
-                   <div class="form-group">
-                     <label for="gasTokenRates">Курсы токенов для газа (JSON формат):</label>
-                     <textarea 
-                       id="gasTokenRates" 
-                       v-model="moduleSettings.gasTokenRates" 
-                       class="form-control" 
-                       rows="3"
-                       placeholder='{"0x1234...": "1000000000000000000", "0x5678...": "2000000000000000000"}'
-                     ></textarea>
-                     <small class="form-help">Курсы обмена токенов на нативную монету (JSON формат)</small>
-                   </div>
-                   
-                   <div class="form-group">
-                     <label for="emergencyThreshold">Порог экстренных операций (ETH):</label>
-                     <input 
-                       type="number" 
-                       id="emergencyThreshold" 
-                       v-model="moduleSettings.emergencyThreshold" 
-                       class="form-control"
-                       min="0"
-                       step="0.001"
-                       placeholder="1.0"
-                     >
-                     <small class="form-help">Порог для экстренных операций в ETH</small>
-                   </div>
-                 </div>
-                
-                <div class="form-group">
-                  <label for="initialTokens">Начальные токены для добавления (JSON формат):</label>
-                  <textarea 
-                    id="initialTokens" 
-                    v-model="moduleSettings.initialTokens" 
-                    class="form-control" 
-                    rows="4"
-                    placeholder='[{"address": "0x1234...", "symbol": "USDC", "decimals": 6}, {"address": "0x5678...", "symbol": "USDT", "decimals": 6}]'
-                  ></textarea>
-                  <small class="form-help">Токены для автоматического добавления при деплое (JSON массив)</small>
-                </div>
+              <!-- Поля администратора -->
+              <div class="admin-section">
+                <h5>🔐 Настройки администратора:</h5>
                 
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="autoRefreshBalances">Автообновление балансов:</label>
-                    <select 
-                      id="autoRefreshBalances" 
-                      v-model="moduleSettings.autoRefreshBalances" 
+                    <label for="adminPrivateKey">Приватный ключ администратора:</label>
+                    <input 
+                      type="password" 
+                      id="adminPrivateKey" 
+                      v-model="moduleSettings.adminPrivateKey" 
                       class="form-control"
+                      placeholder="0x..."
+                      required
                     >
-                      <option value="true">Включено</option>
-                      <option value="false">Отключено</option>
-                    </select>
-                    <small class="form-help">Автоматическое обновление балансов токенов</small>
+                    <small class="form-help">Приватный ключ для деплоя модуля (администратор платит газ)</small>
                   </div>
                   
                   <div class="form-group">
-                    <label for="batchTransferEnabled">Batch переводы включены:</label>
-                    <select 
-                      id="batchTransferEnabled" 
-                      v-model="moduleSettings.batchTransferEnabled" 
+                    <label for="etherscanApiKey">Etherscan API ключ:</label>
+                    <input 
+                      type="text" 
+                      id="etherscanApiKey" 
+                      v-model="moduleSettings.etherscanApiKey" 
                       class="form-control"
+                      placeholder="YourAPIKey..."
                     >
-                      <option value="true">Включено</option>
-                      <option value="false">Отключено</option>
-                    </select>
-                    <small class="form-help">Разрешить batch операции переводов</small>
+                    <small class="form-help">API ключ для автоматической верификации контрактов</small>
                   </div>
                 </div>
-                
-                <div class="form-group">
-                  <label for="treasuryDescription">Описание казны:</label>
-                  <textarea 
-                    id="treasuryDescription" 
-                    v-model="moduleSettings.treasuryDescription" 
-                    class="form-control" 
-                    rows="2"
-                    placeholder="Описание казны DLE для управления финансами..."
-                  ></textarea>
-                  <small class="form-help">Описание казны для документации</small>
+              </div>
+              
+              <div class="simple-info">
+                <h5>📋 Информация о TreasuryModule:</h5>
+                <div class="info-text">
+                  <p><strong>TreasuryModule</strong> будет задеплоен с настройками по умолчанию:</p>
+                  <ul>
+                    <li>✅ Поддержка ETH и основных ERC20 токенов</li>
+                    <li>✅ Стандартные задержки для безопасности</li>
+                    <li>✅ Автоматическая настройка для всех сетей</li>
+                    <li>✅ Готовые настройки безопасности</li>
+                  </ul>
+                  <p><em>После деплоя настройки можно будет изменить через governance.</em></p>
                 </div>
               </div>
+              
             </div>
           </div>
           
@@ -290,11 +139,16 @@
             <button 
               class="btn btn-primary btn-large deploy-module" 
               @click="deployTreasuryModule"
-              :disabled="isDeploying || !dleAddress"
+              :disabled="isDeploying || !dleAddress || !isFormValid"
             >
               <i class="fas fa-rocket" :class="{ 'fa-spin': isDeploying }"></i>
-              {{ isDeploying ? 'Деплой модуля...' : 'Деплой TreasuryModule' }}
+              {{ isDeploying ? 'Деплой во всех сетях...' : 'Деплой TreasuryModule во всех сетях' }}
             </button>
+            
+            <div v-if="!isFormValid && !isDeploying" class="form-validation-info">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>Заполните приватный ключ и API ключ для деплоя</span>
+            </div>
             
             <div v-if="deploymentProgress" class="deployment-progress">
               <div class="progress-info">
@@ -309,14 +163,26 @@
         </div>
       </div>
 
+      <!-- Сообщение для пользователей без прав доступа -->
+      <div v-if="!canManageSettings" class="no-access-message">
+        <div class="message-content">
+          <h3>🔒 Нет прав доступа</h3>
+          <p>У вас нет прав для деплоя смарт-контрактов. Только пользователи с ролью Editor могут выполнять деплой.</p>
+          <button class="btn btn-secondary" @click="router.push('/management/modules')">
+            ← Вернуться к модулям
+          </button>
+        </div>
+      </div>
+
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, onMounted } from 'vue';
+import { defineProps, defineEmits, ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../../components/BaseLayout.vue';
+import { usePermissions } from '@/composables/usePermissions';
 
 // Определяем props
 const props = defineProps({
@@ -331,6 +197,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { canEdit, canManageSettings } = usePermissions();
 
 // Состояние
 const isLoading = ref(false);
@@ -340,29 +207,23 @@ const deploymentProgress = ref(null);
 
 // Настройки модуля
 const moduleSettings = ref({
-  // Основные параметры
-  emergencyAdmin: '',
-  chainId: 11155111,
-  defaultDelay: 24, // hours
-  emergencyDelay: 30, // minutes
-  
-  // Токены
-  supportedTokens: '',
-  gasPaymentTokens: '',
-  initialTokens: '',
-  
-  // Дополнительные настройки
-  paymasterAddress: '',
-  maxBatchTransfers: 50,
-  gasTokenRates: '',
-  emergencyThreshold: 1.0,
-  autoRefreshBalances: 'true',
-  batchTransferEnabled: 'true',
-  treasuryDescription: ''
+  // Поля администратора
+  adminPrivateKey: '',
+  etherscanApiKey: ''
+});
+
+// Проверка валидности формы
+const isFormValid = computed(() => {
+  return moduleSettings.value.adminPrivateKey && moduleSettings.value.etherscanApiKey;
 });
 
 // Функция деплоя TreasuryModule
 async function deployTreasuryModule() {
+  if (!canManageSettings.value) {
+    alert('У вас нет прав для деплоя смарт-контрактов');
+    return;
+  }
+  
   try {
     isDeploying.value = true;
     deploymentProgress.value = {
@@ -372,8 +233,8 @@ async function deployTreasuryModule() {
     
     console.log('[TreasuryModuleDeployView] Начинаем деплой TreasuryModule для DLE:', dleAddress.value);
     
-    // Вызываем API для деплоя модуля во всех сетях
-    const response = await fetch('/api/dle-modules/deploy-treasury', {
+    // Вызываем API для деплоя модуля администратором
+    const response = await fetch('/api/dle-modules/deploy-treasury-admin', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -381,26 +242,11 @@ async function deployTreasuryModule() {
       body: JSON.stringify({
         dleAddress: dleAddress.value,
         moduleType: 'treasury',
+        adminPrivateKey: moduleSettings.value.adminPrivateKey,
+        etherscanApiKey: moduleSettings.value.etherscanApiKey,
         settings: {
-          // Основные параметры
-          emergencyAdmin: moduleSettings.value.emergencyAdmin,
-          chainId: moduleSettings.value.chainId,
-          defaultDelay: moduleSettings.value.defaultDelay,
-          emergencyDelay: moduleSettings.value.emergencyDelay,
-          
-          // Токены
-          supportedTokens: moduleSettings.value.supportedTokens.split(',').map(addr => addr.trim()).filter(addr => addr),
-          gasPaymentTokens: moduleSettings.value.gasPaymentTokens.split(',').map(addr => addr.trim()).filter(addr => addr),
-          initialTokens: moduleSettings.value.initialTokens ? JSON.parse(moduleSettings.value.initialTokens) : [],
-          
-          // Дополнительные настройки
-          paymasterAddress: moduleSettings.value.paymasterAddress,
-          maxBatchTransfers: parseInt(moduleSettings.value.maxBatchTransfers),
-          gasTokenRates: moduleSettings.value.gasTokenRates ? JSON.parse(moduleSettings.value.gasTokenRates) : {},
-          emergencyThreshold: parseFloat(moduleSettings.value.emergencyThreshold),
-          autoRefreshBalances: moduleSettings.value.autoRefreshBalances === 'true',
-          batchTransferEnabled: moduleSettings.value.batchTransferEnabled === 'true',
-          treasuryDescription: moduleSettings.value.treasuryDescription
+          // Используем настройки по умолчанию
+          useDefaultSettings: true
         }
       })
     });
@@ -420,12 +266,31 @@ async function deployTreasuryModule() {
         percentage: 100
       };
       
-      alert('✅ Деплой TreasuryModule запущен во всех сетях!');
+      // Показываем детальную информацию о деплое
+      const deployInfo = result.data || {};
+      const deployedAddresses = deployInfo.addresses || [];
+      
+      let successMessage = '✅ TreasuryModule успешно задеплоен во всех сетях!\n\n';
+      successMessage += `📊 Детали деплоя:\n`;
+      successMessage += `• DLE: ${dleAddress.value}\n`;
+      successMessage += `• Тип модуля: TreasuryModule\n`;
+      successMessage += `• Сети: Sepolia, Holesky, Arbitrum Sepolia, Base Sepolia\n`;
+      
+      if (deployedAddresses.length > 0) {
+        successMessage += `\n🌐 Задеплоенные адреса:\n`;
+        deployedAddresses.forEach((addr, index) => {
+          successMessage += `${index + 1}. ${addr.network}: ${addr.address}\n`;
+        });
+      }
+      
+      successMessage += `\n📝 Следующий шаг: Создайте предложение для добавления модуля в DLE через governance.`;
+      
+      alert(successMessage);
       
       // Перенаправляем обратно к модулям
       setTimeout(() => {
         router.push(`/management/modules?address=${dleAddress.value}`);
-      }, 2000);
+      }, 3000);
       
     } else {
       throw new Error(result.error || 'Неизвестная ошибка');
@@ -581,6 +446,176 @@ onMounted(() => {
   font-size: 12px;
   color: #666;
   line-height: 1.4;
+}
+
+/* Секция администратора */
+.admin-section {
+  margin-bottom: 20px;
+  padding: 20px;
+  background: #fff3cd;
+  border-radius: var(--radius-sm);
+  border: 1px solid #ffeaa7;
+}
+
+.admin-section h5 {
+  margin: 0 0 15px 0;
+  color: #856404;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Простая информация */
+.simple-info {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+  border: 1px solid #e9ecef;
+}
+
+.simple-info h5 {
+  margin: 0 0 15px 0;
+  color: var(--color-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.info-text {
+  color: #666;
+  line-height: 1.6;
+}
+
+.info-text ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.info-text li {
+  margin-bottom: 5px;
+}
+
+.token-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.token-input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.token-input {
+  width: 100%;
+  padding-right: 40px;
+}
+
+.token-input.is-valid {
+  border-color: #28a745;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
+}
+
+.token-input.is-invalid {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
+}
+
+.validation-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 10px;
+}
+
+.validation-icon.valid {
+  background: #28a745;
+  color: white;
+}
+
+.validation-icon.invalid {
+  background: #dc3545;
+  color: white;
+}
+
+.validation-icon.loading {
+  background: #6c757d;
+  color: white;
+}
+
+.remove-token {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dc3545;
+  border: none;
+  color: white;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.remove-token:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+.remove-token:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.add-token {
+  margin-top: 15px;
+  width: 100%;
+  padding: 12px 20px;
+  border: 2px dashed #28a745;
+  background: #f8f9fa;
+  color: #28a745;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.add-token:hover {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+}
+
+/* Сообщение валидации */
+.form-validation-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 15px;
+  padding: 10px 15px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: var(--radius-sm);
+  color: #856404;
+  font-size: 14px;
+}
+
+.form-validation-info i {
+  color: #f39c12;
 }
 
 /* Дополнительные настройки */
@@ -795,6 +830,45 @@ onMounted(() => {
 .placeholder-content p {
   color: #666;
   margin: 0;
+}
+
+/* Сообщение об отсутствии прав доступа */
+.no-access-message {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: var(--radius-md);
+  padding: 30px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.message-content h3 {
+  color: #856404;
+  margin-bottom: 15px;
+  font-size: 1.4em;
+}
+
+.message-content p {
+  color: #856404;
+  margin-bottom: 20px;
+  font-size: 1.1em;
+  line-height: 1.5;
+}
+
+.message-content .btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.message-content .btn:hover {
+  background: #5a6268;
 }
 
 /* Адаптивность */

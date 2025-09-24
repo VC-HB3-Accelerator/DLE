@@ -24,6 +24,7 @@ const email = ref(null);
 const processedGuestIds = ref([]);
 const identities = ref([]);
 const tokenBalances = ref([]);
+const userAccessLevel = ref({ level: 'user', tokenCount: 0, hasAccess: false });
 
 // Функция для обновления списка идентификаторов
 const updateIdentities = async () => {
@@ -95,6 +96,20 @@ const checkTokenBalances = async (address) => {
   }
 };
 
+const checkUserAccessLevel = async (address) => {
+  try {
+    const response = await axios.get(`/auth/access-level/${address}`);
+    if (response.data.success) {
+      userAccessLevel.value = response.data.data;
+      return response.data.data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error checking user access level:', error);
+    return null;
+  }
+};
+
 const updateAuth = async ({
   authenticated,
   authType: newAuthType,
@@ -140,9 +155,10 @@ const updateAuth = async ({
     })
   );
 
-  // Если аутентификация через кошелек, проверяем баланс токенов
+  // Если аутентификация через кошелек, проверяем баланс токенов и уровень доступа
   if (authenticated && newAuthType === 'wallet' && newAddress) {
     await checkTokenBalances(newAddress);
+    await checkUserAccessLevel(newAddress);
   }
 
   // Обновляем идентификаторы при любом изменении аутентификации
@@ -465,6 +481,7 @@ const authApi = {
   identities,
   processedGuestIds,
   tokenBalances,
+  userAccessLevel,
   updateAuth,
   checkAuth,
   disconnect,
@@ -475,6 +492,7 @@ const authApi = {
   linkIdentity,
   deleteIdentity,
   checkTokenBalances,
+  checkUserAccessLevel,
 };
 
 // === PROVIDE/INJECT HELPERS ===

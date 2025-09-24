@@ -37,7 +37,7 @@ async function getUserTokenBalances(address) {
 
   // Получаем токены и RPC с расшифровкой
   const tokensResult = await db.getQuery()(
-    'SELECT id, min_balance, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+    'SELECT id, min_balance, readonly_threshold, editor_threshold, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
     [encryptionKey]
   );
   const tokens = tokensResult.rows;
@@ -57,18 +57,42 @@ async function getUserTokenBalances(address) {
 
   for (const token of tokens) {
     const rpcUrl = rpcMap[token.network];
-    if (!rpcUrl) continue;
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    if (!rpcUrl) {
+      logger.warn(`[tokenBalanceService] RPC URL не найден для сети ${token.network}`);
+      continue;
+    }
+    
+    // Создаем провайдер с таймаутом
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      polling: false,
+      staticNetwork: true
+    });
+    
+    // Устанавливаем таймаут для запросов
+    provider._getConnection().timeout = 10000; // 10 секунд
+    
     const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
     let balance = '0';
+    
     try {
-      const rawBalance = await tokenContract.balanceOf(address);
+      logger.info(`[tokenBalanceService] Получение баланса для ${token.name} (${token.address}) в сети ${token.network} для адреса ${address}`);
+      
+      // Создаем промис с таймаутом
+      const balancePromise = tokenContract.balanceOf(address);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+      
+      const rawBalance = await Promise.race([balancePromise, timeoutPromise]);
       balance = ethers.formatUnits(rawBalance, 18);
+      
       if (!balance || isNaN(Number(balance))) balance = '0';
+      
+      logger.info(`[tokenBalanceService] Баланс получен для ${token.name}: ${balance}`);
     } catch (e) {
       logger.error(
         `[tokenBalanceService] Ошибка получения баланса для ${token.name} (${token.address}) в сети ${token.network}:`,
-        e
+        e.message || e
       );
       balance = '0';
     }
@@ -79,6 +103,8 @@ async function getUserTokenBalances(address) {
       symbol: token.symbol || '',
       balance,
       minBalance: token.min_balance,
+      readonlyThreshold: token.readonly_threshold || 1,
+      editorThreshold: token.editor_threshold || 2,
     });
   }
 

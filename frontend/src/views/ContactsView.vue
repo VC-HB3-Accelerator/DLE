@@ -16,7 +16,7 @@
       <span>Контакты</span>
       <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
     </div>
-    <ContactTable v-if="isAdmin" :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markContactsAsRead" 
+    <ContactTable v-if="canRead" :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markContactsAsRead" 
       :markMessagesAsReadForUser="markMessagesAsReadForUser" :markContactAsRead="markContactAsRead" @close="goBack" />
     
     <!-- Таблица-заглушка для обычных пользователей -->
@@ -92,6 +92,7 @@ import BaseLayout from '../components/BaseLayout.vue';
 import ContactTable from '../components/ContactTable.vue';
 import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 
 const {
   contacts, newContacts, newMessages,
@@ -99,6 +100,7 @@ const {
 } = useContactsAndMessagesWebSocket();
 const router = useRouter();
 const { isAdmin } = useAuthContext();
+const { canRead } = usePermissions();
 
 function goBack() {
   if (window.history.length > 1) {

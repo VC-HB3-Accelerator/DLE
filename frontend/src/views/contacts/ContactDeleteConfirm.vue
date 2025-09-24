@@ -22,10 +22,10 @@
       <p><strong>Кошелек:</strong> {{ contact.wallet || '-' }}</p>
       <p><strong>Дата создания:</strong> {{ formatDate(contact.created_at) }}</p>
       <div class="confirm-actions">
-        <button v-if="isAdmin" class="delete-btn" @click="deleteContact" :disabled="isDeleting">Удалить</button>
+        <button v-if="canDelete" class="delete-btn" @click="deleteContact" :disabled="isDeleting">Удалить</button>
         <button class="cancel-btn" @click="cancelDelete" :disabled="isDeleting">Отменить</button>
       </div>
-      <div v-if="!isAdmin" class="empty-table-placeholder">Нет прав для удаления контакта</div>
+      <div v-if="!canDelete" class="empty-table-placeholder">Нет прав для удаления контакта</div>
       <div v-if="error" class="error">{{ error }}</div>
     </div>
   </div>
@@ -36,6 +36,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import contactsService from '../../services/contactsService.js';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 
 const route = useRoute();
 const router = useRouter();
@@ -44,6 +45,7 @@ const isLoading = ref(true);
 const isDeleting = ref(false);
 const error = ref('');
 const { isAdmin } = useAuthContext();
+const { canDelete } = usePermissions();
 
 function formatDate(date) {
   if (!date) return '-';

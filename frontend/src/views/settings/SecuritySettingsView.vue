@@ -76,6 +76,7 @@ import RpcProvidersSettings from './RpcProvidersSettings.vue';
 import AuthTokensSettings from './AuthTokensSettings.vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
 import wsClient from '@/utils/websocket';
 
@@ -88,6 +89,7 @@ const showNoAccessModal = ref(false);
 
 // Получаем контекст авторизации
 const { isAdmin } = useAuthContext();
+const { canManageSettings } = usePermissions();
 
 // Настройки безопасности
 const securitySettings = reactive({
@@ -168,7 +170,9 @@ const loadSettings = async () => {
         name: token.name,
         address: token.address,
         network: token.network,
-        minBalance: token.min_balance
+        minBalance: token.min_balance,
+        readonlyThreshold: token.readonly_threshold || 1,
+        editorThreshold: token.editor_threshold || 2
       }));
     }
     
@@ -331,11 +335,11 @@ provide('networks', networks);
 
 // Функция для обработки клика по кнопке "Подробнее" для RPC провайдеров
 const handleRpcDetailsClick = () => {
-  if (isAdmin.value) {
-    // Если администратор - показываем детали RPC
+  if (canManageSettings.value) {
+    // Если есть права на управление настройками - показываем детали RPC
     showRpcSettings.value = !showRpcSettings.value;
   } else {
-    // Если обычный пользователь - показываем модальное окно с ограничением доступа
+    // Если нет прав - показываем модальное окно с ограничением доступа
     showNoAccessModal.value = true;
   }
 };

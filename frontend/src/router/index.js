@@ -213,6 +213,11 @@ const routes = [
     component: () => import('../views/smartcontracts/DleManagementView.vue')
   },
   {
+    path: '/management/dle-blocks',
+    name: 'management-dle-blocks',
+    component: () => import('../views/smartcontracts/DleBlocksManagementView.vue')
+  },
+  {
     path: '/management/proposals',
     name: 'management-proposals',
     component: () => import('../views/smartcontracts/DleProposalsView.vue')
@@ -276,6 +281,11 @@ const routes = [
     path: '/management/modules/deploy/custom',
     name: 'module-deploy-custom',
     component: () => import('../views/smartcontracts/modules/ModuleDeployFormView.vue')
+  },
+  {
+    path: '/management/modules/deploy/inheritance',
+    name: 'module-deploy-inheritance',
+    component: () => import('../views/smartcontracts/modules/InheritanceModuleDeploy.vue')
   },
   // {
   //   path: '/management/multisig',

@@ -946,4 +946,25 @@ router.get('/check-tokens/:address', async (req, res) => {
   }
 });
 
+// Маршрут для получения уровня доступа пользователя
+router.get('/access-level/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+
+    // Получаем уровень доступа пользователя
+    const accessLevel = await authService.getUserAccessLevel(address);
+
+    res.json({
+      success: true,
+      data: accessLevel,
+    });
+  } catch (error) {
+    logger.error('Error getting user access level:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
+  }
+});
+
 module.exports = router;

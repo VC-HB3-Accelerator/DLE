@@ -49,11 +49,11 @@
         </div>
       </div>
 
-      <!-- Форма деплоя модуля во всех сетях -->
-      <div class="deploy-form">
+      <!-- Форма деплоя модуля администратором -->
+      <div v-if="canManageSettings" class="deploy-form">
         <div class="form-header">
-          <h3>🌐 Деплой TimelockModule во всех сетях</h3>
-          <p>Деплой модуля временных задержек во всех 4 сетях одновременно</p>
+          <h3>🔧 Деплой TimelockModule администратором</h3>
+          <p>Администратор деплоит модуль, затем создает предложение для добавления в DLE</p>
         </div>
         
         <div class="form-content">
@@ -85,193 +85,49 @@
             <h4>⚙️ Настройки TimelockModule:</h4>
             
             <div class="settings-form">
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="chainId">ID сети:</label>
-                  <select 
-                    id="chainId" 
-                    v-model="moduleSettings.chainId" 
-                    class="form-control"
-                    required
-                  >
-                    <option value="11155111">Sepolia (11155111)</option>
-                    <option value="17000">Holesky (17000)</option>
-                    <option value="421614">Arbitrum Sepolia (421614)</option>
-                    <option value="84532">Base Sepolia (84532)</option>
-                  </select>
-                  <small class="form-help">ID сети для деплоя модуля</small>
-                </div>
-                
-                <div class="form-group">
-                  <label for="defaultDelay">Стандартная задержка (дни):</label>
-                  <input 
-                    type="number" 
-                    id="defaultDelay" 
-                    v-model="moduleSettings.defaultDelay" 
-                    class="form-control"
-                    min="1"
-                    max="30"
-                    placeholder="2"
-                  >
-                  <small class="form-help">Стандартная задержка для операций (1-30 дней)</small>
-                </div>
-              </div>
-              
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="emergencyDelay">Экстренная задержка (минуты):</label>
-                  <input 
-                    type="number" 
-                    id="emergencyDelay" 
-                    v-model="moduleSettings.emergencyDelay" 
-                    class="form-control"
-                    min="5"
-                    max="1440"
-                    placeholder="30"
-                  >
-                  <small class="form-help">Экстренная задержка для критических операций (5-1440 минут)</small>
-                </div>
-                
-                <div class="form-group">
-                  <label for="maxDelay">Максимальная задержка (дни):</label>
-                  <input 
-                    type="number" 
-                    id="maxDelay" 
-                    v-model="moduleSettings.maxDelay" 
-                    class="form-control"
-                    min="1"
-                    max="365"
-                    placeholder="30"
-                  >
-                  <small class="form-help">Максимальная задержка для операций (1-365 дней)</small>
-                </div>
-              </div>
-              
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="minDelay">Минимальная задержка (часы):</label>
-                  <input 
-                    type="number" 
-                    id="minDelay" 
-                    v-model="moduleSettings.minDelay" 
-                    class="form-control"
-                    min="1"
-                    max="720"
-                    placeholder="24"
-                  >
-                  <small class="form-help">Минимальная задержка для операций (1-720 часов)</small>
-                </div>
-                
-                <div class="form-group">
-                  <label for="maxOperations">Максимум операций в очереди:</label>
-                  <input 
-                    type="number" 
-                    id="maxOperations" 
-                    v-model="moduleSettings.maxOperations" 
-                    class="form-control"
-                    min="10"
-                    max="1000"
-                    placeholder="100"
-                  >
-                  <small class="form-help">Максимальное количество операций в очереди (10-1000)</small>
-                </div>
-              </div>
-              
-              <!-- Дополнительные настройки таймлока -->
-              <div class="advanced-settings">
-                <h5>🔧 Дополнительные настройки таймлока:</h5>
-                
-                <div class="form-group">
-                  <label for="criticalOperations">Критические операции (JSON формат):</label>
-                  <textarea 
-                    id="criticalOperations" 
-                    v-model="moduleSettings.criticalOperations" 
-                    class="form-control" 
-                    rows="3"
-                    placeholder='["0x12345678", "0x87654321"]'
-                  ></textarea>
-                  <small class="form-help">Селекторы функций, которые считаются критическими (JSON массив)</small>
-                </div>
-                
-                <div class="form-group">
-                  <label for="emergencyOperations">Экстренные операции (JSON формат):</label>
-                  <textarea 
-                    id="emergencyOperations" 
-                    v-model="moduleSettings.emergencyOperations" 
-                    class="form-control" 
-                    rows="3"
-                    placeholder='["0xabcdef12", "0x21fedcba"]'
-                  ></textarea>
-                  <small class="form-help">Селекторы функций для экстренных операций (JSON массив)</small>
-                </div>
+              <!-- Поля администратора -->
+              <div class="admin-section">
+                <h5>🔐 Настройки администратора:</h5>
                 
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="operationDelays">Задержки для операций (JSON формат):</label>
-                    <textarea 
-                      id="operationDelays" 
-                      v-model="moduleSettings.operationDelays" 
-                      class="form-control" 
-                      rows="4"
-                      placeholder='{"0x12345678": 86400, "0x87654321": 172800}'
-                    ></textarea>
-                    <small class="form-help">Кастомные задержки для конкретных операций (селектор => секунды)</small>
+                    <label for="adminPrivateKey">Приватный ключ администратора:</label>
+                    <input 
+                      type="password" 
+                      id="adminPrivateKey" 
+                      v-model="moduleSettings.adminPrivateKey" 
+                      class="form-control"
+                      placeholder="0x..."
+                      required
+                    >
+                    <small class="form-help">Приватный ключ для деплоя модуля (администратор платит газ)</small>
                   </div>
                   
                   <div class="form-group">
-                    <label for="autoExecuteEnabled">Автоисполнение включено:</label>
-                    <select 
-                      id="autoExecuteEnabled" 
-                      v-model="moduleSettings.autoExecuteEnabled" 
+                    <label for="etherscanApiKey">Etherscan API ключ:</label>
+                    <input 
+                      type="text" 
+                      id="etherscanApiKey" 
+                      v-model="moduleSettings.etherscanApiKey" 
                       class="form-control"
+                      placeholder="YourAPIKey..."
                     >
-                      <option value="true">Включено</option>
-                      <option value="false">Отключено</option>
-                    </select>
-                    <small class="form-help">Автоматическое исполнение операций после истечения задержки</small>
+                    <small class="form-help">API ключ для автоматической верификации контрактов</small>
                   </div>
                 </div>
-                
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="cancellationWindow">Окно отмены (часы):</label>
-                    <input 
-                      type="number" 
-                      id="cancellationWindow" 
-                      v-model="moduleSettings.cancellationWindow" 
-                      class="form-control"
-                      min="1"
-                      max="168"
-                      placeholder="24"
-                    >
-                    <small class="form-help">Время, в течение которого можно отменить операцию (1-168 часов)</small>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="executionWindow">Окно исполнения (часы):</label>
-                    <input 
-                      type="number" 
-                      id="executionWindow" 
-                      v-model="moduleSettings.executionWindow" 
-                      class="form-control"
-                      min="1"
-                      max="168"
-                      placeholder="48"
-                    >
-                    <small class="form-help">Время, в течение которого можно исполнить операцию (1-168 часов)</small>
-                  </div>
-                </div>
-                
-                <div class="form-group">
-                  <label for="timelockDescription">Описание таймлока:</label>
-                  <textarea 
-                    id="timelockDescription" 
-                    v-model="moduleSettings.timelockDescription" 
-                    class="form-control" 
-                    rows="2"
-                    placeholder="Описание таймлока DLE для безопасности операций..."
-                  ></textarea>
-                  <small class="form-help">Описание таймлока для документации</small>
+              </div>
+              
+              <div class="simple-info">
+                <h5>📋 Информация о TimelockModule:</h5>
+                <div class="info-text">
+                  <p><strong>TimelockModule</strong> будет задеплоен с настройками по умолчанию:</p>
+                  <ul>
+                    <li>✅ Стандартная задержка: 2 дня</li>
+                    <li>✅ Экстренная задержка: 30 минут</li>
+                    <li>✅ Автоматическое исполнение операций</li>
+                    <li>✅ Готовые настройки безопасности</li>
+                  </ul>
+                  <p><em>После деплоя настройки можно будет изменить через governance.</em></p>
                 </div>
               </div>
             </div>
@@ -282,11 +138,16 @@
             <button 
               class="btn btn-primary btn-large deploy-module" 
               @click="deployTimelockModule"
-              :disabled="isDeploying || !dleAddress"
+              :disabled="isDeploying || !dleAddress || !isFormValid"
             >
               <i class="fas fa-rocket" :class="{ 'fa-spin': isDeploying }"></i>
               {{ isDeploying ? 'Деплой модуля...' : 'Деплой TimelockModule' }}
             </button>
+            
+            <div v-if="!isFormValid && !isDeploying" class="form-validation-info">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>Заполните приватный ключ и API ключ для деплоя</span>
+            </div>
             
             <div v-if="deploymentProgress" class="deployment-progress">
               <div class="progress-info">
@@ -301,14 +162,26 @@
         </div>
       </div>
 
+      <!-- Сообщение для пользователей без прав доступа -->
+      <div v-if="!canManageSettings" class="no-access-message">
+        <div class="message-content">
+          <h3>🔒 Нет прав доступа</h3>
+          <p>У вас нет прав для деплоя смарт-контрактов. Только пользователи с ролью Editor могут выполнять деплой.</p>
+          <button class="btn btn-secondary" @click="router.push('/management/modules')">
+            ← Вернуться к модулям
+          </button>
+        </div>
+      </div>
+
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, onMounted } from 'vue';
+import { defineProps, defineEmits, ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../../components/BaseLayout.vue';
+import { usePermissions } from '@/composables/usePermissions';
 
 // Определяем props
 const props = defineProps({
@@ -323,6 +196,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { canEdit, canManageSettings } = usePermissions();
 
 // Состояние
 const isLoading = ref(false);
@@ -332,26 +206,23 @@ const deploymentProgress = ref(null);
 
 // Настройки модуля
 const moduleSettings = ref({
-  // Основные параметры
-  chainId: 11155111,
-  defaultDelay: 2, // days
-  emergencyDelay: 30, // minutes
-  maxDelay: 30, // days
-  minDelay: 24, // hours
-  
-  // Дополнительные настройки
-  maxOperations: 100,
-  criticalOperations: '',
-  emergencyOperations: '',
-  operationDelays: '',
-  autoExecuteEnabled: 'true',
-  cancellationWindow: 24, // hours
-  executionWindow: 48, // hours
-  timelockDescription: ''
+  // Поля администратора
+  adminPrivateKey: '',
+  etherscanApiKey: ''
+});
+
+// Проверка валидности формы
+const isFormValid = computed(() => {
+  return moduleSettings.value.adminPrivateKey && moduleSettings.value.etherscanApiKey;
 });
 
 // Функция деплоя TimelockModule
 async function deployTimelockModule() {
+  if (!canManageSettings.value) {
+    alert('У вас нет прав для деплоя смарт-контрактов');
+    return;
+  }
+  
   try {
     isDeploying.value = true;
     deploymentProgress.value = {
@@ -361,8 +232,8 @@ async function deployTimelockModule() {
     
     console.log('[TimelockModuleDeployView] Начинаем деплой TimelockModule для DLE:', dleAddress.value);
     
-    // Вызываем API для деплоя модуля во всех сетях
-    const response = await fetch('/api/dle-modules/deploy-timelock', {
+    // Вызываем API для деплоя модуля администратором
+    const response = await fetch('/api/dle-modules/deploy-timelock-admin', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -370,23 +241,11 @@ async function deployTimelockModule() {
       body: JSON.stringify({
         dleAddress: dleAddress.value,
         moduleType: 'timelock',
+        adminPrivateKey: moduleSettings.value.adminPrivateKey,
+        etherscanApiKey: moduleSettings.value.etherscanApiKey,
         settings: {
-          // Основные параметры
-          chainId: moduleSettings.value.chainId,
-          defaultDelay: moduleSettings.value.defaultDelay * 24 * 60 * 60, // конвертируем дни в секунды
-          emergencyDelay: moduleSettings.value.emergencyDelay * 60, // конвертируем минуты в секунды
-          maxDelay: moduleSettings.value.maxDelay * 24 * 60 * 60, // конвертируем дни в секунды
-          minDelay: moduleSettings.value.minDelay * 60 * 60, // конвертируем часы в секунды
-          
-          // Дополнительные настройки
-          maxOperations: parseInt(moduleSettings.value.maxOperations),
-          criticalOperations: moduleSettings.value.criticalOperations ? JSON.parse(moduleSettings.value.criticalOperations) : [],
-          emergencyOperations: moduleSettings.value.emergencyOperations ? JSON.parse(moduleSettings.value.emergencyOperations) : [],
-          operationDelays: moduleSettings.value.operationDelays ? JSON.parse(moduleSettings.value.operationDelays) : {},
-          autoExecuteEnabled: moduleSettings.value.autoExecuteEnabled === 'true',
-          cancellationWindow: moduleSettings.value.cancellationWindow * 60 * 60, // конвертируем часы в секунды
-          executionWindow: moduleSettings.value.executionWindow * 60 * 60, // конвертируем часы в секунды
-          timelockDescription: moduleSettings.value.timelockDescription
+          // Используем настройки по умолчанию
+          useDefaultSettings: true
         }
       })
     });
@@ -406,12 +265,31 @@ async function deployTimelockModule() {
         percentage: 100
       };
       
-      alert('✅ Деплой TimelockModule запущен во всех сетях!');
+      // Показываем детальную информацию о деплое
+      const deployInfo = result.data || {};
+      const deployedAddresses = deployInfo.addresses || [];
+      
+      let successMessage = '✅ TimelockModule успешно задеплоен!\n\n';
+      successMessage += `📊 Детали деплоя:\n`;
+      successMessage += `• DLE: ${dleAddress.value}\n`;
+      successMessage += `• Тип модуля: TimelockModule\n`;
+      successMessage += `• Адрес модуля: ${deployInfo.moduleAddress || 'Не указан'}\n`;
+      
+      if (deployedAddresses.length > 0) {
+        successMessage += `\n🌐 Задеплоенные адреса:\n`;
+        deployedAddresses.forEach((addr, index) => {
+          successMessage += `${index + 1}. ${addr.network}: ${addr.address}\n`;
+        });
+      }
+      
+      successMessage += `\n📝 Следующий шаг: Создайте предложение для добавления модуля в DLE через governance.`;
+      
+      alert(successMessage);
       
       // Перенаправляем обратно к модулям
       setTimeout(() => {
         router.push(`/management/modules?address=${dleAddress.value}`);
-      }, 2000);
+      }, 3000);
       
     } else {
       throw new Error(result.error || 'Неизвестная ошибка');
@@ -569,6 +447,22 @@ onMounted(() => {
   line-height: 1.4;
 }
 
+/* Секция администратора */
+.admin-section {
+  margin-bottom: 20px;
+  padding: 20px;
+  background: #fff3cd;
+  border-radius: var(--radius-sm);
+  border: 1px solid #ffeaa7;
+}
+
+.admin-section h5 {
+  margin: 0 0 15px 0;
+  color: #856404;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
 /* Дополнительные настройки */
 .advanced-settings {
   margin-top: 20px;
@@ -723,6 +617,45 @@ onMounted(() => {
 .placeholder-content p {
   color: #666;
   margin: 0;
+}
+
+/* Сообщение об отсутствии прав доступа */
+.no-access-message {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: var(--radius-md);
+  padding: 30px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.message-content h3 {
+  color: #856404;
+  margin-bottom: 15px;
+  font-size: 1.4em;
+}
+
+.message-content p {
+  color: #856404;
+  margin-bottom: 20px;
+  font-size: 1.1em;
+  line-height: 1.5;
+}
+
+.message-content .btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.message-content .btn:hover {
+  background: #5a6268;
 }
 
 /* Адаптивность */

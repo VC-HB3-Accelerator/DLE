@@ -101,6 +101,80 @@
               {{ em.from_email }}
             </option>
           </select>
+          
+          <!-- Настройки RAG поиска -->
+          <div class="rag-search-settings">
+            <h3>Настройки RAG поиска</h3>
+            
+            <!-- Метод поиска -->
+            <label>Метод поиска</label>
+            <select v-model="ragSettings.searchMethod">
+              <option value="semantic">Только семантический поиск</option>
+              <option value="keyword">Только поиск по ключевым словам</option>
+              <option value="hybrid">Гибридный поиск</option>
+            </select>
+            
+            <!-- Количество результатов -->
+            <label>Максимальное количество результатов поиска</label>
+            <input type="number" v-model="ragSettings.maxResults" min="1" max="20" />
+            
+            <!-- Порог релевантности -->
+            <label>Порог релевантности ({{ ragSettings.relevanceThreshold }})</label>
+            <input type="range" v-model="ragSettings.relevanceThreshold" 
+                   min="0.01" max="1.0" step="0.01" />
+            
+            <!-- Настройки извлечения ключевых слов -->
+            <div class="keyword-settings">
+              <h4>Извлечение ключевых слов</h4>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="ragSettings.keywordExtraction.enabled" />
+                Включить извлечение ключевых слов
+              </label>
+              
+              <label>Минимальная длина слова</label>
+              <input type="number" v-model="ragSettings.keywordExtraction.minWordLength" 
+                     min="2" max="10" />
+              
+              <label>Максимальное количество ключевых слов</label>
+              <input type="number" v-model="ragSettings.keywordExtraction.maxKeywords" 
+                     min="5" max="20" />
+              
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="ragSettings.keywordExtraction.removeStopWords" />
+                Удалять стоп-слова
+              </label>
+            </div>
+            
+            <!-- Веса для гибридного поиска -->
+            <div v-if="ragSettings.searchMethod === 'hybrid'" class="search-weights">
+              <h4>Веса поиска</h4>
+              <label>Семантический поиск: {{ ragSettings.searchWeights.semantic }}%</label>
+              <input type="range" v-model="ragSettings.searchWeights.semantic" 
+                     min="0" max="100" />
+              
+              <label>Поиск по ключевым словам: {{ ragSettings.searchWeights.keyword }}%</label>
+              <input type="range" v-model="ragSettings.searchWeights.keyword" 
+                     min="0" max="100" />
+            </div>
+            
+            <!-- Дополнительные настройки -->
+            <div class="advanced-settings">
+              <h4>Дополнительные настройки</h4>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="ragSettings.advanced.enableFuzzySearch" />
+                Нечеткий поиск
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="ragSettings.advanced.enableStemming" />
+                Стемминг слов
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="ragSettings.advanced.enableSynonyms" />
+                Поиск синонимов
+              </label>
+            </div>
+          </div>
+          
           <div class="actions">
             <button type="submit">Сохранить</button>
             <button type="button" @click="goBack">Отмена</button>
@@ -143,6 +217,29 @@ const placeholders = ref([]);
 const editingPlaceholder = ref(null);
 const editingPlaceholderValue = ref('');
 
+// Настройки RAG поиска
+const ragSettings = ref({
+  searchMethod: 'hybrid',
+  maxResults: 5,
+  relevanceThreshold: 0.1,
+  keywordExtraction: {
+    enabled: true,
+    minWordLength: 3,
+    maxKeywords: 10,
+    removeStopWords: true,
+    language: 'ru'
+  },
+  searchWeights: {
+    semantic: 70,
+    keyword: 30
+  },
+  advanced: {
+    enableFuzzySearch: true,
+    enableStemming: true,
+    enableSynonyms: false
+  }
+});
+
 async function loadUserTables() {
   const { data } = await axios.get('/tables');
   userTables.value = Array.isArray(data) ? data : [];
@@ -165,7 +262,14 @@ async function loadSettings() {
     }
     
     settings.value = settingsData;
+    
+    // Загружаем настройки RAG, если они есть
+    if (data.settings.ragSettings) {
+      ragSettings.value = { ...ragSettings.value, ...data.settings.ragSettings };
+    }
+    
     console.log('[AiAssistantSettings] Loaded settings:', settings.value);
+    console.log('[AiAssistantSettings] Loaded RAG settings:', ragSettings.value);
   }
 }
 async function loadTelegramBots() {
@@ -225,7 +329,11 @@ async function saveSettings() {
     settingsToSave.selected_rag_tables = [settingsToSave.selected_rag_tables];
   }
   
+  // Добавляем настройки RAG
+  settingsToSave.ragSettings = ragSettings.value;
+  
   console.log('[AiAssistantSettings] Saving settings:', settingsToSave);
+  console.log('[AiAssistantSettings] Saving RAG settings:', ragSettings.value);
   await axios.put('/settings/ai-assistant', settingsToSave);
   goBack();
 }
@@ -410,5 +518,64 @@ button[type="button"] {
   color: #888;
   font-size: 1em;
   margin: 0.7em 0;
+}
+
+/* Стили для настроек RAG поиска */
+.rag-search-settings {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.rag-search-settings h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.keyword-settings, .search-weights, .advanced-settings {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.keyword-settings h4, .search-weights h4, .advanced-settings h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #555;
+  font-size: 1rem;
+}
+
+.search-weights input[type="range"] {
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  font-weight: normal;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.rag-search-settings input[type="range"] {
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+.rag-search-settings input[type="number"] {
+  width: 100px;
+  margin-right: 1rem;
 }
 </style> 

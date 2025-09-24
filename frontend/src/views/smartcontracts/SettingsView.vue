@@ -27,7 +27,7 @@
           <p v-else-if="address">Загрузка...</p>
           <p v-else>DLE не выбран</p>
         </div>
-        <button class="close-btn" @click="router.push('/management')">×</button>
+        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
       <!-- Основной контент -->
@@ -39,6 +39,15 @@
           </div>
           <div class="danger-content">
             <p>Полное удаление DLE и всех связанных данных. Это действие необратимо.</p>
+            <div class="warning-info">
+              <h4>⚠️ Важно:</h4>
+              <ul>
+                <li>Для деактивации DLE необходимо иметь токены</li>
+                <li>Может потребоваться голосование участников</li>
+                <li>DLE должен быть активен</li>
+                <li>Только владелец токенов может инициировать деактивацию</li>
+              </ul>
+            </div>
             <button @click="deleteDLE" class="btn-danger" :disabled="isLoading">
               {{ isLoading ? 'Загрузка...' : 'Удалить DLE' }}
             </button>
@@ -50,7 +59,7 @@
       <div v-if="!address" class="no-dle-card">
         <h3>DLE не выбран</h3>
         <p>Для управления настройками необходимо выбрать DLE</p>
-        <button @click="router.push('/management')" class="btn-primary">
+        <button @click="goBackToBlocks" class="btn-primary">
           Вернуться к списку DLE
         </button>
       </div>
@@ -88,6 +97,15 @@ const isLoading = ref(false);
 
 // Получаем адрес DLE из URL параметров
 const address = route.query.address || props.dleAddress;
+
+// Функция возврата к блокам управления
+const goBackToBlocks = () => {
+  if (address) {
+    router.push(`/management/dle-blocks?address=${address}`);
+  } else {
+    router.push('/management');
+  }
+};
 
 // Получаем адрес пользователя из контекста аутентификации
 const { address: userAddress } = useAuthContext();
@@ -167,20 +185,26 @@ const deleteDLE = async () => {
     
     alert(`✅ DLE ${dleInfo.value?.name || address} успешно деактивирован!\n\nТранзакция: ${result.txHash}`);
     
-    // Перенаправляем на главную страницу управления
-    router.push('/management');
+    // Перенаправляем на страницу блоков управления
+    goBackToBlocks();
     
   } catch (error) {
     console.error('Ошибка при деактивации DLE:', error);
     
     let errorMessage = 'Ошибка при деактивации DLE';
     
-    if (error.message.includes('владелец')) {
+    if (error.message.includes('execution reverted')) {
+      errorMessage = '❌ Деактивация невозможна: не выполнены условия смарт-контракта. Возможно, требуется голосование участников или DLE уже деактивирован.';
+    } else if (error.message.includes('владелец')) {
       errorMessage = '❌ Только владелец DLE может его деактивировать';
     } else if (error.message.includes('кошелек')) {
       errorMessage = '❌ Необходимо подключить кошелек';
     } else if (error.message.includes('деактивирован')) {
       errorMessage = '❌ DLE уже деактивирован';
+    } else if (error.message.includes('токены')) {
+      errorMessage = '❌ Для деактивации DLE необходимо иметь токены';
+    } else if (error.message.includes('условия смарт-контракта')) {
+      errorMessage = error.message; // Используем сообщение из dle-contract.js
     } else {
       errorMessage = `❌ Ошибка: ${error.message}`;
     }
@@ -344,5 +368,32 @@ onMounted(() => {
   margin-bottom: 15px;
   line-height: 1.5;
   font-size: 0.9rem;
+}
+
+/* Стили для блока предупреждения */
+.warning-info {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  padding: 15px;
+  margin: 15px 0;
+}
+
+.warning-info h4 {
+  color: #856404;
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+}
+
+.warning-info ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #856404;
+}
+
+.warning-info li {
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 </style> 

@@ -35,8 +35,8 @@ async function upsertProviderSettings({ provider, api_key, base_url, selected_mo
   const existing = await encryptedDb.getData(TABLE, { provider: provider }, 1);
   
   if (existing.length > 0) {
-    // Обновляем существующую запись
-    return await encryptedDb.saveData(TABLE, data, { provider: provider });
+    // Обновляем существующую запись по ID
+    return await encryptedDb.saveData(TABLE, data, { id: existing[0].id });
   } else {
     // Создаем новую запись
     return await encryptedDb.saveData(TABLE, data);
@@ -120,29 +120,51 @@ async function getAllLLMModels() {
     
     for (const provider of providers) {
       if (provider.selected_model) {
-        allModels.push({ 
-          id: provider.selected_model, 
-          provider: provider.provider 
-        });
+        // Фильтруем embedding модели - они не должны быть в списке LLM
+        const modelName = provider.selected_model.toLowerCase();
+        const isEmbeddingModel = modelName.includes('embed') || 
+                                modelName.includes('embedding') || 
+                                modelName.includes('bge') || 
+                                modelName.includes('nomic') ||
+                                modelName.includes('text-embedding') ||
+                                modelName.includes('mxbai') ||
+                                modelName.includes('sentence') ||
+                                modelName.includes('ada-002') ||
+                                modelName.includes('text-embedding-ada') ||
+                                modelName.includes('text-embedding-3');
+        
+        if (!isEmbeddingModel) {
+          allModels.push({ 
+            id: provider.selected_model, 
+            provider: provider.provider 
+          });
+        }
       }
     }
     
-    // Для Ollama проверяем реально установленные модели
+    // Для Ollama проверяем реально установленные модели через HTTP API
     try {
-      const { exec } = require('child_process');
-      const util = require('util');
-      const execAsync = util.promisify(exec);
+      const axios = require('axios');
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
       
-      // Проверяем, какие модели установлены в Ollama
-      const { stdout } = await execAsync('docker exec dapp-ollama ollama list');
-      const lines = stdout.trim().split('\n').slice(1); // Пропускаем заголовок
+      const response = await axios.get(`${ollamaUrl}/api/tags`, { 
+        timeout: 5000 
+      });
       
-      for (const line of lines) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          const modelName = parts[0];
+      const models = response.data.models || [];
+      for (const model of models) {
+        // Фильтруем embedding модели из Ollama
+        const modelName = model.name.toLowerCase();
+        const isEmbeddingModel = modelName.includes('embed') || 
+                                modelName.includes('embedding') || 
+                                modelName.includes('bge') || 
+                                modelName.includes('nomic') ||
+                                modelName.includes('mxbai') ||
+                                modelName.includes('sentence');
+        
+        if (!isEmbeddingModel) {
           allModels.push({ 
-            id: modelName, 
+            id: model.name, 
             provider: 'ollama' 
           });
         }
@@ -189,27 +211,23 @@ async function getAllEmbeddingModels() {
       }
     }
     
-    // Для Ollama проверяем реально установленные embedding модели
+    // Для Ollama проверяем реально установленные embedding модели через HTTP API
     try {
-      const { exec } = require('child_process');
-      const util = require('util');
-      const execAsync = util.promisify(exec);
+      const axios = require('axios');
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
       
-      // Проверяем, какие embedding модели установлены в Ollama
-      const { stdout } = await execAsync('docker exec dapp-ollama ollama list');
-      const lines = stdout.trim().split('\n').slice(1); // Пропускаем заголовок
+      const response = await axios.get(`${ollamaUrl}/api/tags`, { 
+        timeout: 5000 
+      });
       
-      for (const line of lines) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          const modelName = parts[0];
-          // Проверяем, что это embedding модель
-          if (modelName.includes('embed') || modelName.includes('bge') || modelName.includes('nomic')) {
-            allModels.push({ 
-              id: modelName, 
-              provider: 'ollama' 
-            });
-          }
+      const models = response.data.models || [];
+      for (const model of models) {
+        // Проверяем, что это embedding модель
+        if (model.name.includes('embed') || model.name.includes('bge') || model.name.includes('nomic')) {
+          allModels.push({ 
+            id: model.name, 
+            provider: 'ollama' 
+          });
         }
       }
     } catch (ollamaError) {

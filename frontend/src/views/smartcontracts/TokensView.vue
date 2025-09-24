@@ -35,7 +35,7 @@
             <span>DLE не выбран</span>
           </div>
         </div>
-        <button class="close-btn" @click="router.push('/management')">×</button>
+        <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
       <!-- Информация о токенах -->
@@ -181,6 +181,15 @@ const dleAddress = computed(() => {
   console.log('DLE Address from URL (Tokens):', address);
   return address;
 });
+
+// Функция возврата к блокам управления
+const goBackToBlocks = () => {
+  if (dleAddress.value) {
+    router.push(`/management/dle-blocks?address=${dleAddress.value}`);
+  } else {
+    router.push('/management');
+  }
+};
 
 // Состояние DLE
 const selectedDle = ref(null);

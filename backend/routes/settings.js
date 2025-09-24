@@ -177,7 +177,7 @@ router.get('/auth-tokens', async (req, res, next) => {
     }
 
     const tokensResult = await db.getQuery()(
-      'SELECT id, min_balance, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+      'SELECT id, min_balance, readonly_threshold, editor_threshold, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
       [encryptionKey]
     );
     const authTokens = tokensResult.rows;
@@ -218,11 +218,11 @@ router.post('/auth-tokens', requireAdmin, async (req, res, next) => {
 // Добавление/обновление одного токена
 router.post('/auth-token', requireAdmin, async (req, res, next) => {
   try {
-    const { name, address, network, minBalance } = req.body;
+    const { name, address, network, minBalance, readonlyThreshold, editorThreshold } = req.body;
     if (!name || !address || !network) {
       return res.status(400).json({ success: false, error: 'name, address и network обязательны' });
     }
-    await authTokenService.upsertAuthToken({ name, address, network, minBalance });
+    await authTokenService.upsertAuthToken({ name, address, network, minBalance, readonlyThreshold, editorThreshold });
     
     // Отправляем WebSocket уведомление о добавлении токена
     try {

@@ -858,7 +858,7 @@
                 @click="deploySmartContracts" 
                 type="button" 
                 class="btn btn-primary btn-lg deploy-btn"
-                :disabled="!isFormValid || !adminTokenCheck.isAdmin || adminTokenCheck.isLoading || showDeployProgress"
+                :disabled="!isFormValid || !canEdit || adminTokenCheck.isLoading || showDeployProgress"
                 :title="`isFormValid: ${isFormValid}, isAdmin: ${adminTokenCheck.isAdmin}, isLoading: ${adminTokenCheck.isLoading}, showDeployProgress: ${showDeployProgress}`"
               >
                 <i class="fas fa-cogs"></i> 
@@ -941,6 +941,7 @@
 import { reactive, ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 import api from '@/api/axios';
 import DeploymentWizard from '@/components/deployment/DeploymentWizard.vue';
 
@@ -959,6 +960,7 @@ function normalizePrivateKey(raw) {
 
 // Получаем контекст авторизации для адреса кошелька
 const { address, isAdmin } = useAuthContext();
+const { canEdit } = usePermissions();
 
 // Состояние для проверки админских токенов
 const adminTokenCheck = ref({

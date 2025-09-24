@@ -33,8 +33,8 @@
       </div>
       <button 
         class="btn-primary" 
-        @click="isAdmin ? goToAkashDetails() : null"
-        :disabled="!isAdmin"
+        @click="canManageSettings ? goToAkashDetails() : null"
+        :disabled="!canManageSettings"
       >
         Подробнее
       </button>
@@ -54,8 +54,8 @@
       </div>
       <button 
         class="btn-primary" 
-        @click="isAdmin ? goToFluxDetails() : null"
-        :disabled="!isAdmin"
+        @click="canManageSettings ? goToFluxDetails() : null"
+        :disabled="!canManageSettings"
       >
         Подробнее
       </button>
@@ -91,10 +91,12 @@
 <script setup>
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
+import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
 import { ref } from 'vue';
 const router = useRouter();
 const { isAdmin } = useAuthContext();
+const { canManageSettings } = usePermissions();
 const goBack = () => router.push('/settings');
 
 
