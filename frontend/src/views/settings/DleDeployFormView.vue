@@ -693,8 +693,16 @@
         </div>
 
         <!-- Основная информация DLE -->
-        <div v-if="dleSettings.name || dleSettings.tokenSymbol" class="preview-section">
+        <div v-if="dleSettings.name || dleSettings.tokenSymbol || logoPreviewUrl" class="preview-section">
           <h4>Основная информация DLE</h4>
+          
+          <div v-if="logoPreviewUrl" class="preview-item">
+            <strong>🎨 Логотип:</strong>
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+              <img :src="logoPreviewUrl" alt="Logo preview" style="width: 48px; height: 48px; border-radius: 6px; object-fit: contain; border: 1px solid #e9ecef;" />
+              <span style="color: #666; font-size: 0.9em;">{{ logoFile?.name || 'ENS аватар' || 'Дефолтный логотип' }}</span>
+            </div>
+          </div>
           
           <div v-if="dleSettings.name" class="preview-item">
             <strong>📋 Название:</strong> {{ dleSettings.name }}
@@ -929,6 +937,7 @@
           :private-key="unifiedPrivateKey"
           :selected-networks="selectedNetworks"
           :dle-data="dleSettings"
+          :logo-uri="getLogoURI()"
           :etherscan-api-key="etherscanApiKey"
           @deployment-completed="handleDeploymentCompleted"
         />
@@ -2748,6 +2757,19 @@ async function resolveEnsAvatar() {
   } catch (_) {
     ensResolvedUrl.value = '/uploads/logos/default-token.svg';
     if (!logoFile.value) logoPreviewUrl.value = ensResolvedUrl.value;
+  }
+}
+
+// Функция для получения URI логотипа
+function getLogoURI() {
+  if (logoFile.value) {
+    // Если выбран файл, возвращаем временный URL для предпросмотра
+    // В реальности файл будет загружен на сервер и получен настоящий URL
+    return logoPreviewUrl.value || '/uploads/logos/default-token.svg';
+  } else if (ensResolvedUrl.value) {
+    return ensResolvedUrl.value;
+  } else {
+    return '/uploads/logos/default-token.svg';
   }
 }
 

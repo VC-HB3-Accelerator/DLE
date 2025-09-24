@@ -24,18 +24,15 @@ async function checkModules() {
     
     // ABI для DLE контракта
     const dleAbi = [
-      "function modulesInitialized() external view returns (bool)",
       "function initializer() external view returns (address)",
       "function isModuleActive(bytes32 _moduleId) external view returns (bool)",
-      "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
-      "function initializeBaseModules(address _treasuryAddress, address _timelockAddress, address _readerAddress) external"
+      "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
     ];
     
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
     
-    // Проверяем статус инициализации
-    const modulesInitialized = await dle.modulesInitialized();
-    console.log('Модули инициализированы:', modulesInitialized);
+    // Модули теперь инициализируются только через governance
+    console.log('Модули инициализируются только через governance предложения');
     
     // Получаем initializer адрес
     const initializer = await dle.initializer();

@@ -16,8 +16,28 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+
 interface IERC1271 {
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue);
+}
+
+/**
+ * @dev Интерфейс для мультичейн метаданных (EIP-3668 inspired)
+ */
+interface IMultichainMetadata {
+    /**
+     * @dev Возвращает информацию о мультичейн развертывании
+     * @return supportedChainIds Массив всех поддерживаемых chain ID
+     * @return defaultVotingChain ID сети по умолчанию для голосования (может быть любая из поддерживаемых)
+     */
+    function getMultichainInfo() external view returns (uint256[] memory supportedChainIds, uint256 defaultVotingChain);
+    
+    /**
+     * @dev Возвращает адреса контракта в других сетях
+     * @return chainIds Массив chain ID где развернут контракт
+     * @return addresses Массив адресов контракта в соответствующих сетях
+     */
+    function getMultichainAddresses() external view returns (uint256[] memory chainIds, address[] memory addresses);
 }
 
 /**
@@ -31,7 +51,7 @@ interface IERC1271 {
  * - Токены служат только для голосования и управления DLE
  * - Все операции с токенами требуют коллективного решения
  */
-contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
+contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMetadata {
     using ECDSA for bytes32;
     struct DLEInfo {
         string name;
@@ -88,8 +108,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
     // Модули
     mapping(bytes32 => address) public modules;
     mapping(bytes32 => bool) public activeModules;
-    bool public modulesInitialized; // Флаг инициализации базовых модулей
-    address public immutable initializer; // Адрес, имеющий право на однократную инициализацию модулей
+    address public immutable initializer; // Адрес, имеющий право на однократную инициализацию логотипа
 
     // Предложения
     mapping(uint256 => Proposal) public proposals;
@@ -709,41 +728,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
 
 
 
-    /**
-     * @dev Инициализировать базовые модули (вызывается только один раз при деплое)
-     * @param _treasuryAddress Адрес Treasury модуля
-     * @param _timelockAddress Адрес Timelock модуля  
-     * @param _readerAddress Адрес Reader модуля
-     */
-    function initializeBaseModules(
-        address _treasuryAddress,
-        address _timelockAddress,
-        address _readerAddress
-    ) external {
-        if (modulesInitialized) revert ErrProposalExecuted(); // keep existing error to avoid new identifier
-        if (msg.sender != initializer) revert ErrOnlyInitializer();
-        if (_treasuryAddress == address(0) || _timelockAddress == address(0) || _readerAddress == address(0)) revert ErrZeroAddress();
-        
-        // Добавляем базовые модули без голосования (только при инициализации)
-        bytes32 treasuryId = keccak256("TREASURY");
-        bytes32 timelockId = keccak256("TIMELOCK");
-        bytes32 readerId = keccak256("READER");
-        
-        modules[treasuryId] = _treasuryAddress;
-        activeModules[treasuryId] = true;
-        
-        modules[timelockId] = _timelockAddress;
-        activeModules[timelockId] = true;
-        
-        modules[readerId] = _readerAddress;
-        activeModules[readerId] = true;
-        
-        modulesInitialized = true;
-        
-        emit ModuleAdded(treasuryId, _treasuryAddress);
-        emit ModuleAdded(timelockId, _timelockAddress);
-        emit ModuleAdded(readerId, _readerAddress);
-    }
 
     /**
      * @dev Создать предложение о добавлении модуля
@@ -895,6 +879,150 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard {
      */
     function getCurrentChainId() external view returns (uint256) {
         return currentChainId;
+    }
+
+    /**
+     * @dev Получить URI логотипа токена (стандартная функция для блокчейн-сканеров)
+     * @return URI логотипа или пустую строку если не установлен
+     */
+    function tokenURI() external view returns (string memory) {
+        return logoURI;
+    }
+
+    /**
+     * @dev Получить URI логотипа токена (альтернативная функция для блокчейн-сканеров)
+     * @return URI логотипа или пустую строку если не установлен
+     */
+    function logo() external view returns (string memory) {
+        return logoURI;
+    }
+
+    /**
+     * @dev Получить информацию о мультичейн развертывании для блокчейн-сканеров
+     * @return chains Массив всех поддерживаемых chain ID (все сети равноправны)
+     * @return defaultVotingChain ID сети по умолчанию для голосования (может быть любая из поддерживаемых)
+     */
+    function getMultichainInfo() external view returns (uint256[] memory chains, uint256 defaultVotingChain) {
+        return (supportedChainIds, currentChainId);
+    }
+
+    /**
+     * @dev Получить адреса контракта в других сетях (для мультичейн сканеров)
+     * @return chainIds Массив chain ID где развернут контракт
+     * @return addresses Массив адресов контракта в соответствующих сетях
+     */
+    function getMultichainAddresses() external view returns (uint256[] memory chainIds, address[] memory addresses) {
+        uint256[] memory chains = new uint256[](supportedChainIds.length);
+        address[] memory addrs = new address[](supportedChainIds.length);
+        
+        for (uint256 i = 0; i < supportedChainIds.length; i++) {
+            chains[i] = supportedChainIds[i];
+            addrs[i] = address(this); // CREATE2 обеспечивает одинаковые адреса
+        }
+        
+        return (chains, addrs);
+    }
+
+    /**
+     * @dev Получить мультичейн метаданные в JSON формате для блокчейн-сканеров
+     * @return metadata JSON строка с информацией о мультичейн развертывании
+     * 
+     * Архитектура: Single-Chain Governance - голосование происходит в одной сети,
+     * но исполнение может быть в любой из поддерживаемых сетей через подписи.
+     */
+    function getMultichainMetadata() external view returns (string memory metadata) {
+        // Формируем JSON с информацией о мультичейн развертывании
+        string memory json = string(abi.encodePacked(
+            '{"multichain": {',
+            '"supportedChains": ['
+        ));
+        
+        for (uint256 i = 0; i < supportedChainIds.length; i++) {
+            if (i > 0) {
+                json = string(abi.encodePacked(json, ','));
+            }
+            json = string(abi.encodePacked(json, _toString(supportedChainIds[i])));
+        }
+        
+        json = string(abi.encodePacked(
+            json,
+            '],',
+            '"defaultVotingChain": ',
+            _toString(currentChainId),
+            ',',
+            '"note": "All chains are equal, voting can happen on any supported chain",',
+            '"contractAddress": "',
+            _toHexString(address(this)),
+            '"',
+            '}}'
+        ));
+        
+        return json;
+    }
+
+    /**
+     * @dev Вспомогательная функция для конвертации uint256 в string
+     */
+    function _toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
+    /**
+     * @dev Вспомогательная функция для конвертации address в hex string
+     */
+    function _toHexString(address addr) internal pure returns (string memory) {
+        return _toHexString(abi.encodePacked(addr));
+    }
+
+    /**
+     * @dev Вспомогательная функция для конвертации bytes в hex string
+     */
+    function _toHexString(bytes memory data) internal pure returns (string memory) {
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(2 + data.length * 2);
+        str[0] = "0";
+        str[1] = "x";
+        for (uint256 i = 0; i < data.length; i++) {
+            str[2 + i * 2] = alphabet[uint256(uint8(data[i] >> 4))];
+            str[3 + i * 2] = alphabet[uint256(uint8(data[i] & 0x0f))];
+        }
+        return string(str);
+    }
+
+    /**
+     * @dev Получить информацию об архитектуре мультичейн governance
+     * @return architecture Описание архитектуры в JSON формате
+     */
+    function getGovernanceArchitecture() external pure returns (string memory architecture) {
+        return string(abi.encodePacked(
+            '{"architecture": {',
+            '"type": "Single-Chain Governance",',
+            '"description": "Voting happens on one chain per proposal, execution on any supported chain",',
+            '"features": [',
+            '"Equal chain support - no primary chain",',
+            '"Cross-chain execution via signatures",',
+            '"Deterministic addresses via CREATE2",',
+            '"No bridge dependencies"',
+            '],',
+            '"voting": "One chain per proposal (chosen by proposer)",',
+            '"execution": "Any supported chain via signature verification"',
+            '}}'
+        ));
     }
 
     // API функции вынесены в отдельный reader контракт для экономии байт-кода

@@ -840,14 +840,14 @@ async function loadModules() {
           active: m.isActive,
           id: m.moduleId 
         })),
-        modulesInitialized: modulesResponse.data.modulesInitialized,
+        requiresGovernance: modulesResponse.data.requiresGovernance,
         totalModules: modulesResponse.data.totalModules,
         activeModules: modulesResponse.data.activeModules
       });
       
       // Обновляем счетчики
-      if (modulesResponse.data.modulesInitialized === false) {
-        console.log('[ModulesView] Модули для DLE не инициализированы');
+      if (modulesResponse.data.requiresGovernance === true) {
+        console.log('[ModulesView] Модули требуют инициализации через governance');
       }
       
       // Обновляем время последнего обновления

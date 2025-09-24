@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PROPRIETARY
+// SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025 Тарабанов Александр Викторович
 // All rights reserved.
 //
@@ -8,8 +8,6 @@
 // For licensing inquiries: info@hb3-accelerator.com
 // Website: https://hb3-accelerator.com
 // GitHub: https://github.com/HB3-ACCELERATOR
-
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 /**

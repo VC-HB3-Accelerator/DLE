@@ -283,12 +283,8 @@ async function deployModulesInNetwork(rpcUrl, pk, dleAddress, params) {
       console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Timelock: ${timelockAddress}`);
       console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Reader: ${readerAddress}`);
       
-      // Инициализация базовых модулей
-      const initTx = await dleContract.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Module initialization tx: ${initTx.hash}`);
-      await initTx.wait();
-      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} base modules initialized successfully`);
-      currentNonce++;
+      // Модули деплоятся отдельно, инициализация через governance
+      console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Modules deployed successfully, initialization will be done through governance proposals`);
     } else {
       console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} skipping module initialization - not all modules deployed`);
       console.log(`[MULTI_DBG] chainId=${Number(net.chainId)} Treasury: ${treasuryAddress || 'MISSING'}`);

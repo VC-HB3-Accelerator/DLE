@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
+const { MODULE_IDS, MODULE_ID_TO_TYPE, MODULE_NAMES } = require('../constants/moduleIds');
 
 // Получить расширенную историю DLE
 router.post('/get-extended-history', async (req, res) => {
@@ -342,14 +343,21 @@ router.post('/get-extended-history', async (req, res) => {
 
 // Вспомогательные функции
 function getModuleName(moduleId) {
-  const moduleNames = {
-    '0x7472656173757279000000000000000000000000000000000000000000000000': 'Treasury',
+  // Проверяем стандартные модули
+  if (MODULE_ID_TO_TYPE[moduleId]) {
+    const moduleType = MODULE_ID_TO_TYPE[moduleId];
+    return MODULE_NAMES[moduleType] || moduleType;
+  }
+  
+  // Дополнительные модули (если появятся в будущем)
+  const additionalModuleNames = {
     '0x6d756c7469736967000000000000000000000000000000000000000000000000': 'Multisig',
     '0x646561637469766174696f6e0000000000000000000000000000000000000000': 'Deactivation',
     '0x616e616c79746963730000000000000000000000000000000000000000000000': 'Analytics',
     '0x6e6f74696669636174696f6e7300000000000000000000000000000000000000': 'Notifications'
   };
-  return moduleNames[moduleId] || `Module ${moduleId}`;
+  
+  return additionalModuleNames[moduleId] || `Module ${moduleId}`;
 }
 
 function getChainName(chainId) {
@@ -364,4 +372,9 @@ function getChainName(chainId) {
   return chainNames[chainId] || `Chain ID: ${chainId}`;
 }
 
-module.exports = router;
+// Экспортируем функции для использования в других модулях
+module.exports = {
+  router,
+  getModuleName,
+  getChainName
+};

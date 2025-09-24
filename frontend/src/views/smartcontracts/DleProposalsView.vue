@@ -289,7 +289,10 @@
               <span>{{ chain.name }} ({{ chain.chainId }})</span>
             </label>
           </div>
-          <small class="text-muted">Для offchain‑действий целевые сети не требуются.</small>
+          <small class="text-muted">Выберите хотя бы одну целевую сеть для исполнения операции.</small>
+          <div v-if="showTargetChains && newProposal.targetChains.length === 0" class="form-error">
+            <small class="text-danger">⚠️ Необходимо выбрать хотя бы одну целевую сеть</small>
+          </div>
         </div>
 
         
@@ -958,7 +961,8 @@ const isFormValid = computed(() => {
     newProposal.value.governanceChainId &&
     newProposal.value.operationType &&
     newProposal.value.timelockHours >= 0 &&
-    validateOperationParams()
+    validateOperationParams() &&
+    validateTargetChains()
   );
 });
 
@@ -1067,6 +1071,14 @@ function validateOperationParams() {
     default:
       return false;
   }
+}
+
+function validateTargetChains() {
+  // Если показываем целевые сети, то должна быть выбрана хотя бы одна
+  if (showTargetChains.value) {
+    return newProposal.value.targetChains.length > 0;
+  }
+  return true;
 }
 
 function validateAddress(address) {
@@ -1582,22 +1594,22 @@ function encodeBurnOperation(from, amount) {
 }
 
 function encodeUpdateDLEInfoOperation(name, symbol, location, coordinates, jurisdiction, oktmo, kpp) {
-  // Селектор для updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)
-  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('updateDLEInfo(string,string,string,string,uint256,uint256,string[],uint256)')).slice(0, 10);
+  // Селектор для _updateDLEInfo(string,string,string,string,uint256,string[],uint256)
+  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('_updateDLEInfo(string,string,string,string,uint256,string[],uint256)')).slice(0, 10);
   
   // Кодируем параметры
   const abiCoder = new ethers.AbiCoder();
   const encodedData = abiCoder.encode(
-    ['string', 'string', 'string', 'string', 'uint256', 'uint256', 'string[]', 'uint256'],
-    [name, symbol, location, coordinates, jurisdiction, oktmo, [], kpp] // okvedCodes пока пустой массив
+    ['string', 'string', 'string', 'string', 'uint256', 'string[]', 'uint256'],
+    [name, symbol, location, coordinates, jurisdiction, [], kpp] // okvedCodes пока пустой массив
   );
   
   return selector + encodedData.slice(2);
 }
 
 function encodeUpdateQuorumOperation(quorumPercentage) {
-  // Селектор для updateQuorumPercentage(uint256)
-  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('updateQuorumPercentage(uint256)')).slice(0, 10);
+  // Селектор для _updateQuorumPercentage(uint256)
+  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('_updateQuorumPercentage(uint256)')).slice(0, 10);
   
   // Кодируем параметр
   const abiCoder = new ethers.AbiCoder();
@@ -1607,8 +1619,8 @@ function encodeUpdateQuorumOperation(quorumPercentage) {
 }
 
 function encodeUpdateChainOperation(chainId) {
-  // Селектор для updateCurrentChainId(uint256)
-  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('updateCurrentChainId(uint256)')).slice(0, 10);
+  // Селектор для _updateCurrentChainId(uint256)
+  const selector = '0x' + ethers.keccak256(ethers.toUtf8Bytes('_updateCurrentChainId(uint256)')).slice(0, 10);
   
   // Кодируем параметр
   const abiCoder = new ethers.AbiCoder();
@@ -2655,5 +2667,44 @@ onUnmounted(() => {
   font-size: 0.9em;
   color: #28a745;
   font-weight: 500;
+}
+
+/* Стили для ошибок валидации */
+.form-error {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+}
+
+.text-danger {
+  color: #dc3545 !important;
+}
+
+.targets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.target-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.target-item:hover {
+  background-color: #f8f9fa;
+}
+
+.target-item input[type="checkbox"] {
+  margin: 0;
 }
 </style> 

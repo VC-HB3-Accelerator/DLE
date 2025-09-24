@@ -95,7 +95,7 @@ const dleTokensRoutes = require('./routes/dleTokens'); // Функции ток�
 const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитика и история
 const compileRoutes = require('./routes/compile'); // Компиляция контрактов
 const dleMultichainRoutes = require('./routes/dleMultichain'); // Мультичейн функции
-const dleHistoryRoutes = require('./routes/dleHistory'); // Расширенная история
+const { router: dleHistoryRoutes } = require('./routes/dleHistory'); // Расширенная история
 const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
 
 const app = express();

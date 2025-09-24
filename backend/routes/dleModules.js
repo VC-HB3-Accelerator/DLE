@@ -18,6 +18,7 @@ const hre = require('hardhat');
 const rpcProviderService = require('../services/rpcProviderService');
 const { spawn } = require('child_process');
 const path = require('path');
+const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS } = require('../constants/moduleIds');
 
 // Утилитарная функция для автоматической компиляции контрактов
 async function autoCompileContracts() {
@@ -274,17 +275,10 @@ router.post('/prepare-initialize-modules-all-networks', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Не найдены поддерживаемые сети для DLE' });
     }
 
-    // Интерфейс функции инициализации
-    const dleIface = new Interface([
-      'function initializeBaseModules(address _treasuryAddress, address _timelockAddress, address _readerAddress)'
-    ]);
+    // Модули инициализируются только через governance предложения
 
-    // Module IDs
-    const moduleIds = {
-      treasury: '0x7472656173757279000000000000000000000000000000000000000000000000',
-      timelock: '0x74696d656c6f636b000000000000000000000000000000000000000000000000',
-      reader: '0x7265616465720000000000000000000000000000000000000000000000000000'
-    };
+    // Module IDs - используем константы
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const results = [];
     for (const network of supportedNetworks) {
@@ -294,12 +288,12 @@ router.post('/prepare-initialize-modules-all-networks', async (req, res) => {
           dleAddress,
           [
             'function getModuleAddress(bytes32 _moduleId) external view returns (address)',
-            'function modulesInitialized() external view returns (bool)'
           ],
           provider
         );
 
-        const already = await dle.modulesInitialized();
+        // Модули теперь инициализируются только через governance
+        const already = false;
         const treasuryAddress = await dle.getModuleAddress(moduleIds.treasury);
         const timelockAddress = await dle.getModuleAddress(moduleIds.timelock);
         const readerAddress = await dle.getModuleAddress(moduleIds.reader);
@@ -318,11 +312,8 @@ router.post('/prepare-initialize-modules-all-networks', async (req, res) => {
           continue;
         }
 
-        const data = dleIface.encodeFunctionData('initializeBaseModules', [
-          treasuryAddress,
-          timelockAddress,
-          readerAddress
-        ]);
+        // Модули инициализируются через governance предложения, а не напрямую
+        const data = null;
 
         results.push({
           chainId: network.chainId,
@@ -460,7 +451,7 @@ router.post('/get-all-modules', async (req, res) => {
         success: true,
         data: {
           modules: [],
-          modulesInitialized: false,
+          requiresGovernance: true,
           totalModules: 0,
           activeModules: 0,
           supportedNetworks: []
@@ -506,23 +497,13 @@ router.post('/get-all-modules', async (req, res) => {
     const dleAbi = [
       "function isModuleActive(bytes32 _moduleId) external view returns (bool)",
           "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
-          "function modulesInitialized() external view returns (bool)"
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
         // Проверяем инициализацию модулей
-        let modulesInitialized = false;
-        try {
-          modulesInitialized = await dle.modulesInitialized();
-        } catch (error) {
-          console.log(`[DLE Modules] Ошибка при проверке инициализации модулей в сети ${network.chainId}:`, error.message);
-          continue;
-        }
-
-        if (!modulesInitialized) {
-          console.log(`[DLE Modules] Модули не инициализированы в сети ${network.chainId}, но проверяем отдельные модули`);
-        }
+        // Модули инициализируются только через governance
+        console.log(`[DLE Modules] Модули инициализируются через governance предложения в сети ${network.chainId}`);
 
         // Проверяем каждый тип модуля
         for (const [moduleType, moduleInfo] of Object.entries(moduleGroups)) {
@@ -568,7 +549,7 @@ router.post('/get-all-modules', async (req, res) => {
       success: true,
       data: {
         modules: formattedModules,
-        modulesInitialized: formattedModules.length > 0,
+        requiresGovernance: true,
         totalModules: formattedModules.length,
         activeModules: formattedModules.length,
         supportedNetworks: supportedNetworks
@@ -1054,7 +1035,7 @@ router.post('/check-modules-status', async (req, res) => {
       return res.json({
         success: true,
         data: {
-          modulesInitialized: false,
+          requiresGovernance: true,
           initializer: null,
           modules: [],
           networks: []
@@ -1067,7 +1048,6 @@ router.post('/check-modules-status', async (req, res) => {
     const provider = new ethers.JsonRpcProvider(network.rpcUrl);
     
     const dleAbi = [
-      "function modulesInitialized() external view returns (bool)",
       "function initializer() external view returns (address)",
       "function isModuleActive(bytes32 _moduleId) external view returns (bool)",
       "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
@@ -1075,16 +1055,11 @@ router.post('/check-modules-status', async (req, res) => {
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Проверяем статус инициализации
-    const modulesInitialized = await dle.modulesInitialized();
+    // Модули инициализируются только через governance
     const initializer = await dle.initializer();
 
     // Проверяем модули
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const modules = [];
     for (const [name, moduleId] of Object.entries(moduleIds)) {
@@ -1111,7 +1086,7 @@ router.post('/check-modules-status', async (req, res) => {
     res.json({
       success: true,
       data: {
-        modulesInitialized: modulesInitialized,
+        requiresGovernance: true,
         initializer: initializer,
         modules: modules,
         networks: supportedNetworks
@@ -1272,17 +1247,12 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
 
     const results = [];
     const dleAbi = [
-      "function initializeBaseModules(address _treasuryAddress, address _timelockAddress, address _readerAddress) external",
-      "function modulesInitialized() external view returns (bool)",
-      "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
+      "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
+      "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
     ];
 
     // ID модулей
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     for (const network of supportedNetworks) {
       console.log(`[DLE Modules] Инициализация модулей в сети: ${network.networkName} (${network.chainId})`);
@@ -1292,19 +1262,8 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
         const wallet = new ethers.Wallet(privateKey, provider);
         const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
 
-        // Проверяем, уже ли инициализированы модули
-        const modulesInitialized = await dle.modulesInitialized();
-        
-        if (modulesInitialized) {
-          console.log(`[DLE Modules] Модули уже инициализированы в сети ${network.chainId}`);
-          results.push({
-            chainId: network.chainId,
-            networkName: network.networkName,
-            status: 'already_initialized',
-            message: 'Модули уже инициализированы'
-          });
-          continue;
-        }
+        // Модули инициализируются только через governance
+        console.log(`[DLE Modules] Модули инициализируются через governance предложения в сети ${network.chainId}`);
 
         // Получаем адреса модулей
         const treasuryAddress = await dle.getModuleAddress(moduleIds.treasury);
@@ -1325,17 +1284,16 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
           continue;
         }
 
-        // Инициализируем модули
-        const tx = await dle.initializeBaseModules(treasuryAddress, timelockAddress, readerAddress);
-        await tx.wait();
-
-        console.log(`[DLE Modules] Модули успешно инициализированы в сети ${network.chainId}`);
+        // Модули инициализируются только через governance предложения
+        console.log(`[DLE Modules] Модули должны быть инициализированы через governance предложения в сети ${network.chainId}`);
         results.push({
           chainId: network.chainId,
           networkName: network.networkName,
-          status: 'success',
-          message: 'Модули успешно инициализированы',
-          transactionHash: tx.hash
+          status: 'requires_governance',
+          message: 'Модули должны быть инициализированы через governance предложения',
+          treasuryAddress,
+          timelockAddress,
+          readerAddress
         });
 
       } catch (error) {
@@ -1401,11 +1359,7 @@ router.post('/verify-modules-all-networks', async (req, res) => {
     ];
 
     // ID модулей
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     // Маппинг модулей для верификации
     const moduleTypes = {
@@ -1609,7 +1563,6 @@ router.post('/check-dle-deployment-status', async (req, res) => {
               const dleAbi = [
                 "function name() external view returns (string)",
                 "function symbol() external view returns (string)",
-                "function modulesInitialized() external view returns (bool)"
               ];
               
               const dle = new ethers.Contract(dleAddress, dleAbi, provider);
@@ -1697,11 +1650,7 @@ router.post('/check-module-deployment-status', async (req, res) => {
     console.log(`[DLE Modules] Проверка статуса деплоя модуля ${moduleType} для DLE: ${dleAddress} в сетях: ${chainIds.join(', ')}`);
 
     // Маппинг типов модулей на их ID
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const moduleId = moduleIds[moduleType];
     if (!moduleId) {
@@ -2243,11 +2192,7 @@ router.post('/verify-module-all-networks', async (req, res) => {
     }
 
     // Маппинг типов модулей на их ID
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const moduleId = moduleIds[moduleType];
     if (!moduleId) {
@@ -2387,11 +2332,7 @@ router.post('/initialize-module-all-networks', async (req, res) => {
     }
 
     // Маппинг типов модулей на их ID
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const moduleId = moduleIds[moduleType];
     if (!moduleId) {
@@ -2416,23 +2357,12 @@ router.post('/initialize-module-all-networks', async (req, res) => {
             const dleAbi = [
               "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
               "function isModuleActive(bytes32 _moduleId) external view returns (bool)",
-              "function modulesInitialized() external view returns (bool)"
             ];
             
             const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
 
-            // Проверяем, уже ли инициализированы модули
-            const modulesInitialized = await dle.modulesInitialized();
-            
-            if (modulesInitialized) {
-              console.log(`[DLE Modules] Модули уже инициализированы в сети ${network.chainId}`);
-              return {
-                chainId: network.chainId,
-                networkName: network.networkName,
-                status: 'already_initialized',
-                message: 'Модули уже инициализированы'
-              };
-            }
+            // Модули инициализируются только через governance
+            console.log(`[DLE Modules] Модули инициализируются через governance предложения в сети ${network.chainId}`);
 
             // Получаем адрес модуля
             const moduleAddress = await dle.getModuleAddress(moduleId);
@@ -2533,11 +2463,7 @@ router.post('/final-deployment-check', async (req, res) => {
     console.log(`[DLE Modules] Финальная проверка готовности DLE: ${dleAddress} в сетях: ${chainIds.join(', ')}`);
 
     // ID модулей для проверки
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const results = [];
     let allComponentsReady = true;
@@ -2558,7 +2484,7 @@ router.post('/final-deployment-check', async (req, res) => {
             const dleAbi = [
               "function name() external view returns (string)",
               "function symbol() external view returns (string)",
-              "function modulesInitialized() external view returns (bool)",
+,
               "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
               "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
             ];
@@ -2627,15 +2553,8 @@ router.post('/final-deployment-check', async (req, res) => {
               }
             }
 
-            // Проверяем инициализацию модулей
-            let modulesInitialized = false;
-            try {
-              modulesInitialized = await dle.modulesInitialized();
-            } catch (error) {
-              console.log(`[DLE Modules] Ошибка проверки инициализации модулей в сети ${chainId}:`, error.message);
-            }
-
-            const networkReady = dleDeployed && allModulesReady && modulesInitialized;
+            // Модули инициализируются только через governance
+            const networkReady = dleDeployed && allModulesReady;
             
             return {
               chainId: chainId,
@@ -2647,7 +2566,7 @@ router.post('/final-deployment-check', async (req, res) => {
                   info: dleInfo
                 },
                 modules: modulesStatus,
-                modulesInitialized: modulesInitialized
+                requiresGovernance: true
               }
             };
           },
@@ -2827,11 +2746,7 @@ router.post('/get-deployment-status', async (req, res) => {
     }
 
     // Проверяем модули
-    const moduleIds = {
-      treasury: "0x7472656173757279000000000000000000000000000000000000000000000000",
-      timelock: "0x74696d656c6f636b000000000000000000000000000000000000000000000000",
-      reader: "0x7265616465720000000000000000000000000000000000000000000000000000"
-    };
+    const moduleIds = MODULE_TYPE_TO_ID;
 
     const moduleStages = [
       { type: 'treasury', stages: ['deploy_treasury', 'verify_treasury', 'initialize_treasury'] },
@@ -2912,10 +2827,10 @@ router.post('/get-deployment-status', async (req, res) => {
           const rpcUrl = await rpcProviderService.getRpcUrlByChainId(supportedNetworks[0].chainId);
           const provider = new ethers.JsonRpcProvider(rpcUrl);
           const dle = new ethers.Contract(dleAddress, [
-            "function modulesInitialized() external view returns (bool)"
           ], provider);
           
-          return await dle.modulesInitialized();
+          // Модули инициализируются только через governance
+          return false;
         },
         'Проверка финальной инициализации модулей',
         3,

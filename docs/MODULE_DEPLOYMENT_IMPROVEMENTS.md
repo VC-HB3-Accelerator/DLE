@@ -21,7 +21,7 @@
 ### Что уже работает:
 - ✅ Деплой основного DLE контракта в 4 сетях с одинаковым адресом (через CREATE2)
 - ✅ Деплой модулей (Treasury, Timelock, Reader) в каждой сети
-- ✅ Автоматическая инициализация базовых модулей через `initializeBaseModules()`
+- ✅ Модули инициализируются только через governance предложения
 - ✅ Верификация контрактов в каждой сети
 - ✅ Отображение модулей в виде карточек с адресами во всех сетях
 
@@ -72,7 +72,7 @@
 **Функциональность:**
 - Получает список поддерживаемых сетей из DLE контракта
 - Проверяет статус инициализации в каждой сети
-- Если модули не инициализированы, вызывает `initializeBaseModules()`
+- Если модули не инициализированы, создает governance предложения для их добавления
 - Возвращает детальный отчет по каждой сети
 
 **Возвращаемые статусы:**
@@ -520,9 +520,11 @@ console.log("TreasuryModule инициализация:", treasuryInit);
 
 // 8-15. Повторяем для TimelockModule и DLEReader...
 
-// 16. Финальная инициализация всех модулей
-const finalInit = await initializeBaseModules(dleResult.address, "0x...");
-console.log("Финальная инициализация:", finalInit);
+// 16. Создание governance предложений для добавления модулей
+const addTreasuryProposal = await createAddModuleProposal(dleResult.address, treasuryAddress, "Treasury Module");
+const addTimelockProposal = await createAddModuleProposal(dleResult.address, timelockAddress, "Timelock Module");
+const addReaderProposal = await createAddModuleProposal(dleResult.address, readerAddress, "Reader Module");
+console.log("Governance предложения созданы:", { addTreasuryProposal, addTimelockProposal, addReaderProposal });
 ```
 
 ### Обработка ошибок

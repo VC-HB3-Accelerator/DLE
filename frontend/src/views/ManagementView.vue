@@ -113,39 +113,28 @@
               <div class="detail-item">
                 <strong>Юрисдикция:</strong> {{ dle.jurisdiction }}
               </div>
-              <div class="detail-item">
-                <strong>Коды ОКВЭД:</strong> {{ dle.okvedCodes?.join(', ') || 'Не указаны' }}
+              <div class="detail-item" v-if="dle.quorumPercentage">
+                <strong>Кворум:</strong> 
+                <span class="quorum-info">{{ dle.quorumPercentage }}%</span>
               </div>
               <div class="detail-item">
-                <strong>Партнеры:</strong> 
-                <span v-if="dle.partnerBalances && dle.partnerBalances.length > 0">
-                  {{ dle.participantCount || dle.partnerBalances.length }} участников
-                  <div class="partners-details">
-                    <div v-for="(partner, index) in dle.partnerBalances.slice(0, 3)" :key="index" class="partner-info">
-                      <span class="partner-address">{{ shortenAddress(partner.address) }}</span>
-                      <span class="partner-balance">{{ partner.balance }} токенов ({{ partner.percentage.toFixed(1) }}%)</span>
-                    </div>
-                    <div v-if="dle.partnerBalances.length > 3" class="more-partners">
-                      +{{ dle.partnerBalances.length - 3 }} еще
-                    </div>
-                  </div>
-                </span>
-                <span v-else>
-                  {{ dle.participantCount || 0 }} участников
-                </span>
+                <strong>Коды ОКВЭД:</strong> {{ dle.okvedCodes?.join(', ') || 'Не указаны' }}
               </div>
               <div class="detail-item">
                 <strong>Статус:</strong> 
                 <span class="status active">Активен</span>
               </div>
-              <div class="detail-item" v-if="verificationStatuses[dle.dleAddress]">
-                <strong>Верификация:</strong>
-                <ul class="verify-list">
-                  <li v-for="(info, chainId) in verificationStatuses[dle.dleAddress].chains" :key="chainId">
-                    Chain {{ chainId }}: {{ info.status || '—' }}<span v-if="info.guid"> (guid: {{ info.guid.slice(0,8) }}…)</span>
-                  </li>
-                </ul>
-                <button class="details-btn btn-sm" @click.stop="refreshVerification(dle.dleAddress)">Обновить статус</button>
+              <div class="detail-item" v-if="dle.totalSupply">
+                <strong>Общий объем токенов:</strong> 
+                <span class="token-supply">{{ parseFloat(dle.totalSupply).toLocaleString() }} {{ dle.symbol }}</span>
+              </div>
+              <div class="detail-item" v-if="dle.logoURI">
+                <strong>Логотип:</strong> 
+                <span class="logo-info">Установлен</span>
+              </div>
+              <div class="detail-item" v-if="dle.creationTimestamp">
+                <strong>Дата создания:</strong> 
+                <span class="creation-date">{{ formatTimestamp(dle.creationTimestamp) }}</span>
               </div>
               
             </div>
@@ -187,8 +176,6 @@ const router = useRouter();
 // Состояние для DLE
 const deployedDles = ref([]);
 const isLoadingDles = ref(false);
-const verificationStatuses = ref({}); // { [address]: { address, chains: { [chainId]: { guid, status } } } }
-let verifyPollTimer = null;
 
 
 
@@ -308,18 +295,6 @@ async function loadDeployedDles() {
       
       deployedDles.value = dlesWithBlockchainData;
       console.log('[ManagementView] Итоговый список DLE:', deployedDles.value);
-
-      // Подгружаем статусы верификации для всех адресов
-      for (const dle of deployedDles.value) {
-        try {
-          const st = await api.get(`/dle-v2/verify/status/${dle.dleAddress}`);
-          if (st.data?.success && st.data.data) {
-            verificationStatuses.value[dle.dleAddress] = st.data.data;
-          }
-        } catch (e) {
-          // no-op
-        }
-      }
     } else {
       console.error('[ManagementView] Ошибка при загрузке DLE:', response.data.message);
       deployedDles.value = [];
@@ -367,6 +342,19 @@ function getExplorerUrl(chainId, address) {
   return `${baseUrl}/address/${address}`;
 }
 
+
+function formatTimestamp(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(timestamp * 1000); // Конвертируем из Unix timestamp
+  return date.toLocaleDateString('ru-RU', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
 function openDleOnEtherscan(address) {
   window.open(`https://sepolia.etherscan.io/address/${address}`, '_blank');
 }
@@ -377,35 +365,6 @@ function openDleManagement(dleAddress) {
 }
 
 
-async function refreshVerification(address) {
-  try {
-    const resp = await api.post(`/dle-v2/verify/refresh/${address}`, {});
-    if (resp.data?.success && resp.data.data) {
-      verificationStatuses.value[address] = resp.data.data;
-    }
-  } catch (e) {
-    // no-op
-  }
-}
-
-function isTerminalStatus(status) {
-  if (!status) return false;
-  const s = String(status).toLowerCase();
-  return s.includes('pass') || s.includes('verified') || s.startsWith('error');
-}
-
-async function pollVerifications() {
-  try {
-    const addresses = Object.keys(verificationStatuses.value || {});
-    for (const addr of addresses) {
-      const chains = verificationStatuses.value[addr]?.chains || {};
-      const hasPending = Object.values(chains).some((c) => !isTerminalStatus(c.status));
-      if (hasPending) {
-        await refreshVerification(addr);
-      }
-    }
-  } catch {}
-}
 
 // function openMultisig() {
 //   router.push('/management/multisig');
@@ -416,14 +375,6 @@ async function pollVerifications() {
 
 onMounted(() => {
   loadDeployedDles();
-  verifyPollTimer = setInterval(pollVerifications, 15000);
-});
-
-onBeforeUnmount(() => {
-  if (verifyPollTimer) {
-    clearInterval(verifyPollTimer);
-    verifyPollTimer = null;
-  }
 });
 </script>
 
@@ -813,55 +764,31 @@ onBeforeUnmount(() => {
   align-self: flex-start;
 }
 
-/* Стили для отображения партнеров */
-.partners-details {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border-left: 3px solid var(--color-primary);
-}
 
-.partner-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem 0;
-  font-size: 0.875rem;
-}
-
-.partner-info:not(:last-child) {
-  border-bottom: 1px solid #e9ecef;
-}
-
-.partner-address {
-  font-family: 'Courier New', monospace;
-  color: #495057;
-  font-weight: 600;
-}
-
-.partner-balance {
+/* Стили для новых элементов */
+.token-supply {
   color: var(--color-primary);
   font-weight: 600;
 }
 
-.more-partners {
-  text-align: center;
-  color: #6c757d;
-  font-style: italic;
-  font-size: 0.8rem;
-  padding: 0.25rem 0;
+.logo-info {
+  color: #28a745;
+  font-weight: 600;
 }
+
+.quorum-info {
+  color: #fd7e14;
+  font-weight: 600;
+}
+
+.creation-date {
+  color: #6c757d;
+  font-weight: 500;
+}
+
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  
-  .partner-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-  
   .dle-title-section {
     flex-direction: column;
     align-items: flex-start;

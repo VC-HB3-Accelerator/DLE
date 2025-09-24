@@ -146,12 +146,17 @@ const props = defineProps({
     dleData: {
       type: Object,
       required: true
-  },
-  etherscanApiKey: {
-    type: String,
-    required: false,
-    default: ''
-  }
+    },
+    logoURI: {
+      type: String,
+      required: false,
+      default: '/uploads/logos/default-token.svg'
+    },
+    etherscanApiKey: {
+      type: String,
+      required: false,
+      default: ''
+    }
 });
 
 // Events
@@ -260,6 +265,7 @@ const startDeployment = async () => {
       initialAmounts: props.dleData.partners.map(p => p.amount).filter(amount => amount > 0),
       supportedChainIds: props.selectedNetworks.filter(id => id !== null && id !== undefined),
       currentChainId: props.selectedNetworks[0] || 1,
+      logoURI: props.logoURI || '/uploads/logos/default-token.svg',
       privateKey: props.privateKey,
       etherscanApiKey: props.etherscanApiKey || '',
             autoVerifyAfterDeploy: false
