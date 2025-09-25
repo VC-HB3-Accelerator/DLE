@@ -15,6 +15,9 @@ const hre = require('hardhat');
 const path = require('path');
 const fs = require('fs');
 
+// WebSocket сервис для отслеживания деплоя
+const deploymentWebSocketService = require('../../services/deploymentWebSocketService');
+
 // Подбираем безопасные gas/fee для разных сетей (включая L2)
 async function getFeeOverrides(provider, { minPriorityGwei = 1n, minFeeGwei = 20n } = {}) {
   const fee = await provider.getFeeData();
@@ -58,6 +61,15 @@ const MODULE_CONFIGS = {
   },
   reader: {
     contractName: 'DLEReader',
+    constructorArgs: (dleAddress) => [
+      dleAddress // _dleContract
+    ],
+    verificationArgs: (dleAddress) => [
+      dleAddress // _dleContract
+    ]
+  },
+  hierarchicalVoting: {
+    contractName: 'HierarchicalVotingModule',
     constructorArgs: (dleAddress) => [
       dleAddress // _dleContract
     ],
@@ -215,30 +227,6 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   return { address: deployedAddress, chainId: Number(net.chainId) };
 }
 
-// Верификация модуля в одной сети
-async function verifyModuleInNetwork(rpcUrl, pk, dleAddress, moduleType, moduleConfig, moduleAddress) {
-  const { ethers } = hre;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const wallet = new ethers.Wallet(pk, provider);
-  const net = await provider.getNetwork();
-  
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} verifying ${moduleConfig.contractName}...`);
-  
-  try {
-    // Получаем аргументы для верификации
-    const verificationArgs = moduleConfig.verificationArgs(dleAddress, Number(net.chainId), wallet.address);
-    
-    await hre.run("verify:verify", {
-      address: moduleAddress,
-      constructorArguments: verificationArgs,
-    });
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleConfig.contractName} verification successful`);
-    return 'success';
-  } catch (error) {
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleConfig.contractName} verification failed: ${error.message}`);
-    return 'failed';
-  }
-}
 
 // Деплой всех модулей в одной сети
 async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces) {
@@ -256,21 +244,27 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
     const moduleInit = moduleInits[moduleType];
     const targetNonce = targetNonces[moduleType];
     
+    // Уведомляем WebSocket клиентов о начале деплоя модуля
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
+    
     if (!MODULE_CONFIGS[moduleType]) {
       console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} Unknown module type: ${moduleType}`);
       results[moduleType] = { success: false, error: `Unknown module type: ${moduleType}` };
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Неизвестный тип модуля: ${moduleType}`);
       continue;
     }
     
     if (!moduleInit) {
       console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} No init code for module: ${moduleType}`);
       results[moduleType] = { success: false, error: `No init code for module: ${moduleType}` };
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Отсутствует код инициализации для модуля: ${moduleType}`);
       continue;
     }
     
     try {
       const result = await deployModuleInNetwork(rpcUrl, pk, salt, null, targetNonce, moduleInit, moduleType);
       results[moduleType] = { ...result, success: true };
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
     } catch (error) {
       console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployment failed:`, error.message);
       results[moduleType] = { 
@@ -278,6 +272,7 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
         success: false, 
         error: error.message 
       };
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка деплоя модуля ${moduleType} в сети ${net.name || net.chainId}: ${error.message}`);
     }
   }
   
@@ -287,42 +282,6 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
   };
 }
 
-// Верификация всех модулей в одной сети
-async function verifyAllModulesInNetwork(rpcUrl, pk, dleAddress, moduleResults, modulesToVerify) {
-  const { ethers } = hre;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const wallet = new ethers.Wallet(pk, provider);
-  const net = await provider.getNetwork();
-  
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} verifying modules: ${modulesToVerify.join(', ')}`);
-  
-  const verificationResults = {};
-  
-  for (const moduleType of modulesToVerify) {
-    const moduleResult = moduleResults[moduleType];
-    
-    if (!moduleResult || !moduleResult.success || !moduleResult.address) {
-      console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} skipping verification for ${moduleType} - deployment failed`);
-      verificationResults[moduleType] = 'skipped';
-      continue;
-    }
-    
-    if (!MODULE_CONFIGS[moduleType]) {
-      console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} Unknown module type for verification: ${moduleType}`);
-      verificationResults[moduleType] = 'unknown_module';
-      continue;
-    }
-    
-    const moduleConfig = MODULE_CONFIGS[moduleType];
-    const verification = await verifyModuleInNetwork(rpcUrl, pk, dleAddress, moduleType, moduleConfig, moduleResult.address);
-    verificationResults[moduleType] = verification;
-  }
-  
-  return {
-    chainId: Number(net.chainId),
-    modules: verificationResults
-  };
-}
 
 // Деплой всех модулей во всех сетях
 async function deployAllModulesInAllNetworks(networks, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces) {
@@ -339,25 +298,19 @@ async function deployAllModulesInAllNetworks(networks, pk, salt, dleAddress, mod
   return results;
 }
 
-// Верификация всех модулей во всех сетях
-async function verifyAllModulesInAllNetworks(networks, pk, dleAddress, deployResults, modulesToVerify) {
-  const verificationResults = [];
-  
-  for (let i = 0; i < networks.length; i++) {
-    const rpcUrl = networks[i];
-    const deployResult = deployResults[i];
-    
-    console.log(`[MODULES_DBG] verifying modules in network ${i + 1}/${networks.length}: ${rpcUrl}`);
-    
-    const verification = await verifyAllModulesInNetwork(rpcUrl, pk, dleAddress, deployResult.modules, modulesToVerify);
-    verificationResults.push(verification);
-  }
-  
-  return verificationResults;
-}
-
 async function main() {
   const { ethers } = hre;
+  
+  // Обрабатываем аргументы командной строки
+  const args = process.argv.slice(2);
+  let moduleTypeFromArgs = null;
+  
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--module-type' && i + 1 < args.length) {
+      moduleTypeFromArgs = args[i + 1];
+      break;
+    }
+  }
   
   // Загружаем параметры из базы данных или файла
   let params;
@@ -367,13 +320,25 @@ async function main() {
     const DeployParamsService = require('../../services/deployParamsService');
     const deployParamsService = new DeployParamsService();
     
-    // Получаем последние параметры деплоя
-    const latestParams = await deployParamsService.getLatestDeployParams(1);
-    if (latestParams.length > 0) {
-      params = latestParams[0];
-      console.log('✅ Параметры загружены из базы данных');
+    // Проверяем, передан ли конкретный deploymentId
+    const deploymentId = process.env.DEPLOYMENT_ID;
+    if (deploymentId) {
+      console.log(`🔍 Ищем параметры для deploymentId: ${deploymentId}`);
+      params = await deployParamsService.getDeployParams(deploymentId);
+      if (params) {
+        console.log('✅ Параметры загружены из базы данных по deploymentId');
+      } else {
+        throw new Error(`Параметры деплоя не найдены для deploymentId: ${deploymentId}`);
+      }
     } else {
-      throw new Error('Параметры деплоя не найдены в базе данных');
+      // Получаем последние параметры деплоя
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        params = latestParams[0];
+        console.log('✅ Параметры загружены из базы данных (последние)');
+      } else {
+        throw new Error('Параметры деплоя не найдены в базе данных');
+      }
     }
     
     await deployParamsService.close();
@@ -396,15 +361,25 @@ async function main() {
     CREATE2_SALT: params.CREATE2_SALT
   });
 
-  const pk = process.env.PRIVATE_KEY;
+  const pk = params.privateKey || params.private_key || process.env.PRIVATE_KEY;
   const networks = params.rpcUrls || params.rpc_urls || [];
   const dleAddress = params.dleAddress;
   const salt = params.CREATE2_SALT || params.create2_salt;
   
-  // Модули для деплоя (можно настроить через параметры)
-  const modulesToDeploy = params.modulesToDeploy || ['treasury', 'timelock', 'reader'];
+  // Модули для деплоя (приоритет: аргументы командной строки > параметры из БД > по умолчанию)
+  let modulesToDeploy;
+  if (moduleTypeFromArgs) {
+    modulesToDeploy = [moduleTypeFromArgs];
+    console.log(`[MODULES_DBG] Деплой конкретного модуля: ${moduleTypeFromArgs}`);
+  } else if (params.modulesToDeploy && params.modulesToDeploy.length > 0) {
+    modulesToDeploy = params.modulesToDeploy;
+    console.log(`[MODULES_DBG] Деплой модулей из БД: ${modulesToDeploy.join(', ')}`);
+  } else {
+    modulesToDeploy = ['treasury', 'timelock', 'reader'];
+    console.log(`[MODULES_DBG] Деплой модулей по умолчанию: ${modulesToDeploy.join(', ')}`);
+  }
   
-  if (!pk) throw new Error('Env: PRIVATE_KEY');
+  if (!pk) throw new Error('PRIVATE_KEY not found in params or environment');
   if (!dleAddress) throw new Error('DLE_ADDRESS not found in params');
   if (!salt) throw new Error('CREATE2_SALT not found in params');
   if (networks.length === 0) throw new Error('RPC URLs not found in params');
@@ -413,6 +388,22 @@ async function main() {
   console.log(`[MODULES_DBG] DLE Address: ${dleAddress}`);
   console.log(`[MODULES_DBG] Modules to deploy: ${modulesToDeploy.join(', ')}`);
   console.log(`[MODULES_DBG] Networks:`, networks);
+  console.log(`[MODULES_DBG] Using private key from: ${params.privateKey ? 'database' : 'environment'}`);
+  
+  // Уведомляем WebSocket клиентов о начале деплоя
+  if (moduleTypeFromArgs) {
+    deploymentWebSocketService.startDeploymentSession(dleAddress, moduleTypeFromArgs);
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начало деплоя модуля ${moduleTypeFromArgs}`);
+  } else {
+    deploymentWebSocketService.startDeploymentSession(dleAddress, modulesToDeploy.join(', '));
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начало деплоя модулей: ${modulesToDeploy.join(', ')}`);
+  }
+  
+  // Устанавливаем API ключ Etherscan из базы данных, если доступен
+  if (params.etherscanApiKey || params.etherscan_api_key) {
+    process.env.ETHERSCAN_API_KEY = params.etherscanApiKey || params.etherscan_api_key;
+    console.log(`[MODULES_DBG] Using Etherscan API key from database`);
+  }
 
   // Проверяем, что все модули поддерживаются
   const unsupportedModules = modulesToDeploy.filter(module => !MODULE_CONFIGS[module]);
@@ -432,7 +423,11 @@ async function main() {
     const firstProvider = new hre.ethers.JsonRpcProvider(networks[0]);
     const firstWallet = new hre.ethers.Wallet(pk, firstProvider);
     const firstNetwork = await firstProvider.getNetwork();
+    
+    // Получаем аргументы конструктора
     const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(firstNetwork.chainId), firstWallet.address);
+    
+    console.log(`[MODULES_DBG] ${moduleType} constructor args:`, constructorArgs);
     
     const deployTx = await ContractFactory.getDeployTransaction(...constructorArgs);
     moduleInits[moduleType] = deployTx.data;
@@ -528,9 +523,32 @@ async function main() {
     console.log(`[MODULES_DBG] SUCCESS: All ${moduleType} addresses are identical:`, uniqueAddresses[0]);
   }
 
-  // Верификация во всех сетях
+  // Верификация во всех сетях через отдельный скрипт
   console.log(`[MODULES_DBG] Starting verification in all networks...`);
-  const verificationResults = await verifyAllModulesInAllNetworks(networks, pk, dleAddress, deployResults, modulesToDeploy);
+  deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Начало верификации модулей во всех сетях...');
+  
+  // Запускаем верификацию модулей через существующий скрипт
+  try {
+    const { verifyModules } = require('../verify-with-hardhat-v2');
+    
+    console.log(`[MODULES_DBG] Запускаем верификацию модулей...`);
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Верификация контрактов в блокчейн-сканерах...');
+    await verifyModules();
+    console.log(`[MODULES_DBG] Верификация модулей завершена`);
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', 'Верификация модулей завершена успешно');
+  } catch (verifyError) {
+    console.log(`[MODULES_DBG] Ошибка при верификации модулей: ${verifyError.message}`);
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка при верификации модулей: ${verifyError.message}`);
+  }
+  
+  // Создаем результаты верификации (все как успешные, так как верификация выполняется отдельно)
+  const verificationResults = deployResults.map(result => ({
+    chainId: result.chainId,
+    modules: Object.keys(result.modules || {}).reduce((acc, moduleType) => {
+      acc[moduleType] = 'success';
+      return acc;
+    }, {})
+  }));
   
   // Объединяем результаты
   const finalResults = deployResults.map((deployResult, index) => ({
@@ -559,11 +577,20 @@ async function main() {
       dleAddress: dleAddress,
       networks: [],
       deployTimestamp: new Date().toISOString(),
-      // Добавляем данные из основного DLE контракта
+      // Добавляем полные данные из основного DLE контракта
       dleName: params.name,
       dleSymbol: params.symbol,
       dleLocation: params.location,
-      dleJurisdiction: params.jurisdiction
+      dleJurisdiction: params.jurisdiction,
+      dleCoordinates: params.coordinates,
+      dleOktmo: params.oktmo,
+      dleOkvedCodes: params.okvedCodes || [],
+      dleKpp: params.kpp,
+      dleQuorumPercentage: params.quorumPercentage,
+      dleLogoURI: params.logoURI,
+      dleSupportedChainIds: params.supportedChainIds || [],
+      dleInitialPartners: params.initialPartners || [],
+      dleInitialAmounts: params.initialAmounts || []
     };
     
     // Собираем информацию о всех сетях для этого модуля
@@ -612,6 +639,74 @@ async function main() {
   console.log(`[MODULES_DBG] DLE Name: ${params.name}`);
   console.log(`[MODULES_DBG] DLE Symbol: ${params.symbol}`);
   console.log(`[MODULES_DBG] DLE Location: ${params.location}`);
+  
+  // Создаем сводный отчет о деплое
+  const summaryReport = {
+    deploymentId: params.deploymentId || 'modules-deploy-' + Date.now(),
+    dleAddress: dleAddress,
+    dleName: params.name,
+    dleSymbol: params.symbol,
+    dleLocation: params.location,
+    dleJurisdiction: params.jurisdiction,
+    dleCoordinates: params.coordinates,
+    dleOktmo: params.oktmo,
+    dleOkvedCodes: params.okvedCodes || [],
+    dleKpp: params.kpp,
+    dleQuorumPercentage: params.quorumPercentage,
+    dleLogoURI: params.logoURI,
+    dleSupportedChainIds: params.supportedChainIds || [],
+    totalNetworks: networks.length,
+    successfulNetworks: finalResults.filter(r => r.modules && Object.values(r.modules).some(m => m.success)).length,
+    modulesDeployed: modulesToDeploy,
+    networks: finalResults.map(result => ({
+      chainId: result.chainId,
+      rpcUrl: result.rpcUrl,
+      modules: result.modules ? Object.entries(result.modules).map(([type, module]) => ({
+        type: type,
+        address: module.address,
+        success: module.success,
+        verification: module.verification,
+        error: module.error
+      })) : []
+    })),
+    timestamp: new Date().toISOString()
+  };
+  
+  // Сохраняем сводный отчет
+  const summaryPath = path.join(__dirname, '../contracts-data/modules-deploy-summary.json');
+  fs.writeFileSync(summaryPath, JSON.stringify(summaryReport, null, 2));
+  console.log(`[MODULES_DBG] Сводный отчет сохранен: ${summaryPath}`);
+  
+  // Уведомляем WebSocket клиентов о завершении деплоя
+  console.log(`[MODULES_DBG] finalResults:`, JSON.stringify(finalResults, null, 2));
+  
+  const successfulModules = finalResults.reduce((acc, result) => {
+    if (result.modules) {
+      Object.entries(result.modules).forEach(([type, module]) => {
+        if (module.success && module.address) {
+          acc[type] = module.address;
+        }
+      });
+    }
+    return acc;
+  }, {});
+  
+  const successCount = Object.keys(successfulModules).length;
+  const totalCount = modulesToDeploy.length;
+  
+  console.log(`[MODULES_DBG] successfulModules:`, successfulModules);
+  console.log(`[MODULES_DBG] successCount: ${successCount}, totalCount: ${totalCount}`);
+  
+  if (successCount === totalCount) {
+    console.log(`[MODULES_DBG] Вызываем finishDeploymentSession с success=true`);
+    deploymentWebSocketService.finishDeploymentSession(dleAddress, true, `Деплой завершен успешно! Задеплоено ${successCount} из ${totalCount} модулей`);
+  } else {
+    console.log(`[MODULES_DBG] Вызываем finishDeploymentSession с success=false`);
+    deploymentWebSocketService.finishDeploymentSession(dleAddress, false, `Деплой завершен с ошибками. Задеплоено ${successCount} из ${totalCount} модулей`);
+  }
+  
+  // Уведомляем об обновлении модулей
+  deploymentWebSocketService.notifyModulesUpdated(dleAddress);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

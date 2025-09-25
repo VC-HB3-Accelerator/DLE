@@ -22,7 +22,13 @@
       <!-- Заголовок -->
       <div class="page-header">
         <div class="header-content">
-          <h1>Модули DLE</h1>
+          <div class="title-section">
+            <h1>Модули DLE</h1>
+            <div class="websocket-status" :class="{ connected: isModulesWSConnected }" title="WebSocket соединение для обновления модулей">
+              <i class="fas fa-circle" :class="isModulesWSConnected ? 'fa-solid' : 'fa-light'"></i>
+              <span>{{ isModulesWSConnected ? 'Подключено' : 'Отключено' }}</span>
+            </div>
+          </div>
           <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
           <p v-else-if="isLoadingDle">Загрузка...</p>
           <p v-else>DLE не выбран</p>
@@ -30,26 +36,138 @@
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
-      <!-- Информация о модулях -->
-      <div class="modules-info">
-        <div class="info-card">
-          <h3>📊 Информация о модулях</h3>
-          <div class="info-grid">
-            <div class="info-item">
-              <strong>Всего модулей:</strong> {{ modulesCount }}
+      <!-- Модальное окно деплоя -->
+      <div v-if="showDeploymentModal" class="modal-overlay" @click="moduleDeploymentStatus === 'error' || !isDeploying ? closeDeploymentModal() : null">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <div class="header-content">
+              <h3>🚀 Деплой модуля {{ currentDeployingModule }}</h3>
+              <div class="websocket-status" :class="{ connected: isWSConnected }">
+                <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
+                <span>{{ isWSConnected ? 'Подключено' : 'Отключено' }}</span>
             </div>
-            <div class="info-item">
-              <strong>Активных модулей:</strong> {{ activeModulesCount }}
             </div>
-            <div class="info-item">
-              <strong>Неактивных модулей:</strong> {{ inactiveModulesCount }}
+            <button 
+              class="modal-close" 
+              @click="closeDeploymentModal" 
+              v-if="moduleDeploymentStatus === 'error' || !isDeploying"
+            >
+              <i class="fas fa-times"></i>
+            </button>
             </div>
-            <div class="info-item" v-if="modules.length > 0">
-              <strong>Последнее обновление:</strong> {{ lastUpdateTime }}
+          
+          <div class="modal-body">
+            <!-- Статус деплоя -->
+            <div class="deployment-status-card">
+              <div class="status-icon" :class="moduleDeploymentStatus">
+                <i class="fas fa-spinner fa-spin" v-if="moduleDeploymentStatus === 'starting'"></i>
+                <i class="fas fa-check-circle" v-else-if="moduleDeploymentStatus === 'success'"></i>
+                <i class="fas fa-exclamation-circle" v-else-if="moduleDeploymentStatus === 'error'"></i>
+                <i class="fas fa-rocket" v-else></i>
+            </div>
+              <div class="status-content">
+                <h4>{{ getStatusTitle() }}</h4>
+                <p>{{ deploymentProgress || 'Подготовка к деплою...' }}</p>
+          </div>
+        </div>
+
+            <!-- Прогресс-бар -->
+            <div class="progress-section" v-if="isDeploying">
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
+              </div>
+              <div class="progress-text">{{ progressPercentage }}%</div>
+      </div>
+
+            <!-- Детали процесса -->
+            <div class="deployment-details">
+              <div class="detail-step" :class="{ active: deploymentStep >= 1, completed: deploymentStep > 1 }">
+                <div class="step-icon">
+                  <i class="fas fa-cog" v-if="deploymentStep < 1"></i>
+                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 1"></i>
+                  <i class="fas fa-check" v-else></i>
+                </div>
+                <div class="step-content">
+                  <h5>Инициализация</h5>
+                  <p>Загрузка параметров из базы данных</p>
+                </div>
+              </div>
+
+              <div class="detail-step" :class="{ active: deploymentStep >= 2, completed: deploymentStep > 2 }">
+                <div class="step-icon">
+                  <i class="fas fa-cog" v-if="deploymentStep < 2"></i>
+                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 2"></i>
+                  <i class="fas fa-check" v-else></i>
+                </div>
+                <div class="step-content">
+                  <h5>Компиляция</h5>
+                  <p>Компиляция смарт-контракта модуля</p>
+                </div>
+              </div>
+
+              <div class="detail-step" :class="{ active: deploymentStep >= 3, completed: deploymentStep > 3 }">
+                <div class="step-icon">
+                  <i class="fas fa-cog" v-if="deploymentStep < 3"></i>
+                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 3"></i>
+                  <i class="fas fa-check" v-else></i>
+                </div>
+                <div class="step-content">
+                  <h5>Деплой в сетях</h5>
+                  <p>Развертывание контракта во всех сетях</p>
+                </div>
+              </div>
+
+              <div class="detail-step" :class="{ active: deploymentStep >= 4, completed: deploymentStep > 4 }">
+                <div class="step-icon">
+                  <i class="fas fa-cog" v-if="deploymentStep < 4"></i>
+                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 4"></i>
+                  <i class="fas fa-check" v-else></i>
+                </div>
+                <div class="step-content">
+                  <h5>Верификация</h5>
+                  <p>Верификация контракта в блокчейн-сканерах</p>
+                </div>
+              </div>
+
+              <div class="detail-step" :class="{ active: deploymentStep >= 5, completed: deploymentStep > 5 }">
+                <div class="step-icon">
+                  <i class="fas fa-cog" v-if="deploymentStep < 5"></i>
+                  <i class="fas fa-spinner fa-spin" v-else-if="deploymentStep === 5"></i>
+                  <i class="fas fa-check" v-else></i>
+                </div>
+                <div class="step-content">
+                  <h5>Завершение</h5>
+                  <p>Сохранение результатов и обновление интерфейса</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Лог процесса -->
+            <div class="deployment-log" v-if="deploymentLogs.length > 0">
+              <h5>Лог процесса:</h5>
+              <div class="log-container">
+                <div 
+                  v-for="(log, index) in deploymentLogs" 
+                  :key="index" 
+                  class="log-entry"
+                  :class="log.type"
+                >
+                  <span class="log-time">{{ log.time }}</span>
+                  <span class="log-message">{{ log.message }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer" v-if="moduleDeploymentStatus === 'success'">
+            <div class="success-message">
+              <i class="fas fa-check-circle"></i>
+              <span>Деплой завершен! Окно закроется автоматически...</span>
             </div>
           </div>
         </div>
       </div>
+
 
       <!-- Блоки для деплоя стандартных модулей -->
       <div class="standard-modules">
@@ -73,10 +191,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/treasury?address=${route.query.address}`)"
+                @click="deployModule('treasury')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -95,10 +215,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/timelock?address=${route.query.address}`)"
+                @click="deployModule('timelock')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -118,10 +240,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/reader?address=${route.query.address}`)"
+                @click="deployModule('reader')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -140,10 +264,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/communication?address=${route.query.address}`)"
+                @click="deployModule('communication')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -162,10 +288,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/application?address=${route.query.address}`)"
+                @click="deployModule('application')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -184,10 +312,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/mint?address=${route.query.address}`)"
+                @click="deployModule('mint')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -206,10 +336,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/burn?address=${route.query.address}`)"
+                @click="deployModule('burn')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -229,10 +361,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/oracle?address=${route.query.address}`)"
+                @click="deployModule('oracle')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -252,10 +386,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/inheritance?address=${route.query.address}`)"
+                @click="deployModule('inheritance')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -275,10 +411,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/vesting?address=${route.query.address}`)"
+                @click="deployModule('vesting')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -298,10 +436,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/staking?address=${route.query.address}`)"
+                @click="deployModule('staking')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -321,10 +461,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/insurance?address=${route.query.address}`)"
+                @click="deployModule('insurance')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -344,10 +486,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/compliance?address=${route.query.address}`)"
+                @click="deployModule('compliance')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -367,10 +511,12 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/supplychain?address=${route.query.address}`)"
+                @click="deployModule('supplychain')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
@@ -390,99 +536,43 @@
             <div class="module-actions">
               <button 
                 class="btn btn-primary btn-deploy" 
-                @click="router.push(`/management/modules/deploy/event?address=${route.query.address}`)"
+                @click="deployModule('event')"
+                :disabled="isDeploying"
               >
-                <i class="fas fa-rocket"></i>
-                Деплой
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- HierarchicalVotingModule -->
+          <div class="module-deploy-card">
+            <div class="module-content">
+              <h4>HierarchicalVotingModule</h4>
+              <p>Иерархическое голосование - DLE может голосовать в других DLE на основе владения токенами</p>
+              <div class="module-features">
+                <span class="feature-tag">Голосование</span>
+                <span class="feature-tag">Иерархия</span>
+                <span class="feature-tag">Токены</span>
+                <span class="feature-tag">Governance</span>
+              </div>
+            </div>
+            <div class="module-actions">
+              <button 
+                class="btn btn-primary btn-deploy" 
+                @click="deployModule('hierarchicalVoting')"
+                :disabled="isDeploying"
+              >
+                <i class="fas fa-rocket" v-if="!isDeploying"></i>
+                <i class="fas fa-spinner fa-spin" v-else></i>
+                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Форма добавления модуля -->
-      <div class="add-module-form">
-        <div class="form-header">
-          <h3>➕ Добавить модуль</h3>
-          <p>Создать предложение для добавления нового модуля</p>
-        </div>
-        
-        <div class="form-content">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="moduleId">ID модуля:</label>
-              <input 
-                type="text" 
-                id="moduleId" 
-                v-model="newModule.moduleId" 
-                class="form-control"
-                placeholder="0x..."
-              >
-              <small class="form-help">Уникальный идентификатор модуля (bytes32)</small>
-            </div>
-            
-            <div class="form-group">
-              <label for="moduleAddress">Адрес модуля:</label>
-              <input 
-                type="text" 
-                id="moduleAddress" 
-                v-model="newModule.moduleAddress" 
-                class="form-control"
-                placeholder="0x..."
-              >
-              <small class="form-help">Адрес контракта модуля</small>
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="moduleDescription">Описание предложения:</label>
-            <textarea 
-              id="moduleDescription" 
-              v-model="newModule.description" 
-              class="form-control" 
-              rows="3"
-              placeholder="Описание предложения для добавления модуля..."
-            ></textarea>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label for="moduleDuration">Продолжительность голосования (сек):</label>
-              <input 
-                type="number" 
-                id="moduleDuration" 
-                v-model="newModule.duration" 
-                class="form-control"
-                placeholder="86400"
-              >
-              <small class="form-help">Время голосования в секундах (86400 = 1 день)</small>
-            </div>
-            
-            <div class="form-group">
-              <label for="moduleChainId">ID сети:</label>
-              <input 
-                type="number" 
-                id="moduleChainId" 
-                v-model="newModule.chainId" 
-                class="form-control"
-                placeholder="11155111"
-              >
-              <small class="form-help">ID сети (11155111 = Sepolia)</small>
-            </div>
-          </div>
-          
-          <div class="form-actions">
-            <button 
-              class="btn btn-primary" 
-              @click="handleCreateAddModuleProposal"
-              :disabled="!isFormValid || isCreating"
-            >
-              <i class="fas fa-plus"></i> 
-              {{ isCreating ? 'Создание предложения...' : 'Создать предложение' }}
-            </button>
-          </div>
-        </div>
-      </div>
 
       <!-- Список модулей -->
       <div class="modules-list">
@@ -576,8 +666,6 @@
                       <i class="fas fa-check-circle" v-if="addr.verificationStatus === 'success'"></i>
                       <i class="fas fa-times-circle" v-else-if="addr.verificationStatus === 'failed'"></i>
                       <i class="fas fa-clock" v-else></i>
-                      {{ addr.verificationStatus === 'success' ? 'Верифицирован' : 
-                         addr.verificationStatus === 'failed' ? 'Ошибка' : 'Ожидает' }}
                     </span>
                   </div>
                 </div>
@@ -587,46 +675,44 @@
                 <strong>Дата деплоя:</strong> 
                 <span>{{ formatDate(module.deployedAt) }}</span>
               </div>
+              
+              <!-- Информация о DLE -->
+              <div class="detail-item" v-if="module.dleName">
+                <strong>DLE:</strong> 
+                <span>{{ module.dleName }} ({{ module.dleSymbol }})</span>
+              </div>
+              
+              <div class="detail-item" v-if="module.dleLocation">
+                <strong>Местоположение:</strong> 
+                <span>{{ module.dleLocation }}</span>
+              </div>
+              
+              <div class="detail-item" v-if="module.dleJurisdiction">
+                <strong>Юрисдикция:</strong> 
+                <span>{{ module.dleJurisdiction }}</span>
+              </div>
+              
+              <div class="detail-item" v-if="module.dleOkvedCodes && module.dleOkvedCodes.length > 0">
+                <strong>ОКВЭД:</strong> 
+                <span>{{ module.dleOkvedCodes.join(', ') }}</span>
+              </div>
+              
+              <div class="detail-item" v-if="module.dleOktmo">
+                <strong>ОКТМО:</strong> 
+                <span>{{ module.dleOktmo }}</span>
+              </div>
             </div>
 
             <div class="module-actions">
               <button 
-                v-if="module.isActive"
-                class="btn btn-sm btn-danger" 
-                @click="handleCreateRemoveModuleProposal(module.moduleId)"
-                :disabled="isRemoving === module.moduleId"
-              >
-                <i class="fas fa-trash"></i> 
-                {{ isRemoving === module.moduleId ? 'Создание предложения...' : 'Удалить' }}
-              </button>
-              <button 
-                v-else
+                v-if="!module.isActive"
                 class="btn btn-sm btn-success" 
                 @click="activateModule(module.moduleId)"
                 :disabled="isActivating === module.moduleId"
               >
                 <i class="fas fa-check"></i> 
                 {{ isActivating === module.moduleId ? 'Активация...' : 'Активировать' }}
-              </button>
-              
-              <!-- Кнопки верификации для каждой сети -->
-              <div class="verification-buttons">
-                <button 
-                  v-for="addr in module.addresses"
-                  :key="`verify-${module.moduleId}-${addr.networkIndex}`"
-                  class="btn btn-sm btn-info verification-btn" 
-                  @click="verifyModule(module, addr)"
-                  :disabled="isVerifying === `${module.moduleId}-${addr.networkIndex}`"
-                  :title="getVerificationButtonTitle(addr.verificationStatus)"
-                >
-                  <i class="fas fa-check-circle" v-if="addr.verificationStatus === 'success'"></i>
-                  <i class="fas fa-times-circle" v-else-if="addr.verificationStatus === 'failed'"></i>
-                  <i class="fas fa-spinner fa-spin" v-else-if="isVerifying === `${module.moduleId}-${addr.networkIndex}`"></i>
-                  <i class="fas fa-shield-alt" v-else></i>
-                  {{ getVerificationButtonText(addr.verificationStatus) }}
-                  <span class="network-indicator">{{ addr.networkName }}</span>
                 </button>
-              </div>
             </div>
           </div>
         </div>
@@ -637,12 +723,10 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, onMounted, computed } from 'vue';
+import { defineProps, defineEmits, ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { 
-  createAddModuleProposal,
-  createRemoveModuleProposal,
   isModuleActive,
   getModuleAddress,
   getAllModules,
@@ -685,37 +769,35 @@ const isLoadingDle = ref(false);
 const modules = ref([]);
 const supportedNetworks = ref([]);
 const isLoadingModules = ref(false);
-const isCreating = ref(false);
-const isRemoving = ref(null);
 const isActivating = ref(null);
-const isVerifying = ref(null);
+
+// Состояние деплоя модулей
+const isDeploying = ref(false);
+const deploymentProgress = ref(null);
+const moduleDeploymentStatus = ref(null);
+
+// Состояние модального окна деплоя
+const showDeploymentModal = ref(false);
+const currentDeployingModule = ref('');
+const deploymentStep = ref(0);
+const progressPercentage = ref(0);
+const deploymentLogs = ref([]);
+
+// WebSocket соединение
+const deploymentWS = ref(null);
+const isWSConnected = ref(false);
+
+// WebSocket для обновления модулей
+const modulesWS = ref(null);
+const isModulesWSConnected = ref(false);
+
+// Debounce для предотвращения частых вызовов loadModules
+let loadModulesTimeout = null;
 
 // Состояние деплоя
 const deploymentStatus = ref('unknown'); // 'unknown', 'completed', 'in_progress', 'failed', 'not_started'
 const isLoadingDeploymentStatus = ref(false);
-const lastUpdateTime = ref('');
-
-// Форма нового модуля
-const newModule = ref({
-  moduleId: '',
-  moduleAddress: '',
-  description: '',
-  duration: 86400,
-  chainId: 11155111
-});
-
 // Вычисляемые свойства
-const isFormValid = computed(() => {
-  return newModule.value.moduleId && 
-         newModule.value.moduleAddress && 
-         newModule.value.description &&
-         newModule.value.duration > 0 &&
-         newModule.value.chainId > 0;
-});
-
-const modulesCount = computed(() => modules.value.length);
-const activeModulesCount = computed(() => modules.value.filter(m => m.isActive).length);
-const inactiveModulesCount = computed(() => modules.value.filter(m => !m.isActive).length);
 
 // Статус деплоя
 const canShowModules = computed(() => deploymentStatus.value === 'completed');
@@ -797,6 +879,17 @@ async function checkDeploymentStatus() {
 }
 
 // Загрузка модулей
+// Debounced версия loadModules для предотвращения частых вызовов
+function loadModulesDebounced() {
+  if (loadModulesTimeout) {
+    clearTimeout(loadModulesTimeout);
+  }
+  
+  loadModulesTimeout = setTimeout(() => {
+    loadModules();
+  }, 1000); // Задержка 1 секунда
+}
+
 async function loadModules() {
   try {
     isLoadingModules.value = true;
@@ -811,14 +904,12 @@ async function loadModules() {
 
     console.log('[ModulesView] Загрузка модулей для DLE:', dleAddress);
     
-    // Сначала проверяем статус деплоя
+    // Проверяем статус деплоя (но не блокируем загрузку модулей)
+    try {
     await checkDeploymentStatus();
-    
-    // Если деплой не завершен, не загружаем модули
-    if (deploymentStatus.value !== 'completed') {
-      console.log('[ModulesView] Деплой не завершен, модули не загружаются. Статус:', deploymentStatus.value);
-      modules.value = [];
-      return;
+    } catch (error) {
+      console.warn('[ModulesView] Ошибка при проверке статуса деплоя, устанавливаем completed:', error);
+      deploymentStatus.value = 'completed'; // Устанавливаем статус как завершенный при ошибке
     }
     
     // Загружаем модули и информацию о сетях параллельно
@@ -850,8 +941,6 @@ async function loadModules() {
         console.log('[ModulesView] Модули требуют инициализации через governance');
       }
       
-      // Обновляем время последнего обновления
-      lastUpdateTime.value = new Date().toLocaleTimeString('ru-RU');
     } else {
       console.error('[ModulesView] Ошибка загрузки модулей:', modulesResponse.error);
       modules.value = [];
@@ -885,183 +974,7 @@ async function loadModules() {
   }
 }
 
-// Создание предложения добавления модуля
-async function handleCreateAddModuleProposal() {
-  try {
-    isCreating.value = true;
-    const dleAddress = route.query.address;
-    
-    if (!dleAddress) {
-      alert('Адрес DLE не указан');
-      return;
-    }
 
-    console.log('[ModulesView] Создание предложения добавления модуля:', newModule.value);
-    
-    // Создаем предложение через modulesService
-    const result = await createAddModuleProposal(dleAddress, {
-      description: newModule.value.description,
-      duration: newModule.value.duration,
-      moduleId: newModule.value.moduleId,
-      moduleAddress: newModule.value.moduleAddress,
-      chainId: newModule.value.chainId
-    });
-    
-    if (result.success) {
-      console.log('[ModulesView] Данные транзакции получены:', result);
-      
-      // Отправляем транзакцию через MetaMask
-      try {
-        // Проверяем валидность адреса
-        if (!result.data.to || !result.data.to.startsWith('0x') || result.data.to.length !== 42) {
-          throw new Error(`Неверный адрес контракта: ${result.data.to}`);
-        }
-        
-        // Проверяем, что адрес в правильном формате (checksum)
-        const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(result.data.to);
-        if (!isValidAddress) {
-          throw new Error(`Адрес не в правильном формате: ${result.data.to}`);
-        }
-        
-        // Проверяем, что есть подключенный аккаунт
-        let accounts = await window.ethereum.request({ method: 'eth_accounts' });
-        if (!accounts || accounts.length === 0) {
-          console.log('[ModulesView] Запрашиваем разрешение на подключение к MetaMask');
-          accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        }
-        
-        if (!accounts || accounts.length === 0) {
-          throw new Error('Не удалось получить доступ к аккаунтам MetaMask');
-        }
-        
-        console.log('[ModulesView] Подключенный аккаунт:', accounts[0]);
-        
-        // Проверяем подключение к правильной сети
-        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        const expectedChainId = '0x' + newModule.value.chainId.toString(16);
-        
-        if (chainId !== expectedChainId) {
-          console.log(`[ModulesView] Переключаемся с сети ${chainId} на ${expectedChainId}`);
-          
-          try {
-            // Пытаемся переключиться на Sepolia
-            await window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: expectedChainId }],
-            });
-            console.log('[ModulesView] Успешно переключились на Sepolia');
-          } catch (switchError) {
-            // Если сеть не добавлена, добавляем её
-            if (switchError.code === 4902) {
-              console.log('[ModulesView] Добавляем Sepolia сеть');
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                  chainId: expectedChainId,
-                  chainName: 'Sepolia',
-                  nativeCurrency: {
-                    name: 'SepoliaETH',
-                    symbol: 'ETH',
-                    decimals: 18
-                  },
-                  rpcUrls: ['https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52'],
-                  blockExplorerUrls: ['https://sepolia.etherscan.io']
-                }]
-              });
-            } else {
-              throw new Error(`Не удалось переключиться на Sepolia: ${switchError.message}`);
-            }
-          }
-        }
-        
-        console.log('[ModulesView] Отправляем транзакцию:', {
-          from: accounts[0],
-          to: result.data.to,
-          data: result.data.data,
-          value: result.data.value,
-          gas: result.data.gasLimit
-        });
-        
-        const txHash = await window.ethereum.request({
-          method: 'eth_sendTransaction',
-          params: [{
-            from: accounts[0],
-            to: result.data.to,
-            data: result.data.data,
-            value: result.data.value,
-            gas: result.data.gasLimit
-          }]
-        });
-        
-        console.log('[ModulesView] Транзакция отправлена:', txHash);
-        alert(`✅ Транзакция отправлена! Hash: ${txHash}`);
-        
-        // Очищаем форму
-        newModule.value = {
-          moduleId: '',
-          moduleAddress: '',
-          description: '',
-          duration: 86400,
-          chainId: 11155111
-        };
-        
-        // Перезагружаем модули
-        await loadModules();
-        
-      } catch (txError) {
-        console.error('[ModulesView] Ошибка отправки транзакции:', txError);
-        alert('❌ Ошибка отправки транзакции: ' + txError.message);
-      }
-    } else {
-      alert('❌ Ошибка получения данных транзакции: ' + result.error);
-    }
-    
-  } catch (error) {
-    console.error('[ModulesView] Ошибка создания предложения:', error);
-    alert('❌ Ошибка создания предложения: ' + error.message);
-  } finally {
-    isCreating.value = false;
-  }
-}
-
-// Создание предложения удаления модуля
-async function handleCreateRemoveModuleProposal(moduleId) {
-  try {
-    isRemoving.value = moduleId;
-    const dleAddress = route.query.address;
-    
-    if (!dleAddress) {
-      alert('Адрес DLE не указан');
-      return;
-    }
-
-    console.log('[ModulesView] Создание предложения удаления модуля:', moduleId);
-    
-    // Создаем предложение через modulesService
-    const result = await createRemoveModuleProposal(dleAddress, {
-      description: `Удаление модуля ${moduleId}`,
-      duration: 86400, // 1 день
-      moduleId: moduleId,
-      chainId: 11155111 // Sepolia
-    });
-    
-    if (result.success) {
-      console.log('[ModulesView] Предложение удаления создано:', result);
-      alert('✅ Предложение для удаления модуля создано!');
-      
-      // Перезагружаем модули
-      await loadModules();
-    } else {
-      alert('❌ Ошибка создания предложения: ' + result.error);
-    }
-    
-  } catch (error) {
-    console.error('[ModulesView] Ошибка создания предложения удаления:', error);
-    alert('❌ Ошибка создания предложения: ' + error.message);
-  } finally {
-    isRemoving.value = null;
-  }
-}
 
 // Активация модуля (заглушка)
 async function activateModule(moduleId) {
@@ -1080,66 +993,7 @@ async function activateModule(moduleId) {
   }
 }
 
-// Верификация модуля в конкретной сети
-async function verifyModule(module, addressInfo) {
-  try {
-    const verificationKey = `${module.moduleId}-${addressInfo.networkIndex}`;
-    isVerifying.value = verificationKey;
-    console.log('[ModulesView] Верификация модуля в сети:', { module, addressInfo });
-    
-    const dleAddress = route.query.address;
-    if (!dleAddress) {
-      alert('Адрес DLE не указан');
-      return;
-    }
-    
-    // Вызываем API для верификации модуля
-    const response = await api.post('/dle-modules/verify-module', {
-      dleAddress: dleAddress,
-      moduleId: module.moduleId,
-      moduleAddress: addressInfo.address,
-      moduleName: module.moduleName,
-      chainId: addressInfo.chainId
-    });
-    
-    if (response.data.success) {
-      console.log('[ModulesView] Модуль верифицирован:', response.data);
-      alert(`✅ Модуль ${module.moduleName} успешно верифицирован в сети ${addressInfo.networkName}!`);
-      
-      // Перезагружаем модули для обновления данных
-      await loadModules();
-    } else {
-      console.error('[ModulesView] Ошибка верификации:', response.data.error);
-      alert('❌ Ошибка верификации: ' + response.data.error);
-    }
-    
-  } catch (error) {
-    console.error('[ModulesView] Ошибка верификации модуля:', error);
-    alert('❌ Ошибка верификации: ' + error.message);
-  } finally {
-    isVerifying.value = null;
-  }
-}
 
-function getVerificationButtonText(verificationStatus) {
-  if (verificationStatus === 'success') {
-    return 'Верифицирован';
-  } else if (verificationStatus === 'failed') {
-    return 'Ошибка';
-  } else {
-    return 'Верифицировать';
-  }
-}
-
-function getVerificationButtonTitle(verificationStatus) {
-  if (verificationStatus === 'success') {
-    return 'Модуль уже верифицирован';
-  } else if (verificationStatus === 'failed') {
-    return 'Попробовать верификацию снова';
-  } else {
-    return 'Верифицировать модуль на Etherscan';
-  }
-}
 
 // Утилиты
 function getEtherscanUrl(address, networkIndex, chainId) {
@@ -1183,10 +1037,327 @@ function formatDate(dateString) {
   }
 }
 
+// Функции для работы с WebSocket
+function connectWebSocket() {
+  if (deploymentWS.value && deploymentWS.value.readyState === WebSocket.OPEN) {
+    return;
+  }
+
+  const wsUrl = `ws://localhost:8000/ws`;
+  deploymentWS.value = new WebSocket(wsUrl);
+
+  deploymentWS.value.onopen = () => {
+    console.log('[ModulesView] WebSocket соединение установлено');
+    isWSConnected.value = true;
+    
+    // Подписываемся на деплой для текущего DLE
+    if (dleAddress.value) {
+      deploymentWS.value.send(JSON.stringify({
+        type: 'subscribe',
+        dleAddress: dleAddress.value
+      }));
+    }
+  };
+
+  deploymentWS.value.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleWebSocketMessage(data);
+    } catch (error) {
+      console.error('[ModulesView] Ошибка парсинга WebSocket сообщения:', error);
+    }
+  };
+
+  deploymentWS.value.onclose = () => {
+    console.log('[ModulesView] WebSocket соединение закрыто');
+    isWSConnected.value = false;
+    
+    // Переподключаемся через 3 секунды
+    setTimeout(() => {
+      if (showDeploymentModal.value) {
+        connectWebSocket();
+      }
+    }, 3000);
+  };
+
+  deploymentWS.value.onerror = (error) => {
+    console.error('[ModulesView] Ошибка WebSocket:', error);
+    isWSConnected.value = false;
+  };
+}
+
+function handleWebSocketMessage(data) {
+  console.log('[ModulesView] WebSocket сообщение:', data);
+  
+  switch (data.type) {
+    case 'subscribed':
+      addLog('info', `Подписка на деплой активирована для DLE: ${data.dleAddress}`);
+      break;
+      
+    case 'deployment_started':
+      deploymentStep.value = 1;
+      progressPercentage.value = 10;
+      moduleDeploymentStatus.value = 'starting';
+      deploymentProgress.value = data.message;
+      addLog('info', data.message);
+      break;
+      
+    case 'deployment_status':
+      updateDeploymentProgress(data);
+      break;
+      
+    case 'deployment_log':
+      addLog(data.log.type, data.log.message);
+      break;
+      
+    case 'deployment_finished':
+      deploymentStep.value = 5;
+      progressPercentage.value = 100;
+      moduleDeploymentStatus.value = data.status;
+      deploymentProgress.value = data.message;
+      addLog(data.status === 'completed' ? 'success' : 'error', data.message);
+      
+      // Автоматически закрываем модальное окно через 3 секунды
+      if (data.status === 'completed') {
+        setTimeout(async () => {
+          loadModulesDebounced();
+          setTimeout(() => {
+            closeDeploymentModal();
+          }, 2000);
+        }, 3000);
+      }
+      break;
+      
+    case 'error':
+      addLog('error', data.message);
+      break;
+  }
+}
+
+function updateDeploymentProgress(data) {
+  if (data.status) {
+    moduleDeploymentStatus.value = data.status;
+  }
+  if (data.progress !== undefined) {
+    progressPercentage.value = data.progress;
+  }
+  if (data.step !== undefined) {
+    deploymentStep.value = data.step;
+  }
+  if (data.message) {
+    deploymentProgress.value = data.message;
+  }
+}
+
+function disconnectWebSocket() {
+  if (deploymentWS.value) {
+    deploymentWS.value.close();
+    deploymentWS.value = null;
+    isWSConnected.value = false;
+  }
+}
+
+// Функции для работы с WebSocket модулей
+function connectModulesWebSocket() {
+  if (modulesWS.value && modulesWS.value.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+  const wsUrl = `ws://localhost:8000/ws`;
+  modulesWS.value = new WebSocket(wsUrl);
+
+  modulesWS.value.onopen = () => {
+    console.log('[ModulesView] WebSocket модулей соединение установлено');
+    isModulesWSConnected.value = true;
+    
+    // Подписываемся на обновления модулей для текущего DLE
+    if (dleAddress.value) {
+      modulesWS.value.send(JSON.stringify({
+        type: 'subscribe',
+        dleAddress: dleAddress.value
+      }));
+    }
+  };
+
+  modulesWS.value.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleModulesWebSocketMessage(data);
+  } catch (error) {
+      console.error('[ModulesView] Ошибка парсинга WebSocket сообщения модулей:', error);
+    }
+  };
+
+  modulesWS.value.onclose = () => {
+    console.log('[ModulesView] WebSocket модулей соединение закрыто');
+    isModulesWSConnected.value = false;
+    
+    // Переподключаемся через 5 секунд
+    setTimeout(() => {
+      connectModulesWebSocket();
+    }, 5000);
+  };
+
+  modulesWS.value.onerror = (error) => {
+    console.error('[ModulesView] Ошибка WebSocket модулей:', error);
+    isModulesWSConnected.value = false;
+  };
+}
+
+function handleModulesWebSocketMessage(data) {
+  console.log('[ModulesView] WebSocket модулей сообщение:', data);
+  
+  // Обрабатываем только сообщения, связанные с модулями, не с деплоем
+  if (data.type && data.type.startsWith('deployment_')) {
+    console.log('[ModulesView] Пропускаем сообщение о деплое в модульном WebSocket');
+    return;
+  }
+  
+  switch (data.type) {
+    case 'modules_updated':
+      // Автоматически обновляем список модулей
+      console.log('[ModulesView] Получено уведомление об обновлении модулей');
+      loadModulesDebounced();
+      break;
+      
+    case 'module_verified':
+      // Обновляем статус верификации конкретного модуля
+      console.log(`[ModulesView] Модуль ${data.moduleType} верифицирован`);
+      loadModulesDebounced();
+      break;
+      
+    case 'module_status_changed':
+      // Обновляем статус модуля
+      console.log(`[ModulesView] Статус модуля ${data.moduleType} изменен`);
+      loadModulesDebounced();
+      break;
+  }
+}
+
+function disconnectModulesWebSocket() {
+  if (modulesWS.value) {
+    modulesWS.value.close();
+    modulesWS.value = null;
+    isModulesWSConnected.value = false;
+  }
+}
+
+// Функции для работы с модальным окном
+function openDeploymentModal(moduleType) {
+  showDeploymentModal.value = true;
+  currentDeployingModule.value = moduleType;
+  deploymentStep.value = 0;
+  progressPercentage.value = 0;
+  deploymentLogs.value = [];
+  addLog('info', 'Инициализация деплоя модуля...');
+  
+  // Подключаемся к WebSocket
+  connectWebSocket();
+}
+
+function closeDeploymentModal() {
+  showDeploymentModal.value = false;
+  currentDeployingModule.value = '';
+  deploymentStep.value = 0;
+  progressPercentage.value = 0;
+  deploymentLogs.value = [];
+  deploymentProgress.value = null;
+  moduleDeploymentStatus.value = null;
+  isDeploying.value = false;
+  
+  // Отключаем WebSocket
+  disconnectWebSocket();
+}
+
+function addLog(type, message) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('ru-RU');
+  deploymentLogs.value.push({
+    type,
+    message,
+    time
+  });
+}
+
+function getStatusTitle() {
+  switch (moduleDeploymentStatus.value) {
+    case 'starting':
+      return 'Деплой запущен';
+    case 'success':
+      return 'Деплой завершен успешно';
+    case 'error':
+      return 'Ошибка деплоя';
+    default:
+      return 'Подготовка к деплою';
+  }
+}
+
+
+// Функция деплоя модулей
+async function deployModule(moduleType) {
+  if (isDeploying.value) return;
+  
+  try {
+    // Открываем модальное окно и подключаемся к WebSocket
+    openDeploymentModal(moduleType);
+    
+    isDeploying.value = true;
+    deploymentProgress.value = 'Инициализация деплоя...';
+    moduleDeploymentStatus.value = 'starting';
+    
+    console.log(`[ModulesView] Начинаем деплой модуля ${moduleType} для DLE ${dleAddress.value}`);
+    
+    // Вызываем API для деплоя модуля с данными из БД
+    const response = await api.post('/module-deployment/deploy-module-from-db', {
+      dleAddress: dleAddress.value,
+      moduleType: moduleType
+    });
+    
+    if (response.data.success) {
+      if (response.data.status === 'started') {
+        addLog('success', 'Деплой успешно запущен. Отслеживание через WebSocket...');
+      } else {
+        // Если деплой завершился сразу
+        deploymentProgress.value = 'Деплой успешно завершен!';
+        moduleDeploymentStatus.value = 'success';
+        addLog('success', 'Деплой завершен успешно');
+        
+        // Перезагружаем список модулей
+        await loadModules();
+        
+        // Закрываем модальное окно через 3 секунды
+        setTimeout(() => {
+          closeDeploymentModal();
+        }, 3000);
+      }
+      
+    } else {
+      throw new Error(response.data.error || 'Ошибка при деплое модуля');
+    }
+    
+  } catch (error) {
+    console.error('[ModulesView] Ошибка при деплое модуля:', error);
+    deploymentProgress.value = `Ошибка: ${error.message}`;
+    moduleDeploymentStatus.value = 'error';
+    addLog('error', `Ошибка: ${error.message}`);
+  } finally {
+    isDeploying.value = false;
+  }
+}
+
 // Инициализация
 onMounted(() => {
   loadDleData();
-  loadModules();
+  loadModules(); // Первоначальная загрузка без debounce
+  
+  // Подключаемся к WebSocket для обновления модулей
+  connectModulesWebSocket();
+});
+
+onUnmounted(() => {
+  // Отключаем WebSocket при размонтировании компонента
+  disconnectWebSocket();
+  disconnectModulesWebSocket();
 });
 </script>
 
@@ -1236,17 +1407,6 @@ onMounted(() => {
   color: #333;
 }
 
-/* Информация о модулях */
-.modules-info {
-  margin-bottom: 30px;
-}
-
-.info-card {
-  background: #f8f9fa;
-  border-radius: var(--radius-md);
-  padding: 20px;
-  border: 1px solid #e9ecef;
-}
 
 .info-card h3 {
   margin: 0 0 15px 0;
@@ -1642,12 +1802,25 @@ onMounted(() => {
 }
 
 .network-badge {
-  background: var(--color-primary);
-  color: white;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
+  background: transparent;
+  color: var(--color-text);
+  padding: 0;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: normal;
+  margin-right: 10px;
+}
+
+.addresses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.address-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .module-actions {
@@ -1714,6 +1887,327 @@ onMounted(() => {
 .btn-sm {
   padding: 4px 8px;
   font-size: 12px;
+}
+
+/* Модальное окно деплоя */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e9ecef;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.websocket-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #ffc107;
+  font-weight: 500;
+}
+
+.websocket-status.connected {
+  color: #28a745;
+}
+
+.websocket-status i {
+  font-size: 8px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.modal-close:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.deployment-status-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  border: 1px solid #e9ecef;
+}
+
+.status-icon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e9ecef;
+}
+
+.status-icon.starting {
+  color: #ffc107;
+  background: #fff3cd;
+}
+
+.status-icon.success {
+  color: #28a745;
+  background: #d4edda;
+}
+
+.status-icon.error {
+  color: #dc3545;
+  background: #f8d7da;
+}
+
+.status-content h4 {
+  margin: 0 0 5px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.status-content p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.progress-section {
+  margin-bottom: 20px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.progress-text {
+  text-align: center;
+  font-weight: 600;
+  color: #667eea;
+  font-size: 14px;
+}
+
+.deployment-details {
+  margin-bottom: 20px;
+}
+
+.detail-step {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  transition: all 0.3s;
+  border: 1px solid #e9ecef;
+}
+
+.detail-step.active {
+  background: #e3f2fd;
+  border-color: #2196f3;
+}
+
+.detail-step.completed {
+  background: #e8f5e8;
+  border-color: #28a745;
+}
+
+.step-icon {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e9ecef;
+  color: #666;
+  font-size: 14px;
+}
+
+.detail-step.active .step-icon {
+  background: #2196f3;
+  color: white;
+}
+
+.detail-step.completed .step-icon {
+  background: #28a745;
+  color: white;
+}
+
+.step-content h5 {
+  margin: 0 0 5px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.step-content p {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.deployment-log {
+  margin-top: 20px;
+}
+
+.deployment-log h5 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.log-container {
+  max-height: 150px;
+  overflow-y: auto;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  border: 1px solid #e9ecef;
+}
+
+.log-entry {
+  display: flex;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #666;
+  font-family: monospace;
+  min-width: 60px;
+}
+
+.log-message {
+  flex: 1;
+}
+
+.log-entry.info .log-message {
+  color: #333;
+}
+
+.log-entry.success .log-message {
+  color: #28a745;
+}
+
+.log-entry.error .log-message {
+  color: #dc3545;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
+}
+
+.success-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #28a745;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.success-message i {
+  font-size: 1.2rem;
 }
 
 /* Адаптивность */

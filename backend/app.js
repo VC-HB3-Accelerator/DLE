@@ -21,6 +21,7 @@ const errorHandler = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
 const db = require('./db'); // Добавляем импорт db
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
+const deploymentWebSocketService = require('./services/deploymentWebSocketService'); // WebSocket для деплоя
 const fs = require('fs');
 const path = require('path');
 const messagesRoutes = require('./routes/messages');
@@ -91,6 +92,7 @@ const blockchainRoutes = require('./routes/blockchain'); // Добавляем �
 const dleCoreRoutes = require('./routes/dleCore'); // Основные функции DLE
 const dleProposalsRoutes = require('./routes/dleProposals'); // Функции предложений
 const dleModulesRoutes = require('./routes/dleModules'); // Функции модулей
+const moduleDeploymentRoutes = require('./routes/moduleDeployment'); // Деплой модулей
 const dleTokensRoutes = require('./routes/dleTokens'); // Функции токенов
 const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитика и история
 const compileRoutes = require('./routes/compile'); // Компиляция контрактов
@@ -195,6 +197,7 @@ app.use('/api/blockchain', blockchainRoutes); // Добавляем маршру
 app.use('/api/dle-core', dleCoreRoutes); // Основные функции DLE
 app.use('/api/dle-proposals', dleProposalsRoutes); // Функции предложений
 app.use('/api/dle-modules', dleModulesRoutes); // Функции модулей
+app.use('/api/module-deployment', moduleDeploymentRoutes); // Деплой модулей
 app.use('/api/dle-tokens', dleTokensRoutes); // Функции токенов
 app.use('/api/dle-analytics', dleAnalyticsRoutes); // Аналитика и история
 app.use('/api/dle-multichain', dleMultichainRoutes); // Мультичейн функции

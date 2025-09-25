@@ -242,56 +242,6 @@ const routes = [
     name: 'management-modules',
     component: () => import('../views/smartcontracts/ModulesView.vue')
   },
-  {
-    path: '/management/modules/deploy/treasury',
-    name: 'module-deploy-treasury',
-    component: () => import('../views/smartcontracts/modules/TreasuryModuleDeployView.vue')
-  },
-  {
-    path: '/management/modules/deploy/timelock',
-    name: 'module-deploy-timelock',
-    component: () => import('../views/smartcontracts/modules/TimelockModuleDeployView.vue')
-  },
-  {
-    path: '/management/modules/deploy/reader',
-    name: 'module-deploy-reader',
-    component: () => import('../views/smartcontracts/modules/DLEReaderDeployView.vue')
-  },
-  {
-    path: '/management/modules/deploy/communication',
-    name: 'module-deploy-communication',
-    component: () => import('../views/smartcontracts/modules/CommunicationModuleDeployView.vue')
-  },
-  {
-    path: '/management/modules/deploy/application',
-    name: 'module-deploy-application',
-    component: () => import('../views/smartcontracts/modules/ApplicationModuleDeployView.vue')
-  },
-  {
-    path: '/management/modules/deploy/mint',
-    name: 'module-deploy-mint',
-    component: () => import('../views/smartcontracts/modules/MintModuleDeploy.vue')
-  },
-  {
-    path: '/management/modules/deploy/burn',
-    name: 'module-deploy-burn',
-    component: () => import('../views/smartcontracts/modules/BurnModuleDeploy.vue')
-  },
-  {
-    path: '/management/modules/deploy/oracle',
-    name: 'module-deploy-oracle',
-    component: () => import('../views/smartcontracts/modules/OracleModuleDeploy.vue')
-  },
-  {
-    path: '/management/modules/deploy/custom',
-    name: 'module-deploy-custom',
-    component: () => import('../views/smartcontracts/modules/ModuleDeployFormView.vue')
-  },
-  {
-    path: '/management/modules/deploy/inheritance',
-    name: 'module-deploy-inheritance',
-    component: () => import('../views/smartcontracts/modules/InheritanceModuleDeploy.vue')
-  },
   // {
   //   path: '/management/multisig',
   //   name: 'management-multisig',

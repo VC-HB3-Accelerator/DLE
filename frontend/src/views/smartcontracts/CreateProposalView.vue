@@ -148,6 +148,40 @@
             </div>
           </div>
 
+          <!-- Операции модулей (динамические) -->
+          <div v-if="isLoadingModuleOperations" class="loading-modules">
+            Загрузка операций модулей...
+          </div>
+          
+          <div 
+            v-for="moduleOperation in moduleOperations" 
+            :key="moduleOperation.moduleType"
+            class="operation-category"
+          >
+            <h5>{{ getModuleIcon(moduleOperation.moduleType) }} {{ moduleOperation.moduleName }}</h5>
+            <p class="module-description">{{ moduleOperation.moduleDescription }}</p>
+            <div class="operation-blocks">
+              <div 
+                v-for="operation in moduleOperation.operations" 
+                :key="operation.id"
+                class="operation-block module-operation-block"
+              >
+                <div class="operation-icon">{{ operation.icon }}</div>
+                <h6>{{ operation.name }}</h6>
+                <p>{{ operation.description }}</p>
+                <div class="operation-category-tag">{{ operation.category }}</div>
+                <button 
+                  class="create-btn" 
+                  @click="openModuleOperationForm(moduleOperation.moduleType, operation)" 
+                  :disabled="!props.isAuthenticated || isLoadingModuleOperations"
+                >
+                  <span v-if="isLoadingModuleOperations">Загрузка...</span>
+                  <span v-else>Создать</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Оффчейн операции -->
           <div class="operation-category">
             <h5>📋 Оффчейн операции</h5>
@@ -169,12 +203,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, defineProps, defineEmits, inject } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineProps, defineEmits, inject } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getDLEInfo, getSupportedChains } from '../../services/dleV2Service.js';
 import { createProposal as createProposalAPI } from '../../services/proposalsService.js';
+import { getModuleOperations } from '../../services/moduleOperationsService.js';
 import api from '../../api/axios';
 import wsClient from '../../utils/websocket.js';
 import { ethers } from 'ethers';
@@ -220,6 +255,12 @@ const isLoadingDle = ref(false);
 
 // Доступные цепочки (загружаются из конфигурации)
 const availableChains = ref([]);
+
+// Состояние модулей и их операций
+const moduleOperations = ref([]);
+const isLoadingModuleOperations = ref(false);
+const modulesWebSocket = ref(null);
+const isModulesWSConnected = ref(false);
 
 // Функции для открытия отдельных форм операций
 function openTransferForm() {
@@ -273,6 +314,26 @@ function openOffchainActionForm() {
   alert('Форма оффчейн действий будет реализована');
 }
 
+// Функция для создания предложения операции модуля
+function openModuleOperationForm(moduleType, operation) {
+  console.log('[CreateProposalView] Открытие формы для операции модуля:', { moduleType, operation });
+  
+  // TODO: Открыть форму для создания предложения операции модуля
+  // Пока показываем alert с информацией об операции
+  alert(`Создание предложения для операции "${operation.name}" модуля ${moduleType}.\n\nОписание: ${operation.description}\nФункция: ${operation.functionName}\nКатегория: ${operation.category}`);
+}
+
+// Получить иконку для типа модуля
+function getModuleIcon(moduleType) {
+  const icons = {
+    treasury: '💰',
+    timelock: '⏰',
+    reader: '📖',
+    hierarchicalVoting: '🗳️'
+  };
+  return icons[moduleType] || '🔧';
+}
+
 // Функции
 async function loadDleData() {
   console.log('loadDleData вызвана с адресом:', dleAddress.value);
@@ -300,10 +361,120 @@ async function loadDleData() {
     const chainsResponse = await getSupportedChains(dleAddress.value);
     availableChains.value = chainsResponse.data?.chains || [];
 
+    // Загружаем операции модулей
+    await loadModuleOperations();
+
   } catch (error) {
     console.error('Ошибка загрузки данных DLE из блокчейна:', error);
   } finally {
     isLoadingDle.value = false;
+  }
+}
+
+// Загрузка операций модулей
+async function loadModuleOperations() {
+  if (!dleAddress.value) {
+    console.warn('Адрес DLE не указан для загрузки операций модулей');
+    return;
+  }
+
+  isLoadingModuleOperations.value = true;
+  try {
+    console.log('[CreateProposalView] Загрузка операций модулей для DLE:', dleAddress.value);
+    
+    const response = await getModuleOperations(dleAddress.value);
+    
+    if (response.success) {
+      moduleOperations.value = response.data.moduleOperations || [];
+      console.log('[CreateProposalView] Загружены операции модулей:', moduleOperations.value);
+    } else {
+      console.error('[CreateProposalView] Ошибка загрузки операций модулей:', response.error);
+      moduleOperations.value = [];
+    }
+  } catch (error) {
+    console.error('[CreateProposalView] Ошибка загрузки операций модулей:', error);
+    moduleOperations.value = [];
+  } finally {
+    isLoadingModuleOperations.value = false;
+  }
+}
+
+// WebSocket функции для модулей
+function connectModulesWebSocket() {
+  if (modulesWebSocket.value && modulesWebSocket.value.readyState === WebSocket.OPEN) {
+    return;
+  }
+
+  const wsUrl = `ws://localhost:8000/ws/deployment`;
+  modulesWebSocket.value = new WebSocket(wsUrl);
+
+  modulesWebSocket.value.onopen = () => {
+    console.log('[CreateProposalView] WebSocket модулей соединение установлено');
+    isModulesWSConnected.value = true;
+    
+    // Подписываемся на обновления модулей для текущего DLE
+    if (dleAddress.value) {
+      modulesWebSocket.value.send(JSON.stringify({
+        type: 'subscribe',
+        dleAddress: dleAddress.value
+      }));
+    }
+  };
+
+  modulesWebSocket.value.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleModulesWebSocketMessage(data);
+    } catch (error) {
+      console.error('[CreateProposalView] Ошибка парсинга WebSocket сообщения модулей:', error);
+    }
+  };
+
+  modulesWebSocket.value.onclose = () => {
+    console.log('[CreateProposalView] WebSocket модулей соединение закрыто');
+    isModulesWSConnected.value = false;
+    
+    // Переподключаемся через 5 секунд
+    setTimeout(() => {
+      connectModulesWebSocket();
+    }, 5000);
+  };
+
+  modulesWebSocket.value.onerror = (error) => {
+    console.error('[CreateProposalView] Ошибка WebSocket модулей:', error);
+    isModulesWSConnected.value = false;
+  };
+}
+
+function handleModulesWebSocketMessage(data) {
+  console.log('[CreateProposalView] WebSocket модулей сообщение:', data);
+  
+  switch (data.type) {
+    case 'modules_updated':
+      // Автоматически обновляем список операций модулей
+      console.log('[CreateProposalView] Получено уведомление об обновлении модулей');
+      loadModuleOperations();
+      break;
+      
+    case 'module_verified':
+      // Обновляем операции модуля
+      console.log(`[CreateProposalView] Модуль ${data.moduleType} верифицирован`);
+      loadModuleOperations();
+      break;
+      
+    case 'module_status_changed':
+      // Обновляем операции модуля
+      console.log(`[CreateProposalView] Статус модуля ${data.moduleType} изменен`);
+      loadModuleOperations();
+      break;
+  }
+}
+
+function disconnectModulesWebSocket() {
+  if (modulesWebSocket.value) {
+    modulesWebSocket.value.close();
+    modulesWebSocket.value = null;
+    isModulesWSConnected.value = false;
   }
 }
 
@@ -318,6 +489,14 @@ onMounted(async () => {
   if (dleAddress.value) {
     loadDleData();
   }
+  
+  // Подключаемся к WebSocket для получения обновлений модулей
+  connectModulesWebSocket();
+});
+
+// Отключаем WebSocket при размонтировании компонента
+onUnmounted(() => {
+  disconnectModulesWebSocket();
 });
 </script>
 
@@ -560,6 +739,91 @@ onMounted(async () => {
 
 .create-btn:disabled::before {
   display: none;
+}
+
+/* Стили для модулей */
+.module-description {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 1rem 0;
+  font-style: italic;
+}
+
+.module-operation-block {
+  position: relative;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border: 2px solid #e9ecef;
+}
+
+.module-operation-block::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.module-operation-block:hover::before {
+  transform: scaleX(1);
+}
+
+.operation-category-tag {
+  display: inline-block;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Анимация появления модулей */
+.operation-category {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Индикатор загрузки модулей */
+.loading-modules {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #666;
+  font-style: italic;
+}
+
+.loading-modules::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Адаптивность */

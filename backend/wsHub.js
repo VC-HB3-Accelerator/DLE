@@ -13,6 +13,7 @@
 const WebSocket = require('ws');
 const tokenBalanceService = require('./services/tokenBalanceService');
 const deploymentTracker = require('./utils/deploymentTracker');
+const deploymentWebSocketService = require('./services/deploymentWebSocketService');
 
 let wss = null;
 // Храним клиентов по userId для персонализированных уведомлений
@@ -69,6 +70,17 @@ function initWSS(server) {
         if (data.type === 'request_token_balances' && data.address) {
           // Запрос балансов токенов
           handleTokenBalancesRequest(ws, data.address, data.userId);
+        }
+        
+        // Обработка сообщений для деплоя модулей
+        if (data.type === 'subscribe' && data.dleAddress) {
+          // Подписка на деплой для конкретного DLE
+          deploymentWebSocketService.subscribeToDeployment(ws, data.dleAddress);
+        }
+        
+        if (data.type === 'unsubscribe' && data.dleAddress) {
+          // Отписка от деплоя
+          deploymentWebSocketService.unsubscribeFromDeployment(ws, data.dleAddress);
         }
       } catch (error) {
         // console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
@@ -485,6 +497,35 @@ function broadcastDeploymentUpdate(data) {
   console.log(`📡 [WebSocket] Отправлено deployment update: ${data.type || 'unknown'}`);
 }
 
+// Функция для уведомления об обновлениях модулей
+function broadcastModulesUpdate(dleAddress, updateType, moduleData) {
+  if (!wss) return;
+  
+  console.log(`📡 [WebSocket] broadcastModulesUpdate вызвана для DLE: ${dleAddress}, тип: ${updateType}`);
+  
+  const message = JSON.stringify({
+    type: updateType,
+    dleAddress: dleAddress,
+    moduleData: moduleData,
+    timestamp: Date.now()
+  });
+  
+  console.log(`📡 [WebSocket] Отправляем сообщение модулей:`, message);
+  
+  // Отправляем всем подключенным клиентам
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(message);
+      } catch (error) {
+        console.error('[WebSocket] Ошибка при отправке modules update:', error);
+      }
+    }
+  });
+  
+  console.log(`📡 [WebSocket] Отправлено modules update: ${updateType} для DLE: ${dleAddress}`);
+}
+
 module.exports = { 
   initWSS, 
   broadcastContactsUpdate, 
@@ -504,6 +545,7 @@ module.exports = {
   broadcastTokenBalancesUpdate,
   broadcastTokenBalanceChanged,
   broadcastDeploymentUpdate,
+  broadcastModulesUpdate,
   getConnectedUsers,
   getStats
 };

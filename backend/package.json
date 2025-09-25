@@ -23,6 +23,8 @@
     "fix-duplicates": "node scripts/fix-duplicate-identities.js",
     "deploy:multichain": "node scripts/deploy/deploy-multichain.js",
     "deploy:complete": "node scripts/deploy/deploy-dle-complete.js",
+    "deploy:modules": "node scripts/deploy/deploy-modules.js",
+    "test:modules": "node scripts/test-modules-deploy.js",
     "verify:contracts": "node scripts/verify-contracts.js"
   },
   "dependencies": {

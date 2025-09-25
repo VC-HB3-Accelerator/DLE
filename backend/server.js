@@ -14,6 +14,7 @@ require('dotenv').config();
 const { app, nonceStore } = require('./app');
 const http = require('http');
 const { initWSS } = require('./wsHub');
+const deploymentWebSocketService = require('./services/deploymentWebSocketService');
 const logger = require('./utils/logger');
 const { getBot } = require('./services/telegramBot');
 const EmailBotService = require('./services/emailBot');
@@ -61,6 +62,8 @@ async function initServices() {
 
 const server = http.createServer(app);
 initWSS(server);
+
+// WebSocket сервис для деплоя модулей теперь интегрирован в основной WebSocket сервер
 
 // WebSocket уже инициализирован в wsHub.js
 

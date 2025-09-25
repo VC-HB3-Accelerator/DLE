@@ -4,6 +4,7 @@
 
 const { execSync } = require('child_process');
 const DeployParamsService = require('../services/deployParamsService');
+const deploymentWebSocketService = require('../services/deploymentWebSocketService');
 
 async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
   console.log('🚀 Запуск верификации с Hardhat V2...');
@@ -226,15 +227,195 @@ async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
 
 // Запускаем верификацию если скрипт вызван напрямую
 if (require.main === module) {
-  verifyWithHardhatV2()
-    .then(() => {
-      console.log('\n🏁 Скрипт завершен');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('💥 Скрипт завершился с ошибкой:', error);
-      process.exit(1);
-    });
+  // Проверяем аргументы командной строки
+  const args = process.argv.slice(2);
+  
+  if (args.includes('--modules')) {
+    // Верификация модулей
+    verifyModules()
+      .then(() => {
+        console.log('\n🏁 Верификация модулей завершена');
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error('💥 Верификация модулей завершилась с ошибкой:', error);
+        process.exit(1);
+      });
+  } else {
+    // Верификация основного DLE контракта
+    verifyWithHardhatV2()
+      .then(() => {
+        console.log('\n🏁 Скрипт завершен');
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error('💥 Скрипт завершился с ошибкой:', error);
+        process.exit(1);
+      });
+  }
 }
 
-module.exports = { verifyWithHardhatV2, verifyContracts: verifyWithHardhatV2 };
+// Функция для верификации модулей
+async function verifyModules() {
+  console.log('🚀 Запуск верификации модулей...');
+  
+  try {
+    // Загружаем параметры из базы данных
+    const deployParamsService = new DeployParamsService();
+    const paramsArray = await deployParamsService.getLatestDeployParams(1);
+    
+    if (paramsArray.length === 0) {
+      throw new Error('Нет параметров деплоя в базе данных');
+    }
+    
+    const params = paramsArray[0];
+    const dleAddress = params.dle_address;
+    
+    if (!dleAddress) {
+      throw new Error('Адрес DLE не найден в параметрах');
+    }
+    
+    // Уведомляем WebSocket клиентов о начале верификации
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Начало верификации модулей');
+    
+    console.log('📋 Параметры верификации модулей:', {
+      dleAddress: dleAddress,
+      name: params.name,
+      symbol: params.symbol
+    });
+    
+    // Читаем файлы модулей
+    const fs = require('fs');
+    const path = require('path');
+    const modulesDir = path.join(__dirname, 'contracts-data/modules');
+    
+    if (!fs.existsSync(modulesDir)) {
+      console.log('📁 Папка модулей не найдена:', modulesDir);
+      return;
+    }
+    
+    const moduleFiles = fs.readdirSync(modulesDir).filter(file => file.endsWith('.json'));
+    console.log(`📁 Найдено ${moduleFiles.length} файлов модулей`);
+    
+    // Конфигурация модулей для верификации
+    const MODULE_CONFIGS = {
+      treasury: {
+        contractName: 'TreasuryModule',
+        constructorArgs: (dleAddress, chainId, walletAddress) => [
+          dleAddress,
+          chainId,
+          walletAddress
+        ]
+      },
+      timelock: {
+        contractName: 'TimelockModule',
+        constructorArgs: (dleAddress, chainId, walletAddress) => [
+          dleAddress
+        ]
+      },
+      reader: {
+        contractName: 'DLEReader',
+        constructorArgs: (dleAddress, chainId, walletAddress) => [
+          dleAddress
+        ]
+      },
+      hierarchicalVoting: {
+        contractName: 'HierarchicalVotingModule',
+        constructorArgs: (dleAddress, chainId, walletAddress) => [
+          dleAddress
+        ]
+      }
+    };
+    
+    // Маппинг chainId на названия сетей для Hardhat
+    const networkMap = {
+      11155111: 'sepolia', 
+      17000: 'holesky',
+      421614: 'arbitrumSepolia',
+      84532: 'baseSepolia'
+    };
+    
+    // Верифицируем каждый модуль
+    for (const file of moduleFiles) {
+      const filePath = path.join(modulesDir, file);
+      const moduleData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      
+      const moduleConfig = MODULE_CONFIGS[moduleData.moduleType];
+      if (!moduleConfig) {
+        console.log(`⚠️ Неизвестный тип модуля: ${moduleData.moduleType}`);
+        continue;
+      }
+      
+      console.log(`🔍 Верификация модуля: ${moduleData.moduleType}`);
+      
+      // Верифицируем в каждой сети
+      for (const network of moduleData.networks) {
+        if (!network.success || !network.address) {
+          console.log(`⚠️ Пропускаем сеть ${network.chainId} - модуль не задеплоен`);
+          continue;
+        }
+        
+        const networkName = networkMap[network.chainId];
+        if (!networkName) {
+          console.log(`⚠️ Неизвестная сеть: ${network.chainId}`);
+          continue;
+        }
+        
+        try {
+          console.log(`🔍 Верификация ${moduleData.moduleType} в сети ${networkName} (${network.chainId})`);
+          
+          // Подготавливаем аргументы конструктора
+          const constructorArgs = moduleConfig.constructorArgs(
+            dleAddress, 
+            network.chainId, 
+            params.initializer || "0x0000000000000000000000000000000000000000"
+          );
+          
+          // Создаем временный файл с аргументами
+          const argsFile = path.join(__dirname, `temp-args-${Date.now()}.json`);
+          fs.writeFileSync(argsFile, JSON.stringify(constructorArgs, null, 2));
+          
+          // Выполняем верификацию
+          const command = `ETHERSCAN_API_KEY="${params.etherscan_api_key}" npx hardhat verify --network ${networkName} ${network.address} --constructor-args ${argsFile}`;
+          console.log(`📝 Команда верификации: npx hardhat verify --network ${networkName} ${network.address} --constructor-args ${argsFile}`);
+          
+          try {
+            const output = execSync(command, { 
+              cwd: '/app',
+              encoding: 'utf8',
+              stdio: 'pipe'
+            });
+            console.log(`✅ ${moduleData.moduleType} успешно верифицирован в ${networkName}`);
+            console.log(output);
+            
+            // Уведомляем WebSocket клиентов о успешной верификации
+            deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleData.moduleType} верифицирован в ${networkName}`);
+            deploymentWebSocketService.notifyModuleVerified(dleAddress, moduleData.moduleType, networkName);
+          } catch (verifyError) {
+            console.log(`❌ Ошибка верификации ${moduleData.moduleType} в ${networkName}: ${verifyError.message}`);
+          } finally {
+            // Удаляем временный файл
+            if (fs.existsSync(argsFile)) {
+              fs.unlinkSync(argsFile);
+            }
+          }
+          
+        } catch (error) {
+          console.error(`❌ Ошибка при верификации ${moduleData.moduleType} в сети ${network.chainId}:`, error.message);
+        }
+      }
+    }
+    
+    console.log('\n🏁 Верификация модулей завершена');
+    
+    // Уведомляем WebSocket клиентов о завершении верификации
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', 'Верификация всех модулей завершена');
+    deploymentWebSocketService.notifyModulesUpdated(dleAddress);
+    
+  } catch (error) {
+    console.error('❌ Ошибка при верификации модулей:', error.message);
+    throw error;
+  }
+}
+
+module.exports = { verifyWithHardhatV2, verifyContracts: verifyWithHardhatV2, verifyModules };

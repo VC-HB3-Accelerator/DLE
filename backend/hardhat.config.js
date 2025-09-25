@@ -62,6 +62,15 @@ module.exports = {
     runOnCompile: true,
     disambiguatePaths: false,
   },
+  
+  // Автокомпиляция при изменениях
+  watch: {
+    compilation: {
+      tasks: ["compile"],
+      files: ["./contracts/**/*.sol"],
+      verbose: true
+    }
+  },
   networks: getNetworks(),
   etherscan: {
     // Единый API ключ для V2 API

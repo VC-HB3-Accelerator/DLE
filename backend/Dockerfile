@@ -8,7 +8,7 @@
 # This software is proprietary and confidential.
 # For licensing inquiries: info@hb3-accelerator.com
 
-FROM node:20-bookworm
+FROM node:20-alpine
 
 # Добавляем метки для авторских прав
 LABEL maintainer="Тарабанов Александр Викторович <info@hb3-accelerator.com>"
