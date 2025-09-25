@@ -28,6 +28,7 @@ const TAGS_UPDATE_DEBOUNCE = 100; // 100ms
 
 function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
+  console.log('🔌 [WebSocket] Сервер инициализирован на пути /ws');
   
   // Подключаем deployment tracker к WebSocket
   deploymentTracker.on('deployment_updated', (data) => {
@@ -35,10 +36,10 @@ function initWSS(server) {
   });
   
   wss.on('connection', (ws, req) => {
-    // console.log('🔌 [WebSocket] Новое подключение');
-    // console.log('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
-    // console.log('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
-    // console.log('🔌 [WebSocket] Origin:', req.headers.origin);
+    console.log('🔌 [WebSocket] Новое подключение');
+    console.log('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
+    console.log('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
+    console.log('🔌 [WebSocket] Origin:', req.headers.origin);
     
     // Добавляем клиента в общий список
     if (!wsClients.has('anonymous')) {
@@ -461,10 +462,14 @@ function broadcastTokenBalanceChanged(userId, tokenAddress, newBalance, network)
 function broadcastDeploymentUpdate(data) {
   if (!wss) return;
   
+  console.log(`📡 [WebSocket] broadcastDeploymentUpdate вызвана с данными:`, JSON.stringify(data, null, 2));
+  
   const message = JSON.stringify({
     type: 'deployment_update',
     data: data
   });
+  
+  console.log(`📡 [WebSocket] Отправляем сообщение:`, message);
   
   // Отправляем всем подключенным клиентам
   wss.clients.forEach(client => {

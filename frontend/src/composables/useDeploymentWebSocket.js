@@ -47,30 +47,19 @@ export function useDeploymentWebSocket() {
   
   // Обработчик WebSocket сообщений
   const handleDeploymentUpdate = (data) => {
-    if (data.deploymentId !== deploymentId.value) return;
-    
     console.log('🔄 [DeploymentWebSocket] Получено обновление:', data);
+    console.log('🔄 [DeploymentWebSocket] Текущий deploymentId:', deploymentId.value);
+    console.log('🔄 [DeploymentWebSocket] deploymentId из данных:', data.deploymentId);
+    
+    if (data.deploymentId !== deploymentId.value) {
+      console.log('🔄 [DeploymentWebSocket] Игнорируем обновление - не наш deploymentId');
+      return;
+    }
     
     switch (data.type) {
-      case 'deployment_started':
-        deploymentStatus.value = 'in_progress';
-        isDeploying.value = true;
-        currentStage.value = data.stage || '';
-        addLog(`🚀 ${data.message}`, 'info');
-        break;
-        
-      case 'deployment_progress':
-        currentStage.value = data.stage || '';
-        currentNetwork.value = data.network || '';
-        progress.value = data.progress || 0;
-        if (data.message) {
-          addLog(`📊 ${data.message}`, 'info');
-        }
-        break;
-        
-      case 'deployment_stage_completed':
-        if (data.message) {
-          addLog(`✅ ${data.message}`, 'success');
+      case 'deployment_log':
+        if (data.log) {
+          addLog(data.log.message, data.log.type || 'info');
         }
         break;
         
@@ -84,34 +73,6 @@ export function useDeploymentWebSocket() {
         }
         if (data.message) {
           addLog(`🌐 [${data.network}] ${data.message}`, 'info');
-        }
-        break;
-        
-      case 'deployment_error':
-        error.value = data.error;
-        if (data.message) {
-          addLog(`❌ ${data.message}`, 'error');
-        }
-        break;
-        
-      case 'deployment_completed':
-        deploymentStatus.value = 'completed';
-        isDeploying.value = false;
-        deploymentResult.value = data.result;
-        progress.value = 100;
-        addLog(`🎉 ${data.message}`, 'success');
-        break;
-        
-      case 'deployment_failed':
-        deploymentStatus.value = 'failed';
-        isDeploying.value = false;
-        error.value = data.error;
-        addLog(`💥 ${data.message}`, 'error');
-        break;
-        
-      case 'deployment_log':
-        if (data.log) {
-          addLog(data.log.message, data.log.type || 'info');
         }
         break;
         
@@ -135,6 +96,13 @@ export function useDeploymentWebSocket() {
         console.warn('🤷‍♂️ [DeploymentWebSocket] Неизвестный тип события:', data.type);
     }
   };
+
+  // Подключаемся к WebSocket сразу при инициализации
+  wsClient.connect();
+  if (wsClient && typeof wsClient.subscribe === 'function') {
+    wsClient.subscribe('deployment_update', handleDeploymentUpdate);
+    console.log('🔌 [DeploymentWebSocket] Подключились к WebSocket при инициализации');
+  }
   
   // Начать отслеживание деплоя
   const startDeploymentTracking = (id) => {
@@ -145,13 +113,7 @@ export function useDeploymentWebSocket() {
     isDeploying.value = true;
     clearLogs();
     
-    // Подключаемся к WebSocket обновлениям
-    wsClient.connect();
-    if (wsClient && typeof wsClient.subscribe === 'function') {
-      wsClient.subscribe('deployment_update', handleDeploymentUpdate);
-    } else {
-      console.warn('[DeploymentWebSocket] wsClient.subscribe недоступен');
-    }
+    // WebSocket уже подключен при инициализации
     
     addLog('🔌 Подключено к WebSocket для получения обновлений деплоя', 'info');
   };

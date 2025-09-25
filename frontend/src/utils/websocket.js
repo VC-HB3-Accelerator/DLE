@@ -26,7 +26,12 @@ class WebSocketClient {
 
   connect() {
     try {
-      this.ws = new WebSocket('ws://localhost:8000/ws');
+      // В Docker окружении используем Vite прокси для WebSocket
+      // Используем относительный путь, чтобы Vite прокси мог перенаправить запрос на backend
+      const wsUrl = window.location.protocol === 'https:' 
+        ? 'wss://' + window.location.host + '/ws'
+        : 'ws://' + window.location.host + '/ws';
+      this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         console.log('[WebSocket] Подключение установлено');
@@ -37,13 +42,21 @@ class WebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('[WebSocket] Получено сообщение:', data);
+          
+          // Логируем все deployment_update сообщения для отладки
+          if (data.type === 'deployment_update') {
+            console.log('[WebSocket] Получено deployment_update:', data);
+            console.log('[WebSocket] Данные для обработчика:', data.data);
+          }
           
           // Вызываем все зарегистрированные обработчики для этого события
           if (this.listeners.has(data.type)) {
+            console.log(`[WebSocket] Вызываем обработчики для типа: ${data.type}, количество: ${this.listeners.get(data.type).length}`);
             this.listeners.get(data.type).forEach(callback => {
               callback(data.data);
             });
+          } else {
+            console.log(`[WebSocket] Нет обработчиков для типа: ${data.type}`);
           }
         } catch (error) {
           console.error('[WebSocket] Ошибка парсинга сообщения:', error);

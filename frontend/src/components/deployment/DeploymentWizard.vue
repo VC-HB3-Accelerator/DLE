@@ -156,6 +156,11 @@ const props = defineProps({
       type: String,
       required: false,
       default: ''
+    },
+    autoVerifyAfterDeploy: {
+      type: Boolean,
+      required: false,
+      default: false
     }
 });
 
@@ -250,8 +255,16 @@ const startDeployment = async () => {
   try {
     addLog('🚀 Начинаем асинхронный деплой с WebSocket отслеживанием', 'info');
     
+    // Генерируем deploymentId заранее, чтобы WebSocket сообщения не игнорировались
+    const tempDeploymentId = `deploy_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    addLog(`🆔 Временный ID деплоя: ${tempDeploymentId}`, 'info');
+    
+    // Начинаем отслеживание сразу с временным ID
+    startDeploymentTracking(tempDeploymentId);
+    
     // Подготовка данных для деплоя
           const deployData = {
+      deploymentId: tempDeploymentId, // Передаем временный ID в backend
       name: props.dleData.name,
       symbol: props.dleData.tokenSymbol,
       location: props.dleData.addressData?.fullAddress || 'Не указан',
@@ -260,7 +273,7 @@ const startDeployment = async () => {
       oktmo: props.dleData.selectedOktmo || '',
       okvedCodes: props.dleData.selectedOkved || [],
       kpp: props.dleData.kppCode || '',
-      quorumPercentage: props.dleData.governanceQuorum || 51,
+      quorumPercentage: props.dleData.governanceQuorum !== undefined ? props.dleData.governanceQuorum : 51,
       initialPartners: props.dleData.partners.map(p => p.address).filter(addr => addr),
       initialAmounts: props.dleData.partners.map(p => p.amount).filter(amount => amount > 0),
       supportedChainIds: props.selectedNetworks.filter(id => id !== null && id !== undefined),
@@ -268,7 +281,7 @@ const startDeployment = async () => {
       logoURI: props.logoURI || '/uploads/logos/default-token.svg',
       privateKey: props.privateKey,
       etherscanApiKey: props.etherscanApiKey || '',
-            autoVerifyAfterDeploy: false
+            autoVerifyAfterDeploy: props.autoVerifyAfterDeploy !== undefined ? props.autoVerifyAfterDeploy : false
           };
           
     addLog('📤 Отправляем запрос на асинхронный деплой...', 'info');
@@ -279,8 +292,11 @@ const startDeployment = async () => {
     if (response.data.success && response.data.deploymentId) {
       addLog(`✅ Деплой запущен! ID: ${response.data.deploymentId}`, 'success');
       
-      // Начинаем отслеживание через WebSocket
-      startDeploymentTracking(response.data.deploymentId);
+      // Обновляем deploymentId на реальный от сервера
+      if (response.data.deploymentId !== tempDeploymentId) {
+        addLog(`🔄 Обновляем ID деплоя: ${tempDeploymentId} → ${response.data.deploymentId}`, 'info');
+        startDeploymentTracking(response.data.deploymentId);
+      }
       
     } else {
       throw new Error('Не удалось запустить деплой: ' + (response.data.message || 'неизвестная ошибка'));

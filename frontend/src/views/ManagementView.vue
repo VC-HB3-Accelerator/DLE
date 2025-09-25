@@ -96,16 +96,25 @@
                 </ul>
               </div>
               <div class="detail-item" v-else>
-                <strong>Адрес контракта:</strong> 
-                <a 
-                  :href="`https://sepolia.etherscan.io/address/${dle.dleAddress}`" 
-                  target="_blank" 
-                  class="address-link"
-                  @click.stop
-                >
-                  {{ shortenAddress(dle.dleAddress) }}
-                  <i class="fas fa-external-link-alt"></i>
-                </a>
+                <strong>Адреса контрактов:</strong> 
+                <div class="addresses-list">
+                  <div 
+                    v-for="network in dle.deployedNetworks || [{ chainId: 11155111, address: dle.dleAddress }]" 
+                    :key="network.chainId"
+                    class="address-item"
+                  >
+                    <span class="chain-name">{{ getChainName(network.chainId) }}:</span>
+                    <a 
+                      :href="getExplorerUrl(network.chainId, network.address)" 
+                      target="_blank" 
+                      class="address-link"
+                      @click.stop
+                    >
+                      {{ shortenAddress(network.address) }}
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  </div>
+                </div>
               </div>
               <div class="detail-item">
                 <strong>Местоположение:</strong> {{ dle.location }}
@@ -124,17 +133,13 @@
                 <strong>Статус:</strong> 
                 <span class="status active">Активен</span>
               </div>
-              <div class="detail-item" v-if="dle.totalSupply">
+              <div class="detail-item">
                 <strong>Общий объем токенов:</strong> 
-                <span class="token-supply">{{ parseFloat(dle.totalSupply).toLocaleString() }} {{ dle.symbol }}</span>
+                <span class="token-supply">{{ formatTokenAmount(dle.totalSupply || 0) }} {{ dle.symbol }}</span>
               </div>
-              <div class="detail-item" v-if="dle.logoURI">
-                <strong>Логотип:</strong> 
-                <span class="logo-info">Установлен</span>
-              </div>
-              <div class="detail-item" v-if="dle.creationTimestamp">
+              <div class="detail-item">
                 <strong>Дата создания:</strong> 
-                <span class="creation-date">{{ formatTimestamp(dle.creationTimestamp) }}</span>
+                <span class="creation-date">{{ formatTimestamp(dle.creationTimestamp || dle.createdAt) }}</span>
               </div>
               
             </div>
@@ -345,7 +350,18 @@ function getExplorerUrl(chainId, address) {
 
 function formatTimestamp(timestamp) {
   if (!timestamp) return '';
-  const date = new Date(timestamp * 1000); // Конвертируем из Unix timestamp
+  
+  let date;
+  if (typeof timestamp === 'number') {
+    // Unix timestamp
+    date = new Date(timestamp * 1000);
+  } else if (typeof timestamp === 'string') {
+    // ISO string
+    date = new Date(timestamp);
+  } else {
+    return '';
+  }
+  
   return date.toLocaleDateString('ru-RU', {
     year: 'numeric',
     month: 'long',
@@ -353,6 +369,15 @@ function formatTimestamp(timestamp) {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function formatTokenAmount(amount) {
+  if (!amount) return '0';
+  const num = parseFloat(amount);
+  if (num === 0) return '0';
+  
+  // Всегда показываем полное число с разделителями тысяч
+  return num.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }
 
 function openDleOnEtherscan(address) {

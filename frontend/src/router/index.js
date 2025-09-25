@@ -223,6 +223,11 @@ const routes = [
     component: () => import('../views/smartcontracts/DleProposalsView.vue')
   },
   {
+    path: '/management/create-proposal',
+    name: 'management-create-proposal',
+    component: () => import('../views/smartcontracts/CreateProposalView.vue')
+  },
+  {
     path: '/management/tokens',
     name: 'management-tokens',
     component: () => import('../views/smartcontracts/TokensView.vue')

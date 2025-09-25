@@ -47,7 +47,6 @@ router.post('/get-extended-history', async (req, res) => {
       "function listSupportedChains() external view returns (uint256[] memory)",
       "function getProposalsCount() external view returns (uint256)",
       "event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage)",
-      "event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId)",
       "event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp)",
       "event ModuleAdded(bytes32 moduleId, address moduleAddress)",
       "event ModuleRemoved(bytes32 moduleId)",
@@ -112,24 +111,6 @@ router.post('/get-extended-history', async (req, res) => {
         });
       }
 
-      // События изменения текущей цепочки
-      const chainEvents = await dle.queryFilter('CurrentChainIdUpdated', fromBlock, currentBlock);
-      for (let i = 0; i < chainEvents.length; i++) {
-        const event = chainEvents[i];
-        history.push({
-          id: history.length + 1,
-          type: 'chain_updated',
-          title: 'Изменена текущая цепочка',
-          description: `Текущая цепочка изменена с ${Number(event.args.oldChainId)} на ${Number(event.args.newChainId)}`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            oldChainId: Number(event.args.oldChainId),
-            newChainId: Number(event.args.newChainId)
-          }
-        });
-      }
 
       // События обновления информации DLE
       const infoEvents = await dle.queryFilter('DLEInfoUpdated', fromBlock, currentBlock);

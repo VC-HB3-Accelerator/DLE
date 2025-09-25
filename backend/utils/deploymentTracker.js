@@ -21,11 +21,11 @@ class DeploymentTracker extends EventEmitter {
   }
   
   // Создать новый деплой
-  createDeployment(params) {
-    const deploymentId = this.generateDeploymentId();
+  createDeployment(params, deploymentId = null) {
+    const id = deploymentId || this.generateDeploymentId();
     
     const deployment = {
-      id: deploymentId,
+      id: id,
       status: 'pending',
       stage: 'initializing',
       progress: 0,
@@ -38,10 +38,11 @@ class DeploymentTracker extends EventEmitter {
       error: null
     };
     
-    this.deployments.set(deploymentId, deployment);
-    this.logger.info(`📝 Создан новый деплой: ${deploymentId}`);
+    this.deployments.set(id, deployment);
+    this.logger.info(`📝 Создан новый деплой: ${id}`);
+    console.log(`[DEPLOYMENT_TRACKER] Создан деплой: ${id}, всего деплоев: ${this.deployments.size}`);
     
-    return deploymentId;
+    return id;
   }
   
   // Получить статус деплоя
@@ -75,6 +76,7 @@ class DeploymentTracker extends EventEmitter {
     if (!deployment) return false;
     
     const logEntry = {
+      id: Date.now() + Math.random(), // Уникальный ID для отслеживания дублирования
       timestamp: new Date(),
       message,
       type
@@ -82,6 +84,11 @@ class DeploymentTracker extends EventEmitter {
     
     deployment.logs.push(logEntry);
     deployment.updatedAt = new Date();
+    
+    // Логируем отправку лога для отладки дублирования (только в debug режиме)
+    if (process.env.DEBUG_DEPLOYMENT_LOGS) {
+      console.log(`[DEPLOYMENT_TRACKER] Отправляем лог ID=${logEntry.id}: ${message.substring(0, 50)}...`);
+    }
     
     // Отправляем только лог через WebSocket (без дублирования)
     this.emit('deployment_updated', {

@@ -22,7 +22,8 @@
     "run-migrations": "node scripts/run-migrations.js",
     "fix-duplicates": "node scripts/fix-duplicate-identities.js",
     "deploy:multichain": "node scripts/deploy/deploy-multichain.js",
-    "deploy:complete": "node scripts/deploy/deploy-dle-complete.js"
+    "deploy:complete": "node scripts/deploy/deploy-dle-complete.js",
+    "verify:contracts": "node scripts/verify-contracts.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",

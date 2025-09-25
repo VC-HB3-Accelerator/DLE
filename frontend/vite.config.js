@@ -64,6 +64,17 @@ export default defineConfig({
         secure: false,
         credentials: true,
         rewrite: (path) => path,
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('WebSocket proxy error:', err.message);
+          });
+          proxy.on('proxyReqWs', (proxyReq, req, socket) => {
+            console.log('WebSocket proxy request to:', req.url);
+          });
+          proxy.on('proxyResWs', (proxyRes, req, socket) => {
+            console.log('WebSocket proxy response:', proxyRes.statusCode);
+          });
+        }
       },
     },
     watch: {

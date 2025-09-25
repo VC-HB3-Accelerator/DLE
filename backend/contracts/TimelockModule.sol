@@ -378,11 +378,9 @@ contract TimelockModule is ReentrancyGuard {
         
         // Обычные операции - стандартная задержка (2 дня)
         bytes4 updateDLEInfo = bytes4(keccak256("updateDLEInfo(string,string,string,string,uint256,string[],uint256)"));
-        bytes4 updateChainId = bytes4(keccak256("updateCurrentChainId(uint256)"));
         bytes4 updateVotingDurations = bytes4(keccak256("_updateVotingDurations(uint256,uint256)"));
         
         operationDelays[updateDLEInfo] = 2 days;
-        operationDelays[updateChainId] = 3 days;
         operationDelays[updateVotingDurations] = 1 days;
         
         // Treasury операции - короткая задержка (1 день)

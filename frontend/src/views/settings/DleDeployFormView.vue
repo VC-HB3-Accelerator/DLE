@@ -513,18 +513,6 @@
                   </div>
                 </div>
                 
-                <!-- Предсказанный адрес DLE - отключено -->
-                <!-- <div v-if="selectedNetworks.length > 0" class="predicted-address-section">
-                  <h5>📍 Адрес DLE во всех сетях:</h5>
-                  <div class="address-display">
-                    <code class="dle-address">{{ predictedAddress || 'Вычисляется...' }}</code>
-                    <button v-if="predictedAddress" @click="copyAddress" class="copy-btn" title="Копировать адрес">
-                      <i class="fas fa-copy"></i>
-                    </button>
-                  </div>
-                </div> -->
-                
-
                 
                 <!-- Кнопки управления RPC -->
                 <div class="rpc-settings-actions">
@@ -631,7 +619,7 @@
 
                 <!-- Требования к балансу -->
                 <div v-if="selectedNetworks.length > 0" class="balance-requirements">
-                  <h5>💰 Требования к балансу:</h5>
+                  <h5>Требования к балансу:</h5>
                   <div class="balance-grid">
                     <div 
                       v-for="network in selectedNetworkDetails" 
@@ -655,7 +643,7 @@
                       <i class="fas fa-shield-alt"></i>
                     </div>
                     <div class="security-content">
-                      <h5>🔒 Рекомендации по безопасности:</h5>
+                      <h5>Рекомендации по безопасности:</h5>
                       <ul>
                         <li>Используйте отдельный кошелек только для деплоя DLE</li>
                         <li>Убедитесь, что на кошельке достаточно средств для оплаты газа</li>
@@ -697,7 +685,7 @@
           <h4>Основная информация DLE</h4>
           
           <div v-if="logoPreviewUrl" class="preview-item">
-            <strong>🎨 Логотип:</strong>
+            <strong>Логотип:</strong>
             <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
               <img :src="logoPreviewUrl" alt="Logo preview" style="width: 48px; height: 48px; border-radius: 6px; object-fit: contain; border: 1px solid #e9ecef;" />
               <span style="color: #666; font-size: 0.9em;">{{ logoFile?.name || 'ENS аватар' || 'Дефолтный логотип' }}</span>
@@ -705,11 +693,11 @@
           </div>
           
           <div v-if="dleSettings.name" class="preview-item">
-            <strong>📋 Название:</strong> {{ dleSettings.name }}
+            <strong>Название:</strong> {{ dleSettings.name }}
           </div>
           
           <div v-if="dleSettings.tokenSymbol" class="preview-item">
-            <strong>🪙 Токен:</strong> {{ dleSettings.tokenSymbol }}
+            <strong>Токен:</strong> {{ dleSettings.tokenSymbol }}
           </div>
           
 
@@ -723,7 +711,7 @@
           
           <div v-for="(partner, index) in dleSettings.partners" :key="index">
             <div v-if="partner.address || partner.amount > 1" class="preview-item">
-              <strong>👥 Партнер {{ index + 1 }}:</strong>
+              <strong>Партнер {{ index + 1 }}:</strong>
               <div class="partner-details">
                 <div v-if="partner.address" class="partner-address">
                   Адрес: {{ partner.address.substring(0, 10) }}...{{ partner.address.substring(partner.address.length - 8) }}
@@ -736,11 +724,11 @@
           </div>
           
           <div class="preview-item">
-            <strong>💰 Общий эмиссия:</strong> {{ totalTokens }} токенов
+            <strong>Общий эмиссия:</strong> {{ totalTokens }} токенов
           </div>
           
           <div class="preview-item">
-            <strong>🗳️ Кворум подписей партнеров:</strong> {{ dleSettings.governanceQuorum }}%
+            <strong>Кворум подписей партнеров:</strong> {{ dleSettings.governanceQuorum }}%
           </div>
         </div>
 
@@ -749,11 +737,11 @@
           <h4>🔗 Мульти-чейн деплой</h4>
           
           <!-- <div class="preview-item">
-            <strong>📍 Адрес DLE:</strong> {{ predictedAddress || 'Вычисляется...' }}
+            <strong> Адрес DLE:</strong> {{ predictedAddress || 'Вычисляется...' }}
           </div> -->
           
           <div class="preview-item">
-            <strong>🌐 Выбранные сети:</strong>
+            <strong>Выбранные сети:</strong>
             <ul class="networks-list">
               <li v-for="network in selectedNetworkDetails" :key="network.chainId">
                 {{ network.name }} (Chain ID: {{ network.chainId }}) - ~${{ network.estimatedCost }}
@@ -762,7 +750,7 @@
           </div>
           
           <div class="preview-item">
-            <strong>💰 Общая стоимость:</strong> ~${{ totalDeployCost.toFixed(2) }}
+            <strong>Общая стоимость:</strong> ~${{ totalDeployCost.toFixed(2) }}
           </div>
 
           <!-- Предсказанные адреса скрыты, чтобы не создавать шум при отсутствии данных -->
@@ -775,7 +763,7 @@
           <h4>🔐 Приватный ключ</h4>
           
           <div class="preview-item">
-            <strong>🔑 Ключ:</strong> ***{{ unifiedPrivateKey.slice(-4) }}
+            <strong>Ключ:</strong> ***{{ unifiedPrivateKey.slice(-4) }}
           </div>
           
           <div v-if="keyValidation.unified && keyValidation.unified.isValid" class="preview-item">
@@ -830,7 +818,7 @@
           
           <!-- Координаты -->
           <div v-if="dleSettings.coordinates" class="preview-item">
-            <strong>📍 Координаты:</strong> {{ dleSettings.coordinates }}
+            <strong>📍Координаты:</strong> {{ dleSettings.coordinates }}
           </div>
           
           <!-- Кнопка деплоя смарт-контрактов -->
@@ -866,8 +854,8 @@
                 @click="deploySmartContracts" 
                 type="button" 
                 class="btn btn-primary btn-lg deploy-btn"
-                :disabled="!isFormValid || !canEdit || adminTokenCheck.isLoading || showDeployProgress"
-                :title="`isFormValid: ${isFormValid}, isAdmin: ${adminTokenCheck.isAdmin}, isLoading: ${adminTokenCheck.isLoading}, showDeployProgress: ${showDeployProgress}`"
+                :disabled="!isFormValid || !canEdit || adminTokenCheck.isLoading"
+                :title="`isFormValid: ${isFormValid}, isAdmin: ${adminTokenCheck.isAdmin}, isLoading: ${adminTokenCheck.isLoading}`"
               >
                 <i class="fas fa-cogs"></i> 
                 Поэтапный деплой DLE
@@ -877,48 +865,12 @@
                 @click="clearAllData" 
                 class="btn btn-danger btn-lg clear-btn"
                 title="Очистить все данные"
-                :disabled="showDeployProgress"
+                :disabled="false"
               >
                 Удалить все
               </button>
             </div>
 
-            <!-- Индикатор процесса деплоя -->
-            <div v-if="showDeployProgress" class="deploy-progress">
-              <div class="progress-header">
-                <h4>🚀 Деплой DLE в блокчейне</h4>
-                <p>{{ deployStatus }}</p>
-              </div>
-              
-              <div class="progress-bar-container">
-                <div class="progress-bar">
-                  <div 
-                    class="progress-fill" 
-                    :style="{ width: deployProgress + '%' }"
-                  ></div>
-                </div>
-                <span class="progress-text">{{ deployProgress }}%</span>
-              </div>
-              
-              <div class="progress-steps">
-                <div class="step" :class="{ active: deployProgress >= 10 }">
-                  <i class="fas fa-check-circle"></i>
-                  <span>Подготовка данных</span>
-                </div>
-                <div class="step" :class="{ active: deployProgress >= 30 }">
-                  <i class="fas fa-check-circle"></i>
-                  <span>Отправка на сервер</span>
-                </div>
-                <div class="step" :class="{ active: deployProgress >= 70 }">
-                  <i class="fas fa-check-circle"></i>
-                  <span>Деплой в блокчейне</span>
-                </div>
-                <div class="step" :class="{ active: deployProgress >= 100 }">
-                  <i class="fas fa-check-circle"></i>
-                  <span>Завершение</span>
-                </div>
-              </div>
-            </div>
 
           </div>
         </div>
@@ -939,6 +891,7 @@
           :dle-data="dleSettings"
           :logo-uri="getLogoURI()"
           :etherscan-api-key="etherscanApiKey"
+          :auto-verify-after-deploy="autoVerifyAfterDeploy"
           @deployment-completed="handleDeploymentCompleted"
         />
       </div>
@@ -1113,33 +1066,6 @@ const hasSelectedNetworks = computed(() => {
   return selectedNetworks.value.length > 0;
 });
 
-// Инициализация при смене выбранных сетей
-// watch(selectedNetworkDetails, (nets) => {
-//   if (nets && nets.length > 0) predictAddresses();
-// }, { immediate: true });
-
-// Предсказание адресов (упрощенно через бэкенд) - отключено
-// async function predictAddresses() {
-//   try {
-//     isPredicting.value = true;
-//     const payload = {
-//       name: dleSettings.name,
-//       symbol: dleSettings.tokenSymbol,
-//       selectedNetworks: selectedNetworkDetails.value.map(n => n.chainId)
-//     };
-//     if (resp.data && resp.data.success && resp.data.data) {
-//       // ожидаем вид { [chainId]: address }
-//       Object.keys(predictedAddresses).forEach(k => delete predictedAddresses[k]);
-//       Object.assign(predictedAddresses, resp.data.data);
-//     }
-//   } catch (e) {
-//     console.error('Ошибка расчета предсказанных адресов:', e);
-//     alert('Не удалось рассчитать предсказанные адреса');
-//   } finally {
-//     isPredicting.value = false;
-//   }
-// }
-
 function copyToClipboard(text) {
   navigator.clipboard?.writeText(text).then(() => {
     // no-op
@@ -1190,10 +1116,6 @@ const selectedOkvedLevel4 = ref('');
 const currentSelectedOkvedCode = ref('');
 const currentSelectedOkvedText = ref('');
 
-// Состояние процесса деплоя
-const showDeployProgress = ref(false);
-const deployProgress = ref(0);
-const deployStatus = ref('');
 
 // Функция определения уровня ОКВЭД кода
 const getOkvedLevel = (code) => {
@@ -2399,10 +2321,6 @@ watch(unifiedPrivateKey, (newValue) => {
 // Инициализация
 onMounted(() => {
   
-  // Сбрасываем состояние деплоя при загрузке страницы
-  showDeployProgress.value = false;
-  deployProgress.value = 0;
-  deployStatus.value = '';
   
   // Загружаем список стран
   loadCountries();
@@ -2544,7 +2462,6 @@ const deploySmartContracts = async () => {
     
   } catch (error) {
     console.error('Ошибка деплоя DLE:', error);
-    showDeployProgress.value = false;
     alert('❌ Ошибка при деплое смарт-контракта: ' + error.message);
   }
 };
@@ -2555,10 +2472,6 @@ const startStagedDeployment = async () => {
   
   // Сначала выполняем стандартный деплой DLE контракта
   try {
-    // Показываем индикатор процесса
-    showDeployProgress.value = true;
-    deployProgress.value = 10;
-    deployStatus.value = 'Подготовка данных для деплоя DLE...';
 
     // Подготовка данных для деплоя
     console.log('DEBUG: dleSettings.selectedNetworks:', dleSettings.selectedNetworks);
@@ -2591,7 +2504,7 @@ const startStagedDeployment = async () => {
       privateKey: unifiedPrivateKey.value,
       // Верификация через Etherscan V2
       etherscanApiKey: etherscanApiKey.value,
-      autoVerifyAfterDeploy: false // Отключаем автоверификацию для поэтапного деплоя
+      autoVerifyAfterDeploy: autoVerifyAfterDeploy.value
     };
 
     // Обработка логотипа
@@ -2617,8 +2530,6 @@ const startStagedDeployment = async () => {
     console.log('Данные для деплоя DLE:', deployData);
 
     // Предварительная проверка балансов (через приватный ключ)
-    deployProgress.value = 20;
-    deployStatus.value = 'Проверка баланса во всех выбранных сетях...';
     try {
       const pre = await api.post('/dle-v2/precheck', {
         supportedChainIds: deployData.supportedChainIds,
@@ -2630,7 +2541,6 @@ const startStagedDeployment = async () => {
         if (lacks.length > 0) {
           const message = `❌ Недостаточно средств в некоторых сетях!`;
           alert(message);
-          showDeployProgress.value = false;
           return;
         }
         console.log('✅ Проверка балансов пройдена:', preData.summary);
@@ -2639,25 +2549,6 @@ const startStagedDeployment = async () => {
       console.warn('⚠️ Ошибка проверки балансов:', e.message);
     }
     
-    deployProgress.value = 30;
-    deployStatus.value = 'Компиляция смарт-контрактов...';
-
-    // Автокомпиляция контрактов
-    try {
-      const compileResponse = await api.post('/compile-contracts');
-      console.log('✅ Контракты скомпилированы:', compileResponse.data);
-    } catch (compileError) {
-      console.warn('⚠️ Ошибка автокомпиляции:', compileError.message);
-    }
-
-    deployProgress.value = 40;
-    deployStatus.value = 'Деплой DLE контракта...';
-
-    // Деплой будет выполнен в DeploymentWizard
-    // Здесь только показываем мастер деплоя
-    deployProgress.value = 80;
-    deployStatus.value = 'Запуск мастера деплоя...';
-    
     // Показываем мастер деплоя
     showDeploymentWizard.value = true;
     
@@ -2665,8 +2556,6 @@ const startStagedDeployment = async () => {
     return;
   } catch (error) {
     console.error('Ошибка при запуске деплоя:', error);
-    deployStatus.value = `❌ Ошибка: ${error.message}`;
-    deployProgress.value = 0;
   }
 }
 
@@ -2697,11 +2586,10 @@ const handleDeploymentCompleted = (result) => {
   console.log('🔍 Валидация формы:', validation);
   console.log('🔍 selectedNetworks.value:', selectedNetworks.value);
   console.log('🔍 adminTokenCheck:', adminTokenCheck.value);
-  console.log('🔍 showDeployProgress:', showDeployProgress.value);
   console.log('🔍 unifiedPrivateKey.value:', unifiedPrivateKey.value);
   console.log('🔍 keyValidation.unified:', keyValidation.unified);
   console.log('🔍 dleSettings.coordinates:', dleSettings.coordinates);
-  console.log('🔍 Кнопка должна быть активна:', !(!validation.jurisdiction || !validation.name || !validation.tokenSymbol || !validation.partners || !validation.partnersValid || !validation.quorum || !validation.networks || !validation.privateKey || !validation.keyValid || !validation.coordinates) && adminTokenCheck.value.isAdmin && !adminTokenCheck.value.isLoading && !showDeployProgress.value);
+  console.log('🔍 Кнопка должна быть активна:', !(!validation.jurisdiction || !validation.name || !validation.tokenSymbol || !validation.partners || !validation.partnersValid || !validation.quorum || !validation.networks || !validation.privateKey || !validation.keyValid || !validation.coordinates) && adminTokenCheck.value.isAdmin && !adminTokenCheck.value.isLoading);
   
   return Boolean(
     validation.jurisdiction &&
@@ -4588,103 +4476,6 @@ async function submitDeploy() {
     border: 1px solid #f5c6cb;
   }
 
-  /* Стили для индикатора процесса деплоя */
-  .deploy-progress {
-    margin-top: 2rem;
-    padding: 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
-    color: white;
-    animation: fadeIn 0.5s ease;
-  }
-
-  .progress-header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  .progress-header h4 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-  }
-
-  .progress-header p {
-    margin: 0;
-    opacity: 0.9;
-    font-size: 1.1rem;
-  }
-
-  .progress-bar-container {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-  }
-
-  .progress-bar {
-    flex: 1;
-    height: 12px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
-    border-radius: 6px;
-    transition: width 0.5s ease;
-  }
-
-  .progress-text {
-    font-weight: 600;
-    font-size: 1.1rem;
-    min-width: 50px;
-  }
-
-  .progress-steps {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .step {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    opacity: 0.5;
-    transition: all 0.3s ease;
-  }
-
-  .step.active {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.2);
-  }
-
-  .step i {
-    font-size: 1.2rem;
-    color: #4ade80;
-  }
-
-  .step span {
-    font-size: 0.9rem;
-    font-weight: 500;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 
   /* Стили для загрузки картинки токена */
   .token-image-upload {

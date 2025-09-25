@@ -12,7 +12,8 @@
 
 const express = require('express');
 const router = express.Router();
-const dleV2Service = require('../services/dleV2Service');
+const DLEV2Service = require('../services/dleV2Service');
+const dleV2Service = new DLEV2Service();
 const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
 const path = require('path');
@@ -34,7 +35,7 @@ async function executeDeploymentInBackground(deploymentId, dleParams) {
       stage: 'initializing'
     });
     
-    deploymentTracker.addLog(deploymentId, '🚀 Начинаем деплой DLE контракта и модулей', 'info');
+    deploymentTracker.addLog(deploymentId, '🚀 Начинаем деплой DLE контракта', 'info');
     
     // Выполняем деплой с передачей deploymentId для WebSocket обновлений
     const result = await dleV2Service.createDLE(dleParams, deploymentId);
@@ -77,11 +78,16 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
       }
     }
     
-    // Создаем запись о деплое
-    const deploymentId = deploymentTracker.createDeployment(dleParams);
+    // Используем deploymentId из запроса, если передан, иначе создаем новый
+    const deploymentId = req.body.deploymentId || deploymentTracker.createDeployment(dleParams);
     
-    // Запускаем деплой в фоне (без await!)
-    executeDeploymentInBackground(deploymentId, dleParams);
+    // Если deploymentId был передан из запроса, создаем запись о деплое с этим ID
+    if (req.body.deploymentId) {
+      deploymentTracker.createDeployment(dleParams, req.body.deploymentId);
+    }
+    
+    // Запускаем деплой в фоне (с await для правильной обработки ошибок!)
+    await executeDeploymentInBackground(deploymentId, dleParams);
     
     logger.info(`📤 Деплой запущен асинхронно: ${deploymentId}`);
     

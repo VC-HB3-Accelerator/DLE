@@ -34,6 +34,14 @@
       <div class="management-blocks">
         <!-- Первый ряд -->
         <div class="blocks-row">
+          <div class="management-block create-proposal-block">
+            <h3>Создать предложение</h3>
+            <p>Универсальная форма для создания новых предложений</p>
+            <button class="details-btn create-btn" @click="openCreateProposal">
+              Подробнее
+            </button>
+          </div>
+          
           <div class="management-block">
             <h3>Предложения</h3>
             <p>Создание, подписание, выполнение</p>
@@ -45,16 +53,16 @@
             <p>Балансы, трансферы, распределение</p>
             <button class="details-btn" @click="openTokens">Подробнее</button>
           </div>
-          
+        </div>
+
+        <!-- Второй ряд -->
+        <div class="blocks-row">
           <div class="management-block">
             <h3>Кворум</h3>
             <p>Настройки голосования</p>
             <button class="details-btn" @click="openQuorum">Подробнее</button>
           </div>
-        </div>
-
-        <!-- Второй ряд -->
-        <div class="blocks-row">
+          
           <div class="management-block">
             <h3>Модули DLE</h3>
             <p>Установка, настройка, управление</p>
@@ -162,6 +170,14 @@ const openSettings = () => {
     router.push(`/management/settings?address=${dleAddress.value}`);
   } else {
     router.push('/management/settings');
+  }
+};
+
+const openCreateProposal = () => {
+  if (dleAddress.value) {
+    router.push(`/management/create-proposal?address=${dleAddress.value}`);
+  } else {
+    router.push('/management/create-proposal');
   }
 };
 
@@ -277,6 +293,32 @@ onMounted(() => {
 .details-btn:hover {
   background: var(--color-primary-dark);
   transform: translateY(-1px);
+}
+
+/* Стили для блока создания предложения */
+.create-proposal-block {
+  background: linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%);
+  border: 2px solid #28a745;
+}
+
+.create-proposal-block:hover {
+  border-color: #20c997;
+  box-shadow: 0 4px 20px rgba(40, 167, 69, 0.15);
+}
+
+.create-proposal-block h3 {
+  color: #28a745;
+}
+
+.create-btn {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  font-weight: 700;
+}
+
+.create-btn:hover {
+  background: linear-gradient(135deg, #218838, #1ea085);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
 }
 
 /* Адаптивность */

@@ -185,6 +185,17 @@ backend/typechain-types/
 # Contract data (может содержать конфиденциальную информацию)
 backend/contracts-data/
 
+# Deploy parameters (содержит приватные ключи и чувствительные данные)
+backend/scripts/deploy/current-params.json
+backend/scripts/deploy/*-params.json
+backend/temp/dle-v2-params-*.json
+
+# Temporary verification files
+backend/scripts/constructor-args*.json
+
+# Module deployment data (содержит адреса и конфигурации модулей)
+backend/scripts/contracts-data/modules/*
+
 # Temporary test files
 backend/test-*.js
 backend/test_*.js

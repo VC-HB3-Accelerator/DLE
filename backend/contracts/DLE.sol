@@ -144,7 +144,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     event ChainRemoved(uint256 chainId);
     event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
-    event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId);
     event TokensTransferredByGovernance(address indexed recipient, uint256 amount);
 
     event VotingDurationsUpdated(uint256 oldMinDuration, uint256 newMinDuration, uint256 oldMaxDuration, uint256 newMaxDuration);
@@ -188,7 +187,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     error ErrBadKPP();
     error ErrBadQuorum();
     error ErrChainAlreadySupported();
-    error ErrCannotAddCurrentChain();
     error ErrChainNotSupported();
     error ErrCannotRemoveCurrentChain();
     error ErrTransfersDisabled();
@@ -601,10 +599,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             // Операция обновления процента кворума
             (uint256 newQuorumPercentage) = abi.decode(data, (uint256));
             _updateQuorumPercentage(newQuorumPercentage);
-        } else if (selector == bytes4(keccak256("_updateCurrentChainId(uint256)"))) {
-            // Операция обновления текущей цепочки
-            (uint256 newChainId) = abi.decode(data, (uint256));
-            _updateCurrentChainId(newChainId);
         } else if (selector == bytes4(keccak256("_updateDLEInfo(string,string,string,string,uint256,string[],uint256)"))) {
             // Операция обновления информации DLE
             (string memory name, string memory symbol, string memory location, string memory coordinates, uint256 jurisdiction, string[] memory okvedCodes, uint256 kpp) = abi.decode(data, (string, string, string, string, uint256, string[], uint256));
@@ -667,19 +661,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         emit QuorumPercentageUpdated(oldQuorumPercentage, _newQuorumPercentage);
     }
 
-    /**
-     * @dev Обновить текущую цепочку
-     * @param _newChainId Новый ID цепочки
-     */
-    function _updateCurrentChainId(uint256 _newChainId) internal {
-        if (!supportedChains[_newChainId]) revert ErrChainNotSupported();
-        if (_newChainId == currentChainId) revert ErrCannotAddCurrentChain();
-        
-        uint256 oldChainId = currentChainId;
-        currentChainId = _newChainId;
-        
-        emit CurrentChainIdUpdated(oldChainId, _newChainId);
-    }
 
     /**
      * @dev Перевести токены через governance (от имени DLE)

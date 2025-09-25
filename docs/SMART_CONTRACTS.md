@@ -192,16 +192,11 @@ function _updateDLEInfo(
 function _updateQuorumPercentage(uint256 _newQuorumPercentage) internal
 ```
 
-#### 3. Изменение текущей цепочки
-```solidity
-function _updateCurrentChainId(uint256 _newChainId) internal
-```
 
-#### 4. События для отслеживания изменений
+#### 3. События для отслеживания изменений
 ```solidity
 event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp);
 event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
-event CurrentChainIdUpdated(uint256 oldChainId, uint256 newChainId);
 ```
 
 ### Процесс изменения данных DLE

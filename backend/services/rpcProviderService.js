@@ -88,4 +88,16 @@ async function getRpcUrlByChainId(chainId) {
   return providers[0]?.rpc_url || null;
 }
 
-module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId, getRpcUrlByChainId }; 
+async function getEtherscanApiUrlByChainId(chainId) {
+  console.log(`[RPC Service] Поиск Etherscan API URL для chain_id: ${chainId}`);
+  const providers = await encryptedDb.getData('rpc_providers', { chain_id: chainId }, 1);
+  console.log(`[RPC Service] Найдено провайдеров: ${providers.length}`);
+  if (providers.length > 0) {
+    console.log(`[RPC Service] Найден Etherscan API URL: ${providers[0].etherscan_api_url || 'НЕТ'}`);
+  } else {
+    console.log(`[RPC Service] Etherscan API URL для chain_id ${chainId} не найден`);
+  }
+  return providers[0]?.etherscan_api_url || null;
+}
+
+module.exports = { getAllRpcProviders, saveAllRpcProviders, upsertRpcProvider, deleteRpcProvider, getRpcUrlByNetworkId, getRpcUrlByChainId, getEtherscanApiUrlByChainId }; 

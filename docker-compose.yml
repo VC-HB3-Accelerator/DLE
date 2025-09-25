@@ -167,23 +167,23 @@ services:
       - '5173:5173'  # Закрываем - используем nginx
     command: yarn run dev -- --host 0.0.0.0
   ssh-tunnel-frontend:
-    image: alpine:latest
+    image: alpine:3.18
     container_name: ssh-tunnel-frontend
     volumes:
       - ./id_rsa:/key:ro
     command: >
-      sh -c "apk add --no-cache openssh && ssh -i /key -o StrictHostKeyChecking=no -N -R 0.0.0.0:9000:host.docker.internal:9000 root@185.221.214.140"
+      sh -c "apk add --no-cache openssh-client && ssh -i /key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R 0.0.0.0:9000:host.docker.internal:9000 root@185.221.214.140"
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   ssh-tunnel-backend:
-    image: alpine:latest
+    image: alpine:3.18
     container_name: ssh-tunnel-backend
     volumes:
       - ./id_rsa:/key:ro
     command: >
-      sh -c "apk add --no-cache openssh && ssh -i /key -o StrictHostKeyChecking=no -N -R 0.0.0.0:8000:host.docker.internal:8000 root@185.221.214.140"
+      sh -c "apk add --no-cache openssh-client && ssh -i /key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R 0.0.0.0:8000:host.docker.internal:8000 root@185.221.214.140"
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

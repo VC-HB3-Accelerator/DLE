@@ -11,13 +11,39 @@
  */
 
 require('@nomicfoundation/hardhat-toolbox');
+require('@nomicfoundation/hardhat-verify');
 require('hardhat-contract-sizer');
 require('dotenv').config();
 
 function getNetworks() {
-  // Возвращаем пустой объект, чтобы Hardhat не зависел от переменных окружения
-  // Сети будут настраиваться динамически в deploy-multichain.js
-  return {};
+  // Базовая конфигурация сетей для верификации
+  return {
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+      chainId: 11155111,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    holesky: {
+      url: process.env.HOLESKY_RPC_URL || 'https://ethereum-holesky-rpc.publicnode.com',
+      chainId: 17000,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    mainnet: {
+      url: process.env.MAINNET_RPC_URL || 'https://eth-mainnet.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+      chainId: 1,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    arbitrumSepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
+      chainId: 421614,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+      chainId: 84532,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    }
+  };
 }
 
 module.exports = {
@@ -38,16 +64,74 @@ module.exports = {
   },
   networks: getNetworks(),
   etherscan: {
-    apiKey: {
-      sepolia: process.env.ETHERSCAN_API_KEY || '',
-      mainnet: process.env.ETHERSCAN_API_KEY || '',
-      polygon: process.env.POLYGONSCAN_API_KEY || '',
-      arbitrumOne: process.env.ARBISCAN_API_KEY || '',
-      bsc: process.env.BSCSCAN_API_KEY || '',
-      base: process.env.BASESCAN_API_KEY || '',
-      baseSepolia: process.env.BASESCAN_API_KEY || '',
-      arbitrumSepolia: process.env.ARBISCAN_API_KEY || '',
-    }
+    // Единый API ключ для V2 API
+    apiKey: process.env.ETHERSCAN_API_KEY || '',
+    customChains: [
+      {
+        network: "sepolia",
+        chainId: 11155111,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://sepolia.etherscan.io"
+        }
+      },
+      {
+        network: "holesky", 
+        chainId: 17000,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://holesky.etherscan.io"
+        }
+      },
+      {
+        network: "polygon",
+        chainId: 137,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://polygonscan.com"
+        }
+      },
+      {
+        network: "arbitrumOne",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://arbiscan.io"
+        }
+      },
+      {
+        network: "arbitrumSepolia",
+        chainId: 421614,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://sepolia.arbiscan.io"
+        }
+      },
+      {
+        network: "bsc",
+        chainId: 56,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://bscscan.com"
+        }
+      },
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://basescan.org"
+        }
+      },
+      {
+        network: "baseSepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://sepolia.basescan.org"
+        }
+      }
+    ]
   },
   solidityCoverage: {
     excludeContracts: [],
