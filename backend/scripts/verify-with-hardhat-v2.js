@@ -1,13 +1,207 @@
 /**
- * Верификация контрактов с Hardhat V2 API
+ * Верификация контрактов в Etherscan V2
  */
 
-const { execSync } = require('child_process');
+// const { execSync } = require('child_process'); // Удалено - больше не используем Hardhat verify
 const DeployParamsService = require('../services/deployParamsService');
 const deploymentWebSocketService = require('../services/deploymentWebSocketService');
+const { getSecret } = require('../services/secretStore');
+
+// Функция для определения Etherscan V2 API URL по chainId
+function getEtherscanApiUrl(chainId) {
+  // Используем единый Etherscan V2 API для всех сетей
+  return `https://api.etherscan.io/v2/api?chainid=${chainId}`;
+}
+
+// Импортируем вспомогательную функцию
+const { createStandardJsonInput: createStandardJsonInputHelper } = require('../utils/standardJsonInputHelper');
+
+// Функция для создания стандартного JSON input
+function createStandardJsonInput() {
+  const path = require('path');
+  const contractPath = path.join(__dirname, '../contracts/DLE.sol');
+  return createStandardJsonInputHelper(contractPath, 'DLE');
+}
+
+// Функция для проверки статуса верификации
+async function checkVerificationStatus(chainId, guid, apiKey) {
+  const apiUrl = getEtherscanApiUrl(chainId);
+  
+  const formData = new URLSearchParams({
+    apikey: apiKey,
+    module: 'contract',
+    action: 'checkverifystatus',
+    guid: guid
+  });
+  
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('❌ Ошибка при проверке статуса:', error.message);
+    return { status: '0', message: error.message };
+  }
+}
+
+// Функция для проверки реального статуса контракта в Etherscan
+async function checkContractVerificationStatus(chainId, contractAddress, apiKey) {
+  const apiUrl = getEtherscanApiUrl(chainId);
+  
+  const formData = new URLSearchParams({
+    apikey: apiKey,
+    module: 'contract',
+    action: 'getsourcecode',
+    address: contractAddress
+  });
+  
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData
+    });
+    
+    const result = await response.json();
+    
+    if (result.status === '1' && result.result && result.result[0]) {
+      const contractInfo = result.result[0];
+      const isVerified = contractInfo.SourceCode && contractInfo.SourceCode !== '';
+      
+      console.log(`🔍 Статус контракта ${contractAddress}:`, {
+        isVerified: isVerified,
+        contractName: contractInfo.ContractName || 'Unknown',
+        compilerVersion: contractInfo.CompilerVersion || 'Unknown'
+      });
+      
+      return { isVerified, contractInfo };
+    } else {
+      console.log('❌ Не удалось получить информацию о контракте:', result.message);
+      return { isVerified: false, error: result.message };
+    }
+  } catch (error) {
+    console.error('❌ Ошибка при проверке статуса контракта:', error.message);
+    return { isVerified: false, error: error.message };
+  }
+}
+
+// Функция для верификации контракта в Etherscan V2
+async function verifyContractInEtherscan(chainId, contractAddress, constructorArgsHex, apiKey) {
+  const apiUrl = getEtherscanApiUrl(chainId);
+  const standardJsonInput = createStandardJsonInput();
+  
+  console.log(`🔍 Верификация контракта ${contractAddress} в Etherscan V2 (chainId: ${chainId})`);
+  console.log(`📡 API URL: ${apiUrl}`);
+  
+  const formData = new URLSearchParams({
+    apikey: apiKey,
+    module: 'contract',
+    action: 'verifysourcecode',
+    contractaddress: contractAddress,
+    codeformat: 'solidity-standard-json-input',
+    contractname: 'DLE.sol:DLE',
+    sourceCode: JSON.stringify(standardJsonInput),
+    compilerversion: 'v0.8.20+commit.a1b79de6',
+    optimizationUsed: '1',
+    runs: '0',
+    constructorArguements: constructorArgsHex
+  });
+  
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData
+    });
+    
+    const result = await response.json();
+    console.log('📥 Ответ от Etherscan V2:', result);
+    
+    if (result.status === '1') {
+      console.log('✅ Верификация отправлена в Etherscan V2!');
+      console.log(`📋 GUID: ${result.result}`);
+      
+      // Ждем и проверяем статус верификации с повторными попытками
+      console.log('⏳ Ждем 15 секунд перед проверкой статуса...');
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      // Проверяем статус с повторными попытками (до 3 раз)
+      let statusResult;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      do {
+        attempts++;
+        console.log(`📊 Проверка статуса верификации (попытка ${attempts}/${maxAttempts})...`);
+        statusResult = await checkVerificationStatus(chainId, result.result, apiKey);
+        console.log('📊 Статус верификации:', statusResult);
+        
+        if (statusResult.status === '1') {
+          console.log('🎉 Верификация успешна!');
+          return { success: true, guid: result.result, message: 'Верифицировано в Etherscan V2' };
+        } else if (statusResult.status === '0' && statusResult.result.includes('Pending')) {
+          console.log('⏳ Верификация в очереди, проверяем реальный статус контракта...');
+          
+          // Проверяем реальный статус контракта в Etherscan
+          const contractStatus = await checkContractVerificationStatus(chainId, contractAddress, apiKey);
+          if (contractStatus.isVerified) {
+            console.log('✅ Контракт уже верифицирован в Etherscan!');
+            return { success: true, guid: result.result, message: 'Контракт верифицирован' };
+          } else {
+            console.log('⏳ Контракт еще не верифицирован, ожидаем завершения...');
+            if (attempts < maxAttempts) {
+              console.log(`⏳ Ждем еще 10 секунд перед следующей попыткой...`);
+              await new Promise(resolve => setTimeout(resolve, 10000));
+            }
+          }
+        } else {
+          console.log('❌ Верификация не удалась:', statusResult.result);
+          return { success: false, error: statusResult.result };
+        }
+      } while (attempts < maxAttempts && statusResult.status === '0' && statusResult.result.includes('Pending'));
+      
+      // Если все попытки исчерпаны
+      if (attempts >= maxAttempts) {
+        console.log('⏳ Максимальное количество попыток достигнуто, верификация может быть в процессе...');
+        return { success: false, error: 'Ожидание верификации', guid: result.result };
+      }
+    } else {
+      console.log('❌ Ошибка отправки верификации в Etherscan V2:', result.message);
+      
+      // Проверяем, не верифицирован ли уже контракт
+      if (result.message && result.message.includes('already verified')) {
+        console.log('✅ Контракт уже верифицирован');
+        return { success: true, message: 'Контракт уже верифицирован' };
+      }
+      
+      return { success: false, error: result.message };
+    }
+  } catch (error) {
+    console.error('❌ Ошибка при отправке запроса в Etherscan V2:', error.message);
+    
+    // Проверяем, не является ли это ошибкой сети
+    if (error.message.includes('fetch') || error.message.includes('network')) {
+      console.log('⚠️ Ошибка сети, верификация может быть в процессе...');
+      return { success: false, error: 'Network error - verification may be in progress' };
+    }
+    
+    return { success: false, error: error.message };
+  }
+}
 
 async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
-  console.log('🚀 Запуск верификации с Hardhat V2...');
+  console.log('🚀 Запуск верификации контрактов...');
   
   try {
     // Если параметры не переданы, получаем их из базы данных
@@ -23,9 +217,14 @@ async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
       params = latestParams[0];
     }
     
-    if (!params.etherscan_api_key) {
-      throw new Error('Etherscan API ключ не найден в параметрах');
+    // Проверяем API ключ в параметрах или переменной окружения
+    const etherscanApiKey = params.etherscan_api_key || process.env.ETHERSCAN_API_KEY;
+    if (!etherscanApiKey) {
+      throw new Error('Etherscan API ключ не найден в параметрах или переменной окружения');
     }
+    
+    // Устанавливаем API ключ в переменную окружения для использования в коде
+    process.env.ETHERSCAN_API_KEY = etherscanApiKey;
     
     console.log('📋 Параметры деплоя:', {
       deploymentId: params.deployment_id,
@@ -54,38 +253,35 @@ async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
     }
     console.log(`🌐 Найдено ${networks.length} развернутых сетей`);
     
-    // Маппинг chainId на названия сетей
-    const networkMap = {
-      1: 'mainnet',
-      11155111: 'sepolia', 
-      17000: 'holesky',
-      137: 'polygon',
-      42161: 'arbitrumOne',
-      421614: 'arbitrumSepolia',
-      56: 'bsc',
-      8453: 'base',
-      84532: 'baseSepolia'
-    };
+    // Получаем маппинг chainId на названия сетей из параметров деплоя
+    const networkMap = {};
+    if (params.supportedChainIds && params.supportedChainIds.length > 0) {
+      // Создаем маппинг только для поддерживаемых сетей
+      for (const chainId of params.supportedChainIds) {
+        switch (chainId) {
+          case 1: networkMap[chainId] = 'mainnet'; break;
+          case 11155111: networkMap[chainId] = 'sepolia'; break;
+          case 17000: networkMap[chainId] = 'holesky'; break;
+          case 137: networkMap[chainId] = 'polygon'; break;
+          case 42161: networkMap[chainId] = 'arbitrumOne'; break;
+          case 421614: networkMap[chainId] = 'arbitrumSepolia'; break;
+          case 56: networkMap[chainId] = 'bsc'; break;
+          case 8453: networkMap[chainId] = 'base'; break;
+          case 84532: networkMap[chainId] = 'baseSepolia'; break;
+          default: networkMap[chainId] = `chain-${chainId}`; break;
+        }
+      }
+    } else {
+      // Fallback для совместимости
+      networkMap[11155111] = 'sepolia';
+      networkMap[17000] = 'holesky';
+      networkMap[421614] = 'arbitrumSepolia';
+      networkMap[84532] = 'baseSepolia';
+    }
     
-    // Подготавливаем аргументы конструктора
-    const constructorArgs = [
-      {
-        name: params.name || '',
-        symbol: params.symbol || '',
-        location: params.location || '',
-        coordinates: params.coordinates || '',
-        jurisdiction: params.jurisdiction || 0,
-        oktmo: params.oktmo || '',
-        okvedCodes: params.okvedCodes || [],
-        kpp: params.kpp ? params.kpp : 0,
-        quorumPercentage: params.quorumPercentage || 51,
-        initialPartners: params.initialPartners || [],
-        initialAmounts: (params.initialAmounts || []).map(amount => (parseFloat(amount) * 10**18).toString()),
-        supportedChainIds: (params.supportedChainIds || []).map(id => id.toString())
-      },
-      (params.currentChainId || params.supportedChainIds?.[0] || 1).toString(),
-      params.initializer || params.initialPartners?.[0] || "0x0000000000000000000000000000000000000000"
-    ];
+    // Используем централизованный генератор параметров конструктора
+    const { generateVerificationArgs } = require('../utils/constructorArgsGenerator');
+    const constructorArgs = generateVerificationArgs(params);
     
     console.log('📊 Аргументы конструктора подготовлены');
     
@@ -125,77 +321,61 @@ async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
       
-      // Создаем временный файл с аргументами конструктора
-      const fs = require('fs');
-      const path = require('path');
-      const argsFile = path.join(__dirname, `constructor-args-${Date.now()}.json`);
-      
-      try {
-        fs.writeFileSync(argsFile, JSON.stringify(constructorArgs, null, 2));
-        
-        // Формируем команду верификации с файлом аргументов
-        const command = `ETHERSCAN_API_KEY="${params.etherscan_api_key}" npx hardhat verify --network ${networkName} ${address} --constructor-args ${argsFile}`;
-        
-        console.log(`💻 Выполняем команду: npx hardhat verify --network ${networkName} ${address} --constructor-args ${argsFile}`);
-        
-        const output = execSync(command, { 
-          cwd: '/app',
-          encoding: 'utf8',
-          stdio: 'pipe'
+      // Получаем API ключ Etherscan
+      const etherscanApiKey = process.env.ETHERSCAN_API_KEY;
+      if (!etherscanApiKey) {
+        console.log('❌ API ключ Etherscan не найден, пропускаем верификацию в Etherscan');
+        verificationResults.push({ 
+          success: false, 
+          network: networkName,
+          chainId: chainId,
+          error: 'No Etherscan API key' 
         });
-        
-        console.log('✅ Верификация успешна:');
-        console.log(output);
-        
+        continue;
+      }
+      
+      // Кодируем аргументы конструктора в hex
+      const { ethers } = require('ethers');
+      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+      
+      // Используем централизованный генератор параметров конструктора
+      const { generateDeploymentArgs } = require('../utils/constructorArgsGenerator');
+      const { dleConfig, initializer } = generateDeploymentArgs(params);
+      
+      const encodedArgs = abiCoder.encode(
+        [
+          'tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 quorumPercentage, address[] initialPartners, uint256[] initialAmounts, uint256[] supportedChainIds)',
+          'address'
+        ],
+        [
+          dleConfig,
+          initializer
+        ]
+      );
+      
+      const constructorArgsHex = encodedArgs.slice(2); // Убираем 0x
+      
+      // Верификация в Etherscan
+      console.log('🌐 Верификация в Etherscan...');
+      const etherscanResult = await verifyContractInEtherscan(chainId, address, constructorArgsHex, etherscanApiKey);
+      
+      if (etherscanResult.success) {
+        console.log('✅ Верификация в Etherscan успешна!');
         verificationResults.push({ 
           success: true, 
           network: networkName,
-          chainId: chainId 
+          chainId: chainId,
+          etherscan: true,
+          message: etherscanResult.message
         });
-        
-        // Удаляем временный файл
-        try {
-          fs.unlinkSync(argsFile);
-        } catch (e) {
-          console.log(`⚠️ Не удалось удалить временный файл: ${argsFile}`);
-        }
-        
-      } catch (error) {
-        // Удаляем временный файл в случае ошибки
-        try {
-          fs.unlinkSync(argsFile);
-        } catch (e) {
-          console.log(`⚠️ Не удалось удалить временный файл: ${argsFile}`);
-        }
-        
-        const errorOutput = error.stdout || error.stderr || error.message;
-        console.log('📥 Вывод команды:');
-        console.log(errorOutput);
-        
-        if (errorOutput.includes('Already Verified')) {
-          console.log('ℹ️ Контракт уже верифицирован');
-          verificationResults.push({ 
-            success: true, 
-            network: networkName,
-            chainId: chainId,
-            alreadyVerified: true 
-          });
-        } else if (errorOutput.includes('Successfully verified')) {
-          console.log('✅ Контракт успешно верифицирован!');
-          verificationResults.push({ 
-            success: true, 
-            network: networkName,
-            chainId: chainId 
-          });
-        } else {
-          console.log('❌ Ошибка верификации');
-          verificationResults.push({ 
-            success: false, 
-            network: networkName,
-            chainId: chainId,
-            error: errorOutput 
-          });
-        }
+      } else {
+        console.log('❌ Ошибка верификации в Etherscan:', etherscanResult.error);
+        verificationResults.push({ 
+          success: false, 
+          network: networkName,
+          chainId: chainId,
+          error: etherscanResult.error
+        });
       }
     }
     
@@ -203,17 +383,20 @@ async function verifyWithHardhatV2(params = null, deployedNetworks = null) {
     console.log('\n📊 Итоговые результаты верификации:');
     const successful = verificationResults.filter(r => r.success).length;
     const failed = verificationResults.filter(r => !r.success).length;
-    const alreadyVerified = verificationResults.filter(r => r.alreadyVerified).length;
+    const etherscanVerified = verificationResults.filter(r => r.etherscan).length;
     
     console.log(`✅ Успешно верифицировано: ${successful}`);
-    console.log(`ℹ️ Уже было верифицировано: ${alreadyVerified}`);
+    console.log(`🌐 В Etherscan: ${etherscanVerified}`);
     console.log(`❌ Ошибки: ${failed}`);
     
     verificationResults.forEach(result => {
-      const status = result.success 
-        ? (result.alreadyVerified ? 'ℹ️' : '✅') 
-        : '❌';
-      console.log(`${status} ${result.network} (${result.chainId}): ${result.success ? 'OK' : result.error?.substring(0, 100) + '...'}`);
+      const status = result.success ? '✅' : '❌';
+      
+      const message = result.success 
+        ? (result.message || 'OK')
+        : result.error?.substring(0, 100) + '...';
+        
+      console.log(`${status} ${result.network} (${result.chainId}): ${message}`);
     });
     
     console.log('\n🎉 Верификация завершена!');
@@ -327,13 +510,26 @@ async function verifyModules() {
       }
     };
     
-    // Маппинг chainId на названия сетей для Hardhat
-    const networkMap = {
-      11155111: 'sepolia', 
-      17000: 'holesky',
-      421614: 'arbitrumSepolia',
-      84532: 'baseSepolia'
-    };
+    // Получаем маппинг chainId на названия сетей из параметров деплоя
+    const networkMap = {};
+    if (params.supportedChainIds && params.supportedChainIds.length > 0) {
+      // Создаем маппинг только для поддерживаемых сетей
+      for (const chainId of params.supportedChainIds) {
+        switch (chainId) {
+          case 11155111: networkMap[chainId] = 'sepolia'; break;
+          case 17000: networkMap[chainId] = 'holesky'; break;
+          case 421614: networkMap[chainId] = 'arbitrumSepolia'; break;
+          case 84532: networkMap[chainId] = 'baseSepolia'; break;
+          default: networkMap[chainId] = `chain-${chainId}`; break;
+        }
+      }
+    } else {
+      // Fallback для совместимости
+      networkMap[11155111] = 'sepolia';
+      networkMap[17000] = 'holesky';
+      networkMap[421614] = 'arbitrumSepolia';
+      networkMap[84532] = 'baseSepolia';
+    }
     
     // Верифицируем каждый модуль
     for (const file of moduleFiles) {
@@ -375,29 +571,12 @@ async function verifyModules() {
           const argsFile = path.join(__dirname, `temp-args-${Date.now()}.json`);
           fs.writeFileSync(argsFile, JSON.stringify(constructorArgs, null, 2));
           
-          // Выполняем верификацию
-          const command = `ETHERSCAN_API_KEY="${params.etherscan_api_key}" npx hardhat verify --network ${networkName} ${network.address} --constructor-args ${argsFile}`;
-          console.log(`📝 Команда верификации: npx hardhat verify --network ${networkName} ${network.address} --constructor-args ${argsFile}`);
+          // Верификация модулей через Etherscan V2 API (пока не реализовано)
+          console.log(`⚠️ Верификация модулей через Etherscan V2 API пока не реализована для ${moduleData.moduleType} в ${networkName}`);
           
-          try {
-            const output = execSync(command, { 
-              cwd: '/app',
-              encoding: 'utf8',
-              stdio: 'pipe'
-            });
-            console.log(`✅ ${moduleData.moduleType} успешно верифицирован в ${networkName}`);
-            console.log(output);
-            
-            // Уведомляем WebSocket клиентов о успешной верификации
-            deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleData.moduleType} верифицирован в ${networkName}`);
-            deploymentWebSocketService.notifyModuleVerified(dleAddress, moduleData.moduleType, networkName);
-          } catch (verifyError) {
-            console.log(`❌ Ошибка верификации ${moduleData.moduleType} в ${networkName}: ${verifyError.message}`);
-          } finally {
-            // Удаляем временный файл
-            if (fs.existsSync(argsFile)) {
-              fs.unlinkSync(argsFile);
-            }
+          // Удаляем временный файл
+          if (fs.existsSync(argsFile)) {
+            fs.unlinkSync(argsFile);
           }
           
         } catch (error) {

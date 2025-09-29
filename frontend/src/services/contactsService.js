@@ -57,24 +57,24 @@ export default {
   },
   // --- Работа с тегами пользователя ---
   async addTagsToContact(contactId, tagIds) {
-  // PATCH /api/tags/user/:id { tags: [...] }
+  // PATCH /tags/user/:id { tags: [...] }
   const res = await api.patch(`/tags/user/${contactId}`, { tags: tagIds });
   return res.data;
 },
 async getContactTags(contactId) {
-  // GET /api/tags/user/:id
+  // GET /tags/user/:id
   const res = await api.get(`/tags/user/${contactId}`);
   return res.data.tags || [];
 },
 async removeTagFromContact(contactId, tagId) {
-  // DELETE /api/tags/user/:id/tag/:tagId
+  // DELETE /tags/user/:id/tag/:tagId
   const res = await api.delete(`/tags/user/${contactId}/tag/${tagId}`);
   return res.data;
 }
 };
 
 export async function getContacts() {
-  const res = await fetch('/api/users');
+  const res = await fetch('/users');
   const data = await res.json();
   if (data && data.success) {
     return data.contacts;

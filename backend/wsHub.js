@@ -96,6 +96,9 @@ function initWSS(server) {
           wsClients.delete(userId);
         }
       }
+      
+      // Удаляем клиента из deploymentWebSocketService
+      deploymentWebSocketService.removeClient(ws);
     });
     
     ws.on('error', (error) => {
@@ -494,7 +497,7 @@ function broadcastDeploymentUpdate(data) {
     }
   });
   
-  console.log(`📡 [WebSocket] Отправлено deployment update: ${data.type || 'unknown'}`);
+  console.log(`📡 [WebSocket] Отправлено deployment update: deployment_update`);
 }
 
 // Функция для уведомления об обновлениях модулей

@@ -20,8 +20,8 @@ services:
       POSTGRES_DB: ${DB_NAME:-dapp_db}
       POSTGRES_USER: ${DB_USER:-dapp_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dapp_password}
-    # ports:
-    #   - '5432:5432'  # Закрываем доступ к базе данных извне
+    ports:
+      - '5432:5432'  # Открываем доступ к базе данных извне для разработки
     healthcheck:
       test:
         - CMD-SHELL

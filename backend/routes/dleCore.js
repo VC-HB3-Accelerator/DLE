@@ -29,8 +29,41 @@ router.post('/read-dle-info', async (req, res) => {
 
     console.log(`[DLE Core] Чтение данных DLE из блокчейна: ${dleAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    let candidateChainIds = [11155111, 421614, 84532, 17000]; // Fallback
+    
+    try {
+      // Получаем поддерживаемые сети из параметров деплоя
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        candidateChainIds = params.supportedChainIds || candidateChainIds;
+      }
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
+    }
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -205,11 +238,27 @@ router.post('/get-governance-params', async (req, res) => {
 
     console.log(`[DLE Core] Получение параметров управления для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Получаем RPC URL из параметров деплоя или используем Sepolia как fallback
+    let rpcUrl;
+    try {
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        const supportedChainIds = params.supportedChainIds || [];
+        const chainId = supportedChainIds.length > 0 ? supportedChainIds[0] : 11155111;
+        rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
+      } else {
+        rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+      }
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя, используем Sepolia:', error);
+      rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    }
+    
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: 'RPC URL не найден'
       });
     }
 
@@ -258,11 +307,27 @@ router.post('/is-active', async (req, res) => {
 
     console.log(`[DLE Core] Проверка активности DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Получаем RPC URL из параметров деплоя или используем Sepolia как fallback
+    let rpcUrl;
+    try {
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        const supportedChainIds = params.supportedChainIds || [];
+        const chainId = supportedChainIds.length > 0 ? supportedChainIds[0] : 11155111;
+        rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
+      } else {
+        rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+      }
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя, используем Sepolia:', error);
+      rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    }
+    
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: 'RPC URL не найден'
       });
     }
 
@@ -309,8 +374,41 @@ router.post('/deactivate-dle', async (req, res) => {
 
     console.log(`[DLE Core] Проверка возможности деактивации DLE: ${dleAddress} пользователем: ${userAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    let candidateChainIds = [11155111, 421614, 84532, 17000]; // Fallback
+    
+    try {
+      // Получаем поддерживаемые сети из параметров деплоя
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        candidateChainIds = params.supportedChainIds || candidateChainIds;
+      }
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
+    }
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,

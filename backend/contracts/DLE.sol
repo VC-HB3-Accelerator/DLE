@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: PROPRIETARY AND MIT
 // Copyright (c) 2024-2025 Тарабанов Александр Викторович
 // All rights reserved.
-//
-// This software is proprietary and confidential.
-// Unauthorized copying, modification, or distribution is prohibited.
-//
 // For licensing inquiries: info@hb3-accelerator.com
-// Website: https://hb3-accelerator.com
-// GitHub: https://github.com/HB3-ACCELERATOR
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -21,36 +15,12 @@ interface IERC1271 {
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue);
 }
 
-/**
- * @dev Интерфейс для мультичейн метаданных (EIP-3668 inspired)
- */
 interface IMultichainMetadata {
-    /**
-     * @dev Возвращает информацию о мультичейн развертывании
-     * @return supportedChainIds Массив всех поддерживаемых chain ID
-     * @return defaultVotingChain ID сети по умолчанию для голосования (может быть любая из поддерживаемых)
-     */
     function getMultichainInfo() external view returns (uint256[] memory supportedChainIds, uint256 defaultVotingChain);
-    
-    /**
-     * @dev Возвращает адреса контракта в других сетях
-     * @return chainIds Массив chain ID где развернут контракт
-     * @return addresses Массив адресов контракта в соответствующих сетях
-     */
     function getMultichainAddresses() external view returns (uint256[] memory chainIds, address[] memory addresses);
 }
 
-/**
- * @title DLE (Digital Legal Entity)
- * @dev Основной контракт DLE с модульной архитектурой, Single-Chain Governance
- * и безопасной мульти-чейн синхронизацией без сторонних мостов (через подписи холдеров).
- * 
- * КЛЮЧЕВЫЕ ОСОБЕННОСТИ:
- * - Прямые переводы токенов ЗАБЛОКИРОВАНЫ (transfer, transferFrom, approve)
- * - Перевод токенов возможен ТОЛЬКО через governance предложения
- * - Токены служат только для голосования и управления DLE
- * - Все операции с токенами требуют коллективного решения
- */
+// DLE (Digital Legal Entity) - основной контракт с модульной архитектурой
 contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMetadata {
     using ECDSA for bytes32;
     struct DLEInfo {
@@ -101,7 +71,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     DLEInfo public dleInfo;
     uint256 public quorumPercentage;
     uint256 public proposalCounter;
-    uint256 public currentChainId;
+    // Удален currentChainId - теперь используется block.chainid для проверок
     // Публичный URI логотипа токена/организации (можно установить при деплое через инициализатор)
     string public logoURI;
 
@@ -169,6 +139,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     error ErrProposalExecuted();
     error ErrAlreadyVoted();
     error ErrWrongChain();
+    error ErrUnsupportedChain();
     error ErrNoPower();
     error ErrNotReady();
     error ErrNotInitiator();
@@ -200,7 +171,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
 
     constructor(
         DLEConfig memory config,
-        uint256 _currentChainId,
         address _initializer
     ) ERC20(config.name, config.symbol) ERC20Permit(config.name) {
         if (_initializer == address(0)) revert ErrZeroAddress();
@@ -218,7 +188,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         });
         
         quorumPercentage = config.quorumPercentage;
-        currentChainId = _currentChainId;
 
         // Настраиваем поддерживаемые цепочки
         for (uint256 i = 0; i < config.supportedChainIds.length; i++) {
@@ -254,9 +223,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         );
     }
 
-    /**
-     * @dev Одноразовая инициализация URI логотипа. Доступно только инициализатору и только один раз.
-     */
+    // Одноразовая инициализация URI логотипа
     function initializeLogoURI(string calldata _logoURI) external {
         if (msg.sender != initializer) revert ErrOnlyInitializer();
         if (bytes(logoURI).length != 0) revert ErrLogoAlreadySet();
@@ -265,13 +232,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         emit LogoURIUpdated(old, _logoURI);
     }
 
-    /**
-     * @dev Создать предложение с выбором цепочки для кворума
-     * @param _description Описание предложения
-     * @param _duration Длительность голосования в секундах
-     * @param _operation Операция для исполнения
-     * @param _governanceChainId ID цепочки для сбора голосов
-     */
+    // Создать предложение с выбором цепочки для кворума
     function createProposal(
         string memory _description, 
         uint256 _duration,
@@ -333,11 +294,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         return proposalId;
     }
 
-    /**
-     * @dev Голосовать за предложение
-     * @param _proposalId ID предложения
-     * @param _support Поддержка предложения
-     */
+    // Голосовать за предложение
     function vote(uint256 _proposalId, bool _support) external nonReentrant {
         Proposal storage proposal = proposals[_proposalId];
         if (proposal.id != _proposalId) revert ErrProposalMissing();
@@ -345,7 +302,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         if (proposal.executed) revert ErrProposalExecuted();
         if (proposal.canceled) revert ErrProposalCanceled();
         if (proposal.hasVoted[msg.sender]) revert ErrAlreadyVoted();
-        if (currentChainId != proposal.governanceChainId) revert ErrWrongChain();
+        // Проверяем, что текущая сеть поддерживается
+        if (!supportedChains[block.chainid]) revert ErrUnsupportedChain();
 
         uint256 votingPower = getPastVotes(msg.sender, proposal.snapshotTimepoint);
         if (votingPower == 0) revert ErrNoPower();
@@ -360,7 +318,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         emit ProposalVoted(_proposalId, msg.sender, _support, votingPower);
     }
 
-    // УДАЛЕНО: syncVoteFromChain с MerkleProof — небезопасно без доверенного моста
     function checkProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached) {
         Proposal storage proposal = proposals[_proposalId];
         if (proposal.id != _proposalId) revert ErrProposalMissing();
@@ -382,7 +339,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         if (proposal.id != _proposalId) revert ErrProposalMissing();
         if (proposal.executed) revert ErrProposalExecuted();
         if (proposal.canceled) revert ErrProposalCanceled();
-        if (currentChainId != proposal.governanceChainId) revert ErrWrongChain();
+        // Проверяем, что текущая сеть поддерживается
+        if (!supportedChains[block.chainid]) revert ErrUnsupportedChain();
 
         (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
         
@@ -424,8 +382,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         if (proposal.id != _proposalId) revert ErrProposalMissing();
         if (proposal.executed) revert ErrProposalExecuted();
         if (proposal.canceled) revert ErrProposalCanceled();
-        if (currentChainId == proposal.governanceChainId) revert ErrWrongChain();
-        if (!_isTargetChain(proposal, currentChainId)) revert ErrBadTarget();
+        // Проверяем, что текущая сеть поддерживается
+        if (!supportedChains[block.chainid]) revert ErrUnsupportedChain();
+        // Проверяем, что текущая сеть является целевой для предложения
+        if (!_isTargetChain(proposal, block.chainid)) revert ErrBadTarget();
 
         if (signers.length != signatures.length) revert ErrSigLengthMismatch();
         if (signers.length == 0) revert ErrNoSigners();
@@ -436,7 +396,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             EXECUTION_APPROVAL_TYPEHASH,
             _proposalId,
             opHash,
-            currentChainId,
+            block.chainid,
             proposal.snapshotTimepoint
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
@@ -474,13 +434,9 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         proposal.executed = true;
         _executeOperation(proposal.operation);
         emit ProposalExecuted(_proposalId, proposal.operation);
-        emit ProposalExecutionApprovedInChain(_proposalId, currentChainId);
+        emit ProposalExecutionApprovedInChain(_proposalId, block.chainid);
 
     }
-
-    // Sync функции удалены для экономии байт-кода
-
-    // УДАЛЕНО: syncToChain — не используется в подпись‑ориентированной схеме
 
     /**
      * @dev Получить количество поддерживаемых цепочек
@@ -505,7 +461,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     // Управление списком сетей теперь выполняется только через предложения
     function _addSupportedChain(uint256 _chainId) internal {
         require(!supportedChains[_chainId], "Chain already supported");
-        require(_chainId != currentChainId, "Cannot add current chain");
+        require(_chainId != block.chainid, "Cannot add current chain");
         supportedChains[_chainId] = true;
         supportedChainIds.push(_chainId);
         emit ChainAdded(_chainId);
@@ -517,7 +473,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
      */
     function _removeSupportedChain(uint256 _chainId) internal {
         require(supportedChains[_chainId], "Chain not supported");
-        require(_chainId != currentChainId, "Cannot remove current chain");
+        require(_chainId != block.chainid, "Cannot remove current chain");
         supportedChains[_chainId] = false;
         // Удаляем из массива
         for (uint256 i = 0; i < supportedChainIds.length; i++) {
@@ -530,18 +486,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         emit ChainRemoved(_chainId);
     }
 
-    /**
-     * @dev Установить Merkle root для цепочки (только для владельцев токенов)
-     * @param _chainId ID цепочки
-     * @param _merkleRoot Merkle root для цепочки
-     */
-    // УДАЛЕНО: setChainMerkleRoot — небезопасно отдавать любому холдеру
-
-    /**
-     * @dev Получить Merkle root для цепочки
-     * @param _chainId ID цепочки
-     */
-    // УДАЛЕНО: getChainMerkleRoot — устарело
 
     /**
      * @dev Исполнить операцию
@@ -856,10 +800,10 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     }
 
     /**
-     * @dev Получить текущий ID цепочки
+     * @dev Получить текущий ID цепочки (теперь используется block.chainid)
      */
     function getCurrentChainId() external view returns (uint256) {
-        return currentChainId;
+        return block.chainid;
     }
 
     /**
@@ -884,7 +828,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
      * @return defaultVotingChain ID сети по умолчанию для голосования (может быть любая из поддерживаемых)
      */
     function getMultichainInfo() external view returns (uint256[] memory chains, uint256 defaultVotingChain) {
-        return (supportedChainIds, currentChainId);
+        return (supportedChainIds, block.chainid);
     }
 
     /**
@@ -898,7 +842,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         
         for (uint256 i = 0; i < supportedChainIds.length; i++) {
             chains[i] = supportedChainIds[i];
-            addrs[i] = address(this); // CREATE2 обеспечивает одинаковые адреса
+            addrs[i] = address(this); // Детерминированный деплой обеспечивает одинаковые адреса
         }
         
         return (chains, addrs);
@@ -929,7 +873,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             json,
             '],',
             '"defaultVotingChain": ',
-            _toString(currentChainId),
+            _toString(block.chainid),
             ',',
             '"note": "All chains are equal, voting can happen on any supported chain",',
             '"contractAddress": "',
@@ -985,26 +929,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         return string(str);
     }
 
-    /**
-     * @dev Получить информацию об архитектуре мультичейн governance
-     * @return architecture Описание архитектуры в JSON формате
-     */
-    function getGovernanceArchitecture() external pure returns (string memory architecture) {
-        return string(abi.encodePacked(
-            '{"architecture": {',
-            '"type": "Single-Chain Governance",',
-            '"description": "Voting happens on one chain per proposal, execution on any supported chain",',
-            '"features": [',
-            '"Equal chain support - no primary chain",',
-            '"Cross-chain execution via signatures",',
-            '"Deterministic addresses via CREATE2",',
-            '"No bridge dependencies"',
-            '],',
-            '"voting": "One chain per proposal (chosen by proposer)",',
-            '"execution": "Any supported chain via signature verification"',
-            '}}'
-        ));
-    }
 
     // API функции вынесены в отдельный reader контракт для экономии байт-кода
 
@@ -1024,6 +948,38 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     }
 
     // Функции для подсчёта голосов вынесены в reader контракт
+
+    // Получить полную сводку по предложению
+    function getProposalSummary(uint256 _proposalId) external view returns (
+        uint256 id,
+        string memory description,
+        uint256 forVotes,
+        uint256 againstVotes,
+        bool executed,
+        bool canceled,
+        uint256 deadline,
+        address initiator,
+        uint256 governanceChainId,
+        uint256 snapshotTimepoint,
+        uint256[] memory targetChains
+    ) {
+        Proposal storage p = proposals[_proposalId];
+        require(p.id == _proposalId, "Proposal does not exist");
+        
+        return (
+            p.id,
+            p.description,
+            p.forVotes,
+            p.againstVotes,
+            p.executed,
+            p.canceled,
+            p.deadline,
+            p.initiator,
+            p.governanceChainId,
+            p.snapshotTimepoint,
+            p.targetChains
+        );
+    }
 
     // Деактивация вынесена в отдельный модуль. См. DeactivationModule.
     function isActive() external view returns (bool) {

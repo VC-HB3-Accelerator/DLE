@@ -14,26 +14,12 @@
 const hre = require('hardhat');
 const path = require('path');
 const fs = require('fs');
+const logger = require('../../utils/logger');
+const { getFeeOverrides, createProviderAndWallet, alignNonce, getNetworkInfo, createRPCConnection, sendTransactionWithRetry } = require('../../utils/deploymentUtils');
+const { nonceManager } = require('../../utils/nonceManager');
 
 // WebSocket сервис для отслеживания деплоя
 const deploymentWebSocketService = require('../../services/deploymentWebSocketService');
-
-// Подбираем безопасные gas/fee для разных сетей (включая L2)
-async function getFeeOverrides(provider, { minPriorityGwei = 1n, minFeeGwei = 20n } = {}) {
-  const fee = await provider.getFeeData();
-  const overrides = {};
-  const minPriority = (await (async () => hre.ethers.parseUnits(minPriorityGwei.toString(), 'gwei'))());
-  const minFee = (await (async () => hre.ethers.parseUnits(minFeeGwei.toString(), 'gwei'))());
-  if (fee.maxFeePerGas) {
-    overrides.maxFeePerGas = fee.maxFeePerGas < minFee ? minFee : fee.maxFeePerGas;
-    overrides.maxPriorityFeePerGas = (fee.maxPriorityFeePerGas && fee.maxPriorityFeePerGas > 0n)
-      ? fee.maxPriorityFeePerGas
-      : minPriority;
-  } else if (fee.gasPrice) {
-    overrides.gasPrice = fee.gasPrice < minFee ? minFee : fee.gasPrice;
-  }
-  return overrides;
-}
 
 // Конфигурация модулей для деплоя
 const MODULE_CONFIGS = {
@@ -88,22 +74,29 @@ const MODULE_CONFIGS = {
 // Деплой модуля в одной сети с CREATE2
 async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce, moduleInit, moduleType) {
   const { ethers } = hre;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const wallet = new ethers.Wallet(pk, provider);
-  const net = await provider.getNetwork();
-
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType}...`);
   
-  // 1) Выравнивание nonce до targetNonce нулевыми транзакциями (если нужно)
-  let current = await provider.getTransactionCount(wallet.address, 'pending');
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} current nonce=${current} target=${targetNonce}`);
+  // Используем новый менеджер RPC с retry логикой
+  const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
+    maxRetries: 3,
+    timeout: 30000
+  });
+  
+  const net = network;
+
+  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType}...`);
+  
+  // 1) Используем NonceManager для правильного управления nonce
+  const { nonceManager } = require('../../utils/nonceManager');
+  const chainId = Number(net.chainId);
+  let current = await nonceManager.getNonce(wallet.address, rpcUrl, chainId);
+  logger.info(`[MODULES_DBG] chainId=${chainId} current nonce=${current} target=${targetNonce}`);
   
   if (current > targetNonce) {
     throw new Error(`Current nonce ${current} > targetNonce ${targetNonce} on chainId=${Number(net.chainId)}`);
   }
   
   if (current < targetNonce) {
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} aligning nonce from ${current} to ${targetNonce} (${targetNonce - current} transactions needed)`);
+    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} aligning nonce from ${current} to ${targetNonce} (${targetNonce - current} transactions needed)`);
     
     // Используем burn address для более надежных транзакций
     const burnAddress = "0x000000000000000000000000000000000000dEaD";
@@ -123,15 +116,14 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
             gasLimit,
             ...overrides
           };
-          console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} sending filler tx nonce=${current} attempt=${attempt + 1}`);
-          const txFill = await wallet.sendTransaction(txReq);
-          console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx sent, hash=${txFill.hash}, waiting for confirmation...`);
-          await txFill.wait();
-          console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} confirmed, hash=${txFill.hash}`);
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} sending filler tx nonce=${current} attempt=${attempt + 1}`);
+          const { tx: txFill, receipt } = await sendTransactionWithRetry(wallet, txReq, { maxRetries: 3 });
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx sent, hash=${txFill.hash}, waiting for confirmation...`);
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} confirmed, hash=${txFill.hash}`);
           sent = true;
         } catch (e) {
           lastErr = e;
-          console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} attempt=${attempt + 1} failed: ${e?.message || e}`);
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} attempt=${attempt + 1} failed: ${e?.message || e}`);
           
           if (String(e?.message || '').toLowerCase().includes('intrinsic gas too low') && attempt < 2) {
             gasLimit = 50000;
@@ -139,8 +131,17 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
           }
           
           if (String(e?.message || '').toLowerCase().includes('nonce too low') && attempt < 2) {
+            // Сбрасываем кэш и получаем актуальный nonce
+            const { nonceManager } = require('../../utils/nonceManager');
+            nonceManager.resetNonce(wallet.address, Number(net.chainId));
             current = await provider.getTransactionCount(wallet.address, 'pending');
-            console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} updated nonce to ${current}`);
+            logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated nonce to ${current}`);
+            
+            // Если новый nonce больше целевого, это критическая ошибка
+            if (current > targetNonce) {
+              throw new Error(`Current nonce ${current} > target nonce ${targetNonce} on chainId=${Number(net.chainId)}. Cannot proceed with module deployment.`);
+            }
+            
             continue;
           }
           
@@ -149,20 +150,20 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
       }
       
       if (!sent) {
-        console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} failed to send filler tx for nonce=${current}`);
+        logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} failed to send filler tx for nonce=${current}`);
         throw lastErr || new Error('filler tx failed');
       }
       
       current++;
     }
     
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce alignment completed, current nonce=${current}`);
+    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce alignment completed, current nonce=${current}`);
   } else {
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce already aligned at ${current}`);
+    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce already aligned at ${current}`);
   }
 
   // 2) Деплой модуля напрямую на согласованном nonce
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType} directly with nonce=${targetNonce}`);
+  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType} directly with nonce=${targetNonce}`);
   
   const feeOverrides = await getFeeOverrides(provider);
   let gasLimit;
@@ -179,7 +180,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
     const fallbackGas = maxByBalance > 2_000_000n ? 2_000_000n : (maxByBalance < 500_000n ? 500_000n : maxByBalance);
     gasLimit = est ? (est + est / 5n) : fallbackGas;
     
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
+    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
   } catch (_) {
     gasLimit = 1_000_000n;
   }
@@ -189,41 +190,115 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
     from: wallet.address,
     nonce: targetNonce
   });
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} predicted ${moduleType} address=${predictedAddress}`);
+  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} predicted ${moduleType} address=${predictedAddress}`);
 
   // Проверяем, не развернут ли уже контракт
   const existingCode = await provider.getCode(predictedAddress);
   if (existingCode && existingCode !== '0x') {
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} already exists at predictedAddress, skip deploy`);
+    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} already exists at predictedAddress, skip deploy`);
     return { address: predictedAddress, chainId: Number(net.chainId) };
   }
 
-  // Деплоим модуль
+  // Деплоим модуль с retry логикой для обработки race conditions
   let tx;
-  try {
-    tx = await wallet.sendTransaction({
-      data: moduleInit,
-      nonce: targetNonce,
-      gasLimit,
-      ...feeOverrides
-    });
-  } catch (e) {
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy error(first): ${e?.message || e}`);
-    // Повторная попытка с обновленным nonce
-    const updatedNonce = await provider.getTransactionCount(wallet.address, 'pending');
-    console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} retry deploy with nonce=${updatedNonce}`);
-    tx = await wallet.sendTransaction({
-      data: moduleInit,
-      nonce: updatedNonce,
-      gasLimit,
-      ...feeOverrides
-    });
+  let deployAttempts = 0;
+  const maxDeployAttempts = 5;
+  
+  while (deployAttempts < maxDeployAttempts) {
+    try {
+      deployAttempts++;
+      
+      // Получаем актуальный nonce прямо перед отправкой транзакции
+      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, Number(net.chainId), { timeout: 15000, maxRetries: 5 });
+      logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetNonce})`);
+      
+      const txData = {
+        data: moduleInit,
+        nonce: currentNonce,
+        gasLimit,
+        ...feeOverrides
+      };
+      
+      const result = await sendTransactionWithRetry(wallet, txData, { maxRetries: 3 });
+      tx = result.tx;
+      
+      logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy successful on attempt ${deployAttempts}`);
+      break; // Успешно отправили, выходим из цикла
+      
+    } catch (e) {
+      const errorMsg = e?.message || e;
+      logger.warn(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy attempt ${deployAttempts} failed: ${errorMsg}`);
+      
+      // Проверяем, является ли это ошибкой nonce
+      if (String(errorMsg).toLowerCase().includes('nonce too low') && deployAttempts < maxDeployAttempts) {
+        logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce race condition detected, retrying...`);
+        
+        // Получаем актуальный nonce из сети
+        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, Number(net.chainId), { timeout: 15000, maxRetries: 5 });
+        logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} current nonce: ${currentNonce}, target: ${targetNonce}`);
+        
+        // Если текущий nonce больше целевого, обновляем targetNonce
+        if (currentNonce > targetNonce) {
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} current nonce ${currentNonce} > target nonce ${targetNonce}, updating target`);
+          targetNonce = currentNonce;
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated targetNonce to: ${targetNonce}`);
+          
+          // Короткая задержка перед следующей попыткой
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        // Если текущий nonce меньше целевого, выравниваем его
+        if (currentNonce < targetNonce) {
+          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} aligning nonce from ${currentNonce} to ${targetNonce}`);
+          
+          // Выравниваем nonce нулевыми транзакциями
+          for (let i = currentNonce; i < targetNonce; i++) {
+            try {
+              const fillerTx = await wallet.sendTransaction({
+                to: '0x000000000000000000000000000000000000dEaD',
+                value: 0,
+                gasLimit: 21000,
+                nonce: i,
+                ...feeOverrides
+              });
+              
+              await fillerTx.wait();
+              logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx ${i} confirmed`);
+              
+              // Обновляем nonce в кэше
+              nonceManager.reserveNonce(wallet.address, Number(net.chainId), i);
+              
+            } catch (fillerError) {
+              logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx ${i} failed: ${fillerError.message}`);
+              throw fillerError;
+            }
+          }
+        }
+        
+        // ВАЖНО: Обновляем targetNonce на актуальный nonce для следующей попытки
+        targetNonce = currentNonce;
+        logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated targetNonce to: ${targetNonce}`);
+        
+        // Короткая задержка перед следующей попыткой
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        continue;
+      }
+      
+      // Если это не ошибка nonce или исчерпаны попытки, выбрасываем ошибку
+      if (deployAttempts >= maxDeployAttempts) {
+        throw new Error(`Module deployment failed after ${maxDeployAttempts} attempts: ${errorMsg}`);
+      }
+      
+      // Для других ошибок делаем короткую задержку и пробуем снова
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
 
   const rc = await tx.wait();
   const deployedAddress = rc.contractAddress || predictedAddress;
   
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployed at=${deployedAddress}`);
+  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployed at=${deployedAddress}`);
   return { address: deployedAddress, chainId: Number(net.chainId) };
 }
 
@@ -231,11 +306,16 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
 // Деплой всех модулей в одной сети
 async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces) {
   const { ethers } = hre;
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const wallet = new ethers.Wallet(pk, provider);
-  const net = await provider.getNetwork();
+  
+  // Используем новый менеджер RPC с retry логикой
+  const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
+    maxRetries: 3,
+    timeout: 30000
+  });
+  
+  const net = network;
 
-  console.log(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying modules: ${modulesToDeploy.join(', ')}`);
+  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying modules: ${modulesToDeploy.join(', ')}`);
   
   const results = {};
   
@@ -248,14 +328,14 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
     deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
     
     if (!MODULE_CONFIGS[moduleType]) {
-      console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} Unknown module type: ${moduleType}`);
+      logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} Unknown module type: ${moduleType}`);
       results[moduleType] = { success: false, error: `Unknown module type: ${moduleType}` };
       deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Неизвестный тип модуля: ${moduleType}`);
       continue;
     }
     
     if (!moduleInit) {
-      console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} No init code for module: ${moduleType}`);
+      logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} No init code for module: ${moduleType}`);
       results[moduleType] = { success: false, error: `No init code for module: ${moduleType}` };
       deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Отсутствует код инициализации для модуля: ${moduleType}`);
       continue;
@@ -266,7 +346,7 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
       results[moduleType] = { ...result, success: true };
       deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
     } catch (error) {
-      console.error(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployment failed:`, error.message);
+      logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployment failed:`, error.message);
       results[moduleType] = { 
         chainId: Number(net.chainId), 
         success: false, 
@@ -287,9 +367,10 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
 async function deployAllModulesInAllNetworks(networks, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces) {
   const results = [];
   
-  for (let i = 0; i < networks.length; i++) {
-    const rpcUrl = networks[i];
-    console.log(`[MODULES_DBG] deploying modules to network ${i + 1}/${networks.length}: ${rpcUrl}`);
+  for (let i = 0; i < connections.length; i++) {
+    const connection = connections[i];
+    const rpcUrl = connection.rpcUrl;
+    logger.info(`[MODULES_DBG] deploying modules to network ${i + 1}/${connections.length}: ${rpcUrl}`);
     
     const result = await deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces);
     results.push(result);
@@ -323,10 +404,10 @@ async function main() {
     // Проверяем, передан ли конкретный deploymentId
     const deploymentId = process.env.DEPLOYMENT_ID;
     if (deploymentId) {
-      console.log(`🔍 Ищем параметры для deploymentId: ${deploymentId}`);
+      logger.info(`🔍 Ищем параметры для deploymentId: ${deploymentId}`);
       params = await deployParamsService.getDeployParams(deploymentId);
       if (params) {
-        console.log('✅ Параметры загружены из базы данных по deploymentId');
+        logger.info('✅ Параметры загружены из базы данных по deploymentId');
       } else {
         throw new Error(`Параметры деплоя не найдены для deploymentId: ${deploymentId}`);
       }
@@ -335,7 +416,7 @@ async function main() {
       const latestParams = await deployParamsService.getLatestDeployParams(1);
       if (latestParams.length > 0) {
         params = latestParams[0];
-        console.log('✅ Параметры загружены из базы данных (последние)');
+        logger.info('✅ Параметры загружены из базы данных (последние)');
       } else {
         throw new Error('Параметры деплоя не найдены в базе данных');
       }
@@ -343,18 +424,11 @@ async function main() {
     
     await deployParamsService.close();
   } catch (dbError) {
-    console.log('⚠️ Не удалось загрузить параметры из БД, пытаемся загрузить из файла:', dbError.message);
-    
-    // Fallback к файлу
-    const paramsPath = path.join(__dirname, './current-params.json');
-    if (!fs.existsSync(paramsPath)) {
-      throw new Error('Файл параметров не найден: ' + paramsPath);
-    }
-    
-    params = JSON.parse(fs.readFileSync(paramsPath, 'utf8'));
-    console.log('✅ Параметры загружены из файла');
+    logger.error('❌ Критическая ошибка: не удалось загрузить параметры из БД:', dbError.message);
+    logger.error('❌ Система должна использовать только базу данных для хранения параметров деплоя');
+    throw new Error(`Не удалось загрузить параметры деплоя из БД: ${dbError.message}. Система должна использовать только базу данных.`);
   }
-  console.log('[MODULES_DBG] Загружены параметры:', {
+  logger.info('[MODULES_DBG] Загружены параметры:', {
     name: params.name,
     symbol: params.symbol,
     supportedChainIds: params.supportedChainIds,
@@ -370,13 +444,13 @@ async function main() {
   let modulesToDeploy;
   if (moduleTypeFromArgs) {
     modulesToDeploy = [moduleTypeFromArgs];
-    console.log(`[MODULES_DBG] Деплой конкретного модуля: ${moduleTypeFromArgs}`);
+    logger.info(`[MODULES_DBG] Деплой конкретного модуля: ${moduleTypeFromArgs}`);
   } else if (params.modulesToDeploy && params.modulesToDeploy.length > 0) {
     modulesToDeploy = params.modulesToDeploy;
-    console.log(`[MODULES_DBG] Деплой модулей из БД: ${modulesToDeploy.join(', ')}`);
+    logger.info(`[MODULES_DBG] Деплой модулей из БД: ${modulesToDeploy.join(', ')}`);
   } else {
     modulesToDeploy = ['treasury', 'timelock', 'reader'];
-    console.log(`[MODULES_DBG] Деплой модулей по умолчанию: ${modulesToDeploy.join(', ')}`);
+    logger.info(`[MODULES_DBG] Деплой модулей по умолчанию: ${modulesToDeploy.join(', ')}`);
   }
   
   if (!pk) throw new Error('PRIVATE_KEY not found in params or environment');
@@ -384,11 +458,11 @@ async function main() {
   if (!salt) throw new Error('CREATE2_SALT not found in params');
   if (networks.length === 0) throw new Error('RPC URLs not found in params');
 
-  console.log(`[MODULES_DBG] Starting modules deployment to ${networks.length} networks`);
-  console.log(`[MODULES_DBG] DLE Address: ${dleAddress}`);
-  console.log(`[MODULES_DBG] Modules to deploy: ${modulesToDeploy.join(', ')}`);
-  console.log(`[MODULES_DBG] Networks:`, networks);
-  console.log(`[MODULES_DBG] Using private key from: ${params.privateKey ? 'database' : 'environment'}`);
+  logger.info(`[MODULES_DBG] Starting modules deployment to ${networks.length} networks`);
+  logger.info(`[MODULES_DBG] DLE Address: ${dleAddress}`);
+  logger.info(`[MODULES_DBG] Modules to deploy: ${modulesToDeploy.join(', ')}`);
+  logger.info(`[MODULES_DBG] Networks:`, networks);
+  logger.info(`[MODULES_DBG] Using private key from: ${params.privateKey ? 'database' : 'environment'}`);
   
   // Уведомляем WebSocket клиентов о начале деплоя
   if (moduleTypeFromArgs) {
@@ -400,9 +474,11 @@ async function main() {
   }
   
   // Устанавливаем API ключ Etherscan из базы данных, если доступен
-  if (params.etherscanApiKey || params.etherscan_api_key) {
-    process.env.ETHERSCAN_API_KEY = params.etherscanApiKey || params.etherscan_api_key;
-    console.log(`[MODULES_DBG] Using Etherscan API key from database`);
+  const ApiKeyManager = require('../../utils/apiKeyManager');
+  const etherscanKey = ApiKeyManager.getAndSetEtherscanApiKey(params);
+  
+  if (etherscanKey) {
+    logger.info(`[MODULES_DBG] Using Etherscan API key from database`);
   }
 
   // Проверяем, что все модули поддерживаются
@@ -420,28 +496,43 @@ async function main() {
     const ContractFactory = await hre.ethers.getContractFactory(moduleConfig.contractName);
     
     // Получаем аргументы конструктора для первой сети (для расчета init кода)
-    const firstProvider = new hre.ethers.JsonRpcProvider(networks[0]);
-    const firstWallet = new hre.ethers.Wallet(pk, firstProvider);
-    const firstNetwork = await firstProvider.getNetwork();
+    const firstConnection = await createRPCConnection(networks[0], pk, {
+      maxRetries: 3,
+      timeout: 30000
+    });
+    const firstProvider = firstConnection.provider;
+    const firstWallet = firstConnection.wallet;
+    const firstNetwork = firstConnection.network;
     
     // Получаем аргументы конструктора
     const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(firstNetwork.chainId), firstWallet.address);
     
-    console.log(`[MODULES_DBG] ${moduleType} constructor args:`, constructorArgs);
+    logger.info(`[MODULES_DBG] ${moduleType} constructor args:`, constructorArgs);
     
     const deployTx = await ContractFactory.getDeployTransaction(...constructorArgs);
     moduleInits[moduleType] = deployTx.data;
     moduleInitCodeHashes[moduleType] = ethers.keccak256(deployTx.data);
     
-    console.log(`[MODULES_DBG] ${moduleType} init code prepared, hash: ${moduleInitCodeHashes[moduleType]}`);
+    logger.info(`[MODULES_DBG] ${moduleType} init code prepared, hash: ${moduleInitCodeHashes[moduleType]}`);
   }
 
   // Подготовим провайдеры и вычислим общие nonce для каждого модуля
-  const providers = networks.map(u => new hre.ethers.JsonRpcProvider(u));
-  const wallets = providers.map(p => new hre.ethers.Wallet(pk, p));
+  // Создаем RPC соединения с retry логикой
+  logger.info(`[MODULES_DBG] Создаем RPC соединения для ${networks.length} сетей...`);
+  const connections = await createMultipleRPCConnections(networks, pk, {
+    maxRetries: 3,
+    timeout: 30000
+  });
+  
+  if (connections.length === 0) {
+    throw new Error('Не удалось установить ни одного RPC соединения');
+  }
+  
+  logger.info(`[MODULES_DBG] ✅ Успешно подключились к ${connections.length}/${networks.length} сетям`);
+  
   const nonces = [];
-  for (let i = 0; i < providers.length; i++) {
-    const n = await providers[i].getTransactionCount(wallets[i].address, 'pending');
+  for (const connection of connections) {
+    const n = await nonceManager.getNonce(connection.wallet.address, connection.rpcUrl, connection.chainId);
     nonces.push(n);
   }
   
@@ -454,48 +545,50 @@ async function main() {
     currentMaxNonce++; // каждый следующий модуль получает nonce +1
   }
   
-  console.log(`[MODULES_DBG] nonces=${JSON.stringify(nonces)} targetNonces=${JSON.stringify(targetNonces)}`);
+  logger.info(`[MODULES_DBG] nonces=${JSON.stringify(nonces)} targetNonces=${JSON.stringify(targetNonces)}`);
 
   // ПАРАЛЛЕЛЬНЫЙ деплой всех модулей во всех сетях одновременно
-  console.log(`[MODULES_DBG] Starting PARALLEL deployment of all modules to ${networks.length} networks`);
+  logger.info(`[MODULES_DBG] Starting PARALLEL deployment of all modules to ${networks.length} networks`);
   
   const deploymentPromises = networks.map(async (rpcUrl, networkIndex) => {
-    console.log(`[MODULES_DBG] 🚀 Starting deployment to network ${networkIndex + 1}/${networks.length}: ${rpcUrl}`);
+    logger.info(`[MODULES_DBG] 🚀 Starting deployment to network ${networkIndex + 1}/${networks.length}: ${rpcUrl}`);
     
     try {
-      // Получаем chainId динамически из сети
-      const provider = new hre.ethers.JsonRpcProvider(rpcUrl);
-      const network = await provider.getNetwork();
+      // Получаем chainId динамически из сети с retry логикой
+      const { provider, network } = await createRPCConnection(rpcUrl, pk, {
+        maxRetries: 3,
+        timeout: 30000
+      });
       const chainId = Number(network.chainId);
       
-      console.log(`[MODULES_DBG] 📡 Network ${networkIndex + 1} chainId: ${chainId}`);
+      logger.info(`[MODULES_DBG] 📡 Network ${networkIndex + 1} chainId: ${chainId}`);
       
       const result = await deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces);
-      console.log(`[MODULES_DBG] ✅ Network ${networkIndex + 1} (chainId: ${chainId}) deployment SUCCESS`);
+      logger.info(`[MODULES_DBG] ✅ Network ${networkIndex + 1} (chainId: ${chainId}) deployment SUCCESS`);
       return { rpcUrl, chainId, ...result };
     } catch (error) {
-      console.error(`[MODULES_DBG] ❌ Network ${networkIndex + 1} deployment FAILED:`, error.message);
+      logger.error(`[MODULES_DBG] ❌ Network ${networkIndex + 1} deployment FAILED:`, error.message);
       return { rpcUrl, error: error.message };
     }
   });
   
   // Ждем завершения всех деплоев
   const deployResults = await Promise.all(deploymentPromises);
-  console.log(`[MODULES_DBG] All ${networks.length} deployments completed`);
+  logger.info(`[MODULES_DBG] All ${networks.length} deployments completed`);
   
   // Логируем результаты деплоя для каждой сети
   deployResults.forEach((result, index) => {
     if (result.modules) {
-      console.log(`[MODULES_DBG] ✅ Network ${index + 1} (chainId: ${result.chainId}) SUCCESS`);
+      logger.info(`[MODULES_DBG] ✅ Network ${index + 1} (chainId: ${result.chainId}) SUCCESS`);
       Object.entries(result.modules).forEach(([moduleType, moduleResult]) => {
         if (moduleResult.success) {
-          console.log(`[MODULES_DBG]   ✅ ${moduleType}: ${moduleResult.address}`);
+          logger.info(`[MODULES_DBG]   ✅ ${moduleType}: ${moduleResult.address}`);
         } else {
-          console.log(`[MODULES_DBG]   ❌ ${moduleType}: ${moduleResult.error}`);
+          logger.info(`[MODULES_DBG]   ❌ ${moduleType}: ${moduleResult.error}`);
         }
       });
     } else {
-      console.log(`[MODULES_DBG] ❌ Network ${index + 1} (chainId: ${result.chainId}) FAILED: ${result.error}`);
+      logger.info(`[MODULES_DBG] ❌ Network ${index + 1} (chainId: ${result.chainId}) FAILED: ${result.error}`);
     }
   });
 
@@ -506,38 +599,38 @@ async function main() {
       .map(r => r.modules[moduleType].address);
     const uniqueAddresses = [...new Set(addresses)];
     
-    console.log(`[MODULES_DBG] ${moduleType} addresses:`, addresses);
-    console.log(`[MODULES_DBG] ${moduleType} unique addresses:`, uniqueAddresses);
+    logger.info(`[MODULES_DBG] ${moduleType} addresses:`, addresses);
+    logger.info(`[MODULES_DBG] ${moduleType} unique addresses:`, uniqueAddresses);
     
     if (uniqueAddresses.length > 1) {
-      console.error(`[MODULES_DBG] ERROR: ${moduleType} addresses are different across networks!`);
-      console.error(`[MODULES_DBG] addresses:`, uniqueAddresses);
+      logger.error(`[MODULES_DBG] ERROR: ${moduleType} addresses are different across networks!`);
+      logger.error(`[MODULES_DBG] addresses:`, uniqueAddresses);
       throw new Error(`Nonce alignment failed for ${moduleType} - addresses are different`);
     }
     
     if (uniqueAddresses.length === 0) {
-      console.error(`[MODULES_DBG] ERROR: No successful ${moduleType} deployments!`);
+      logger.error(`[MODULES_DBG] ERROR: No successful ${moduleType} deployments!`);
       throw new Error(`No successful ${moduleType} deployments`);
     }
     
-    console.log(`[MODULES_DBG] SUCCESS: All ${moduleType} addresses are identical:`, uniqueAddresses[0]);
+    logger.info(`[MODULES_DBG] SUCCESS: All ${moduleType} addresses are identical:`, uniqueAddresses[0]);
   }
 
   // Верификация во всех сетях через отдельный скрипт
-  console.log(`[MODULES_DBG] Starting verification in all networks...`);
+  logger.info(`[MODULES_DBG] Starting verification in all networks...`);
   deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Начало верификации модулей во всех сетях...');
   
   // Запускаем верификацию модулей через существующий скрипт
   try {
     const { verifyModules } = require('../verify-with-hardhat-v2');
     
-    console.log(`[MODULES_DBG] Запускаем верификацию модулей...`);
+    logger.info(`[MODULES_DBG] Запускаем верификацию модулей...`);
     deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Верификация контрактов в блокчейн-сканерах...');
     await verifyModules();
-    console.log(`[MODULES_DBG] Верификация модулей завершена`);
+    logger.info(`[MODULES_DBG] Верификация модулей завершена`);
     deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', 'Верификация модулей завершена успешно');
   } catch (verifyError) {
-    console.log(`[MODULES_DBG] Ошибка при верификации модулей: ${verifyError.message}`);
+    logger.info(`[MODULES_DBG] Ошибка при верификации модулей: ${verifyError.message}`);
     deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка при верификации модулей: ${verifyError.message}`);
   }
   
@@ -562,7 +655,7 @@ async function main() {
     }, {}) : {}
   }));
   
-  console.log('MODULES_DEPLOY_RESULT', JSON.stringify(finalResults));
+  logger.info('MODULES_DEPLOY_RESULT', JSON.stringify(finalResults));
   
   // Сохраняем результаты в отдельные файлы для каждого модуля
   const dleDir = path.join(__dirname, '../contracts-data/modules');
@@ -602,8 +695,10 @@ async function main() {
       const verification = verificationResult?.modules?.[moduleType] || 'unknown';
       
       try {
-        const provider = new hre.ethers.JsonRpcProvider(rpcUrl);
-        const network = await provider.getNetwork();
+        const { provider, network } = await createRPCConnection(rpcUrl, pk, {
+          maxRetries: 3,
+          timeout: 30000
+        });
         
         moduleInfo.networks.push({
           chainId: Number(network.chainId),
@@ -614,7 +709,7 @@ async function main() {
           error: moduleResult?.error || null
         });
       } catch (error) {
-        console.error(`[MODULES_DBG] Ошибка получения chainId для модуля ${moduleType} в сети ${i + 1}:`, error.message);
+        logger.error(`[MODULES_DBG] Ошибка получения chainId для модуля ${moduleType} в сети ${i + 1}:`, error.message);
         moduleInfo.networks.push({
           chainId: null,
           rpcUrl: rpcUrl,
@@ -630,15 +725,15 @@ async function main() {
     const fileName = `${moduleType}-${dleAddress.toLowerCase()}.json`;
     const filePath = path.join(dleDir, fileName);
     fs.writeFileSync(filePath, JSON.stringify(moduleInfo, null, 2));
-    console.log(`[MODULES_DBG] ${moduleType} info saved to: ${filePath}`);
+    logger.info(`[MODULES_DBG] ${moduleType} info saved to: ${filePath}`);
   }
   
-  console.log('[MODULES_DBG] All modules deployment completed!');
-  console.log(`[MODULES_DBG] Available modules: ${Object.keys(MODULE_CONFIGS).join(', ')}`);
-  console.log(`[MODULES_DBG] DLE Address: ${dleAddress}`);
-  console.log(`[MODULES_DBG] DLE Name: ${params.name}`);
-  console.log(`[MODULES_DBG] DLE Symbol: ${params.symbol}`);
-  console.log(`[MODULES_DBG] DLE Location: ${params.location}`);
+  logger.info('[MODULES_DBG] All modules deployment completed!');
+  logger.info(`[MODULES_DBG] Available modules: ${Object.keys(MODULE_CONFIGS).join(', ')}`);
+  logger.info(`[MODULES_DBG] DLE Address: ${dleAddress}`);
+  logger.info(`[MODULES_DBG] DLE Name: ${params.name}`);
+  logger.info(`[MODULES_DBG] DLE Symbol: ${params.symbol}`);
+  logger.info(`[MODULES_DBG] DLE Location: ${params.location}`);
   
   // Создаем сводный отчет о деплое
   const summaryReport = {
@@ -675,10 +770,10 @@ async function main() {
   // Сохраняем сводный отчет
   const summaryPath = path.join(__dirname, '../contracts-data/modules-deploy-summary.json');
   fs.writeFileSync(summaryPath, JSON.stringify(summaryReport, null, 2));
-  console.log(`[MODULES_DBG] Сводный отчет сохранен: ${summaryPath}`);
+  logger.info(`[MODULES_DBG] Сводный отчет сохранен: ${summaryPath}`);
   
   // Уведомляем WebSocket клиентов о завершении деплоя
-  console.log(`[MODULES_DBG] finalResults:`, JSON.stringify(finalResults, null, 2));
+  logger.info(`[MODULES_DBG] finalResults:`, JSON.stringify(finalResults, null, 2));
   
   const successfulModules = finalResults.reduce((acc, result) => {
     if (result.modules) {
@@ -694,14 +789,14 @@ async function main() {
   const successCount = Object.keys(successfulModules).length;
   const totalCount = modulesToDeploy.length;
   
-  console.log(`[MODULES_DBG] successfulModules:`, successfulModules);
-  console.log(`[MODULES_DBG] successCount: ${successCount}, totalCount: ${totalCount}`);
+  logger.info(`[MODULES_DBG] successfulModules:`, successfulModules);
+  logger.info(`[MODULES_DBG] successCount: ${successCount}, totalCount: ${totalCount}`);
   
   if (successCount === totalCount) {
-    console.log(`[MODULES_DBG] Вызываем finishDeploymentSession с success=true`);
+    logger.info(`[MODULES_DBG] Вызываем finishDeploymentSession с success=true`);
     deploymentWebSocketService.finishDeploymentSession(dleAddress, true, `Деплой завершен успешно! Задеплоено ${successCount} из ${totalCount} модулей`);
   } else {
-    console.log(`[MODULES_DBG] Вызываем finishDeploymentSession с success=false`);
+    logger.info(`[MODULES_DBG] Вызываем finishDeploymentSession с success=false`);
     deploymentWebSocketService.finishDeploymentSession(dleAddress, false, `Деплой завершен с ошибками. Задеплоено ${successCount} из ${totalCount} модулей`);
   }
   
@@ -709,4 +804,4 @@ async function main() {
   deploymentWebSocketService.notifyModulesUpdated(dleAddress);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => { logger.error(e); process.exit(1); });

@@ -22,10 +22,10 @@
     "run-migrations": "node scripts/run-migrations.js",
     "fix-duplicates": "node scripts/fix-duplicate-identities.js",
     "deploy:multichain": "node scripts/deploy/deploy-multichain.js",
-    "deploy:complete": "node scripts/deploy/deploy-dle-complete.js",
     "deploy:modules": "node scripts/deploy/deploy-modules.js",
-    "test:modules": "node scripts/test-modules-deploy.js",
-    "verify:contracts": "node scripts/verify-contracts.js"
+    "generate:abi": "node scripts/generate-abi.js",
+    "generate:flattened": "node scripts/generate-flattened.js",
+    "compile:full": "npx hardhat compile && npm run generate:abi && npm run generate:flattened"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
@@ -80,7 +80,9 @@
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
+    "@types/minimatch": "^6.0.0",
     "@types/mocha": ">=9.1.0",
+    "@types/node": "^24.5.2",
     "chai": "^4.2.0",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.0.2",
@@ -88,6 +90,7 @@
     "hardhat": "^2.24.1",
     "hardhat-contract-sizer": "^2.10.1",
     "hardhat-gas-reporter": "^2.2.2",
+    "minimatch": "^10.0.0",
     "nodemon": "^3.1.9",
     "prettier": "^3.5.3",
     "solidity-coverage": "^0.8.16",

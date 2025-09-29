@@ -47,6 +47,28 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res) => {
     hardhatProcess.on('close', (code) => {
       if (code === 0) {
         console.log('✅ Компиляция завершена успешно');
+        
+        // Автоматически генерируем ABI для фронтенда
+        try {
+          const { generateABIFile } = require('../scripts/generate-abi');
+          generateABIFile();
+          console.log('✅ ABI файл автоматически обновлен');
+        } catch (abiError) {
+          console.warn('⚠️ Ошибка генерации ABI:', abiError.message);
+        }
+        
+        // Автоматически генерируем flattened контракт для верификации
+        try {
+          const { generateFlattened } = require('../scripts/generate-flattened');
+          generateFlattened().then(() => {
+            console.log('✅ Flattened контракт автоматически обновлен');
+          }).catch((flattenError) => {
+            console.warn('⚠️ Ошибка генерации flattened контракта:', flattenError.message);
+          });
+        } catch (flattenError) {
+          console.warn('⚠️ Ошибка генерации flattened контракта:', flattenError.message);
+        }
+        
         res.json({
           success: true,
           message: 'Смарт-контракты скомпилированы успешно',

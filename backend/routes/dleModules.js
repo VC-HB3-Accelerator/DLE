@@ -575,6 +575,26 @@ router.post('/get-all-modules', async (req, res) => {
       return networks[chainId] || `Chain ${chainId}`;
     }
     
+    function getFallbackRpcUrl(chainId) {
+      const fallbackUrls = {
+        11155111: 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+        17000: 'https://ethereum-holesky.publicnode.com',
+        421614: 'https://sepolia-rollup.arbitrum.io/rpc',
+        84532: 'https://sepolia.base.org'
+      };
+      return fallbackUrls[chainId] || null;
+    }
+    
+    function getEtherscanUrl(chainId) {
+      const etherscanUrls = {
+        11155111: 'https://sepolia.etherscan.io',
+        17000: 'https://holesky.etherscan.io',
+        421614: 'https://sepolia.arbiscan.io',
+        84532: 'https://sepolia.basescan.org'
+      };
+      return etherscanUrls[chainId] || null;
+    }
+    
     function getModuleDescription(moduleType) {
       const descriptions = {
         treasury: 'Казначейство DLE - управление финансами, депозиты, выводы, дивиденды',
@@ -590,37 +610,57 @@ router.post('/get-all-modules', async (req, res) => {
     
     console.log(`[DLE Modules] Найдено типов модулей: ${formattedModules.length}`);
 
-    // Получаем поддерживаемые сети из модулей
-    const supportedNetworks = [
-      {
-        chainId: 11155111,
-        networkName: 'Sepolia',
-        rpcUrl: 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
-        etherscanUrl: 'https://sepolia.etherscan.io',
-        networkIndex: 0
-      },
-      {
-        chainId: 17000,
-        networkName: 'Holesky',
-        rpcUrl: 'https://ethereum-holesky.publicnode.com',
-        etherscanUrl: 'https://holesky.etherscan.io',
-        networkIndex: 1
-      },
-      {
-        chainId: 421614,
-        networkName: 'Arbitrum Sepolia',
-        rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
-        etherscanUrl: 'https://sepolia.arbiscan.io',
-        networkIndex: 2
-      },
-      {
-        chainId: 84532,
-        networkName: 'Base Sepolia',
-        rpcUrl: 'https://sepolia.base.org',
-        etherscanUrl: 'https://sepolia.basescan.org',
-        networkIndex: 3
+    // Получаем поддерживаемые сети из параметров деплоя
+    let supportedNetworks = [];
+    try {
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        const supportedChainIds = params.supportedChainIds || [];
+        const rpcUrls = params.rpcUrls || params.rpc_urls || {};
+        
+        supportedNetworks = supportedChainIds.map((chainId, index) => ({
+          chainId: Number(chainId),
+          networkName: getNetworkName(Number(chainId)),
+          rpcUrl: rpcUrls[chainId] || getFallbackRpcUrl(chainId),
+          etherscanUrl: getEtherscanUrl(chainId),
+          networkIndex: index
+        }));
       }
-    ];
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя:', error);
+      // Fallback для совместимости
+      supportedNetworks = [
+        {
+          chainId: 11155111,
+          networkName: 'Sepolia',
+          rpcUrl: 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+          etherscanUrl: 'https://sepolia.etherscan.io',
+          networkIndex: 0
+        },
+        {
+          chainId: 17000,
+          networkName: 'Holesky',
+          rpcUrl: 'https://ethereum-holesky.publicnode.com',
+          etherscanUrl: 'https://holesky.etherscan.io',
+          networkIndex: 1
+        },
+        {
+          chainId: 421614,
+          networkName: 'Arbitrum Sepolia',
+          rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+          etherscanUrl: 'https://sepolia.arbiscan.io',
+          networkIndex: 2
+        },
+        {
+          chainId: 84532,
+          networkName: 'Base Sepolia',
+          rpcUrl: 'https://sepolia.base.org',
+          etherscanUrl: 'https://sepolia.basescan.org',
+          networkIndex: 3
+        }
+      ];
+    }
 
     res.json({
       success: true,
@@ -642,10 +682,57 @@ router.post('/get-all-modules', async (req, res) => {
   }
 });
 
-// Создать предложение о добавлении модуля
+// Получить deploymentId по адресу DLE
+router.post('/get-deployment-id', async (req, res) => {
+  try {
+    const { dleAddress } = req.body;
+    
+    if (!dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE обязателен'
+      });
+    }
+
+    console.log(`[DLE Modules] Поиск deploymentId для DLE: ${dleAddress}`);
+
+    const DeployParamsService = require('../services/deployParamsService');
+    const deployParamsService = new DeployParamsService();
+    
+    // Ищем параметры деплоя по адресу DLE
+    const result = await deployParamsService.getDeployParamsByDleAddress(dleAddress);
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        error: 'DeploymentId не найден для данного адреса DLE'
+      });
+    }
+
+    await deployParamsService.close();
+
+    res.json({
+      success: true,
+      data: {
+        deploymentId: result.deployment_id,
+        dleAddress: result.dle_address,
+        deploymentStatus: result.deployment_status
+      }
+    });
+
+  } catch (error) {
+    console.error('[DLE Modules] Ошибка при получении deploymentId:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при получении deploymentId: ' + error.message
+    });
+  }
+});
+
+// Создать предложение о добавлении модуля (с автоматической оплатой газа)
 router.post('/create-add-module-proposal', async (req, res) => {
   try {
-    const { dleAddress, description, duration, moduleId, moduleAddress, chainId } = req.body;
+    const { dleAddress, description, duration, moduleId, moduleAddress, chainId, deploymentId } = req.body;
     
     if (!dleAddress || !description || !duration || !moduleId || !moduleAddress || !chainId) {
       return res.status(400).json({
@@ -666,14 +753,54 @@ router.post('/create-add-module-proposal', async (req, res) => {
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
+    // Получаем приватный ключ из параметров деплоя
+    let privateKey;
+    if (deploymentId) {
+      const DeployParamsService = require('../services/deployParamsService');
+      const deployParamsService = new DeployParamsService();
+      const params = await deployParamsService.getDeployParams(deploymentId);
+      
+      if (!params || !params.privateKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Приватный ключ не найден в параметрах деплоя'
+        });
+      }
+      
+      privateKey = params.privateKey;
+      await deployParamsService.close();
+    } else {
+      // Fallback к переменной окружения
+      privateKey = process.env.PRIVATE_KEY;
+      if (!privateKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Приватный ключ не найден. Укажите deploymentId или установите PRIVATE_KEY'
+        });
+      }
+    }
+
+    // Создаем кошелек
+    const wallet = new ethers.Wallet(privateKey, provider);
+    console.log(`[DLE Modules] Используем кошелек: ${wallet.address}`);
+
     const dleAbi = [
       "function createAddModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) external returns (uint256)"
     ];
 
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+    const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
 
-    // Подготавливаем данные для транзакции (не отправляем)
-    const txData = await dle.createAddModuleProposal.populateTransaction(
+    // Отправляем транзакцию автоматически
+    console.log(`[DLE Modules] Отправляем транзакцию создания предложения...`);
+    console.log(`[DLE Modules] Параметры:`, {
+      description,
+      duration,
+      moduleId,
+      moduleAddress,
+      chainId
+    });
+    
+    const tx = await dle.createAddModuleProposal(
       description, 
       duration, 
       moduleId, 
@@ -681,16 +808,130 @@ router.post('/create-add-module-proposal', async (req, res) => {
       chainId
     );
 
-    console.log(`[DLE Modules] Данные транзакции подготовлены:`, txData);
+    console.log(`[DLE Modules] Транзакция отправлена: ${tx.hash}`);
+    console.log(`[DLE Modules] Ожидаем подтверждения...`);
+    
+    // Ждем подтверждения
+    const receipt = await tx.wait();
+    
+    // Пробуем получить proposalId из возвращаемого значения транзакции
+    let proposalIdFromReturn = null;
+    try {
+      // Если функция возвращает значение, оно должно быть в receipt
+      if (receipt.logs && receipt.logs.length > 0) {
+        console.log(`[DLE Modules] Ищем ProposalCreated в ${receipt.logs.length} логах транзакции...`);
+        
+        // Ищем событие с возвращаемым значением
+        for (let i = 0; i < receipt.logs.length; i++) {
+          const log = receipt.logs[i];
+          console.log(`[DLE Modules] Лог ${i}:`, {
+            address: log.address,
+            topics: log.topics,
+            data: log.data
+          });
+          
+          try {
+            const parsedLog = dle.interface.parseLog(log);
+            console.log(`[DLE Modules] Парсинг лога ${i}:`, parsedLog);
+            
+            if (parsedLog && parsedLog.name === 'ProposalCreated') {
+              proposalIdFromReturn = parsedLog.args.proposalId.toString();
+              console.log(`[DLE Modules] ✅ Получен proposalId из события: ${proposalIdFromReturn}`);
+              break;
+            }
+          } catch (e) {
+            console.log(`[DLE Modules] Ошибка парсинга лога ${i}:`, e.message);
+            // Пробуем альтернативный способ - ищем по топикам
+            if (log.topics && log.topics.length > 0) {
+              // ProposalCreated имеет сигнатуру: ProposalCreated(uint256,address,string)
+              // Первый топик - это хеш сигнатуры события
+              const proposalCreatedTopic = ethers.id("ProposalCreated(uint256,address,string)");
+              if (log.topics[0] === proposalCreatedTopic) {
+                console.log(`[DLE Modules] Найден топик ProposalCreated, извлекаем proposalId из данных...`);
+                // proposalId находится в indexed параметрах (топиках)
+                if (log.topics.length > 1) {
+                  proposalIdFromReturn = BigInt(log.topics[1]).toString();
+                  console.log(`[DLE Modules] ✅ Извлечен proposalId из топика: ${proposalIdFromReturn}`);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log(`[DLE Modules] Ошибка при получении proposalId из возвращаемого значения:`, e.message);
+    }
+    console.log(`[DLE Modules] Транзакция подтверждена:`, {
+      hash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
+      logsCount: receipt.logs.length,
+      status: receipt.status
+    });
+
+    // Используем proposalId из события, если он найден
+    let proposalId = proposalIdFromReturn;
+    
+    // Если не найден в событии, пробуем другие способы
+    if (!proposalId) {
+      console.log(`[DLE Modules] Анализируем ${receipt.logs.length} логов для поиска ProposalCreated...`);
+      
+      if (receipt.logs && receipt.logs.length > 0) {
+        // Ищем событие ProposalCreated
+        for (let i = 0; i < receipt.logs.length; i++) {
+          const log = receipt.logs[i];
+          console.log(`[DLE Modules] Лог ${i}:`, {
+            address: log.address,
+            topics: log.topics,
+            data: log.data
+          });
+          
+          try {
+            const parsedLog = dle.interface.parseLog(log);
+            console.log(`[DLE Modules] Парсинг лога ${i}:`, parsedLog);
+            
+            if (parsedLog && parsedLog.name === 'ProposalCreated') {
+              proposalId = parsedLog.args.proposalId.toString();
+              console.log(`[DLE Modules] ✅ Найден ProposalCreated с ID: ${proposalId}`);
+              break;
+            }
+          } catch (e) {
+            console.log(`[DLE Modules] Ошибка парсинга лога ${i}:`, e.message);
+            // Пробуем альтернативный способ - ищем по топикам
+            if (log.topics && log.topics.length > 0) {
+              // ProposalCreated имеет сигнатуру: ProposalCreated(uint256,address,string)
+              // Первый топик - это хеш сигнатуры события
+              const proposalCreatedTopic = ethers.id("ProposalCreated(uint256,address,string)");
+              if (log.topics[0] === proposalCreatedTopic) {
+                console.log(`[DLE Modules] Найден топик ProposalCreated, извлекаем proposalId из данных...`);
+                // proposalId находится в indexed параметрах (топиках)
+                if (log.topics.length > 1) {
+                  proposalId = BigInt(log.topics[1]).toString();
+                  console.log(`[DLE Modules] ✅ Извлечен proposalId из топика: ${proposalId}`);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    if (!proposalId) {
+      console.warn(`[DLE Modules] ⚠️ Не удалось извлечь proposalId из логов транзакции`);
+      console.warn(`[DLE Modules] ⚠️ Это критическая проблема - без proposalId нельзя исполнить предложение!`);
+    } else {
+      console.log(`[DLE Modules] ✅ Успешно получен proposalId: ${proposalId}`);
+    }
 
     res.json({
       success: true,
       data: {
-        to: dleAddress,
-        data: txData.data,
-        value: "0x0",
-        gasLimit: "0x1e8480", // 2,000,000 gas
-        message: "Подготовлены данные для создания предложения о добавлении модуля. Отправьте транзакцию через MetaMask."
+        transactionHash: receipt.hash,
+        proposalId: proposalId,
+        gasUsed: receipt.gasUsed.toString(),
+        message: `Предложение о добавлении модуля успешно создано! ID: ${proposalId || 'неизвестно'}`
       }
     });
 
@@ -717,7 +958,41 @@ router.post('/create-remove-module-proposal', async (req, res) => {
 
     console.log(`[DLE Modules] Создание предложения об удалении модуля: ${moduleId} для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
+    
+    try {
+      // Получаем поддерживаемые сети из параметров деплоя
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        candidateChainIds = params.supportedChainIds || candidateChainIds;
+      }
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
+    }
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1255,8 +1530,9 @@ async function createStandardJsonInput(contractName, moduleAddress, dleAddress, 
       settings: {
         optimizer: {
           enabled: true,
-          runs: 200
+          runs: 0
         },
+        viaIR: true,
         evmVersion: "paris",
         outputSelection: {
           "*": {
@@ -1265,7 +1541,7 @@ async function createStandardJsonInput(contractName, moduleAddress, dleAddress, 
         },
         libraries: {},
         remappings: [
-          "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/"
+          "@openzeppelin/contracts/=@openzeppelin/contracts/"
         ]
       }
     };
@@ -1904,8 +2180,9 @@ router.post('/deploy-module-all-networks', async (req, res) => {
             const provider = new ethers.JsonRpcProvider(network.rpcUrl);
             const wallet = new ethers.Wallet(privateKey, provider);
             
-            // Получаем текущий nonce
-            const currentNonce = await wallet.getNonce();
+            // Используем NonceManager для правильного управления nonce
+            const { nonceManager } = require('../utils/nonceManager');
+            const currentNonce = await nonceManager.getNonce(wallet.address, network.rpcUrl, network.chainId);
             console.log(`[DLE Modules] Текущий nonce для сети ${network.chainId}: ${currentNonce}`);
 
             // Получаем фабрику контракта
@@ -2057,7 +2334,7 @@ router.post('/verify-dle-all-networks', async (req, res) => {
               const supportedChainIds = Array.isArray(saved?.networks)
                 ? saved.networks.map(n => Number(n.chainId)).filter(v => !isNaN(v))
                 : (saved?.governanceSettings?.supportedChainIds || []);
-              const currentChainId = Number(saved?.governanceSettings?.currentChainId || network.chainId);
+              const currentChainId = Number(saved?.governanceSettings?.currentChainId || 1); // governance chain, не network.chainId
 
             // Создаем стандартный JSON input для верификации
             const standardJsonInput = {
@@ -2070,7 +2347,7 @@ router.post('/verify-dle-all-networks', async (req, res) => {
               settings: {
                 optimizer: {
                   enabled: true,
-                  runs: 1
+                  runs: 0
                 },
                 viaIR: true,
                 outputSelection: {
@@ -2123,7 +2400,7 @@ router.post('/verify-dle-all-networks', async (req, res) => {
                     const initPartners = Array.isArray(found?.initialPartners) ? found.initialPartners : [];
                     const initAmounts = Array.isArray(found?.initialAmounts) ? found.initialAmounts : [];
                     const scIds = Array.isArray(found?.networks) ? found.networks.map(n => Number(n.chainId)).filter(v => !isNaN(v)) : supportedChainIds;
-                    const currentCid = Number(found?.governanceSettings?.currentChainId || found?.networks?.[0]?.chainId || network.chainId);
+                    const currentCid = Number(found?.governanceSettings?.currentChainId || 1); // governance chain, не network.chainId
                     const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
                       ['tuple(string,string,string,string,uint256,string,uint256,uint256,address[],uint256[],uint256[])', 'uint256', 'address'],
                       [[name, symbol, location, coordinates, jurisdiction, oktmo, kpp, quorumPercentage, initPartners, initAmounts.map(a => BigInt(a)), scIds], BigInt(currentCid), initializer]

@@ -40,6 +40,7 @@
           </div>
         </div>
 
+
         <div v-if="isLoadingDles" class="loading-dles">
           <p>Загрузка деплоированных DLE...</p>
         </div>
@@ -56,6 +57,7 @@
             class="dle-card"
             @click="openDleManagement(dle.dleAddress)"
           >
+            
             <div class="dle-header">
               <div class="dle-title-section">
                 <img 
@@ -99,18 +101,18 @@
                 <strong>Адреса контрактов:</strong> 
                 <div class="addresses-list">
                   <div 
-                    v-for="network in dle.deployedNetworks || [{ chainId: 11155111, address: dle.dleAddress }]" 
-                    :key="network.chainId"
+                    v-for="chainId in (dle.supportedChainIds || [11155111])" 
+                    :key="chainId"
                     class="address-item"
                   >
-                    <span class="chain-name">{{ getChainName(network.chainId) }}:</span>
+                    <span class="chain-name">{{ getChainName(chainId) }}:</span>
                     <a 
-                      :href="getExplorerUrl(network.chainId, network.address)" 
+                      :href="getExplorerUrl(chainId, dle.dleAddress)" 
                       target="_blank" 
                       class="address-link"
                       @click.stop
                     >
-                      {{ shortenAddress(network.address) }}
+                      {{ shortenAddress(dle.dleAddress) }}
                       <i class="fas fa-external-link-alt"></i>
                     </a>
                   </div>
@@ -253,14 +255,22 @@ async function loadDeployedDles() {
       const dlesWithBlockchainData = await Promise.all(
         dlesFromApi.map(async (dle) => {
           try {
-            console.log(`[ManagementView] Читаем данные из блокчейна для ${dle.dleAddress}`);
+            // Используем адрес из deployedNetworks если dleAddress null
+            const dleAddress = dle.dleAddress || (dle.deployedNetworks && dle.deployedNetworks.length > 0 ? dle.deployedNetworks[0].address : null);
+            
+            if (!dleAddress) {
+              console.warn(`[ManagementView] Нет адреса для DLE ${dle.deployment_id || 'unknown'}`);
+              return dle;
+            }
+            
+            console.log(`[ManagementView] Читаем данные из блокчейна для ${dleAddress}`);
             
             // Читаем данные из блокчейна
             const blockchainResponse = await api.post('/blockchain/read-dle-info', {
-              dleAddress: dle.dleAddress
+              dleAddress: dleAddress
             });
             
-            console.log(`[ManagementView] Ответ от блокчейна для ${dle.dleAddress}:`, blockchainResponse.data);
+            console.log(`[ManagementView] Ответ от блокчейна для ${dleAddress}:`, blockchainResponse.data);
             
             if (blockchainResponse.data.success) {
               const blockchainData = blockchainResponse.data.data;
@@ -376,7 +386,15 @@ function formatTokenAmount(amount) {
   const num = parseFloat(amount);
   if (num === 0) return '0';
   
-  // Всегда показываем полное число с разделителями тысяч
+  // Для очень маленьких чисел показываем с большей точностью
+  if (num < 1) {
+    return num.toLocaleString('ru-RU', { 
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 18 
+    });
+  }
+  
+  // Для больших чисел показываем с разделителями тысяч
   return num.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }
 
@@ -810,6 +828,7 @@ onMounted(() => {
   color: #6c757d;
   font-weight: 500;
 }
+
 
 
 /* Адаптивность */

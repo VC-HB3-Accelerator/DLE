@@ -87,7 +87,7 @@ async function startServer() {
   console.log(`✅ Server is running on port ${PORT}`);
 }
 
-server.listen(PORT, async () => {
+server.listen(PORT, '0.0.0.0', async () => {
   try {
     await startServer();
   } catch (error) {

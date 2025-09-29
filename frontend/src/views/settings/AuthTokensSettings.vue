@@ -84,8 +84,11 @@
           v-model.number="newToken.minBalance" 
           class="form-control" 
           placeholder="0"
+          min="0"
+          step="0.01"
           :disabled="!canEdit"
         >
+        <small class="form-text">Минимальный баланс токена для получения доступа</small>
       </div>
       
       <!-- Настройки прав доступа -->
@@ -155,6 +158,12 @@ const { canEdit, getLevelClass, getLevelDescription } = usePermissions();
 async function addToken() {
   if (!newToken.name || !newToken.address || !newToken.network) {
     alert('Все поля обязательны');
+    return;
+  }
+  
+  // Валидация порогов доступа
+  if (newToken.readonlyThreshold >= newToken.editorThreshold) {
+    alert('Минимум токенов для Read-Only доступа должен быть меньше минимума для Editor доступа');
     return;
   }
   

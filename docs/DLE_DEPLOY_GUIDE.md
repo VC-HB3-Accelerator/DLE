@@ -14,7 +14,7 @@
 
 ## Обзор
 
-DLE v2 (Digital Legal Entity) - это система для создания цифровых юридических лиц с мульти-чейн поддержкой. Основная особенность - использование CREATE2 для обеспечения одинакового адреса смарт-контракта во всех поддерживаемых сетях.
+DLE v2 (Digital Legal Entity) - это система для создания цифровых юридических лиц с мульти-чейн поддержкой. Основная особенность - использование CREATE с выровненным nonce для обеспечения одинакового адреса смарт-контракта во всех поддерживаемых сетях.
 
 ## Архитектура
 
@@ -26,7 +26,7 @@ DLE v2 (Digital Legal Entity) - это система для создания ц
 
 ### Мульти-чейн поддержка
 
-- **CREATE2** - Одинаковый адрес во всех EVM-совместимых сетях
+- **CREATE с выровненным nonce** - Одинаковый адрес во всех EVM-совместимых сетях
 - **Single-Chain Governance** - Голосование происходит в одной сети
 - **Multi-Chain Execution** - Исполнение в целевых сетях по подписям
 
@@ -146,33 +146,42 @@ CREATE TABLE factory_addresses (
 );
 ```
 
-### CREATE2 Механизм
+### CREATE Механизм
 
-Система использует двухуровневый CREATE2 для обеспечения одинаковых адресов:
+Система использует CREATE с выровненным nonce для обеспечения одинаковых адресов:
 
-#### 1. Factory Deployer
-```solidity
-// Предсказуемый адрес Factory через CREATE
-address factoryAddress = getCreateAddress(
-    from: deployerAddress,
-    nonce: deployerNonce
-);
+#### 1. Выравнивание nonce
+```javascript
+// Выравнивание nonce до целевого значения
+while (currentNonce < targetNonce) {
+  await sendTransaction({
+    to: burnAddress,
+    value: 0,
+    nonce: currentNonce
+  });
+  currentNonce++;
+}
 ```
 
-#### 2. DLE Contract
-```solidity
-// Вычисление адреса DLE через CREATE2
-address predictedAddress = factoryDeployer.computeAddress(
-    salt, 
-    keccak256(creationCode)
-);
+#### 2. Деплой DLE
+```javascript
+// Вычисление адреса DLE через CREATE
+const predictedAddress = ethers.getCreateAddress({
+  from: wallet.address,
+  nonce: targetNonce
+});
 
-// Деплой DLE с одинаковым адресом
-factoryDeployer.deploy(salt, creationCode);
+// Деплой DLE с предсказанным адресом
+await wallet.sendTransaction({
+  data: dleInitCode,
+  nonce: targetNonce
+});
 ```
 
 #### Ключевые принципы:
-- **Factory Deployer** деплоится с одинаковым адресом во всех сетях
+- **Выровненный nonce** обеспечивает одинаковые адреса во всех сетях
+- **Burn address** используется для выравнивания nonce без потери средств
+- **Проверка баланса** перед деплоем предотвращает неудачи
 - **DLE Contract** деплоится через Factory с одинаковым salt
 - **Результат**: Одинаковый адрес DLE во всех EVM-совместимых сетях
 

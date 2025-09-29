@@ -37,6 +37,9 @@ class WebSocketClient {
         console.log('[WebSocket] Подключение установлено');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        
+        // Уведомляем о подключении
+        this.emit('connected');
       };
 
       this.ws.onmessage = (event) => {
@@ -117,6 +120,15 @@ class WebSocketClient {
       if (index > -1) {
         callbacks.splice(index, 1);
       }
+    }
+  }
+
+  // Эмиссия события
+  emit(event, data) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event).forEach(callback => {
+        callback(data);
+      });
     }
   }
 

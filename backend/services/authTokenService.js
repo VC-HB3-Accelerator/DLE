@@ -43,6 +43,11 @@ async function upsertAuthToken(token) {
   const readonlyThreshold = (token.readonlyThreshold === null || token.readonlyThreshold === undefined || token.readonlyThreshold === '') ? 1 : Number(token.readonlyThreshold);
   const editorThreshold = (token.editorThreshold === null || token.editorThreshold === undefined || token.editorThreshold === '') ? 2 : Number(token.editorThreshold);
   
+  // Валидация порогов доступа
+  if (readonlyThreshold >= editorThreshold) {
+    throw new Error('Минимум токенов для Read-Only доступа должен быть меньше минимума для Editor доступа');
+  }
+  
   console.log('[AuthTokenService] Вычисленные значения:');
   console.log('[AuthTokenService] readonlyThreshold:', readonlyThreshold);
   console.log('[AuthTokenService] editorThreshold:', editorThreshold);

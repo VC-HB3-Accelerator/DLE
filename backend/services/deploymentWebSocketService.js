@@ -90,6 +90,11 @@ class DeploymentWebSocketService {
       this.clients.get(ws.dleAddress).delete(ws);
       if (this.clients.get(ws.dleAddress).size === 0) {
         this.clients.delete(ws.dleAddress);
+        // Очищаем сессию деплоя если нет активных клиентов
+        if (this.deploymentSessions.has(ws.dleAddress)) {
+          console.log(`[DeploymentWS] Очистка сессии деплоя для DLE: ${ws.dleAddress}`);
+          this.deploymentSessions.delete(ws.dleAddress);
+        }
       }
     }
   }

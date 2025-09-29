@@ -20,7 +20,15 @@ import axios from 'axios';
  */
 export const getProposals = async (dleAddress) => {
   try {
+    console.log(`🌐 [API] Запрашиваем предложения для DLE: ${dleAddress}`);
     const response = await axios.post('/dle-proposals/get-proposals', { dleAddress });
+    
+    console.log(`🌐 [API] Ответ от backend:`, {
+      success: response.data.success,
+      proposalsCount: response.data.data?.proposals?.length || 0,
+      fullResponse: response.data
+    });
+    
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении предложений:', error);
@@ -73,13 +81,21 @@ export const createProposal = async (dleAddress, proposalData) => {
  * @param {boolean} support - Поддержка предложения
  * @returns {Promise<Object>} - Результат голосования
  */
-export const voteOnProposal = async (dleAddress, proposalId, support) => {
+export const voteOnProposal = async (dleAddress, proposalId, support, userAddress) => {
   try {
-    const response = await axios.post('/dle-proposals/vote-proposal', {
+    const requestData = {
       dleAddress,
       proposalId,
-      support
-    });
+      support,
+      voterAddress: userAddress
+    };
+    
+    console.log('📤 [SERVICE] Отправляем запрос на голосование:', requestData);
+    
+    const response = await axios.post('/dle-proposals/vote-proposal', requestData);
+    
+    console.log('📥 [SERVICE] Ответ от бэкенда:', response.data);
+    
     return response.data;
   } catch (error) {
     console.error('Ошибка при голосовании:', error);

@@ -19,12 +19,12 @@ function getNetworks() {
   // Базовая конфигурация сетей для верификации
   return {
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+      url: process.env.SEPOLIA_RPC_URL || 'https://1rpc.io/sepolia',
       chainId: 11155111,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     },
     holesky: {
-      url: process.env.HOLESKY_RPC_URL || 'https://ethereum-holesky-rpc.publicnode.com',
+      url: process.env.HOLESKY_RPC_URL || 'https://ethereum-holesky.publicnode.com',
       chainId: 17000,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     },
@@ -52,9 +52,10 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 1  // Максимальная оптимизация размера для mainnet
+        runs: 0  // Максимальная оптимизация размера
       },
-      viaIR: true
+      viaIR: true,
+      evmVersion: "paris"
     }
   },
   contractSizer: {
@@ -141,6 +142,9 @@ module.exports = {
         }
       }
     ]
+  },
+  sourcify: {
+    enabled: true  // Включаем Sourcify для децентрализованной верификации
   },
   solidityCoverage: {
     excludeContracts: [],

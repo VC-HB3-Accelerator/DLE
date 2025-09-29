@@ -92,11 +92,11 @@ const blockchainRoutes = require('./routes/blockchain'); // Добавляем �
 const dleCoreRoutes = require('./routes/dleCore'); // Основные функции DLE
 const dleProposalsRoutes = require('./routes/dleProposals'); // Функции предложений
 const dleModulesRoutes = require('./routes/dleModules'); // Функции модулей
+const dleMultichainRoutes = require('./routes/dleMultichain'); // Мультичейн функции
 const moduleDeploymentRoutes = require('./routes/moduleDeployment'); // Деплой модулей
 const dleTokensRoutes = require('./routes/dleTokens'); // Функции токенов
 const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитика и история
 const compileRoutes = require('./routes/compile'); // Компиляция контрактов
-const dleMultichainRoutes = require('./routes/dleMultichain'); // Мультичейн функции
 const { router: dleHistoryRoutes } = require('./routes/dleHistory'); // Расширенная история
 const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
 
@@ -195,12 +195,13 @@ app.use('/api/ai-queue', aiQueueRoutes); // Добавляем маршрут AI
 app.use('/api/tags', tagsRoutes); // Добавляем маршрут тегов
 app.use('/api/blockchain', blockchainRoutes); // Добавляем маршрут blockchain
 app.use('/api/dle-core', dleCoreRoutes); // Основные функции DLE
+app.use('/api/dle-core', dleMultichainRoutes); // Мультичейн функции (используем тот же префикс)
 app.use('/api/dle-proposals', dleProposalsRoutes); // Функции предложений
 app.use('/api/dle-modules', dleModulesRoutes); // Функции модулей
 app.use('/api/module-deployment', moduleDeploymentRoutes); // Деплой модулей
 app.use('/api/dle-tokens', dleTokensRoutes); // Функции токенов
 app.use('/api/dle-analytics', dleAnalyticsRoutes); // Аналитика и история
-app.use('/api/dle-multichain', dleMultichainRoutes); // Мультичейн функции
+app.use('/api/dle-multichain-execution', require('./routes/dleMultichainExecution')); // Мультиконтрактное исполнение
 app.use('/api/dle-history', dleHistoryRoutes); // Расширенная история
 app.use('/api/messages', messagesRoutes);
 app.use('/api/identities', identitiesRoutes);

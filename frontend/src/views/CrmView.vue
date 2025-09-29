@@ -156,12 +156,8 @@ let unsubscribe = null;
 onMounted(() => {
   // console.log('[CrmView] Компонент загружен');
   
-  // Если пользователь авторизован, загружаем данные
-  if (auth.isAuthenticated.value) {
-    loadDLEs();
-  } else {
-  isLoading.value = false;
-  }
+  // Загружаем DLE для всех пользователей (авторизованных и неавторизованных)
+  loadDLEs();
   
   // Подписка на события авторизации
   unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);

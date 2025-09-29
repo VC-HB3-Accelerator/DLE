@@ -43,6 +43,10 @@ export async function connectWithWallet() {
     const nonceResponse = await axios.get(`/auth/nonce?address=${address}`);
     const nonce = nonceResponse.data.nonce;
     // console.log('Got nonce:', nonce);
+    
+    if (!nonce) {
+      throw new Error('Не удалось получить nonce с сервера');
+    }
 
     // Создаем сообщение для подписи
     const domain = window.location.host;
@@ -73,7 +77,7 @@ export async function connectWithWallet() {
     //   chainId: 1,
     //   nonce,
     //   issuedAt,
-    //   resources: [`${origin}/api/auth/verify`],
+    //   resources: [`${origin}/auth/verify`],
     // });
 
     // Запрашиваем подпись

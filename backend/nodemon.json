@@ -8,8 +8,7 @@
     "backend/artifacts/**",
     "backend/cache/**",
     "backend/contracts-data/**",
-    "backend/temp/**",
-    "backend/scripts/deploy/current-params*.json"
+    "backend/temp/**"
   ],
   "ext": "js,json"
 }

@@ -32,41 +32,29 @@
 
       <!-- Блоки управления -->
       <div class="management-blocks">
-        <!-- Первый ряд -->
-        <div class="blocks-row">
-          <div class="management-block create-proposal-block">
+        <!-- Столбец 1 -->
+        <div class="blocks-column">
+          <div class="management-block">
             <h3>Создать предложение</h3>
             <p>Универсальная форма для создания новых предложений</p>
-            <button class="details-btn create-btn" @click="openCreateProposal">
+            <button class="details-btn" @click="openCreateProposal">
               Подробнее
             </button>
-          </div>
-          
-          <div class="management-block">
-            <h3>Предложения</h3>
-            <p>Создание, подписание, выполнение</p>
-            <button class="details-btn" @click="openProposals">Подробнее</button>
-          </div>
-          
-          <div class="management-block">
-            <h3>Токены DLE</h3>
-            <p>Балансы, трансферы, распределение</p>
-            <button class="details-btn" @click="openTokens">Подробнее</button>
-          </div>
-        </div>
-
-        <!-- Второй ряд -->
-        <div class="blocks-row">
-          <div class="management-block">
-            <h3>Кворум</h3>
-            <p>Настройки голосования</p>
-            <button class="details-btn" @click="openQuorum">Подробнее</button>
           </div>
           
           <div class="management-block">
             <h3>Модули DLE</h3>
             <p>Установка, настройка, управление</p>
             <button class="details-btn" @click="openModules">Подробнее</button>
+          </div>
+        </div>
+
+        <!-- Столбец 2 -->
+        <div class="blocks-column">
+          <div class="management-block">
+            <h3>Предложения</h3>
+            <p>Создание, подписание, выполнение</p>
+            <button class="details-btn" @click="openProposals">Подробнее</button>
           </div>
           
           <div class="management-block">
@@ -76,8 +64,8 @@
           </div>
         </div>
 
-        <!-- Третий ряд -->
-        <div class="blocks-row">
+        <!-- Столбец 3 -->
+        <div class="blocks-column">
           <div class="management-block">
             <h3>История</h3>
             <p>Лог операций, события, транзакции</p>
@@ -125,21 +113,6 @@ const openProposals = () => {
   }
 };
 
-const openTokens = () => {
-  if (dleAddress.value) {
-    router.push(`/management/tokens?address=${dleAddress.value}`);
-  } else {
-    router.push('/management/tokens');
-  }
-};
-
-const openQuorum = () => {
-  if (dleAddress.value) {
-    router.push(`/management/quorum?address=${dleAddress.value}`);
-  } else {
-    router.push('/management/quorum');
-  }
-};
 
 const openModules = () => {
   if (dleAddress.value) {
@@ -236,15 +209,16 @@ onMounted(() => {
 }
 
 .management-blocks {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
 }
 
-.blocks-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+.blocks-column {
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
+  align-items: stretch;
 }
 
 .management-block {
@@ -255,6 +229,10 @@ onMounted(() => {
   border: 1px solid #e9ecef;
   transition: all 0.3s ease;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 250px;
 }
 
 .management-block:hover {
@@ -268,6 +246,7 @@ onMounted(() => {
   color: var(--color-primary);
   font-size: 1.5rem;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .management-block p {
@@ -275,6 +254,7 @@ onMounted(() => {
   color: #666;
   font-size: 1rem;
   line-height: 1.5;
+  flex-grow: 1;
 }
 
 .details-btn {
@@ -288,6 +268,8 @@ onMounted(() => {
   font-weight: 600;
   transition: all 0.2s;
   min-width: 120px;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .details-btn:hover {
@@ -295,35 +277,16 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-/* Стили для блока создания предложения */
-.create-proposal-block {
-  background: linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%);
-  border: 2px solid #28a745;
-}
-
-.create-proposal-block:hover {
-  border-color: #20c997;
-  box-shadow: 0 4px 20px rgba(40, 167, 69, 0.15);
-}
-
-.create-proposal-block h3 {
-  color: #28a745;
-}
-
-.create-btn {
-  background: linear-gradient(135deg, #28a745, #20c997);
-  color: white;
-  font-weight: 700;
-}
-
-.create-btn:hover {
-  background: linear-gradient(135deg, #218838, #1ea085);
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-}
 
 /* Адаптивность */
+@media (max-width: 1024px) {
+  .management-blocks {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .blocks-row {
+  .management-blocks {
     grid-template-columns: 1fr;
   }
   

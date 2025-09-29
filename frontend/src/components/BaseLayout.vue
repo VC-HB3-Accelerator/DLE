@@ -53,6 +53,7 @@ import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits, provi
 import { useAuthContext } from '../composables/useAuth';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
+import { useTokenBalancesWebSocket } from '../composables/useTokenBalancesWebSocket';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { connectWithWallet } from '../services/wallet';
 import api from '../api/axios';
@@ -68,7 +69,10 @@ import NotificationDisplay from './NotificationDisplay.vue';
 const auth = useAuthContext();
 const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
 
-// Определяем props, которые будут приходить от родительского View
+// Используем useTokenBalancesWebSocket для получения актуального состояния загрузки
+const { isLoadingTokens: wsIsLoadingTokens } = useTokenBalancesWebSocket();
+
+// Определяем props, которые будут приходить от родительского View (оставляем для совместимости)
 const props = defineProps({
   isAuthenticated: Boolean,
   identities: Array,
@@ -79,17 +83,26 @@ const props = defineProps({
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
 
+// Используем useAuth напрямую для получения актуальных данных
+const isAuthenticated = computed(() => auth.isAuthenticated.value);
+const identities = computed(() => auth.identities.value);
+const tokenBalances = computed(() => auth.tokenBalances.value);
+const isLoadingTokens = computed(() => {
+  // Приоритет: WebSocket состояние > пропс > false
+  return wsIsLoadingTokens.value || (props.isLoadingTokens !== undefined ? props.isLoadingTokens : false);
+});
+
 // Предоставляем данные дочерним компонентам через provide/inject
-provide('isAuthenticated', computed(() => props.isAuthenticated));
-provide('identities', computed(() => props.identities));
-provide('tokenBalances', computed(() => props.tokenBalances));
-provide('isLoadingTokens', computed(() => props.isLoadingTokens));
+provide('isAuthenticated', isAuthenticated);
+provide('identities', identities);
+provide('tokenBalances', tokenBalances);
+provide('isLoadingTokens', isLoadingTokens);
 
 // Отладочная информация
-console.log('[BaseLayout] Props received:', {
-  isAuthenticated: props.isAuthenticated,
-  tokenBalances: props.tokenBalances,
-  isLoadingTokens: props.isLoadingTokens
+console.log('[BaseLayout] Auth state:', {
+  isAuthenticated: isAuthenticated.value,
+  tokenBalances: tokenBalances.value,
+  isLoadingTokens: isLoadingTokens.value
 });
 
 // Callback после успешной аутентификации/привязки через Email/Telegram
@@ -168,6 +181,12 @@ const handleWalletAuth = async () => {
       errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
     } else if (error.message && error.message.includes('Браузерный кошелек не установлен')) {
       errorMessage = 'Браузерный кошелек не установлен. Пожалуйста, установите MetaMask.';
+    } else if (error.message && error.message.includes('Не удалось получить nonce')) {
+      errorMessage = 'Ошибка получения nonce. Попробуйте обновить страницу и повторить попытку.';
+    } else if (error.message && error.message.includes('Invalid nonce')) {
+      errorMessage = 'Ошибка аутентификации. Попробуйте обновить страницу и повторить попытку.';
+    } else if (error.message && error.message.includes('Nonce expired')) {
+      errorMessage = 'Время сессии истекло. Попробуйте обновить страницу и повторить попытку.';
     } else if (error.message) {
       errorMessage = error.message;
     }

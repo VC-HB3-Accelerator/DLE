@@ -30,6 +30,12 @@ const userAccessLevel = ref({ level: 'user', tokenCount: 0, hasAccess: false });
 const updateIdentities = async () => {
   if (!isAuthenticated.value || !userId.value) return;
 
+  // Проверяем, что identities ref существует
+  if (!identities || typeof identities.value === 'undefined') {
+    console.warn('Identities ref is not initialized');
+    return;
+  }
+
   try {
     const response = await axios.get('/auth/identities');
     if (response.data.success) {
@@ -46,14 +52,26 @@ const updateIdentities = async () => {
         }, []);
 
       // Сравниваем новый отфильтрованный список с текущим значением
-      const currentProviders = identities.value.map(id => id.provider).sort();
-      const newProviders = filteredIdentities.map(id => id.provider).sort();
+      const currentProviders = (identities.value || []).map(id => id?.provider || '').sort();
+      const newProviders = (filteredIdentities || []).map(id => id?.provider || '').sort();
       
       const identitiesChanged = JSON.stringify(currentProviders) !== JSON.stringify(newProviders);
 
-      // Обновляем реактивное значение
-      identities.value = filteredIdentities;
-      console.log('User identities updated:', identities.value);
+      // Обновляем реактивное значение с проверкой
+      try {
+        if (identities && identities.value !== undefined) {
+          identities.value = filteredIdentities;
+          console.log('User identities updated:', identities.value);
+        } else {
+          console.warn('Identities ref is not available or not initialized');
+        }
+      } catch (error) {
+        console.error('Error updating identities:', error);
+        // Если произошла ошибка, пытаемся инициализировать identities
+        if (identities && typeof identities.value === 'undefined') {
+          identities.value = [];
+        }
+      }
 
       // Если список идентификаторов изменился, принудительно проверяем аутентификацию,
       // чтобы обновить authType и другие связанные данные (например, telegramId)
@@ -163,11 +181,21 @@ const updateAuth = async ({
 
   // Обновляем идентификаторы при любом изменении аутентификации
   if (authenticated) {
-    await updateIdentities();
-    startIdentitiesPolling();
+    try {
+      await updateIdentities();
+      startIdentitiesPolling();
+    } catch (error) {
+      console.error('Error updating identities in updateAuth:', error);
+    }
   } else {
     stopIdentitiesPolling();
-    identities.value = [];
+    try {
+      if (identities && typeof identities.value !== 'undefined') {
+        identities.value = [];
+      }
+    } catch (error) {
+      console.error('Error clearing identities:', error);
+    }
   }
 
   console.log('Auth updated:', {
@@ -306,7 +334,11 @@ const checkAuth = async () => {
     // Если пользователь аутентифицирован, обновляем список идентификаторов и связываем сообщения
     if (response.data.authenticated) {
       // Сначала обновляем идентификаторы, чтобы иметь актуальные данные
-      await updateIdentities();
+      try {
+        await updateIdentities();
+      } catch (error) {
+        console.error('Error updating identities in checkAuth:', error);
+      }
 
       // Если пользователь только что аутентифицировался или сменил аккаунт,
       // связываем гостевые сообщения с его аккаунтом

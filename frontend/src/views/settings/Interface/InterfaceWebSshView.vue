@@ -66,34 +66,68 @@ const emailAuth = {
 <style scoped>
 .webssh-settings-block {
   background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  margin: 2rem auto;
+  max-width: 1000px;
   position: relative;
   overflow-x: auto;
 }
+
 .close-btn {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 1.5rem;
+  right: 1.5rem;
   background: none;
   border: none;
-  font-size: 2rem;
+  font-size: 1.5rem;
   cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+  color: #666;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.2s;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .close-btn:hover {
+  background: #f0f0f0;
   color: #333;
 }
+
 h2 {
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--color-primary);
+  font-size: 2rem;
+  font-weight: 700;
+  padding-right: 3rem;
 }
+
 .desc {
   color: #666;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .webssh-settings-block {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    padding-right: 2.5rem;
+  }
+  
+  .desc {
+    font-size: 1rem;
+  }
 }
 </style> 

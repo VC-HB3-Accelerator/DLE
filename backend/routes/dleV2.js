@@ -12,8 +12,8 @@
 
 const express = require('express');
 const router = express.Router();
-const DLEV2Service = require('../services/dleV2Service');
-const dleV2Service = new DLEV2Service();
+const UnifiedDeploymentService = require('../services/unifiedDeploymentService');
+const unifiedDeploymentService = new UnifiedDeploymentService();
 const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
 const path = require('path');
@@ -38,7 +38,7 @@ async function executeDeploymentInBackground(deploymentId, dleParams) {
     deploymentTracker.addLog(deploymentId, '🚀 Начинаем деплой DLE контракта', 'info');
     
     // Выполняем деплой с передачей deploymentId для WebSocket обновлений
-    const result = await dleV2Service.createDLE(dleParams, deploymentId);
+    const result = await unifiedDeploymentService.createDLE(dleParams, deploymentId);
     
     // Завершаем успешно
     deploymentTracker.completeDeployment(deploymentId, result.data);
@@ -114,7 +114,7 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
  */
 router.get('/', async (req, res, next) => {
   try {
-    const dles = dleV2Service.getAllDLEs();
+    const dles = await unifiedDeploymentService.getAllDeployments();
     
     res.json({
       success: true,
@@ -490,13 +490,8 @@ router.get('/verify/status/:address', auth.requireAuth, async (req, res) => {
 router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, async (req, res) => {
   try {
     const { address } = req.params;
-    let { etherscanApiKey } = req.body || {};
-    if (!etherscanApiKey) {
-      try {
-        const { getSecret } = require('../services/secretStore');
-        etherscanApiKey = await getSecret('ETHERSCAN_V2_API_KEY');
-      } catch(_) {}
-    }
+    const ApiKeyManager = require('../utils/apiKeyManager');
+    const etherscanApiKey = ApiKeyManager.getEtherscanApiKey({}, req.body);
     const data = verificationStore.read(address);
     if (!data || !data.chains) return res.json({ success: true, data });
 
@@ -504,7 +499,7 @@ router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, asy
     const needResubmit = Object.values(data.chains).some(c => !c.guid || /Missing or unsupported chainid/i.test(c.status || ''));
     if (needResubmit && etherscanApiKey) {
       // Найти карточку DLE
-      const list = dleV2Service.getAllDLEs();
+        const list = unifiedDeploymentService.getAllDLEs();
       const card = list.find(x => x?.dleAddress && x.dleAddress.toLowerCase() === address.toLowerCase());
       if (card) {
         const deployParams = {
@@ -520,11 +515,11 @@ router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, asy
           initialPartners: Array.isArray(card.initialPartners) ? card.initialPartners : [],
           initialAmounts: Array.isArray(card.initialAmounts) ? card.initialAmounts : [],
           supportedChainIds: Array.isArray(card.networks) ? card.networks.map(n => n.chainId).filter(Boolean) : (card.governanceSettings?.supportedChainIds || []),
-          currentChainId: card.governanceSettings?.currentChainId || (Array.isArray(card.networks) && card.networks[0]?.chainId) || 1
+          currentChainId: card.governanceSettings?.currentChainId || 1 // governance chain, не первая сеть
         };
         const deployResult = { success: true, data: { dleAddress: card.dleAddress, networks: card.networks || [] } };
         try {
-          await dleV2Service.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
+          await unifiedDeploymentService.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
         } catch (_) {}
       }
     }
@@ -552,12 +547,14 @@ router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, asy
 router.post('/verify/resubmit/:address', auth.requireAuth, auth.requireAdmin, async (req, res) => {
   try {
     const { address } = req.params;
-    const { etherscanApiKey } = req.body || {};
-    if (!etherscanApiKey && !process.env.ETHERSCAN_API_KEY) {
+    const ApiKeyManager = require('../utils/apiKeyManager');
+    const etherscanApiKey = ApiKeyManager.getEtherscanApiKey({}, req.body);
+    
+    if (!etherscanApiKey) {
       return res.status(400).json({ success: false, message: 'etherscanApiKey обязателен' });
     }
     // Найти карточку DLE по адресу
-    const list = dleV2Service.getAllDLEs();
+        const list = unifiedDeploymentService.getAllDLEs();
     const card = list.find(x => x?.dleAddress && x.dleAddress.toLowerCase() === address.toLowerCase());
     if (!card) return res.status(404).json({ success: false, message: 'Карточка DLE не найдена' });
 
@@ -575,13 +572,13 @@ router.post('/verify/resubmit/:address', auth.requireAuth, auth.requireAdmin, as
       initialPartners: Array.isArray(card.initialPartners) ? card.initialPartners : [],
       initialAmounts: Array.isArray(card.initialAmounts) ? card.initialAmounts : [],
       supportedChainIds: Array.isArray(card.networks) ? card.networks.map(n => n.chainId).filter(Boolean) : (card.governanceSettings?.supportedChainIds || []),
-      currentChainId: card.governanceSettings?.currentChainId || (Array.isArray(card.networks) && card.networks[0]?.chainId) || 1
+      currentChainId: card.governanceSettings?.currentChainId || 1 // governance chain, не первая сеть
     };
 
     // Сформировать deployResult из карточки
     const deployResult = { success: true, data: { dleAddress: card.dleAddress, networks: card.networks || [] } };
 
-    await dleV2Service.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
+    await unifiedDeploymentService.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
     const updated = verificationStore.read(address);
     return res.json({ success: true, data: updated });
   } catch (e) {
@@ -597,7 +594,7 @@ router.post('/precheck', auth.requireAuth, auth.requireAdmin, async (req, res) =
     if (!Array.isArray(supportedChainIds) || supportedChainIds.length === 0) {
       return res.status(400).json({ success: false, message: 'Не переданы сети для проверки' });
     }
-    const result = await dleV2Service.checkBalances(supportedChainIds, privateKey);
+    const result = await unifiedDeploymentService.checkBalances(supportedChainIds, privateKey);
     return res.json({ success: true, data: result });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });

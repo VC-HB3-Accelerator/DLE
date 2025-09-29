@@ -30,91 +30,29 @@
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
 
-      <!-- Блоки операций DLE -->
-      <div class="operations-blocks">
-        <div class="blocks-header">
-          <h4>Типы операций DLE контракта</h4>
-          <p>Выберите тип операции для создания предложения</p>
+      <!-- Информация для неавторизованных пользователей -->
+      <div v-if="!props.isAuthenticated" class="auth-notice">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i>
+          <strong>Для создания предложений необходимо авторизоваться в приложении</strong>
+          <p class="mb-0 mt-2">Подключите кошелек в сайдбаре для создания новых предложений</p>
         </div>
-        
-        <!-- Информация для неавторизованных пользователей -->
-        <div v-if="!props.isAuthenticated" class="auth-notice">
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i>
-            <strong>Для создания предложений необходимо авторизоваться в приложении</strong>
-            <p class="mb-0 mt-2">Подключите кошелек в сайдбаре для создания новых предложений</p>
-          </div>
-        </div>
-        
-        <!-- Блоки операций -->
-        <div class="operations-grid">
-          <!-- Управление токенами -->
+      </div>
+      
+      <!-- Блоки операций -->
+      <div class="operations-grid">
+          <!-- Основные операции DLE -->
           <div class="operation-category">
-            <h5>💸 Управление токенами</h5>
+            <h5>Основные операции DLE</h5>
             <div class="operation-blocks">
               <div class="operation-block">
-                <div class="operation-icon">💸</div>
                 <h6>Передача токенов</h6>
                 <p>Перевод токенов DLE другому адресу через governance</p>
                 <button class="create-btn" @click="openTransferForm" :disabled="!props.isAuthenticated">
                   Создать
                 </button>
               </div>
-            </div>
-          </div>
-
-          <!-- Управление модулями -->
-          <div class="operation-category">
-            <h5>🔧 Управление модулями</h5>
-            <div class="operation-blocks">
               <div class="operation-block">
-                <div class="operation-icon">➕</div>
-                <h6>Добавить модуль</h6>
-                <p>Добавление нового модуля в DLE контракт</p>
-                <button class="create-btn" @click="openAddModuleForm" :disabled="!props.isAuthenticated">
-                  Создать
-                </button>
-              </div>
-              <div class="operation-block">
-                <div class="operation-icon">➖</div>
-                <h6>Удалить модуль</h6>
-                <p>Удаление существующего модуля из DLE контракта</p>
-                <button class="create-btn" @click="openRemoveModuleForm" :disabled="!props.isAuthenticated">
-                  Создать
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Управление сетями -->
-          <div class="operation-category">
-            <h5>🌐 Управление сетями</h5>
-            <div class="operation-blocks">
-              <div class="operation-block">
-                <div class="operation-icon">➕</div>
-                <h6>Добавить сеть</h6>
-                <p>Добавление новой поддерживаемой блокчейн сети</p>
-                <button class="create-btn" @click="openAddChainForm" :disabled="!props.isAuthenticated">
-                  Создать
-                </button>
-              </div>
-              <div class="operation-block">
-                <div class="operation-icon">➖</div>
-                <h6>Удалить сеть</h6>
-                <p>Удаление поддерживаемой блокчейн сети</p>
-                <button class="create-btn" @click="openRemoveChainForm" :disabled="!props.isAuthenticated">
-                  Создать
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Управление настройками DLE -->
-          <div class="operation-category">
-            <h5>⚙️ Настройки DLE</h5>
-            <div class="operation-blocks">
-              <div class="operation-block">
-                <div class="operation-icon">📝</div>
                 <h6>Обновить данные DLE</h6>
                 <p>Изменение основной информации о DLE (название, символ, адрес и т.д.)</p>
                 <button class="create-btn" @click="openUpdateDLEInfoForm" :disabled="!props.isAuthenticated">
@@ -122,7 +60,6 @@
                 </button>
               </div>
               <div class="operation-block">
-                <div class="operation-icon">📊</div>
                 <h6>Изменить кворум</h6>
                 <p>Изменение процента голосов, необходимого для принятия решений</p>
                 <button class="create-btn" @click="openUpdateQuorumForm" :disabled="!props.isAuthenticated">
@@ -130,7 +67,6 @@
                 </button>
               </div>
               <div class="operation-block">
-                <div class="operation-icon">⏰</div>
                 <h6>Изменить время голосования</h6>
                 <p>Настройка минимального и максимального времени голосования</p>
                 <button class="create-btn" @click="openUpdateVotingDurationsForm" :disabled="!props.isAuthenticated">
@@ -138,7 +74,41 @@
                 </button>
               </div>
               <div class="operation-block">
-                <div class="operation-icon">🖼️</div>
+                <h6>Оффчейн действие</h6>
+                <p>Создание предложения для выполнения оффчейн операций в приложении</p>
+                <button class="create-btn" @click="openOffchainActionForm" :disabled="!props.isAuthenticated">
+                  Создать
+                </button>
+              </div>
+              <div class="operation-block">
+                <h6>Добавить модуль</h6>
+                <p>Добавление нового модуля в DLE контракт</p>
+                <button class="create-btn" @click="openAddModuleForm" :disabled="!props.isAuthenticated">
+                  Создать
+                </button>
+              </div>
+              <div class="operation-block">
+                <h6>Удалить модуль</h6>
+                <p>Удаление существующего модуля из DLE контракта</p>
+                <button class="create-btn" @click="openRemoveModuleForm" :disabled="!props.isAuthenticated">
+                  Создать
+                </button>
+              </div>
+              <div class="operation-block">
+                <h6>Добавить сеть</h6>
+                <p>Добавление новой поддерживаемой блокчейн сети</p>
+                <button class="create-btn" @click="openAddChainForm" :disabled="!props.isAuthenticated">
+                  Создать
+                </button>
+              </div>
+              <div class="operation-block">
+                <h6>Удалить сеть</h6>
+                <p>Удаление поддерживаемой блокчейн сети</p>
+                <button class="create-btn" @click="openRemoveChainForm" :disabled="!props.isAuthenticated">
+                  Создать
+                </button>
+              </div>
+              <div class="operation-block">
                 <h6>Изменить логотип</h6>
                 <p>Обновление URI логотипа DLE для отображения в блокчейн-сканерах</p>
                 <button class="create-btn" @click="openSetLogoURIForm" :disabled="!props.isAuthenticated">
@@ -166,10 +136,8 @@
                 :key="operation.id"
                 class="operation-block module-operation-block"
               >
-                <div class="operation-icon">{{ operation.icon }}</div>
                 <h6>{{ operation.name }}</h6>
                 <p>{{ operation.description }}</p>
-                <div class="operation-category-tag">{{ operation.category }}</div>
                 <button 
                   class="create-btn" 
                   @click="openModuleOperationForm(moduleOperation.moduleType, operation)" 
@@ -182,21 +150,6 @@
             </div>
           </div>
 
-          <!-- Оффчейн операции -->
-          <div class="operation-category">
-            <h5>📋 Оффчейн операции</h5>
-            <div class="operation-blocks">
-              <div class="operation-block">
-                <div class="operation-icon">📄</div>
-                <h6>Оффчейн действие</h6>
-                <p>Создание предложения для выполнения оффчейн операций в приложении</p>
-                <button class="create-btn" @click="openOffchainActionForm" :disabled="!props.isAuthenticated">
-                  Создать
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </BaseLayout>
@@ -259,7 +212,6 @@ const availableChains = ref([]);
 // Состояние модулей и их операций
 const moduleOperations = ref([]);
 const isLoadingModuleOperations = ref(false);
-const modulesWebSocket = ref(null);
 const isModulesWSConnected = ref(false);
 
 // Функции для открытия отдельных форм операций
@@ -269,8 +221,11 @@ function openTransferForm() {
 }
 
 function openAddModuleForm() {
-  // TODO: Открыть форму для добавления модуля
-  alert('Форма добавления модуля будет реализована');
+  if (dleAddress.value) {
+    router.push(`/management/add-module?address=${dleAddress.value}`);
+  } else {
+    router.push('/management/add-module');
+  }
 }
 
 function openRemoveModuleForm() {
@@ -325,13 +280,7 @@ function openModuleOperationForm(moduleType, operation) {
 
 // Получить иконку для типа модуля
 function getModuleIcon(moduleType) {
-  const icons = {
-    treasury: '💰',
-    timelock: '⏰',
-    reader: '📖',
-    hierarchicalVoting: '🗳️'
-  };
-  return icons[moduleType] || '🔧';
+  return '';
 }
 
 // Функции
@@ -363,6 +312,9 @@ async function loadDleData() {
 
     // Загружаем операции модулей
     await loadModuleOperations();
+
+    // Повторно подписываемся на обновления модулей для нового DLE
+    resubscribeToModules();
 
   } catch (error) {
     console.error('Ошибка загрузки данных DLE из блокчейна:', error);
@@ -401,49 +353,61 @@ async function loadModuleOperations() {
 
 // WebSocket функции для модулей
 function connectModulesWebSocket() {
-  if (modulesWebSocket.value && modulesWebSocket.value.readyState === WebSocket.OPEN) {
+  if (isModulesWSConnected.value) {
     return;
   }
 
-  const wsUrl = `ws://localhost:8000/ws/deployment`;
-  modulesWebSocket.value = new WebSocket(wsUrl);
-
-  modulesWebSocket.value.onopen = () => {
-    console.log('[CreateProposalView] WebSocket модулей соединение установлено');
-    isModulesWSConnected.value = true;
+  try {
+    // Подключаемся через существующий WebSocket клиент
+    wsClient.connect();
     
-    // Подписываемся на обновления модулей для текущего DLE
-    if (dleAddress.value) {
-      modulesWebSocket.value.send(JSON.stringify({
-        type: 'subscribe',
-        dleAddress: dleAddress.value
-      }));
-    }
-  };
-
-  modulesWebSocket.value.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
+    // Подписываемся на события deployment_update
+    wsClient.on('deployment_update', (data) => {
+      console.log('[CreateProposalView] Получено обновление деплоя:', data);
       handleModulesWebSocketMessage(data);
-    } catch (error) {
-      console.error('[CreateProposalView] Ошибка парсинга WebSocket сообщения модулей:', error);
-    }
-  };
+    });
 
-  modulesWebSocket.value.onclose = () => {
-    console.log('[CreateProposalView] WebSocket модулей соединение закрыто');
+    // Подписываемся на подтверждение подписки
+    wsClient.on('subscribed', (data) => {
+      console.log('[CreateProposalView] Подписка подтверждена:', data);
+    });
+
+    // Подписываемся на обновления модулей
+    wsClient.on('modules_updated', (data) => {
+      console.log('[CreateProposalView] Модули обновлены:', data);
+      // Перезагружаем операции модулей при обновлении
+      loadModuleOperations();
+    });
+
+    // Подписываемся на статус деплоя
+    wsClient.on('deployment_status', (data) => {
+      console.log('[CreateProposalView] Статус деплоя:', data);
+      handleModulesWebSocketMessage(data);
+    });
+
+    // Подписываемся на событие подключения
+    wsClient.on('connected', () => {
+      console.log('[CreateProposalView] WebSocket подключен, подписываемся на модули');
+      if (dleAddress.value) {
+        wsClient.ws.send(JSON.stringify({
+          type: 'subscribe',
+          dleAddress: dleAddress.value
+        }));
+        console.log('[CreateProposalView] Подписка на модули отправлена для DLE:', dleAddress.value);
+      }
+    });
+
+    isModulesWSConnected.value = true;
+    console.log('[CreateProposalView] WebSocket модулей соединение установлено');
+  } catch (error) {
+    console.error('[CreateProposalView] Ошибка подключения WebSocket модулей:', error);
     isModulesWSConnected.value = false;
     
     // Переподключаемся через 5 секунд
     setTimeout(() => {
       connectModulesWebSocket();
     }, 5000);
-  };
-
-  modulesWebSocket.value.onerror = (error) => {
-    console.error('[CreateProposalView] Ошибка WebSocket модулей:', error);
-    isModulesWSConnected.value = false;
-  };
+  }
 }
 
 function handleModulesWebSocketMessage(data) {
@@ -471,10 +435,30 @@ function handleModulesWebSocketMessage(data) {
 }
 
 function disconnectModulesWebSocket() {
-  if (modulesWebSocket.value) {
-    modulesWebSocket.value.close();
-    modulesWebSocket.value = null;
+  if (isModulesWSConnected.value) {
+    // Отписываемся от всех событий
+    wsClient.off('deployment_update');
+    wsClient.off('subscribed');
+    wsClient.off('modules_updated');
+    wsClient.off('deployment_status');
+    wsClient.off('connected');
+    
     isModulesWSConnected.value = false;
+    console.log('[CreateProposalView] WebSocket модулей отключен');
+  }
+}
+
+// Функция для повторной подписки при изменении DLE адреса
+function resubscribeToModules() {
+  if (isModulesWSConnected.value && wsClient.ws && wsClient.ws.readyState === WebSocket.OPEN && dleAddress.value) {
+    wsClient.ws.send(JSON.stringify({
+      type: 'subscribe',
+      dleAddress: dleAddress.value
+    }));
+    console.log('[CreateProposalView] Повторная подписка на модули для DLE:', dleAddress.value);
+  } else if (wsClient.ws && wsClient.ws.readyState === WebSocket.CONNECTING) {
+    // Если соединение еще устанавливается, ждем события подключения
+    console.log('[CreateProposalView] WebSocket еще подключается, ждем события connected');
   }
 }
 
@@ -558,32 +542,6 @@ onUnmounted(() => {
   color: #333;
 }
 
-/* Стили для блоков операций */
-.operations-blocks {
-  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-  border-radius: 12px;
-  padding: 2rem;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.blocks-header {
-  margin-bottom: 2rem;
-  text-align: center;
-}
-
-.blocks-header h4 {
-  color: var(--color-primary);
-  margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.blocks-header p {
-  color: #6c757d;
-  margin: 0;
-  font-size: 1rem;
-}
 
 .auth-notice {
   margin-bottom: 2rem;
@@ -626,119 +584,81 @@ onUnmounted(() => {
 .operation-category h5 {
   color: var(--color-primary);
   margin: 0 0 1.5rem 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
   padding-bottom: 0.75rem;
   border-bottom: 2px solid #f0f0f0;
+  text-align: center;
 }
 
 .operation-blocks {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
 }
 
 .operation-block {
-  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-  border: 2px solid #e9ecef;
+  background: white;
   border-radius: 12px;
-  padding: 1.5rem;
-  text-align: center;
+  padding: 2rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
   transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.operation-block::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-primary), #20c997);
-  transform: scaleX(0);
-  transition: transform 0.3s ease;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
 }
 
 .operation-block:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
   border-color: var(--color-primary);
-  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
-  transform: translateY(-4px);
 }
 
-.operation-block:hover::before {
-  transform: scaleX(1);
-}
-
-.operation-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  display: block;
-}
 
 .operation-block h6 {
-  color: #333;
-  margin: 0 0 0.75rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+  font-size: 1.5rem;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .operation-block p {
-  color: #666;
   margin: 0 0 1.5rem 0;
-  font-size: 0.9rem;
+  color: #666;
+  font-size: 1rem;
   line-height: 1.5;
+  flex-grow: 1;
 }
 
 .create-btn {
-  background: linear-gradient(135deg, var(--color-primary), #20c997);
-  color: white;
+  background: var(--color-primary);
+  color: #fff;
   border: none;
   border-radius: 8px;
   padding: 0.75rem 1.5rem;
+  cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s;
+  min-width: 120px;
   width: 100%;
-  position: relative;
-  overflow: hidden;
-}
-
-.create-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .create-btn:hover {
-  background: linear-gradient(135deg, #0056b3, #1ea085);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+  background: var(--color-primary-dark);
+  transform: translateY(-1px);
 }
-
-.create-btn:hover::before {
-  left: 100%;
-}
-
 .create-btn:disabled {
   background: #6c757d;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
-}
-
-.create-btn:disabled::before {
-  display: none;
 }
 
 /* Стили для модулей */
@@ -751,54 +671,13 @@ onUnmounted(() => {
 
 .module-operation-block {
   position: relative;
-  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-  border: 2px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
 }
 
-.module-operation-block::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #28a745, #20c997);
-  transform: scaleX(0);
-  transition: transform 0.3s ease;
-}
 
-.module-operation-block:hover::before {
-  transform: scaleX(1);
-}
-
-.operation-category-tag {
-  display: inline-block;
-  background: linear-gradient(135deg, #28a745, #20c997);
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin: 0.5rem 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Анимация появления модулей */
-.operation-category {
-  animation: fadeInUp 0.6s ease-out;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* Индикатор загрузки модулей */
 .loading-modules {
@@ -828,24 +707,12 @@ onUnmounted(() => {
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  .operations-blocks {
-    padding: 1rem;
-  }
-  
   .operation-blocks {
     grid-template-columns: 1fr;
   }
   
   .operation-block {
     padding: 1rem;
-  }
-  
-  .operation-icon {
-    font-size: 2.5rem;
-  }
-  
-  .blocks-header h4 {
-    font-size: 1.25rem;
   }
   
   .operation-category h5 {

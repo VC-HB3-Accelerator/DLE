@@ -60,8 +60,10 @@ router.post('/deploy-module-from-db', async (req, res) => {
       process.env.PRIVATE_KEY = params.privateKey || params.private_key;
     }
     
-    if (params.etherscanApiKey || params.etherscan_api_key) {
-      process.env.ETHERSCAN_API_KEY = params.etherscanApiKey || params.etherscan_api_key;
+  const ApiKeyManager = require('../utils/apiKeyManager');
+  const etherscanKey = ApiKeyManager.getAndSetEtherscanApiKey(params);
+  
+  if (etherscanKey) {
     }
 
     // Запускаем деплой модулей через скрипт

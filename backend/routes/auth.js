@@ -43,6 +43,16 @@ router.get('/nonce', async (req, res) => {
       return res.status(400).json({ error: 'Address is required' });
     }
 
+    // Очищаем истекшие nonce перед генерацией нового
+    try {
+      await db.getQuery()(
+        'DELETE FROM nonces WHERE expires_at < NOW()'
+      );
+      logger.info(`[nonce] Cleaned up expired nonces`);
+    } catch (cleanupError) {
+      logger.warn(`[nonce] Error cleaning up expired nonces: ${cleanupError.message}`);
+    }
+
     // Генерируем случайный nonce
     const nonce = crypto.randomBytes(16).toString('hex');
     logger.info(`[nonce] Generated nonce: ${nonce}`);
@@ -136,15 +146,23 @@ router.post('/verify', async (req, res) => {
       console.error('Error reading encryption key:', keyError);
     }
 
-    // Проверяем nonce в базе данных
+    // Проверяем nonce в базе данных с проверкой времени истечения
     const nonceResult = await db.getQuery()(
-      'SELECT nonce_encrypted FROM nonces WHERE identity_value_encrypted = encrypt_text($1, $2)',
+      'SELECT nonce_encrypted, expires_at FROM nonces WHERE identity_value_encrypted = encrypt_text($1, $2)',
       [normalizedAddressLower, encryptionKey]
     );
     
     if (nonceResult.rows.length === 0) {
       logger.error(`[verify] Nonce not found for address: ${normalizedAddressLower}`);
       return res.status(401).json({ success: false, error: 'Nonce not found' });
+    }
+
+    // Проверяем, не истек ли срок действия nonce
+    const expiresAt = new Date(nonceResult.rows[0].expires_at);
+    const now = new Date();
+    if (now > expiresAt) {
+      logger.error(`[verify] Nonce expired for address: ${normalizedAddressLower}. Expired at: ${expiresAt}, Now: ${now}`);
+      return res.status(401).json({ success: false, error: 'Nonce expired' });
     }
 
     // Расшифровываем nonce из базы данных
@@ -156,9 +174,12 @@ router.post('/verify', async (req, res) => {
     logger.info(`[verify] Stored nonce from DB: ${storedNonce.rows[0]?.nonce}`);
     logger.info(`[verify] Nonce from request: ${nonce}`);
     logger.info(`[verify] Nonce match: ${storedNonce.rows[0]?.nonce === nonce}`);
+    logger.info(`[verify] Stored nonce length: ${storedNonce.rows[0]?.nonce?.length}`);
+    logger.info(`[verify] Request nonce length: ${nonce?.length}`);
 
     if (storedNonce.rows.length === 0 || storedNonce.rows[0].nonce !== nonce) {
       logger.error(`[verify] Invalid nonce for address: ${normalizedAddressLower}. Expected: ${storedNonce.rows[0]?.nonce}, Got: ${nonce}`);
+      logger.error(`[verify] Stored nonce type: ${typeof storedNonce.rows[0]?.nonce}, Request nonce type: ${typeof nonce}`);
       return res.status(401).json({ success: false, error: 'Invalid nonce' });
     }
 

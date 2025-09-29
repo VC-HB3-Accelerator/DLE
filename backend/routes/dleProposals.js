@@ -29,137 +29,297 @@ router.post('/get-proposals', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение списка предложений для DLE: ${dleAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    
-    // ABI для чтения предложений (используем правильные функции из смарт-контракта)
-    const dleAbi = [
-      "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
-      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
-      "function proposals(uint256) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, bytes memory operation, uint256 governanceChainId, uint256 snapshotTimepoint)",
-      "function quorumPercentage() external view returns (uint256)",
-      "function getPastTotalSupply(uint256 timepoint) external view returns (uint256)",
-      "event ProposalCreated(uint256 proposalId, address initiator, string description)"
-    ];
-
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Получаем события ProposalCreated для определения количества предложений
-    const currentBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, currentBlock - 10000); // Последние 10000 блоков
-    
-    const events = await dle.queryFilter('ProposalCreated', fromBlock, currentBlock);
-    
-    console.log(`[DLE Proposals] Найдено событий ProposalCreated: ${events.length}`);
-    console.log(`[DLE Proposals] Диапазон блоков: ${fromBlock} - ${currentBlock}`);
-    
-    const proposals = [];
-    
-    // Читаем информацию о каждом предложении
-    for (let i = 0; i < events.length; i++) {
+    // Получаем поддерживаемые сети DLE из контракта
+    let supportedChains = [];
+    try {
+      // Определяем корректную сеть для данного адреса
+      let rpcUrl, targetChainId;
+      let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
+      
       try {
-        const proposalId = events[i].args.proposalId;
-        console.log(`[DLE Proposals] Читаем предложение ID: ${proposalId}`);
+        // Получаем поддерживаемые сети из параметров деплоя
+        const latestParams = await deployParamsService.getLatestDeployParams(1);
+        if (latestParams.length > 0) {
+          const params = latestParams[0];
+          candidateChainIds = params.supportedChainIds || candidateChainIds;
+        }
+      } catch (error) {
+        console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
+      }
+      
+      for (const cid of candidateChainIds) {
+        try {
+          const url = await rpcProviderService.getRpcUrlByChainId(cid);
+          if (!url) continue;
+          const prov = new ethers.JsonRpcProvider(url);
+          const code = await prov.getCode(dleAddress);
+          if (code && code !== '0x') { 
+            rpcUrl = url; 
+            targetChainId = cid; 
+            break; 
+          }
+        } catch (_) {}
+      }
+      
+      if (!rpcUrl) {
+        console.log(`[DLE Proposals] Не удалось найти сеть для адреса ${dleAddress}`);
+        // Fallback к известным сетям
+        supportedChains = [11155111, 17000, 421614, 84532];
+        console.log(`[DLE Proposals] Используем fallback сети:`, supportedChains);
+        return;
+      }
+      if (rpcUrl) {
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const dleAbi = [
+          "function getSupportedChainCount() external view returns (uint256)",
+          "function getSupportedChainId(uint256 _index) external view returns (uint256)"
+        ];
+        const dle = new ethers.Contract(dleAddress, dleAbi, provider);
         
-        // Пробуем несколько раз для новых предложений
-        let proposalState, isPassed, quorumReached, forVotes, againstVotes, quorumRequired;
-        let retryCount = 0;
-        const maxRetries = 1;
+        const chainCount = await dle.getSupportedChainCount();
+        console.log(`[DLE Proposals] Количество поддерживаемых сетей: ${chainCount}`);
         
-        while (retryCount < maxRetries) {
+        for (let i = 0; i < Number(chainCount); i++) {
+          const chainId = await dle.getSupportedChainId(i);
+          supportedChains.push(Number(chainId));
+        }
+        
+        console.log(`[DLE Proposals] Поддерживаемые сети из контракта:`, supportedChains);
+      }
+    } catch (error) {
+      console.log(`[DLE Proposals] Ошибка получения поддерживаемых сетей из контракта:`, error.message);
+      // Fallback к известным сетям
+      supportedChains = [11155111, 17000, 421614, 84532];
+      console.log(`[DLE Proposals] Используем fallback сети:`, supportedChains);
+    }
+    
+    const allProposals = [];
+    
+    // Ищем предложения во всех поддерживаемых сетях
+    for (const chainId of supportedChains) {
+      try {
+        console.log(`[DLE Proposals] Поиск предложений в сети ${chainId}...`);
+        
+        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
+        if (!rpcUrl) {
+          console.log(`[DLE Proposals] RPC URL для сети ${chainId} не найден, пропускаем`);
+          continue;
+        }
+
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        
+        // ABI для чтения предложений (используем getProposalSummary для мультиконтрактов)
+        const dleAbi = [
+          "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
+          "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+          "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targetChains)",
+          "function quorumPercentage() external view returns (uint256)",
+          "function getPastTotalSupply(uint256 timepoint) external view returns (uint256)",
+          "function totalSupply() external view returns (uint256)",
+          "event ProposalCreated(uint256 proposalId, address initiator, string description)"
+        ];
+
+        const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+
+        // Получаем события ProposalCreated для определения количества предложений
+        const currentBlock = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, currentBlock - 10000); // Последние 10000 блоков
+        
+        const events = await dle.queryFilter('ProposalCreated', fromBlock, currentBlock);
+        
+        console.log(`[DLE Proposals] Найдено событий ProposalCreated в сети ${chainId}: ${events.length}`);
+        console.log(`[DLE Proposals] Диапазон блоков: ${fromBlock} - ${currentBlock}`);
+        
+        // Читаем информацию о каждом предложении
+        for (let i = 0; i < events.length; i++) {
           try {
-            proposalState = await dle.getProposalState(proposalId);
-            const result = await dle.checkProposalResult(proposalId);
-            isPassed = result.passed;
-            quorumReached = result.quorumReached;
+            const proposalId = events[i].args.proposalId;
+            console.log(`[DLE Proposals] Читаем предложение ID: ${proposalId}`);
             
-            // Получаем данные о голосах из структуры Proposal
+              // Пробуем несколько раз для новых предложений
+              let proposalState, isPassed, quorumReached, forVotes, againstVotes, quorumRequired, currentTotalSupply, quorumPct;
+              let retryCount = 0;
+              const maxRetries = 1;
+            
+            while (retryCount < maxRetries) {
+              try {
+                proposalState = await dle.getProposalState(proposalId);
+                const result = await dle.checkProposalResult(proposalId);
+                isPassed = result.passed;
+                quorumReached = result.quorumReached;
+                
+                // Получаем данные о голосах из структуры Proposal (включая мультиконтрактные поля)
+                try {
+                  const proposalData = await dle.getProposalSummary(proposalId);
+                  forVotes = Number(proposalData.forVotes);
+                  againstVotes = Number(proposalData.againstVotes);
+                  
+                  // Вычисляем требуемый кворум
+                  quorumPct = Number(await dle.quorumPercentage());
+                  const pastSupply = Number(await dle.getPastTotalSupply(proposalData.snapshotTimepoint));
+                  quorumRequired = Math.floor((pastSupply * quorumPct) / 100);
+                  
+                    // Получаем текущий totalSupply для отображения
+                    currentTotalSupply = Number(await dle.totalSupply());
+                  
+                  console.log(`[DLE Proposals] Кворум для предложения ${proposalId}:`, {
+                    quorumPercentage: quorumPct,
+                    pastSupply: pastSupply,
+                    quorumRequired: quorumRequired,
+                    quorumPercentageFormatted: `${quorumPct}%`,
+                    snapshotTimepoint: proposalData.snapshotTimepoint,
+                    pastSupplyFormatted: `${(pastSupply / 10**18).toFixed(2)} DLE`,
+                    quorumRequiredFormatted: `${(quorumRequired / 10**18).toFixed(2)} DLE`
+                  });
+                } catch (voteError) {
+                  console.log(`[DLE Proposals] Ошибка получения голосов для предложения ${proposalId}:`, voteError.message);
+                  forVotes = 0;
+                    againstVotes = 0;
+                    quorumRequired = 0;
+                    currentTotalSupply = 0;
+                    quorumPct = 0;
+                }
+                
+                break; // Успешно прочитали
+              } catch (error) {
+                retryCount++;
+                console.log(`[DLE Proposals] Попытка ${retryCount} чтения предложения ${proposalId} не удалась:`, error.message);
+                if (retryCount < maxRetries) {
+                  await new Promise(resolve => setTimeout(resolve, 2000)); // Ждем 2 секунды
+                } else {
+                  throw error; // Превышено количество попыток
+                }
+              }
+            }
+            
+            console.log(`[DLE Proposals] Данные предложения ${proposalId}:`, {
+              id: Number(proposalId),
+              description: events[i].args.description,
+              state: Number(proposalState),
+              isPassed: isPassed,
+              quorumReached: quorumReached,
+              forVotes: Number(forVotes),
+              againstVotes: Number(againstVotes),
+              quorumRequired: Number(quorumRequired),
+              initiator: events[i].args.initiator
+            });
+            
+            // Фильтруем предложения по времени - только за последние 30 дней
+            const block = await provider.getBlock(events[i].blockNumber);
+            const proposalTime = block.timestamp;
+            const currentTime = Math.floor(Date.now() / 1000);
+            const thirtyDaysAgo = currentTime - (30 * 24 * 60 * 60); // 30 дней назад
+            
+            if (proposalTime < thirtyDaysAgo) {
+              console.log(`[DLE Proposals] Пропускаем старое предложение ${proposalId} (${new Date(proposalTime * 1000).toISOString()})`);
+              continue;
+            }
+            
+        // Показываем все предложения, включая выполненные и отмененные
+        // Согласно контракту: 0=Pending, 1=Succeeded, 2=Defeated, 3=Executed, 4=Canceled, 5=ReadyForExecution
+        // Убрали фильтрацию выполненных и отмененных предложений для отображения в UI
+            
+            // Создаем уникальный ID, включающий chainId
+            const uniqueId = `${chainId}-${proposalId}`;
+            
+            // Получаем мультиконтрактные данные из proposalData (если доступны)
+            let operation = null;
+            let governanceChainId = null;
+            let targetChains = [];
+            let decodedOperation = null;
+            let operationDescription = null;
+            
             try {
-              const proposalData = await dle.proposals(proposalId);
-              forVotes = Number(proposalData.forVotes);
-              againstVotes = Number(proposalData.againstVotes);
+              const proposalData = await dle.getProposalSummary(proposalId);
+              governanceChainId = Number(proposalData.governanceChainId);
+              targetChains = proposalData.targetChains.map(chain => Number(chain));
               
-              // Вычисляем требуемый кворум
-              const quorumPct = Number(await dle.quorumPercentage());
-              const pastSupply = Number(await dle.getPastTotalSupply(proposalData.snapshotTimepoint));
-              quorumRequired = Math.floor((pastSupply * quorumPct) / 100);
-            } catch (voteError) {
-              console.log(`[DLE Proposals] Ошибка получения голосов для предложения ${proposalId}:`, voteError.message);
-              forVotes = 0;
-              againstVotes = 0;
-              quorumRequired = 0;
+              // Получаем operation из отдельного вызова (если нужно)
+              // operation не возвращается в getProposalSummary, но это не критично для мультиконтрактов
+              operation = null; // Пока не реализовано
+              
+              // Декодируем операцию (если доступна)
+              if (operation && operation !== '0x') {
+                const { decodeOperation, formatOperation } = require('../utils/operationDecoder');
+                decodedOperation = decodeOperation(operation);
+                operationDescription = formatOperation(decodedOperation);
+              }
+            } catch (error) {
+              console.log(`[DLE Proposals] Не удалось получить мультиконтрактные данные для предложения ${proposalId}:`, error.message);
+            }
+
+            const proposalInfo = {
+              id: Number(proposalId),
+              uniqueId: uniqueId,
+              description: events[i].args.description,
+              state: Number(proposalState),
+              isPassed: isPassed,
+              quorumReached: quorumReached,
+              forVotes: Number(forVotes),
+              againstVotes: Number(againstVotes),
+              quorumRequired: Number(quorumRequired),
+              totalSupply: Number(currentTotalSupply || 0), // Добавляем totalSupply
+              contractQuorumPercentage: Number(quorumPct), // Добавляем процент кворума из контракта
+              initiator: events[i].args.initiator,
+              blockNumber: events[i].blockNumber,
+              transactionHash: events[i].transactionHash,
+              chainId: chainId, // Добавляем информацию о сети
+              timestamp: proposalTime,
+              createdAt: new Date(proposalTime * 1000).toISOString(),
+              executed: Number(proposalState) === 3, // 3 = Executed
+              canceled: Number(proposalState) === 4,  // 4 = Canceled
+              // Мультиконтрактные поля
+              operation: operation,
+              governanceChainId: governanceChainId,
+              targetChains: targetChains,
+              isMultichain: targetChains && targetChains.length > 0,
+              decodedOperation: decodedOperation,
+              operationDescription: operationDescription
+            };
+            
+            // Проверяем, нет ли уже такого предложения (по уникальному ID)
+            const existingProposal = allProposals.find(p => p.uniqueId === uniqueId);
+            if (!existingProposal) {
+              allProposals.push(proposalInfo);
+            } else {
+              console.log(`[DLE Proposals] Пропускаем дубликат предложения ${uniqueId}`);
+            }
+          } catch (error) {
+            console.log(`[DLE Proposals] Ошибка при чтении предложения ${i}:`, error.message);
+            
+            // Если это ошибка декодирования, возможно предложение еще не полностью записано
+            if (error.message.includes('could not decode result data')) {
+              console.log(`[DLE Proposals] Предложение ${i} еще не полностью синхронизировано, пропускаем`);
+              continue;
             }
             
-            break; // Успешно прочитали
-          } catch (error) {
-            retryCount++;
-            console.log(`[DLE Proposals] Попытка ${retryCount} чтения предложения ${proposalId} не удалась:`, error.message);
-            if (retryCount < maxRetries) {
-              await new Promise(resolve => setTimeout(resolve, 2000)); // Ждем 2 секунды
-            } else {
-              throw error; // Превышено количество попыток
-            }
+            // Продолжаем с следующим предложением
           }
         }
         
-        console.log(`[DLE Proposals] Данные предложения ${proposalId}:`, {
-          id: Number(proposalId),
-          description: events[i].args.description,
-          state: Number(proposalState),
-          isPassed: isPassed,
-          quorumReached: quorumReached,
-          forVotes: Number(forVotes),
-          againstVotes: Number(againstVotes),
-          quorumRequired: Number(quorumRequired),
-          initiator: events[i].args.initiator
-        });
+        console.log(`[DLE Proposals] Найдено предложений в сети ${chainId}: ${events.length}`);
         
-        const proposalInfo = {
-          id: Number(proposalId),
-          description: events[i].args.description,
-          state: Number(proposalState),
-          isPassed: isPassed,
-          quorumReached: quorumReached,
-          forVotes: Number(forVotes),
-          againstVotes: Number(againstVotes),
-          quorumRequired: Number(quorumRequired),
-          initiator: events[i].args.initiator,
-          blockNumber: events[i].blockNumber,
-          transactionHash: events[i].transactionHash
-        };
-        
-        proposals.push(proposalInfo);
       } catch (error) {
-        console.log(`[DLE Proposals] Ошибка при чтении предложения ${i}:`, error.message);
-        
-        // Если это ошибка декодирования, возможно предложение еще не полностью записано
-        if (error.message.includes('could not decode result data')) {
-          console.log(`[DLE Proposals] Предложение ${i} еще не полностью синхронизировано, пропускаем`);
-          continue;
-        }
-        
-        // Продолжаем с следующим предложением
+        console.log(`[DLE Proposals] Ошибка при поиске предложений в сети ${chainId}:`, error.message);
+        // Продолжаем с следующей сетью
       }
     }
 
-    // Сортируем по ID предложения (новые сверху)
-    proposals.sort((a, b) => b.id - a.id);
+    // Сортируем по времени создания (новые сверху), затем по ID
+    allProposals.sort((a, b) => {
+      if (a.timestamp !== b.timestamp) {
+        return b.timestamp - a.timestamp;
+      }
+      return b.id - a.id;
+    });
 
-    console.log(`[DLE Proposals] Найдено предложений: ${proposals.length}`);
+    console.log(`[DLE Proposals] Найдено предложений: ${allProposals.length}`);
 
     res.json({
       success: true,
       data: {
-        proposals: proposals,
-        totalCount: proposals.length
+        proposals: allProposals,
+        totalCount: allProposals.length
       }
     });
 
@@ -186,8 +346,41 @@ router.post('/get-proposal-info', async (req, res) => {
 
     console.log(`[DLE Proposals] Получение информации о предложении ${proposalId} в DLE: ${dleAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
+    
+    try {
+      // Получаем поддерживаемые сети из параметров деплоя
+      const latestParams = await deployParamsService.getLatestDeployParams(1);
+      if (latestParams.length > 0) {
+        const params = latestParams[0];
+        candidateChainIds = params.supportedChainIds || candidateChainIds;
+      }
+    } catch (error) {
+      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
+    }
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -864,6 +1057,9 @@ router.post('/vote-proposal', async (req, res) => {
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
+    // Пропускаем проверку hasVoted - функция не существует в контракте
+    console.log(`[DLE Proposals] Пропускаем проверку hasVoted - полагаемся на смарт-контракт`);
+
     // Подготавливаем данные для транзакции (не отправляем)
     const txData = await dle.vote.populateTransaction(proposalId, support);
 
@@ -885,6 +1081,53 @@ router.post('/vote-proposal', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Ошибка при подготовке голосования: ' + error.message
+    });
+  }
+});
+
+// Проверить статус голосования пользователя
+router.post('/check-vote-status', async (req, res) => {
+  try {
+    const { dleAddress, proposalId, voterAddress } = req.body;
+    
+    if (!dleAddress || proposalId === undefined || !voterAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимы dleAddress, proposalId и voterAddress'
+      });
+    }
+
+    console.log(`[DLE Proposals] Проверка статуса голосования для ${voterAddress} по предложению ${proposalId} в DLE: ${dleAddress}`);
+
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'RPC URL для Sepolia не найден'
+      });
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    
+    // Функция hasVoted не существует в контракте DLE
+    console.log(`[DLE Proposals] Функция hasVoted не поддерживается в контракте DLE`);
+    
+    const hasVoted = false; // Всегда возвращаем false, так как функция не существует
+
+    res.json({
+      success: true,
+      data: {
+        hasVoted: hasVoted,
+        voterAddress: voterAddress,
+        proposalId: proposalId
+      }
+    });
+
+  } catch (error) {
+    console.error('[DLE Proposals] Ошибка при проверке статуса голосования:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при проверке статуса голосования: ' + error.message
     });
   }
 });

@@ -37,7 +37,6 @@ class DLEV2Service {
    * @returns {Promise<Object>} - Результат создания DLE
    */
   async createDLE(dleParams, deploymentId = null) {
-    console.log("🔥 [DLEV2-SERVICE] ФУНКЦИЯ createDLE ВЫЗВАНА!");
     logger.info("🚀 Начало создания DLE v2 с параметрами:", dleParams);
     
     try {
@@ -46,7 +45,6 @@ class DLEV2Service {
         deploymentId = `deploy_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       }
       
-      console.log(`🆔 Deployment ID: ${deploymentId}`);
       logger.info(`🆔 Deployment ID: ${deploymentId}`);
       
       // WebSocket обновление: начало процесса
@@ -58,21 +56,13 @@ class DLEV2Service {
       this.validateDLEParams(dleParams);
 
       // Подготовка параметров для деплоя
-      console.log('🔧 Подготавливаем параметры для деплоя...');
       logger.info('🔧 Подготавливаем параметры для деплоя...');
       
-      // Отладка: проверяем входные параметры
-      console.log('🔍 ОТЛАДКА - Входные параметры:');
-      console.log('   supportedChainIds:', JSON.stringify(dleParams.supportedChainIds, null, 2));
-      console.log('   privateKey:', dleParams.privateKey ? '[ЕСТЬ]' : '[НЕТ]');
-      console.log('   name:', dleParams.name);
-      
       const deployParams = this.prepareDeployParams(dleParams);
-      console.log('✅ Параметры подготовлены:', JSON.stringify(deployParams, null, 2));
-      logger.info('✅ Параметры подготовлены:', JSON.stringify(deployParams, null, 2));
+      logger.info('✅ Параметры подготовлены');
       
       // Сохраняем подготовленные параметры в базу данных
-      logger.info(`💾 Сохранение подготовленных параметров деплоя в БД: ${deploymentId}`);
+      logger.info(`💾 Сохранение параметров деплоя в БД: ${deploymentId}`);
       await this.deployParamsService.saveDeployParams(deploymentId, deployParams, 'pending');
 
       // Вычисляем адрес инициализатора
@@ -84,27 +74,17 @@ class DLEV2Service {
         logger.warn('Не удалось вычислить initializerAddress из приватного ключа:', e.message);
       }
 
-      // WebSocket обновление: генерация CREATE2_SALT
+      // WebSocket обновление: подготовка к деплою
       if (deploymentId) {
-        deploymentTracker.updateProgress(deploymentId, 'Генерация CREATE2 SALT', 10, 'Создаем уникальный идентификатор для детерминированного адреса');
+        deploymentTracker.updateProgress(deploymentId, 'Подготовка к деплою', 10, 'Настраиваем параметры для детерминированного деплоя');
       }
 
-      // Генерируем одноразовый CREATE2_SALT
-      const { createAndStoreNewCreate2Salt } = require('./secretStore');
-      const { salt: create2Salt, key: saltKey } = await createAndStoreNewCreate2Salt({ label: deployParams.name || 'DLEv2' });
-      logger.info(`CREATE2_SALT создан и сохранён: key=${saltKey}`);
-
-      // Обновляем параметры в базе данных с CREATE2_SALT
-      console.log('💾 Обновляем параметры в базе данных с CREATE2_SALT...');
-      logger.info('💾 Обновляем параметры в базе данных с CREATE2_SALT...');
+      // Обновляем параметры в базе данных
+      console.log('💾 Обновляем параметры в базе данных...');
+      logger.info('💾 Обновляем параметры в базе данных...');
       
-      const updatedParams = {
-        ...deployParams,
-        CREATE2_SALT: create2Salt
-      };
-      
-      await this.deployParamsService.saveDeployParams(deploymentId, updatedParams, 'in_progress');
-      logger.info(`✅ Параметры обновлены в БД с CREATE2_SALT: ${create2Salt}`);
+      await this.deployParamsService.saveDeployParams(deploymentId, deployParams, 'in_progress');
+      logger.info(`✅ Параметры обновлены в БД для деплоя`);
       
       // WebSocket обновление: поиск RPC URLs
       if (deploymentId) {
@@ -153,6 +133,8 @@ class DLEV2Service {
       // Обновляем параметры в базе данных с RPC URLs и initializer
       const finalParams = {
         ...updatedParams,
+        // Сохраняем initialAmounts в человекочитаемом формате, умножение на 1e18 происходит при деплое
+        initialAmounts: dleParams.initialAmounts,
         rpcUrls: rpcUrls, // Сохраняем как объект {chainId: url}
         rpc_urls: Object.values(rpcUrls), // Также сохраняем как массив для совместимости
         initializer: dleParams.privateKey ? new ethers.Wallet(dleParams.privateKey.startsWith('0x') ? dleParams.privateKey : `0x${dleParams.privateKey}`).address : "0x0000000000000000000000000000000000000000"
@@ -203,7 +185,18 @@ class DLEV2Service {
       const result = this.extractDeployResult(deployResult.stdout, deployParams);
       
       if (!result || !result.success) {
-        throw new Error('Деплой не удался: ' + (result?.error || 'Неизвестная ошибка'));
+        // Логируем детали ошибки для отладки
+        logger.error('❌ Деплой не удался. Детали:');
+        logger.error(`📋 stdout: ${deployResult.stdout}`);
+        logger.error(`📋 stderr: ${deployResult.stderr}`);
+        logger.error(`📋 exitCode: ${deployResult.exitCode}`);
+        
+        // Извлекаем конкретную ошибку из результата
+        const errorMessage = result?.error || 
+                           deployResult.stderr || 
+                           'Неизвестная ошибка';
+        
+        throw new Error(`Деплой не удался: ${errorMessage}`);
       }
 
       // Сохраняем данные DLE
@@ -218,8 +211,11 @@ class DLEV2Service {
 
       // Обновляем статус деплоя в базе данных
       if (deploymentId && result.data.dleAddress) {
+        logger.info(`🔄 Обновляем адрес в БД: ${deploymentId} -> ${result.data.dleAddress}`);
         await this.deployParamsService.updateDeploymentStatus(deploymentId, 'completed', result.data.dleAddress);
-        logger.info(`✅ Статус деплоя обновлен в БД: ${deploymentId} -> completed`);
+        logger.info(`✅ Статус деплоя обновлен в БД: ${deploymentId} -> completed, адрес: ${result.data.dleAddress}`);
+      } else {
+        logger.warn(`⚠️ Не удалось обновить адрес в БД: deploymentId=${deploymentId}, dleAddress=${result.data?.dleAddress}`);
       }
           
         // WebSocket обновление: финализация
@@ -411,14 +407,18 @@ class DLEV2Service {
    * @returns {Object|null} - Результат деплоя
    */
   extractDeployResult(stdout, deployParams = null) {
+    logger.info(`🔍 Анализируем вывод деплоя (${stdout.length} символов)`);
+    
     // Ищем MULTICHAIN_DEPLOY_RESULT в выводе
     const resultMatch = stdout.match(/MULTICHAIN_DEPLOY_RESULT\s+(.+)/);
     
     if (resultMatch) {
       try {
         const deployResults = JSON.parse(resultMatch[1]);
+        logger.info(`📊 Результаты деплоя: ${JSON.stringify(deployResults, null, 2)}`);
         // Проверяем, что есть успешные деплои
         const successfulDeploys = deployResults.filter(r => r.address && r.address !== '0x0000000000000000000000000000000000000000');
+        logger.info(`✅ Успешные деплои: ${successfulDeploys.length}, адреса: ${successfulDeploys.map(d => d.address).join(', ')}`);
         
         if (successfulDeploys.length > 0) {
           return {
@@ -442,6 +442,54 @@ class DLEV2Service {
       } catch (e) {
         logger.error('Ошибка парсинга JSON результата:', e);
       }
+    } else {
+      // Если MULTICHAIN_DEPLOY_RESULT не найден, ищем другие индикаторы успеха
+      logger.warn('⚠️ MULTICHAIN_DEPLOY_RESULT не найден в выводе');
+      
+      // Ищем индикаторы успешного деплоя
+      const successIndicators = [
+        'DLE deployment completed successfully',
+        'SUCCESS: All DLE addresses are identical',
+        'deployed at=',
+        'deployment SUCCESS'
+      ];
+      
+      const hasSuccessIndicator = successIndicators.some(indicator => 
+        stdout.includes(indicator)
+      );
+      
+      if (hasSuccessIndicator) {
+        logger.info('✅ Найден индикатор успешного деплоя');
+        
+        // Ищем адреса контрактов в выводе
+        const addressMatch = stdout.match(/deployed at=([0-9a-fA-Fx]+)/);
+        if (addressMatch) {
+          const contractAddress = addressMatch[1];
+          logger.info(`✅ Найден адрес контракта: ${contractAddress}`);
+          
+          return {
+            success: true,
+            data: {
+              dleAddress: contractAddress,
+              totalNetworks: 1,
+              successfulNetworks: 1,
+              // Добавляем данные из параметров деплоя
+              name: deployParams?.name || 'Unknown',
+              symbol: deployParams?.symbol || 'UNK',
+              location: deployParams?.location || 'Не указан',
+              coordinates: deployParams?.coordinates || '0,0',
+              jurisdiction: deployParams?.jurisdiction || 0,
+              quorumPercentage: deployParams?.quorumPercentage || 51,
+              logoURI: deployParams?.logoURI || '/uploads/logos/default-token.svg'
+            }
+          };
+        }
+      }
+      
+      // Логируем последние строки вывода для отладки
+      const lines = stdout.split('\n');
+      const lastLines = lines.slice(-10).join('\n');
+      logger.info(`📋 Последние строки вывода:\n${lastLines}`);
     }
 
     return null;

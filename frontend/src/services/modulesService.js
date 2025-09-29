@@ -14,6 +14,23 @@
 import api from '@/api/axios';
 
 /**
+ * Получить deploymentId по адресу DLE
+ * @param {string} dleAddress - Адрес DLE
+ * @returns {Promise<Object>} - Результат с deploymentId
+ */
+export const getDeploymentId = async (dleAddress) => {
+  try {
+    const response = await api.post('/dle-modules/get-deployment-id', {
+      dleAddress
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении deploymentId:', error);
+    throw error;
+  }
+};
+
+/**
  * Создает предложение о добавлении модуля
  * @param {string} dleAddress - Адрес DLE
  * @param {Object} moduleData - Данные модуля

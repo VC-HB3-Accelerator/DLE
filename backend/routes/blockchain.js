@@ -15,6 +15,29 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
 
+// Функция для получения списка сетей из БД для данного DLE
+async function getSupportedChainIds(dleAddress) {
+  try {
+    const DeployParamsService = require('../services/deployParamsService');
+    const deployParamsService = new DeployParamsService();
+    const deployments = await deployParamsService.getAllDeployments();
+    
+    // Находим деплой с данным адресом
+    for (const deployment of deployments) {
+      if (deployment.dleAddress === dleAddress && deployment.supportedChainIds) {
+        console.log(`[Blockchain] Найдены сети для DLE ${dleAddress}:`, deployment.supportedChainIds);
+        return deployment.supportedChainIds;
+      }
+    }
+    
+    // Fallback к стандартным сетям
+    return [17000, 11155111, 421614, 84532];
+  } catch (error) {
+    console.error(`[Blockchain] Ошибка получения сетей для DLE ${dleAddress}:`, error);
+    return [17000, 11155111, 421614, 84532];
+  }
+}
+
 // Чтение данных DLE из блокчейна
 router.post('/read-dle-info', async (req, res) => {
   try {
@@ -31,7 +54,9 @@ router.post('/read-dle-info', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса (или используем chainId из запроса)
     let provider, rpcUrl, targetChainId = req.body.chainId;
-    const candidateChainIds = [11155111, 17000, 421614, 84532];
+    
+    // Получаем список сетей из базы данных для данного DLE
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
     if (targetChainId) {
       rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
       if (!rpcUrl) {
@@ -43,17 +68,45 @@ router.post('/read-dle-info', async (req, res) => {
         return res.status(400).json({ success: false, error: `По адресу ${dleAddress} нет контракта в сети ${targetChainId}` });
       }
     } else {
+      // Ищем контракт во всех сетях
+      let foundContracts = [];
+      
       for (const cid of candidateChainIds) {
         try {
           const url = await rpcProviderService.getRpcUrlByChainId(cid);
           if (!url) continue;
           const prov = new ethers.JsonRpcProvider(url);
           const code = await prov.getCode(dleAddress);
-          if (code && code !== '0x') { provider = prov; rpcUrl = url; targetChainId = cid; break; }
+          if (code && code !== '0x') {
+            // Контракт найден, currentChainId теперь равен block.chainid
+            foundContracts.push({
+              chainId: cid,
+              currentChainId: cid, // currentChainId = block.chainid = cid
+              provider: prov,
+              rpcUrl: url
+            });
+          }
         } catch (_) {}
       }
-      if (!provider) {
+      
+      if (foundContracts.length === 0) {
         return res.status(400).json({ success: false, error: 'Не удалось найти сеть, где по адресу есть контракт' });
+      }
+      
+      // Выбираем первую доступную сеть (currentChainId - это governance chain, не primary)
+      const primaryContract = foundContracts[0];
+      
+      if (primaryContract) {
+        // Используем основную сеть для чтения данных
+        provider = primaryContract.provider;
+        rpcUrl = primaryContract.rpcUrl;
+        targetChainId = primaryContract.chainId;
+      } else {
+        // Fallback: берем первый найденный контракт
+        const firstContract = foundContracts[0];
+        provider = firstContract.provider;
+        rpcUrl = firstContract.rpcUrl;
+        targetChainId = firstContract.chainId;
       }
     }
     
@@ -75,7 +128,7 @@ router.post('/read-dle-info', async (req, res) => {
     const dleInfo = await dle.getDLEInfo();
     const totalSupply = await dle.totalSupply();
     const quorumPercentage = await dle.quorumPercentage();
-    const currentChainId = await dle.getCurrentChainId();
+    const currentChainId = targetChainId; // currentChainId = block.chainid = targetChainId
     
     // Читаем логотип
     let logoURI = '';
@@ -205,6 +258,27 @@ router.post('/read-dle-info', async (req, res) => {
       console.log(`[Blockchain] Ошибка при чтении модулей:`, modulesError.message);
     }
 
+    // Собираем информацию о всех развернутых сетях
+    const deployedNetworks = [];
+    if (typeof foundContracts !== 'undefined') {
+      for (const contract of foundContracts) {
+        deployedNetworks.push({
+          chainId: contract.chainId,
+          address: dleAddress,
+          currentChainId: contract.currentChainId,
+          isPrimary: false // currentChainId - это governance chain, не primary
+        });
+      }
+    } else {
+      // Если chainId был указан в запросе, добавляем только эту сеть
+      deployedNetworks.push({
+        chainId: targetChainId,
+        address: dleAddress,
+        currentChainId: Number(currentChainId),
+        isPrimary: Number(currentChainId) === targetChainId
+      });
+    }
+
     const blockchainData = {
       name: dleInfo.name,
       symbol: dleInfo.symbol,
@@ -225,7 +299,8 @@ router.post('/read-dle-info', async (req, res) => {
       currentChainId: Number(currentChainId),
       rpcUsed: rpcUrl,
       participantCount: participantCount,
-      modules: modules // Информация о модулях
+      modules: modules, // Информация о модулях
+      deployedNetworks: deployedNetworks // Информация о всех развернутых сетях
     };
 
     console.log(`[Blockchain] Данные DLE прочитаны из блокчейна:`, blockchainData);
@@ -260,8 +335,30 @@ router.post('/get-proposals', async (req, res) => {
 
     console.log(`[Blockchain] Получение списка предложений для DLE: ${dleAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -345,7 +442,7 @@ router.post('/get-proposals', async (req, res) => {
           initiator: proposal.initiator,
           governanceChainId: Number(proposal.governanceChainId),
           snapshotTimepoint: Number(proposal.snapshotTimepoint),
-          targetChains: proposal.targets.map(chainId => Number(chainId)),
+          targetChains: proposal.targets.map(targetChainId => Number(targetChainId)),
           isPassed: isPassed,
           blockNumber: events[i].blockNumber
         };
@@ -400,8 +497,30 @@ router.post('/get-proposal-info', async (req, res) => {
 
     console.log(`[Blockchain] Получение информации о предложении ${proposalId} в DLE: ${dleAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -424,7 +543,7 @@ router.post('/get-proposal-info', async (req, res) => {
         const isPassed = await dle.checkProposalResult(proposalId);
         
         // governanceChainId не сохраняется в предложении, используем текущую цепочку
-        const governanceChainId = 11155111; // Sepolia chain ID
+        const governanceChainId = targetChainId || 11155111; // Используем найденную сеть или Sepolia по умолчанию
 
         const proposalInfo = {
       description: proposal.description,
@@ -472,8 +591,30 @@ router.post('/deactivate-dle', async (req, res) => {
 
     console.log(`[Blockchain] Проверка возможности деактивации DLE: ${dleAddress} пользователем: ${userAddress}`);
 
-    // Получаем RPC URL для Sepolia
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -543,7 +684,30 @@ router.post('/check-deactivation-proposal-result', async (req, res) => {
 
     console.log(`[Blockchain] Проверка результата предложения деактивации: ${proposalId} для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -598,7 +762,30 @@ router.post('/load-deactivation-proposals', async (req, res) => {
 
     console.log(`[Blockchain] Загрузка предложений деактивации для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -679,7 +866,30 @@ router.post('/execute-proposal', async (req, res) => {
 
     console.log(`[Blockchain] Исполнение предложения ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -732,7 +942,30 @@ router.post('/cancel-proposal', async (req, res) => {
 
     console.log(`[Blockchain] Отмена предложения ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -794,7 +1027,30 @@ router.post('/get-governance-params', async (req, res) => {
 
     console.log(`[Blockchain] Получение параметров управления для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -847,7 +1103,30 @@ router.post('/get-proposal-state', async (req, res) => {
 
     console.log(`[Blockchain] Получение состояния предложения ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -899,7 +1178,30 @@ router.post('/get-proposal-votes', async (req, res) => {
 
     console.log(`[Blockchain] Получение голосов по предложению ${proposalId} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -954,7 +1256,30 @@ router.post('/get-proposals-count', async (req, res) => {
 
     console.log(`[Blockchain] Получение количества предложений для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1005,7 +1330,30 @@ router.post('/list-proposals', async (req, res) => {
 
     console.log(`[Blockchain] Получение списка предложений для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1058,7 +1406,30 @@ router.post('/get-voting-power-at', async (req, res) => {
 
     console.log(`[Blockchain] Получение голосующей силы для ${voter} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1111,7 +1482,30 @@ router.post('/get-quorum-at', async (req, res) => {
 
     console.log(`[Blockchain] Получение требуемого кворума для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1163,7 +1557,30 @@ router.post('/get-token-balance', async (req, res) => {
 
     console.log(`[Blockchain] Получение баланса токенов для ${account} в DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1215,7 +1632,30 @@ router.post('/get-total-supply', async (req, res) => {
 
     console.log(`[Blockchain] Получение общего предложения токенов для DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1266,7 +1706,30 @@ router.post('/is-active', async (req, res) => {
 
     console.log(`[Blockchain] Проверка активности DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1323,7 +1786,30 @@ router.post('/get-dle-analytics', async (req, res) => {
 
     console.log(`[Blockchain] Получение аналитики DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,
@@ -1447,7 +1933,30 @@ router.post('/get-dle-history', async (req, res) => {
 
     console.log(`[Blockchain] Получение истории DLE: ${dleAddress}`);
 
-    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
+    // Определяем корректную сеть для данного адреса
+    let rpcUrl, targetChainId;
+    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    
+    for (const cid of candidateChainIds) {
+      try {
+        const url = await rpcProviderService.getRpcUrlByChainId(cid);
+        if (!url) continue;
+        const prov = new ethers.JsonRpcProvider(url);
+        const code = await prov.getCode(dleAddress);
+        if (code && code !== '0x') { 
+          rpcUrl = url; 
+          targetChainId = cid; 
+          break; 
+        }
+      } catch (_) {}
+    }
+    
+    if (!rpcUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'Не удалось найти сеть, где по адресу есть контракт'
+      });
+    }
     if (!rpcUrl) {
       return res.status(500).json({
         success: false,

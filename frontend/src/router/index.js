@@ -228,14 +228,9 @@ const routes = [
     component: () => import('../views/smartcontracts/CreateProposalView.vue')
   },
   {
-    path: '/management/tokens',
-    name: 'management-tokens',
-    component: () => import('../views/smartcontracts/TokensView.vue')
-  },
-  {
-    path: '/management/quorum',
-    name: 'management-quorum',
-    component: () => import('../views/smartcontracts/QuorumView.vue')
+    path: '/management/add-module',
+    name: 'management-add-module',
+    component: () => import('../views/smartcontracts/AddModuleFormView.vue')
   },
   {
     path: '/management/modules',
