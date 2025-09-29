@@ -29,7 +29,7 @@ function getNetworks() {
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     },
     mainnet: {
-      url: process.env.MAINNET_RPC_URL || 'https://eth-mainnet.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+      url: process.env.MAINNET_RPC_URL || 'https://eth-mainnet.nodereal.io/v1/YOUR_NODEREAL_KEY',
       chainId: 1,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     },

@@ -33,7 +33,7 @@
     "@langchain/community": "^0.3.34",
     "@langchain/core": "0.3.0",
     "@langchain/ollama": "^0.2.0",
-    "@openzeppelin/contracts": "5.2.0",
+    "@openzeppelin/contracts": "^5.4.0",
     "archiver": "^7.0.1",
     "axios": "^1.8.4",
     "better-queue": "^3.8.12",

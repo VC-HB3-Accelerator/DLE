@@ -18,7 +18,7 @@ async function checkModules() {
     const dleAddress = '0xCaa85e96a6929F0373442e31FD9888d985869EcE';
     
     // RPC URL для Sepolia
-    const rpcUrl = 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52';
+    const rpcUrl = process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY';
     
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     

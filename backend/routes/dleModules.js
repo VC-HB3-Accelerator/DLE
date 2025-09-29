@@ -577,7 +577,7 @@ router.post('/get-all-modules', async (req, res) => {
     
     function getFallbackRpcUrl(chainId) {
       const fallbackUrls = {
-        11155111: 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+        11155111: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY',
         17000: 'https://ethereum-holesky.publicnode.com',
         421614: 'https://sepolia-rollup.arbitrum.io/rpc',
         84532: 'https://sepolia.base.org'
@@ -634,7 +634,7 @@ router.post('/get-all-modules', async (req, res) => {
         {
           chainId: 11155111,
           networkName: 'Sepolia',
-          rpcUrl: 'https://eth-sepolia.nodereal.io/v1/56dec8028bae4f26b76099a42dae2b52',
+          rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY',
           etherscanUrl: 'https://sepolia.etherscan.io',
           networkIndex: 0
         },

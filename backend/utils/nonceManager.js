@@ -283,11 +283,11 @@ class NonceManager {
       ],
       11155111: [ // Sepolia
         'https://rpc.sepolia.org',
-        'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161'
+        process.env.SEPOLIA_INFURA_URL || 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY'
       ],
       17000: [ // Holesky
         'https://ethereum-holesky.publicnode.com',
-        'https://holesky.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161'
+        process.env.HOLESKY_INFURA_URL || 'https://holesky.infura.io/v3/YOUR_INFURA_KEY'
       ],
       421614: [ // Arbitrum Sepolia
         'https://sepolia-rollup.arbitrum.io/rpc'
