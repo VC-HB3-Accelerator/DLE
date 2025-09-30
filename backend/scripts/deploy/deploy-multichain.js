@@ -501,7 +501,7 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
     }
   }
 
-  const rc = await tx.wait();
+  const rc = await tx.wait(2); // Ждем 2 подтверждения с таймаутом
   
   // Отмечаем транзакцию как подтвержденную в NonceManager
   nonceManager.markTransactionConfirmed(wallet.address, chainId, tx.hash);
@@ -522,11 +522,22 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
       const DLE = await hre.ethers.getContractFactory('contracts/DLE.sol:DLE');
       const dleContract = DLE.attach(deployedAddress);
       
-      const logoTx = await dleContract.connect(wallet).initializeLogoURI(params.logoURI, feeOverrides);
-      await logoTx.wait();
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized successfully`);
+      // Проверяем текущий логотип перед инициализацией
+      const currentLogo = await dleContract.logoURI();
+      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} current logoURI: ${currentLogo}`);
+      
+      if (currentLogo === '' || currentLogo === '0x') {
+        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI is empty, initializing...`);
+        const logoTx = await dleContract.connect(wallet).initializeLogoURI(params.logoURI, feeOverrides);
+        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI transaction sent: ${logoTx.hash}`);
+        await logoTx.wait(2); // Ждем 2 подтверждения с таймаутом
+        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized successfully`);
+      } else {
+        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI already set: ${currentLogo}, skipping initialization`);
+      }
     } catch (error) {
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed: ${error.message}`);
+      logger.error(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed: ${error.message}`);
+      logger.error(`[MULTI_DBG] chainId=${Number(net.chainId)} error stack: ${error.stack}`);
       // Не прерываем деплой из-за ошибки логотипа
     }
   } else {

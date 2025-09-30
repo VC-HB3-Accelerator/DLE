@@ -31,10 +31,18 @@ function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
   console.log('🔌 [WebSocket] Сервер инициализирован на пути /ws');
   
+  // Инициализируем deploymentWebSocketService с WebSocket сервером после создания wss
+  deploymentWebSocketService.initialize(server, wss);
+  
   // Подключаем deployment tracker к WebSocket
   deploymentTracker.on('deployment_updated', (data) => {
     broadcastDeploymentUpdate(data);
   });
+  
+  // Дополнительная инициализация deploymentWebSocketService после создания wss
+  console.log('[wsHub] Инициализируем deploymentWebSocketService с wss:', !!wss);
+  deploymentWebSocketService.setWebSocketServer(wss);
+  console.log('[wsHub] deploymentWebSocketService инициализирован');
   
   wss.on('connection', (ws, req) => {
     console.log('🔌 [WebSocket] Новое подключение');
@@ -500,34 +508,7 @@ function broadcastDeploymentUpdate(data) {
   console.log(`📡 [WebSocket] Отправлено deployment update: deployment_update`);
 }
 
-// Функция для уведомления об обновлениях модулей
-function broadcastModulesUpdate(dleAddress, updateType, moduleData) {
-  if (!wss) return;
-  
-  console.log(`📡 [WebSocket] broadcastModulesUpdate вызвана для DLE: ${dleAddress}, тип: ${updateType}`);
-  
-  const message = JSON.stringify({
-    type: updateType,
-    dleAddress: dleAddress,
-    moduleData: moduleData,
-    timestamp: Date.now()
-  });
-  
-  console.log(`📡 [WebSocket] Отправляем сообщение модулей:`, message);
-  
-  // Отправляем всем подключенным клиентам
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(message);
-      } catch (error) {
-        console.error('[WebSocket] Ошибка при отправке modules update:', error);
-      }
-    }
-  });
-  
-  console.log(`📡 [WebSocket] Отправлено modules update: ${updateType} для DLE: ${dleAddress}`);
-}
+// broadcastModulesUpdate удалена - используем deploymentWebSocketService.broadcastToDLE
 
 module.exports = { 
   initWSS, 
@@ -548,7 +529,6 @@ module.exports = {
   broadcastTokenBalancesUpdate,
   broadcastTokenBalanceChanged,
   broadcastDeploymentUpdate,
-  broadcastModulesUpdate,
   getConnectedUsers,
   getStats
 };

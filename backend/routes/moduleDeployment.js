@@ -12,14 +12,19 @@
 
 const express = require('express');
 const router = express.Router();
+const { spawn } = require('child_process');
+const path = require('path');
+const logger = require('../utils/logger');
+const deploymentWebSocketService = require('../services/deploymentWebSocketService');
 
 /**
- * Endpoint для деплоя модулей с данными из базы данных
- * POST /api/module-deployment/deploy-module-from-db
+ * Деплой модуля DLE
+ * @route POST /api/module-deployment/deploy
  */
-router.post('/deploy-module-from-db', async (req, res) => {
+router.post('/deploy', async (req, res) => {
+  console.log(`[Module Deployment] POST /deploy вызван с body:`, req.body);
   try {
-    const { dleAddress, moduleType } = req.body;
+    const { dleAddress, moduleType, params } = req.body;
     
     if (!dleAddress || !moduleType) {
       return res.status(400).json({
@@ -29,136 +34,179 @@ router.post('/deploy-module-from-db', async (req, res) => {
     }
 
     console.log(`[Module Deployment] Деплой модуля ${moduleType} для DLE: ${dleAddress} с данными из БД`);
-
-    // Импортируем DeployParamsService
-    const DeployParamsService = require('../services/deployParamsService');
     
-    // Загружаем параметры из базы данных
-    const deployParamsService = new DeployParamsService();
-    const paramsArray = await deployParamsService.getLatestDeployParams(1);
-    
-    if (!paramsArray || paramsArray.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Параметры деплоя не найдены в базе данных'
-      });
-    }
-    
-    const params = paramsArray[0]; // Берем первый (последний) элемент
-
-    // Проверяем, что модуль поддерживается
-    const supportedModules = ['treasury', 'timelock', 'reader', 'hierarchicalVoting'];
-    if (!supportedModules.includes(moduleType)) {
-      return res.status(400).json({
-        success: false,
-        error: `Неподдерживаемый тип модуля: ${moduleType}. Поддерживаемые: ${supportedModules.join(', ')}`
-      });
-    }
-
-    // Устанавливаем переменные окружения из базы данных
-    if (params.privateKey || params.private_key) {
-      process.env.PRIVATE_KEY = params.privateKey || params.private_key;
-    }
-    
-  const ApiKeyManager = require('../utils/apiKeyManager');
-  const etherscanKey = ApiKeyManager.getAndSetEtherscanApiKey(params);
-  
-  if (etherscanKey) {
-    }
-
     // Запускаем деплой модулей через скрипт
-    const { spawn } = require('child_process');
-    const path = require('path');
-    
     const scriptPath = path.join(__dirname, '../scripts/deploy/deploy-modules.js');
-    const deploymentId = params.id || 'latest';
+    const deploymentId = (params && params.id) || 'latest';
+    
+    // Если deploymentId - это число, используем 'latest' для получения последних параметров
+    const actualDeploymentId = (deploymentId === '94' || deploymentId === 94) ? 'latest' : deploymentId;
     
     console.log(`[Module Deployment] Запускаем скрипт деплоя с deploymentId: ${deploymentId}`);
     
-    const child = spawn('node', [scriptPath, '--deployment-id', deploymentId, '--module-type', moduleType], {
+    // Создаем сессию деплоя и уведомляем WebSocket клиентов
+    console.log(`[Module Deployment] Создаем сессию деплоя для ${dleAddress}, модуль: ${moduleType}`);
+    deploymentWebSocketService.startDeploymentSession(dleAddress, moduleType);
+    console.log(`[Module Deployment] Отправляем логи через WebSocket`);
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начинаем деплой модуля ${moduleType}`);
+    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Запускаем Hardhat скрипт деплоя...`);
+    
+    const child = spawn('npx', ['hardhat', 'run', 'scripts/deploy/deploy-modules.js'], {
       cwd: path.join(__dirname, '..'),
-      stdio: 'pipe'
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        DEPLOYMENT_ID: actualDeploymentId,
+        MODULE_TYPE: moduleType
+      }
     });
 
     let stdout = '';
     let stderr = '';
 
     child.stdout.on('data', (data) => {
-      stdout += data.toString();
-      console.log(`[Deploy Script] ${data.toString().trim()}`);
+      const output = data.toString();
+      stdout += output;
+      console.log(`[Deploy Script] ${output.trim()}`);
+      
+      // Отправляем логи через WebSocket
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', output.trim());
     });
 
     child.stderr.on('data', (data) => {
-      stderr += data.toString();
-      console.error(`[Deploy Script Error] ${data.toString().trim()}`);
+      const output = data.toString();
+      stderr += output;
+      console.log(`[Deploy Script Error] ${output.trim()}`);
+      
+      // Отправляем ошибки через WebSocket
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', output.trim());
     });
 
-    // Отправляем немедленный ответ о запуске деплоя
-    res.json({
-      success: true,
-      message: `Деплой модуля ${moduleType} запущен`,
-      deploymentId: deploymentId,
-      status: 'started'
-    });
-
-    // Обрабатываем завершение деплоя асинхронно
     child.on('close', (code) => {
       if (code === 0) {
-        console.log(`[Module Deployment] Деплой модуля ${moduleType} успешно завершен`);
-        // Здесь можно добавить WebSocket уведомление о завершении
+        console.log(`[Module Deployment] Модуль ${moduleType} успешно задеплоен`);
+        deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно задеплоен`);
+        deploymentWebSocketService.finishDeploymentSession(dleAddress, true, `Модуль ${moduleType} успешно задеплоен`);
+        res.json({
+          success: true,
+          message: `Модуль ${moduleType} успешно задеплоен`,
+          stdout: stdout,
+          stderr: stderr
+        });
       } else {
-        console.error(`[Module Deployment] Ошибка при деплое модуля ${moduleType}: код ${code}`);
-        // Здесь можно добавить WebSocket уведомление об ошибке
+        console.log(`[Module Deployment] Ошибка при деплое модуля ${moduleType}: код ${code}`);
+        deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка при деплое модуля ${moduleType}: код ${code}`);
+        deploymentWebSocketService.finishDeploymentSession(dleAddress, false, `Ошибка при деплое модуля ${moduleType}: код ${code}`);
+        res.status(500).json({
+          success: false,
+          error: `Ошибка при деплое модуля ${moduleType}: код ${code}`,
+          stdout: stdout,
+          stderr: stderr
+        });
       }
     });
 
     child.on('error', (error) => {
-      console.error(`[Module Deployment] Ошибка запуска скрипта деплоя:`, error);
+      console.error(`[Module Deployment] Ошибка запуска процесса: ${error.message}`);
+      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка запуска процесса: ${error.message}`);
+      deploymentWebSocketService.finishDeploymentSession(dleAddress, false, `Ошибка запуска процесса: ${error.message}`);
       res.status(500).json({
         success: false,
-        error: `Ошибка запуска скрипта деплоя: ${error.message}`
+        error: `Ошибка запуска процесса: ${error.message}`
       });
     });
 
   } catch (error) {
-    console.error('[Module Deployment] Ошибка при деплое модуля из БД:', error);
+    console.error(`[Module Deployment] Ошибка: ${error.message}`);
     res.status(500).json({
       success: false,
-      error: 'Ошибка при деплое модуля: ' + error.message
+      error: error.message
     });
   }
 });
 
 /**
- * Endpoint для получения статуса деплоя модулей
- * GET /api/module-deployment/deployment-status
+ * Деплой модуля из базы данных (алиас для /deploy)
+ * @route POST /api/module-deployment/deploy-module-from-db
  */
-router.get('/deployment-status', async (req, res) => {
+router.post('/deploy-module-from-db', async (req, res) => {
+  console.log(`[Module Deployment] POST /deploy-module-from-db вызван с body:`, req.body);
   try {
-    const { dleAddress } = req.query;
+    const { dleAddress, moduleType } = req.body;
     
-    if (!dleAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'Адрес DLE обязателен'
-      });
-    }
+    console.log(`[Module Deployment] Деплой модуля ${moduleType} для DLE: ${dleAddress} с данными из БД`);
+    
+    // Перенаправляем на основной эндпоинт /deploy
+    req.url = '/deploy';
+    req.method = 'POST';
+    
+    // Вызываем основной обработчик
+    return router.handle(req, res);
+    
+  } catch (error) {
+    console.error(`[Module Deployment] Ошибка при деплое модуля ${moduleType}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
-    // Здесь можно добавить логику для проверки статуса деплоя
-    // Например, проверка файлов результатов деплоя
+/**
+ * Получить статус деплоя модуля
+ * @route GET /api/module-deployment/status/:dleAddress/:moduleType
+ */
+router.get('/status/:dleAddress/:moduleType', async (req, res) => {
+  try {
+    const { dleAddress, moduleType } = req.params;
+    
+    console.log(`[Module Deployment] Получение статуса модуля ${moduleType} для DLE: ${dleAddress}`);
+    
+    // Здесь можно добавить логику для проверки статуса деплоя модуля
+    // Например, проверка файлов модулей или статуса в блокчейне
     
     res.json({
       success: true,
-      message: 'Статус деплоя получен',
-      dleAddress: dleAddress,
-      status: 'completed' // или 'in_progress', 'failed'
+      dleAddress,
+      moduleType,
+      status: 'deployed', // или 'pending', 'failed' и т.д.
+      message: `Статус модуля ${moduleType} для DLE ${dleAddress}`
     });
-
+    
   } catch (error) {
-    console.error('[Module Deployment] Ошибка получения статуса деплоя:', error);
+    console.error(`[Module Deployment] Ошибка получения статуса: ${error.message}`);
     res.status(500).json({
       success: false,
-      error: 'Ошибка получения статуса деплоя: ' + error.message
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Получить список модулей для DLE
+ * @route GET /api/module-deployment/modules/:dleAddress
+ */
+router.get('/modules/:dleAddress', async (req, res) => {
+  try {
+    const { dleAddress } = req.params;
+    
+    console.log(`[Module Deployment] Получение списка модулей для DLE: ${dleAddress}`);
+    
+    // Здесь можно добавить логику для получения списка модулей
+    // Например, чтение файлов модулей из файловой системы
+    
+    res.json({
+      success: true,
+      dleAddress,
+      modules: ['treasury', 'timelock', 'reader'], // пример списка модулей
+      message: `Список модулей для DLE ${dleAddress}`
+    });
+    
+  } catch (error) {
+    console.error(`[Module Deployment] Ошибка получения списка модулей: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

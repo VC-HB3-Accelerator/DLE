@@ -15,11 +15,10 @@ const hre = require('hardhat');
 const path = require('path');
 const fs = require('fs');
 const logger = require('../../utils/logger');
-const { getFeeOverrides, createProviderAndWallet, alignNonce, getNetworkInfo, createRPCConnection, sendTransactionWithRetry } = require('../../utils/deploymentUtils');
+const { getFeeOverrides, createProviderAndWallet, alignNonce, getNetworkInfo, createRPCConnection, sendTransactionWithRetry, createMultipleRPCConnections } = require('../../utils/deploymentUtils');
 const { nonceManager } = require('../../utils/nonceManager');
 
-// WebSocket сервис для отслеживания деплоя
-const deploymentWebSocketService = require('../../services/deploymentWebSocketService');
+// WebSocket сервис удален - логи отправляются через главный процесс
 
 // Сервис для верификации контрактов
 // ContractVerificationService удален - используем Hardhat verify
@@ -50,10 +49,10 @@ const MODULE_CONFIGS = {
   },
   reader: {
     contractName: 'DLEReader',
-    constructorArgs: (dleAddress) => [
+    constructorArgs: (dleAddress, chainId, walletAddress) => [
       dleAddress // _dleContract
     ],
-    verificationArgs: (dleAddress) => [
+    verificationArgs: (dleAddress, chainId, walletAddress) => [
       dleAddress // _dleContract
     ]
   },
@@ -408,7 +407,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
 
 
 // Деплой всех модулей в одной сети
-async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces) {
+async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params) {
   const { ethers } = hre;
   
   // Используем новый менеджер RPC с retry логикой
@@ -428,37 +427,37 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
     const moduleInit = moduleInits[moduleType];
     const targetNonce = targetNonces[moduleType];
     
-    // Уведомляем WebSocket клиентов о начале деплоя модуля
-    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
+    // Логирование деплоя модуля
+    logger.info(`[MODULES_DBG] Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
     
     if (!MODULE_CONFIGS[moduleType]) {
       logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} Unknown module type: ${moduleType}`);
       results[moduleType] = { success: false, error: `Unknown module type: ${moduleType}` };
-      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Неизвестный тип модуля: ${moduleType}`);
+      logger.error(`[MODULES_DBG] Неизвестный тип модуля: ${moduleType}`);
       continue;
     }
     
     if (!moduleInit) {
       logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} No init code for module: ${moduleType}`);
       results[moduleType] = { success: false, error: `No init code for module: ${moduleType}` };
-      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Отсутствует код инициализации для модуля: ${moduleType}`);
+      logger.error(`[MODULES_DBG] Отсутствует код инициализации для модуля: ${moduleType}`);
       continue;
     }
     
     try {
       const result = await deployModuleInNetwork(rpcUrl, pk, salt, null, targetNonce, moduleInit, moduleType);
       results[moduleType] = { ...result, success: true };
-      deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
+      logger.info(`[MODULES_DBG] Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
       
       // Автоматическая верификация после успешного деплоя
       if (result.address && params.etherscanApiKey && params.autoVerifyAfterDeploy) {
         try {
           logger.info(`🔍 Начинаем автоматическую верификацию модуля ${moduleType}...`);
-          deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начинаем верификацию модуля ${moduleType} в Etherscan...`);
+          logger.info(`[MODULES_DBG] Начинаем верификацию модуля ${moduleType} в Etherscan...`);
           
           // Получаем аргументы конструктора для модуля
           const moduleConfig = MODULE_CONFIGS[moduleType];
-          const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(net.chainId), walletAddress);
+          const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(net.chainId), wallet.address);
           
           const verificationResult = await verifyModuleAfterDeploy(
             Number(net.chainId),
@@ -470,18 +469,18 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
           
           if (verificationResult.success) {
             results[moduleType].verification = 'verified';
-            deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно верифицирован в Etherscan!`);
+            logger.info(`[MODULES_DBG] Модуль ${moduleType} успешно верифицирован в Etherscan!`);
             logger.info(`✅ Модуль ${moduleType} верифицирован: ${result.address}`);
           } else {
             results[moduleType].verification = 'failed';
             results[moduleType].verificationError = verificationResult.error || verificationResult.message;
-            deploymentWebSocketService.addDeploymentLog(dleAddress, 'warning', `Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
+            logger.warn(`[MODULES_DBG] Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
             logger.warn(`⚠️ Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
           }
         } catch (verificationError) {
           results[moduleType].verification = 'error';
           results[moduleType].verificationError = verificationError.message;
-          deploymentWebSocketService.addDeploymentLog(dleAddress, 'warning', `Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
+          logger.error(`[MODULES_DBG] Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
           logger.error(`❌ Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
         }
       } else {
@@ -499,7 +498,7 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
         success: false, 
         error: error.message 
       };
-      deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка деплоя модуля ${moduleType} в сети ${net.name || net.chainId}: ${error.message}`);
+      logger.error(`[MODULES_DBG] Ошибка деплоя модуля ${moduleType} в сети ${net.name || net.chainId}: ${error.message}`);
     }
   }
   
@@ -529,14 +528,21 @@ async function deployAllModulesInAllNetworks(networks, pk, salt, dleAddress, mod
 async function main() {
   const { ethers } = hre;
   
-  // Обрабатываем аргументы командной строки
+  // Обрабатываем аргументы командной строки и переменные окружения
   const args = process.argv.slice(2);
   let moduleTypeFromArgs = null;
   
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--module-type' && i + 1 < args.length) {
-      moduleTypeFromArgs = args[i + 1];
-      break;
+  // Сначала проверяем переменные окружения
+  if (process.env.MODULE_TYPE) {
+    moduleTypeFromArgs = process.env.MODULE_TYPE;
+    logger.info(`🔍 Модуль из переменной окружения: ${moduleTypeFromArgs}`);
+  } else {
+    // Затем проверяем аргументы командной строки
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--module-type' && i + 1 < args.length) {
+        moduleTypeFromArgs = args[i + 1];
+        break;
+      }
     }
   }
   
@@ -550,7 +556,7 @@ async function main() {
     
     // Проверяем, передан ли конкретный deploymentId
     const deploymentId = process.env.DEPLOYMENT_ID;
-    if (deploymentId) {
+    if (deploymentId && deploymentId !== 'latest') {
       logger.info(`🔍 Ищем параметры для deploymentId: ${deploymentId}`);
       params = await deployParamsService.getDeployParams(deploymentId);
       if (params) {
@@ -560,6 +566,7 @@ async function main() {
       }
     } else {
       // Получаем последние параметры деплоя
+      logger.info(`🔍 Получаем последние параметры деплоя (deploymentId: ${deploymentId})`);
       const latestParams = await deployParamsService.getLatestDeployParams(1);
       if (latestParams.length > 0) {
         params = latestParams[0];
@@ -613,11 +620,9 @@ async function main() {
   
   // Уведомляем WebSocket клиентов о начале деплоя
   if (moduleTypeFromArgs) {
-    deploymentWebSocketService.startDeploymentSession(dleAddress, moduleTypeFromArgs);
-    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начало деплоя модуля ${moduleTypeFromArgs}`);
+    logger.info(`[MODULES_DBG] Начало деплоя модуля ${moduleTypeFromArgs}`);
   } else {
-    deploymentWebSocketService.startDeploymentSession(dleAddress, modulesToDeploy.join(', '));
-    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начало деплоя модулей: ${modulesToDeploy.join(', ')}`);
+    logger.info(`[MODULES_DBG] Начало деплоя модулей: ${modulesToDeploy.join(', ')}`);
   }
   
   // Устанавливаем API ключ Etherscan из базы данных, если доступен
@@ -710,7 +715,7 @@ async function main() {
       
       logger.info(`[MODULES_DBG] 📡 Network ${networkIndex + 1} chainId: ${chainId}`);
       
-      const result = await deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces);
+      const result = await deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params);
       logger.info(`[MODULES_DBG] ✅ Network ${networkIndex + 1} (chainId: ${chainId}) deployment SUCCESS`);
       return { rpcUrl, chainId, ...result };
     } catch (error) {
@@ -813,7 +818,7 @@ async function main() {
     for (let i = 0; i < networks.length; i++) {
       const rpcUrl = networks[i];
       const deployResult = deployResults[i];
-      const verificationResult = verificationResults[i];
+      const verificationResult = deployResult.verification || 'unknown';
       const moduleResult = deployResult.modules?.[moduleType];
       const verification = verificationResult?.modules?.[moduleType] || 'unknown';
       
@@ -916,15 +921,15 @@ async function main() {
   logger.info(`[MODULES_DBG] successCount: ${successCount}, totalCount: ${totalCount}`);
   
   if (successCount === totalCount) {
-    logger.info(`[MODULES_DBG] Вызываем finishDeploymentSession с success=true`);
-    deploymentWebSocketService.finishDeploymentSession(dleAddress, true, `Деплой завершен успешно! Задеплоено ${successCount} из ${totalCount} модулей`);
+    logger.info(`[MODULES_DBG] Деплой завершен успешно! Задеплоено ${successCount} из ${totalCount} модулей`);
   } else {
-    logger.info(`[MODULES_DBG] Вызываем finishDeploymentSession с success=false`);
-    deploymentWebSocketService.finishDeploymentSession(dleAddress, false, `Деплой завершен с ошибками. Задеплоено ${successCount} из ${totalCount} модулей`);
+    logger.info(`[MODULES_DBG] Деплой завершен с ошибками. Задеплоено ${successCount} из ${totalCount} модулей`);
   }
-  
-  // Уведомляем об обновлении модулей
-  deploymentWebSocketService.notifyModulesUpdated(dleAddress);
 }
 
-main().catch((e) => { logger.error(e); process.exit(1); });
+main().catch((e) => { 
+  logger.error('❌ Критическая ошибка в main():', e.message);
+  logger.error('❌ Stack trace:', e.stack);
+  logger.error('❌ Error details:', e);
+  process.exit(1); 
+});

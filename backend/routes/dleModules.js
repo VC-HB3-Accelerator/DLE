@@ -20,7 +20,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS } = require('../constants/moduleIds');
 const fs = require('fs');
-const { broadcastModulesUpdate } = require('../wsHub');
+// broadcastModulesUpdate удален - используем deploymentWebSocketService
+const DeployParamsService = require('../services/deployParamsService');
 
 // Функция для получения информации о задеплоенных модулях из файлов деплоя
 async function getDeployedModulesInfo(dleAddress) {
@@ -613,6 +614,7 @@ router.post('/get-all-modules', async (req, res) => {
     // Получаем поддерживаемые сети из параметров деплоя
     let supportedNetworks = [];
     try {
+      const deployParamsService = new DeployParamsService();
       const latestParams = await deployParamsService.getLatestDeployParams(1);
       if (latestParams.length > 0) {
         const params = latestParams[0];
@@ -627,6 +629,7 @@ router.post('/get-all-modules', async (req, res) => {
           networkIndex: index
         }));
       }
+      await deployParamsService.close();
     } catch (error) {
       console.error('❌ Ошибка получения параметров деплоя:', error);
       // Fallback для совместимости

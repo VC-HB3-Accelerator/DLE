@@ -15,10 +15,18 @@ class DeploymentWebSocketService {
   /**
    * Инициализация WebSocket сервера
    */
-  initialize(server) {
-    // Теперь мы не создаем отдельный WebSocket сервер,
-    // а работаем с основным WebSocket сервером через wsHub
+  initialize(server, wss) {
+    // Сохраняем ссылку на WebSocket сервер для отправки сообщений
+    this.wss = wss;
     console.log('[DeploymentWS] WebSocket сервис для деплоя инициализирован');
+  }
+
+  /**
+   * Установка WebSocket сервера (дополнительная инициализация)
+   */
+  setWebSocketServer(wss) {
+    this.wss = wss;
+    console.log('[DeploymentWS] WebSocket сервер установлен, wss:', !!wss, 'clients:', wss ? wss.clients.size : 'N/A');
   }
 
   /**
@@ -220,12 +228,22 @@ class DeploymentWebSocketService {
    * Отправка сообщения всем клиентам конкретного DLE
    */
   broadcastToDLE(dleAddress, message) {
-    const clients = this.clients.get(dleAddress);
-    if (clients) {
-      clients.forEach(ws => {
-        this.sendToClient(ws, message);
-      });
+    console.log('[DeploymentWS] broadcastToDLE вызвана, this.wss:', !!this.wss);
+    if (!this.wss) {
+      console.warn('[DeploymentWS] WebSocket сервер не инициализирован');
+      return;
     }
+
+    // Отправляем сообщение всем подключенным клиентам
+    this.wss.clients.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify(message));
+        } catch (error) {
+          console.error('[DeploymentWS] Ошибка отправки сообщения:', error);
+        }
+      }
+    });
   }
 
   /**

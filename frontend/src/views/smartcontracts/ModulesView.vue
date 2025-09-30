@@ -1207,6 +1207,12 @@ function connectModulesWebSocket() {
 function handleModulesWebSocketMessage(data) {
   console.log('[ModulesView] WebSocket модулей сообщение:', data);
   
+  // Обрабатываем deployment_log в модульном WebSocket
+  if (data.type === 'deployment_log') {
+    addLog(data.log.type, data.log.message);
+    return;
+  }
+  
   // Обрабатываем только сообщения, связанные с модулями, не с деплоем
   if (data.type && data.type.startsWith('deployment_')) {
     console.log('[ModulesView] Пропускаем сообщение о деплое в модульном WebSocket');
