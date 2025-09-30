@@ -18,8 +18,6 @@
     :identities="identities"
     :token-balances="tokenBalances"
     :is-loading-tokens="isLoadingTokens"
-    :telegram-auth="telegramAuth"
-    :email-auth="emailAuth"
   />
   <div class="webssh-settings-block">
     <button class="close-btn" @click="goBack">×</button>
@@ -37,6 +35,18 @@ import Header from '@/components/Header.vue';
 import Sidebar from '@/components/Sidebar.vue';
 import { useAuthContext } from '@/composables/useAuth';
 
+// Определяем пропсы, которые мы принимаем
+defineProps({
+  isAuthenticated: Boolean,
+  identities: Array,
+  tokenBalances: Array,
+  isLoadingTokens: Boolean,
+  formattedLastUpdate: String
+});
+
+// Определяем события, которые мы эмитим
+defineEmits(['authActionCompleted']);
+
 const router = useRouter();
 const goBack = () => router.push('/settings/interface');
 const showSidebar = ref(false);
@@ -49,18 +59,6 @@ const isAuthenticated = auth.isAuthenticated.value;
 const identities = auth.identities?.value || [];
 const tokenBalances = auth.tokenBalances?.value || [];
 const isLoadingTokens = false;
-
-// Дефолтные объекты для Sidebar
-const telegramAuth = {
-  showVerification: false,
-  botLink: '',
-  verificationCode: '',
-  error: ''
-};
-const emailAuth = {
-  showForm: false,
-  showVerification: false
-};
 </script>
 
 <style scoped>

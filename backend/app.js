@@ -30,6 +30,8 @@ const monitoringRoutes = require('./routes/monitoring');
 const pagesRoutes = require('./routes/pages'); // Добавляем импорт роутера страниц
 const uploadsRoutes = require('./routes/uploads');
 const ensRoutes = require('./routes/ens');
+const sshRoutes = require('./routes/ssh'); // SSH роуты
+const encryptionRoutes = require('./routes/encryption'); // Encryption роуты
 // Factory routes removed - no longer needed
 
 // Проверка и создание директорий для хранения данных контрактов
@@ -211,6 +213,8 @@ app.use('/api/pages', pagesRoutes); // Подключаем роутер стр�
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
 app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы)
 app.use('/api/ens', ensRoutes); // ENS utilities
+app.use('/api', sshRoutes); // SSH роуты
+app.use('/api', encryptionRoutes); // Encryption роуты
 // app.use('/api/factory', factoryRoutes); // Factory routes removed - no longer needed
 app.use('/api/compile-contracts', compileRoutes); // Компиляция контрактов
 

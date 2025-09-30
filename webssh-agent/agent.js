@@ -253,6 +253,50 @@ app.post('/tunnel/disconnect', async (req, res) => {
   }
 });
 
+// Настройка VDS
+app.post('/vds/setup', async (req, res) => {
+  try {
+    const { 
+      vdsIp, 
+      domain, 
+      email, 
+      ubuntuUser, 
+      ubuntuPassword, 
+      dockerUser, 
+      dockerPassword, 
+      sshUser, 
+      sshKey, 
+      encryptionKey 
+    } = req.body;
+    
+    log.info(`Настройка VDS: ${vdsIp} для домена: ${domain}`);
+    
+    // Здесь будет логика настройки VDS
+    // 1. Очистка VDS
+    // 2. Установка Ubuntu
+    // 3. Создание пользователей Ubuntu и Docker
+    // 4. Установка Docker, Docker Compose, nginx
+    // 5. Миграция Docker образов
+    // 6. Передача ключей
+    // 7. Обновление переменных в БД
+    // 8. Запуск приложения
+    
+    res.json({
+      success: true,
+      message: 'VDS настроена успешно',
+      domain: domain,
+      vdsIp: vdsIp
+    });
+    
+  } catch (error) {
+    log.error('Ошибка настройки VDS: ' + error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 // Функция отключения туннеля
 async function disconnectTunnel() {
   try {

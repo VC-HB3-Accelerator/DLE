@@ -201,6 +201,24 @@ services:
 
 
 
+  # SSH Key Server для безопасной передачи ключей
+  ssh-key-server:
+    image: node:20-alpine
+    container_name: dapp-ssh-key-server
+    restart: unless-stopped
+    volumes:
+      - ./scripts/ssh-key-server.js:/app/ssh-key-server.js:ro
+      - ./ssl:/app/ssl:ro
+      - ~/.ssh:/root/.ssh:ro
+    ports:
+      - '3001:3001'
+    command: node /app/ssh-key-server.js
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/ssh-key"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Автоматический бэкап базы данных
   backup-service:
     image: postgres:16-alpine

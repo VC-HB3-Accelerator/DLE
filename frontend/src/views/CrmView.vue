@@ -46,6 +46,13 @@
           Подробнее
         </button>
       </div>
+      <!-- Блок Веб3 приложение -->
+      <div class="crm-web3-block">
+        <h2>Веб3 приложение</h2>
+        <button class="details-btn" @click="goToWeb3App">
+          Подробнее
+        </button>
+      </div>
     </div>
   </BaseLayout>
 </template>
@@ -217,6 +224,10 @@ function goToContent() {
 function goToManagement() {
   router.push({ name: 'management' });
 }
+
+function goToWeb3App() {
+  router.push({ name: 'vds-mock' });
+}
 </script>
 
 <style scoped>
@@ -357,5 +368,34 @@ strong {
 }
 .crm-management-block .details-btn {
   margin-top: 0;
+}
+
+.crm-web3-block {
+  margin: 32px 0 24px 0;
+  padding: 24px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 0.7;
+  border: 2px solid #dee2e6;
+}
+.crm-web3-block h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+.crm-web3-block .details-btn {
+  margin-top: 0;
+  background: #6c757d;
+  opacity: 0.6;
+}
+.crm-web3-block .details-btn:hover {
+  background: #5a6268;
+  transform: none;
+  box-shadow: none;
 }
 </style> 

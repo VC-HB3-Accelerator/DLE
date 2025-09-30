@@ -259,6 +259,11 @@ const routes = [
     name: 'management-settings',
     component: () => import('../views/smartcontracts/SettingsView.vue')
   },
+  {
+    path: '/vds-mock',
+    name: 'vds-mock',
+    component: () => import('../views/VdsMockView.vue')
+  },
 ];
 
 const router = createRouter({

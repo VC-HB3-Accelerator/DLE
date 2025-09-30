@@ -21,29 +21,60 @@
     <!-- Форма настроек -->
     <form @submit.prevent="handleSubmit" class="tunnel-form">
       <div class="form-section">
-        <h3>Настройки домена</h3>
+        <h3>Настройки VDS</h3>
+        <div class="form-group">
+          <label for="vdsIp">IP адрес VDS сервера *</label>
+          <input id="vdsIp" v-model="form.vdsIp" type="text" placeholder="192.168.1.100" required :disabled="isConnected" />
+        </div>
         <div class="form-group">
           <label for="domain">Домен *</label>
           <input id="domain" v-model="form.domain" type="text" placeholder="example.com" required :disabled="isConnected" />
+          <small class="form-help">Домен должен указывать на IP VDS сервера (A запись)</small>
         </div>
         <div class="form-group">
           <label for="email">Email для SSL *</label>
           <input id="email" v-model="form.email" type="email" placeholder="admin@example.com" required :disabled="isConnected" />
         </div>
+        <div class="form-group">
+          <label for="ubuntuUser">Логин Ubuntu *</label>
+          <input id="ubuntuUser" v-model="form.ubuntuUser" type="text" placeholder="ubuntu" required :disabled="isConnected" />
+        </div>
+        <div class="form-group">
+          <label for="ubuntuPassword">Пароль Ubuntu *</label>
+          <input id="ubuntuPassword" v-model="form.ubuntuPassword" type="password" placeholder="Введите пароль" required :disabled="isConnected" />
+        </div>
+        <div class="form-group">
+          <label for="dockerUser">Логин Docker *</label>
+          <input id="dockerUser" v-model="form.dockerUser" type="text" placeholder="docker" required :disabled="isConnected" />
+        </div>
+        <div class="form-group">
+          <label for="dockerPassword">Пароль Docker *</label>
+          <input id="dockerPassword" v-model="form.dockerPassword" type="password" placeholder="Введите пароль" required :disabled="isConnected" />
+        </div>
       </div>
       <div class="form-section">
         <h3>Настройки SSH сервера</h3>
-        <div class="form-group">
-          <label for="sshHost">SSH Host/IP *</label>
-          <input id="sshHost" v-model="form.sshHost" type="text" placeholder="192.168.1.100 или server.example.com" required :disabled="isConnected" />
-        </div>
         <div class="form-group">
           <label for="sshUser">SSH Пользователь *</label>
           <input id="sshUser" v-model="form.sshUser" type="text" placeholder="root" required :disabled="isConnected" />
         </div>
         <div class="form-group">
           <label for="sshKey">SSH Приватный ключ *</label>
-          <textarea id="sshKey" v-model="form.sshKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----" rows="6" required :disabled="isConnected"></textarea>
+          <div class="key-container">
+            <textarea id="sshKey" v-model="form.sshKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----" rows="6" required :disabled="isConnected" :type="showSshKey ? 'text' : 'password'"></textarea>
+            <button type="button" @click="toggleSshKey" class="toggle-key-btn" :disabled="isConnected">
+              {{ showSshKey ? 'Скрыть' : 'Показать' }}
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="encryptionKey">Ключ шифрования *</label>
+          <div class="encryption-key-container">
+            <textarea id="encryptionKey" v-model="form.encryptionKey" placeholder="Ключ шифрования будет загружен автоматически..." rows="4" required :disabled="isConnected" :type="showEncryptionKey ? 'text' : 'password'"></textarea>
+            <button type="button" @click="toggleEncryptionKey" class="toggle-key-btn" :disabled="isConnected">
+              {{ showEncryptionKey ? 'Скрыть' : 'Показать' }}
+            </button>
+          </div>
         </div>
       </div>
       <div class="form-section advanced-section">
@@ -84,23 +115,70 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useWebSshService } from '../services/webSshService';
 const webSshService = useWebSshService();
 const isLoading = ref(false);
 const isConnected = ref(false);
 const connectionStatus = ref('Не подключено');
 const logs = ref([]);
+const showSshKey = ref(false);
+const showEncryptionKey = ref(false);
 const form = reactive({
+  vdsIp: '',
   domain: '',
   email: '',
-  sshHost: '',
+  ubuntuUser: 'ubuntu',
+  ubuntuPassword: '',
+  dockerUser: 'docker',
+  dockerPassword: '',
   sshUser: '',
   sshKey: '',
+  encryptionKey: '',
   localPort: 5173,
   serverPort: 9000,
   sshPort: 22
 });
+
+// Автоматически загружаем SSH ключ и ключ шифрования при загрузке компонента
+onMounted(async () => {
+  try {
+    // Пытаемся получить SSH ключ с хостового сервера
+    const response = await fetch('http://localhost:3001/ssh-key');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.sshKey) {
+        form.sshKey = data.sshKey;
+        addLog('info', 'SSH ключ автоматически загружен');
+      } else {
+        addLog('error', 'SSH ключ не найден. Запустите ./setup.sh для создания ключей');
+      }
+    } else {
+      addLog('error', 'SSH ключ не найден. Запустите ./setup.sh для создания ключей');
+    }
+  } catch (error) {
+    addLog('error', 'SSH ключ не найден. Запустите ./setup.sh для создания ключей');
+  }
+
+  // Загружаем ключ шифрования
+  try {
+    const response = await fetch('http://localhost:3001/encryption-key');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.encryptionKey) {
+        form.encryptionKey = data.encryptionKey;
+        addLog('info', 'Ключ шифрования автоматически загружен');
+      } else {
+        addLog('error', 'Ключ шифрования не найден');
+      }
+    } else {
+      addLog('error', 'Ключ шифрования не найден');
+    }
+  } catch (error) {
+    addLog('error', 'Ошибка загрузки ключа шифрования');
+  }
+});
+
 function validatePrivateKey(key) {
   if (!key) return false;
   const trimmed = key.trim();
@@ -124,6 +202,14 @@ const handleSubmit = async () => {
       connectionStatus.value = `Подключено к ${form.domain}`;
       addLog('success', 'SSH туннель успешно создан и настроен');
       addLog('info', `Ваше приложение доступно по адресу: https://${form.domain}`);
+      
+      // Сохраняем статус VDS как настроенного
+      localStorage.setItem('vds-config', JSON.stringify({ isConfigured: true }));
+      
+      // Отправляем событие об изменении статуса VDS
+      window.dispatchEvent(new CustomEvent('vds-status-changed', {
+        detail: { isConfigured: true }
+      }));
     } else {
       addLog('error', result.message || 'Ошибка при создании туннеля');
     }
@@ -152,7 +238,7 @@ const disconnectTunnel = async () => {
   }
 };
 const validateForm = () => {
-  if (!form.domain || !form.email || !form.sshHost || !form.sshUser || !form.sshKey) {
+  if (!form.vdsIp || !form.domain || !form.email || !form.ubuntuUser || !form.ubuntuPassword || !form.dockerUser || !form.dockerPassword || !form.sshUser || !form.sshKey || !form.encryptionKey) {
     addLog('error', 'Заполните все обязательные поля');
     return false;
   }
@@ -168,16 +254,23 @@ const validateForm = () => {
 };
 const resetForm = () => {
   Object.assign(form, {
+    vdsIp: '',
     domain: '',
     email: '',
-    sshHost: '',
+    ubuntuUser: 'ubuntu',
+    ubuntuPassword: '',
+    dockerUser: 'docker',
+    dockerPassword: '',
     sshUser: '',
     sshKey: '',
+    encryptionKey: '',
     localPort: 5173,
     serverPort: 9000,
     sshPort: 22
   });
   logs.value = [];
+  showSshKey.value = false;
+  showEncryptionKey.value = false;
 };
 const addLog = (type, message) => {
   logs.value.push({
@@ -185,6 +278,15 @@ const addLog = (type, message) => {
     message,
     timestamp: new Date()
   });
+};
+
+// Методы для переключения видимости ключей
+const toggleSshKey = () => {
+  showSshKey.value = !showSshKey.value;
+};
+
+const toggleEncryptionKey = () => {
+  showEncryptionKey.value = !showEncryptionKey.value;
 };
 const formatTime = (timestamp) => {
   return timestamp.toLocaleTimeString();
@@ -442,6 +544,14 @@ const formatTime = (timestamp) => {
   font-weight: 600;
 }
 
+/* Стили для контейнера ключа шифрования */
+.encryption-key-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+
 /* Адаптивность */
 @media (max-width: 768px) {
   .form-row {
@@ -462,5 +572,71 @@ const formatTime = (timestamp) => {
     align-items: flex-start;
     gap: 0.5rem;
   }
+  
+}
+
+/* Маскировка приватных ключей */
+textarea[type="password"] {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+  color: transparent;
+  text-shadow: 0 0 8px #000;
+  background: repeating-linear-gradient(
+    0deg,
+    #333 0px,
+    #333 1px,
+    #444 1px,
+    #444 2px
+  );
+  border: 1px solid #555;
+}
+
+textarea[type="password"]:focus {
+  color: transparent;
+  text-shadow: 0 0 8px #000;
+  background: repeating-linear-gradient(
+    0deg,
+    #333 0px,
+    #333 1px,
+    #444 1px,
+    #444 2px
+  );
+}
+
+/* Показывать содержимое при фокусе для редактирования */
+textarea[type="password"]:focus::placeholder {
+  color: #666;
+  text-shadow: none;
+}
+
+/* Контейнеры для ключей */
+.key-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.toggle-key-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  align-self: flex-start;
+}
+
+.toggle-key-btn:hover {
+  background: #0056b3;
+}
+
+.toggle-key-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
 }
 </style> 

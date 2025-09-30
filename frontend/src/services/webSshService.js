@@ -17,6 +17,109 @@
 
 const LOCAL_AGENT_URL = 'http://localhost:12345';
 
+// Функция для генерации nginx конфигурации
+function getNginxConfig(domain, serverPort) {
+  return `# Rate limiting для защиты от DDoS
+limit_req_zone $binary_remote_addr zone=req_limit_per_ip:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=api_limit_per_ip:10m rate=5r/s;
+
+# Блокировка известных сканеров и вредоносных ботов
+map $http_user_agent $bad_bot {
+    default 0;
+    ~*bot 1;
+    ~*crawler 1;
+    ~*spider 1;
+    ~*scanner 1;
+    ~*sqlmap 1;
+    ~*nikto 1;
+    ~*dirb 1;
+    ~*gobuster 1;
+    ~*wfuzz 1;
+    ~*burp 1;
+    ~*zap 1;
+    ~*nessus 1;
+    ~*openvas 1;
+}
+
+server {
+    listen 80;
+    server_name ${domain};
+    
+    # Блокировка подозрительных ботов
+    if ($bad_bot = 1) {
+        return 403;
+    }
+    
+    # Защита от path traversal
+    if ($request_uri ~* "(\\\\.\\\\.|\\\\.\\\\./|\\\\.\\\\.\\\\.\\\\|\\\\.\\\\.%2f|\\\\.\\\\.%5c)") {
+        return 404;
+    }
+    
+    # Защита от опасных расширений
+    location ~* \\\\.(zip|rar|7z|tar|gz|bz2|xz|sql|sqlite|db|bak|backup|old|csv|php|asp|aspx|jsp|cgi|pl|py|sh|bash|exe|bat|cmd|com|pif|scr|vbs|vbe|jar|war|ear|dll|so|dylib|bin|sys|ini|log|tmp|temp|swp|swo|~)$ {
+        return 404;
+    }
+    
+    # Защита от доступа к чувствительным файлам
+    location ~* /(\\\\.htaccess|\\\\.htpasswd|\\\\.env|\\\\.git|\\\\.svn|\\\\.DS_Store|Thumbs\\\\.db|web\\\\.config|robots\\\\.txt|sitemap\\\\.xml)$ {
+        deny all;
+        return 404;
+    }
+    
+    # Основной location для фронтенда
+    location / {
+        # Rate limiting для основных страниц
+        limit_req zone=req_limit_per_ip burst=20 nodelay;
+        
+        proxy_pass http://localhost:${serverPort};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Базовые заголовки безопасности
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:;" always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    }
+    
+    # API проксирование к backend через туннель
+    location /api/ {
+        # Rate limiting для API (более строгое)
+        limit_req zone=api_limit_per_ip burst=10 nodelay;
+        
+        proxy_pass http://localhost:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Заголовки безопасности для API
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+    }
+    
+    # WebSocket поддержка
+    location /ws {
+        proxy_pass http://localhost:8000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Скрытие информации о сервере
+    server_tokens off;
+}`;
+}
+
 class WebSshService {
   constructor() {
     this.isAgentRunning = false;
@@ -164,10 +267,52 @@ EOF
   }
 
   /**
-   * Создание SSH туннеля
+   * Проверка DNS записей домена
    */
-  async createTunnel(config) {
+  async checkDomainDNS(domain, vdsIp) {
     try {
+      console.log(`Проверка DNS записей для домена ${domain}...`);
+      
+      // Простая проверка через fetch (может не работать в браузере из-за CORS)
+      // В реальной реализации нужно использовать backend API
+      const response = await fetch(`https://dns.google/resolve?name=${domain}&type=A`);
+      const data = await response.json();
+      
+      if (data.Answer && data.Answer.length > 0) {
+        const dnsIp = data.Answer[0].data;
+        if (dnsIp === vdsIp) {
+          console.log(`DNS запись корректна: ${domain} → ${vdsIp}`);
+          return true;
+        } else {
+          console.log(`DNS запись неверна: ${domain} → ${dnsIp} (ожидается ${vdsIp})`);
+          return false;
+        }
+      } else {
+        console.log(`DNS запись для домена ${domain} не найдена`);
+        return false;
+      }
+    } catch (error) {
+      console.warn(`Не удалось проверить DNS: ${error.message}. Продолжаем настройку...`);
+      return true; // Продолжаем даже если DNS проверка не удалась
+    }
+  }
+
+  /**
+   * Настройка существующей VDS для туннелей
+   */
+  async setupVDS(config) {
+    try {
+      // Проверяем DNS записи домена
+      if (config.domain && config.vdsIp) {
+        const dnsValid = await this.checkDomainDNS(config.domain, config.vdsIp);
+        if (!dnsValid) {
+          return {
+            success: false,
+            message: 'DNS записи не готовы. Убедитесь, что домен указывает на IP VDS сервера.'
+          };
+        }
+      }
+
       // Проверяем, что агент запущен
       const agentStatus = await this.checkAgentStatus();
       if (!agentStatus.running) {
@@ -178,21 +323,23 @@ EOF
         }
       }
 
-      // Отправляем конфигурацию туннеля агенту
-      const response = await fetch(`${LOCAL_AGENT_URL}/tunnel/create`, {
+      // Отправляем конфигурацию VDS агенту
+      const response = await fetch(`${LOCAL_AGENT_URL}/vds/setup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          vdsIp: config.vdsIp,
           domain: config.domain,
           email: config.email,
-          sshHost: config.sshHost,
+          ubuntuUser: config.ubuntuUser,
+          ubuntuPassword: config.ubuntuPassword,
+          dockerUser: config.dockerUser,
+          dockerPassword: config.dockerPassword,
           sshUser: config.sshUser,
           sshKey: config.sshKey,
-          localPort: config.localPort || 5173,
-          serverPort: config.serverPort || 9000,
-          sshPort: config.sshPort || 22
+          encryptionKey: config.encryptionKey
         })
       });
 
@@ -203,7 +350,7 @@ EOF
           this.connectionStatus = {
             connected: true,
             domain: config.domain,
-            tunnelId: result.tunnelId
+            vdsIp: config.vdsIp
           };
         }
         
@@ -212,11 +359,11 @@ EOF
         const error = await response.json();
         return {
           success: false,
-          message: error.message || 'Ошибка при создании туннеля'
+          message: error.message || 'Ошибка при настройке VDS'
         };
       }
     } catch (error) {
-              // console.error('Ошибка при создании туннеля:', error);
+              // console.error('Ошибка при настройке VDS:', error);
       return {
         success: false,
         message: `Ошибка подключения к агенту: ${error.message}`
@@ -301,6 +448,125 @@ EOF
   }
 
   /**
+   * Настройка почтового сервера
+   */
+  async setupMailServer(ssh, config, domain) {
+    const mailDomain = config.mailDomain || `mail.${domain}`;
+    const adminEmail = config.adminEmail || config.email;
+    const adminPassword = config.adminPassword || 'Admin123!';
+    
+    // Настройка Postfix
+    const postfixConfig = `
+# Основные настройки
+myhostname = ${mailDomain}
+mydomain = ${domain}
+myorigin = $mydomain
+inet_interfaces = all
+inet_protocols = ipv4
+mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain
+relayhost = 
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+mailbox_size_limit = 0
+recipient_delimiter = +
+inet_interfaces = all
+home_mailbox = Maildir/
+
+# SSL настройки
+smtpd_use_tls = yes
+smtpd_tls_cert_file = /etc/letsencrypt/live/${domain}/fullchain.pem
+smtpd_tls_key_file = /etc/letsencrypt/live/${domain}/privkey.pem
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = no
+smtp_tls_security_level = may
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtpd_tls_received_header = yes
+smtpd_tls_session_cache_timeout = 3600s
+tls_random_source = dev:/dev/urandom
+
+# Аутентификация
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $myhostname
+smtpd_recipient_restrictions = permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination
+`;
+    
+    await ssh.execCommand(`echo '${postfixConfig}' > /etc/postfix/main.cf`);
+    
+    // Настройка Dovecot
+    const dovecotConfig = `
+# Основные настройки
+protocols = imap pop3 lmtp
+mail_location = maildir:~/Maildir
+namespace inbox {
+  inbox = yes
+}
+passdb {
+  driver = pam
+}
+userdb {
+  driver = passwd
+}
+service auth {
+  unix_listener /var/spool/postfix/private/auth {
+    mode = 0666
+    user = postfix
+    group = postfix
+  }
+}
+ssl = required
+ssl_cert = </etc/letsencrypt/live/${domain}/fullchain.pem
+ssl_key = </etc/letsencrypt/live/${domain}/privkey.pem
+`;
+    
+    await ssh.execCommand(`echo '${dovecotConfig}' > /etc/dovecot/dovecot.conf`);
+    
+    // Создание пользователя для почты
+    await ssh.execCommand(`useradd -m -s /bin/bash ${adminEmail.split('@')[0]}`);
+    await ssh.execCommand(`echo '${adminEmail.split('@')[0]}:${adminPassword}' | chpasswd`);
+    
+    // Настройка Roundcube если включен
+    if (config.enableWebmail) {
+      const roundcubeConfig = `
+server {
+    listen 80;
+    server_name ${mailDomain};
+    
+    location / {
+        proxy_pass http://localhost/roundcube/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+`;
+      
+      await ssh.execCommand(`echo '${roundcubeConfig}' > /etc/nginx/sites-available/${mailDomain}`);
+      await ssh.execCommand(`ln -sf /etc/nginx/sites-available/${mailDomain} /etc/nginx/sites-enabled/`);
+    }
+    
+    // Получение SSL для почтового домена
+    await ssh.execCommand(`certbot --nginx -d ${mailDomain} --non-interactive --agree-tos --email ${adminEmail}`);
+    
+    // Запуск сервисов
+    await ssh.execCommand('systemctl enable postfix dovecot');
+    await ssh.execCommand('systemctl restart postfix dovecot nginx');
+    
+    // Создание DNS записей
+    const dnsRecords = `
+# Добавьте эти DNS записи в ваш домен:
+# MX запись: ${domain} -> ${mailDomain} (приоритет 10)
+# A запись: ${mailDomain} -> IP вашего сервера
+# SPF запись: v=spf1 mx a ip4:IP_СЕРВЕРА ~all
+# DKIM запись: (будет создан автоматически)
+`;
+    
+    console.log('DNS записи для настройки:', dnsRecords);
+  }
+
+  /**
    * Получение кода агента для установки
    */
   getAgentCode() {
@@ -352,24 +618,111 @@ app.post('/tunnel/create', async (req, res) => {
       port: sshPort
     });
     
-    // Установка NGINX и certbot
-    await ssh.execCommand('apt-get update && apt-get install -y nginx certbot python3-certbot-nginx');
+    // Установка NGINX, certbot и почтовых сервисов
+    const installPackages = 'apt-get update && apt-get install -y nginx certbot python3-certbot-nginx';
+    const mailPackages = config.enableMail ? 'postfix dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd dovecot-managesieved dovecot-sieve dovecot-mysql mysql-server roundcube roundcube-mysql' : '';
+    await ssh.execCommand(\`\${installPackages} \${mailPackages}\`);
     
-    // Создание конфигурации NGINX
-    const nginxConfig = \`
+    // Создание конфигурации NGINX с полной защитой
+    const nginxConfig = \`# Rate limiting для защиты от DDoS
+limit_req_zone $binary_remote_addr zone=req_limit_per_ip:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=api_limit_per_ip:10m rate=5r/s;
+
+# Блокировка известных сканеров и вредоносных ботов
+map $http_user_agent $bad_bot {
+    default 0;
+    ~*bot 1;
+    ~*crawler 1;
+    ~*spider 1;
+    ~*scanner 1;
+    ~*sqlmap 1;
+    ~*nikto 1;
+    ~*dirb 1;
+    ~*gobuster 1;
+    ~*wfuzz 1;
+    ~*burp 1;
+    ~*zap 1;
+    ~*nessus 1;
+    ~*openvas 1;
+}
+
 server {
     listen 80;
     server_name \${domain};
     
+    # Блокировка подозрительных ботов
+    if ($bad_bot = 1) {
+        return 403;
+    }
+    
+    # Защита от path traversal
+    if ($request_uri ~* "(\\\\.\\\\.|\\\\.\\\\./|\\\\.\\\\.\\\\.\\\\|\\\\.\\\\.%2f|\\\\.\\\\.%5c)") {
+        return 404;
+    }
+    
+    # Защита от опасных расширений
+    location ~* \\\\.(zip|rar|7z|tar|gz|bz2|xz|sql|sqlite|db|bak|backup|old|csv|php|asp|aspx|jsp|cgi|pl|py|sh|bash|exe|bat|cmd|com|pif|scr|vbs|vbe|jar|war|ear|dll|so|dylib|bin|sys|ini|log|tmp|temp|swp|swo|~)$ {
+        return 404;
+    }
+    
+    # Защита от доступа к чувствительным файлам
+    location ~* /(\\\\.htaccess|\\\\.htpasswd|\\\\.env|\\\\.git|\\\\.svn|\\\\.DS_Store|Thumbs\\\\.db|web\\\\.config|robots\\\\.txt|sitemap\\\\.xml)$ {
+        deny all;
+        return 404;
+    }
+    
+    # Основной location для фронтенда
     location / {
+        # Rate limiting для основных страниц
+        limit_req zone=req_limit_per_ip burst=20 nodelay;
+        
         proxy_pass http://localhost:\${serverPort};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Базовые заголовки безопасности
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:;" always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
     }
-}
-\`;
+    
+    # API проксирование к backend через туннель
+    location /api/ {
+        # Rate limiting для API (более строгое)
+        limit_req zone=api_limit_per_ip burst=10 nodelay;
+        
+        proxy_pass http://localhost:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Заголовки безопасности для API
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+    }
+    
+    # WebSocket поддержка
+    location /ws {
+        proxy_pass http://localhost:8000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Скрытие информации о сервере
+    server_tokens off;
+}\`;
     
     await ssh.execCommand(\`echo '\${nginxConfig}' > /etc/nginx/sites-available/\${domain}\`);
     await ssh.execCommand(\`ln -sf /etc/nginx/sites-available/\${domain} /etc/nginx/sites-enabled/\`);
@@ -378,28 +731,61 @@ server {
     // Получение SSL сертификата
     await ssh.execCommand(\`certbot --nginx -d \${domain} --non-interactive --agree-tos --email \${email}\`);
     
+    // Настройка почты если включена
+    if (config.enableMail) {
+      await setupMailServer(ssh, config, domain);
+    }
+    
     ssh.dispose();
     
-    // Создание SSH туннеля
+    // Создание SSH туннелей для frontend и backend
     const tunnelId = Date.now().toString();
-    const sshArgs = [
+    
+    // SSH туннель для frontend (порт 9000)
+    const frontendSshArgs = [
       '-i', keyPath,
       '-p', sshPort.toString(),
       '-R', \`\${serverPort}:localhost:\${localPort}\`,
       '-N',
       '-o', 'StrictHostKeyChecking=no',
       '-o', 'UserKnownHostsFile=/dev/null',
+      '-o', 'ServerAliveInterval=60',
+      '-o', 'ServerAliveCountMax=3',
       \`\${sshUser}@\${sshHost}\`
     ];
     
-    const sshProcess = spawn('ssh', sshArgs);
+    // SSH туннель для backend (порт 8000)
+    const backendSshArgs = [
+      '-i', keyPath,
+      '-p', sshPort.toString(),
+      '-R', '8000:localhost:8000',
+      '-N',
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'UserKnownHostsFile=/dev/null',
+      '-o', 'ServerAliveInterval=60',
+      '-o', 'ServerAliveCountMax=3',
+      \`\${sshUser}@\${sshHost}\`
+    ];
     
-    sshProcess.on('error', (error) => {
-              // console.error('SSH процесс ошибка:', error);
+    // Запускаем оба SSH туннеля
+    const frontendSshProcess = spawn('ssh', frontendSshArgs);
+    const backendSshProcess = spawn('ssh', backendSshArgs);
+    
+    frontendSshProcess.on('error', (error) => {
+              // console.error('Frontend SSH процесс ошибка:', error);
     });
     
-    sshProcess.on('close', (code) => {
-              // console.log('SSH процесс завершен с кодом:', code);
+    backendSshProcess.on('error', (error) => {
+              // console.error('Backend SSH процесс ошибка:', error);
+    });
+    
+    frontendSshProcess.on('close', (code) => {
+              // console.log('Frontend SSH процесс завершен с кодом:', code);
+      tunnelState.connected = false;
+    });
+    
+    backendSshProcess.on('close', (code) => {
+              // console.log('Backend SSH процесс завершен с кодом:', code);
       tunnelState.connected = false;
     });
     
@@ -408,7 +794,8 @@ server {
       connected: true,
       domain,
       tunnelId,
-      sshProcess
+      frontendSshProcess,
+      backendSshProcess
     };
     
     res.json({
@@ -427,18 +814,22 @@ server {
   }
 });
 
-// Отключение туннеля
+// Отключение туннелей
 app.post('/tunnel/disconnect', (req, res) => {
   try {
-    if (tunnelState.sshProcess) {
-      tunnelState.sshProcess.kill();
+    if (tunnelState.frontendSshProcess) {
+      tunnelState.frontendSshProcess.kill();
+    }
+    if (tunnelState.backendSshProcess) {
+      tunnelState.backendSshProcess.kill();
     }
     
     tunnelState = {
       connected: false,
       domain: null,
       tunnelId: null,
-      sshProcess: null
+      frontendSshProcess: null,
+      backendSshProcess: null
     };
     
     res.json({
@@ -478,7 +869,7 @@ export function useWebSshService() {
   return {
     checkAgentStatus: () => service.checkAgentStatus(),
     installAndStartAgent: () => service.installAndStartAgent(),
-    createTunnel: (config) => service.createTunnel(config),
+    setupVDS: (config) => service.setupVDS(config),
     disconnectTunnel: () => service.disconnectTunnel(),
     getStatus: () => service.getStatus()
   };
