@@ -310,14 +310,31 @@ const startDeployment = async () => {
 
 // Автозапуск деплоя при появлении компонента
 onMounted(() => {
+  console.log('🔧 [DeploymentWizard] onMounted вызван');
+  console.log('🔧 [DeploymentWizard] deploymentStatus.value:', deploymentStatus.value);
+  console.log('🔧 [DeploymentWizard] logs.value.length:', logs.value.length);
+  console.log('🔧 [DeploymentWizard] props:', props);
+  console.log('🔧 [DeploymentWizard] isDeploying.value:', isDeploying.value);
+  
+  // Добавляем тестовый лог сразу
+  addLog('🔧 [DeploymentWizard] Компонент смонтирован', 'info');
+  
   if (deploymentStatus.value === 'not_started') {
+    console.log('🔧 [DeploymentWizard] Запускаем автоматический деплой');
     addLog('🚀 Автоматически запускаем деплой...', 'info');
     startDeployment();
+  } else {
+    console.log('🔧 [DeploymentWizard] Деплой уже запущен, статус:', deploymentStatus.value);
   }
 });
 
 // Следим за новыми логами и скроллим вниз
-watch(logs, () => {
+watch(logs, (newLogs, oldLogs) => {
+  console.log('📝 [DeploymentWizard] Логи изменились:', { 
+    newLength: newLogs.length, 
+    oldLength: oldLogs?.length || 0,
+    lastLog: newLogs[newLogs.length - 1]
+  });
   scrollToBottom();
 }, { deep: true });
 

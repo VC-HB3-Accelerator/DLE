@@ -1,0 +1,78 @@
+{
+  "deploymentId": "modules-deploy-1759239534343",
+  "dleAddress": "0x7DB7E55eA9050105cDeeC892A1B8D4Ea335b0BFD",
+  "dleName": "DLE-8",
+  "dleSymbol": "TOKEN",
+  "dleLocation": "101000, Москва, Москва, тверская, 1, 1",
+  "dleJurisdiction": 643,
+  "dleCoordinates": "55.7715511,37.5929598",
+  "dleOktmo": "45000000",
+  "dleOkvedCodes": [
+    "63.11",
+    "62.01"
+  ],
+  "dleKpp": "773009001",
+  "dleLogoURI": "/uploads/logos/default-token.svg",
+  "dleSupportedChainIds": [
+    11155111,
+    84532,
+    17000,
+    421614
+  ],
+  "totalNetworks": 4,
+  "successfulNetworks": 4,
+  "modulesDeployed": [
+    "reader"
+  ],
+  "networks": [
+    {
+      "chainId": 11155111,
+      "rpcUrl": "https://1rpc.io/sepolia",
+      "modules": [
+        {
+          "type": "reader",
+          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "success": true,
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "chainId": 84532,
+      "rpcUrl": "https://sepolia.base.org",
+      "modules": [
+        {
+          "type": "reader",
+          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "success": true,
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "chainId": 17000,
+      "rpcUrl": "https://ethereum-holesky.publicnode.com",
+      "modules": [
+        {
+          "type": "reader",
+          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "success": true,
+          "verification": "verified"
+        }
+      ]
+    },
+    {
+      "chainId": 421614,
+      "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+      "modules": [
+        {
+          "type": "reader",
+          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "success": true,
+          "verification": "verified"
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-09-30T13:38:54.344Z"
+}

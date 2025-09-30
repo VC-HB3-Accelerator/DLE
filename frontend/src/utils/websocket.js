@@ -22,21 +22,40 @@ class WebSocketClient {
     this.reconnectDelay = 1000;
     this.listeners = new Map();
     this.isConnected = false;
+    this.heartbeatInterval = null;
+    this.heartbeatTimeout = 30000; // 30 секунд
   }
 
   connect() {
+    // Если уже подключены, не создаем новое соединение
+    if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log('[WebSocket] Уже подключены, пропускаем');
+      return;
+    }
+
+    // Закрываем предыдущее соединение если есть
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
     try {
       // В Docker окружении используем Vite прокси для WebSocket
       // Используем относительный путь, чтобы Vite прокси мог перенаправить запрос на backend
       const wsUrl = window.location.protocol === 'https:' 
         ? 'wss://' + window.location.host + '/ws'
         : 'ws://' + window.location.host + '/ws';
+      
+      console.log('[WebSocket] Подключаемся к:', wsUrl);
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         console.log('[WebSocket] Подключение установлено');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        
+        // Запускаем heartbeat
+        this.startHeartbeat();
         
         // Уведомляем о подключении
         this.emit('connected');
@@ -45,6 +64,12 @@ class WebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          
+          // Обрабатываем pong сообщения для heartbeat
+          if (data.type === 'pong') {
+            console.log('[WebSocket] Получен pong, соединение активно');
+            return;
+          }
           
           // Логируем все deployment_update сообщения для отладки
           if (data.type === 'deployment_update') {
@@ -56,10 +81,14 @@ class WebSocketClient {
           if (this.listeners.has(data.type)) {
             console.log(`[WebSocket] Вызываем обработчики для типа: ${data.type}, количество: ${this.listeners.get(data.type).length}`);
             this.listeners.get(data.type).forEach(callback => {
-              callback(data.data);
+              // Передаем весь объект data, а не только data.data
+              callback(data);
             });
           } else {
-            console.log(`[WebSocket] Нет обработчиков для типа: ${data.type}`);
+            // Не логируем сообщения о деплое, они обрабатываются в других компонентах
+            if (!data.type?.startsWith('deployment_') && !data.type?.startsWith('module_') && data.type !== 'subscribed' && data.type !== 'pong') {
+              console.log(`[WebSocket] Нет обработчиков для типа: ${data.type}`);
+            }
           }
         } catch (error) {
           console.error('[WebSocket] Ошибка парсинга сообщения:', error);
@@ -86,17 +115,50 @@ class WebSocketClient {
   scheduleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`[WebSocket] Попытка переподключения ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+      console.log(`[WebSocket] Попытка переподключения ${this.reconnectAttempts}/${this.maxReconnectAttempts} через ${this.reconnectDelay * this.reconnectAttempts}мс`);
       
       setTimeout(() => {
-        this.connect();
+        if (!this.isConnected) {
+          this.connect();
+        }
       }, this.reconnectDelay * this.reconnectAttempts);
     } else {
       console.error('[WebSocket] Превышено максимальное количество попыток переподключения');
+      // Сбрасываем счетчик через 30 секунд для повторных попыток
+      setTimeout(() => {
+        this.reconnectAttempts = 0;
+        console.log('[WebSocket] Сброс счетчика переподключений, можно попробовать снова');
+      }, 30000);
+    }
+  }
+
+  startHeartbeat() {
+    // Очищаем предыдущий интервал
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+    
+    // Отправляем ping каждые 30 секунд
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.send('ping', { timestamp: Date.now() });
+      } else {
+        console.log('[WebSocket] Соединение потеряно, переподключаемся...');
+        this.isConnected = false;
+        this.scheduleReconnect();
+      }
+    }, this.heartbeatTimeout);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
   }
 
   disconnect() {
+    this.stopHeartbeat();
     if (this.ws) {
       this.ws.close();
       this.ws = null;

@@ -51,6 +51,28 @@ router.post('/deploy', async (req, res) => {
     deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начинаем деплой модуля ${moduleType}`);
     deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Запускаем Hardhat скрипт деплоя...`);
     
+    // Отправляем сообщение о начале деплоя
+    deploymentWebSocketService.broadcastToDLE(dleAddress, {
+      type: 'deployment_started',
+      dleAddress: dleAddress,
+      moduleType: moduleType,
+      status: 'starting',
+      progress: 0,
+      step: 1,
+      message: `Начинаем деплой модуля ${moduleType}`
+    });
+    
+    // Отправляем статус начала деплоя
+    deploymentWebSocketService.broadcastToDLE(dleAddress, {
+      type: 'deployment_status',
+      dleAddress: dleAddress,
+      moduleType: moduleType,
+      status: 'starting',
+      progress: 10,
+      step: 1,
+      message: 'Инициализация деплоя...'
+    });
+    
     const child = spawn('npx', ['hardhat', 'run', 'scripts/deploy/deploy-modules.js'], {
       cwd: path.join(__dirname, '..'),
       stdio: 'pipe',
@@ -71,6 +93,39 @@ router.post('/deploy', async (req, res) => {
       
       // Отправляем логи через WebSocket
       deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', output.trim());
+      
+      // Анализируем логи и обновляем прогресс
+      if (output.includes('Compiling') || output.includes('Compilation')) {
+        deploymentWebSocketService.broadcastToDLE(dleAddress, {
+          type: 'deployment_status',
+          dleAddress: dleAddress,
+          moduleType: moduleType,
+          status: 'compiling',
+          progress: 30,
+          step: 2,
+          message: 'Компиляция контрактов...'
+        });
+      } else if (output.includes('Deploying') || output.includes('deploying')) {
+        deploymentWebSocketService.broadcastToDLE(dleAddress, {
+          type: 'deployment_status',
+          dleAddress: dleAddress,
+          moduleType: moduleType,
+          status: 'deploying',
+          progress: 50,
+          step: 3,
+          message: 'Деплой в сетях...'
+        });
+      } else if (output.includes('verify') || output.includes('verification')) {
+        deploymentWebSocketService.broadcastToDLE(dleAddress, {
+          type: 'deployment_status',
+          dleAddress: dleAddress,
+          moduleType: moduleType,
+          status: 'verifying',
+          progress: 80,
+          step: 4,
+          message: 'Верификация контрактов...'
+        });
+      }
     });
 
     child.stderr.on('data', (data) => {

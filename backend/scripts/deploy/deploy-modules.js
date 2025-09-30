@@ -15,7 +15,8 @@ const hre = require('hardhat');
 const path = require('path');
 const fs = require('fs');
 const logger = require('../../utils/logger');
-const { getFeeOverrides, createProviderAndWallet, alignNonce, getNetworkInfo, createRPCConnection, sendTransactionWithRetry, createMultipleRPCConnections } = require('../../utils/deploymentUtils');
+const { getFeeOverrides, createProviderAndWallet, getNetworkInfo, createRPCConnection, createMultipleRPCConnections } = require('../../utils/deploymentUtils');
+const RPCConnectionManager = require('../../utils/rpcConnectionManager');
 const { nonceManager } = require('../../utils/nonceManager');
 
 // WebSocket сервис удален - логи отправляются через главный процесс
@@ -40,10 +41,10 @@ const MODULE_CONFIGS = {
   },
   timelock: {
     contractName: 'TimelockModule',
-    constructorArgs: (dleAddress) => [
+    constructorArgs: (dleAddress, chainId, walletAddress) => [
       dleAddress // _dleContract
     ],
-    verificationArgs: (dleAddress) => [
+    verificationArgs: (dleAddress, chainId, walletAddress) => [
       dleAddress // _dleContract
     ]
   },
@@ -58,10 +59,10 @@ const MODULE_CONFIGS = {
   },
   hierarchicalVoting: {
     contractName: 'HierarchicalVotingModule',
-    constructorArgs: (dleAddress) => [
+    constructorArgs: (dleAddress, chainId, walletAddress) => [
       dleAddress // _dleContract
     ],
-    verificationArgs: (dleAddress) => [
+    verificationArgs: (dleAddress, chainId, walletAddress) => [
       dleAddress // _dleContract
     ]
   }
@@ -189,7 +190,6 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType}...`);
   
   // 1) Используем NonceManager для правильного управления nonce
-  const { nonceManager } = require('../../utils/nonceManager');
   const chainId = Number(net.chainId);
   let current = await nonceManager.getNonce(wallet.address, rpcUrl, chainId);
   logger.info(`[MODULES_DBG] chainId=${chainId} current nonce=${current} target=${targetNonce}`);
@@ -220,7 +220,8 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
             ...overrides
           };
           logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} sending filler tx nonce=${current} attempt=${attempt + 1}`);
-          const { tx: txFill, receipt } = await sendTransactionWithRetry(wallet, txReq, { maxRetries: 3 });
+          const rpcManager = new RPCConnectionManager();
+          const { tx: txFill, receipt } = await rpcManager.sendTransactionWithRetry(wallet, txReq, { maxRetries: 3 });
           logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx sent, hash=${txFill.hash}, waiting for confirmation...`);
           logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} confirmed, hash=${txFill.hash}`);
           sent = true;
@@ -235,7 +236,6 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
           
           if (String(e?.message || '').toLowerCase().includes('nonce too low') && attempt < 2) {
             // Сбрасываем кэш и получаем актуальный nonce
-            const { nonceManager } = require('../../utils/nonceManager');
             nonceManager.resetNonce(wallet.address, Number(net.chainId));
             current = await provider.getTransactionCount(wallet.address, 'pending');
             logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated nonce to ${current}`);
@@ -322,7 +322,8 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
         ...feeOverrides
       };
       
-      const result = await sendTransactionWithRetry(wallet, txData, { maxRetries: 3 });
+      const rpcManager = new RPCConnectionManager();
+      const result = await rpcManager.sendTransactionWithRetry(wallet, txData, { maxRetries: 3 });
       tx = result.tx;
       
       logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy successful on attempt ${deployAttempts}`);
@@ -458,6 +459,23 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
           // Получаем аргументы конструктора для модуля
           const moduleConfig = MODULE_CONFIGS[moduleType];
           const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(net.chainId), wallet.address);
+          
+          // Ждем 30 секунд перед верификацией, чтобы транзакция получила подтверждения
+          logger.info(`[MODULES_DBG] Ждем 30 секунд перед верификацией модуля ${moduleType}...`);
+          await new Promise(resolve => setTimeout(resolve, 30000));
+          
+          // Проверяем, что контракт действительно задеплоен
+          try {
+            const { provider } = await createRPCConnection(rpcUrl, pk, { maxRetries: 3, timeout: 30000 });
+            const code = await provider.getCode(result.address);
+            if (!code || code === '0x') {
+              logger.warn(`[MODULES_DBG] Контракт ${moduleType} не найден по адресу ${result.address}, пропускаем верификацию`);
+              return { success: false, error: 'Контракт не найден' };
+            }
+            logger.info(`[MODULES_DBG] Контракт ${moduleType} найден, код: ${code.substring(0, 20)}...`);
+          } catch (checkError) {
+            logger.warn(`[MODULES_DBG] Ошибка проверки контракта: ${checkError.message}`);
+          }
           
           const verificationResult = await verifyModuleAfterDeploy(
             Number(net.chainId),

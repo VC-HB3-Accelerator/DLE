@@ -192,40 +192,7 @@ class RPCConnectionManager {
     );
   }
 
-  /**
-   * Получает nonce с retry логикой
-   * @param {Object} provider - Провайдер
-   * @param {string} address - Адрес
-   * @param {Object} options - Опции
-   * @returns {Promise<number>} - Nonce
-   */
-  async getNonceWithRetry(provider, address, options = {}) {
-    const config = { ...this.retryConfig, ...options };
-    
-    for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
-      try {
-        const nonce = await Promise.race([
-          provider.getTransactionCount(address, 'pending'),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Nonce timeout')), config.timeout)
-          )
-        ]);
-        
-        logger.info(`[RPC_MANAGER] ✅ Nonce получен: ${nonce} (попытка ${attempt})`);
-        return nonce;
-        
-      } catch (error) {
-        logger.error(`[RPC_MANAGER] ❌ Nonce failed (попытка ${attempt}): ${error.message}`);
-        
-        if (attempt === config.maxRetries) {
-          throw new Error(`Не удалось получить nonce после ${config.maxRetries} попыток: ${error.message}`);
-        }
-        
-        const delay = Math.min(config.baseDelay * Math.pow(2, attempt - 1), config.maxDelay);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
+  // getNonceWithRetry функция удалена - используем nonceManager.getNonceWithRetry() вместо этого
 
   /**
    * Очищает кэш соединений

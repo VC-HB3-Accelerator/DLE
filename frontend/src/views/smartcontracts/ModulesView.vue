@@ -24,9 +24,9 @@
         <div class="header-content">
           <div class="title-section">
             <h1>Модули DLE</h1>
-            <div class="websocket-status" :class="{ connected: isModulesWSConnected }" title="WebSocket соединение для обновления модулей">
-              <i class="fas fa-circle" :class="isModulesWSConnected ? 'fa-solid' : 'fa-light'"></i>
-              <span>{{ isModulesWSConnected ? 'Подключено' : 'Отключено' }}</span>
+            <div class="websocket-status" :class="{ connected: isWSConnected }" title="WebSocket соединение для обновления модулей">
+              <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
+              <span>{{ isWSConnected ? 'Подключено' : 'Отключено' }}</span>
             </div>
           </div>
           <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
@@ -734,6 +734,7 @@ import {
   getDeploymentStatus
 } from '../../services/modulesService.js';
 import api from '../../api/axios';
+import wsClient from '../../utils/websocket';
 
 // Определяем props
 const props = defineProps({
@@ -783,13 +784,8 @@ const deploymentStep = ref(0);
 const progressPercentage = ref(0);
 const deploymentLogs = ref([]);
 
-// WebSocket соединение
-const deploymentWS = ref(null);
+// WebSocket соединение (используем глобальный wsClient)
 const isWSConnected = ref(false);
-
-// WebSocket для обновления модулей
-const modulesWS = ref(null);
-const isModulesWSConnected = ref(false);
 
 // Debounce для предотвращения частых вызовов loadModules
 let loadModulesTimeout = null;
@@ -1039,55 +1035,45 @@ function formatDate(dateString) {
 
 // Функции для работы с WebSocket
 function connectWebSocket() {
-  if (deploymentWS.value && deploymentWS.value.readyState === WebSocket.OPEN) {
-    return;
+  // Используем глобальный wsClient
+  wsClient.connect();
+  isWSConnected.value = wsClient.isConnected;
+  
+  // Подписываемся на события модулей
+  wsClient.subscribe('subscribed', handleWebSocketMessage);
+  wsClient.subscribe('deployment_started', handleWebSocketMessage);
+  wsClient.subscribe('deployment_status', handleWebSocketMessage);
+  wsClient.subscribe('deployment_log', handleWebSocketMessage);
+  wsClient.subscribe('deployment_finished', handleWebSocketMessage);
+  wsClient.subscribe('error', handleWebSocketMessage);
+  wsClient.subscribe('modules_updated', handleWebSocketMessage);
+  wsClient.subscribe('module_verified', handleWebSocketMessage);
+  wsClient.subscribe('module_deployment_error', handleWebSocketMessage);
+  
+  // Подписываемся на деплой для текущего DLE
+  if (dleAddress.value) {
+    console.log('[ModulesView] Подписываемся на DLE:', dleAddress.value);
+    wsClient.ws.send(JSON.stringify({
+      type: 'subscribe',
+      dleAddress: dleAddress.value
+    }));
+  } else {
+    console.warn('[ModulesView] dleAddress не найден для подписки');
   }
-
-  const wsUrl = `ws://localhost:8000/ws`;
-  deploymentWS.value = new WebSocket(wsUrl);
-
-  deploymentWS.value.onopen = () => {
-    console.log('[ModulesView] WebSocket соединение установлено');
-    isWSConnected.value = true;
-    
-    // Подписываемся на деплой для текущего DLE
-    if (dleAddress.value) {
-      deploymentWS.value.send(JSON.stringify({
-        type: 'subscribe',
-        dleAddress: dleAddress.value
-      }));
-    }
-  };
-
-  deploymentWS.value.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      handleWebSocketMessage(data);
-    } catch (error) {
-      console.error('[ModulesView] Ошибка парсинга WebSocket сообщения:', error);
-    }
-  };
-
-  deploymentWS.value.onclose = () => {
-    console.log('[ModulesView] WebSocket соединение закрыто');
-    isWSConnected.value = false;
-    
-    // Переподключаемся через 3 секунды
-    setTimeout(() => {
-      if (showDeploymentModal.value) {
-        connectWebSocket();
-      }
-    }, 3000);
-  };
-
-  deploymentWS.value.onerror = (error) => {
-    console.error('[ModulesView] Ошибка WebSocket:', error);
-    isWSConnected.value = false;
-  };
 }
 
 function handleWebSocketMessage(data) {
   console.log('[ModulesView] WebSocket сообщение:', data);
+  
+  // Проверяем, что data существует и имеет type
+  if (!data || !data.type) {
+    console.warn('[ModulesView] Получены некорректные данные WebSocket:', data);
+    return;
+  }
+  
+  console.log('[ModulesView] Тип сообщения:', data.type);
+  console.log('[ModulesView] DLE адрес в сообщении:', data.dleAddress);
+  console.log('[ModulesView] Текущий DLE адрес:', dleAddress.value);
   
   switch (data.type) {
     case 'subscribed':
@@ -1095,6 +1081,8 @@ function handleWebSocketMessage(data) {
       break;
       
     case 'deployment_started':
+      console.log('[ModulesView] Показываем модалку деплоя');
+      showDeploymentModal.value = true;
       deploymentStep.value = 1;
       progressPercentage.value = 10;
       moduleDeploymentStatus.value = 'starting';
@@ -1107,6 +1095,7 @@ function handleWebSocketMessage(data) {
       break;
       
     case 'deployment_log':
+      console.log('[ModulesView] Получен лог деплоя:', data.log);
       addLog(data.log.type, data.log.message);
       break;
       
@@ -1131,6 +1120,31 @@ function handleWebSocketMessage(data) {
     case 'error':
       addLog('error', data.message);
       break;
+      
+    // Обработка сообщений модулей
+    case 'modules_updated':
+      // Автоматически обновляем список модулей
+      console.log('[ModulesView] Получено уведомление об обновлении модулей');
+      loadModulesDebounced();
+      break;
+      
+    case 'module_verified':
+      console.log('[ModulesView] Модуль верифицирован:', data);
+      addLog('success', `Модуль ${data.moduleType} верифицирован в сети ${data.network}`);
+      break;
+      
+    case 'module_deployment_error':
+      console.log('[ModulesView] Ошибка деплоя модуля:', data);
+      addLog('error', `Ошибка деплоя модуля ${data.moduleType}: ${data.error}`);
+      break;
+      
+    default:
+      console.log('[ModulesView] Неизвестный тип сообщения:', data.type, data);
+      // Для неизвестных типов просто логируем
+      if (data.log) {
+        addLog(data.log.type || 'info', data.log.message);
+      }
+      break;
   }
 }
 
@@ -1150,103 +1164,22 @@ function updateDeploymentProgress(data) {
 }
 
 function disconnectWebSocket() {
-  if (deploymentWS.value) {
-    deploymentWS.value.close();
-    deploymentWS.value = null;
-    isWSConnected.value = false;
-  }
-}
-
-// Функции для работы с WebSocket модулей
-function connectModulesWebSocket() {
-  if (modulesWS.value && modulesWS.value.readyState === WebSocket.OPEN) {
-      return;
-    }
-
-  const wsUrl = `ws://localhost:8000/ws`;
-  modulesWS.value = new WebSocket(wsUrl);
-
-  modulesWS.value.onopen = () => {
-    console.log('[ModulesView] WebSocket модулей соединение установлено');
-    isModulesWSConnected.value = true;
-    
-    // Подписываемся на обновления модулей для текущего DLE
-    if (dleAddress.value) {
-      modulesWS.value.send(JSON.stringify({
-        type: 'subscribe',
-        dleAddress: dleAddress.value
-      }));
-    }
-  };
-
-  modulesWS.value.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      handleModulesWebSocketMessage(data);
-  } catch (error) {
-      console.error('[ModulesView] Ошибка парсинга WebSocket сообщения модулей:', error);
-    }
-  };
-
-  modulesWS.value.onclose = () => {
-    console.log('[ModulesView] WebSocket модулей соединение закрыто');
-    isModulesWSConnected.value = false;
-    
-    // Переподключаемся через 5 секунд
-    setTimeout(() => {
-      connectModulesWebSocket();
-    }, 5000);
-  };
-
-  modulesWS.value.onerror = (error) => {
-    console.error('[ModulesView] Ошибка WebSocket модулей:', error);
-    isModulesWSConnected.value = false;
-  };
-}
-
-function handleModulesWebSocketMessage(data) {
-  console.log('[ModulesView] WebSocket модулей сообщение:', data);
+  // Отписываемся от всех событий модулей
+  wsClient.unsubscribe('subscribed', handleWebSocketMessage);
+  wsClient.unsubscribe('deployment_started', handleWebSocketMessage);
+  wsClient.unsubscribe('deployment_status', handleWebSocketMessage);
+  wsClient.unsubscribe('deployment_log', handleWebSocketMessage);
+  wsClient.unsubscribe('deployment_finished', handleWebSocketMessage);
+  wsClient.unsubscribe('error', handleWebSocketMessage);
+  wsClient.unsubscribe('modules_updated', handleWebSocketMessage);
+  wsClient.unsubscribe('module_verified', handleWebSocketMessage);
+  wsClient.unsubscribe('module_deployment_error', handleWebSocketMessage);
   
-  // Обрабатываем deployment_log в модульном WebSocket
-  if (data.type === 'deployment_log') {
-    addLog(data.log.type, data.log.message);
-    return;
-  }
-  
-  // Обрабатываем только сообщения, связанные с модулями, не с деплоем
-  if (data.type && data.type.startsWith('deployment_')) {
-    console.log('[ModulesView] Пропускаем сообщение о деплое в модульном WebSocket');
-    return;
-  }
-  
-  switch (data.type) {
-    case 'modules_updated':
-      // Автоматически обновляем список модулей
-      console.log('[ModulesView] Получено уведомление об обновлении модулей');
-      loadModulesDebounced();
-      break;
-      
-    case 'module_verified':
-      // Обновляем статус верификации конкретного модуля
-      console.log(`[ModulesView] Модуль ${data.moduleType} верифицирован`);
-      loadModulesDebounced();
-      break;
-      
-    case 'module_status_changed':
-      // Обновляем статус модуля
-      console.log(`[ModulesView] Статус модуля ${data.moduleType} изменен`);
-      loadModulesDebounced();
-      break;
-  }
+  isWSConnected.value = false;
 }
 
-function disconnectModulesWebSocket() {
-  if (modulesWS.value) {
-    modulesWS.value.close();
-    modulesWS.value = null;
-    isModulesWSConnected.value = false;
-  }
-}
+
+
 
 // Функции для работы с модальным окном
 function openDeploymentModal(moduleType) {
@@ -1356,14 +1289,13 @@ onMounted(() => {
   loadDleData();
   loadModules(); // Первоначальная загрузка без debounce
   
-  // Подключаемся к WebSocket для обновления модулей
-  connectModulesWebSocket();
+  // Подключаемся к WebSocket (объединенное соединение)
+  connectWebSocket();
 });
 
 onUnmounted(() => {
   // Отключаем WebSocket при размонтировании компонента
   disconnectWebSocket();
-  disconnectModulesWebSocket();
 });
 </script>
 

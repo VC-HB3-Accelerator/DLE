@@ -234,16 +234,22 @@ class DeploymentWebSocketService {
       return;
     }
 
-    // Отправляем сообщение всем подключенным клиентам
-    this.wss.clients.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        try {
-          ws.send(JSON.stringify(message));
-        } catch (error) {
-          console.error('[DeploymentWS] Ошибка отправки сообщения:', error);
+    // Отправляем сообщение только клиентам, подписанным на этот DLE
+    if (this.clients.has(dleAddress)) {
+      const clients = this.clients.get(dleAddress);
+      console.log(`[DeploymentWS] Отправляем сообщение ${dleAddress} клиентам: ${clients.size}`);
+      clients.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify(message));
+          } catch (error) {
+            console.error('[DeploymentWS] Ошибка отправки сообщения:', error);
+          }
         }
-      }
-    });
+      });
+    } else {
+      console.log(`[DeploymentWS] Нет клиентов для DLE: ${dleAddress}`);
+    }
   }
 
   /**

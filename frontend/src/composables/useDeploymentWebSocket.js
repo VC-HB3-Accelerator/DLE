@@ -33,11 +33,13 @@ export function useDeploymentWebSocket() {
   // Добавить лог
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
+    console.log('📝 [DeploymentWebSocket] Добавляем лог:', { timestamp, message, type });
     logs.value.push({
       timestamp,
       message,
       type
     });
+    console.log('📝 [DeploymentWebSocket] Всего логов:', logs.value.length);
   };
   
   // Очистить логи
@@ -48,8 +50,52 @@ export function useDeploymentWebSocket() {
   // Обработчик WebSocket сообщений
   const handleDeploymentUpdate = (data) => {
     console.log('🔄 [DeploymentWebSocket] Получено обновление:', data);
+    
+    // Проверяем, что data существует и имеет type
+    if (!data || !data.type) {
+      console.warn('🔄 [DeploymentWebSocket] Получены некорректные данные:', data);
+      return;
+    }
+    
     console.log('🔄 [DeploymentWebSocket] Текущий deploymentId:', deploymentId.value);
     console.log('🔄 [DeploymentWebSocket] deploymentId из данных:', data.deploymentId);
+    console.log('🔄 [DeploymentWebSocket] Тип сообщения:', data.type);
+    console.log('🔄 [DeploymentWebSocket] Есть ли log:', !!data.log);
+    
+    // Обрабатываем deployment_update сообщения
+    if (data.type === 'deployment_update' && data.data) {
+      const updateData = data.data;
+      console.log('🔄 [DeploymentWebSocket] Обрабатываем deployment_update:', updateData);
+      console.log('🔄 [DeploymentWebSocket] updateData.deploymentId:', updateData.deploymentId);
+      console.log('🔄 [DeploymentWebSocket] Текущий deploymentId:', deploymentId.value);
+      
+      // Проверяем, что это наш деплой
+      if (updateData.deploymentId && updateData.deploymentId !== deploymentId.value) {
+        console.log('🔄 [DeploymentWebSocket] Игнорируем - не наш deploymentId');
+        return;
+      }
+      
+      // Добавляем output как лог
+      if (updateData.output) {
+        console.log('🔄 [DeploymentWebSocket] Добавляем output как лог:', updateData.output);
+        addLog(updateData.output, 'info');
+      }
+      
+      // Обновляем статус и прогресс
+      if (updateData.status) deploymentStatus.value = updateData.status;
+      if (updateData.progress !== undefined) progress.value = updateData.progress;
+      if (updateData.message) currentStage.value = updateData.message;
+      if (updateData.result) deploymentResult.value = updateData.result;
+      
+      return;
+    }
+    
+    // Всегда обрабатываем логи, даже если deploymentId не совпадает
+    if (data.type === 'deployment_log' && data.log) {
+      console.log('🔄 [DeploymentWebSocket] Добавляем лог:', data.log.message);
+      addLog(data.log.message, data.log.type || 'info');
+      return;
+    }
     
     if (data.deploymentId !== deploymentId.value) {
       console.log('🔄 [DeploymentWebSocket] Игнорируем обновление - не наш deploymentId');
@@ -58,8 +104,31 @@ export function useDeploymentWebSocket() {
     
     switch (data.type) {
       case 'deployment_log':
-        if (data.log) {
-          addLog(data.log.message, data.log.type || 'info');
+        // Уже обработано выше, пропускаем
+        break;
+        
+      case 'deployment_update':
+        // Обработка deployment_update сообщений
+        if (data.data) {
+          const updateData = data.data;
+          if (updateData.stage) currentStage.value = updateData.stage;
+          if (updateData.progress !== undefined) progress.value = updateData.progress;
+          if (updateData.status) deploymentStatus.value = updateData.status;
+          if (updateData.result) deploymentResult.value = updateData.result;
+          if (updateData.error) error.value = updateData.error;
+          if (updateData.output) {
+            addLog(updateData.output, 'info');
+          }
+          if (updateData.message) {
+            addLog(updateData.message, 'info');
+          }
+          if (updateData.status === 'completed') {
+            isDeploying.value = false;
+            addLog('🎉 Деплой успешно завершен!', 'success');
+          } else if (updateData.status === 'failed') {
+            isDeploying.value = false;
+            addLog('💥 Деплой завершился с ошибкой!', 'error');
+          }
         }
         break;
         
@@ -98,15 +167,23 @@ export function useDeploymentWebSocket() {
   };
 
   // Подключаемся к WebSocket сразу при инициализации
+  console.log('🔌 [DeploymentWebSocket] Инициализация WebSocket...');
+  console.log('🔌 [DeploymentWebSocket] wsClient:', !!wsClient);
+  console.log('🔌 [DeploymentWebSocket] wsClient.subscribe:', typeof wsClient?.subscribe);
+  
   wsClient.connect();
   if (wsClient && typeof wsClient.subscribe === 'function') {
     wsClient.subscribe('deployment_update', handleDeploymentUpdate);
     console.log('🔌 [DeploymentWebSocket] Подключились к WebSocket при инициализации');
+  } else {
+    console.warn('🔌 [DeploymentWebSocket] WebSocket не доступен!');
   }
   
   // Начать отслеживание деплоя
   const startDeploymentTracking = (id) => {
     console.log('🎯 [DeploymentWebSocket] Начинаем отслеживание деплоя:', id);
+    console.log('🎯 [DeploymentWebSocket] WebSocket подключен:', !!wsClient);
+    console.log('🎯 [DeploymentWebSocket] Обработчики deployment_update:', wsClient?.handlers?.deployment_update?.length || 0);
     
     deploymentId.value = id;
     deploymentStatus.value = 'in_progress';
@@ -114,6 +191,13 @@ export function useDeploymentWebSocket() {
     clearLogs();
     
     // WebSocket уже подключен при инициализации
+    // Подписываемся на DLE адрес для получения логов деплоя
+    if (wsClient && typeof wsClient.subscribeToDeployment === 'function') {
+      // Используем временный DLE адрес для подписки на логи
+      const tempDleAddress = '0x0000000000000000000000000000000000000000';
+      wsClient.subscribeToDeployment(tempDleAddress);
+      console.log('🎯 [DeploymentWebSocket] Подписались на DLE адрес:', tempDleAddress);
+    }
     
     addLog('🔌 Подключено к WebSocket для получения обновлений деплоя', 'info');
   };

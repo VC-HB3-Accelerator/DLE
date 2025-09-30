@@ -90,6 +90,18 @@ function initWSS(server) {
           // Отписка от деплоя
           deploymentWebSocketService.unsubscribeFromDeployment(ws, data.dleAddress);
         }
+        
+        // Обработка сообщений деплоя через deploymentWebSocketService
+        if (data.type === 'deployment_log' || 
+            data.type === 'deployment_started' || 
+            data.type === 'deployment_status' ||
+            data.type === 'deployment_finished' ||
+            data.type === 'deployment_update') {
+          // Эти сообщения обрабатываются в deploymentWebSocketService
+          // Просто логируем для отладки
+          console.log(`[WebSocket] Получено сообщение деплоя: ${data.type}`);
+          console.log(`[WebSocket] Данные:`, JSON.stringify(data, null, 2));
+        }
       } catch (error) {
         // console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
       }

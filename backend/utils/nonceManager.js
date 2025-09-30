@@ -21,13 +21,16 @@ class NonceManager {
    * @returns {Promise<number>} - Актуальный nonce
    */
   async getNonce(address, rpcUrl, chainId, options = {}) {
-    const { timeout = 10000, maxRetries = 3 } = options; // Увеличиваем таймаут и попытки
+    const { timeout = 15000, maxRetries = 5 } = options; // Увеличиваем таймаут и попытки
     
     const cacheKey = `${address}-${chainId}`;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+          polling: false, // Отключаем polling для более быстрого получения nonce
+          staticNetwork: true
+        });
         
         // Получаем nonce из сети с таймаутом
         const networkNonce = await Promise.race([
@@ -170,51 +173,7 @@ class NonceManager {
     };
   }
 
-  /**
-   * Быстрое получение nonce без retry (для критичных по времени операций)
-   * @param {string} address - Адрес кошелька
-   * @param {string} rpcUrl - RPC URL сети
-   * @param {number} chainId - ID сети
-   * @returns {Promise<number>} - Nonce
-   */
-  async getNonceFast(address, rpcUrl, chainId) {
-    const cacheKey = `${address}-${chainId}`;
-    const cachedNonce = this.nonceCache.get(cacheKey);
-    
-    if (cachedNonce !== undefined) {
-      console.log(`[NonceManager] Быстрый nonce из кэша: ${cachedNonce} для ${address}:${chainId}`);
-      return cachedNonce;
-    }
-    
-    // Получаем RPC URLs из базы данных с fallback
-    const rpcUrls = await this.getRpcUrlsFromDatabase(chainId, rpcUrl);
-    
-    for (const currentRpc of rpcUrls) {
-      try {
-        console.log(`[NonceManager] Пробуем RPC: ${currentRpc}`);
-        const provider = new ethers.JsonRpcProvider(currentRpc);
-        
-        const networkNonce = await Promise.race([
-          provider.getTransactionCount(address, 'pending'),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Fast nonce timeout')), 3000)
-          )
-        ]);
-        
-        this.nonceCache.set(cacheKey, networkNonce);
-        console.log(`[NonceManager] ✅ Nonce получен: ${networkNonce} для ${address}:${chainId} с RPC: ${currentRpc}`);
-        return networkNonce;
-      } catch (error) {
-        console.warn(`[NonceManager] RPC failed: ${currentRpc} - ${error.message}`);
-        continue;
-      }
-    }
-    
-    // Если все RPC недоступны, возвращаем 0
-    console.warn(`[NonceManager] Все RPC недоступны для ${address}:${chainId}, возвращаем 0`);
-    this.nonceCache.set(cacheKey, 0);
-    return 0;
-  }
+  // getNonceFast функция удалена - используем getNonce() вместо этого
 
   /**
    * Получить RPC URLs из базы данных с fallback
@@ -329,6 +288,75 @@ class NonceManager {
       console.error(`[NonceManager] Force refresh failed for ${address}:${chainId}:`, error.message);
       throw error;
     }
+  }
+
+  /**
+   * Выровнять nonce до целевого значения с помощью filler транзакций
+   * @param {string} address - Адрес кошелька
+   * @param {string} rpcUrl - RPC URL сети
+   * @param {number} chainId - ID сети
+   * @param {number} targetNonce - Целевой nonce
+   * @param {Object} wallet - Кошелек для отправки транзакций
+   * @param {Object} options - Опции (gasLimit, maxRetries)
+   * @returns {Promise<number>} - Финальный nonce
+   */
+  async alignNonceToTarget(address, rpcUrl, chainId, targetNonce, wallet, options = {}) {
+    const { gasLimit = 21000, maxRetries = 5 } = options;
+    const burnAddress = "0x000000000000000000000000000000000000dEaD";
+    
+    // Получаем текущий nonce
+    let current = await this.getNonce(address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+    console.log(`[NonceManager] Aligning nonce ${current} -> ${targetNonce} for ${address}:${chainId}`);
+    
+    if (current >= targetNonce) {
+      console.log(`[NonceManager] Nonce already aligned: ${current} >= ${targetNonce}`);
+      return current;
+    }
+    
+    // Используем RPCConnectionManager для retry логики
+    const RPCConnectionManager = require('./rpcConnectionManager');
+    const rpcManager = new RPCConnectionManager();
+    
+    // Выравниваем nonce с помощью filler транзакций
+    while (current < targetNonce) {
+      console.log(`[NonceManager] Sending filler tx nonce=${current} for ${address}:${chainId}`);
+      
+      try {
+        const txData = {
+          to: burnAddress,
+          value: 0n,
+          nonce: current,
+          gasLimit,
+        };
+        
+        const result = await rpcManager.sendTransactionWithRetry(wallet, txData, { maxRetries });
+        console.log(`[NonceManager] Filler tx sent: ${result.tx.hash} for nonce=${current}`);
+        current++;
+        
+      } catch (e) {
+        const errorMsg = e?.message || e;
+        console.warn(`[NonceManager] Filler tx failed: ${errorMsg}`);
+        
+        // Обрабатываем ошибки nonce
+        if (String(errorMsg).toLowerCase().includes('nonce too low')) {
+          this.resetNonce(address, chainId);
+          const newNonce = await this.getNonce(address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+          console.log(`[NonceManager] Nonce changed from ${current} to ${newNonce}`);
+          current = newNonce;
+          
+          if (current >= targetNonce) {
+            console.log(`[NonceManager] Nonce alignment completed: ${current} >= ${targetNonce}`);
+            return current;
+          }
+          continue;
+        }
+        
+        throw new Error(`Failed to send filler tx for nonce=${current}: ${errorMsg}`);
+      }
+    }
+    
+    console.log(`[NonceManager] Nonce alignment completed: ${current} for ${address}:${chainId}`);
+    return current;
   }
 }
 
