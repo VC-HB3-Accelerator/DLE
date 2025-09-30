@@ -17,9 +17,9 @@ const { ethers } = require('ethers');
 const logger = require('../utils/logger');
 const { getRpcUrlByChainId } = require('./rpcProviderService');
 const deploymentTracker = require('../utils/deploymentTracker');
-const etherscanV2 = require('./etherscanV2VerificationService');
+// ContractVerificationService удален - используем Hardhat verify
 const DeployParamsService = require('./deployParamsService');
-const verificationStore = require('./verificationStore');
+// verificationStore удален - используем Hardhat verify
 
 /**
  * Сервис для управления DLE v2 (Digital Legal Entity)

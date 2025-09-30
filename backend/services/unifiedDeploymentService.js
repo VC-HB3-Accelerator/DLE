@@ -10,7 +10,7 @@ const deploymentTracker = require('../utils/deploymentTracker');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const etherscanV2 = require('./etherscanV2VerificationService');
+// ContractVerificationService удален - используем Hardhat verify
 const { getRpcUrlByChainId } = require('./rpcProviderService');
 const { ethers } = require('ethers');
 // Убираем прямой импорт broadcastDeploymentUpdate - используем только deploymentTracker
@@ -261,6 +261,23 @@ class UnifiedDeploymentService {
           
           // Извлекаем конкретную ошибку из вывода
           const errorMessage = stderr || stdout || 'Неизвестная ошибка';
+          
+          // Создаем объект ошибки для сохранения в БД
+          const errorResult = {
+            success: false,
+            error: `Деплой завершился с ошибкой (код ${code}): ${errorMessage}`,
+            stdout: stdout,
+            stderr: stderr
+          };
+          
+          // Сохраняем ошибку в БД
+          this.deployParamsService.updateDeploymentStatus(deploymentId, 'failed', errorResult)
+            .then(() => {
+              logger.info(`✅ Результат ошибки сохранен в БД: ${deploymentId}`);
+            })
+            .catch(dbError => {
+              logger.error(`❌ Ошибка сохранения результата ошибки в БД: ${dbError.message}`);
+            });
           
           // Отправляем WebSocket сообщение об ошибке через deploymentTracker
           deploymentTracker.failDeployment(deploymentId, new Error(`Деплой завершился с ошибкой (код ${code}): ${errorMessage}`));

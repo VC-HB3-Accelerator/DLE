@@ -15,6 +15,7 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
 const { MODULE_IDS, MODULE_ID_TO_TYPE, MODULE_NAMES } = require('../constants/moduleIds');
+const { getSupportedChainIds } = require('../utils/networkLoader');
 
 // Получить расширенную историю DLE
 router.post('/get-extended-history', async (req, res) => {
@@ -32,7 +33,7 @@ router.post('/get-extended-history', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
+    let candidateChainIds = []; // Будет заполнено из deploy_params
     
     try {
       // Получаем поддерживаемые сети из параметров деплоя

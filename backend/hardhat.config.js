@@ -16,7 +16,96 @@ require('hardhat-contract-sizer');
 require('dotenv').config();
 
 function getNetworks() {
-  // Базовая конфигурация сетей для верификации
+  // Синхронная загрузка сетей из переменных окружения
+  // Hardhat не поддерживает асинхронную инициализацию конфигурации
+  
+  // Получаем supported_chain_ids из переменных окружения
+  const supportedChainIdsEnv = process.env.SUPPORTED_CHAIN_IDS;
+  const supportedChainIds = supportedChainIdsEnv ? JSON.parse(supportedChainIdsEnv) : [];
+  
+  // Получаем RPC URLs из переменных окружения
+  const rpcUrlsEnv = process.env.RPC_URLS;
+  const rpcUrls = rpcUrlsEnv ? JSON.parse(rpcUrlsEnv) : {};
+  
+  // console.log удален - может мешать flatten
+  
+  // Базовые сети
+  const baseNetworks = {
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL || 'https://1rpc.io/sepolia',
+      chainId: 11155111,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    holesky: {
+      url: process.env.HOLESKY_RPC_URL || 'https://ethereum-holesky.publicnode.com',
+      chainId: 17000,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    mainnet: {
+      url: process.env.MAINNET_RPC_URL || 'https://eth-mainnet.nodereal.io/v1/YOUR_NODEREAL_KEY',
+      chainId: 1,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    arbitrumSepolia: {
+      url: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
+      chainId: 421614,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+      chainId: 84532,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    arbitrumOne: {
+      url: process.env.ARBITRUM_ONE_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+      chainId: 42161,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    base: {
+      url: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
+      chainId: 8453,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    polygon: {
+      url: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
+      chainId: 137,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    bsc: {
+      url: process.env.BSC_RPC_URL || 'https://bsc-dataseed.binance.org',
+      chainId: 56,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    }
+  };
+  
+  // Если есть supported_chain_ids, фильтруем только нужные сети
+  if (supportedChainIds.length > 0) {
+    const networks = {};
+    const supportedChainIdsNumbers = supportedChainIds.map(id => Number(id));
+    
+    for (const [networkName, networkConfig] of Object.entries(baseNetworks)) {
+      if (supportedChainIdsNumbers.includes(networkConfig.chainId)) {
+        // Используем RPC URL из переменных окружения если есть
+        const customRpcUrl = rpcUrls[networkConfig.chainId] || rpcUrls[networkConfig.chainId.toString()];
+        if (customRpcUrl) {
+          networkConfig.url = customRpcUrl;
+          // console.log удален - может мешать flatten
+        }
+        networks[networkName] = networkConfig;
+      }
+    }
+    
+    // console.log удален - может мешать flatten
+    return networks;
+  } else {
+    // Если нет supported_chain_ids, используем все базовые сети
+    // console.log удален - может мешать flatten
+    return baseNetworks;
+  }
+}
+
+// Функция для получения базовых сетей (fallback)
+function getBaseNetworks() {
   return {
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || 'https://1rpc.io/sepolia',
@@ -46,6 +135,7 @@ function getNetworks() {
   };
 }
 
+
 module.exports = {
   solidity: {
     version: "0.8.20",
@@ -74,14 +164,14 @@ module.exports = {
   },
   networks: getNetworks(),
   etherscan: {
-    // Единый API ключ для V2 API
+    // Единый API ключ для всех сетей (V2 API)
     apiKey: process.env.ETHERSCAN_API_KEY || '',
     customChains: [
       {
         network: "sepolia",
         chainId: 11155111,
         urls: {
-          apiURL: "https://api.etherscan.io/v2/api",
+          apiURL: "https://api-sepolia.etherscan.io/api",
           browserURL: "https://sepolia.etherscan.io"
         }
       },
@@ -113,7 +203,7 @@ module.exports = {
         network: "arbitrumSepolia",
         chainId: 421614,
         urls: {
-          apiURL: "https://api.etherscan.io/v2/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=421614",
           browserURL: "https://sepolia.arbiscan.io"
         }
       },
@@ -121,7 +211,7 @@ module.exports = {
         network: "bsc",
         chainId: 56,
         urls: {
-          apiURL: "https://api.etherscan.io/v2/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=56",
           browserURL: "https://bscscan.com"
         }
       },
@@ -129,7 +219,7 @@ module.exports = {
         network: "base",
         chainId: 8453,
         urls: {
-          apiURL: "https://api.etherscan.io/v2/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
           browserURL: "https://basescan.org"
         }
       },
@@ -137,7 +227,7 @@ module.exports = {
         network: "baseSepolia",
         chainId: 84532,
         urls: {
-          apiURL: "https://api.etherscan.io/v2/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=84532",
           browserURL: "https://sepolia.basescan.org"
         }
       }

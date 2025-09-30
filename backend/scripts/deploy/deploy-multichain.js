@@ -43,22 +43,193 @@ console.log('[MULTI_DBG] 📦 Импортируем nonceManager...');
 const { nonceManager } = require('../../utils/nonceManager');
 console.log('[MULTI_DBG] ✅ nonceManager импортирован');
 
+// ContractVerificationService удален - используем Hardhat verify
+
 console.log('[MULTI_DBG] 🎯 ВСЕ ИМПОРТЫ УСПЕШНЫ!');
 
 console.log('[MULTI_DBG] 🔍 ПРОВЕРЯЕМ ФУНКЦИИ...');
 console.log('[MULTI_DBG] deployInNetwork:', typeof deployInNetwork);
 console.log('[MULTI_DBG] main:', typeof main);
 
-async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit, params) {
-  const { ethers } = hre;
+// Функция для получения имени сети для Hardhat из deploy_params
+function getNetworkNameForHardhat(chainId, params) {
+  // Создаем маппинг chainId -> Hardhat network name
+  const networkMapping = {
+    11155111: 'sepolia',
+    17000: 'holesky', 
+    421614: 'arbitrumSepolia',
+    84532: 'baseSepolia',
+    1: 'mainnet',
+    42161: 'arbitrumOne',
+    8453: 'base',
+    137: 'polygon',
+    56: 'bsc'
+  };
   
-  // Используем новый менеджер RPC с retry логикой
-  const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
-    maxRetries: 3,
-    timeout: 30000
-  });
+  // Проверяем, поддерживается ли сеть в Hardhat
+  const hardhatNetworkName = networkMapping[chainId];
+  if (!hardhatNetworkName) {
+    logger.warn(`⚠️ Сеть ${chainId} не поддерживается в Hardhat`);
+    return null;
+  }
   
-  const net = network;
+  // Проверяем, есть ли эта сеть в supported_chain_ids из deploy_params
+  const supportedChainIds = params.supported_chain_ids || params.supportedChainIds || [];
+  if (supportedChainIds.length > 0) {
+    // Преобразуем supportedChainIds в числа для сравнения
+    const supportedChainIdsNumbers = supportedChainIds.map(id => Number(id));
+    if (!supportedChainIdsNumbers.includes(chainId)) {
+      logger.warn(`⚠️ Сеть ${chainId} не входит в список поддерживаемых сетей: ${supportedChainIdsNumbers.join(', ')}`);
+      return null;
+    }
+    logger.info(`✅ Сеть ${chainId} найдена в списке поддерживаемых сетей`);
+  } else {
+    logger.info(`ℹ️ Список поддерживаемых сетей пуст, разрешаем верификацию для ${chainId}`);
+  }
+  
+  logger.info(`✅ Сеть ${chainId} поддерживается: ${hardhatNetworkName}`);
+  logger.info(`🔍 Детали сети: chainId=${chainId}, hardhatName=${hardhatNetworkName}, supportedChains=[${supportedChainIds.join(', ')}]`);
+  return hardhatNetworkName;
+}
+
+// Функция для автоматической верификации DLE контракта
+async function verifyDLEAfterDeploy(chainId, contractAddress, constructorArgs, apiKey, params) {
+  try {
+    if (!apiKey) {
+      logger.warn(`⚠️ API ключ Etherscan не предоставлен, пропускаем верификацию DLE`);
+      return { success: false, error: 'API ключ не предоставлен' };
+    }
+
+    if (!params.autoVerifyAfterDeploy) {
+      logger.info(`ℹ️ Автоматическая верификация отключена, пропускаем верификацию DLE`);
+      return { success: false, error: 'Автоматическая верификация отключена' };
+    }
+
+    logger.info(`🔍 Начинаем верификацию DLE контракта по адресу ${contractAddress} в сети ${chainId}`);
+    
+    // Retry логика для верификации (до 3 попыток)
+    const maxVerifyAttempts = 3;
+    let verifyAttempts = 0;
+    
+    while (verifyAttempts < maxVerifyAttempts) {
+      verifyAttempts++;
+      logger.info(`🔄 Попытка верификации ${verifyAttempts}/${maxVerifyAttempts}`);
+      
+      try {
+        // Используем Hardhat verify вместо старого сервиса
+        const { exec } = require('child_process');
+        const { promisify } = require('util');
+        const execAsync = promisify(exec);
+    
+    // Определяем имя сети для Hardhat из deploy_params
+    const networkName = getNetworkNameForHardhat(chainId, params);
+    if (!networkName) {
+      logger.warn(`⚠️ Неизвестная сеть ${chainId}, пропускаем верификацию`);
+      return { success: false, error: `Неизвестная сеть ${chainId}` };
+    }
+    
+    logger.info(`🔧 Используем Hardhat verify для сети ${networkName}`);
+    
+    // Создаем временный файл с аргументами конструктора
+    const fs = require('fs');
+    const path = require('path');
+    const tempArgsFile = path.join(__dirname, '..', '..', 'temp-constructor-args.js');
+    
+    // Формируем аргументы в правильном формате для Hardhat
+    // constructorArgs - это hex строка, нам нужны исходные аргументы
+    // Получаем dleConfig и initializer из параметров
+    const { generateDeploymentArgs } = require('../../utils/constructorArgsGenerator');
+    const { dleConfig, initializer } = generateDeploymentArgs(params);
+    
+    // Конвертируем BigInt значения в строки для JSON сериализации
+    const serializableDleConfig = {
+      name: dleConfig.name,
+      symbol: dleConfig.symbol,
+      location: dleConfig.location,
+      coordinates: dleConfig.coordinates,
+      jurisdiction: dleConfig.jurisdiction.toString(),
+      okvedCodes: dleConfig.okvedCodes,
+      kpp: dleConfig.kpp.toString(),
+      quorumPercentage: dleConfig.quorumPercentage.toString(),
+      initialPartners: dleConfig.initialPartners,
+      initialAmounts: dleConfig.initialAmounts.map(amount => amount.toString()),
+      supportedChainIds: dleConfig.supportedChainIds.map(id => id.toString())
+    };
+    
+    const argsContent = `module.exports = ${JSON.stringify([serializableDleConfig, initializer], null, 2)};`;
+    fs.writeFileSync(tempArgsFile, argsContent);
+    
+    try {
+      // Выполняем Hardhat verify
+      const command = `npx hardhat verify --network ${networkName} --constructor-args ${tempArgsFile} ${contractAddress}`;
+      logger.info(`🔧 Выполняем команду: ${command}`);
+      
+      // Устанавливаем переменные окружения для Hardhat
+      const envVars = {
+        ...process.env,
+        ETHERSCAN_API_KEY: apiKey,
+        SUPPORTED_CHAIN_IDS: JSON.stringify(params.supported_chain_ids || params.supportedChainIds || []),
+        RPC_URLS: JSON.stringify(params.rpc_urls || params.rpcUrls || {})
+      };
+      
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: path.join(__dirname, '..', '..'),
+        env: envVars
+      });
+      
+        if (stdout.includes('Successfully verified')) {
+          logger.info(`✅ DLE контракт успешно верифицирован через Hardhat!`);
+          logger.info(`📄 Вывод: ${stdout}`);
+          return { success: true, message: 'Верификация успешна' };
+        } else {
+          // Проверяем, нужно ли повторить попытку
+          if (stderr.includes('does not have bytecode') && verifyAttempts < maxVerifyAttempts) {
+            logger.warn(`⚠️ Контракт еще не проиндексирован, ждем 5 секунд...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            continue;
+          }
+          logger.error(`❌ Ошибка верификации: ${stderr || stdout}`);
+          return { success: false, error: stderr || stdout };
+        }
+      } finally {
+        // Удаляем временный файл
+        if (fs.existsSync(tempArgsFile)) {
+          fs.unlinkSync(tempArgsFile);
+        }
+      }
+      
+      } catch (error) {
+        // Проверяем, нужно ли повторить попытку
+        if (error.message.includes('does not have bytecode') && verifyAttempts < maxVerifyAttempts) {
+          logger.warn(`⚠️ Контракт еще не проиндексирован, ждем 5 секунд...`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+        logger.error(`❌ Ошибка при верификации DLE контракта: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    }
+    
+    // Если все попытки исчерпаны
+    logger.error(`❌ Верификация не удалась после ${maxVerifyAttempts} попыток`);
+    return { success: false, error: 'Верификация не удалась после всех попыток' };
+  } catch (error) {
+    logger.error(`❌ Критическая ошибка при верификации DLE контракта: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit, params, dleConfig, initializer, etherscanKey) {
+  try {
+    const { ethers } = hre;
+    
+    // Используем новый менеджер RPC с retry логикой
+    const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
+      maxRetries: 3,
+      timeout: 30000
+    });
+    
+    const net = network;
 
   // DEBUG: базовая информация по сети
   try {
@@ -250,7 +421,7 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
     if (params.logoURI && params.logoURI !== '') {
       try {
         logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} checking logoURI for existing contract`);
-        const DLE = await hre.ethers.getContractFactory('DLE');
+        const DLE = await hre.ethers.getContractFactory('contracts/DLE.sol:DLE');
         const dleContract = DLE.attach(predictedAddress);
         
         const currentLogo = await dleContract.logoURI();
@@ -348,7 +519,7 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
   if (params.logoURI && params.logoURI !== '') {
     try {
       logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing logoURI: ${params.logoURI}`);
-      const DLE = await hre.ethers.getContractFactory('DLE');
+      const DLE = await hre.ethers.getContractFactory('contracts/DLE.sol:DLE');
       const dleContract = DLE.attach(deployedAddress);
       
       const logoTx = await dleContract.connect(wallet).initializeLogoURI(params.logoURI, feeOverrides);
@@ -362,7 +533,94 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
     logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} no logoURI specified, skipping initialization`);
   }
   
-  return { address: deployedAddress, chainId: Number(net.chainId) };
+  // Автоматическая верификация DLE контракта после успешного деплоя
+  let verificationResult = { success: false, error: 'skipped' };
+  
+  if ((etherscanKey || params.etherscanApiKey) && params.autoVerifyAfterDeploy) {
+    try {
+      logger.info(`🔍 Начинаем автоматическую верификацию DLE контракта...`);
+      logger.info(`[VERIFY_DBG] dleConfig available: ${!!dleConfig}`);
+      logger.info(`[VERIFY_DBG] initializer: ${initializer}`);
+      
+      // Кодируем аргументы конструктора в hex
+      // Конструктор DLE: constructor(DLEConfig memory config, address _initializer)
+      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+      
+      // Структура DLEConfig
+      const dleConfigType = 'tuple(string,string,string,string,uint256,string[],uint256,uint256,address[],uint256[],uint256[])';
+      
+      // Подготавливаем DLEConfig tuple (все значения уже BigInt из constructorArgsGenerator)
+      const dleConfigTuple = [
+        dleConfig.name,
+        dleConfig.symbol,
+        dleConfig.location,
+        dleConfig.coordinates,
+        dleConfig.jurisdiction, // уже BigInt
+        dleConfig.okvedCodes, // уже массив строк
+        dleConfig.kpp, // уже BigInt
+        dleConfig.quorumPercentage, // уже BigInt
+        dleConfig.initialPartners,
+        dleConfig.initialAmounts, // уже BigInt массив
+        dleConfig.supportedChainIds // уже BigInt массив
+      ];
+      
+      // Кодируем конструктор: (DLEConfig, address)
+      const constructorArgsHex = abiCoder.encode(
+        [dleConfigType, 'address'],
+        [dleConfigTuple, initializer]
+      ).slice(2); // Убираем префикс 0x
+      
+      logger.info(`[VERIFY_DBG] Constructor args encoded: ${constructorArgsHex.slice(0, 100)}...`);
+
+      // Ждем 5 секунд перед верификацией для индексации контракта
+      logger.info(`[VERIFY_DBG] Ожидаем 5 секунд для индексации контракта...`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      logger.info(`[VERIFY_DBG] Calling verifyDLEAfterDeploy...`);
+      verificationResult = await verifyDLEAfterDeploy(
+        Number(network.chainId),
+        deployedAddress,
+        constructorArgsHex,
+        etherscanKey || params.etherscanApiKey,
+        params
+      );
+      logger.info(`[VERIFY_DBG] verifyDLEAfterDeploy completed`);
+      
+      if (verificationResult.success) {
+        logger.info(`✅ DLE контракт верифицирован: ${deployedAddress}`);
+      } else {
+        logger.warn(`⚠️ Верификация DLE не удалась: ${verificationResult.error || verificationResult.message}`);
+      }
+    } catch (verificationError) {
+      const errorMsg = verificationError.message || String(verificationError);
+      const errorStack = verificationError.stack || 'No stack trace';
+      logger.error(`❌ Ошибка при верификации DLE: ${errorMsg}`);
+      logger.error(`❌ Стек ошибки верификации: ${errorStack}`);
+      verificationResult = { success: false, error: errorMsg };
+    }
+  } else {
+    if (!(etherscanKey || params.etherscanApiKey)) {
+      logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию DLE`);
+    } else if (!params.autoVerifyAfterDeploy) {
+      logger.info(`ℹ️ Автоматическая верификация отключена, пропускаем верификацию DLE`);
+    }
+  }
+
+    const finalChainId = Number(network.chainId);
+    logger.info(`[MULTI_DBG] chainId=${finalChainId} Returning deployment result: address=${deployedAddress}`);
+    return { 
+      address: deployedAddress, 
+      chainId: finalChainId,
+      verification: verificationResult
+    };
+  } catch (error) {
+    const errorMsg = error.message || String(error);
+    const errorStack = error.stack || 'No stack trace';
+    const chainIdStr = network?.chainId ? Number(network.chainId) : 'unknown';
+    logger.error(`[MULTI_DBG] chainId=${chainIdStr} deployment failed: ${errorMsg}`);
+    logger.error(`[MULTI_DBG] chainId=${chainIdStr} error stack: ${errorStack}`);
+    throw error; // Перебрасываем ошибку для обработки в main()
+  }
 }
 
 
@@ -437,7 +695,14 @@ async function main() {
   });
 
   const pk = params.private_key || process.env.PRIVATE_KEY;
+  
+  // ИСПРАВЛЕНИЕ: Используем RPC URLs из deployParams, а не из rpcProviderService
   const networks = params.rpcUrls || params.rpc_urls || [];
+  
+  logger.info(`[MULTI_DBG] 📊 RPC URLs из deployParams: ${networks.length} сетей`);
+  networks.forEach((url, i) => {
+    logger.info(`[MULTI_DBG]   ${i + 1}. ${url}`);
+  });
   
   // Устанавливаем API ключи Etherscan для верификации
   const ApiKeyManager = require('../../utils/apiKeyManager');
@@ -532,12 +797,21 @@ async function main() {
         throw new Error(`InitCode не найден для chainId: ${chainId}`);
       }
       
-      const r = await deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, networkInitCode, params);
+      const r = await deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, networkInitCode, params, dleConfig, initializer, etherscanKey);
       logger.info(`[MULTI_DBG] ✅ Network ${i + 1} (chainId: ${chainId}) deployment SUCCESS: ${r.address}`);
-      return { rpcUrl, chainId, address: r.address, chainId: r.chainId };
+      return {
+        rpcUrl, 
+        chainId, 
+        address: r.address, 
+        success: true,
+        verification: r.verification || { success: false, error: 'unknown' }
+      };
     } catch (error) {
-      logger.error(`[MULTI_DBG] ❌ Network ${i + 1} deployment FAILED:`, error.message);
-      return { rpcUrl, chainId, error: error.message };
+      const errorMsg = error.message || String(error);
+      const errorStack = error.stack || 'No stack trace';
+      logger.error(`[MULTI_DBG] ❌ Network ${i + 1} (chainId: ${chainId}) deployment FAILED: ${errorMsg}`);
+      logger.error(`[MULTI_DBG] ❌ Network ${i + 1} (chainId: ${chainId}) error stack: ${errorStack}`);
+      return { rpcUrl, chainId, error: errorMsg, success: false };
     }
   });
   
@@ -554,8 +828,12 @@ async function main() {
     }
   });
   
+  // Логируем все результаты для отладки
+  logger.info('[MULTI_DBG] Raw results:', JSON.stringify(results, null, 2));
+  
   // Проверяем, что все адреса одинаковые (критично для детерминированного деплоя)
-  const addresses = results.map(r => r.address).filter(addr => addr);
+  const successfulResults = results.filter(r => r.success === true);
+  const addresses = successfulResults.map(r => r.address).filter(addr => addr);
   const uniqueAddresses = [...new Set(addresses)];
   
   logger.info('[MULTI_DBG] All addresses:', addresses);
@@ -576,29 +854,19 @@ async function main() {
   
   logger.info('[MULTI_DBG] SUCCESS: All DLE addresses are identical:', uniqueAddresses[0]);
   
-  // ВЫВОДИМ РЕЗУЛЬТАТ СРАЗУ ПОСЛЕ ДЕПЛОЯ (ПЕРЕД ВЕРИФИКАЦИЕЙ)!
-  console.log('[MULTI_DBG] 🎯 ДОШЛИ ДО ВЫВОДА РЕЗУЛЬТАТА!');
-  const finalResults = results.map((result, index) => ({
+  // Верификация уже выполнена в процессе деплоя
+  const finalResults = results.map((result) => ({
     ...result,
-    verification: 'pending'
+    verification: result.verification || { success: false, error: 'not_attempted' }
   }));
   
+  // ВЫВОДИМ РЕЗУЛЬТАТ С ИНТЕГРИРОВАННОЙ ВЕРИФИКАЦИЕЙ!
+  console.log('[MULTI_DBG] 🎯 ДОШЛИ ДО ВЫВОДА РЕЗУЛЬТАТА!');
   console.log('[MULTI_DBG] 📊 finalResults:', JSON.stringify(finalResults, null, 2));
   console.log('[MULTI_DBG] 🎯 ВЫВОДИМ MULTICHAIN_DEPLOY_RESULT!');
   console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify(finalResults));
   console.log('[MULTI_DBG] ✅ MULTICHAIN_DEPLOY_RESULT ВЫВЕДЕН!');
-  logger.info('[MULTI_DBG] DLE deployment completed successfully!');
-  
-  // Верификация контрактов отключена
-  logger.info('[MULTI_DBG] Contract verification disabled - skipping verification step');
-  
-  // Отмечаем все результаты как без верификации
-  const finalResultsWithVerification = results.map((result) => ({
-    ...result,
-    verification: 'skipped'
-  }));
-  
-  logger.info('[MULTI_DBG] Verification skipped - deployment completed successfully');
+  logger.info('[MULTI_DBG] DLE deployment completed successfully with integrated verification!');
 }
 
 console.log('[MULTI_DBG] 🚀 ВЫЗЫВАЕМ MAIN()...');

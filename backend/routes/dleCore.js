@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
+const { getSupportedChainIds } = require('../utils/networkLoader');
 
 // Чтение данных DLE из блокчейна
 router.post('/read-dle-info', async (req, res) => {
@@ -31,18 +32,9 @@ router.post('/read-dle-info', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    let candidateChainIds = [11155111, 421614, 84532, 17000]; // Fallback
-    
-    try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
+    // Получаем поддерживаемые сети из networkLoader
+    const { getSupportedChainIds } = require('../utils/networkLoader');
+    const candidateChainIds = await getSupportedChainIds();
     
     for (const cid of candidateChainIds) {
       try {
@@ -376,7 +368,7 @@ router.post('/deactivate-dle', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    let candidateChainIds = [11155111, 421614, 84532, 17000]; // Fallback
+    let candidateChainIds = []; // Будет заполнено из deploy_params
     
     try {
       // Получаем поддерживаемые сети из параметров деплоя

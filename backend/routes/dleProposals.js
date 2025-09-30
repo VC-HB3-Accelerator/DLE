@@ -14,6 +14,7 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
+const { getSupportedChainIds } = require('../utils/networkLoader');
 
 // Получение списка всех предложений
 router.post('/get-proposals', async (req, res) => {
@@ -34,18 +35,8 @@ router.post('/get-proposals', async (req, res) => {
     try {
       // Определяем корректную сеть для данного адреса
       let rpcUrl, targetChainId;
-      let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
-      
-      try {
-        // Получаем поддерживаемые сети из параметров деплоя
-        const latestParams = await deployParamsService.getLatestDeployParams(1);
-        if (latestParams.length > 0) {
-          const params = latestParams[0];
-          candidateChainIds = params.supportedChainIds || candidateChainIds;
-        }
-      } catch (error) {
-        console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-      }
+      // Получаем поддерживаемые сети из deploy_params
+      const candidateChainIds = await getSupportedChainIds();
       
       for (const cid of candidateChainIds) {
         try {
@@ -63,8 +54,8 @@ router.post('/get-proposals', async (req, res) => {
       
       if (!rpcUrl) {
         console.log(`[DLE Proposals] Не удалось найти сеть для адреса ${dleAddress}`);
-        // Fallback к известным сетям
-        supportedChains = [11155111, 17000, 421614, 84532];
+        // Fallback к известным сетям из deploy_params или базовые
+        supportedChains = candidateChainIds.length > 0 ? candidateChainIds : [11155111, 17000, 421614, 84532];
         console.log(`[DLE Proposals] Используем fallback сети:`, supportedChains);
         return;
       }
@@ -348,18 +339,8 @@ router.post('/get-proposal-info', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
-    
-    try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
+    // Получаем поддерживаемые сети из deploy_params
+    const candidateChainIds = await getSupportedChainIds();
     
     for (const cid of candidateChainIds) {
       try {
@@ -1222,6 +1203,7 @@ router.post('/track-execution-transaction', async (req, res) => {
       
       // Отправляем WebSocket уведомление
       const wsHub = require('../wsHub');
+const { getSupportedChainIds } = require('../utils/networkLoader');
       wsHub.broadcastProposalExecuted(dleAddress, proposalId, txHash);
       
       res.json({

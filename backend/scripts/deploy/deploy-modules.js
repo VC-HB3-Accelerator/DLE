@@ -21,6 +21,9 @@ const { nonceManager } = require('../../utils/nonceManager');
 // WebSocket сервис для отслеживания деплоя
 const deploymentWebSocketService = require('../../services/deploymentWebSocketService');
 
+// Сервис для верификации контрактов
+// ContractVerificationService удален - используем Hardhat verify
+
 // Конфигурация модулей для деплоя
 const MODULE_CONFIGS = {
   treasury: {
@@ -70,6 +73,107 @@ const MODULE_CONFIGS = {
   //   verificationArgs: (dleAddress, ...otherArgs) => [dleAddress, ...otherArgs]
   // }
 };
+
+// Функция для определения имени сети Hardhat по chainId
+function getNetworkNameForHardhat(chainId) {
+  const networkMapping = {
+    11155111: 'sepolia',
+    17000: 'holesky', 
+    421614: 'arbitrumSepolia',
+    84532: 'baseSepolia',
+    1: 'mainnet',
+    42161: 'arbitrumOne',
+    8453: 'base',
+    137: 'polygon',
+    56: 'bsc'
+  };
+  
+  const hardhatNetworkName = networkMapping[chainId];
+  if (!hardhatNetworkName) {
+    logger.warn(`⚠️ Сеть ${chainId} не поддерживается в Hardhat`);
+    return null;
+  }
+  
+  logger.info(`✅ Сеть ${chainId} поддерживается: ${hardhatNetworkName}`);
+  return hardhatNetworkName;
+}
+
+// Функция для автоматической верификации модуля
+async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, constructorArgs, apiKey) {
+  try {
+    if (!apiKey) {
+      logger.warn(`⚠️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
+      return { success: false, error: 'API ключ не предоставлен' };
+    }
+
+    logger.info(`🔍 Начинаем верификацию модуля ${moduleType} по адресу ${contractAddress} в сети ${chainId}`);
+    
+    // Используем Hardhat verify вместо старого сервиса
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    
+    // Определяем имя сети для Hardhat
+    const networkName = getNetworkNameForHardhat(chainId);
+    if (!networkName) {
+      logger.warn(`⚠️ Неизвестная сеть ${chainId}, пропускаем верификацию модуля ${moduleType}`);
+      return { success: false, error: `Неизвестная сеть ${chainId}` };
+    }
+    
+    logger.info(`🔧 Используем Hardhat verify для модуля ${moduleType} в сети ${networkName}`);
+    
+    // Создаем временный файл с аргументами конструктора
+    const fs = require('fs');
+    const path = require('path');
+    const tempArgsFile = path.join(__dirname, '..', '..', `temp-module-args-${moduleType}.js`);
+    
+    // Конвертируем аргументы в строки для JSON сериализации
+    const serializableArgs = constructorArgs.map(arg => {
+      if (typeof arg === 'bigint') {
+        return arg.toString();
+      }
+      return arg;
+    });
+    
+    const argsContent = `module.exports = ${JSON.stringify(serializableArgs, null, 2)};`;
+    fs.writeFileSync(tempArgsFile, argsContent);
+    
+    try {
+      // Выполняем Hardhat verify
+      const command = `npx hardhat verify --network ${networkName} --constructor-args ${tempArgsFile} ${contractAddress}`;
+      logger.info(`🔧 Выполняем команду: ${command}`);
+      
+      // Устанавливаем переменные окружения для Hardhat
+      const envVars = {
+        ...process.env,
+        ETHERSCAN_API_KEY: apiKey
+      };
+      
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: path.join(__dirname, '..', '..'),
+        env: envVars
+      });
+      
+      if (stdout.includes('Successfully verified')) {
+        logger.info(`✅ Модуль ${moduleType} успешно верифицирован через Hardhat!`);
+        logger.info(`📄 Вывод: ${stdout}`);
+        return { success: true, message: 'Верификация успешна' };
+      } else {
+        logger.error(`❌ Ошибка верификации модуля ${moduleType}: ${stderr || stdout}`);
+        return { success: false, error: stderr || stdout };
+      }
+    } finally {
+      // Удаляем временный файл
+      if (fs.existsSync(tempArgsFile)) {
+        fs.unlinkSync(tempArgsFile);
+      }
+    }
+
+  } catch (error) {
+    logger.error(`❌ Ошибка при верификации модуля ${moduleType}: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
 
 // Деплой модуля в одной сети с CREATE2
 async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce, moduleInit, moduleType) {
@@ -345,6 +449,49 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
       const result = await deployModuleInNetwork(rpcUrl, pk, salt, null, targetNonce, moduleInit, moduleType);
       results[moduleType] = { ...result, success: true };
       deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно задеплоен в сети ${net.name || net.chainId}: ${result.address}`);
+      
+      // Автоматическая верификация после успешного деплоя
+      if (result.address && params.etherscanApiKey && params.autoVerifyAfterDeploy) {
+        try {
+          logger.info(`🔍 Начинаем автоматическую верификацию модуля ${moduleType}...`);
+          deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', `Начинаем верификацию модуля ${moduleType} в Etherscan...`);
+          
+          // Получаем аргументы конструктора для модуля
+          const moduleConfig = MODULE_CONFIGS[moduleType];
+          const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(net.chainId), walletAddress);
+          
+          const verificationResult = await verifyModuleAfterDeploy(
+            Number(net.chainId),
+            result.address,
+            moduleType,
+            constructorArgs,
+            params.etherscanApiKey
+          );
+          
+          if (verificationResult.success) {
+            results[moduleType].verification = 'verified';
+            deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', `Модуль ${moduleType} успешно верифицирован в Etherscan!`);
+            logger.info(`✅ Модуль ${moduleType} верифицирован: ${result.address}`);
+          } else {
+            results[moduleType].verification = 'failed';
+            results[moduleType].verificationError = verificationResult.error || verificationResult.message;
+            deploymentWebSocketService.addDeploymentLog(dleAddress, 'warning', `Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
+            logger.warn(`⚠️ Верификация модуля ${moduleType} не удалась: ${verificationResult.error || verificationResult.message}`);
+          }
+        } catch (verificationError) {
+          results[moduleType].verification = 'error';
+          results[moduleType].verificationError = verificationError.message;
+          deploymentWebSocketService.addDeploymentLog(dleAddress, 'warning', `Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
+          logger.error(`❌ Ошибка при верификации модуля ${moduleType}: ${verificationError.message}`);
+        }
+      } else {
+        results[moduleType].verification = 'skipped';
+        if (!params.etherscanApiKey) {
+          logger.info(`ℹ️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
+        } else if (!params.autoVerifyAfterDeploy) {
+          logger.info(`ℹ️ Автоматическая верификация отключена, пропускаем верификацию модуля ${moduleType}`);
+        }
+      }
     } catch (error) {
       logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployment failed:`, error.message);
       results[moduleType] = { 
@@ -616,40 +763,16 @@ async function main() {
     logger.info(`[MODULES_DBG] SUCCESS: All ${moduleType} addresses are identical:`, uniqueAddresses[0]);
   }
 
-  // Верификация во всех сетях через отдельный скрипт
-  logger.info(`[MODULES_DBG] Starting verification in all networks...`);
-  deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Начало верификации модулей во всех сетях...');
-  
-  // Запускаем верификацию модулей через существующий скрипт
-  try {
-    const { verifyModules } = require('../verify-with-hardhat-v2');
-    
-    logger.info(`[MODULES_DBG] Запускаем верификацию модулей...`);
-    deploymentWebSocketService.addDeploymentLog(dleAddress, 'info', 'Верификация контрактов в блокчейн-сканерах...');
-    await verifyModules();
-    logger.info(`[MODULES_DBG] Верификация модулей завершена`);
-    deploymentWebSocketService.addDeploymentLog(dleAddress, 'success', 'Верификация модулей завершена успешно');
-  } catch (verifyError) {
-    logger.info(`[MODULES_DBG] Ошибка при верификации модулей: ${verifyError.message}`);
-    deploymentWebSocketService.addDeploymentLog(dleAddress, 'error', `Ошибка при верификации модулей: ${verifyError.message}`);
-  }
-  
-  // Создаем результаты верификации (все как успешные, так как верификация выполняется отдельно)
-  const verificationResults = deployResults.map(result => ({
-    chainId: result.chainId,
-    modules: Object.keys(result.modules || {}).reduce((acc, moduleType) => {
-      acc[moduleType] = 'success';
-      return acc;
-    }, {})
-  }));
+  // Верификация модулей теперь интегрирована в основной процесс деплоя
+  // Автоматическая верификация происходит в функции deployAllModulesInNetwork
+  logger.info(`[MODULES_DBG] Верификация модулей интегрирована в процесс деплоя`);
   
   // Объединяем результаты
   const finalResults = deployResults.map((deployResult, index) => ({
     ...deployResult,
     modules: deployResult.modules ? Object.keys(deployResult.modules).reduce((acc, moduleType) => {
       acc[moduleType] = {
-        ...deployResult.modules[moduleType],
-        verification: verificationResults[index]?.modules?.[moduleType] || 'unknown'
+        ...deployResult.modules[moduleType]
       };
       return acc;
     }, {}) : {}

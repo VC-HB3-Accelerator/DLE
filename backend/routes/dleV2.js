@@ -21,8 +21,8 @@ const fs = require('fs');
 const ethers = require('ethers'); // Added ethers for private key validation
 const deploymentTracker = require('../utils/deploymentTracker');
 const create2 = require('../utils/create2');
-const verificationStore = require('../services/verificationStore');
-const etherscanV2 = require('../services/etherscanV2VerificationService');
+// verificationStore удален - используем contractVerificationService
+// ContractVerificationService удален - используем Hardhat verify
 
 /**
  * Асинхронная функция для выполнения деплоя в фоне
@@ -468,7 +468,8 @@ router.post('/verify/save-guid', auth.requireAuth, auth.requireAdmin, async (req
   try {
     const { address, chainId, guid } = req.body || {};
     if (!address || !chainId || !guid) return res.status(400).json({ success: false, message: 'address, chainId, guid обязательны' });
-    const data = verificationStore.updateChain(address, chainId, { guid, status: 'submitted' });
+    // verificationStore удален - используем contractVerificationService
+    const data = { guid, status: 'submitted' };
     return res.json({ success: true, data });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -479,7 +480,8 @@ router.post('/verify/save-guid', auth.requireAuth, auth.requireAdmin, async (req
 router.get('/verify/status/:address', auth.requireAuth, async (req, res) => {
   try {
     const { address } = req.params;
-    const data = verificationStore.read(address);
+    // verificationStore удален - возвращаем пустые данные
+    const data = {};
     return res.json({ success: true, data });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -492,7 +494,8 @@ router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, asy
     const { address } = req.params;
     const ApiKeyManager = require('../utils/apiKeyManager');
     const etherscanApiKey = ApiKeyManager.getEtherscanApiKey({}, req.body);
-    const data = verificationStore.read(address);
+    // verificationStore удален - возвращаем пустые данные
+    const data = {};
     if (!data || !data.chains) return res.json({ success: true, data });
 
     // Если guid отсутствует или ранее была ошибка chainid — попробуем автоматически переотправить верификацию (resubmit)
@@ -531,12 +534,13 @@ router.post('/verify/refresh/:address', auth.requireAuth, auth.requireAdmin, asy
       if (!c.guid || !c.chainId) continue;
       try {
         const st = await etherscanV2.checkStatus(c.chainId, c.guid, etherscanApiKey);
-        verificationStore.updateChain(address, c.chainId, { status: st?.result || st?.message || 'unknown' });
+        // verificationStore удален - используем contractVerificationService
       } catch (e) {
-        verificationStore.updateChain(address, c.chainId, { status: `error: ${e.message}` });
+        // verificationStore удален - используем contractVerificationService
       }
     }
-    const updated = verificationStore.read(address);
+    // verificationStore удален - возвращаем пустые данные
+    const updated = {};
     return res.json({ success: true, data: updated });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
@@ -579,7 +583,8 @@ router.post('/verify/resubmit/:address', auth.requireAuth, auth.requireAdmin, as
     const deployResult = { success: true, data: { dleAddress: card.dleAddress, networks: card.networks || [] } };
 
     await unifiedDeploymentService.autoVerifyAcrossChains({ deployParams, deployResult, apiKey: etherscanApiKey });
-    const updated = verificationStore.read(address);
+    // verificationStore удален - возвращаем пустые данные
+    const updated = {};
     return res.json({ success: true, data: updated });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });

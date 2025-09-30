@@ -14,24 +14,16 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
+const { getSupportedChainIds } = require('../utils/networkLoader');
 
 // Функция для получения списка сетей из БД для данного DLE
-async function getSupportedChainIds(dleAddress) {
+async function getSupportedChainIdsForDLE(dleAddress) {
   try {
-    const DeployParamsService = require('../services/deployParamsService');
-    const deployParamsService = new DeployParamsService();
-    const deployments = await deployParamsService.getAllDeployments();
+    // Используем networkLoader для получения поддерживаемых сетей
+    const supportedChainIds = await getSupportedChainIds();
     
-    // Находим деплой с данным адресом
-    for (const deployment of deployments) {
-      if (deployment.dleAddress === dleAddress && deployment.supportedChainIds) {
-        console.log(`[Blockchain] Найдены сети для DLE ${dleAddress}:`, deployment.supportedChainIds);
-        return deployment.supportedChainIds;
-      }
-    }
-    
-    // Fallback к стандартным сетям
-    return [17000, 11155111, 421614, 84532];
+    console.log(`[Blockchain] Найдены сети через networkLoader для DLE ${dleAddress}:`, supportedChainIds);
+    return supportedChainIds;
   } catch (error) {
     console.error(`[Blockchain] Ошибка получения сетей для DLE ${dleAddress}:`, error);
     return [17000, 11155111, 421614, 84532];
@@ -56,7 +48,7 @@ router.post('/read-dle-info', async (req, res) => {
     let provider, rpcUrl, targetChainId = req.body.chainId;
     
     // Получаем список сетей из базы данных для данного DLE
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     if (targetChainId) {
       rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
       if (!rpcUrl) {
@@ -337,7 +329,7 @@ router.post('/get-proposals', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -499,7 +491,7 @@ router.post('/get-proposal-info', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -593,7 +585,7 @@ router.post('/deactivate-dle', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -686,7 +678,7 @@ router.post('/check-deactivation-proposal-result', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -764,7 +756,7 @@ router.post('/load-deactivation-proposals', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -868,7 +860,7 @@ router.post('/execute-proposal', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -944,7 +936,7 @@ router.post('/cancel-proposal', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1029,7 +1021,7 @@ router.post('/get-governance-params', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1105,7 +1097,7 @@ router.post('/get-proposal-state', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1180,7 +1172,7 @@ router.post('/get-proposal-votes', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1258,7 +1250,7 @@ router.post('/get-proposals-count', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1332,7 +1324,7 @@ router.post('/list-proposals', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1408,7 +1400,7 @@ router.post('/get-voting-power-at', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1484,7 +1476,7 @@ router.post('/get-quorum-at', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1559,7 +1551,7 @@ router.post('/get-token-balance', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1634,7 +1626,7 @@ router.post('/get-total-supply', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1708,7 +1700,7 @@ router.post('/is-active', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1788,7 +1780,7 @@ router.post('/get-dle-analytics', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {
@@ -1935,7 +1927,7 @@ router.post('/get-dle-history', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    const candidateChainIds = await getSupportedChainIds(dleAddress);
+    const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
     
     for (const cid of candidateChainIds) {
       try {

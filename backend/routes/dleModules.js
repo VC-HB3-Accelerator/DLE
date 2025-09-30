@@ -960,7 +960,7 @@ router.post('/create-remove-module-proposal', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса
     let rpcUrl, targetChainId;
-    let candidateChainIds = [17000, 11155111, 421614, 84532]; // Fallback
+    let candidateChainIds = []; // Будет заполнено из deploy_params
     
     try {
       // Получаем поддерживаемые сети из параметров деплоя
@@ -1258,8 +1258,7 @@ router.post('/verify-module', async (req, res) => {
 
     console.log(`[DLE Modules] Верификация ${contractName} на Etherscan...`);
 
-    // Импортируем сервис верификации
-    const etherscanV2 = require('../services/etherscanV2VerificationService');
+    // ContractVerificationService удален - используем Hardhat verify
     
     // Получаем RPC URL для Sepolia
     const rpcProviderService = require('../services/rpcProviderService');
@@ -2386,6 +2385,7 @@ router.post('/verify-dle-all-networks', async (req, res) => {
                   try {
                     const fs = require('fs');
                     const path = require('path');
+const { getSupportedChainIds } = require('../utils/networkLoader');
                     const dlesDir = path.join(__dirname, '../contracts-data/dles');
                     let found = null;
                     if (fs.existsSync(dlesDir)) {

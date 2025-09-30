@@ -4,6 +4,7 @@
  */
 
 const { ethers } = require('ethers');
+const { getRpcUrls } = require('./networkLoader');
 
 class NonceManager {
   constructor() {
@@ -230,31 +231,18 @@ class NonceManager {
     }
     
     try {
-      // Получаем RPC из deploy_params (как в deploy-multichain.js)
-      const DeployParamsService = require('../services/deployParamsService');
-      const deployParamsService = new DeployParamsService();
+      // Используем networkLoader для получения RPC URLs
+      const { getRpcUrls } = require('./networkLoader');
+      const rpcUrlsFromLoader = await getRpcUrls();
       
-      // Получаем последние параметры деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        const supportedChainIds = params.supported_chain_ids || [];
-        const rpcUrlsFromParams = params.rpc_urls || [];
-        
-        // Находим RPC для нужного chainId
-        const chainIndex = supportedChainIds.indexOf(chainId);
-        if (chainIndex !== -1 && rpcUrlsFromParams[chainIndex]) {
-          const deployRpcUrl = rpcUrlsFromParams[chainIndex];
-          if (!rpcUrls.includes(deployRpcUrl)) {
-            rpcUrls.push(deployRpcUrl);
-            console.log(`[NonceManager] ✅ RPC из deploy_params для chainId ${chainId}: ${deployRpcUrl}`);
-          }
-        }
+      // Получаем RPC для конкретного chainId
+      const chainRpcUrl = rpcUrlsFromLoader[chainId] || rpcUrlsFromLoader[chainId.toString()];
+      if (chainRpcUrl && !rpcUrls.includes(chainRpcUrl)) {
+        rpcUrls.push(chainRpcUrl);
+        console.log(`[NonceManager] ✅ RPC из networkLoader для chainId ${chainId}: ${chainRpcUrl}`);
       }
-      
-      await deployParamsService.close();
     } catch (error) {
-      console.warn(`[NonceManager] deploy_params недоступны для chainId ${chainId}, используем fallback: ${error.message}`);
+      console.warn(`[NonceManager] networkLoader недоступен для chainId ${chainId}, используем fallback: ${error.message}`);
     }
     
     // Всегда добавляем fallback RPC для надежности

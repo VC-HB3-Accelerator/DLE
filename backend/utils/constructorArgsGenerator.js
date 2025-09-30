@@ -21,14 +21,21 @@ function generateDLEConstructorArgs(params, chainId = null) {
     symbol: params.symbol || '',
     location: params.location || '',
     coordinates: params.coordinates || '',
-    jurisdiction: params.jurisdiction || 0,
-    okvedCodes: params.okvedCodes || [],
-    kpp: params.kpp ? BigInt(params.kpp) : 0n,
-    quorumPercentage: params.quorumPercentage || 50,
-    initialPartners: params.initialPartners || [],
+    jurisdiction: params.jurisdiction ? BigInt(String(params.jurisdiction)) : 0n,
+    okvedCodes: (params.okvedCodes || params.okved_codes || []).map(code => {
+      // OKVED коды должны оставаться строками, так как в контракте DLE.sol 
+      // поле okvedCodes определено как string[], а не uint256[]
+      if (typeof code === 'string') {
+        return code;
+      }
+      return code.toString();
+    }),
+    kpp: params.kpp ? BigInt(String(params.kpp)) : 0n,
+    quorumPercentage: params.quorumPercentage ? BigInt(String(params.quorumPercentage)) : 50n,
+    initialPartners: params.initialPartners || params.initial_partners || [],
     // Умножаем initialAmounts на 1e18 для конвертации в wei
-    initialAmounts: (params.initialAmounts || []).map(amount => BigInt(amount) * BigInt(1e18)),
-    supportedChainIds: (params.supportedChainIds || []).map(id => BigInt(id))
+    initialAmounts: (params.initialAmounts || params.initial_amounts || []).map(amount => BigInt(String(amount)) * BigInt(1e18)),
+    supportedChainIds: (params.supportedChainIds || params.supported_chain_ids || []).map(id => BigInt(String(id)))
   };
 
   // Определяем initializer
@@ -92,7 +99,9 @@ function validateConstructorArgs(params) {
   if (!params.location) errors.push('location не указан');
   if (!params.coordinates) errors.push('coordinates не указаны');
   if (!params.jurisdiction) errors.push('jurisdiction не указан');
-  if (!params.okvedCodes || !Array.isArray(params.okvedCodes)) errors.push('okvedCodes не указан или не является массивом');
+  if ((!params.okvedCodes || !Array.isArray(params.okvedCodes)) && (!params.okved_codes || !Array.isArray(params.okved_codes))) {
+    errors.push('okvedCodes не указан или не является массивом');
+  }
   if (!params.initialPartners || !Array.isArray(params.initialPartners)) errors.push('initialPartners не указан или не является массивом');
   if (!params.initialAmounts || !Array.isArray(params.initialAmounts)) errors.push('initialAmounts не указан или не является массивом');
   if (!params.supportedChainIds || !Array.isArray(params.supportedChainIds)) errors.push('supportedChainIds не указан или не является массивом');
@@ -134,7 +143,8 @@ function logConstructorArgs(params, context = 'unknown') {
   console.log(`  location: "${params.location}"`);
   console.log(`  coordinates: "${params.coordinates}"`);
   console.log(`  jurisdiction: ${params.jurisdiction}`);
-  console.log(`  okvedCodes: [${params.okvedCodes.join(', ')}]`);
+  const okvedCodes = params.okvedCodes || params.okved_codes || [];
+  console.log(`  okvedCodes: [${okvedCodes.join(', ')}]`);
   console.log(`  kpp: ${params.kpp}`);
   console.log(`  quorumPercentage: ${params.quorumPercentage}`);
   console.log(`  initialPartners: [${params.initialPartners.join(', ')}]`);
