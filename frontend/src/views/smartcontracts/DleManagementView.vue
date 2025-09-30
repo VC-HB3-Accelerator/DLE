@@ -409,6 +409,26 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
+/* Мобильная адаптивность */
+@media (max-width: 768px) {
+  .dles-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .dle-card {
+    padding: 1rem;
+  }
+  
+  .dle-header h5 {
+    font-size: 1.1rem;
+  }
+  
+  .detail-item {
+    font-size: 0.9rem;
+  }
+}
+
 .dle-card {
   background: white;
   border-radius: 8px;

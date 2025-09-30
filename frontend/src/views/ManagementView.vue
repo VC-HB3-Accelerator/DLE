@@ -564,6 +564,19 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
+/* Мобильная адаптивность для сетки */
+@media (max-width: 768px) {
+  .dles-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .dle-card {
+    padding: 1rem;
+    margin: 0;
+  }
+}
+
 .dle-card {
   background: white;
   border-radius: 8px;
@@ -844,6 +857,23 @@ onMounted(() => {
     width: 40px;
     height: 40px;
     font-size: 12px;
+  }
+  
+  .dle-header h3 {
+    font-size: 1.1rem;
+  }
+  
+  .detail-item {
+    font-size: 0.85rem;
+  }
+  
+  .address {
+    font-size: 0.8rem;
+    word-break: break-all;
+  }
+  
+  .networks-list {
+    font-size: 0.8rem;
   }
 }
 

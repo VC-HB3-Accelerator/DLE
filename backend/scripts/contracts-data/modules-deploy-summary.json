@@ -1,5 +1,5 @@
 {
-  "deploymentId": "modules-deploy-1759239534343",
+  "deploymentId": "modules-deploy-1759239712369",
   "dleAddress": "0x7DB7E55eA9050105cDeeC892A1B8D4Ea335b0BFD",
   "dleName": "DLE-8",
   "dleSymbol": "TOKEN",
@@ -22,7 +22,7 @@
   "totalNetworks": 4,
   "successfulNetworks": 4,
   "modulesDeployed": [
-    "reader"
+    "hierarchicalVoting"
   ],
   "networks": [
     {
@@ -30,8 +30,8 @@
       "rpcUrl": "https://1rpc.io/sepolia",
       "modules": [
         {
-          "type": "reader",
-          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "type": "hierarchicalVoting",
+          "address": "0x47793D53daaf0907b819aE31E2478ef5680FC895",
           "success": true,
           "verification": "verified"
         }
@@ -42,8 +42,8 @@
       "rpcUrl": "https://sepolia.base.org",
       "modules": [
         {
-          "type": "reader",
-          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "type": "hierarchicalVoting",
+          "address": "0x47793D53daaf0907b819aE31E2478ef5680FC895",
           "success": true,
           "verification": "verified"
         }
@@ -54,8 +54,8 @@
       "rpcUrl": "https://ethereum-holesky.publicnode.com",
       "modules": [
         {
-          "type": "reader",
-          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "type": "hierarchicalVoting",
+          "address": "0x47793D53daaf0907b819aE31E2478ef5680FC895",
           "success": true,
           "verification": "verified"
         }
@@ -66,13 +66,13 @@
       "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
       "modules": [
         {
-          "type": "reader",
-          "address": "0xE56984dD05E3389AE7EfB3e12A8084915B776ACc",
+          "type": "hierarchicalVoting",
+          "address": "0x47793D53daaf0907b819aE31E2478ef5680FC895",
           "success": true,
           "verification": "verified"
         }
       ]
     }
   ],
-  "timestamp": "2025-09-30T13:38:54.344Z"
+  "timestamp": "2025-09-30T13:41:52.370Z"
 }
