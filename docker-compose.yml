@@ -17,9 +17,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/data:/mnt/isic_csv_data
     environment:
-      POSTGRES_DB: ${DB_NAME:-dapp_db}
-      POSTGRES_USER: ${DB_USER:-dapp_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-dapp_password}
+      - POSTGRES_DB=${DB_NAME:-dapp_db}
+      - POSTGRES_USER=${DB_USER:-dapp_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-dapp_password}
     ports:
       - '5432:5432'  # Открываем доступ к базе данных извне для разработки
     healthcheck:
@@ -166,27 +166,6 @@ services:
     ports:
       - '5173:5173'  # Закрываем - используем nginx
     command: yarn run dev -- --host 0.0.0.0
-  ssh-tunnel-frontend:
-    image: alpine:3.18
-    container_name: ssh-tunnel-frontend
-    volumes:
-      - ./id_rsa:/key:ro
-    command: >
-      sh -c "apk add --no-cache openssh-client && ssh -i /key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R 0.0.0.0:9000:host.docker.internal:9000 root@185.221.214.140"
-    restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  ssh-tunnel-backend:
-    image: alpine:3.18
-    container_name: ssh-tunnel-backend
-    volumes:
-      - ./id_rsa:/key:ro
-    command: >
-      sh -c "apk add --no-cache openssh-client && ssh -i /key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R 0.0.0.0:8000:host.docker.internal:8000 root@185.221.214.140"
-    restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   frontend-nginx:
     build:
@@ -195,7 +174,11 @@ services:
     container_name: dapp-frontend-nginx
     restart: unless-stopped
     ports:
-      - "9000:80" # 9000 — порт, который пробрасывается наружу/через туннель
+      - "9000:80" # Frontend nginx (для локальной разработки)
+      - "9443:443" # HTTPS порт для локальной разработки
+    environment:
+      - DOMAIN=localhost:9000
+      - BACKEND_CONTAINER=dapp-backend
     depends_on:
       - backend
 
@@ -209,7 +192,7 @@ services:
     volumes:
       - ./scripts/ssh-key-server.js:/app/ssh-key-server.js:ro
       - ./ssl:/app/ssl:ro
-      - ~/.ssh:/root/.ssh:ro
+      - ~/.ssh:/root/.ssh:rw
     ports:
       - '3001:3001'
     command: node /app/ssh-key-server.js
@@ -219,28 +202,30 @@ services:
       timeout: 10s
       retries: 3
 
-  # Автоматический бэкап базы данных
-  backup-service:
-    image: postgres:16-alpine
-    container_name: dapp-backup-service
+  # WebSSH Agent для настройки VDS
+  webssh-agent:
+    build:
+      context: ./webssh-agent
+      dockerfile: Dockerfile
+    container_name: dapp-webssh-agent
     restart: unless-stopped
     volumes:
-      - ./backup-database.sh:/backup.sh:ro
-      - ./backups:/backups
-      - postgres_data:/var/lib/postgresql/data:ro
+      - ~/.ssh:/root/.ssh:rw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /tmp:/tmp  # для временных файлов
+      - ./ssl:/app/ssl:ro  # для доступа к ключу шифрования
+    ports:
+      - '3000:3000'  # Локальный доступ
     environment:
-      - PGPASSWORD=${DB_PASSWORD:-dapp_password}
+      - NODE_ENV=${NODE_ENV:-development}
     depends_on:
-      - postgres
-    command: >
-      sh -c "
-        echo 'Backup service started'
-        while true; do
-          sleep 86400
-          echo 'Starting daily backup...'
-          /backup.sh
-        done
-      "
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 
 
 

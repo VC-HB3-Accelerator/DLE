@@ -61,7 +61,10 @@ sudo bash webssh-agent/install.sh</code></pre>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useWebSshService } from '../../services/webSshService';
+
+const router = useRouter();
 
 const webSshService = useWebSshService();
 const agentAvailable = ref(false);
@@ -138,14 +141,20 @@ const handleSubmit = async () => {
   addLog('info', 'Запуск публикации...');
   try {
     // Публикация через агента
-    const result = await webSshService.createTunnel(form);
+    const result = await webSshService.setupVDS(form);
     if (result.success) {
       isConnected.value = true;
       connectionStatus.value = `Подключено к ${form.domain}`;
-      addLog('success', 'SSH туннель успешно создан и настроен');
-      addLog('info', `Ваше приложение доступно по адресу: https://${form.domain}`);
+      addLog('success', 'VDS успешно настроена');
+      addLog('info', `Ваше приложение будет доступно по адресу: https://${form.domain}`);
+      
+      // Перенаправляем на страницу VDS Mock через 3 секунды
+      addLog('info', 'Перенаправление на страницу управления VDS через 3 секунды...');
+      setTimeout(() => {
+        router.push({ name: 'vds-mock' });
+      }, 3000);
     } else {
-      addLog('error', result.message || 'Ошибка при создании туннеля');
+      addLog('error', result.message || 'Ошибка при настройке VDS');
     }
   } catch (error) {
     addLog('error', `Ошибка: ${error.message}`);

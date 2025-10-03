@@ -74,10 +74,9 @@ async removeTagFromContact(contactId, tagId) {
 };
 
 export async function getContacts() {
-  const res = await fetch('/users');
-  const data = await res.json();
-  if (data && data.success) {
-    return data.contacts;
+  const res = await api.get('/users');
+  if (res.data && res.data.success) {
+    return res.data.contacts;
   }
   return [];
 } 

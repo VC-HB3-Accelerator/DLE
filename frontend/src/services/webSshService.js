@@ -12,10 +12,10 @@
 
 /**
  * Сервис для управления WEB SSH туннелем
- * Взаимодействует с локальным агентом на порту 12345
+ * Взаимодействует с локальным агентом на порту 3000
  */
 
-const LOCAL_AGENT_URL = 'http://localhost:12345';
+const LOCAL_AGENT_URL = 'http://localhost:3000';
 
 // Функция для генерации nginx конфигурации
 function getNginxConfig(domain, serverPort) {
@@ -126,7 +126,7 @@ class WebSshService {
     this.connectionStatus = {
       connected: false,
       domain: null,
-      tunnelId: null
+      vdsConfigured: false
     };
   }
 
@@ -267,33 +267,26 @@ EOF
   }
 
   /**
-   * Проверка DNS записей домена
+   * Получение IP адреса из DNS записей домена через backend API
    */
-  async checkDomainDNS(domain, vdsIp) {
+  async getDomainIP(domain) {
     try {
-      console.log(`Проверка DNS записей для домена ${domain}...`);
+      console.log(`Получение IP адреса для домена ${domain}...`);
       
-      // Простая проверка через fetch (может не работать в браузере из-за CORS)
-      // В реальной реализации нужно использовать backend API
-      const response = await fetch(`https://dns.google/resolve?name=${domain}&type=A`);
+      // Используем backend API для проверки DNS
+      const response = await fetch(`http://localhost:8000/api/dns-check/${domain}`);
       const data = await response.json();
       
-      if (data.Answer && data.Answer.length > 0) {
-        const dnsIp = data.Answer[0].data;
-        if (dnsIp === vdsIp) {
-          console.log(`DNS запись корректна: ${domain} → ${vdsIp}`);
-          return true;
-        } else {
-          console.log(`DNS запись неверна: ${domain} → ${dnsIp} (ожидается ${vdsIp})`);
-          return false;
-        }
+      if (data.success) {
+        console.log(`DNS запись найдена: ${domain} → ${data.ip}`);
+        return { success: true, ip: data.ip };
       } else {
-        console.log(`DNS запись для домена ${domain} не найдена`);
-        return false;
+        console.log(`DNS запись для домена ${domain} не найдена: ${data.message}`);
+        return { success: false, error: data.message };
       }
     } catch (error) {
-      console.warn(`Не удалось проверить DNS: ${error.message}. Продолжаем настройку...`);
-      return true; // Продолжаем даже если DNS проверка не удалась
+      console.warn(`Не удалось получить IP из DNS: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }
 
@@ -302,15 +295,17 @@ EOF
    */
   async setupVDS(config) {
     try {
-      // Проверяем DNS записи домена
-      if (config.domain && config.vdsIp) {
-        const dnsValid = await this.checkDomainDNS(config.domain, config.vdsIp);
-        if (!dnsValid) {
+      // Получаем IP адрес из DNS записей домена
+      if (config.domain) {
+        const dnsResult = await this.getDomainIP(config.domain);
+        if (!dnsResult.success) {
           return {
             success: false,
-            message: 'DNS записи не готовы. Убедитесь, что домен указывает на IP VDS сервера.'
+            message: `Домен ${config.domain} не настроен или недоступен: ${dnsResult.error}`
           };
         }
+        // Добавляем полученный IP в конфигурацию
+        config.vdsIp = dnsResult.ip;
       }
 
       // Проверяем, что агент запущен
@@ -323,6 +318,8 @@ EOF
         }
       }
 
+      // API ключ больше не нужен - агент защищен сетевым доступом
+
       // Отправляем конфигурацию VDS агенту
       const response = await fetch(`${LOCAL_AGENT_URL}/vds/setup`, {
         method: 'POST',
@@ -334,12 +331,12 @@ EOF
           domain: config.domain,
           email: config.email,
           ubuntuUser: config.ubuntuUser,
-          ubuntuPassword: config.ubuntuPassword,
           dockerUser: config.dockerUser,
-          dockerPassword: config.dockerPassword,
-          sshUser: config.sshUser,
-          sshKey: config.sshKey,
-          encryptionKey: config.encryptionKey
+          sshUser: 'root', // SSH пользователь для настройки ключей (root)
+          sshHost: config.sshHost, // SSH хост для подключения
+          sshPort: config.sshPort, // SSH порт для подключения
+          sshConnectUser: config.sshUser, // SSH пользователь для подключения
+          sshConnectPassword: config.sshPassword // SSH пароль для подключения
         })
       });
 
@@ -371,81 +368,7 @@ EOF
     }
   }
 
-  /**
-   * Отключение туннеля
-   */
-  async disconnectTunnel() {
-    try {
-      const response = await fetch(`${LOCAL_AGENT_URL}/tunnel/disconnect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          tunnelId: this.connectionStatus.tunnelId
-        })
-      });
 
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.success) {
-          this.connectionStatus = {
-            connected: false,
-            domain: null,
-            tunnelId: null
-          };
-        }
-        
-        return result;
-      } else {
-        const error = await response.json();
-        return {
-          success: false,
-          message: error.message || 'Ошибка при отключении туннеля'
-        };
-      }
-    } catch (error) {
-              // console.error('Ошибка при отключении туннеля:', error);
-      return {
-        success: false,
-        message: `Ошибка подключения к агенту: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * Получение статуса подключения
-   */
-  async getStatus() {
-    try {
-      const response = await fetch(`${LOCAL_AGENT_URL}/tunnel/status`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        this.connectionStatus = result;
-        return result;
-      } else {
-        return {
-          connected: false,
-          domain: null,
-          tunnelId: null
-        };
-      }
-    } catch (error) {
-              // console.error('Ошибка при получении статуса:', error);
-      return {
-        connected: false,
-        domain: null,
-        tunnelId: null
-      };
-    }
-  }
 
   /**
    * Настройка почтового сервера
@@ -869,9 +792,7 @@ export function useWebSshService() {
   return {
     checkAgentStatus: () => service.checkAgentStatus(),
     installAndStartAgent: () => service.installAndStartAgent(),
-    setupVDS: (config) => service.setupVDS(config),
-    disconnectTunnel: () => service.disconnectTunnel(),
-    getStatus: () => service.getStatus()
+    setupVDS: (config) => service.setupVDS(config)
   };
 }
 

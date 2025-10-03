@@ -19,9 +19,9 @@
           <div class="button-with-close">
             <button
               v-if="
-                !telegramAuth.showVerification &&
-                !emailAuth.showForm &&
-                !emailAuth.showVerification
+                !telegramAuth?.showVerification &&
+                !emailAuth?.showForm &&
+                !emailAuth?.showVerification
               "
               class="auth-btn connect-wallet-btn"
               @click="handleWalletAuth"
@@ -57,18 +57,18 @@
         
         <!-- Блок информации о пользователе или формы подключения -->
         <template v-if="isAuthenticated">
-          <div v-if="emailAuth.showForm || emailAuth.showVerification" class="auth-modal-panel">
+          <div v-if="emailAuth && (emailAuth.showForm || emailAuth.showVerification)" class="auth-modal-panel">
             <EmailConnect @success="$emit('cancel-email-auth')">
               <template #actions>
                 <button class="close-btn" @click="$emit('cancel-email-auth')">Отмена</button>
               </template>
             </EmailConnect>
           </div>
-          <div v-else-if="telegramAuth.showVerification" class="auth-modal-panel">
+          <div v-else-if="telegramAuth && telegramAuth.showVerification" class="auth-modal-panel">
             <TelegramConnect
-              :bot-link="telegramAuth.botLink"
-              :verification-code="telegramAuth.verificationCode"
-              :error="telegramAuth.error"
+              :bot-link="telegramAuth?.botLink"
+              :verification-code="telegramAuth?.verificationCode"
+              :error="telegramAuth?.error"
               @cancel="$emit('cancel-telegram-auth')"
             />
           </div>

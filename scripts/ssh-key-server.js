@@ -11,7 +11,11 @@ const DEFAULT_KEY_PATH = path.join(SSH_DIR, 'id_rsa');
 const DEFAULT_PUB_KEY_PATH = path.join(SSH_DIR, 'id_rsa.pub');
 
 // Путь к папке с ключами шифрования
-const KEYS_DIR = path.join(__dirname, '../ssl/keys');
+// В Docker контейнере: /app/ssl/keys
+// Локально: ../ssl/keys от __dirname
+const KEYS_DIR = fs.existsSync(path.join(__dirname, '../ssl/keys')) 
+  ? path.join(__dirname, '../ssl/keys')
+  : path.join(__dirname, 'ssl/keys');
 const ENCRYPTION_KEY_PATH = path.join(KEYS_DIR, 'full_db_encryption.key');
 
 // Helper to read SSH key
@@ -95,4 +99,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, () => {
   console.log(`SSH Key Server running on port ${port}`);
+  console.log(`SSH keys directory: ${SSH_DIR}`);
+  console.log(`Encryption key path: ${ENCRYPTION_KEY_PATH}`);
+  console.log(`Encryption key exists: ${fs.existsSync(ENCRYPTION_KEY_PATH)}`);
 });

@@ -1,0 +1,252 @@
+# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# All rights reserved.
+# This software is proprietary and confidential.
+# For licensing inquiries: info@hb3-accelerator.com
+
+# Production docker-compose для VDS
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dapp-postgres
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/data:/mnt/isic_csv_data
+    environment:
+      - POSTGRES_DB=${DB_NAME:-dapp_db}
+      - POSTGRES_USER=${DB_USER:-dapp_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-dapp_password}
+      # 🆕 SCRAM-SHA-256 для безопасной аутентификации
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+    # НЕ открываем порт 5432 наружу - только внутри Docker сети
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${DB_USER:-dapp_user} -d ${DB_NAME:-dapp_db}
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: digital_legal_entitydle-ollama:latest
+    container_name: dapp-ollama
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 6G
+        reservations:
+          cpus: '1.0'
+          memory: 4G
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_NUM_GPU=0
+      - OLLAMA_KEEP_ALIVE=86400
+      - OLLAMA_MODEL_TIMEOUT=0
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_FLASH_ATTENTION=0
+      - OLLAMA_LLM_LIBRARY=auto
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  vector-search:
+    image: digital_legal_entitydle-vector-search:latest
+    container_name: dapp-vector-search
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - vector_search_data:/app/data
+    environment:
+      # 🆕 Исправленный URL для Ollama
+      - OLLAMA_BASE_URL=http://dapp-ollama:11434
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
+      - VECTOR_SEARCH_PORT=8001
+      - LOG_LEVEL=INFO
+    # 🆕 Улучшенный health check с fallback
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || curl -f http://localhost:8001/ || wget -q --spider http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 15
+      start_period: 180s
+
+  backend:
+    image: digital_legal_entitydle-backend:latest
+    container_name: dapp-backend
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    # 🆕 Исправленные зависимости - backend запускается после postgres и ollama, но не ждет vector-search
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      vector-search:
+        condition: service_started
+    volumes:
+      - backend_node_modules:/app/node_modules
+      - ./ssl:/app/ssl:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - FRONTEND_URL=https://${DOMAIN}
+      # 🆕 Исправленные переменные БД с правильными именами хостов
+      - DB_HOST=dapp-postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-dapp_db}
+      - DB_USER=${DB_USER:-dapp_user}
+      - DB_PASSWORD=${DB_PASSWORD:-dapp_password}
+      # 🆕 DATABASE_URL с SCRAM-SHA-256 поддержкой
+      - DATABASE_URL=postgresql://${DB_USER:-dapp_user}:${DB_PASSWORD:-dapp_password}@dapp-postgres:5432/${DB_NAME:-dapp_db}?sslmode=prefer
+      # 🆕 Исправленный URL для Ollama
+      - OLLAMA_BASE_URL=http://dapp-ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-qwen2.5:7b}
+      # 🆕 Исправленный URL для Vector Search
+      - VECTOR_SEARCH_URL=http://dapp-vector-search:8001
+    # НЕ открываем порт 8000 наружу - только nginx подключается
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    image: digital_legal_entitydle-frontend:latest
+    container_name: dapp-frontend
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./ssl:/app/ssl:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=5173
+      # 🆕 Исправленный URL для backend
+      - VITE_BACKEND_URL=https://${DOMAIN}/api
+      - VITE_WS_URL=wss://${DOMAIN}/ws
+    # НЕ открываем порт 5173 наружу - только nginx подключается
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5173', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Certbot контейнер для автоматического получения SSL сертификатов
+  certbot:
+    image: certbot/certbot
+    container_name: dapp-certbot
+    restart: "no"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ${EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
+    depends_on:
+      - frontend-nginx
+
+  # Nginx с автоматическим SSL и поддержкой WebSocket
+  frontend-nginx:
+    image: digital_legal_entitydle-frontend-nginx:latest
+    container_name: dapp-frontend-nginx
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - BACKEND_CONTAINER=dapp-backend
+      - EMAIL=${EMAIL}
+      # 🆕 Переменные для WebSocket поддержки
+      - WS_BACKEND_CONTAINER=dapp-backend
+    volumes:
+      # SSL сертификаты Let's Encrypt (автоматически обновляются)
+      - /etc/letsencrypt:/etc/ssl/certs:ro
+      # Webroot для certbot
+      - /var/www/certbot:/var/www/certbot
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health", "||", "curl", "-f", "https://localhost:443/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  webssh-agent:
+    image: digital_legal_entitydle-webssh-agent:latest
+    container_name: dapp-webssh-agent
+    restart: unless-stopped
+    volumes:
+      - ~/.ssh:/root/.ssh:ro
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    # 🆕 Исправленный проброс портов - только локальный доступ для безопасности
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+
+
+# 🆕 Явное определение Docker сети для обеспечения связи между контейнерами
+networks:
+  dapp_network:
+    driver: bridge
+    name: dapp_network
+
+volumes:
+  postgres_data:
+  ollama_data:
+  vector_search_data:
+  backend_node_modules:

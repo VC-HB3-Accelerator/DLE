@@ -215,6 +215,7 @@ app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (лог
 app.use('/api/ens', ensRoutes); // ENS utilities
 app.use('/api', sshRoutes); // SSH роуты
 app.use('/api', encryptionRoutes); // Encryption роуты
+// API ключи удалены
 // app.use('/api/factory', factoryRoutes); // Factory routes removed - no longer needed
 app.use('/api/compile-contracts', compileRoutes); // Компиляция контрактов
 

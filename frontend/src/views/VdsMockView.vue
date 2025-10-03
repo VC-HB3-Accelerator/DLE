@@ -20,11 +20,21 @@
   >
     <div class="vds-mock-container">
       <div class="mock-header">
-        <h1>VDS Сервер - Не настроен</h1>
+        <h1 v-if="vdsConfigured">VDS Сервер - Настроен</h1>
+        <h1 v-else>VDS Сервер - Не настроен</h1>
         <div class="mock-status">
-          <div class="status-indicator offline"></div>
-          <span>Офлайн</span>
+          <div class="status-indicator" :class="vdsConfigured ? 'online' : 'offline'"></div>
+          <span v-if="vdsConfigured">Онлайн</span>
+          <span v-else>Офлайн</span>
         </div>
+      </div>
+
+      <!-- Информация о домене -->
+      <div v-if="vdsConfigured && vdsDomain" class="domain-info">
+        <h3>🌐 Ваше приложение доступно по адресу:</h3>
+        <a :href="`https://${vdsDomain}`" target="_blank" class="domain-link">
+          https://{{ vdsDomain }}
+        </a>
       </div>
 
       <!-- Мок интерфейс -->
@@ -117,7 +127,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 
@@ -134,9 +144,32 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 
+// Состояние VDS
+const vdsConfigured = ref(false);
+const vdsDomain = ref(null);
+
+// Проверка статуса VDS
+const checkVdsStatus = () => {
+  try {
+    const vdsConfig = localStorage.getItem('vds-config');
+    if (vdsConfig) {
+      const config = JSON.parse(vdsConfig);
+      vdsConfigured.value = config.isConfigured || false;
+      vdsDomain.value = config.domain || null;
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке статуса VDS:', error);
+  }
+};
+
 const goToSetup = () => {
   router.push({ name: 'webssh-settings' });
 };
+
+// Жизненный цикл
+onMounted(() => {
+  checkVdsStatus();
+});
 </script>
 
 <style scoped>
@@ -186,6 +219,43 @@ const goToSetup = () => {
 
 .status-indicator.offline {
   background: #dc3545;
+}
+
+.status-indicator.online {
+  background: #28a745;
+}
+
+.domain-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.domain-info h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.domain-link {
+  color: white;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 12px 24px;
+  border-radius: 8px;
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+.domain-link:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .mock-content {

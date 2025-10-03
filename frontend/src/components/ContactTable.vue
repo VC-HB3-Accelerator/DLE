@@ -113,6 +113,7 @@ import tablesService from '../services/tablesService';
 import messagesService from '../services/messagesService';
 import { useTagsWebSocket } from '../composables/useTagsWebSocket';
 import { usePermissions } from '@/composables/usePermissions';
+import api from '../api/axios';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -233,12 +234,11 @@ function buildQuery() {
 }
 
 async function fetchContacts() {
-  let url = '/api/users';
+  let url = '/users';
   const query = buildQuery();
   if (query) url += '?' + query;
-  const res = await fetch(url);
-  const data = await res.json();
-  contactsArray.value = data.contacts || [];
+  const res = await api.get(url);
+  contactsArray.value = res.data.contacts || [];
 }
 
 function onAnyFilterChange() {
