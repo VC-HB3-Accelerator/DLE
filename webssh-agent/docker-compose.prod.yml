@@ -139,7 +139,7 @@ services:
       # 🆕 Исправленный URL для Ollama
       - OLLAMA_BASE_URL=http://dapp-ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
-      - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-qwen2.5:7b}
+      - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # 🆕 Исправленный URL для Vector Search
       - VECTOR_SEARCH_URL=http://dapp-vector-search:8001
     # НЕ открываем порт 8000 наружу - только nginx подключается
