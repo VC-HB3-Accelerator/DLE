@@ -1,12 +1,13 @@
 FROM node:20-alpine
 
 # Устанавливаем необходимые пакеты
-RUN apk add --no-cache \
+RUN apk update && apk add --no-cache \
     openssh-client \
     sshpass \
     curl \
     wget \
-    docker-cli
+    docker-cli \
+    ca-certificates
 
 # Создаем рабочую директорию
 WORKDIR /app

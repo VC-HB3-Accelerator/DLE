@@ -19,7 +19,7 @@ LABEL website="https://hb3-accelerator.com"
 WORKDIR /app
 
 # Устанавливаем только docker-cli (без демона) для Alpine Linux
-RUN apk add --no-cache docker-cli curl
+RUN apk update && apk add --no-cache docker-cli curl ca-certificates
 
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
