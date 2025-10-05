@@ -198,6 +198,16 @@ const routes = [
     component: () => import('../views/content/PageEditView.vue'),
   },
   {
+    path: '/pages/public',
+    name: 'public-pages',
+    component: () => import('../views/content/PublicPagesView.vue'),
+  },
+  {
+    path: '/pages/public/:id',
+    name: 'public-page-view',
+    component: () => import('../views/content/PublicPageView.vue'),
+  },
+  {
     path: '/management',
     name: 'management',
     component: () => import('../views/ManagementView.vue')

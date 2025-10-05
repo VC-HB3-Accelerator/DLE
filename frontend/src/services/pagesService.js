@@ -13,6 +13,7 @@
 import api from '../api/axios';
 
 export default {
+  // Админские методы (требуют аутентификации и прав админа)
   async getPages() {
     const res = await api.get('/pages');
     return res.data;
@@ -31,6 +32,16 @@ export default {
   },
   async deletePage(id) {
     const res = await api.delete(`/pages/${id}`);
+    return res.data;
+  },
+  
+  // Публичные методы (доступны всем пользователям)
+  async getPublicPages() {
+    const res = await api.get('/pages/public/all');
+    return res.data;
+  },
+  async getPublicPage(id) {
+    const res = await api.get(`/pages/public/${id}`);
     return res.data;
   },
 }; 

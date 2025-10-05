@@ -21,12 +21,17 @@
     <div class="content-management-page">
       <!-- Заголовок страницы -->
       <div class="page-header">
-        <div class="header-content">
+          <div class="header-content">
           <h1>📄 Управление контентом</h1>
-          <p>Создавайте и управляйте страницами вашего DLE</p>
-          <button class="btn btn-primary" @click="goToCreate">
+          <p v-if="isAdmin && address">Создавайте и управляйте страницами вашего DLE</p>
+          <p v-else>Просмотр опубликованных страниц DLE</p>
+          <button v-if="isAdmin && address" class="btn btn-primary" @click="goToCreate">
             <i class="fas fa-plus"></i>
             Создать страницу
+          </button>
+          <button v-else class="btn btn-primary" @click="goToPublicPages">
+            <i class="fas fa-eye"></i>
+            Публичные страницы
           </button>
         </div>
         <div class="header-actions">
@@ -49,14 +54,6 @@
             </button>
             <button 
               class="nav-tab" 
-              :class="{ active: activeTab === 'templates' }"
-              @click="activeTab = 'templates'"
-            >
-              <i class="fas fa-layer-group"></i>
-              Шаблоны
-            </button>
-            <button 
-              class="nav-tab" 
               :class="{ active: activeTab === 'settings' }"
               @click="activeTab = 'settings'"
             >
@@ -71,7 +68,8 @@
           <!-- Вкладка Страницы -->
           <div v-if="activeTab === 'pages'" class="pages-section">
             <div class="section-header">
-              <h2>Созданные страницы</h2>
+              <h2 v-if="isAdmin && address">Созданные страницы</h2>
+              <h2 v-else>Опубликованные страницы</h2>
               <div class="search-box">
                 <input 
                   v-model="searchQuery" 
@@ -93,7 +91,7 @@
               >
                 <div class="page-card-header">
                   <h3>{{ page.title }}</h3>
-                  <div class="page-actions">
+                  <div class="page-actions" v-if="isAdmin && address">
                     <button 
                       class="action-btn edit-btn"
                       @click.stop="goToEdit(page.id)"
@@ -115,11 +113,15 @@
                   <div class="page-meta">
                     <span class="page-date">
                       <i class="fas fa-calendar"></i>
-                      {{ formatDate(page.createdAt) }}
+                      {{ formatDate(page.created_at) }}
                     </span>
                     <span class="page-status" :class="page.status">
                       <i class="fas fa-circle"></i>
                       {{ getStatusText(page.status) }}
+                    </span>
+                    <span class="page-author" v-if="page.author_address">
+                      <i class="fas fa-user"></i>
+                      {{ formatAddress(page.author_address) }}
                     </span>
                   </div>
                 </div>
@@ -131,11 +133,17 @@
               <div class="empty-icon">
                 <i class="fas fa-file-alt"></i>
               </div>
-              <h3>Нет созданных страниц</h3>
-              <p>Создайте первую страницу для вашего DLE</p>
-              <button class="btn btn-primary" @click="goToCreate">
+              <h3 v-if="isAdmin && address">Нет созданных страниц</h3>
+              <h3 v-else>Нет опубликованных страниц</h3>
+              <p v-if="isAdmin && address">Создайте первую страницу для вашего DLE</p>
+              <p v-else>Публичные страницы появятся здесь после их создания администраторами</p>
+              <button v-if="isAdmin && address" class="btn btn-primary" @click="goToCreate">
                 <i class="fas fa-plus"></i>
                 Создать страницу
+              </button>
+              <button v-else class="btn btn-primary" @click="goToPublicPages">
+                <i class="fas fa-eye"></i>
+                Публичные страницы
               </button>
             </div>
 
@@ -146,29 +154,6 @@
             </div>
           </div>
 
-          <!-- Вкладка Шаблоны -->
-          <div v-if="activeTab === 'templates'" class="templates-section">
-            <div class="section-header">
-              <h2>Шаблоны страниц</h2>
-              <p>Готовые шаблоны для быстрого создания контента</p>
-            </div>
-            
-            <div class="templates-grid">
-              <div 
-                v-for="template in templates" 
-                :key="template.id" 
-                class="template-card"
-                @click="useTemplate(template)"
-              >
-                <div class="template-icon">
-                  <i :class="template.icon"></i>
-                </div>
-                <h3>{{ template.name }}</h3>
-                <p>{{ template.description }}</p>
-                <button class="btn btn-outline">Использовать шаблон</button>
-              </div>
-            </div>
-          </div>
 
           <!-- Вкладка Настройки -->
           <div v-if="activeTab === 'settings'" class="settings-section">
@@ -207,6 +192,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
+import { useAuthContext } from '../../composables/useAuth';
 
 // Props
 const props = defineProps({
@@ -232,6 +218,7 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const { isAdmin, address } = useAuthContext();
 
 // Состояние
 const activeTab = ref('pages');
@@ -248,33 +235,6 @@ const publishSettings = ref({
   autoPublish: false
 });
 
-// Шаблоны
-const templates = ref([
-  {
-    id: 1,
-    name: 'О компании',
-    description: 'Стандартная страница с информацией о компании',
-    icon: 'fas fa-building'
-  },
-  {
-    id: 2,
-    name: 'Услуги',
-    description: 'Страница с описанием услуг и сервисов',
-    icon: 'fas fa-cogs'
-  },
-  {
-    id: 3,
-    name: 'Контакты',
-    description: 'Контактная информация и форма обратной связи',
-    icon: 'fas fa-address-book'
-  },
-  {
-    id: 4,
-    name: 'Блог',
-    description: 'Шаблон для ведения блога и новостей',
-    icon: 'fas fa-blog'
-  }
-]);
 
 // Вычисляемые свойства
 const filteredPages = computed(() => {
@@ -290,12 +250,20 @@ function goToCreate() {
   router.push({ name: 'content-create' });
 }
 
+function goToPublicPages() {
+  router.push({ name: 'public-pages' });
+}
+
 function goBack() {
   router.go(-1);
 }
 
 function goToPage(id) {
-  router.push({ name: 'page-view', params: { id } });
+  if (isAdmin.value && address.value) {
+    router.push({ name: 'page-view', params: { id } });
+  } else {
+    router.push({ name: 'public-page-view', params: { id } });
+  }
 }
 
 function goToEdit(id) {
@@ -313,16 +281,16 @@ async function deletePage(id) {
   }
 }
 
-function useTemplate(template) {
-  router.push({ 
-    name: 'content-create', 
-    query: { template: template.id } 
-  });
-}
 
 function formatDate(date) {
   if (!date) return 'Не указана';
   return new Date(date).toLocaleDateString('ru-RU');
+}
+
+function formatAddress(address) {
+  if (!address) return '';
+  // Показываем сокращенный адрес: 0x1234...5678
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 function getStatusText(status) {
@@ -337,7 +305,25 @@ function getStatusText(status) {
 async function loadPages() {
   try {
     isLoading.value = true;
-    pages.value = await pagesService.getPages();
+    
+    // Проверяем роль админа через кошелек
+    if (isAdmin.value && address.value) {
+      try {
+        // Пытаемся загрузить админские страницы
+        const response = await pagesService.getPages();
+        pages.value = response;
+      } catch (error) {
+        if (error.response?.status === 403) {
+          // Пользователь не админ или нет токенов, загружаем публичные страницы
+          pages.value = await pagesService.getPublicPages();
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      // Пользователь не админ или нет кошелька, загружаем публичные страницы
+      pages.value = await pagesService.getPublicPages();
+    }
   } catch (error) {
     console.error('Ошибка загрузки страниц:', error);
     pages.value = [];
@@ -592,44 +578,6 @@ onMounted(() => {
   100% { transform: rotate(360deg); }
 }
 
-.templates-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.template-card {
-  background: white;
-  border-radius: var(--radius-sm);
-  padding: 25px;
-  text-align: center;
-  border: 1px solid #e9ecef;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.template-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-}
-
-.template-icon {
-  font-size: 3rem;
-  color: var(--color-primary);
-  margin-bottom: 15px;
-}
-
-.template-card h3 {
-  color: var(--color-primary);
-  margin: 0 0 10px 0;
-}
-
-.template-card p {
-  color: var(--color-grey-dark);
-  margin: 0 0 20px 0;
-  line-height: 1.5;
-}
 
 .settings-grid {
   display: grid;
@@ -747,9 +695,6 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
   
-  .templates-grid {
-    grid-template-columns: 1fr;
-  }
   
   .settings-grid {
     grid-template-columns: 1fr;

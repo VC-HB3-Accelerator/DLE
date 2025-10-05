@@ -651,15 +651,22 @@ router.get('/check', async (req, res) => {
       try {
         identities = await identityService.getUserIdentities(req.session.userId);
 
-        // Проверяем роль пользователя
-        const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
-          req.session.userId,
-        ]);
+        // Для пользователей с кошельком проверяем токены в реальном времени
+        if (authType === 'wallet' && req.session.address) {
+          isAdmin = await authService.checkAdminTokens(req.session.address);
+          logger.info(`[auth/check] Admin status for wallet ${req.session.address}: ${isAdmin}`);
+        } else {
+          // Для других типов аутентификации используем роль из БД
+          const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
+            req.session.userId,
+          ]);
 
-        if (roleResult.rows.length > 0) {
-          isAdmin = roleResult.rows[0].role === 'admin';
-          req.session.isAdmin = isAdmin;
+          if (roleResult.rows.length > 0) {
+            isAdmin = roleResult.rows[0].role === 'admin';
+          }
         }
+        
+        req.session.isAdmin = isAdmin;
       } catch (error) {
         logger.error(`[session/check] Error fetching identities: ${error.message}`);
       }
