@@ -13,6 +13,7 @@
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const db = require('../db');
+const crypto = require('crypto');
 
 let onPoolChangeCallback = null;
 
@@ -28,7 +29,7 @@ function createSessionMiddleware() {
       pool: db.getPool(),
       tableName: 'session',
     }),
-    secret: process.env.SESSION_SECRET || 'hb3atoken',
+    secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     name: 'sessionId',
     resave: true,
     saveUninitialized: false,
