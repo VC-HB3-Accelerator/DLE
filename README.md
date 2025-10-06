@@ -79,7 +79,7 @@ docker-compose-down
 ### Для коммерческого лицензирования:
 - **Email:** info@hb3-accelerator.com
 - **Тема:** "Commercial License Request - DLE"
-- **Шаблон запроса:** [legal/COMMERCIAL_LICENSE_REQUEST.md](legal/COMMERCIAL_LICENSE_REQUEST.md)
+- **Шаблон запроса:** [legal/COMMERCIAL_LICENSE_REQUEST.md](./legal/COMMERCIAL_LICENSE_REQUEST.md)
 
 ### Юридические документы:
 - **Лицензия:** [LICENSE](LICENSE) | [Подробно](./legal/README.md)
