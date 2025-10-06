@@ -22,7 +22,7 @@
 **Для коммерческого использования требуется разрешение автора.**  
 **Контакты:** info@hb3-accelerator.com
 
-**Подробная информация:** [legal/LICENSE.md](legal/LICENSE.md)
+**Подробная информация:** [LICENSE](LICENSE)
 
 ## Требования
 
@@ -108,10 +108,14 @@ docker-compose-down
 - **Шаблон запроса:** [legal/COMMERCIAL_LICENSE_REQUEST.md](legal/COMMERCIAL_LICENSE_REQUEST.md)
 
 ### Юридические документы:
-- **Лицензия:** [LICENSE](LICENSE) | [Подробно](legal/LICENSE.md)
+- **Лицензия:** [LICENSE](LICENSE) | [Подробно](legal/README.md)
 - **Авторы:** [legal/AUTHORS.md](legal/AUTHORS.md)
 - **Для контрибьюторов:** [legal/CONTRIBUTING.md](legal/CONTRIBUTING.md)
 - **Уведомления об авторских правах:** [legal/COPYRIGHT_NOTICE.md](legal/COPYRIGHT_NOTICE.md)
+- **Условия использования:** [legal/TERMS_OF_SERVICE.md](legal/TERMS_OF_SERVICE.md)
+- **Коммерческие лицензии:** [legal/COMMERCIAL_LICENSES.md](legal/COMMERCIAL_LICENSES.md)
+- **Требования атрибуции:** [legal/ATTRIBUTION_REQUIREMENTS.md](legal/ATTRIBUTION_REQUIREMENTS.md)
+- **Уведомления об использовании:** [legal/USAGE_NOTIFICATION.md](legal/USAGE_NOTIFICATION.md)
 
 ---
 
