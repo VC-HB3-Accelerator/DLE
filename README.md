@@ -69,6 +69,7 @@ docker-compose restart
 
 # Остановка сервисов
 docker-compose-down
+```
 
 ## Контакты и поддержка
 
