@@ -235,8 +235,13 @@ legal/confidential/
 # ========================================
 # АВТОРСКИЕ ПРАВА И ЛИЦЕНЗИИ - ПУБЛИКОВАТЬ
 # ========================================
-# legal/LICENSE.md - ПУБЛИКОВАТЬ
-# legal/AUTHORS.md - ПУБЛИКОВАТЬ
-# legal/CONTRIBUTING.md - ПУБЛИКОВАТЬ
-# legal/COPYRIGHT_NOTICE.md - ПУБЛИКОВАТЬ
-# legal/TERMS_OF_SERVICE.md - ПУБЛИКОВАТЬ 
+# Исключения для публичных файлов
+!legal/README.md
+!legal/AUTHORS.md
+!legal/CONTRIBUTING.md
+!legal/COPYRIGHT_NOTICE.md
+!legal/TERMS_OF_SERVICE.md
+!legal/COMMERCIAL_LICENSES.md
+!legal/COMMERCIAL_LICENSE_REQUEST.md
+!legal/ATTRIBUTION_REQUIREMENTS.md
+!legal/USAGE_NOTIFICATION.md 
