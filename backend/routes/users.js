@@ -150,7 +150,12 @@ router.get('/', requireAuth, async (req, res, next) => {
           WHEN u.last_name_encrypted IS NULL OR u.last_name_encrypted = '' THEN NULL
           ELSE decrypt_text(u.last_name_encrypted, $${idx++})
         END as last_name,
-        u.created_at, u.preferred_language, u.is_blocked,
+        u.created_at, u.preferred_language, u.is_blocked, u.role,
+        CASE 
+          WHEN u.role = 'editor' THEN 'admin'
+          WHEN u.role = 'readonly' THEN 'admin'
+          ELSE 'user'
+        END as contact_type,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('telegram', $${idx++}) LIMIT 1) AS telegram,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('wallet', $${idx++}) LIMIT 1) AS wallet
@@ -219,7 +224,9 @@ router.get('/', requireAuth, async (req, res, next) => {
       wallet: u.wallet || null,
       created_at: u.created_at,
       preferred_language: u.preferred_language || [],
-      is_blocked: u.is_blocked || false
+      is_blocked: u.is_blocked || false,
+      contact_type: u.contact_type || 'user',
+      role: u.role || 'user'
     }));
 
     res.json({ success: true, contacts });

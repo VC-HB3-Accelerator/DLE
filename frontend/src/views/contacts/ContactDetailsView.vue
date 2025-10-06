@@ -381,23 +381,22 @@ async function loadMessages() {
   if (!contact.value || !contact.value.id) return;
   isLoadingMessages.value = true;
   try {
-    // Получаем conversationId для контакта
-    const conv = await messagesService.getConversationByUserId(contact.value.id);
-    conversationId.value = conv?.id || null;
-    if (conversationId.value) {
-      messages.value = await messagesService.getMessagesByConversationId(conversationId.value);
+    // Загружаем ВСЕ публичные сообщения этого пользователя (как на главной странице)
+    messages.value = await messagesService.getMessagesByUserId(contact.value.id);
     if (messages.value.length > 0) {
       lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
     } else {
-        lastMessageDate.value = null;
-      }
-    } else {
-      messages.value = [];
       lastMessageDate.value = null;
     }
+    
+    // Также получаем conversationId для отправки новых сообщений
+    const conv = await messagesService.getConversationByUserId(contact.value.id);
+    conversationId.value = conv?.id || null;
   } catch (e) {
+    console.error('[ContactDetailsView] Ошибка загрузки сообщений:', e);
     messages.value = [];
     lastMessageDate.value = null;
+    conversationId.value = null;
   } finally {
     isLoadingMessages.value = false;
   }

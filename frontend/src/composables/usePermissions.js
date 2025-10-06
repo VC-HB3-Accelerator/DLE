@@ -24,7 +24,7 @@ export function usePermissions() {
    * Проверяет, может ли пользователь только читать данные
    */
   const canRead = computed(() => {
-    return userAccessLevel.value && userAccessLevel.value.hasAccess;
+    return (userAccessLevel.value && userAccessLevel.value.hasAccess) || isAdmin.value;
   });
 
   /**

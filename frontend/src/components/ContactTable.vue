@@ -13,6 +13,9 @@
 <template>
   <div class="contact-table-modal">
     <div class="contact-table-header">
+      <el-button v-if="canRead" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">Личные сообщения</el-button>
+      <el-button v-if="canEdit" type="success" :disabled="!selectedIds.length" @click="() => openChatForSelected()" style="margin-right: 1em;">Публичное сообщение</el-button>
+      <el-button v-if="canRead" type="warning" :disabled="!selectedIds.length" @click="() => openPrivateChatForSelected()" style="margin-right: 1em;">Приватное сообщение</el-button>
       <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
       <el-button v-if="canDelete" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
       <el-button v-if="canDelete" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
@@ -72,20 +75,25 @@
       </el-form-item>
     </el-form>
     <table class="contact-table">
-      <thead>
-        <tr>
-          <th v-if="canEdit || canDelete || canManageSettings"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
-          <th>Имя</th>
-          <th>Email</th>
-          <th>Telegram</th>
-          <th>Кошелек</th>
-          <th>Дата создания</th>
-          <th>Действие</th>
-        </tr>
-      </thead>
+        <thead>
+          <tr>
+            <th v-if="canRead"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
+            <th>Тип</th>
+            <th>Имя</th>
+            <th>Email</th>
+            <th>Telegram</th>
+            <th>Кошелек</th>
+            <th>Дата создания</th>
+            <th>Действие</th>
+          </tr>
+        </thead>
       <tbody>
         <tr v-for="contact in contactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
-          <td v-if="canEdit || canDelete || canManageSettings"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
+          <td v-if="canRead"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
+          <td>
+            <span v-if="contact.contact_type === 'admin'" class="admin-badge">Админ</span>
+            <span v-else class="user-badge">Пользователь</span>
+          </td>
           <td>{{ contact.name || '-' }}</td>
           <td>{{ contact.email || '-' }}</td>
           <td>{{ contact.telegram || '-' }}</td>
@@ -125,7 +133,7 @@ const contactsArray = ref([]); // теперь управляем вручную
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
-const { canEdit, canDelete, canManageSettings } = usePermissions();
+const { canRead, canEdit, canDelete, canManageSettings } = usePermissions();
 
 // Фильтры
 const filterSearch = ref('');
@@ -234,11 +242,21 @@ function buildQuery() {
 }
 
 async function fetchContacts() {
-  let url = '/users';
-  const query = buildQuery();
-  if (query) url += '?' + query;
-  const res = await api.get(url);
-  contactsArray.value = res.data.contacts || [];
+  try {
+    // Загружаем обычные контакты
+    let url = '/users';
+    const query = buildQuery();
+    if (query) url += '?' + query;
+    console.log('[ContactTable] Загружаем контакты по URL:', url);
+    const res = await api.get(url);
+    console.log('[ContactTable] Получен ответ:', res.data);
+    contactsArray.value = res.data.contacts || [];
+    console.log('[ContactTable] Загружено контактов:', contactsArray.value.length);
+    console.log('[ContactTable] Первые 3 контакта:', contactsArray.value.slice(0, 3));
+  } catch (error) {
+    console.error('[ContactTable] Ошибка загрузки контактов:', error);
+    contactsArray.value = [];
+  }
 }
 
 function onAnyFilterChange() {
@@ -282,6 +300,59 @@ async function showDetails(contact) {
 function onImported() {
   showImportModal.value = false;
   fetchContacts();
+}
+
+async function openChatForSelected() {
+  if (selectedIds.value.length === 0) return;
+  
+  // Берем первый выбранный контакт
+  const contactId = selectedIds.value[0];
+  
+  // Находим контакт в списке
+  const contact = contactsArray.value.find(c => c.id === contactId);
+  if (!contact) return;
+  
+  // Открываем чат с этим контактом (user_chat)
+  await showDetails(contact);
+}
+
+async function openPrivateChatForSelected(contact = null) {
+  let targetContact = contact;
+  
+  // Если контакт не передан, берем из выбранных
+  if (!targetContact) {
+    if (selectedIds.value.length === 0) {
+      console.error('[ContactTable] Нет выбранных контактов');
+      return;
+    }
+    
+    // Берем первый выбранный контакт
+    const contactId = selectedIds.value[0];
+    console.log('[ContactTable] Ищем контакт с ID:', contactId);
+    console.log('[ContactTable] Доступные контакты:', contactsArray.value.map(c => ({ id: c.id, name: c.name })));
+    
+    // Находим контакт в списке
+    targetContact = contactsArray.value.find(c => c.id === contactId);
+    if (!targetContact) {
+      console.error('[ContactTable] Контакт не найден с ID:', contactId);
+      return;
+    }
+  }
+  
+  // Проверяем, что у контакта есть ID
+  if (!targetContact.id) {
+    console.error('[ContactTable] У контакта нет ID:', targetContact);
+    return;
+  }
+  
+  console.log('[ContactTable] Открываем приватный чат с контактом:', targetContact);
+  
+  // Открываем приватный чат с этим контактом (admin_chat)
+  router.push({ name: 'admin-chat', params: { adminId: targetContact.id } });
+}
+
+function goToPersonalMessages() {
+  router.push({ name: 'personal-messages' });
 }
 
 function toggleSelectAll() {
@@ -472,5 +543,23 @@ async function deleteMessagesSelected() {
   color: #ff9800;
   font-size: 1.2em;
   margin-left: 4px;
+}
+
+.admin-badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.user-badge {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
 }
 </style> 

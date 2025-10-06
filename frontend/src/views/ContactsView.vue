@@ -16,7 +16,7 @@
       <span>Контакты</span>
       <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
     </div>
-    <ContactTable v-if="canRead" :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markContactsAsRead" 
+    <ContactTable v-if="canRead" :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markMessagesAsRead" 
       :markMessagesAsReadForUser="markMessagesAsReadForUser" :markContactAsRead="markContactAsRead" @close="goBack" />
     
     <!-- Таблица-заглушка для обычных пользователей -->
@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import ContactTable from '../components/ContactTable.vue';
@@ -96,11 +96,22 @@ import { usePermissions } from '@/composables/usePermissions';
 
 const {
   contacts, newContacts, newMessages,
-  markContactsAsRead, markMessagesAsReadForUser, markContactAsRead
+  markMessagesAsRead, markMessagesAsReadForUser, markContactAsRead
 } = useContactsAndMessagesWebSocket();
 const router = useRouter();
-const { isAdmin } = useAuthContext();
+const auth = useAuthContext();
 const { canRead } = usePermissions();
+
+// Отладочная информация о правах доступа
+onMounted(() => {
+  console.log('[ContactsView] Permissions debug:', {
+    canRead: canRead.value,
+    isAdmin: auth.isAdmin?.value,
+    userAccessLevel: auth.userAccessLevel?.value,
+    userId: auth.userId?.value,
+    address: auth.address?.value
+  });
+});
 
 function goBack() {
   if (window.history.length > 1) {

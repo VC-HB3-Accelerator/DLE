@@ -23,6 +23,18 @@
       message.hasError ? 'has-error' : '',
     ]"
   >
+    <!-- Информация об отправителе для приватного чата -->
+    <div v-if="message.message_type === 'admin_chat'" class="message-sender-info">
+      <div class="sender-label">
+        <span class="sender-direction">
+          {{ isCurrentUserMessage ? 'Вы →' : '← Получено от' }}
+        </span>
+        <span class="sender-wallet">
+          {{ formatWalletAddress(isCurrentUserMessage ? message.recipient_wallet : message.sender_wallet) }}
+        </span>
+      </div>
+    </div>
+
     <!-- Текстовый контент, если есть -->
     <!-- eslint-disable-next-line vue/no-v-html -->
     <div v-if="message.content" class="message-content" v-html="formattedContent" />
@@ -60,6 +72,14 @@
       <div class="message-time">
         {{ formattedTime }}
       </div>
+      <div v-if="message.message_type === 'admin_chat'" class="message-read-status">
+        <span v-if="isCurrentUserMessage" class="read-status">
+          {{ message.isRead ? '✓ Прочитано' : '○ Отправлено' }}
+        </span>
+        <span v-else class="read-status received">
+          Получено
+        </span>
+      </div>
       <div v-if="message.isLocal" class="message-status">
         <span class="sending-indicator">Отправка...</span>
       </div>
@@ -81,6 +101,34 @@ const props = defineProps({
     required: true,
   },
 });
+
+// Простая функция для определения, является ли сообщение отправленным текущим пользователем
+// Используем данные из самого сообщения для определения направления
+const isCurrentUserMessage = computed(() => {
+  // Если это admin_chat, используем sender_id для определения
+  if (props.message.message_type === 'admin_chat') {
+    // Для простоты, считаем что если sender_id равен user_id, то это ответное сообщение
+    // Это может потребовать корректировки в зависимости от логики
+    return props.message.sender_id === props.message.user_id;
+  }
+  
+  // Для обычных сообщений используем стандартную логику
+  return props.message.sender_type === 'user' || props.message.role === 'user';
+});
+
+// Функция для форматирования wallet адреса
+const formatWalletAddress = (address) => {
+  if (!address || address === 'Админ') {
+    return 'Админ';
+  }
+  
+  // Если это wallet адрес (начинается с 0x), показываем сокращенную версию
+  if (address.startsWith('0x') && address.length === 42) {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+  
+  return address;
+};
 
 // --- Работа с вложениями --- 
 const attachment = computed(() => {
@@ -404,5 +452,52 @@ function copyEmail(email) {
 }
 .system-btn:hover {
   background: var(--color-primary-dark, #2563eb);
+}
+
+/* Стили для информации об отправителе в приватном чате */
+.message-sender-info {
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.sender-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sender-direction {
+  font-weight: 600;
+  color: var(--color-primary, #3b82f6);
+}
+
+.sender-wallet {
+  font-family: monospace;
+  color: var(--color-text-secondary, #666);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+/* Стили для статуса прочтения */
+.message-read-status {
+  margin-left: 8px;
+}
+
+.read-status {
+  font-size: 0.8em;
+  color: var(--color-text-secondary, #666);
+}
+
+.read-status.received {
+  color: var(--color-success, #10b981);
+}
+
+.read-status:contains('✓') {
+  color: var(--color-success, #10b981);
 }
 </style> 

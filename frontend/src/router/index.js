@@ -161,6 +161,18 @@ const routes = [
     name: 'contacts-list',
     component: () => import('../views/ContactsView.vue')
   },
+  {
+    path: '/admin-chat/:adminId',
+    name: 'admin-chat',
+    component: () => import('../views/AdminChatView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/personal-messages',
+    name: 'personal-messages',
+    component: () => import('../views/PersonalMessagesView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
 
   {
     path: '/settings/ai/telegram',
@@ -196,16 +208,6 @@ const routes = [
     path: '/content/page/:id/edit',
     name: 'page-edit',
     component: () => import('../views/content/PageEditView.vue'),
-  },
-  {
-    path: '/pages/public',
-    name: 'public-pages',
-    component: () => import('../views/content/PublicPagesView.vue'),
-  },
-  {
-    path: '/pages/public/:id',
-    name: 'public-page-view',
-    component: () => import('../views/content/PublicPageView.vue'),
   },
   {
     path: '/management',

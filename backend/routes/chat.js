@@ -932,10 +932,10 @@ router.get('/history', requireAuth, async (req, res) => {
   try {
     // Если нужен только подсчет
     if (countOnly) {
-      let countQuery = 'SELECT COUNT(*) FROM messages WHERE user_id = $1';
-      let countParams = [userId];
+      let countQuery = 'SELECT COUNT(*) FROM messages WHERE user_id = $1 AND message_type = $2';
+      let countParams = [userId, 'user_chat'];
       if (conversationId) {
-        countQuery += ' AND conversation_id = $2';
+        countQuery += ' AND conversation_id = $3';
         countParams.push(conversationId);
       }
       const countResult = await db.getQuery()(countQuery, countParams);
@@ -944,7 +944,10 @@ router.get('/history', requireAuth, async (req, res) => {
     }
 
     // Загружаем сообщения через encryptedDb
-    const whereConditions = { user_id: userId };
+    const whereConditions = { 
+      user_id: userId,
+      message_type: 'user_chat' // Фильтруем только публичные сообщения
+    };
     if (conversationId) {
       whereConditions.conversation_id = conversationId;
     }
