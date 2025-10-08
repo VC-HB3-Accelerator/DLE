@@ -28,19 +28,9 @@ async function getSettings() {
       return null;
     }
 
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_chain.pem');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8');
-      }
-    } catch (keyError) {
-      logger.warn('[aiAssistantSettingsService] Could not read encryption key:', keyError.message);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     // Обрабатываем selected_rag_tables
     if (setting.selected_rag_tables) {

@@ -20,7 +20,7 @@ const rateLimit = require('express-rate-limit');
 const { requireAuth } = require('../middleware/auth');
 const authService = require('../services/auth-service');
 const { ethers } = require('ethers');
-const { initTelegramAuth } = require('../services/telegramBot');
+const botManager = require('../services/botManager');
 const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
 const identityService = require('../services/identity-service');
@@ -60,17 +60,10 @@ router.get('/nonce', async (req, res) => {
     // Используем правильный ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-        logger.info(`[nonce] Using encryption key: ${encryptionKey.substring(0, 10)}...`);
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    logger.info(`[nonce] Using encryption key: ${encryptionKey.substring(0, 10)}...`);
     
     try {
       // Проверяем, существует ли уже nonce для этого адреса
@@ -135,16 +128,9 @@ router.post('/verify', async (req, res) => {
     // Читаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     // Проверяем nonce в базе данных с проверкой времени истечения
     const nonceResult = await db.getQuery()(

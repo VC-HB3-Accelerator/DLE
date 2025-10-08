@@ -211,7 +211,8 @@ async function saveGuestMessageToDatabase(message, language, guestId) {
 }
 
 async function waitForOllamaModel(modelName) {
-  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
+  const ollamaConfig = require('./services/ollamaConfig');
+  const ollamaUrl = ollamaConfig.getBaseUrl();
   while (true) {
     try {
       const res = await axios.get(`${ollamaUrl}/api/tags`);
@@ -233,18 +234,8 @@ async function seedAIAssistantSettings() {
   const res = await pool.query('SELECT COUNT(*) FROM ai_assistant_settings');
   if (parseInt(res.rows[0].count, 10) === 0) {
     // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, 'ssl/keys/full_db_encryption.key');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    const encryptionUtils = require('./utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     await pool.query(`
       INSERT INTO ai_assistant_settings (system_prompt_encrypted, selected_rag_tables, languages, model_encrypted, rules_id, updated_by)

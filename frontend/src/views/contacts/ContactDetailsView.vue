@@ -431,7 +431,7 @@ async function handleSendMessage({ message, attachments }) {
     if (typeof ElMessageBox === 'function') {
       ElMessageBox.alert('Пользователь заблокирован. Отправка сообщений невозможна.', 'Ошибка', { type: 'error' });
     } else {
-      alert('Пользователь заблокирован. Отправка сообщений невозможна.');
+      console.error('Пользователь заблокирован. Отправка сообщений невозможна.');
     }
     return;
   }
@@ -441,7 +441,7 @@ async function handleSendMessage({ message, attachments }) {
     if (typeof ElMessageBox === 'function') {
       ElMessageBox.alert('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.', 'Ошибка', { type: 'warning' });
     } else {
-      alert('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.');
+      console.error('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.');
     }
     return;
   }
@@ -464,14 +464,14 @@ async function handleSendMessage({ message, attachments }) {
     if (typeof ElMessageBox === 'function') {
       ElMessageBox.alert(resultText, 'Результат рассылки', { type: 'info' });
     } else {
-      alert(resultText);
+      console.log('Результат рассылки:', resultText);
     }
     await loadMessages();
   } catch (e) {
     if (typeof ElMessageBox === 'function') {
       ElMessageBox.alert('Ошибка отправки: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
     } else {
-      alert('Ошибка отправки: ' + (e?.response?.data?.error || e?.message || e));
+      console.error('Ошибка отправки:', e?.response?.data?.error || e?.message || e);
     }
   }
 }

@@ -23,8 +23,8 @@ RUN apk add --no-cache curl
 # Копируем собранный frontend из первого этапа
 COPY --from=frontend-builder /app/dist/ /usr/share/nginx/html/
 
-# Копируем конфигурацию nginx
-COPY nginx-simple.conf /etc/nginx/nginx.conf.template
+# Копируем конфигурацию nginx (используем dev версию для локальной разработки)
+COPY nginx-dev.conf /etc/nginx/nginx.conf.template
 
 # Копируем скрипт запуска
 COPY docker-entrypoint.sh /docker-entrypoint.sh

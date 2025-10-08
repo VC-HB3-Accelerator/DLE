@@ -186,7 +186,7 @@ services:
 
   # SSH Key Server для безопасной передачи ключей
   ssh-key-server:
-    image: node:20-alpine
+    image: node:20-slim
     container_name: dapp-ssh-key-server
     restart: unless-stopped
     volumes:
@@ -197,7 +197,7 @@ services:
       - '3001:3001'
     command: node /app/ssh-key-server.js
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/ssh-key"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/ssh-key', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 3

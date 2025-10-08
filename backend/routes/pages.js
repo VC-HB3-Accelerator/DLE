@@ -22,18 +22,9 @@ async function ensureAdminPagesTable(fields) {
   const tableName = `admin_pages_simple`;
   
   // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    // console.error('Error reading encryption key:', keyError);
-  }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
   
   // Проверяем, есть ли таблица
   const existsRes = await db.getQuery()(
@@ -131,18 +122,9 @@ router.get('/', async (req, res) => {
   const tableName = `admin_pages_simple`;
   
   // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    // console.error('Error reading encryption key:', keyError);
-  }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
   
   // Проверяем, есть ли таблица
   const existsRes = await db.getQuery()(

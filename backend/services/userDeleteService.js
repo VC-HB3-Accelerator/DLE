@@ -33,6 +33,14 @@ async function deleteUserById(userId) {
     );
     console.log('[DELETE] Удалено messages:', resMessages.rows.length);
     
+    // 2.1. Удаляем хеши дедупликации
+    console.log('[DELETE] Начинаем удаление message_deduplication для userId:', userId);
+    const resDeduplication = await db.getQuery()(
+      'DELETE FROM message_deduplication WHERE user_id = $1 RETURNING id',
+      [userId]
+    );
+    console.log('[DELETE] Удалено deduplication hashes:', resDeduplication.rows.length);
+    
     // 3. Удаляем conversations
     console.log('[DELETE] Начинаем удаление conversations для userId:', userId);
     const resConversations = await db.getQuery()(

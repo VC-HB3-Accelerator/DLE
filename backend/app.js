@@ -21,6 +21,12 @@ const errorHandler = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
 const db = require('./db'); // Добавляем импорт db
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
+
+// Инициализация AI Assistant из БД
+aiAssistant.initPromise.catch(error => {
+  logger.error('[app.js] AI Assistant не инициализирован:', error.message);
+});
+
 const deploymentWebSocketService = require('./services/deploymentWebSocketService'); // WebSocket для деплоя
 const fs = require('fs');
 const path = require('path');

@@ -81,16 +81,9 @@ router.get('/', requireAuth, async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     // --- Формируем условия ---
     const where = [];
@@ -323,18 +316,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
     let idx = 1;
     
     // Получаем ключ шифрования один раз
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-        console.log('Encryption key loaded:', encryptionKey.length, 'characters');
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     // Обработка поля name - разбиваем на first_name и last_name
     if (name !== undefined) {
@@ -413,31 +396,11 @@ router.get('/:id', async (req, res, next) => {
   // Получаем ключ шифрования
   const fs = require('fs');
   const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = '/app/ssl/keys/full_db_encryption.key';
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
 
     const query = db.getQuery();
     // Получаем пользователя
@@ -485,16 +448,9 @@ router.post('/', async (req, res) => {
   // Получаем ключ шифрования
   const fs = require('fs');
   const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = '/app/ssl/keys/full_db_encryption.key';
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
     const result = await db.getQuery()(
@@ -514,16 +470,9 @@ router.post('/import', requireAuth, async (req, res) => {
   // Получаем ключ шифрования
   const fs = require('fs');
   const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = '/app/ssl/keys/full_db_encryption.key';
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
     const contacts = req.body;

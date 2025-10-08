@@ -1,13 +1,17 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 # Устанавливаем необходимые пакеты
-RUN apk update && apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     openssh-client \
     sshpass \
     curl \
     wget \
-    docker-cli \
-    ca-certificates
+    docker.io \
+    ca-certificates \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Создаем рабочую директорию
 WORKDIR /app

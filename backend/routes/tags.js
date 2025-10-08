@@ -89,19 +89,9 @@ router.post('/user/:rowId/multirelations', async (req, res) => {
   const { column_id, to_table_id, to_row_ids } = req.body; // to_row_ids: массив id тегов
   if (!Array.isArray(to_row_ids)) return res.status(400).json({ error: 'to_row_ids должен быть массивом' });
   
-  // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = '/app/ssl/keys/full_db_encryption.key';
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    // console.error('Error reading encryption key:', keyError);
-  }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
   
   // Проверяем, является ли это обновлением тегов (проверяем связанную таблицу)
   const relatedTableName = (await db.getQuery()('SELECT decrypt_text(name_encrypted, $2) as name FROM user_tables WHERE id = $1', [to_table_id, encryptionKey])).rows[0];

@@ -16,8 +16,7 @@ const http = require('http');
 const { initWSS } = require('./wsHub');
 const deploymentWebSocketService = require('./services/deploymentWebSocketService');
 const logger = require('./utils/logger');
-const { getBot } = require('./services/telegramBot');
-const EmailBotService = require('./services/emailBot');
+// systemReadinessService удален - теперь используется WebSocket endpoint
 const { initDbPool, seedAIAssistantSettings } = require('./db');
 const memoryMonitor = require('./utils/memoryMonitor');
 
@@ -27,63 +26,28 @@ const PORT = process.env.PORT || 8000;
 // console.log('Переменная окружения PORT:', process.env.PORT);
 // console.log('Используемый порт:', process.env.PORT || 8000);
 
-// Инициализация сервисов
-async function initServices() {
-  try {
-    // console.log('Инициализация сервисов...');
-          // console.log('[initServices] Запуск Email-бота...');
-      // console.log('[initServices] Создаю экземпляр EmailBotService...');
-    let emailBot;
-    try {
-      emailBot = new EmailBotService();
-              // console.log('[initServices] Экземпляр EmailBotService создан');
-    } catch (err) {
-              // console.error('[initServices] Ошибка при создании экземпляра EmailBotService:', err);
-      throw err;
-    }
-            // console.log('[initServices] Перед вызовом emailBot.start()');
-    try {
-      await emailBot.start();
-              // console.log('[initServices] Email-бот успешно запущен');
-    } catch (err) {
-              // console.error('[initServices] Ошибка при запуске emailBot:', err);
-    }
-          // console.log('[initServices] Запуск Telegram-бота...');
-    try {
-      await getBot();
-              // console.log('[initServices] Telegram-бот успешно запущен');
-    } catch (err) {
-              // console.error('[initServices] Ошибка при запуске Telegram-бота:', err);
-    }
-      } catch (error) {
-      // console.error('Ошибка при инициализации сервисов:', error);
-    }
-}
-
 const server = http.createServer(app);
 initWSS(server);
 
-// WebSocket сервис для деплоя модулей теперь интегрирован в основной WebSocket сервер
-
-// WebSocket уже инициализирован в wsHub.js
-
 async function startServer() {
-  await initDbPool(); // Дождаться пересоздания пула!
+  await initDbPool();
   
   // Инициализация AI ассистента В ФОНЕ (неблокирующая)
   seedAIAssistantSettings().catch(error => {
     console.warn('[Server] Ollama недоступен, AI ассистент будет инициализирован позже:', error.message);
   });
   
-  // Разогрев модели Ollama
-      // console.log('🔥 Запуск разогрева модели...');
-  setTimeout(() => {
-  }, 10000); // Задержка 10 секунд для полной инициализации
+  // Инициализация ботов сразу при старте (не ждем Ollama)
+  console.log('[Server] ▶️ Импортируем BotManager...');
+  const botManager = require('./services/botManager');
+  console.log('[Server] ▶️ Вызываем botManager.initialize()...');
+  botManager.initialize()
+    .then(() => console.log('[Server] ✅ botManager.initialize() завершен'))
+    .catch(error => {
+      console.error('[Server] ❌ Ошибка botManager.initialize():', error.message);
+      logger.error('[Server] Ошибка инициализации ботов:', error);
+    });
   
-  // Запускаем сервисы в фоне (неблокирующе)
-  initServices().catch(error => {
-    console.warn('[Server] Ошибка инициализации сервисов:', error.message);
-  });
   console.log(`✅ Server is running on port ${PORT}`);
 }
 
@@ -113,16 +77,36 @@ if (process.env.NODE_ENV === 'production') {
 
 // Обработчики для корректного завершения
 process.on('SIGINT', async () => {
-  // logger.info('[Server] Получен сигнал SIGINT, завершаем работу...'); // Убрано избыточное логирование
-  memoryMonitor.stop();
-  await initDbPool().then(pool => pool.end()); // Use initDbPool to get the pool
+  console.log('[Server] Получен SIGINT, завершаем работу...');
+  try {
+    // Останавливаем боты
+    const botManager = require('./services/botManager');
+    if (botManager.isInitialized) {
+      console.log('[Server] Останавливаем боты...');
+      await botManager.stop();
+    }
+    memoryMonitor.stop();
+    await initDbPool().then(pool => pool.end());
+  } catch (error) {
+    console.error('[Server] Ошибка при завершении:', error);
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  // logger.info('[Server] Получен сигнал SIGTERM, завершаем работу...'); // Убрано избыточное логирование
-  memoryMonitor.stop();
-  await initDbPool().then(pool => pool.end()); // Use initDbPool to get the pool
+  console.log('[Server] Получен SIGTERM, завершаем работу...');
+  try {
+    // Останавливаем боты
+    const botManager = require('./services/botManager');
+    if (botManager.isInitialized) {
+      console.log('[Server] Останавливаем боты...');
+      await botManager.stop();
+    }
+    memoryMonitor.stop();
+    await initDbPool().then(pool => pool.end());
+  } catch (error) {
+    console.error('[Server] Ошибка при завершении:', error);
+  }
   process.exit(0);
 });
 

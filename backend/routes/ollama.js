@@ -22,7 +22,8 @@ const { requireAuth } = require('../middleware/auth');
 router.get('/status', requireAuth, async (req, res) => {
   try {
     const axios = require('axios');
-    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
+    const ollamaConfig = require('../services/ollamaConfig');
+    const ollamaUrl = ollamaConfig.getBaseUrl();
     
     // Проверяем API Ollama через HTTP запрос
     try {
@@ -54,7 +55,8 @@ router.get('/status', requireAuth, async (req, res) => {
 router.get('/models', requireAuth, async (req, res) => {
   try {
     const axios = require('axios');
-    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
+    const ollamaConfig = require('../services/ollamaConfig');
+    const ollamaUrl = ollamaConfig.getBaseUrl();
     
     const response = await axios.get(`${ollamaUrl}/api/tags`, { 
       timeout: 5000 

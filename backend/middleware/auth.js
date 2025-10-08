@@ -15,23 +15,13 @@
 const { createError } = require('../utils/error');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
-const { USER_ROLES } = require('../utils/constants');
+// Используем новые роли: 'editor' и 'readonly' вместо 'admin'
 const db = require('../db');
 const { checkAdminTokens } = require('../services/auth-service');
 
 // Получаем ключ шифрования
-const fs = require('fs');
-const path = require('path');
-let encryptionKey = 'default-key';
-
-try {
-  const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-  if (fs.existsSync(keyPath)) {
-    encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-  }
-} catch (keyError) {
-  // console.error('Error reading encryption key:', keyError);
-}
+const encryptionUtils = require('../utils/encryptionUtils');
+const encryptionKey = encryptionUtils.getEncryptionKey();
 
 /**
  * Middleware для проверки аутентификации
@@ -90,7 +80,7 @@ async function requireAdmin(req, res, next) {
       const userResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
         req.session.userId,
       ]);
-      if (userResult.rows.length > 0 && userResult.rows[0].role === USER_ROLES.ADMIN) {
+      if (userResult.rows.length > 0 && (userResult.rows[0].role === 'editor' || userResult.rows[0].role === 'readonly')) {
         // Обновляем сессию
         req.session.isAdmin = true;
         // logger.info(`[requireAdmin] Доступ разрешен через userId`); // Убрано

@@ -87,6 +87,7 @@ class AICache {
 
   calculateHitRate() {
     // Простая реализация - в реальности нужно отслеживать hits/misses
+    if (this.maxSize === 0) return 0;
     return this.cache.size / this.maxSize;
   }
 }

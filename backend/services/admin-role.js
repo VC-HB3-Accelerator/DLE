@@ -34,19 +34,9 @@ async function checkAdminRole(address) {
   let foundTokens = false;
   let errorCount = 0;
   const balances = {};
-  // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-      } catch (keyError) {
-      // console.error('Error reading encryption key:', keyError);
-    }
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
 
   // Получаем токены и RPC из базы с расшифровкой
   const tokensResult = await db.getQuery()(

@@ -11,46 +11,21 @@
  */
 
 const db = require('../db');
-const fs = require('fs');
-const path = require('path');
+const encryptionUtils = require('../utils/encryptionUtils');
 
 class EncryptedDataService {
   constructor() {
-    this.encryptionKey = this.loadEncryptionKey();
-    this.isEncryptionEnabled = !!this.encryptionKey;
+    this.encryptionKey = encryptionUtils.getEncryptionKey();
+    this.isEncryptionEnabled = encryptionUtils.isEnabled();
     
     if (this.isEncryptionEnabled) {
-      // console.log('🔐 Шифрование базы данных активировано');
-      // console.log('📋 Автоматическое определение зашифрованных колонок');
+      console.log('🔐 [EncryptedDB] Шифрование базы данных активировано');
+      console.log('📋 [EncryptedDB] Автоматическое определение зашифрованных колонок');
     } else {
-      // console.log('⚠️ Шифрование базы данных отключено - ключ не найден');
+      console.log('⚠️ [EncryptedDB] Шифрование базы данных отключено - ключ не найден');
     }
   }
 
-  loadEncryptionKey() {
-    try {
-      const keyPath = path.join(__dirname, '../../ssl/keys/full_db_encryption.key');
-      // console.log(`[EncryptedDB] Trying key path: ${keyPath}`);
-      if (fs.existsSync(keyPath)) {
-        const key = fs.readFileSync(keyPath, 'utf8').trim();
-        // console.log(`[EncryptedDB] Key loaded from: ${keyPath}, length: ${key.length}`);
-        return key;
-      }
-      // Попробуем альтернативный путь относительно корня приложения
-      const altKeyPath = '/app/ssl/keys/full_db_encryption.key';
-      // console.log(`[EncryptedDB] Trying alternative key path: ${altKeyPath}`);
-      if (fs.existsSync(altKeyPath)) {
-        const key = fs.readFileSync(altKeyPath, 'utf8').trim();
-        // console.log(`[EncryptedDB] Key loaded from: ${altKeyPath}, length: ${key.length}`);
-        return key;
-      }
-      // console.log(`[EncryptedDB] No key file found, using default key`);
-      return 'default-key';
-    } catch (error) {
-      // console.error('❌ Ошибка загрузки ключа шифрования:', error);
-      return 'default-key';
-    }
-  }
 
   /**
    * Получить данные из таблицы с автоматической расшифровкой

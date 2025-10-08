@@ -2,7 +2,8 @@
   "watch": [
     "backend/src",
     "backend/routes",
-    "backend/services"
+    "backend/services",
+    "server.js"
   ],
   "ignore": [
     "backend/artifacts/**",

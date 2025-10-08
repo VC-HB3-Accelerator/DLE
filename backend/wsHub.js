@@ -74,6 +74,12 @@ function initWSS(server) {
             timestamp: data.timestamp 
           }));
         }
+
+        if (data.type === 'ollama_ready') {
+          // Уведомление о готовности Ollama - запускаем инициализацию ботов
+          console.log('🚀 [WebSocket] Получено уведомление о готовности Ollama!');
+          handleOllamaReady();
+        }
         
         if (data.type === 'request_token_balances' && data.address) {
           // Запрос балансов токенов
@@ -577,4 +583,42 @@ async function handleTokenBalancesRequest(ws, address, userId) {
       }
     }));
   }
+}
+
+/**
+ * Обработка уведомления о готовности Ollama
+ */
+async function handleOllamaReady() {
+  try {
+    console.log('✅ [WebSocket] Ollama готов к работе');
+    // Уведомляем всех подключенных клиентов о готовности системы
+    broadcastSystemReady();
+  } catch (error) {
+    console.error('❌ [WebSocket] Ошибка обработки Ollama ready:', error);
+  }
+}
+
+/**
+ * Уведомление всех клиентов о готовности системы
+ */
+function broadcastSystemReady() {
+  const message = JSON.stringify({
+    type: 'system_ready',
+    data: {
+      message: 'Все модели загружены! Система готова к работе.',
+      timestamp: Date.now(),
+      bots: ['web', 'telegram', 'email']
+    }
+  });
+  
+  // Отправляем всем подключенным клиентам
+  wsClients.forEach((clientSet) => {
+    clientSet.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    });
+  });
+  
+  console.log('📢 [WebSocket] Уведомление о готовности системы отправлено всем клиентам');
 } 

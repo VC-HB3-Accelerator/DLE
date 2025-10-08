@@ -13,317 +13,203 @@
 const { Telegraf } = require('telegraf');
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
-const db = require('../db');
-const authService = require('./auth-service');
-const verificationService = require('./verification-service');
-const crypto = require('crypto');
-const identityService = require('./identity-service');
-const aiAssistant = require('./ai-assistant');
-const { checkAdminRole } = require('./admin-role');
-const { broadcastContactsUpdate, broadcastChatMessage } = require('../wsHub');
-const aiAssistantSettingsService = require('./aiAssistantSettingsService');
-const { ragAnswer, generateLLMResponse } = require('./ragService');
-const { isUserBlocked } = require('../utils/userUtils');
 
-let botInstance = null;
-let telegramSettingsCache = null;
+/**
+ * TelegramBot - обработчик Telegram сообщений
+ * Унифицированный интерфейс для работы с Telegram
+ */
+class TelegramBot {
+  constructor() {
+    this.name = 'TelegramBot';
+    this.channel = 'telegram';
+    this.bot = null;
+    this.settings = null;
+    this.isInitialized = false;
+    this.status = 'inactive';
+  }
 
-async function getTelegramSettings() {
-  if (telegramSettingsCache) return telegramSettingsCache;
-  
-  const settings = await encryptedDb.getData('telegram_settings', {}, 1);
-  if (!settings.length) throw new Error('Telegram settings not found in DB');
-  
-  telegramSettingsCache = settings[0];
-  return telegramSettingsCache;
-}
+  /**
+   * Инициализация Telegram Bot
+   */
+  async initialize() {
+    try {
+      logger.info('[TelegramBot] 🚀 Инициализация Telegram Bot...');
+      
+      // Загружаем настройки из БД
+      this.settings = await this.loadSettings();
+      
+      if (!this.settings || !this.settings.bot_token) {
+        logger.warn('[TelegramBot] ⚠️ Настройки Telegram не найдены');
+        this.status = 'not_configured';
+        return { success: false, reason: 'not_configured' };
+      }
 
-// Создание и настройка бота
-async function getBot() {
-      // console.log('[TelegramBot] getBot() called');
-  if (!botInstance) {
-          // console.log('[TelegramBot] Creating new bot instance...');
-    const settings = await getTelegramSettings();
-          // console.log('[TelegramBot] Got settings, creating Telegraf instance...');
-    botInstance = new Telegraf(settings.bot_token);
-          // console.log('[TelegramBot] Telegraf instance created');
+      // Проверяем токен
+      if (!this.settings.bot_token || typeof this.settings.bot_token !== 'string') {
+        logger.error('[TelegramBot] ❌ Некорректный токен:', { 
+          tokenExists: !!this.settings.bot_token,
+          tokenType: typeof this.settings.bot_token,
+          tokenLength: this.settings.bot_token?.length || 0
+        });
+        this.status = 'invalid_token';
+        return { success: false, reason: 'invalid_token' };
+      }
 
-    // Обработка команды /start
-    botInstance.command('start', (ctx) => {
+      // Проверяем токен через Telegram API
+      try {
+        logger.info('[TelegramBot] Проверяем токен через Telegram API...');
+        const testBot = new Telegraf(this.settings.bot_token);
+        const me = await testBot.telegram.getMe();
+        logger.info('[TelegramBot] ✅ Токен валиден, бот:', me.username);
+        // Не вызываем stop() - может вызвать ошибку
+      } catch (error) {
+        logger.error('[TelegramBot] ❌ Токен невалиден или проблема с API:', {
+          message: error.message,
+          code: error.code,
+          response: error.response?.data
+        });
+        this.status = 'invalid_token';
+        return { success: false, reason: 'invalid_token' };
+      }
+
+      // Создаем экземпляр бота
+      this.bot = new Telegraf(this.settings.bot_token);
+      
+      // Настраиваем обработчики
+      this.setupHandlers();
+      
+      // Сначала помечаем как инициализированный
+      this.isInitialized = true;
+      this.status = 'active';
+      
+      // Запускаем бота асинхронно (может долго подключаться)
+      this.launch()
+        .then(() => {
+          logger.info('[TelegramBot] ✅ Бот успешно подключен к Telegram');
+          this.status = 'active';
+        })
+        .catch(error => {
+          logger.error('[TelegramBot] Ошибка подключения к Telegram:', {
+            message: error.message,
+            code: error.code,
+            response: error.response?.data,
+            stack: error.stack
+          });
+          this.status = 'error';
+        });
+      
+      logger.info('[TelegramBot] ✅ Telegram Bot инициализирован (подключение в фоне)');
+      return { success: true };
+      
+    } catch (error) {
+      if (error.message.includes('409: Conflict')) {
+        logger.warn('[TelegramBot] ⚠️ Telegram Bot уже запущен в другом процессе');
+        this.status = 'conflict';
+          } else {
+        logger.error('[TelegramBot] ❌ Ошибка инициализации:', error);
+        this.status = 'error';
+      }
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Загрузка настроек из БД
+   */
+  async loadSettings() {
+    try {
+      const settings = await encryptedDb.getData('telegram_settings', {}, 1);
+      if (!settings.length) {
+        return null;
+      }
+      return settings[0];
+    } catch (error) {
+      logger.error('[TelegramBot] Ошибка загрузки настроек:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Настройка обработчиков команд и сообщений
+   */
+  setupHandlers() {
+    // Обработчик команды /start
+    this.bot.command('start', (ctx) => {
+      logger.info('[TelegramBot] 📨 Получена команда /start');
       ctx.reply('Добро пожаловать! Отправьте код подтверждения для аутентификации.');
     });
 
-    // Универсальный обработчик текстовых сообщений
-    botInstance.on('text', async (ctx) => {
-      const text = ctx.message.text.trim();
-      // 1. Если команда — пропустить
-      if (text.startsWith('/')) return;
-      
-      // Отправляем индикатор печати для улучшения UX
-      const typingAction = ctx.replyWithChatAction('typing');
-      
-      // 2. Проверка: это потенциальный код?
-      const isPotentialCode = (str) => /^[A-Z0-9]{6}$/i.test(str);
-      if (isPotentialCode(text)) {
-        await typingAction;
-        try {
-          // Получаем код верификации для всех активных кодов с провайдером telegram
-          const codes = await encryptedDb.getData('verification_codes', {
-            code: text.toUpperCase(),
-            provider: 'telegram',
-            used: false
-          }, 1);
+    // Обработчик текстовых сообщений
+    this.bot.on('text', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получено текстовое сообщение');
+      await this.handleTextMessage(ctx);
+    });
 
-          if (codes.length === 0) {
-            ctx.reply('Неверный код подтверждения');
-            return;
-          }
+    // Обработчик документов
+    this.bot.on('document', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получен документ');
+      await this.handleMessage(ctx);
+    });
 
-          const verification = codes[0];
-          const providerId = verification.provider_id;
-          const linkedUserId = verification.user_id; // Получаем связанный userId если он есть
-          let userId;
-          let userRole = 'user'; // Роль по умолчанию
+    // Обработчик фото
+    this.bot.on('photo', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получено фото');
+      await this.handleMessage(ctx);
+    });
 
-          // Отмечаем код как использованный
-          await encryptedDb.saveData('verification_codes', {
-            used: true
-          }, {
-            id: verification.id
-          });
+    // Обработчик аудио
+    this.bot.on('audio', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получено аудио');
+      await this.handleMessage(ctx);
+    });
 
-          logger.info('Starting Telegram auth process for code:', text);
+    // Обработчик видео
+    this.bot.on('video', async (ctx) => {
+      logger.info('[TelegramBot] 📨 Получено видео');
+      await this.handleMessage(ctx);
+    });
+  }
 
-          // Проверяем, существует ли уже пользователь с таким Telegram ID
-          const existingTelegramUsers = await encryptedDb.getData('user_identities', {
-            provider: 'telegram',
-            provider_id: ctx.from.id.toString()
-          }, 1);
+  /**
+   * Обработка текстовых сообщений
+   */
+  async handleTextMessage(ctx) {
+    const text = ctx.message.text.trim();
+    
+    // Пропускаем команды
+    if (text.startsWith('/')) return;
 
-          if (existingTelegramUsers.length > 0) {
-            // Если пользователь с таким Telegram ID уже существует, используем его
-            userId = existingTelegramUsers[0].user_id;
-            logger.info(`Using existing user ${userId} for Telegram account ${ctx.from.id}`);
-          } else {
-            // Если код верификации был связан с существующим пользователем, используем его
-            if (linkedUserId) {
-              // Используем userId из кода верификации
-              userId = linkedUserId;
-              // Связываем Telegram с этим пользователем
-              await encryptedDb.saveData('user_identities', {
-                user_id: userId,
-                provider: 'telegram',
-                provider_id: ctx.from.id.toString()
-              });
-              logger.info(
-                `Linked Telegram account ${ctx.from.id} to pre-authenticated user ${userId}`
-              );
-            } else {
-              // Проверяем, есть ли пользователь, связанный с гостевым идентификатором
-              let existingUserWithGuestId = null;
-              if (providerId) {
-                const guestUserResult = await encryptedDb.getData('guest_user_mapping', {
-                  guest_id: providerId
-                }, 1);
-                if (guestUserResult.length > 0) {
-                  existingUserWithGuestId = guestUserResult[0].user_id;
-                  logger.info(
-                    `Found existing user ${existingUserWithGuestId} by guest ID ${providerId}`
-                  );
-                }
-              }
+    // Обрабатываем как обычное сообщение
+    await this.handleMessage(ctx);
+  }
 
-              if (existingUserWithGuestId) {
-                // Используем существующего пользователя и добавляем ему Telegram идентификатор
-                userId = existingUserWithGuestId;
-                await encryptedDb.saveData('user_identities', {
-                  user_id: userId,
-                  provider: 'telegram',
-                  provider_id: ctx.from.id.toString()
-                });
-                logger.info(`Linked Telegram account ${ctx.from.id} to existing user ${userId}`);
-              } else {
-                // Создаем нового пользователя, если не нашли существующего
-                const userResult = await encryptedDb.saveData('users', {
-                  created_at: new Date(),
-                  role: 'user'
-                });
-                userId = userResult.id;
-
-                // Связываем Telegram с новым пользователем
-                await encryptedDb.saveData('user_identities', {
-                  user_id: userId,
-                  provider: 'telegram',
-                  provider_id: ctx.from.id.toString()
-                });
-
-                // Если был гостевой ID, связываем его с новым пользователем
-                if (providerId) {
-                  await encryptedDb.saveData('guest_user_mapping', {
-                    user_id: userId,
-                    guest_id: providerId
-                  }, {
-                    user_id: userId
-                  });
-                }
-
-                logger.info(`Created new user ${userId} with Telegram account ${ctx.from.id}`);
-              }
-            }
-          }
-
-          // ----> НАЧАЛО: Проверка роли на основе привязанного кошелька <----
-          if (userId) { // Убедимся, что userId определен
-            logger.info(`[TelegramBot] Checking linked wallet for determined userId: ${userId} (Type: ${typeof userId})`);
-            try {
-              const linkedWallet = await authService.getLinkedWallet(userId);
-              if (linkedWallet) { 
-                logger.info(`[TelegramBot] Found linked wallet ${linkedWallet} for user ${userId}. Checking role...`);
-                const isAdmin = await checkAdminRole(linkedWallet);
-                userRole = isAdmin ? 'admin' : 'user';
-                logger.info(`[TelegramBot] Role for user ${userId} determined as: ${userRole}`);
-
-                // Опционально: Обновить роль в таблице users
-                const currentUser = await encryptedDb.getData('users', {
-                  id: userId
-                }, 1);
-                if (currentUser.length > 0 && currentUser[0].role !== userRole) {
-                  await encryptedDb.saveData('users', {
-                    role: userRole
-                  }, {
-                    id: userId
-                  });
-                  logger.info(`[TelegramBot] Updated user role in DB to ${userRole}`);
-                }
-              } else {
-                logger.info(`[TelegramBot] No linked wallet found for user ${userId}. Checking current DB role.`);
-                // Если кошелька нет, берем текущую роль из базы
-                const currentUser = await encryptedDb.getData('users', {
-                  id: userId
-                }, 1);
-                if (currentUser.length > 0) {
-                  userRole = currentUser[0].role;
-                }
-              }
-            } catch (roleCheckError) {
-              logger.error(`[TelegramBot] Error checking admin role for user ${userId}:`, roleCheckError);
-              // В случае ошибки берем роль из базы или оставляем 'user'
-              try {
-                  const currentUser = await encryptedDb.getData('users', {
-                    id: userId
-                  }, 1);
-                  if (currentUser.length > 0) { userRole = currentUser[0].role; }
-              } catch (dbError) { /* ignore */ }
-            }
-          } else {
-             logger.error('[TelegramBot] Cannot check role because userId is undefined!');
-          }
-          // ----> КОНЕЦ: Проверка роли <----
-
-          // Логируем userId перед обновлением сессии
-          logger.info(`[telegramBot] Attempting to update session for userId: ${userId}`);
-
-          // Находим последнюю активную сессию для данного userId
-          let activeSessionId = null;
-          try {
-            // Ищем сессию, где есть userId и она не истекла (проверка expires_at)
-            // Сортируем по expires_at DESC чтобы взять самую "свежую", если их несколько
-            const sessionResult = await encryptedDb.getData('session', {
-              'sess->>userId': userId?.toString()
-            }, 1, 'expire', 'DESC');
-            
-            if (sessionResult.length > 0) {
-              activeSessionId = sessionResult[0].sid;
-              logger.info(`[telegramBot] Found active session ID ${activeSessionId} for user ${userId}`);
-
-              // Обновляем найденную сессию в базе данных, добавляя/перезаписывая данные Telegram
-              const updateResult = await encryptedDb.saveData('session', {
-                sess: JSON.stringify({
-                  // authenticated: true, // Не перезаписываем, т.к. сессия уже должна быть аутентифицирована
-                  authType: 'telegram', // Обновляем тип аутентификации
-                  telegramId: ctx.from.id.toString(),
-                  telegramUsername: ctx.from.username,
-                  telegramFirstName: ctx.from.first_name,
-                  role: userRole, // Записываем определенную роль
-                  // userId: userId?.toString() // userId уже должен быть в сессии
-                })
-              }, {
-                sid: activeSessionId
-              });
-              
-              if (updateResult.rowCount > 0) {
-                  logger.info(`[telegramBot] Session ${activeSessionId} updated successfully with Telegram data for user ${userId}`);
-              } else {
-                  logger.warn(`[telegramBot] Session update query executed but did not update rows for sid: ${activeSessionId}. This might indicate a concurrency issue or incorrect sid.`);
-              }
-
-            } else {
-              logger.warn(`[telegramBot] No active web session found for userId: ${userId}. Telegram is linked, but the user might need to refresh their browser session.`);
-            }
-          } catch(sessionError) {
-             logger.error(`[telegramBot] Error finding or updating session for userId ${userId}:`, sessionError);
-          }
-
-          // Отправляем сообщение об успешной аутентификации
-          await ctx.reply('Аутентификация успешна! Можете вернуться в приложение.');
-
-          // Удаляем сообщение с кодом
-          try {
-            await ctx.deleteMessage(ctx.message.message_id);
-          } catch (error) {
-            logger.warn('Could not delete code message:', error);
-          }
-
-          // После каждого успешного создания пользователя:
-          broadcastContactsUpdate();
-        } catch (error) {
-          logger.error('Error in Telegram auth:', error);
-          await ctx.reply('Произошла ошибка при аутентификации. Попробуйте позже.');
-        }
-        return;
-      }
-      
-            // 3. Всё остальное — чат с ИИ-ассистентом
+  /**
+   * Извлечение данных из Telegram сообщения
+   * @param {Object} ctx - Telegraf context
+   * @returns {Object} - Стандартизированные данные сообщения
+   */
+  extractMessageData(ctx) {
       try {
         const telegramId = ctx.from.id.toString();
-        
-        // 1. Найти или создать пользователя
-        const { userId, role } = await identityService.findOrCreateUserWithRole('telegram', telegramId);
-        if (await isUserBlocked(userId)) {
-          await ctx.reply('Вы заблокированы. Сообщения не принимаются.');
-          return;
-        }
-        
-        // 1.1 Найти или создать беседу
-        let conversationResult = await encryptedDb.getData('conversations', {
-          user_id: userId
-        }, 1, 'updated_at', 'DESC', 'created_at', 'DESC');
-        let conversation;
-        if (conversationResult.length === 0) {
-          const title = `Чат с пользователем ${userId}`;
-          const newConv = await encryptedDb.saveData('conversations', {
-            user_id: userId,
-            title: title,
-            created_at: new Date(),
-            updated_at: new Date()
-          });
-          conversation = newConv;
-        } else {
-          conversation = conversationResult[0];
-        }
-        
-        // 2. Сохранять все сообщения с conversation_id
-        let content = text;
-        let attachmentMeta = {};
-        // Проверяем вложения (фото, документ, аудио, видео)
-        let fileId, fileName, mimeType, fileSize, attachmentBuffer;
+      let content = '';
+      let attachments = [];
+
+      // Текст сообщения
+      if (ctx.message.text) {
+        content = ctx.message.text.trim();
+      } else if (ctx.message.caption) {
+        content = ctx.message.caption.trim();
+      }
+
+      // Обработка вложений
+      let fileId, fileName, mimeType, fileSize;
+
         if (ctx.message.document) {
           fileId = ctx.message.document.file_id;
           fileName = ctx.message.document.file_name;
           mimeType = ctx.message.document.mime_type;
           fileSize = ctx.message.document.file_size;
         } else if (ctx.message.photo && ctx.message.photo.length > 0) {
-          // Берём самое большое фото
           const photo = ctx.message.photo[ctx.message.photo.length - 1];
           fileId = photo.file_id;
           fileName = 'photo.jpg';
@@ -341,339 +227,185 @@ async function getBot() {
           fileSize = ctx.message.video.file_size;
         }
         
-        // Асинхронная загрузка файлов
         if (fileId) {
-          try {
-            const fileLink = await ctx.telegram.getFileLink(fileId);
-            const res = await fetch(fileLink.href);
-            attachmentBuffer = await res.buffer();
-            attachmentMeta = {
-              attachment_filename: fileName,
-              attachment_mimetype: mimeType,
-              attachment_size: fileSize,
-              attachment_data: attachmentBuffer
-            };
-          } catch (fileError) {
-            logger.error('[TelegramBot] Error downloading file:', fileError);
-            // Продолжаем без файла
-          }
-        }
-        
-        // Сохраняем сообщение в БД
-        if (!conversation || !conversation.id) {
-          logger.error(`[TelegramBot] Conversation is undefined or has no id for user ${userId}`);
-          await ctx.reply('Произошла ошибка при создании диалога. Попробуйте позже.');
-          return;
-        }
-        
-        const userMessage = await encryptedDb.saveData('messages', {
-          user_id: userId,
-          conversation_id: conversation.id,
-          sender_type: 'user',
-          content: content,
-          channel: 'telegram',
-          role: role,
-          direction: 'in',
-          created_at: new Date(),
-          attachment_filename: attachmentMeta.attachment_filename || null,
-          attachment_mimetype: attachmentMeta.attachment_mimetype || null,
-          attachment_size: attachmentMeta.attachment_size || null,
-          attachment_data: attachmentMeta.attachment_data || null
+        attachments.push({
+          type: 'telegram_file',
+          fileId: fileId,
+          filename: fileName,
+          mimetype: mimeType,
+          size: fileSize,
+          ctx: ctx // Сохраняем контекст для последующей загрузки
         });
-        
-        // Отправляем WebSocket уведомление о пользовательском сообщении
-        try {
-          const decryptedUserMessage = await encryptedDb.getData('messages', { id: userMessage.id }, 1);
-          if (decryptedUserMessage && decryptedUserMessage[0]) {
-            broadcastChatMessage(decryptedUserMessage[0], userId);
-          }
-        } catch (wsError) {
-          logger.error('[TelegramBot] WebSocket notification error for user message:', wsError);
-        }
-
-        if (await isUserBlocked(userId)) {
-          logger.info(`[TelegramBot] Пользователь ${userId} заблокирован — ответ ИИ не отправляется.`);
-          return;
-        }
-
-        // 3. Получить ответ от ИИ (RAG + LLM) - асинхронно
-        const aiResponsePromise = (async () => {
-          const aiSettings = await aiAssistantSettingsService.getSettings();
-          let ragTableId = null;
-          if (aiSettings && aiSettings.selected_rag_tables) {
-            ragTableId = Array.isArray(aiSettings.selected_rag_tables)
-              ? aiSettings.selected_rag_tables[0]
-              : aiSettings.selected_rag_tables;
-          }
-          
-          // Загружаем историю сообщений для контекста (ограничиваем до 5 сообщений)
-          let history = null;
-          try {
-            const recentMessages = await encryptedDb.getData('messages', {
-              conversation_id: conversation.id
-            }, 5, 'created_at DESC');
-            
-            if (recentMessages && recentMessages.length > 0) {
-              // Преобразуем сообщения в формат для AI
-              history = recentMessages.reverse().map(msg => ({
-                // Любые человеческие роли трактуем как 'user', только ответы ассистента — 'assistant'
-                role: msg.sender_type === 'assistant' ? 'assistant' : 'user',
-                content: msg.content || ''
-              }));
-            }
-          } catch (historyError) {
-            logger.error('[TelegramBot] Error loading message history:', historyError);
-          }
-          
-          let aiResponse;
-          if (ragTableId) {
-            // Сначала ищем ответ через RAG
-            const ragResult = await ragAnswer({ tableId: ragTableId, userQuestion: content });
-            if (ragResult && ragResult.answer && typeof ragResult.score === 'number' && Math.abs(ragResult.score) <= 0.1) {
-              aiResponse = ragResult.answer;
-            } else {
-              // Используем очередь AIQueue для LLM генерации
-              const requestId = await aiAssistant.addToQueue({
-                message: content,
-                history: history,
-                systemPrompt: aiSettings ? aiSettings.system_prompt : '',
-                rules: null
-              }, 0);
-              
-              // Ждем ответ из очереди
-              aiResponse = await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  reject(new Error('AI response timeout'));
-                }, 120000); // 2 минуты таймаут
-                
-                const onCompleted = (item) => {
-                  if (item.id === requestId) {
-                    clearTimeout(timeout);
-                    aiAssistant.aiQueue.off('requestCompleted', onCompleted);
-                    aiAssistant.aiQueue.off('requestFailed', onFailed);
-                    resolve(item.result);
-                  }
-                };
-                
-                const onFailed = (item) => {
-                  if (item.id === requestId) {
-                    clearTimeout(timeout);
-                    aiAssistant.aiQueue.off('requestCompleted', onCompleted);
-                    aiAssistant.aiQueue.off('requestFailed', onFailed);
-                    reject(new Error(item.error));
-                  }
-                };
-                
-                aiAssistant.aiQueue.on('requestCompleted', onCompleted);
-                aiAssistant.aiQueue.on('requestFailed', onFailed);
-              });
-            }
-          } else {
-            // Используем очередь AIQueue для обработки
-            const requestId = await aiAssistant.addToQueue({
-              message: content,
-              history: history,
-              systemPrompt: aiSettings ? aiSettings.system_prompt : '',
-              rules: null
-            }, 0);
-            
-            // Ждем ответ из очереди
-            aiResponse = await new Promise((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error('AI response timeout'));
-              }, 120000); // 2 минуты таймаут
-              
-              const onCompleted = (item) => {
-                if (item.id === requestId) {
-                  clearTimeout(timeout);
-                  aiAssistant.aiQueue.off('requestCompleted', onCompleted);
-                  aiAssistant.aiQueue.off('requestFailed', onFailed);
-                  resolve(item.result);
-                }
-              };
-              
-              const onFailed = (item) => {
-                if (item.id === requestId) {
-                  clearTimeout(timeout);
-                  aiAssistant.aiQueue.off('requestFailed', onFailed);
-                  reject(new Error(item.error));
-                }
-              };
-              
-              aiAssistant.aiQueue.on('requestCompleted', onCompleted);
-              aiAssistant.aiQueue.on('requestFailed', onFailed);
-            });
-          }
-          
-          return aiResponse;
-        })();
-        
-        // Ждем ответ от ИИ с таймаутом
-        const aiResponse = await Promise.race([
-          aiResponsePromise,
-                  new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('AI response timeout')), 120000)
-        )
-        ]);
-        
-        // 4. Сохранить ответ в БД с conversation_id
-        const aiMessage = await encryptedDb.saveData('messages', {
-          user_id: userId,
-          conversation_id: conversation.id,
-          sender_type: 'assistant',
-          content: aiResponse,
-          channel: 'telegram',
-          role: 'assistant',
-          direction: 'out',
-          created_at: new Date()
-        });
-        
-        // 5. Отправить ответ пользователю
-        await ctx.reply(aiResponse);
-        
-        // 6. Отправить WebSocket уведомление
-        try {
-          const decryptedAiMessage = await encryptedDb.getData('messages', { id: aiMessage.id }, 1);
-          if (decryptedAiMessage && decryptedAiMessage[0]) {
-            broadcastChatMessage(decryptedAiMessage[0], userId);
-          }
-        } catch (wsError) {
-          logger.error('[TelegramBot] WebSocket notification error:', wsError);
-        }
-      } catch (error) {
-        logger.error('[TelegramBot] Ошибка при обработке сообщения:', error);
-        await ctx.reply('Произошла ошибка при обработке вашего сообщения. Попробуйте позже.');
       }
-    });
 
-    // Запуск бота с таймаутом
-    // console.log('[TelegramBot] Before botInstance.launch()');
-    try {
-      // Запускаем бота с таймаутом
-      const launchPromise = botInstance.launch();
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Telegram bot launch timeout')), 30000); // 30 секунд таймаут
-      });
-      
-      await Promise.race([launchPromise, timeoutPromise]);
-      // console.log('[TelegramBot] After botInstance.launch()');
-      logger.info('[TelegramBot] Бот запущен');
+      return {
+        channel: 'telegram',
+        identifier: telegramId,
+        content: content,
+        attachments: attachments,
+        metadata: {
+          telegramUsername: ctx.from.username,
+          telegramFirstName: ctx.from.first_name,
+          telegramLastName: ctx.from.last_name,
+          messageId: ctx.message.message_id,
+          chatId: ctx.chat.id
+        }
+      };
     } catch (error) {
-              // console.error('[TelegramBot] Error launching bot:', error);
-      // Не выбрасываем ошибку, чтобы не блокировать запуск сервера
-      // console.log('[TelegramBot] Bot launch failed, but continuing...');
-    }
-  }
-
-  return botInstance;
-}
-
-// Остановка бота
-async function stopBot() {
-  if (botInstance) {
-    try {
-      await botInstance.stop();
-      botInstance = null;
-      logger.info('Telegram bot stopped successfully');
-    } catch (error) {
-      logger.error('Error stopping Telegram bot:', error);
+      logger.error('[TelegramBot] Ошибка извлечения данных из сообщения:', error);
       throw error;
     }
   }
-}
 
-// Инициализация процесса аутентификации
-async function initTelegramAuth(session) {
-  try {
-    // Используем временный идентификатор для создания кода верификации
-    // Реальный пользователь будет создан или найден при проверке кода через бота
-    const tempId = crypto.randomBytes(16).toString('hex');
+  /**
+   * Загрузка файла из Telegram
+   * @param {Object} attachment - Данные вложения
+   * @returns {Promise<Buffer>} - Буфер с данными файла
+   */
+  async downloadAttachment(attachment) {
+    try {
+      const fileLink = await attachment.ctx.telegram.getFileLink(attachment.fileId);
+      const res = await fetch(fileLink.href);
+      return await res.buffer();
+    } catch (error) {
+      logger.error('[TelegramBot] Ошибка загрузки файла:', error);
+      return null;
+    }
+  }
 
-    // Если пользователь уже авторизован, сохраняем его userId в guest_user_mapping
-    // чтобы потом при авторизации через бота этот пользователь был найден
-    if (session && session.authenticated && session.userId) {
-      const guestId = session.guestId || tempId;
+  /**
+   * Обработка сообщения через процессор
+   * @param {Object} ctx - Telegraf context
+   * @param {Function} processor - Функция обработки сообщения
+   */
+  async handleMessage(ctx, processor = null) {
+    try {
+      await ctx.replyWithChatAction('typing');
+      
+      // Извлекаем данные из сообщения
+      const messageData = this.extractMessageData(ctx);
+      
+      logger.info(`[TelegramBot] Обработка сообщения от пользователя: ${messageData.identifier}`);
 
-      // Связываем гостевой ID с текущим пользователем
-      await encryptedDb.saveData('guest_user_mapping', {
-        user_id: session.userId,
-        guest_id: guestId
-      }, {
-        user_id: session.userId
+      // Загружаем вложения если есть
+      for (const attachment of messageData.attachments) {
+        const buffer = await this.downloadAttachment(attachment);
+        if (buffer) {
+          attachment.data = buffer;
+          // Удаляем ctx из вложения
+          delete attachment.ctx;
+        }
+      }
+
+      // Используем установленный процессор или переданный
+      const messageProcessor = processor || this.messageProcessor;
+      
+      if (!messageProcessor) {
+        await ctx.reply('Сообщение получено и будет обработано.');
+          return;
+        }
+
+      // Обрабатываем сообщение через унифицированный процессор
+      const result = await messageProcessor(messageData);
+
+      // Отправляем ответ пользователю
+      if (result.success && result.aiResponse) {
+        await ctx.reply(result.aiResponse.response);
+      } else if (result.success) {
+        await ctx.reply('Сообщение получено');
+      } else {
+        await ctx.reply('Произошла ошибка при обработке сообщения');
+      }
+
+      } catch (error) {
+      logger.error('[TelegramBot] Ошибка обработки сообщения:', error);
+        try {
+          await ctx.reply('Произошла ошибка при обработке вашего сообщения. Попробуйте позже.');
+        } catch (replyError) {
+        logger.error('[TelegramBot] Не удалось отправить сообщение об ошибке:', replyError);
+      }
+    }
+  }
+
+  /**
+   * Запуск бота (без timeout и retry - Telegraf сам управляет подключением)
+   */
+  async launch() {
+    try {
+      logger.info('[TelegramBot] Запуск polling...');
+      
+      // Запускаем бота без таймаута - пусть Telegraf сам управляет подключением
+      await this.bot.launch({ 
+        dropPendingUpdates: true,
+        allowedUpdates: ['message', 'callback_query']
       });
-
-      logger.info(
-        `[initTelegramAuth] Linked guestId ${guestId} to authenticated user ${session.userId}`
-      );
+      
+      logger.info('[TelegramBot] ✅ Бот запущен успешно');
+    } catch (error) {
+      logger.error('[TelegramBot] ❌ Ошибка запуска:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        stack: error.stack
+      });
+      throw error;
     }
+  }
 
-    // Создаем код через сервис верификации с идентификатором
-    const code = await verificationService.createVerificationCode(
-      'telegram',
-      session.guestId || tempId,
-      session.authenticated ? session.userId : null
-    );
 
-    logger.info(
-      `[initTelegramAuth] Created verification code for guestId: ${session.guestId || tempId}${session.authenticated ? `, userId: ${session.userId}` : ''}`
-    );
+  /**
+   * Установка процессора сообщений
+   * @param {Function} processor - Функция обработки сообщений
+   */
+  setMessageProcessor(processor) {
+    this.messageProcessor = processor;
+    logger.info('[TelegramBot] ✅ Процессор сообщений установлен');
+  }
 
-    const settings = await getTelegramSettings();
+  /**
+   * Проверка статуса бота
+   * @returns {Object} - Статус бота
+   */
+  getStatus() {
     return {
-      verificationCode: code,
-      botLink: `https://t.me/${settings.bot_username}`,
+      name: this.name,
+      channel: this.channel,
+      isInitialized: this.isInitialized,
+      status: this.status,
+      hasSettings: !!this.settings
     };
+  }
+
+  /**
+   * Получение экземпляра бота (для совместимости)
+   * @returns {Object} - Экземпляр Telegraf бота
+   */
+  getBot() {
+    return this.bot;
+  }
+
+  /**
+   * Остановка бота
+   */
+  async stop() {
+    try {
+      logger.info('[TelegramBot] 🛑 Остановка Telegram Bot...');
+      
+      if (this.bot) {
+        await this.bot.stop();
+        this.bot = null;
+      }
+      
+      this.isInitialized = false;
+      this.status = 'inactive';
+      
+      logger.info('[TelegramBot] ✅ Telegram Bot остановлен');
   } catch (error) {
-    logger.error('Error initializing Telegram auth:', error);
+      logger.error('[TelegramBot] ❌ Ошибка остановки:', error);
     throw error;
   }
 }
-
-function clearSettingsCache() {
-  telegramSettingsCache = null;
 }
 
-// Сохранение настроек Telegram
-async function saveTelegramSettings(settings) {
-  try {
-    // Очищаем кэш настроек
-    clearSettingsCache();
-    
-    // Проверяем, существуют ли уже настройки
-    const existingSettings = await encryptedDb.getData('telegram_settings', {}, 1);
-    
-    let result;
-    if (existingSettings.length > 0) {
-      // Если настройки существуют, обновляем их
-      const existingId = existingSettings[0].id;
-      result = await encryptedDb.saveData('telegram_settings', settings, { id: existingId });
-    } else {
-      // Если настроек нет, создаем новые
-      result = await encryptedDb.saveData('telegram_settings', settings, null);
-    }
-    
-    // Обновляем кэш
-    telegramSettingsCache = settings;
-    
-    logger.info('Telegram settings saved successfully');
-    return { success: true, data: result };
-  } catch (error) {
-    logger.error('Error saving Telegram settings:', error);
-    throw error;
-  }
-}
+module.exports = TelegramBot;
 
-async function getAllBots() {
-  const settings = await encryptedDb.getData('telegram_settings', {}, 1, 'id');
-  return settings;
-}
-
-module.exports = {
-  getTelegramSettings,
-  getBot,
-  stopBot,
-  initTelegramAuth,
-  clearSettingsCache,
-  saveTelegramSettings,
-  getAllBots,
-};

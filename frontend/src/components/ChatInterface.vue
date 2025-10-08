@@ -491,7 +491,12 @@ async function handleAiReply() {
     }
   } catch (e) {
     console.error('Ошибка генерации ответа ИИ:', e);
-    alert('Ошибка генерации ответа ИИ');
+    // Используем более дружелюбное уведомление вместо alert
+    emit('error', {
+      type: 'ai-generation-error',
+      message: 'Не удалось сгенерировать ответ ИИ. Попробуйте еще раз.',
+      details: e.message
+    });
   } finally {
     isAiLoading.value = false;
   }

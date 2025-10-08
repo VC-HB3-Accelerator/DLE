@@ -34,18 +34,8 @@ function generateVerificationCode(length = 6) {
 // Проверка существования идентификатора пользователя
 async function checkUserIdentity(userId, provider, providerId) {
   // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-  
-  try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
+  const encryptionUtils = require('./encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
 
   const result = await db.getQuery()(
     'SELECT * FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $4) AND provider_id_encrypted = encrypt_text($3, $4)',

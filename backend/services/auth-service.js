@@ -262,8 +262,8 @@ class AuthService {
   async processAndCleanupGuestData(userId, guestId, session) {
     try {
       // Обрабатываем гостевые сообщения
-      const { processGuestMessages } = require('../routes/chat');
-      await processGuestMessages(userId, guestId);
+      const guestMessageService = require('./guestMessageService');
+      await guestMessageService.processGuestMessages(userId, guestId);
 
       // Очищаем гостевой ID из сессии
       delete session.guestId;
@@ -432,19 +432,9 @@ class AuthService {
 
       // Если есть гостевой ID в сессии, сохраняем его для нового пользователя
       if (session.guestId && isNewUser) {
-        // Получаем ключ шифрования
-        const fs = require('fs');
-        const path = require('path');
-        let encryptionKey = 'default-key';
-        
-        try {
-          const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-          if (fs.existsSync(keyPath)) {
-            encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-          }
-        } catch (keyError) {
-          console.error('Error reading encryption key:', keyError);
-        }
+        // Получаем ключ шифрования через унифицированную утилиту
+        const encryptionUtils = require('../utils/encryptionUtils');
+        const encryptionKey = encryptionUtils.getEncryptionKey();
 
         await db.getQuery()(
           'INSERT INTO guest_user_mapping (user_id, guest_id_encrypted) VALUES ($1, encrypt_text($2, $3)) ON CONFLICT (guest_id_encrypted) DO UPDATE SET user_id = $1',
@@ -749,19 +739,9 @@ class AuthService {
     logger.info('Starting recheck of admin status for all users with wallets');
 
     try {
-      // Получаем ключ шифрования
-      const fs = require('fs');
-      const path = require('path');
-      let encryptionKey = 'default-key';
-      
-      try {
-        const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-        if (fs.existsSync(keyPath)) {
-          encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-        }
-      } catch (keyError) {
-        console.error('Error reading encryption key:', keyError);
-      }
+      // Получаем ключ шифрования через унифицированную утилиту
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
 
       // Получаем всех пользователей с кошельками
       const usersResult = await db.getQuery()(

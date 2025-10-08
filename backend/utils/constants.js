@@ -10,12 +10,6 @@
  * GitHub: https://github.com/HB3-ACCELERATOR
  */
 
-// Роли пользователей
-const USER_ROLES = {
-  USER: 1,
-  ADMIN: 2,
-};
-
 // Типы идентификаторов
 const IDENTITY_TYPES = {
   WALLET: 'wallet',
@@ -28,13 +22,6 @@ const MESSAGE_CHANNELS = {
   WEB: 'web',
   TELEGRAM: 'telegram',
   EMAIL: 'email',
-};
-
-// Типы отправителей сообщений
-const SENDER_TYPES = {
-  USER: 'user',
-  AI: 'ai',
-  ADMIN: 'admin',
 };
 
 // Коды ошибок
@@ -59,12 +46,27 @@ const API_CONFIG = {
   TIMEOUT: 30000, // 30 секунд
 };
 
+// Новые константы для ИИ-ассистента (без admin)
+const AI_USER_TYPES = {
+  REGULAR_USER: 'user',
+  EDITOR: 'editor', 
+  READONLY: 'readonly'
+};
+
+const AI_SENDER_TYPES = {
+  USER: 'user',
+  EDITOR: 'editor',
+  READONLY: 'readonly',
+  ASSISTANT: 'assistant'
+};
+
 module.exports = {
-  USER_ROLES,
   IDENTITY_TYPES,
   MESSAGE_CHANNELS,
-  SENDER_TYPES,
   ERROR_CODES,
   SESSION_CONFIG,
   API_CONFIG,
+  // Константы для ИИ-ассистента
+  AI_USER_TYPES,
+  AI_SENDER_TYPES,
 };

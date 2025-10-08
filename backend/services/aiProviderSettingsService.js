@@ -145,7 +145,8 @@ async function getAllLLMModels() {
     // Для Ollama проверяем реально установленные модели через HTTP API
     try {
       const axios = require('axios');
-      const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
+      const ollamaConfig = require('./ollamaConfig');
+      const ollamaUrl = ollamaConfig.getBaseUrl();
       
       const response = await axios.get(`${ollamaUrl}/api/tags`, { 
         timeout: 5000 
@@ -214,7 +215,8 @@ async function getAllEmbeddingModels() {
     // Для Ollama проверяем реально установленные embedding модели через HTTP API
     try {
       const axios = require('axios');
-      const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://ollama:11434';
+      const ollamaConfig = require('./ollamaConfig');
+      const ollamaUrl = ollamaConfig.getBaseUrl();
       
       const response = await axios.get(`${ollamaUrl}/api/tags`, { 
         timeout: 5000 

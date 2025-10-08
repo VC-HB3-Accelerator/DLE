@@ -8,7 +8,7 @@
 # This software is proprietary and confidential.
 # For licensing inquiries: info@hb3-accelerator.com
 
-FROM node:20-alpine
+FROM node:20-slim
 
 # Добавляем метки для авторских прав
 LABEL maintainer="Тарабанов Александр Викторович <info@hb3-accelerator.com>"
@@ -18,8 +18,15 @@ LABEL website="https://hb3-accelerator.com"
 
 WORKDIR /app
 
-# Устанавливаем только docker-cli (без демона) для Alpine Linux
-RUN apk update && apk add --no-cache docker-cli curl ca-certificates
+# Устанавливаем системные зависимости для компиляции нативных модулей Node.js
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    docker.io \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile

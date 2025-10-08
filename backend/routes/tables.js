@@ -21,14 +21,8 @@ const { broadcastTableUpdate, broadcastTableRelationsUpdate } = require('../wsHu
 
 // Вспомогательная функция для получения ключа шифрования
 function getEncryptionKey() {
-  const fs = require('fs');
-  const keyPath = '/app/ssl/keys/full_db_encryption.key';
-  
-  if (!fs.existsSync(keyPath)) {
-    throw new Error('Encryption key file not found');
-  }
-  
-  return fs.readFileSync(keyPath, 'utf8').trim();
+  const encryptionUtils = require('../utils/encryptionUtils');
+  return encryptionUtils.getEncryptionKey();
 }
 
 router.use((req, res, next) => {
@@ -39,14 +33,9 @@ router.use((req, res, next) => {
 // Получить список всех таблиц (доступно всем)
 router.get('/', async (req, res, next) => {
   try {
-    // Получаем ключ шифрования
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      // console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const result = await db.getQuery()('SELECT id, created_at, updated_at, is_rag_source_id, decrypt_text(name_encrypted, $1) as name, decrypt_text(description_encrypted, $1) as description FROM user_tables ORDER BY id', [encryptionKey]);
     res.json(result.rows);
@@ -60,14 +49,9 @@ router.post('/', async (req, res, next) => {
   try {
     const { name, description, isRagSourceId } = req.body;
     
-    // Получаем ключ шифрования
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      // console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const result = await db.getQuery()(
       'INSERT INTO user_tables (name_encrypted, description_encrypted, is_rag_source_id) VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3) RETURNING *',
@@ -82,14 +66,9 @@ router.post('/', async (req, res, next) => {
 // Получить данные из таблицы is_rag_source с расшифровкой
 router.get('/rag-sources', async (req, res, next) => {
   try {
-    // Получаем ключ шифрования
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const result = await db.getQuery()(
       'SELECT id, decrypt_text(name_encrypted, $1) as name FROM is_rag_source ORDER BY id',
@@ -107,14 +86,9 @@ router.get('/rag-sources', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const tableId = req.params.id;
-    // Получаем ключ шифрования
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     // Выполняем все 4 запроса параллельно для ускорения
     const [tableMetaResult, columnsResult, rowsResult, cellValuesResult] = await Promise.all([
@@ -193,25 +167,9 @@ router.post('/:id/columns', async (req, res, next) => {
       finalOptions.purpose = purpose;
     }
     
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     // Получаем уже существующие плейсхолдеры во всей базе данных
     const existing = (await db.getQuery()('SELECT placeholder FROM user_columns WHERE placeholder IS NOT NULL', [])).rows;
@@ -237,25 +195,9 @@ router.post('/:id/rows', async (req, res, next) => {
       [tableId]
     );
     // console.log('[DEBUG][addRow] result.rows[0]:', result.rows[0]);
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     // Получаем все строки и значения для upsert
     const rows = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId, encryptionKey])).rows;
@@ -277,25 +219,9 @@ router.get('/:id/rows', async (req, res, next) => {
   try {
     const tableId = req.params.id;
     const { product, tags, ...relationFilters } = req.query; // tags = "B2B,VIP", relation_{colId}=rowId
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     // Получаем все столбцы, строки и значения ячеек
     const columns = (await db.getQuery()('SELECT id, table_id, "order", created_at, updated_at, decrypt_text(name_encrypted, $2) as name, decrypt_text(type_encrypted, $2) as type, decrypt_text(placeholder_encrypted, $2) as placeholder_encrypted, placeholder FROM user_columns WHERE table_id = $1', [tableId, encryptionKey])).rows;
@@ -368,25 +294,9 @@ router.get('/:id/rows', async (req, res, next) => {
 router.post('/cell', async (req, res, next) => {
   try {
     const { row_id, column_id, value } = req.body;
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const result = await db.getQuery()(
       `INSERT INTO user_cell_values (row_id, column_id, value_encrypted) VALUES ($1, $2, encrypt_text($3, $4))
@@ -438,25 +348,9 @@ router.delete('/row/:rowId', async (req, res, next) => {
     await db.getQuery()('DELETE FROM user_rows WHERE id = $1', [rowId]);
     
     // Получаем все строки для rebuild
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const rows = (await db.getQuery()('SELECT r.id as row_id, decrypt_text(c.value_encrypted, $2) as text, decrypt_text(c2.value_encrypted, $2) as answer FROM user_rows r LEFT JOIN user_cell_values c ON c.row_id = r.id AND c.column_id = 1 LEFT JOIN user_cell_values c2 ON c2.row_id = r.id AND c2.column_id = 2 WHERE r.table_id = $1', [tableId, encryptionKey])).rows;
     const rebuildRows = rows.filter(r => r.row_id && r.text).map(r => ({ row_id: r.row_id, text: r.text, metadata: { answer: r.answer } }));
@@ -513,25 +407,9 @@ router.patch('/column/:columnId', async (req, res, next) => {
     const columnId = req.params.columnId;
     const { name, type, options, order, placeholder } = req.body;
     // Получаем table_id для проверки уникальности плейсхолдера
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const colInfo = (await db.getQuery()('SELECT table_id, decrypt_text(name_encrypted, $2) as name FROM user_columns WHERE id = $1', [columnId, encryptionKey])).rows[0];
     if (!colInfo) return res.status(404).json({ error: 'Column not found' });
@@ -644,24 +522,9 @@ router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'Доступ только для администратора' });
     }
     
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const tableId = req.params.id;
     const { questionCol, answerCol } = await getQuestionAnswerColumnIds(tableId);
@@ -823,25 +686,9 @@ router.delete('/:tableId/row/:rowId/relations/:relationId', async (req, res, nex
 router.get('/:id/placeholders', async (req, res, next) => {
   try {
     const tableId = req.params.id;
-    // Получаем ключ шифрования
-    const fs = require('fs');
-    const path = require('path');
-    let encryptionKey;
-    try {
-      encryptionKey = getEncryptionKey();
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-      return res.status(500).json({ error: 'Database encryption error' });
-    }
-    
-    try {
-      const keyPath = '/app/ssl/keys/full_db_encryption.key';
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     const columns = (await db.getQuery()('SELECT id, decrypt_text(name_encrypted, $2) as name, placeholder FROM user_columns WHERE table_id = $1', [tableId, encryptionKey])).rows;
     res.json(columns.map(col => ({

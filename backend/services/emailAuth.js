@@ -13,15 +13,78 @@
 const { pool } = require('../db');
 const verificationService = require('./verification-service');
 const logger = require('../utils/logger');
-const EmailBotService = require('./emailBot.js');
 const encryptedDb = require('./encryptedDatabaseService');
 const authService = require('./auth-service');
 const { checkAdminRole } = require('./admin-role');
 const { broadcastContactsUpdate } = require('../wsHub');
+const nodemailer = require('nodemailer');
+const db = require('../db');
 
 class EmailAuth {
   constructor() {
-    this.emailBot = new EmailBotService();
+    // Убрали зависимость от старого EmailBot
+  }
+
+  /**
+   * Отправка кода верификации на email
+   * Создает временный transporter для отправки
+   */
+  async sendVerificationCode(email, code) {
+    try {
+      // Получаем настройки email из БД
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+      
+      const { rows } = await db.getQuery()(
+        'SELECT decrypt_text(smtp_host_encrypted, $1) as smtp_host, ' +
+        'decrypt_text(smtp_user_encrypted, $1) as smtp_user, ' +
+        'decrypt_text(smtp_password_encrypted, $1) as smtp_password, ' +
+        'decrypt_text(from_email_encrypted, $1) as from_email ' +
+        'FROM email_settings ORDER BY id LIMIT 1',
+        [encryptionKey]
+      );
+      
+      if (!rows.length) {
+        throw new Error('Email settings not found');
+      }
+      
+      const settings = rows[0];
+      
+      // Создаем временный transporter
+      const transporter = nodemailer.createTransport({
+        host: settings.smtp_host,
+        port: 465,
+        secure: true,
+        auth: {
+          user: settings.smtp_user,
+          pass: settings.smtp_password,
+        },
+        tls: { rejectUnauthorized: false }
+      });
+      
+      // Отправляем письмо
+      await transporter.sendMail({
+        from: settings.from_email,
+        to: email,
+        subject: 'Код подтверждения',
+        text: `Ваш код подтверждения: ${code}\n\nКод действителен в течение 15 минут.`,
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Код подтверждения</h2>
+          <p style="font-size: 16px; color: #666;">Ваш код подтверждения:</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 24px; font-weight: bold; color: #333;">${code}</span>
+          </div>
+          <p style="font-size: 14px; color: #999;">Код действителен в течение 15 минут.</p>
+        </div>`
+      });
+      
+      transporter.close();
+      logger.info('[EmailAuth] Verification code sent successfully');
+      
+    } catch (error) {
+      logger.error('[EmailAuth] Error sending verification code:', error);
+      throw error;
+    }
   }
 
   async initEmailAuth(session, email) {
@@ -70,7 +133,7 @@ class EmailAuth {
       );
 
       // Отправляем код на email
-      await this.emailBot.sendVerificationCode(email, verificationCode);
+      await this.sendVerificationCode(email, verificationCode);
 
       logger.info(
         `Generated verification code for Email auth for ${email} and sent to user's email`

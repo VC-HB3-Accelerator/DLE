@@ -31,7 +31,10 @@ async function getTableData(tableId) {
   const rows = await encryptedDb.getData('user_rows', { table_id: tableId });
       // console.log(`[RAG] Found ${rows.length} rows:`, rows.map(row => ({ id: row.id, name: row.name })));
   
-  const cellValues = await encryptedDb.getData('user_cell_values', { row_id: { $in: rows.map(row => row.id) } });
+  // Исправление: проверяем что есть строки перед запросом cell_values
+  const cellValues = rows.length > 0 
+    ? await encryptedDb.getData('user_cell_values', { row_id: { $in: rows.map(row => row.id) } })
+    : [];
       // console.log(`[RAG] Found ${cellValues.length} cell values`);
 
   const getColId = purpose => columns.find(col => col.options?.purpose === purpose)?.id;
@@ -120,7 +123,7 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
   
   // Поиск
   let results = [];
-  if (rowsForUpsert.length > 0) {
+  if (rowsForUpsert.length > 0 && userQuestion && userQuestion.trim()) {
     results = await vectorSearch.search(tableId, userQuestion, 3); // Увеличиваем до 3 результатов для лучшего поиска
     // console.log(`[RAG] Search completed, got ${results.length} results`);
     

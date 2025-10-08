@@ -8,7 +8,7 @@
 # This software is proprietary and confidential.
 # For licensing inquiries: info@hb3-accelerator.com
 
-FROM node:20-alpine
+FROM node:20-slim
 
 # Добавляем метки для авторских прав
 LABEL maintainer="Тарабанов Александр Викторович <info@hb3-accelerator.com>"
@@ -18,8 +18,12 @@ LABEL website="https://hb3-accelerator.com"
 
 WORKDIR /app
 
-# Устанавливаем дополнительные зависимости
-RUN apk add --no-cache python3 make g++
+# Устанавливаем системные зависимости для компиляции нативных модулей
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Копируем package.json и yarn.lock для установки зависимостей
 COPY package.json yarn.lock ./

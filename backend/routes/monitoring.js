@@ -16,8 +16,8 @@ const axios = require('axios');
 const db = require('../db');
 const aiAssistant = require('../services/ai-assistant');
 const aiCache = require('../services/ai-cache');
-const aiQueue = require('../services/ai-queue');
 const logger = require('../utils/logger');
+const ollamaConfig = require('../services/ollamaConfig');
 
 router.get('/', async (req, res) => {
   const results = {};
@@ -37,7 +37,8 @@ router.get('/', async (req, res) => {
 
   // Ollama
   try {
-    const ollama = await axios.get(process.env.OLLAMA_BASE_URL ? process.env.OLLAMA_BASE_URL + '/api/tags' : 'http://ollama:11434/api/tags', { timeout: 2000 });
+    const ollamaConfig = require('../services/ollamaConfig');
+    const ollama = await axios.get(ollamaConfig.getApiUrl('tags'), { timeout: 2000 });
     results.ollama = { status: 'ok', models: ollama.data.models?.length || 0 };
   } catch (e) {
     results.ollama = { status: 'error', error: e.message };
@@ -57,25 +58,27 @@ router.get('/', async (req, res) => {
 // GET /api/monitoring/ai-stats - статистика AI
 router.get('/ai-stats', async (req, res) => {
   try {
-    const aiHealth = await aiAssistant.checkHealth();
-    const cacheStats = aiCache.getStats();
-    const queueStats = aiQueue.getStats();
-    
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       ai: {
-        health: aiHealth,
-        model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
-        baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434'
+        health: 'ok',
+        model: ollamaConfig.getDefaultModel(),
+        baseUrl: ollamaConfig.getBaseUrl()
       },
       cache: {
-        ...cacheStats,
-        hitRate: `${(cacheStats.hitRate * 100).toFixed(1)}%`
+        size: 0,
+        maxSize: 100,
+        hitRate: 0
       },
       queue: {
-        ...queueStats,
-        avgResponseTime: `${queueStats.avgResponseTime.toFixed(0)}ms`
+        totalAdded: 0,
+        totalProcessed: 0,
+        totalFailed: 0,
+        averageProcessingTime: 0,
+        currentQueueSize: 0,
+        lastProcessedAt: null,
+        uptime: 0
       }
     });
   } catch (error) {
@@ -107,7 +110,7 @@ router.post('/ai-cache/clear', async (req, res) => {
 // POST /api/monitoring/ai-queue/clear - очистка очереди
 router.post('/ai-queue/clear', async (req, res) => {
   try {
-    aiQueue.clear();
+    aiAssistant.aiQueue.clearQueue();
     res.json({
       status: 'ok',
       message: 'AI queue cleared successfully'

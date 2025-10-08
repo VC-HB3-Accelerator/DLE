@@ -22,18 +22,8 @@ async function getUserTokenBalances(address) {
   if (!address) return [];
 
   // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  let encryptionKey = 'default-key';
-
-  try {
-    const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-    if (fs.existsSync(keyPath)) {
-      encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-    }
-  } catch (keyError) {
-    console.error('Error reading encryption key:', keyError);
-  }
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
 
   // Получаем токены и RPC с расшифровкой
   const tokensResult = await db.getQuery()(

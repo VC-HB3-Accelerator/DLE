@@ -49,9 +49,7 @@ const aiAssistant = require('../services/ai-assistant');
 const dns = require('node:dns').promises;
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
-const telegramBot = require('../services/telegramBot');
-const EmailBotService = require('../services/emailBot');
-const emailBotService = new EmailBotService();
+const botsSettings = require('../services/botsSettings');
 const dbSettingsService = require('../services/dbSettingsService');
 const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
 
@@ -76,16 +74,9 @@ router.get('/rpc', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     const rpcProvidersResult = await db.getQuery()(
       'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
@@ -165,16 +156,9 @@ router.get('/auth-tokens', async (req, res, next) => {
     // Получаем ключ шифрования
     const fs = require('fs');
     const path = require('path');
-    let encryptionKey = 'default-key';
-    
-    try {
-      const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-      if (fs.existsSync(keyPath)) {
-        encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-      }
-    } catch (keyError) {
-      console.error('Error reading encryption key:', keyError);
-    }
+    // Получаем ключ шифрования через унифицированную утилиту
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
     const tokensResult = await db.getQuery()(
       'SELECT id, min_balance, readonly_threshold, editor_threshold, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
@@ -510,7 +494,7 @@ router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) =>
 // Получить текущие настройки Email (для страницы Email)
 router.get('/email-settings', requireAdmin, async (req, res) => {
   try {
-    const settings = await emailBotService.getSettingsFromDb();
+    const settings = await botsSettings.getEmailSettings();
     res.json({ success: true, settings });
   } catch (error) {
     res.status(404).json({ success: false, error: error.message });
@@ -556,7 +540,7 @@ router.put('/email-settings', requireAdmin, async (req, res, next) => {
       updated_at: new Date()
     };
     
-    const result = await emailBotService.saveEmailSettings(settings);
+    const result = await botsSettings.saveEmailSettings(settings);
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Ошибка при обновлении email настроек:', error);
@@ -577,11 +561,7 @@ router.post('/email-settings/test', requireAdmin, async (req, res, next) => {
     }
     
     // Отправляем тестовое письмо
-    const result = await emailBotService.sendEmail(
-      test_email,
-      'Тест Email системы DLE',
-      'Это тестовое письмо для проверки работы email системы. Если вы его получили, значит настройки работают корректно!'
-    );
+    const result = await botsSettings.testEmailSMTP(test_email);
     
     res.json({ 
       success: true, 
@@ -597,7 +577,7 @@ router.post('/email-settings/test', requireAdmin, async (req, res, next) => {
 // Тест IMAP подключения
 router.post('/email-settings/test-imap', requireAdmin, async (req, res, next) => {
   try {
-    const result = await emailBotService.testImapConnection();
+    const result = await botsSettings.testEmailIMAP();
     res.json(result);
   } catch (error) {
     logger.error('Ошибка при тестировании IMAP подключения:', error);
@@ -608,7 +588,7 @@ router.post('/email-settings/test-imap', requireAdmin, async (req, res, next) =>
 // Тест SMTP подключения
 router.post('/email-settings/test-smtp', requireAdmin, async (req, res, next) => {
   try {
-    const result = await emailBotService.testSmtpConnection();
+    const result = await botsSettings.testEmailSMTP();
     res.json(result);
   } catch (error) {
     logger.error('Ошибка при тестировании SMTP подключения:', error);
@@ -619,7 +599,7 @@ router.post('/email-settings/test-smtp', requireAdmin, async (req, res, next) =>
 // Получить список всех email (для ассистента)
 router.get('/email-settings/list', requireAdmin, async (req, res) => {
   try {
-    const emails = await emailBotService.getAllEmailSettings();
+    const emails = await botsSettings.getAllEmailSettings();
     res.json({ success: true, items: emails });
   } catch (error) {
     res.status(404).json({ success: false, error: error.message });
@@ -629,7 +609,7 @@ router.get('/email-settings/list', requireAdmin, async (req, res) => {
 // Получить текущие настройки Telegram-бота (для страницы Telegram)
 router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
   try {
-    const settings = await telegramBot.getTelegramSettings();
+    const settings = await botsSettings.getTelegramSettings();
     res.json({ success: true, settings });
   } catch (error) {
     res.status(404).json({ success: false, error: error.message });
@@ -657,7 +637,7 @@ router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
       updated_at: new Date()
     };
     
-    const result = await telegramBot.saveTelegramSettings(settings);
+    const result = await botsSettings.saveTelegramSettings(settings);
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Ошибка при обновлении настроек Telegram:', error);
@@ -668,7 +648,7 @@ router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
 // Получить список всех Telegram-ботов (для ассистента)
 router.get('/telegram-settings/list', requireAdmin, async (req, res, next) => {
   try {
-    const bots = await telegramBot.getAllBots();
+    const bots = await botsSettings.getAllTelegramBots();
     res.json({ success: true, items: bots });
   } catch (error) {
     res.status(404).json({ success: false, error: error.message });

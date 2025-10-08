@@ -12,7 +12,7 @@
 
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
-const { processGuestMessages } = require('../routes/chat');
+const guestMessageService = require('./guestMessageService');
 
 /**
  * Сервис для работы с сессиями пользователей
@@ -100,7 +100,7 @@ class SessionService {
 
         // Обрабатываем сообщения для каждого гостевого ID
         for (const guestId of guestIdsToProcess) {
-          await this.processGuestMessagesWrapper(userId, guestId);
+          await guestMessageService.processGuestMessages(userId, guestId);
         }
       }
 
@@ -127,20 +127,7 @@ class SessionService {
     }
   }
 
-  /**
-   * Обертка для функции processGuestMessages
-   * @param {number} userId - ID пользователя
-   * @param {string} guestId - ID гостя
-   * @returns {Promise<Object>} - Результат операции
-   */
-  async processGuestMessagesWrapper(userId, guestId) {
-    try {
-      return await processGuestMessages(userId, guestId);
-    } catch (error) {
-      logger.error(`[processGuestMessagesWrapper] Error: ${error.message}`, error);
-      throw error;
-    }
-  }
+  // Обертка processGuestMessagesWrapper удалена - используется прямой вызов guestMessageService.processGuestMessages
 
   /**
    * Получает сессию из хранилища по ID
