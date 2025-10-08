@@ -31,21 +31,62 @@ check_docker() {
       curl -fsSL https://get.docker.com -o get-docker.sh
       sudo sh get-docker.sh
       rm get-docker.sh
-      print_green "Docker установлен. Перезапустите терминал или выполните: newgrp docker"
+      
+      # Добавляем текущего пользователя в группу docker
+      print_blue "Добавление пользователя в группу docker..."
+      sudo usermod -aG docker $USER
+      
+      print_green "Docker установлен!"
+      print_yellow "⚠️  ВАЖНО: Для применения изменений выполните одну из команд:"
+      print_yellow "   1. newgrp docker  (применить в текущем терминале)"
+      print_yellow "   2. Перезапустите терминал"
+      print_yellow "   3. Перезайдите в систему"
+      print_blue "Нажмите Enter для продолжения после выполнения команды..."
+      read
     else
       print_yellow "Пожалуйста, установите Docker вручную: https://docs.docker.com/get-docker/"
       print_yellow "Для Windows/Mac: скачайте и установите Docker Desktop."
       exit 1
     fi
   fi
-  print_green "Docker установлен."
+  
+  # Проверка прав доступа к Docker
+  if ! docker ps &> /dev/null; then
+    print_yellow "⚠️  Нет прав для запуска Docker команд."
+    print_blue "Добавление пользователя в группу docker..."
+    
+    # Проверяем, есть ли пользователь в группе docker
+    if ! groups $USER | grep -q docker; then
+      sudo usermod -aG docker $USER
+      print_yellow "Пользователь добавлен в группу docker."
+      print_yellow "Выполните команду для применения изменений: newgrp docker"
+      print_yellow "Или перезапустите терминал и запустите скрипт снова."
+      exit 0
+    else
+      print_red "Пользователь уже в группе docker, но права не работают."
+      print_yellow "Попробуйте:"
+      print_yellow "  1. newgrp docker"
+      print_yellow "  2. Перезайдите в систему"
+      print_yellow "  3. Перезапустите Docker: sudo systemctl restart docker"
+      exit 1
+    fi
+  fi
+  
+  print_green "Docker установлен и доступен."
 
   print_blue "Проверка Docker Compose..."
   if ! docker compose version &> /dev/null; then
     print_yellow "Docker Compose не установлен или требуется обновление."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      print_blue "Установка Docker Compose (входит в новые версии Docker)..."
-      print_yellow "Если после установки Docker Compose не работает, обновите Docker или следуйте инструкции: https://docs.docker.com/compose/install/"
+      print_blue "Установка Docker Compose плагина..."
+      sudo apt-get update
+      sudo apt-get install -y docker-compose-plugin
+      
+      if ! docker compose version &> /dev/null; then
+        print_red "Не удалось установить Docker Compose плагин."
+        print_yellow "Попробуйте обновить Docker: https://docs.docker.com/compose/install/"
+        exit 1
+      fi
     else
       print_yellow "Пожалуйста, установите Docker Compose вручную: https://docs.docker.com/compose/install/"
       exit 1
@@ -98,7 +139,7 @@ create_encryption_key() {
 pull_images() {
   print_blue "Предварительная загрузка образов Docker..."
   
-  images=("node:20-alpine" "postgres:16-alpine" "ollama/ollama:latest" "curlimages/curl:latest")
+  images=("node:20-slim" "postgres:16" "ollama/ollama:latest")
   
   for img in "${images[@]}"; do
     print_blue "Загрузка образа: $img"

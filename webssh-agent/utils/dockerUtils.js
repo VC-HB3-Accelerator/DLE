@@ -1,6 +1,10 @@
-const { exec } = require('child_process');
+const Docker = require('dockerode');
+const fs = require('fs-extra');
 const { execSshCommand, execScpCommand } = require('./sshUtils');
 const log = require('./logger');
+
+// Инициализируем Docker клиент через socket
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 /**
  * Экспорт Docker образов и данных с локальной машины
@@ -10,7 +14,7 @@ const exportDockerImages = async (sendWebSocketLog) => {
   sendWebSocketLog('info', '📦 Начинаем экспорт Docker образов...', 'export_images', 60);
   
   const images = [
-    { name: 'postgres:16-alpine', file: 'dapp-postgres.tar' },
+    { name: 'postgres:16', file: 'dapp-postgres.tar' },
     { name: 'digital_legal_entitydle-ollama:latest', file: 'dapp-ollama.tar' },
     { name: 'digital_legal_entitydle-vector-search:latest', file: 'dapp-vector-search.tar' },
     { name: 'digital_legal_entitydle-backend:latest', file: 'dapp-backend.tar' },
@@ -25,119 +29,100 @@ const exportDockerImages = async (sendWebSocketLog) => {
     const progress = 60 + Math.floor((i / images.length) * 10); // 60-70%
     sendWebSocketLog('info', `📦 Экспорт образа: ${image.name}`, 'export_images', progress);
     
-    await new Promise((resolve) => {
-      exec(`docker save ${image.name} -o /tmp/${image.file}`, (error, stdout, stderr) => {
-        if (error) {
-          log.error(`Ошибка экспорта ${image.name}: ${error.message}`);
-          sendWebSocketLog('error', `❌ Ошибка экспорта ${image.name}`, 'export_images', progress);
-        } else {
+    try {
+      const dockerImage = docker.getImage(image.name);
+      const stream = await dockerImage.get();
+      const outputPath = `/tmp/${image.file}`;
+      
+      // Сохраняем stream в файл
+      await new Promise((resolve, reject) => {
+        const writeStream = fs.createWriteStream(outputPath);
+        stream.pipe(writeStream);
+        stream.on('end', () => {
           sendWebSocketLog('success', `✅ Экспорт ${image.name} завершен`, 'export_images', progress);
-        }
-        resolve();
+          resolve();
+        });
+        stream.on('error', reject);
+        writeStream.on('error', reject);
       });
-    });
+    } catch (error) {
+      log.error(`Ошибка экспорта ${image.name}: ${error.message}`);
+      sendWebSocketLog('error', `❌ Ошибка экспорта ${image.name}`, 'export_images', progress);
+    }
   }
   
   // Экспортируем данные из volumes
   log.info('Экспорт данных из Docker volumes...');
   sendWebSocketLog('info', '📦 Экспорт данных из Docker volumes...', 'export_data', 70);
   
-  // PostgreSQL данные - проверяем наличие данных перед экспортом
+  // PostgreSQL данные
   sendWebSocketLog('info', '📦 Экспорт данных PostgreSQL...', 'export_data', 72);
-  await new Promise((resolve) => {
-    // Сначала проверим, есть ли данные в volume
-    exec('docker run --rm -v digital_legal_entitydle_postgres_data:/data alpine ls -la /data/base', (checkError, checkStdout, checkStderr) => {
-      if (checkError) {
-        log.error(`Ошибка проверки данных PostgreSQL: ${checkError.message}`);
-        sendWebSocketLog('error', `❌ Ошибка проверки данных PostgreSQL`, 'export_data', 72);
-        resolve();
-        return;
-      }
-      
-      // Если данные есть, экспортируем их
-      exec('docker run --rm -v digital_legal_entitydle_postgres_data:/data -v /tmp:/backup alpine tar czf /backup/postgres_data.tar.gz -C /data .', (error, stdout, stderr) => {
-        if (error) {
-          log.error(`Ошибка экспорта данных PostgreSQL: ${error.message}`);
-          sendWebSocketLog('error', `❌ Ошибка экспорта данных PostgreSQL`, 'export_data', 72);
-        } else {
-          log.info(`Данные PostgreSQL экспортированы: ${checkStdout.trim()}`);
-          sendWebSocketLog('success', `✅ Экспорт данных PostgreSQL завершен (содержит базы данных)`, 'export_data', 72);
-        }
-        resolve();
-      });
-    });
-  });
+  await exportVolumeData('digital_legal_entitydle_postgres_data', 'postgres_data.tar.gz', sendWebSocketLog, 72);
   
   // Ollama данные
   sendWebSocketLog('info', '📦 Экспорт данных Ollama...', 'export_data', 75);
-  await new Promise((resolve) => {
-    exec('docker run --rm -v digital_legal_entitydle_ollama_data:/data -v /tmp:/backup alpine tar czf /backup/ollama_data.tar.gz -C /data .', (error, stdout, stderr) => {
-      if (error) {
-        log.error(`Ошибка экспорта данных Ollama: ${error.message}`);
-        sendWebSocketLog('error', `❌ Ошибка экспорта данных Ollama`, 'export_data', 75);
-      } else {
-        sendWebSocketLog('success', `✅ Экспорт данных Ollama завершен`, 'export_data', 75);
-      }
-      resolve();
-    });
-  });
+  await exportVolumeData('digital_legal_entitydle_ollama_data', 'ollama_data.tar.gz', sendWebSocketLog, 75);
   
   // Vector Search данные
   sendWebSocketLog('info', '📦 Экспорт данных Vector Search...', 'export_data', 78);
-  await new Promise((resolve) => {
-    exec('docker run --rm -v digital_legal_entitydle_vector_search_data:/data -v /tmp:/backup alpine tar czf /backup/vector_search_data.tar.gz -C /data .', (error, stdout, stderr) => {
-      if (error) {
-        log.error(`Ошибка экспорта данных Vector Search: ${error.message}`);
-        sendWebSocketLog('error', `❌ Ошибка экспорта данных Vector Search`, 'export_data', 78);
-      } else {
-        sendWebSocketLog('success', `✅ Экспорт данных Vector Search завершен`, 'export_data', 78);
-      }
-      resolve();
-    });
-  });
-  
-  // Проверяем размеры экспортированных данных
-  log.info('Проверка размеров экспортированных данных...');
-  sendWebSocketLog('info', '📊 Проверка размеров экспортированных данных...', 'export_data', 78);
-  
-  await new Promise((resolve) => {
-    exec('ls -lh /tmp/postgres_data.tar.gz /tmp/ollama_data.tar.gz /tmp/vector_search_data.tar.gz 2>/dev/null || echo "Некоторые файлы не найдены"', (error, stdout, stderr) => {
-      if (stdout && stdout.trim()) {
-        log.info(`Размеры экспортированных данных:\n${stdout.trim()}`);
-        sendWebSocketLog('info', `📊 Размеры данных:\n${stdout.trim()}`, 'export_data', 78);
-      }
-      resolve();
-    });
-  });
+  await exportVolumeData('digital_legal_entitydle_vector_search_data', 'vector_search_data.tar.gz', sendWebSocketLog, 78);
   
   // Создаем архив с ВСЕМИ образами и данными приложения
   log.info('Создание архива Docker образов и данных на хосте...');
   sendWebSocketLog('info', '📦 Создание архива всех данных...', 'export_data', 80);
   
-  const tarFiles = images.map(img => img.file).join(' ');
-  const dataFiles = 'postgres_data.tar.gz ollama_data.tar.gz vector_search_data.tar.gz';
-  await new Promise((resolve) => {
-    exec(`chmod 644 /tmp/dapp-*.tar /tmp/*_data.tar.gz && cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles}`, (error, stdout, stderr) => {
-      if (error) {
-        log.error('Ошибка создания архива: ' + error.message);
-        sendWebSocketLog('error', '❌ Ошибка создания архива', 'export_data', 80);
-      } else {
-        // Проверяем размер финального архива
-        exec('ls -lh /tmp/docker-images-and-data.tar.gz', (sizeError, sizeStdout, sizeStderr) => {
-          if (sizeStdout && sizeStdout.trim()) {
-            log.info(`Финальный архив создан: ${sizeStdout.trim()}`);
-            sendWebSocketLog('success', `✅ Архив создан успешно (${sizeStdout.trim()})`, 'export_data', 80);
-          } else {
-            sendWebSocketLog('success', '✅ Архив создан успешно', 'export_data', 80);
-          }
-          resolve();
-        });
+  try {
+    const tarFiles = images.map(img => img.file).join(' ');
+    const dataFiles = 'postgres_data.tar.gz ollama_data.tar.gz vector_search_data.tar.gz';
+    
+    // Создаем архив через временный контейнер
+    const container = await docker.createContainer({
+      Image: 'alpine',
+      Cmd: ['sh', '-c', `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles}`],
+      HostConfig: {
+        Binds: ['/tmp:/tmp'],
+        AutoRemove: true
       }
     });
-  });
+    
+    await container.start();
+    await container.wait();
+    
+    sendWebSocketLog('success', '✅ Архив создан успешно', 'export_data', 80);
+  } catch (error) {
+    log.error('Ошибка создания архива: ' + error.message);
+    sendWebSocketLog('error', '❌ Ошибка создания архива', 'export_data', 80);
+  }
   
   log.success('Docker образы и данные успешно экспортированы');
   sendWebSocketLog('success', '✅ Экспорт данных завершен', 'export_data', 80);
+};
+
+/**
+ * Вспомогательная функция для экспорта данных volume
+ */
+const exportVolumeData = async (volumeName, outputFile, sendWebSocketLog, progress) => {
+  try {
+    const container = await docker.createContainer({
+      Image: 'alpine',
+      Cmd: ['tar', 'czf', `/backup/${outputFile}`, '-C', '/data', '.'],
+      HostConfig: {
+        Binds: [
+          `${volumeName}:/data:ro`,
+          '/tmp:/backup'
+        ],
+        AutoRemove: true
+      }
+    });
+    
+    await container.start();
+    await container.wait();
+    
+    sendWebSocketLog('success', `✅ Экспорт ${outputFile} завершен`, 'export_data', progress);
+  } catch (error) {
+    log.error(`Ошибка экспорта ${volumeName}: ${error.message}`);
+    sendWebSocketLog('error', `❌ Ошибка экспорта ${volumeName}`, 'export_data', progress);
+  }
 };
 
 /**
@@ -258,13 +243,14 @@ docker volume ls | grep dapp_`;
  */
 const cleanupLocalFiles = async () => {
   log.info('Очистка временных файлов на хосте...');
-  await new Promise((resolve) => {
-    exec('rm -f /tmp/dapp-*.tar /tmp/*_data.tar.gz /tmp/docker-images-and-data.tar.gz', (error, stdout, stderr) => {
-      if (error) log.error('Ошибка очистки файлов: ' + error.message);
-      resolve();
-    });
-  });
-  log.success('Временные файлы очищены (SSH ключи сохранены на хосте)');
+  try {
+    await fs.remove('/tmp/dapp-*.tar');
+    await fs.remove('/tmp/*_data.tar.gz');
+    await fs.remove('/tmp/docker-images-and-data.tar.gz');
+    log.success('Временные файлы очищены');
+  } catch (error) {
+    log.error('Ошибка очистки файлов: ' + error.message);
+  }
 };
 
 module.exports = {

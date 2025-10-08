@@ -23,10 +23,11 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
-    docker.io \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
 
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile

@@ -6,12 +6,13 @@ RUN apt-get update && apt-get install -y \
     sshpass \
     curl \
     wget \
-    docker.io \
     ca-certificates \
     python3 \
     make \
     g++ \
     && rm -rf /var/lib/apt/lists/*
+
+# Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
 
 # Создаем рабочую директорию
 WORKDIR /app
