@@ -6,7 +6,7 @@
 # Production docker-compose для VDS
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: dapp-postgres
     restart: unless-stopped
     networks:

@@ -8,6 +8,10 @@ services:
     image: postgres:16
     container_name: dapp-postgres
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     logging:
       driver: "json-file"
       options:
@@ -35,6 +39,10 @@ services:
       dockerfile: Dockerfile.ollama
     container_name: dapp-ollama
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     logging:
       driver: "json-file"
       options:
@@ -74,6 +82,10 @@ services:
       dockerfile: Dockerfile
     container_name: dapp-vector-search
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     logging:
       driver: "json-file"
       options:
@@ -102,6 +114,10 @@ services:
       dockerfile: Dockerfile
     container_name: dapp-backend
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     logging:
       driver: "json-file"
       options:
@@ -152,6 +168,10 @@ services:
       dockerfile: Dockerfile
     container_name: dapp-frontend
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     logging:
       driver: "json-file"
       options:
@@ -173,6 +193,10 @@ services:
       dockerfile: nginx.Dockerfile
     container_name: dapp-frontend-nginx
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     ports:
       - "9000:80" # Frontend nginx (для локальной разработки)
       - "9443:443" # HTTPS порт для локальной разработки
@@ -189,6 +213,10 @@ services:
     image: node:20-slim
     container_name: dapp-ssh-key-server
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     volumes:
       - ./scripts/ssh-key-server.js:/app/ssh-key-server.js:ro
       - ./ssl:/app/ssl:ro
@@ -209,6 +237,10 @@ services:
       dockerfile: Dockerfile
     container_name: dapp-webssh-agent
     restart: unless-stopped
+    dns:
+      - 1.1.1.1        # Cloudflare (приватность)
+      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
+      - 8.8.8.8        # Google (надежность, fallback)
     volumes:
       - ~/.ssh:/root/.ssh:rw
       - /var/run/docker.sock:/var/run/docker.sock:rw
