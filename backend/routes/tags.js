@@ -25,11 +25,24 @@ router.use((req, res, next) => {
 
 // PATCH /api/tags/user/:userId — установить теги пользователю
 router.patch('/user/:userId', async (req, res) => {
-  const userId = Number(req.params.userId);
+  const userIdParam = req.params.userId;
   const { tags } = req.body; // массив tagIds (id строк из таблицы тегов)
+  
+  // Гостевые пользователи (guest_123) не могут иметь теги
+  if (userIdParam.startsWith('guest_')) {
+    return res.status(400).json({ error: 'Guests cannot have tags' });
+  }
+  
+  const userId = Number(userIdParam);
+  
+  if (isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+  
   if (!Array.isArray(tags)) {
     return res.status(400).json({ error: 'tags должен быть массивом' });
   }
+  
   try {
     // Удаляем старые связи
     await db.getQuery()('DELETE FROM user_tag_links WHERE user_id = $1', [userId]);
@@ -52,7 +65,19 @@ router.patch('/user/:userId', async (req, res) => {
 
 // GET /api/tags/user/:userId — получить все теги пользователя
 router.get('/user/:userId', async (req, res) => {
-  const userId = Number(req.params.userId);
+  const userIdParam = req.params.userId;
+  
+  // Гостевые пользователи (guest_123) не имеют тегов
+  if (userIdParam.startsWith('guest_')) {
+    return res.json({ tags: [] });
+  }
+  
+  const userId = Number(userIdParam);
+  
+  if (isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+  
   try {
     const result = await db.getQuery()(
       'SELECT tag_id FROM user_tag_links WHERE user_id = $1',
@@ -66,8 +91,20 @@ router.get('/user/:userId', async (req, res) => {
 
 // DELETE /api/tags/user/:userId/tag/:tagId — удалить тег у пользователя
 router.delete('/user/:userId/tag/:tagId', async (req, res) => {
-  const userId = Number(req.params.userId);
+  const userIdParam = req.params.userId;
+  
+  // Гостевые пользователи (guest_123) не могут иметь теги
+  if (userIdParam.startsWith('guest_')) {
+    return res.status(400).json({ error: 'Guests cannot have tags' });
+  }
+  
+  const userId = Number(userIdParam);
   const tagId = Number(req.params.tagId);
+  
+  if (isNaN(userId) || isNaN(tagId)) {
+    return res.status(400).json({ error: 'Invalid user ID or tag ID' });
+  }
+  
   try {
     await db.getQuery()(
       'DELETE FROM user_tag_links WHERE user_id = $1 AND tag_id = $2',

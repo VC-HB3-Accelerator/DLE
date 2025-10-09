@@ -395,6 +395,15 @@ async function generateLLMResponse({
       const ollamaUrl = ollamaConfig.getBaseUrl();
       const timeouts = ollamaConfig.getTimeouts();
       
+      // Логируем размер промпта для отладки
+      const promptSize = JSON.stringify(messages).length;
+      console.log(`[RAG] Отправка запроса в Ollama. Размер промпта: ${promptSize} символов, таймаут: ${timeouts.ollamaChat/1000}с`);
+      
+      // Проверяем размер промпта и предупреждаем, если он большой
+      if (promptSize > 10000) {
+        console.warn(`[RAG] ⚠️ Большой промпт (${promptSize} символов). Возможны проблемы с производительностью.`);
+      }
+      
       const response = await axios.post(`${ollamaUrl}/api/chat`, {
         model: model || ollamaConfig.getDefaultModel(),
         messages: messages,
@@ -406,12 +415,27 @@ async function generateLLMResponse({
       llmResponse = response.data.message.content;
       
     } catch (error) {
-      console.error(`[RAG] Error in Ollama call:`, error.message);
+      const isTimeout = error.message && (
+        error.message.includes('timeout') || 
+        error.message.includes('ETIMEDOUT') ||
+        error.message.includes('ECONNABORTED')
+      );
+      
+      if (isTimeout) {
+        console.warn(`[RAG] Ollama timeout после ${timeouts.ollamaChat/1000}с. Возможно, модель перегружена или контекст слишком большой.`);
+      } else {
+        console.error(`[RAG] Error in Ollama call:`, error.message);
+      }
       
       // Финальный fallback - возврат ответа из RAG
       if (answer) {
         console.log('[RAG] Возврат прямого ответа из RAG (ошибка Ollama)');
         return answer;
+      }
+      
+      // Если был таймаут и нет ответа из RAG - возвращаем более информативное сообщение
+      if (isTimeout) {
+        return 'Извините, обработка запроса заняла слишком много времени. Пожалуйста, попробуйте упростить ваш вопрос или повторите попытку позже.';
       }
       
       return 'Извините, произошла ошибка при генерации ответа.';

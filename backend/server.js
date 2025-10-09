@@ -37,15 +37,33 @@ async function startServer() {
     console.warn('[Server] Ollama недоступен, AI ассистент будет инициализирован позже:', error.message);
   });
   
-  // Инициализация ботов сразу при старте (не ждем Ollama)
-  console.log('[Server] ▶️ Импортируем BotManager...');
-  const botManager = require('./services/botManager');
-  console.log('[Server] ▶️ Вызываем botManager.initialize()...');
-  botManager.initialize()
+  // ⏳ НОВОЕ: Ожидание готовности Ollama перед запуском ботов
+  const { waitForOllama } = require('./utils/waitForOllama');
+  
+  // Запускаем ожидание Ollama в фоне (не блокируем старт сервера)
+  waitForOllama({
+    maxWaitTime: 4 * 60 * 1000,  // 4 минуты
+    retryInterval: 5000,          // 5 секунд между попытками
+    required: false               // Не обязательно - запустим боты даже без Ollama
+  })
+    .then((ollamaReady) => {
+      if (ollamaReady) {
+        console.log('[Server] ✅ Ollama готов к работе');
+      } else {
+        console.warn('[Server] ⚠️ Ollama не готов, боты будут работать с ограниченным функционалом AI');
+      }
+      
+      // Инициализация ботов ПОСЛЕ ожидания Ollama
+      console.log('[Server] ▶️ Импортируем BotManager...');
+      const botManager = require('./services/botManager');
+      console.log('[Server] ▶️ Вызываем botManager.initialize()...');
+      
+      return botManager.initialize();
+    })
     .then(() => {
       console.log('[Server] ✅ botManager.initialize() завершен');
       
-      // ✨ НОВОЕ: Запускаем AI Queue Worker после инициализации ботов
+      // ✨ Запускаем AI Queue Worker после инициализации ботов
       if (process.env.USE_AI_QUEUE !== 'false') {
         const ragService = require('./services/ragService');
         ragService.startQueueWorker();
@@ -53,7 +71,7 @@ async function startServer() {
       }
     })
     .catch(error => {
-      console.error('[Server] ❌ Ошибка botManager.initialize():', error.message);
+      console.error('[Server] ❌ Ошибка инициализации:', error.message);
       logger.error('[Server] Ошибка инициализации ботов:', error);
     });
   

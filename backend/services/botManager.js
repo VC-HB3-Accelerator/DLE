@@ -56,12 +56,20 @@ class BotManager {
       await telegramBot.initialize().catch(error => {
         logger.warn('[BotManager] Telegram Bot не инициализирован:', error.message);
       });
+      
+      // Устанавливаем централизованный процессор сообщений для Telegram
+      telegramBot.setMessageProcessor(this.processMessage.bind(this));
+      logger.info('[BotManager] ✅ Telegram Bot подключен к unified processor');
 
       // Инициализируем Email Bot
       logger.info('[BotManager] Инициализация Email Bot...');
       await emailBot.initialize().catch(error => {
         logger.warn('[BotManager] Email Bot не инициализирован:', error.message);
       });
+      
+      // Устанавливаем централизованный процессор сообщений для Email
+      emailBot.setMessageProcessor(this.processMessage.bind(this));
+      logger.info('[BotManager] ✅ Email Bot подключен к unified processor');
 
       this.isInitialized = true;
       logger.info('[BotManager] ✅ BotManager успешно инициализирован');

@@ -379,21 +379,39 @@ function formatDate(date) {
 }
 async function loadMessages() {
   if (!contact.value || !contact.value.id) return;
+  
+  console.log('[ContactDetailsView] 📥 loadMessages START for:', contact.value.id);
   isLoadingMessages.value = true;
   try {
     // Загружаем ВСЕ публичные сообщения этого пользователя (как на главной странице)
-    messages.value = await messagesService.getMessagesByUserId(contact.value.id);
+    const loadedMessages = await messagesService.getMessagesByUserId(contact.value.id);
+    console.log('[ContactDetailsView] 📩 Loaded messages:', loadedMessages.length, 'for', contact.value.id);
+    
+    messages.value = loadedMessages;
+    
     if (messages.value.length > 0) {
       lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
     } else {
       lastMessageDate.value = null;
     }
     
-    // Также получаем conversationId для отправки новых сообщений
-    const conv = await messagesService.getConversationByUserId(contact.value.id);
-    conversationId.value = conv?.id || null;
+    // Получаем conversationId только для зарегистрированных пользователей
+    // Гости не имеют conversations
+    if (!contact.value.id.startsWith('guest_')) {
+      try {
+        const conv = await messagesService.getConversationByUserId(contact.value.id);
+        conversationId.value = conv?.id || null;
+      } catch (convError) {
+        console.warn('[ContactDetailsView] Не удалось загрузить conversationId:', convError.message);
+        conversationId.value = null;
+      }
+    } else {
+      conversationId.value = null; // Гости не имеют conversationId
+    }
+    
+    console.log('[ContactDetailsView] ✅ loadMessages DONE, messages count:', messages.value.length);
   } catch (e) {
-    console.error('[ContactDetailsView] Ошибка загрузки сообщений:', e);
+    console.error('[ContactDetailsView] ❌ Ошибка загрузки сообщений:', e);
     messages.value = [];
     lastMessageDate.value = null;
     conversationId.value = null;

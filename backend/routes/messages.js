@@ -27,29 +27,62 @@ router.get('/', async (req, res) => {
   const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
-    // Проверяем, это гостевой идентификатор (формат: channel:rawId)
-    if (userId && userId.includes(':')) {
+    // Проверяем, это гостевой идентификатор (формат: guest_123)
+    if (userId && userId.startsWith('guest_')) {
+      const guestId = parseInt(userId.replace('guest_', ''));
+      
+      if (isNaN(guestId)) {
+        return res.status(400).json({ error: 'Invalid guest ID format' });
+      }
+      
+      // Сначала получаем guest_identifier по guestId
+      const identifierResult = await db.getQuery()(
+        `WITH decrypted_guest AS (
+          SELECT 
+            id,
+            decrypt_text(identifier_encrypted, $2) as guest_identifier,
+            channel
+          FROM unified_guest_messages
+          WHERE user_id IS NULL
+        )
+        SELECT guest_identifier, channel
+        FROM decrypted_guest
+        GROUP BY guest_identifier, channel
+        HAVING MIN(id) = $1
+        LIMIT 1`,
+        [guestId, encryptionKey]
+      );
+      
+      if (identifierResult.rows.length === 0) {
+        return res.json([]);
+      }
+      
+      const guestIdentifier = identifierResult.rows[0].guest_identifier;
+      const guestChannel = identifierResult.rows[0].channel;
+      
+      // Теперь получаем все сообщения этого гостя (по идентификатору И каналу)
       const guestResult = await db.getQuery()(
         `SELECT 
           id,
-          decrypt_text(identifier_encrypted, $2) as user_id,
+          decrypt_text(identifier_encrypted, $3) as user_id,
           channel,
-          decrypt_text(content_encrypted, $2) as content,
+          decrypt_text(content_encrypted, $3) as content,
           content_type,
           attachments,
           media_metadata,
           is_ai,
           created_at
         FROM unified_guest_messages
-        WHERE decrypt_text(identifier_encrypted, $2) = $1
+        WHERE decrypt_text(identifier_encrypted, $3) = $1 
+          AND channel = $2
         ORDER BY created_at ASC`,
-        [userId, encryptionKey]
+        [guestIdentifier, guestChannel, encryptionKey]
       );
 
       // Преобразуем формат для совместимости с фронтендом
       const messages = guestResult.rows.map(msg => ({
         id: msg.id,
-        user_id: msg.user_id,
+        user_id: `guest_${guestId}`,
         sender_type: msg.is_ai ? 'bot' : 'user',
         content: msg.content,
         channel: msg.channel,

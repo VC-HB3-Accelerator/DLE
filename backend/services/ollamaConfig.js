@@ -150,14 +150,14 @@ async function getEmbeddingModel() {
 function getTimeouts() {
   return {
     // Ollama API - таймауты запросов
-    ollamaChat: 120000,        // 120 сек (2 мин) - генерация ответов LLM
-    ollamaEmbedding: 60000,    // 60 сек (1 мин) - генерация embeddings
+    ollamaChat: 180000,        // 180 сек (3 мин) - генерация ответов LLM (увеличено для сложных запросов)
+    ollamaEmbedding: 90000,    // 90 сек (1.5 мин) - генерация embeddings (увеличено)
     ollamaHealth: 5000,        // 5 сек - health check
     ollamaTags: 10000,         // 10 сек - список моделей
     
     // Vector Search - таймауты запросов
-    vectorSearch: 30000,       // 30 сек - поиск по векторам
-    vectorUpsert: 60000,       // 60 сек - индексация данных
+    vectorSearch: 90000,       // 90 сек - поиск по векторам (увеличено для больших баз)
+    vectorUpsert: 90000,       // 90 сек - индексация данных (увеличено)
     vectorHealth: 5000,        // 5 сек - health check
     
     // AI Cache - TTL (Time To Live) для кэширования
@@ -166,12 +166,12 @@ function getTimeouts() {
     cacheMax: 1000,                  // Максимум записей в кэше
     
     // AI Queue - параметры очереди
-    queueTimeout: 120000,      // 120 сек - таймаут задачи в очереди
+    queueTimeout: 180000,      // 180 сек - таймаут задачи в очереди (увеличено)
     queueMaxSize: 100,         // Максимум задач в очереди
     queueInterval: 100,        // 100 мс - интервал проверки очереди
     
     // Default для совместимости
-    default: 120000            // 120 сек
+    default: 180000            // 180 сек (увеличено с 120)
   };
 }
 

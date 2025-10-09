@@ -226,26 +226,39 @@ router.get('/', requireAuth, async (req, res, next) => {
     const guestContactsResult = await db.getQuery()(
       `WITH decrypted_guests AS (
         SELECT 
+          id,
           decrypt_text(identifier_encrypted, $1) as guest_identifier,
           channel,
           created_at,
           user_id
         FROM unified_guest_messages
         WHERE user_id IS NULL
+      ),
+      guest_groups AS (
+        SELECT 
+          MIN(id) as guest_id,
+          guest_identifier,
+          channel,
+          MIN(created_at) as created_at,
+          MAX(created_at) as last_message_at,
+          COUNT(*) as message_count
+        FROM decrypted_guests
+        GROUP BY guest_identifier, channel
       )
       SELECT 
+        ROW_NUMBER() OVER (ORDER BY guest_id ASC) as guest_number,
+        guest_id,
         guest_identifier,
         channel,
-        MIN(created_at) as created_at,
-        MAX(created_at) as last_message_at,
-        COUNT(*) as message_count
-      FROM decrypted_guests
-      GROUP BY guest_identifier, channel
-      ORDER BY MAX(created_at) DESC`,
+        created_at,
+        last_message_at,
+        message_count
+      FROM guest_groups
+      ORDER BY guest_id ASC`,
       [encryptionKey]
     );
 
-    const guestContacts = guestContactsResult.rows.map(g => {
+    const guestContacts = guestContactsResult.rows.map((g) => {
       const channelMap = {
         'web': '🌐',
         'telegram': '📱',
@@ -254,9 +267,21 @@ router.get('/', requireAuth, async (req, res, next) => {
       const icon = channelMap[g.channel] || '👤';
       const rawId = g.guest_identifier.replace(`${g.channel}:`, '');
       
+      // Формируем имя в зависимости от канала
+      let displayName;
+      if (g.channel === 'email') {
+        displayName = `${icon} ${rawId}`;
+      } else if (g.channel === 'telegram') {
+        displayName = `${icon} Telegram (${rawId})`;
+      } else {
+        displayName = `${icon} Гость ${g.guest_number}`;
+      }
+      
       return {
-        id: g.guest_identifier, // Используем unified identifier как ID
-        name: `${icon} ${g.channel === 'web' ? 'Гость' : g.channel} (${rawId.substring(0, 8)}...)`,
+        id: `guest_${g.guest_id}`, // Используем внутренний ID для поиска
+        guest_number: parseInt(g.guest_number), // Порядковый номер для отображения
+        guest_identifier: g.guest_identifier, // Сохраняем для запросов
+        name: displayName,
         email: g.channel === 'email' ? rawId : null,
         telegram: g.channel === 'telegram' ? rawId : null,
         wallet: null,
@@ -322,13 +347,27 @@ router.post('/mark-contact-read', async (req, res) => {
   try {
     const adminId = req.user && req.user.id;
     const { contactId } = req.body;
+    
     if (!adminId || !contactId) {
       return res.status(400).json({ error: 'adminId and contactId required' });
     }
+
+    // Валидация contactId: может быть числом (user.id) или строкой (guest identifier)
+    // Приводим к строке для универсальности
+    const contactIdStr = String(contactId);
+    
+    // Проверка на допустимые форматы:
+    // - Число (user.id): "123"
+    // - Гостевой идентификатор: "telegram:123", "email:user@example.com", "web:uuid"
+    if (!contactIdStr || contactIdStr.length > 255) {
+      return res.status(400).json({ error: 'Invalid contactId format' });
+    }
+
     await db.query(
       'INSERT INTO admin_read_contacts (admin_id, contact_id, read_at) VALUES ($1, $2, NOW()) ON CONFLICT (admin_id, contact_id) DO UPDATE SET read_at = NOW()',
-      [adminId, contactId]
+      [adminId, contactIdStr]
     );
+    
     res.json({ success: true });
   } catch (e) {
     console.error('[ERROR] /mark-contact-read:', e);
@@ -426,19 +465,75 @@ router.patch('/:id', requireAuth, async (req, res) => {
 
 // DELETE /api/users/:id — удалить контакт и все связанные данные
 router.delete('/:id', requireAuth, async (req, res) => {
-  // console.log('[users.js] DELETE HANDLER', req.params.id);
-  const userId = Number(req.params.id);
-  // console.log('[ROUTER] Перед вызовом deleteUserById для userId:', userId);
+  const userIdParam = req.params.id;
+  
   try {
+    // Обработка гостевых контактов (guest_123)
+    if (userIdParam.startsWith('guest_')) {
+      const guestId = parseInt(userIdParam.replace('guest_', ''));
+      
+      if (isNaN(guestId)) {
+        return res.status(400).json({ error: 'Invalid guest ID format' });
+      }
+      
+      // Получаем ключ шифрования
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+      
+      // Находим guest_identifier по guestId
+      const identifierResult = await db.getQuery()(
+        `WITH decrypted_guest AS (
+          SELECT 
+            id,
+            decrypt_text(identifier_encrypted, $2) as guest_identifier,
+            channel
+          FROM unified_guest_messages
+          WHERE user_id IS NULL
+        )
+        SELECT guest_identifier, channel
+        FROM decrypted_guest
+        GROUP BY guest_identifier, channel
+        HAVING MIN(id) = $1
+        LIMIT 1`,
+        [guestId, encryptionKey]
+      );
+      
+      if (identifierResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Guest contact not found' });
+      }
+      
+      const guestIdentifier = identifierResult.rows[0].guest_identifier;
+      const guestChannel = identifierResult.rows[0].channel;
+      
+      // Удаляем все сообщения этого гостя
+      const deleteResult = await db.getQuery()(
+        `DELETE FROM unified_guest_messages 
+         WHERE decrypt_text(identifier_encrypted, $2) = $1 
+           AND channel = $3`,
+        [guestIdentifier, encryptionKey, guestChannel]
+      );
+      
+      broadcastContactsUpdate();
+      return res.json({ success: true, deleted: deleteResult.rowCount });
+    }
+    
+    // Обработка обычных пользователей
+    const userId = Number(userIdParam);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
     const deletedCount = await deleteUserById(userId);
-    // console.log('[ROUTER] deleteUserById вернул:', deletedCount);
+    
     if (deletedCount === 0) {
       return res.status(404).json({ success: false, deleted: 0, error: 'User not found' });
     }
+    
     broadcastContactsUpdate();
     res.json({ success: true, deleted: deletedCount });
   } catch (e) {
-    // console.error('[DELETE] Ошибка при удалении пользователя:', e);
+    console.error('[DELETE] Ошибка при удалении:', e);
     res.status(500).json({ error: 'DB error', details: e.message });
   }
 });
@@ -457,26 +552,36 @@ router.get('/:id', async (req, res, next) => {
   try {
     const query = db.getQuery();
 
-    // Проверяем, это гостевой идентификатор (формат: channel:rawId)
-    if (userId.includes(':')) {
+    // Проверяем, это гостевой идентификатор (формат: guest_123)
+    if (userId.startsWith('guest_')) {
+      const guestId = parseInt(userId.replace('guest_', ''));
+      
+      if (isNaN(guestId)) {
+        return res.status(400).json({ error: 'Invalid guest ID format' });
+      }
+      
       const guestResult = await query(
         `WITH decrypted_guest AS (
           SELECT 
+            id,
             decrypt_text(identifier_encrypted, $2) as guest_identifier,
             channel,
-            created_at
+            created_at,
+            user_id
           FROM unified_guest_messages
-          WHERE decrypt_text(identifier_encrypted, $2) = $1
+          WHERE user_id IS NULL
         )
         SELECT 
+          MIN(id) as guest_id,
           guest_identifier,
           channel,
           MIN(created_at) as created_at,
           MAX(created_at) as last_message_at,
           COUNT(*) as message_count
         FROM decrypted_guest
-        GROUP BY guest_identifier, channel`,
-        [userId, encryptionKey]
+        GROUP BY guest_identifier, channel
+        HAVING MIN(id) = $1`,
+        [guestId, encryptionKey]
       );
 
       if (guestResult.rows.length === 0) {
@@ -484,17 +589,28 @@ router.get('/:id', async (req, res, next) => {
       }
 
       const guest = guestResult.rows[0];
-      const rawId = userId.replace(`${guest.channel}:`, '');
+      const rawId = guest.guest_identifier.replace(`${guest.channel}:`, '');
       const channelMap = {
         'web': '🌐',
         'telegram': '📱',
         'email': '✉️'
       };
       const icon = channelMap[guest.channel] || '👤';
+      
+      // Формируем имя в зависимости от канала
+      let displayName;
+      if (guest.channel === 'email') {
+        displayName = `${icon} ${rawId}`;
+      } else if (guest.channel === 'telegram') {
+        displayName = `${icon} Telegram (${rawId})`;
+      } else {
+        displayName = `${icon} Гость ${guestId}`;
+      }
 
       return res.json({
-        id: userId,
-        name: `${icon} ${guest.channel === 'web' ? 'Гость' : guest.channel} (${rawId.substring(0, 8)}...)`,
+        id: `guest_${guestId}`,
+        guest_identifier: guest.guest_identifier,
+        name: displayName,
         email: guest.channel === 'email' ? rawId : null,
         telegram: guest.channel === 'telegram' ? rawId : null,
         wallet: null,

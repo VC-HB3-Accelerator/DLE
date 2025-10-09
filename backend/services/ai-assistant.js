@@ -12,6 +12,7 @@
 
 const logger = require('../utils/logger');
 const ollamaConfig = require('./ollamaConfig');
+const { shouldProcessWithAI } = require('../utils/languageFilter');
 
 /**
  * AI Assistant - тонкая обёртка для работы с Ollama и RAG
@@ -69,6 +70,18 @@ class AIAssistant {
 
     try {
       logger.info(`[AIAssistant] Генерация ответа для канала ${channel}, пользователь ${userId}`);
+
+      // 0. Проверяем язык сообщения (только русский)
+      const languageCheck = shouldProcessWithAI(userQuestion);
+      if (!languageCheck.shouldProcess) {
+        logger.info(`[AIAssistant] ⚠️ Пропуск обработки: ${languageCheck.reason} (user: ${userId}, channel: ${channel})`);
+        return {
+          success: false,
+          reason: languageCheck.reason,
+          skipped: true,
+          message: 'AI обрабатывает только сообщения на русском языке'
+        };
+      }
 
       const messageDeduplicationService = require('./messageDeduplicationService');
       const aiAssistantSettingsService = require('./aiAssistantSettingsService');
