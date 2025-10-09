@@ -16,6 +16,7 @@ const simpleParser = require('mailparser').simpleParser;
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
+const universalMediaProcessor = require('./UniversalMediaProcessor');
 
 /**
  * EmailBot - обработчик Email сообщений
@@ -294,7 +295,7 @@ class EmailBot {
                   messageId = parsed.messageId;
                 }
                 
-                const messageData = this.extractMessageData(parsed, messageId, uid);
+                const messageData = await this.extractMessageData(parsed, messageId, uid);
                 if (messageData && this.messageProcessor) {
                   await this.messageProcessor(messageData);
                 }
@@ -324,13 +325,13 @@ class EmailBot {
   }
 
   /**
-   * Извлечение данных из Email сообщения
+   * Извлечение данных из Email сообщения с поддержкой медиа
    * @param {Object} parsed - Распарсенное письмо
    * @param {string} messageId - ID сообщения
    * @param {number} uid - UID сообщения
    * @returns {Object|null} - Стандартизированные данные сообщения
    */
-  extractMessageData(parsed, messageId, uid) {
+  async extractMessageData(parsed, messageId, uid) {
     try {
       const fromEmail = parsed.from?.value?.[0]?.address;
       const subject = parsed.subject || '';
@@ -355,33 +356,75 @@ class EmailBot {
         return null;
       }
 
-      const attachments = [];
+      let contentData = null;
+      const mediaFiles = [];
+      
       if (parsed.attachments && parsed.attachments.length > 0) {
-        const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
-        
         for (const att of parsed.attachments) {
-          if (att.size <= MAX_ATTACHMENT_SIZE) {
-            attachments.push({
-              filename: att.filename,
-              mimetype: att.contentType,
-              size: att.size,
-              data: att.content
+          try {
+            // Обрабатываем вложение через медиа-процессор
+            const processedFile = await universalMediaProcessor.processFile(
+              att.content,
+              att.filename,
+              {
+                emailAttachment: true,
+                originalSize: att.size,
+                mimeType: att.contentType
+              }
+            );
+            
+            mediaFiles.push(processedFile);
+          } catch (fileError) {
+            logger.error('[EmailBot] Ошибка обработки вложения:', fileError);
+            // Fallback: сохраняем как есть
+            mediaFiles.push({
+              type: 'document',
+              content: `[Вложение: ${att.filename}]`,
+              processed: false,
+              error: fileError.message,
+              file: {
+                filename: att.filename,
+                mimetype: att.contentType,
+                size: att.size,
+                data: att.content
+              }
             });
           }
         }
+      }
+
+      // Создаем структурированные данные контента если есть медиа
+      if (mediaFiles.length > 0) {
+        contentData = {
+          text: text,
+          files: mediaFiles.map(file => ({
+            data: file.file?.data || file.file?.content,
+            filename: file.file?.originalName || file.file?.filename,
+            metadata: {
+              type: file.type,
+              processed: file.processed,
+              emailAttachment: true,
+              mimeType: file.file?.contentType || file.file?.mimetype,
+              originalSize: file.file?.size
+            }
+          }))
+        };
       }
 
       return {
         channel: 'email',
         identifier: fromEmail,
         content: text,
-        attachments: attachments,
+        contentData: contentData,
+        attachments: mediaFiles, // Обратная совместимость
         metadata: {
           subject: subject,
           messageId: messageId,
           uid: uid,
           fromEmail: fromEmail,
-          html: parsed.html || ''
+          html: parsed.html || '',
+          hasMedia: mediaFiles.length > 0,
+          mediaTypes: mediaFiles.map(f => f.type)
         }
       };
     } catch (error) {
@@ -449,6 +492,39 @@ class EmailBot {
       logger.info('[EmailBot] Код верификации отправлен');
     } catch (error) {
       logger.error('[EmailBot] Ошибка отправки кода верификации:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Отправка приветственного письма с ссылкой для подключения кошелька
+   * @param {string} email - Email получателя
+   * @param {string} linkUrl - Ссылка для подключения кошелька
+   */
+  async sendWelcomeWithLink(email, linkUrl) {
+    try {
+      const mailOptions = {
+        from: this.settings.from_email,
+        to: email,
+        subject: 'Подключите Web3 кошелек',
+        text: `Добро пожаловать!\n\nДля полного доступа к системе подключите Web3 кошелек:\n${linkUrl}\n\nСсылка действительна 1 час.`,
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">🔗 Подключите Web3 кошелек</h2>
+          <p style="font-size: 16px; color: #666;">Добро пожаловать! Для сохранения истории сообщений и полного доступа к системе подключите ваш кошелек:</p>
+          <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; text-align: center; margin: 20px 0;">
+            <a href="${linkUrl}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+              Подключить кошелек
+            </a>
+          </div>
+          <p style="font-size: 14px; color: #999;">⏱ Ссылка действительна 1 час</p>
+          <p style="font-size: 14px; color: #666;">Вы сможете продолжить переписку без подключения кошелька, но история будет временной.</p>
+        </div>`,
+      };
+      
+      await this.transporter.sendMail(mailOptions);
+      logger.info('[EmailBot] Приветственное письмо с ссылкой отправлено');
+    } catch (error) {
+      logger.error('[EmailBot] Ошибка отправки приветственного письма:', error);
       throw error;
     }
   }

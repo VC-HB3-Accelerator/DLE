@@ -199,4 +199,45 @@ router.put('/db-settings', requireAuth, async (req, res, next) => {
   }
 });
 
+/**
+ * Проверка статуса токена связывания
+ * Используется на странице /connect-wallet для валидации токена
+ */
+router.get('/link-status/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Токен не указан' 
+      });
+    }
+
+    const identityLinkService = require('../services/IdentityLinkService');
+    const tokenData = await identityLinkService.verifyLinkToken(token);
+
+    if (!tokenData) {
+      return res.json({ 
+        valid: false, 
+        error: 'Токен недействителен или истек' 
+      });
+    }
+
+    res.json({
+      valid: true,
+      provider: tokenData.source_provider,
+      expiresAt: tokenData.expires_at,
+      isUsed: tokenData.is_used
+    });
+
+  } catch (error) {
+    logger.error('[Identity] Ошибка проверки статуса токена:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
 module.exports = router;

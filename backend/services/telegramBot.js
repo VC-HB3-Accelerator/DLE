@@ -13,6 +13,7 @@
 const { Telegraf } = require('telegraf');
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
+const universalMediaProcessor = require('./UniversalMediaProcessor');
 
 /**
  * TelegramBot - обработчик Telegram сообщений
@@ -139,6 +140,29 @@ class TelegramBot {
       ctx.reply('Добро пожаловать! Отправьте код подтверждения для аутентификации.');
     });
 
+    // Обработчик команды /connect - подключение кошелька
+    this.bot.command('connect', async (ctx) => {
+      try {
+        logger.info('[TelegramBot] 📨 Получена команда /connect');
+        const telegramId = ctx.from.id.toString();
+        
+        const identityLinkService = require('./IdentityLinkService');
+        const linkData = await identityLinkService.generateLinkToken('telegram', telegramId);
+        
+        await ctx.reply(
+          `🔗 *Подключите Web3 кошелек для полного доступа*\n\n` +
+          `Перейдите по ссылке:\n${linkData.linkUrl}\n\n` +
+          `⏱ Ссылка действительна 1 час`,
+          { parse_mode: 'Markdown' }
+        );
+        
+        logger.info('[TelegramBot] Отправлена ссылка для подключения кошелька');
+      } catch (error) {
+        logger.error('[TelegramBot] Ошибка команды /connect:', error);
+        ctx.reply('Произошла ошибка при создании ссылки. Попробуйте позже.');
+      }
+    });
+
     // Обработчик текстовых сообщений
     this.bot.on('text', async (ctx) => {
       logger.info('[TelegramBot] 📨 Получено текстовое сообщение');
@@ -188,11 +212,11 @@ class TelegramBot {
    * @param {Object} ctx - Telegraf context
    * @returns {Object} - Стандартизированные данные сообщения
    */
-  extractMessageData(ctx) {
-      try {
-        const telegramId = ctx.from.id.toString();
+  async extractMessageData(ctx) {
+    try {
+      const telegramId = ctx.from.id.toString();
       let content = '';
-      let attachments = [];
+      let contentData = null;
 
       // Текст сообщения
       if (ctx.message.text) {
@@ -201,8 +225,9 @@ class TelegramBot {
         content = ctx.message.caption.trim();
       }
 
-      // Обработка вложений
-      let fileId, fileName, mimeType, fileSize;
+      // Обработка медиа через UniversalMediaProcessor
+      const mediaFiles = [];
+      let fileId, fileName, mimeType, fileSize, fileData;
 
         if (ctx.message.document) {
           fileId = ctx.message.document.file_id;
@@ -227,28 +252,79 @@ class TelegramBot {
           fileSize = ctx.message.video.file_size;
         }
         
-        if (fileId) {
-        attachments.push({
-          type: 'telegram_file',
-          fileId: fileId,
-          filename: fileName,
-          mimetype: mimeType,
-          size: fileSize,
-          ctx: ctx // Сохраняем контекст для последующей загрузки
-        });
+      // Если есть файл, загружаем его и обрабатываем
+      if (fileId) {
+        try {
+          // Скачиваем файл из Telegram
+          const file = await ctx.telegram.getFile(fileId);
+          const fileUrl = `https://api.telegram.org/file/bot${this.settings.token}/${file.file_path}`;
+          
+          // Загружаем данные файла
+          const response = await fetch(fileUrl);
+          fileData = Buffer.from(await response.arrayBuffer());
+          
+          // Обрабатываем через медиа-процессор
+          const processedFile = await universalMediaProcessor.processFile(
+            fileData, 
+            fileName, 
+            {
+              telegramFileId: fileId,
+              mimeType: mimeType,
+              originalSize: fileSize
+            }
+          );
+          
+          mediaFiles.push(processedFile);
+        } catch (fileError) {
+          logger.error('[TelegramBot] Ошибка загрузки файла:', fileError);
+          // Fallback: сохраняем как есть
+          mediaFiles.push({
+            type: 'telegram_file',
+            content: `[Файл: ${fileName}]`,
+            processed: false,
+            error: fileError.message,
+            file: {
+              fileId: fileId,
+              filename: fileName,
+              mimetype: mimeType,
+              size: fileSize
+            }
+          });
+        }
+      }
+
+      // Создаем структурированные данные контента
+      if (mediaFiles.length > 0) {
+        contentData = {
+          text: content,
+          files: mediaFiles.map(file => ({
+            data: file.file?.data || null,
+            filename: file.file?.originalName || file.file?.filename,
+            metadata: {
+              type: file.type,
+              processed: file.processed,
+              telegramFileId: file.file?.telegramFileId,
+              mimeType: file.file?.mimetype,
+              originalSize: file.file?.size
+            }
+          }))
+        };
       }
 
       return {
         channel: 'telegram',
         identifier: telegramId,
         content: content,
-        attachments: attachments,
+        contentData: contentData,
+        attachments: mediaFiles, // Обратная совместимость
         metadata: {
           telegramUsername: ctx.from.username,
           telegramFirstName: ctx.from.first_name,
           telegramLastName: ctx.from.last_name,
           messageId: ctx.message.message_id,
-          chatId: ctx.chat.id
+          chatId: ctx.chat.id,
+          hasMedia: mediaFiles.length > 0,
+          mediaTypes: mediaFiles.map(f => f.type)
         }
       };
     } catch (error) {
@@ -283,7 +359,7 @@ class TelegramBot {
       await ctx.replyWithChatAction('typing');
       
       // Извлекаем данные из сообщения
-      const messageData = this.extractMessageData(ctx);
+      const messageData = await this.extractMessageData(ctx);
       
       logger.info(`[TelegramBot] Обработка сообщения от пользователя: ${messageData.identifier}`);
 

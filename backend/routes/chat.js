@@ -15,21 +15,44 @@ const router = express.Router();
 const multer = require('multer');
 const aiAssistant = require('../services/ai-assistant');
 const db = require('../db');
+const encryptedDb = require('../services/encryptedDatabaseService');
 const logger = require('../utils/logger');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botManager = require('../services/botManager');
+const universalMediaProcessor = require('../services/UniversalMediaProcessor');
 
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Функция processGuestMessages перенесена в services/guestMessageService.js
+// Функция processGuestMessages заменена на UniversalGuestService.migrateToUser()
 
-// Обработчик для гостевых сообщений
+// Обработчик для гостевых сообщений (НОВАЯ ВЕРСИЯ)
 router.post('/guest-message', upload.array('attachments'), async (req, res) => {
   try {
+    // Frontend отправляет FormData, поэтому читаем из req.body
+    const content = req.body.content || req.body.message;
+    const guestId = req.body.guestId;
+    const files = req.files || [];
+
+    logger.info('[Chat] Получен guest-message запрос:', { 
+      content: content?.substring(0, 50), 
+      guestId, 
+      hasFiles: files.length > 0,
+      bodyKeys: Object.keys(req.body)
+    });
+
+    // Проверяем, что есть либо текст, либо файлы
+    if (!content && (!files || files.length === 0)) {
+      logger.warn('[Chat] Гостевое сообщение без content и файлов:', req.body);
+      return res.status(400).json({
+        success: false,
+        error: 'Текст сообщения или файлы обязательны'
+      });
+    }
+
     // Проверяем готовность системы
     if (!botManager.isReady()) {
       return res.status(503).json({
@@ -38,18 +61,100 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       });
     }
 
-    // Получаем WebBot
-    const webBot = botManager.getBot('web');
-    if (!webBot || !webBot.isInitialized) {
-      return res.status(503).json({
-        success: false,
-        error: 'Web Bot не инициализирован'
-      });
+    const universalGuestService = require('../services/UniversalGuestService');
+    const unifiedMessageProcessor = require('../services/unifiedMessageProcessor');
+
+    // Создаем или используем существующий гостевой ID
+    const webGuestId = guestId || universalGuestService.generateWebGuestId();
+    const identifier = universalGuestService.createIdentifier('web', webGuestId);
+
+    // Обработка вложений через медиа-процессор
+    let contentData = null;
+    if (files && files.length > 0) {
+      const mediaFiles = [];
+      
+      for (const file of files) {
+        try {
+          const processedFile = await universalMediaProcessor.processFile(
+            file.buffer,
+            file.originalname,
+            {
+              webUpload: true,
+              originalSize: file.size,
+              mimeType: file.mimetype
+            }
+          );
+          
+          mediaFiles.push(processedFile);
+        } catch (fileError) {
+          logger.error('[Chat] Ошибка обработки файла:', fileError);
+          // Fallback: сохраняем как есть
+          mediaFiles.push({
+            type: 'document',
+            content: `[Файл: ${file.originalname}]`,
+            processed: false,
+            error: fileError.message,
+            file: {
+              filename: file.originalname,
+              mimetype: file.mimetype,
+              size: file.size,
+              data: file.buffer
+            }
+          });
+        }
+      }
+      
+      // Создаем contentData только если есть обработанные файлы
+      if (mediaFiles.length > 0) {
+        contentData = {
+          text: content,
+          files: mediaFiles.map(file => ({
+            data: file.file?.data || file.file?.buffer,
+            filename: file.file?.originalName || file.file?.filename,
+            metadata: {
+              type: file.type,
+              processed: file.processed,
+              webUpload: true,
+              mimeType: file.file?.mimetype,
+              originalSize: file.file?.size,
+              size: file.file?.size
+            }
+          }))
+        };
+      }
     }
 
-    // Обрабатываем сообщение через новую архитектуру
-    await webBot.handleMessage(req, res, async (messageData) => {
-      return await botManager.processMessage(messageData);
+    // Обратная совместимость - старый формат attachments
+    const attachments = (files || []).map(file => ({
+      filename: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      data: file.buffer
+    }));
+
+    const messageData = {
+      identifier: identifier,
+      content: content,
+      channel: 'web',
+      attachments: attachments,
+      contentData: contentData
+    };
+
+    // Обработка через unified processor
+    const result = await unifiedMessageProcessor.processMessage(messageData);
+
+    logger.info('[Chat] Результат обработки:', {
+      success: result.success,
+      hasAiResponse: !!result.aiResponse,
+      aiResponseType: typeof result.aiResponse?.response
+    });
+
+    res.json({
+      success: true,
+      guestId: webGuestId,
+      aiResponse: result.aiResponse ? {
+        response: result.aiResponse.response
+      } : null
     });
 
   } catch (error) {
@@ -63,9 +168,27 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
 
 // Старая логика удалена - используется guestService.js);
 
-// Обработчик для сообщений аутентифицированных пользователей
+// Обработчик для сообщений аутентифицированных пользователей (НОВАЯ ВЕРСИЯ)
 router.post('/message', requireAuth, upload.array('attachments'), async (req, res) => {
   try {
+    const { content, conversationId, recipientId } = req.body;
+    const userId = req.session.userId;
+    const files = req.files || [];
+
+    if (!content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Текст сообщения обязателен'
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Пользователь не авторизован'
+      });
+    }
+
     // Проверяем готовность системы
     if (!botManager.isReady()) {
       return res.status(503).json({
@@ -74,18 +197,83 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
       });
     }
 
-    // Получаем WebBot
-    const webBot = botManager.getBot('web');
-    if (!webBot || !webBot.isInitialized) {
-      return res.status(503).json({
+    const encryptedDb = require('../services/encryptedDatabaseService');
+    const unifiedMessageProcessor = require('../services/unifiedMessageProcessor');
+    const identityService = require('../services/identity-service');
+
+    // Получаем информацию о пользователе
+    const users = await encryptedDb.getData('users', { id: userId }, 1);
+    
+    // ✨ НОВОЕ: Валидация прав через adminLogicService
+    const adminLogicService = require('../services/adminLogicService');
+    const sessionUserId = req.session.userId;
+    const targetUserId = userId;
+    const isAdmin = req.session.isAdmin || false;
+    
+    const canWrite = adminLogicService.canWriteToConversation({
+      isAdmin: isAdmin,
+      userId: sessionUserId,
+      conversationUserId: targetUserId
+    });
+    
+    if (!canWrite) {
+      logger.warn(`[Chat] Пользователь ${sessionUserId} пытался писать в беседу ${targetUserId} без прав`);
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Нет прав для отправки сообщений в эту беседу' 
+      });
+    }
+    if (!users || users.length === 0) {
+      return res.status(404).json({
         success: false,
-        error: 'Web Bot не инициализирован'
+        error: 'Пользователь не найден'
       });
     }
 
-    // Обрабатываем сообщение через новую архитектуру
-    await webBot.handleMessage(req, res, async (messageData) => {
-      return await botManager.processMessage(messageData);
+    const user = users[0];
+
+    // Находим wallet идентификатор пользователя
+    const walletIdentity = await identityService.findIdentity(userId, 'wallet');
+    
+    if (!walletIdentity) {
+      return res.status(403).json({
+        success: false,
+        error: 'Требуется подключение кошелька'
+      });
+    }
+
+    // Создаем identifier для пользователя
+    const identifier = `wallet:${walletIdentity.provider_id}`;
+
+    // Обработка вложений
+    const attachments = files.map(file => ({
+      filename: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      data: file.buffer
+    }));
+
+    const messageData = {
+      identifier: identifier,
+      content: content,
+      channel: 'web',
+      attachments: attachments,
+      conversationId: conversationId || null,
+      recipientId: recipientId || null,
+      userId: userId
+    };
+
+    // Обработка через unified processor
+    const result = await unifiedMessageProcessor.processMessage(messageData);
+
+    res.json({
+      success: true,
+      userMessageId: result.userMessageId,
+      conversationId: result.conversationId,
+      aiResponse: result.aiResponse ? {
+        response: result.aiResponse.response
+      } : null,
+      noAiResponse: result.noAiResponse
     });
 
   } catch (error) {
@@ -223,15 +411,21 @@ router.post('/process-guest', requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: 'guestId is required' });
   }
   try {
-    const guestMessageService = require('../services/guestMessageService');
-    const result = await guestMessageService.processGuestMessages(userId, guestId);
-    if (result && result.conversationId) {
-      return res.json({ success: true, conversationId: result.conversationId });
+    const universalGuestService = require('../services/UniversalGuestService');
+    const identifier = `web:${guestId}`; // Старые гости всегда из web
+    const result = await universalGuestService.migrateToUser(identifier, userId);
+    
+    if (result && result.success) {
+      return res.json({ 
+        success: true, 
+        conversationId: result.conversationId,
+        migratedMessages: result.migratedCount 
+      });
     } else {
-      return res.json({ success: false, error: result.error || 'No conversation created' });
+      return res.json({ success: false, error: result.error || 'Migration failed' });
     }
   } catch (error) {
-    logger.error('Error in /process-guest:', error);
+    logger.error('Error in /migrate-guest-messages:', error);
     return res.status(500).json({ success: false, error: 'Internal error' });
   }
 });

@@ -27,6 +27,49 @@ router.get('/', async (req, res) => {
   const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
+    // Проверяем, это гостевой идентификатор (формат: channel:rawId)
+    if (userId && userId.includes(':')) {
+      const guestResult = await db.getQuery()(
+        `SELECT 
+          id,
+          decrypt_text(identifier_encrypted, $2) as user_id,
+          channel,
+          decrypt_text(content_encrypted, $2) as content,
+          content_type,
+          attachments,
+          media_metadata,
+          is_ai,
+          created_at
+        FROM unified_guest_messages
+        WHERE decrypt_text(identifier_encrypted, $2) = $1
+        ORDER BY created_at ASC`,
+        [userId, encryptionKey]
+      );
+
+      // Преобразуем формат для совместимости с фронтендом
+      const messages = guestResult.rows.map(msg => ({
+        id: msg.id,
+        user_id: msg.user_id,
+        sender_type: msg.is_ai ? 'bot' : 'user',
+        content: msg.content,
+        channel: msg.channel,
+        role: 'guest',
+        direction: msg.is_ai ? 'incoming' : 'outgoing',
+        created_at: msg.created_at,
+        attachment_filename: null,
+        attachment_mimetype: null,
+        attachment_size: null,
+        attachment_data: null,
+        // Дополнительные поля для медиа
+        content_type: msg.content_type,
+        attachments: msg.attachments,
+        media_metadata: msg.media_metadata
+      }));
+
+      return res.json(messages);
+    }
+
+    // Стандартная логика для зарегистрированных пользователей
     let result;
     if (conversationId) {
       result = await db.getQuery()(
@@ -277,6 +320,24 @@ router.post('/broadcast', async (req, res) => {
   const { user_id, content } = req.body;
   if (!user_id || !content) {
     return res.status(400).json({ error: 'user_id и content обязательны' });
+  }
+
+  // ✨ Проверка прав через adminLogicService (только editor может делать рассылку!)
+  const encryptedDb = require('../services/encryptedDatabaseService');
+  const users = await encryptedDb.getData('users', { id: req.session.userId }, 1);
+  const userRole = users && users.length > 0 ? users[0].role : 'user';
+  
+  const adminLogicService = require('../services/adminLogicService');
+  const canBroadcast = adminLogicService.canPerformAdminAction({
+    role: userRole,  // Передаем точную роль ('editor', 'readonly', 'user')
+    action: 'broadcast_message'
+  });
+
+  if (!canBroadcast) {
+    logger.warn(`[Messages] Пользователь ${req.session.userId} (роль: ${userRole}) пытался сделать broadcast без прав`);
+    return res.status(403).json({ 
+      error: 'Только редакторы (editor) могут делать массовую рассылку' 
+    });
   }
 
   // Получаем ключ шифрования через унифицированную утилиту

@@ -279,11 +279,14 @@ export function useChat(auth) {
              }
 
             // Добавляем ответ ИИ, если есть
-            if (response.data.aiMessage) {
+            if (response.data.aiResponse) {
                 messages.value.push({
-                    ...response.data.aiMessage,
-                    sender_type: 'assistant', // Убедимся, что тип правильный
+                    id: `ai_${Date.now()}`,
+                    content: response.data.aiResponse.response || response.data.aiResponse,
+                    sender_type: 'assistant',
                     role: 'assistant',
+                    timestamp: new Date().toISOString(),
+                    isLocal: false
                 });
             }
 

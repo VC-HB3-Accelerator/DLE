@@ -34,17 +34,9 @@ class BotManager {
       logger.info('[BotManager] 🚀 Инициализация BotManager...');
 
       // Создаем экземпляры ботов
-      const webBot = {
-        name: 'WebBot',
-        channel: 'web',
-        isInitialized: true,
-        status: 'active',
-        initialize: async () => ({ success: true }),
-        processMessage: async (messageData) => {
-          return await unifiedMessageProcessor.processMessage(messageData);
-        }
-      };
-
+      const WebBot = require('./webBot');
+      const webBot = new WebBot();
+      
       const telegramBot = new TelegramBot();
       const emailBot = new EmailBot();
 
@@ -52,6 +44,12 @@ class BotManager {
       this.bots.set('web', webBot);
       this.bots.set('telegram', telegramBot);
       this.bots.set('email', emailBot);
+
+      // Инициализируем Web Bot
+      logger.info('[BotManager] Инициализация Web Bot...');
+      await webBot.initialize().catch(error => {
+        logger.warn('[BotManager] Web Bot не инициализирован:', error.message);
+      });
 
       // Инициализируем Telegram Bot
       logger.info('[BotManager] Инициализация Telegram Bot...');

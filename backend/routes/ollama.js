@@ -15,20 +15,23 @@ const router = express.Router();
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
+const axios = require('axios');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
+const ollamaConfig = require('../services/ollamaConfig');
+
+// Инициализируем один раз
+const TIMEOUTS = ollamaConfig.getTimeouts();
 
 // Проверка статуса подключения к Ollama
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const axios = require('axios');
-    const ollamaConfig = require('../services/ollamaConfig');
     const ollamaUrl = ollamaConfig.getBaseUrl();
     
     // Проверяем API Ollama через HTTP запрос
     try {
       const response = await axios.get(`${ollamaUrl}/api/tags`, { 
-        timeout: 5000 // 5 секунд таймаут
+        timeout: TIMEOUTS.ollamaTags // Централизованный таймаут
       });
       
       const models = response.data.models || [];
@@ -54,12 +57,10 @@ router.get('/status', requireAuth, async (req, res) => {
 // Получение списка установленных моделей
 router.get('/models', requireAuth, async (req, res) => {
   try {
-    const axios = require('axios');
-    const ollamaConfig = require('../services/ollamaConfig');
     const ollamaUrl = ollamaConfig.getBaseUrl();
     
     const response = await axios.get(`${ollamaUrl}/api/tags`, { 
-      timeout: 5000 
+      timeout: TIMEOUTS.ollamaTags 
     });
     
     const models = (response.data.models || []).map(model => ({

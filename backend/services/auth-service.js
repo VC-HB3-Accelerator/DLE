@@ -261,9 +261,10 @@ class AuthService {
    */
   async processAndCleanupGuestData(userId, guestId, session) {
     try {
-      // Обрабатываем гостевые сообщения
-      const guestMessageService = require('./guestMessageService');
-      await guestMessageService.processGuestMessages(userId, guestId);
+      // Обрабатываем гостевые сообщения (используем новый UniversalGuestService)
+      const universalGuestService = require('./UniversalGuestService');
+      const identifier = `web:${guestId}`; // Старые гости всегда из web
+      await universalGuestService.migrateToUser(identifier, userId);
 
       // Очищаем гостевой ID из сессии
       delete session.guestId;
@@ -437,8 +438,8 @@ class AuthService {
         const encryptionKey = encryptionUtils.getEncryptionKey();
 
         await db.getQuery()(
-          'INSERT INTO guest_user_mapping (user_id, guest_id_encrypted) VALUES ($1, encrypt_text($2, $3)) ON CONFLICT (guest_id_encrypted) DO UPDATE SET user_id = $1',
-          [userId, session.guestId, encryptionKey]
+          'INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at) VALUES ($1, encrypt_text($2, $4), $3, NOW()) ON CONFLICT (identifier_encrypted, channel) DO UPDATE SET user_id = $1',
+          [userId, `web:${session.guestId}`, 'web', encryptionKey]
         );
         logger.info(`[verifyTelegramAuth] Saved guest ID ${session.guestId} for user ${userId}`);
       }

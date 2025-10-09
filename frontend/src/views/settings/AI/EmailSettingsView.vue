@@ -76,8 +76,9 @@
 <script setup>
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, watch } from 'vue';
 import api from '@/api/axios';
+import { useAuthContext } from '@/composables/useAuth';
 
 const router = useRouter();
 const goBack = () => router.push('/settings/ai');
@@ -96,7 +97,15 @@ const form = reactive({
 const original = reactive({});
 const editMode = ref(false);
 
+const auth = useAuthContext();
+
 const loadEmailSettings = async () => {
+  // Не загружаем если не авторизован
+  if (!auth.isAuthenticated.value) {
+    console.log('[EmailSettings] Пропуск загрузки - пользователь не авторизован');
+    return;
+  }
+
   try {
     const res = await api.get('/settings/email-settings');
     if (res.data.success) {
@@ -113,12 +122,18 @@ const loadEmailSettings = async () => {
       Object.assign(original, JSON.parse(JSON.stringify(form)));
     }
   } catch (e) {
-    // обработка ошибки
+    console.error('[EmailSettings] Ошибка загрузки:', e);
   }
 };
 
-onMounted(async () => {
-  await loadEmailSettings();
+// Отслеживаем изменение авторизации
+watch(() => auth.isAuthenticated.value, async (isAuth) => {
+  if (isAuth) {
+    await loadEmailSettings();
+  }
+}, { immediate: true }); // immediate: true - вызовется сразу при монтировании
+
+onMounted(() => {
   editMode.value = false;
 });
 

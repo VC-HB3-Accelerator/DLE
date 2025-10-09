@@ -208,7 +208,7 @@ router.get('/', requireAuth, async (req, res, next) => {
       });
     }
 
-    // --- Формируем ответ ---
+    // --- Формируем ответ для зарегистрированных пользователей ---
     const contacts = users.map(u => ({
       id: u.id,
       name: [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || null,
@@ -222,7 +222,61 @@ router.get('/', requireAuth, async (req, res, next) => {
       role: u.role || 'user'
     }));
 
-    res.json({ success: true, contacts });
+    // --- Добавляем гостевые контакты ---
+    const guestContactsResult = await db.getQuery()(
+      `WITH decrypted_guests AS (
+        SELECT 
+          decrypt_text(identifier_encrypted, $1) as guest_identifier,
+          channel,
+          created_at,
+          user_id
+        FROM unified_guest_messages
+        WHERE user_id IS NULL
+      )
+      SELECT 
+        guest_identifier,
+        channel,
+        MIN(created_at) as created_at,
+        MAX(created_at) as last_message_at,
+        COUNT(*) as message_count
+      FROM decrypted_guests
+      GROUP BY guest_identifier, channel
+      ORDER BY MAX(created_at) DESC`,
+      [encryptionKey]
+    );
+
+    const guestContacts = guestContactsResult.rows.map(g => {
+      const channelMap = {
+        'web': '🌐',
+        'telegram': '📱',
+        'email': '✉️'
+      };
+      const icon = channelMap[g.channel] || '👤';
+      const rawId = g.guest_identifier.replace(`${g.channel}:`, '');
+      
+      return {
+        id: g.guest_identifier, // Используем unified identifier как ID
+        name: `${icon} ${g.channel === 'web' ? 'Гость' : g.channel} (${rawId.substring(0, 8)}...)`,
+        email: g.channel === 'email' ? rawId : null,
+        telegram: g.channel === 'telegram' ? rawId : null,
+        wallet: null,
+        created_at: g.created_at,
+        preferred_language: [],
+        is_blocked: false,
+        contact_type: 'guest',
+        role: 'guest',
+        guest_info: {
+          channel: g.channel,
+          message_count: parseInt(g.message_count),
+          last_message_at: g.last_message_at
+        }
+      };
+    });
+
+    // Объединяем списки
+    const allContacts = [...contacts, ...guestContacts];
+
+    res.json({ success: true, contacts: allContacts });
   } catch (error) {
     logger.error('Error fetching contacts:', error);
     next(error);
@@ -401,9 +455,64 @@ router.get('/:id', async (req, res, next) => {
   const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
-
     const query = db.getQuery();
-    // Получаем пользователя
+
+    // Проверяем, это гостевой идентификатор (формат: channel:rawId)
+    if (userId.includes(':')) {
+      const guestResult = await query(
+        `WITH decrypted_guest AS (
+          SELECT 
+            decrypt_text(identifier_encrypted, $2) as guest_identifier,
+            channel,
+            created_at
+          FROM unified_guest_messages
+          WHERE decrypt_text(identifier_encrypted, $2) = $1
+        )
+        SELECT 
+          guest_identifier,
+          channel,
+          MIN(created_at) as created_at,
+          MAX(created_at) as last_message_at,
+          COUNT(*) as message_count
+        FROM decrypted_guest
+        GROUP BY guest_identifier, channel`,
+        [userId, encryptionKey]
+      );
+
+      if (guestResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Guest contact not found' });
+      }
+
+      const guest = guestResult.rows[0];
+      const rawId = userId.replace(`${guest.channel}:`, '');
+      const channelMap = {
+        'web': '🌐',
+        'telegram': '📱',
+        'email': '✉️'
+      };
+      const icon = channelMap[guest.channel] || '👤';
+
+      return res.json({
+        id: userId,
+        name: `${icon} ${guest.channel === 'web' ? 'Гость' : guest.channel} (${rawId.substring(0, 8)}...)`,
+        email: guest.channel === 'email' ? rawId : null,
+        telegram: guest.channel === 'telegram' ? rawId : null,
+        wallet: null,
+        created_at: guest.created_at,
+        preferred_language: [],
+        is_blocked: false,
+        contact_type: 'guest',
+        role: 'guest',
+        guest_info: {
+          channel: guest.channel,
+          message_count: parseInt(guest.message_count),
+          last_message_at: guest.last_message_at,
+          raw_identifier: rawId
+        }
+      });
+    }
+
+    // Получаем пользователя (зарегистрированный)
     const userResult = await query('SELECT id, created_at, preferred_language, is_blocked FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });

@@ -42,8 +42,9 @@
 <script setup>
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, watch } from 'vue';
 import api from '@/api/axios';
+import { useAuthContext } from '@/composables/useAuth';
 
 const router = useRouter();
 const goBack = () => router.push('/settings/ai');
@@ -55,7 +56,15 @@ const form = reactive({
 const original = reactive({});
 const editMode = ref(false);
 
+const auth = useAuthContext();
+
 const loadTelegramSettings = async () => {
+  // Не загружаем если не авторизован
+  if (!auth.isAuthenticated.value) {
+    console.log('[TelegramSettings] Пропуск загрузки - пользователь не авторизован');
+    return;
+  }
+
   try {
     const res = await api.get('/settings/telegram-settings');
     if (res.data.success) {
@@ -65,12 +74,18 @@ const loadTelegramSettings = async () => {
       Object.assign(original, JSON.parse(JSON.stringify(form)));
     }
   } catch (e) {
-    // обработка ошибки
+    console.error('[TelegramSettings] Ошибка загрузки:', e);
   }
 };
 
-onMounted(async () => {
-  await loadTelegramSettings();
+// Отслеживаем изменение авторизации
+watch(() => auth.isAuthenticated.value, async (isAuth) => {
+  if (isAuth) {
+    await loadTelegramSettings();
+  }
+}, { immediate: true }); // immediate: true - вызовется сразу при монтировании
+
+onMounted(() => {
   editMode.value = false;
 });
 

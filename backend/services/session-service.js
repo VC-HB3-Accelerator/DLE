@@ -12,7 +12,8 @@
 
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
-const guestMessageService = require('./guestMessageService');
+const universalGuestService = require('./UniversalGuestService');
+const db = require('../db');
 
 /**
  * Сервис для работы с сессиями пользователей
@@ -50,8 +51,8 @@ class SessionService {
   async linkGuestMessages(session, userId) {
     try {
       // Получаем все гостевые ID для текущего пользователя из таблицы
-      const guestIdsResult = await encryptedDb.getData('guest_user_mapping', { user_id: userId });
-      const userGuestIds = guestIdsResult.map((row) => row.guest_id);
+      const guestIdsResult = await encryptedDb.getData('unified_guest_mapping', { user_id: userId });
+      const userGuestIds = guestIdsResult.map((row) => row.identifier_encrypted);
 
       // Собираем все гостевые ID, которые нужно обработать
       const guestIdsToProcess = new Set();
@@ -63,10 +64,15 @@ class SessionService {
           guestIdsToProcess.add(session.guestId);
 
           // Записываем связь с пользователем в новую таблицу
-          await encryptedDb.saveData('guest_user_mapping', {
-            user_id: userId,
-            guest_id: session.guestId
-          });
+          // НЕ используем encryptedDb.saveData, т.к. identifier_encrypted требует ручного шифрования
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          await db.getQuery()(
+            `INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at)
+             VALUES ($1, encrypt_text($2, $4), $3, NOW())
+             ON CONFLICT (identifier_encrypted, channel) DO NOTHING`,
+            [userId, `web:${session.guestId}`, 'web', encryptionKey]
+          );
         }
       }
 
@@ -77,10 +83,15 @@ class SessionService {
           guestIdsToProcess.add(session.previousGuestId);
 
           // Записываем связь с пользователем в новую таблицу
-          await encryptedDb.saveData('guest_user_mapping', {
-            user_id: userId,
-            guest_id: session.previousGuestId
-          });
+          // НЕ используем encryptedDb.saveData, т.к. identifier_encrypted требует ручного шифрования
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          await db.getQuery()(
+            `INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at)
+             VALUES ($1, encrypt_text($2, $4), $3, NOW())
+             ON CONFLICT (identifier_encrypted, channel) DO NOTHING`,
+            [userId, `web:${session.previousGuestId}`, 'web', encryptionKey]
+          );
         }
       }
 
@@ -98,9 +109,10 @@ class SessionService {
           `[SessionService] Linking ${guestIdsToProcess.size} guest IDs to user ${userId}: ${Array.from(guestIdsToProcess).join(', ')}`
         );
 
-        // Обрабатываем сообщения для каждого гостевого ID
+        // Обрабатываем сообщения для каждого гостевого ID (используем UniversalGuestService)
         for (const guestId of guestIdsToProcess) {
-          await guestMessageService.processGuestMessages(userId, guestId);
+          const identifier = `web:${guestId}`; // Старые гости всегда из web
+          await universalGuestService.migrateToUser(identifier, userId);
         }
       }
 
@@ -118,7 +130,7 @@ class SessionService {
    */
   async isGuestIdProcessed(guestId) {
     try {
-      const result = await encryptedDb.getData('guest_user_mapping', { guest_id: guestId });
+      const result = await encryptedDb.getData('unified_guest_mapping', { identifier_encrypted: `web:${guestId}` });
       
       return result.length > 0 && result[0].processed === true;
     } catch (error) {
@@ -127,7 +139,7 @@ class SessionService {
     }
   }
 
-  // Обертка processGuestMessagesWrapper удалена - используется прямой вызов guestMessageService.processGuestMessages
+  // Обертка processGuestMessagesWrapper удалена - используется UniversalGuestService.migrateToUser
 
   /**
    * Получает сессию из хранилища по ID

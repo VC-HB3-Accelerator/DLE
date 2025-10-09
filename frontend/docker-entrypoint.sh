@@ -8,8 +8,17 @@ echo "🔧 Настройка nginx с параметрами:"
 echo "   DOMAIN: $DOMAIN"
 echo "   BACKEND_CONTAINER: $BACKEND_CONTAINER"
 
+# Выбор конфигурации в зависимости от домена
+if echo "$DOMAIN" | grep -qE '^localhost(:[0-9]+)?$'; then
+    echo "   Режим: ЛОКАЛЬНАЯ РАЗРАБОТКА (без SSL)"
+    TEMPLATE_FILE="/etc/nginx/nginx-local.conf.template"
+else
+    echo "   Режим: ПРОДАКШН (с SSL)"
+    TEMPLATE_FILE="/etc/nginx/nginx-ssl.conf.template"
+fi
+
 # Обработка переменных окружения для nginx конфигурации
-envsubst '${DOMAIN} ${BACKEND_CONTAINER}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${DOMAIN} ${BACKEND_CONTAINER}' < $TEMPLATE_FILE > /etc/nginx/nginx.conf
 
 # Проверка синтаксиса nginx конфигурации
 echo "🔍 Проверка синтаксиса nginx конфигурации..."

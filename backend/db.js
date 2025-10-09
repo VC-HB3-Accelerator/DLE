@@ -193,22 +193,7 @@ async function initDbPool() {
   console.log('Используем дефолтные настройки подключения к БД');
 }
 
-// Функция для сохранения гостевого сообщения в базе данных
-async function saveGuestMessageToDatabase(message, language, guestId) {
-  try {
-    await query(
-      `
-      INSERT INTO guest_messages (guest_id, content, language, created_at)
-      VALUES ($1, $2, $3, NOW())
-    `,
-      [guestId, message, language]
-    );
-    // console.log('Гостевое сообщение успешно сохранено:', message); // Убрано избыточное логирование
-  } catch (error) {
-    console.error('Ошибка при сохранении гостевого сообщения:', error);
-    throw error; // Пробрасываем ошибку дальше
-  }
-}
+// Функция saveGuestMessageToDatabase удалена - используется UniversalGuestService
 
 async function waitForOllamaModel(modelName) {
   const ollamaConfig = require('./services/ollamaConfig');

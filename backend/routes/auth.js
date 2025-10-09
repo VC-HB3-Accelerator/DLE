@@ -981,4 +981,114 @@ router.get('/access-level/:address', async (req, res) => {
   }
 });
 
+/**
+ * Подключение кошелька через токен связывания
+ * Используется для привязки Telegram/Email идентификаторов к кошельку
+ */
+router.post('/wallet-with-link', authLimiter, async (req, res) => {
+  try {
+    const { address, signature, message, token } = req.body;
+
+    if (!address || !signature || !message || !token) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Требуются: address, signature, message, token' 
+      });
+    }
+
+    // 1. Проверяем подпись
+    let recoveredAddress;
+    try {
+      recoveredAddress = ethers.verifyMessage(message, signature);
+    } catch (err) {
+      logger.error('[Auth] Ошибка верификации подписи:', err);
+      return res.status(400).json({ 
+        success: false,
+        error: 'Неверная подпись' 
+      });
+    }
+
+    if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Подпись не соответствует адресу' 
+      });
+    }
+
+    // 2. Проверяем и используем токен
+    const identityLinkService = require('../services/IdentityLinkService');
+    const linkResult = await identityLinkService.useLinkToken(token, address);
+
+    if (!linkResult.success) {
+      return res.status(400).json({ 
+        success: false,
+        error: linkResult.error 
+      });
+    }
+
+    const { userId, identifier, role } = linkResult;
+
+    // 3. Мигрируем историю гостя
+    const universalGuestService = require('../services/UniversalGuestService');
+    const migrationResult = await universalGuestService.migrateToUser(identifier, userId);
+
+    logger.info('[Auth] История мигрирована:', migrationResult);
+
+    // 4. Обновляем сессию
+    req.session.userId = userId;
+    req.session.address = address.toLowerCase();
+    req.session.authenticated = true;
+    req.session.authType = 'wallet';
+    req.session.isAdmin = (role === 'admin' || role === 'editor' || role === 'readonly');
+
+    await sessionService.saveSession(req.session, 'wallet-with-link');
+
+    logger.info(`[Auth] Кошелек подключен через токен: ${address} → user ${userId}`);
+
+    res.json({ 
+      success: true, 
+      userId,
+      role,
+      conversationId: migrationResult.conversationId,
+      migratedMessages: migrationResult.migrated,
+      message: 'Кошелек успешно подключен, история перенесена'
+    });
+
+  } catch (error) {
+    logger.error('[Auth] Ошибка в wallet-with-link:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+// ✨ НОВОЕ: Получение прав доступа пользователя
+router.get('/permissions', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    
+    // Получаем роль пользователя из БД
+    const users = await encryptedDb.getData('users', { id: userId }, 1);
+    const userRole = users && users.length > 0 ? users[0].role : 'user';
+    
+    // Получаем настройки прав через adminLogicService
+    const adminLogicService = require('../services/adminLogicService');
+    const permissions = adminLogicService.getAdminSettings({ role: userRole });
+    
+    res.json({
+      success: true,
+      userId: userId,
+      permissions: permissions
+    });
+    
+  } catch (error) {
+    logger.error('[Auth] Ошибка получения permissions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка получения прав доступа'
+    });
+  }
+});
+
 module.exports = router;

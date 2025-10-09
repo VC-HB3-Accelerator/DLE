@@ -11,6 +11,7 @@
  */
 
 const db = require('../db');
+const encryptedDb = require('./encryptedDatabaseService');
 const logger = require('../utils/logger');
 
 /**
@@ -37,11 +38,10 @@ async function getBotSettings(botType) {
         throw new Error(`Unknown bot type: ${botType}`);
     }
 
-    const { rows } = await db.getQuery()(
-      `SELECT * FROM ${tableName} ORDER BY id LIMIT 1`
-    );
+    // Используем encryptedDb для автоматической расшифровки
+    const settings = await encryptedDb.getData(tableName, {}, 1);
 
-    return rows.length > 0 ? rows[0] : null;
+    return settings.length > 0 ? settings[0] : null;
     
   } catch (error) {
     logger.error(`[BotsSettings] Ошибка получения настроек ${botType}:`, error);

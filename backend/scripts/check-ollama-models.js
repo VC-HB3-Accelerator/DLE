@@ -11,6 +11,9 @@
  */
 
 const axios = require('axios');
+const ollamaConfig = require('../services/ollamaConfig');
+
+const TIMEOUTS = ollamaConfig.getTimeouts();
 
 async function checkOllamaModels() {
   try {
@@ -18,7 +21,7 @@ async function checkOllamaModels() {
 
     const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     const response = await axios.get(`${baseUrl}/api/tags`, {
-      timeout: 5000, // 5 секунд таймаут
+      timeout: TIMEOUTS.ollamaTags, // Централизованный таймаут
     });
 
     if (response.status === 200 && response.data && response.data.models) {

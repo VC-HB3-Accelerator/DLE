@@ -1,8 +1,9 @@
 # АБСОЛЮТНО ПОЛНЫЙ инвентарь AI системы
 
 **Дата:** 2025-10-08  
+**Обновлено:** 2025-10-09 (Универсальная гостевая система)  
 **Метод:** Систематическая проверка ВСЕХ директорий  
-**Статус:** ✅ ПРОВЕРЕНО ВСЁ
+**Статус:** ✅ ПРОВЕРЕНО ВСЁ + НОВАЯ СИСТЕМА ВНЕДРЕНА
 
 ---
 
@@ -10,7 +11,7 @@
 
 | Категория | Количество |
 |-----------|-----------|
-| **Backend Services** | 31 файл |
+| **Backend Services** | 32 файла (+2 новых, -1 удален) |
 | **Backend Routes** | 13 файлов |
 | **Backend Utils** | 3 файла |
 | **Backend Scripts** | 3 файла |
@@ -21,25 +22,27 @@
 | **Frontend Components** | 11 файлов |
 | **Frontend Services** | 2 файла |
 | **Frontend Composables** | 1 файл |
-| **Frontend Views** | 12 файлов |
-| **ИТОГО** | **86 ФАЙЛОВ** |
+| **Frontend Views** | 13 файлов (+1 новый) |
+| **ИТОГО** | **88 ФАЙЛОВ** (+2 новых, -1 удален) |
 
 ---
 
-## 🔥 BACKEND (55 файлов)
+## 🔥 BACKEND (54 файла)
 
-### ⭐ SERVICES (31 файл)
+### ⭐ SERVICES (32 файла)
 
-#### КЛЮЧЕВЫЕ (9):
+#### КЛЮЧЕВЫЕ (11):
 1. `ai-assistant.js` - главный AI интерфейс
 2. `ollamaConfig.js` - настройки Ollama
 3. `ragService.js` - RAG генерация
-4. `unifiedMessageProcessor.js` - процессор всех сообщений
+4. `unifiedMessageProcessor.js` - процессор всех сообщений ✨ ПЕРЕПИСАН
 5. `botManager.js` - координатор ботов
 6. `encryptedDatabaseService.js` - работа с БД
 7. `vectorSearchClient.js` - векторный поиск
 8. `conversationService.js` - управление беседами
 9. `messageDeduplicationService.js` - дедупликация
+10. `UniversalGuestService.js` - универсальная гостевая система ✨ НОВЫЙ (2025-10-09)
+11. `IdentityLinkService.js` - токены связывания идентификаторов ✨ НОВЫЙ (2025-10-09)
 
 #### АКТИВНЫЕ (15):
 10. `aiAssistantSettingsService.js` - настройки AI
@@ -58,12 +61,17 @@
 23. `userDeleteService.js` - удаление данных пользователей
 24. `index.js` - экспорт сервисов (частично устаревший)
 
-#### ЧАСТИЧНО/НЕ В ОСНОВНОМ ПОТОКЕ (5):
+#### ЧАСТИЧНО/НЕ В ОСНОВНОМ ПОТОКЕ (2):
 25. `ai-cache.js` ⚠️ - только monitoring
 26. `ai-queue.js` ⚠️ - отдельный API
-27. `notifyOllamaReady.js` 📦 - скрипт для Ollama
-28. `testNewBots.js` 🧪 - тесты
-29. `adminLogicService.js` ❌ - мертвый код
+
+#### ИНТЕГРИРОВАННЫЕ (3):
+27. `adminLogicService.js` ✅ - теперь используется в unifiedMessageProcessor (2025-10-09)
+28. `guestService.js` ⚠️ - deprecated, заменен на UniversalGuestService
+29. `guestMessageService.js` ⚠️ - deprecated, функционал в UniversalGuestService
+
+#### ТЕСТОВЫЕ (1):
+30. `testNewBots.js` 🧪 - тесты ботов
 
 ### 📡 ROUTES (13 файлов)
 
@@ -280,17 +288,13 @@ frontend/
 25. ai-cache.js                   ⚠️ Только monitoring
 26. ai-queue.js                   ⚠️ Отдельный API
 
-📦 ВСПОМОГАТЕЛЬНЫЕ (2):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-27. notifyOllamaReady.js          📦 Ollama скрипт
-
 🧪 ТЕСТОВЫЕ (1):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-28. testNewBots.js                🧪 Тесты ботов
+27. testNewBots.js                🧪 Тесты ботов
 
 ❌ МЕРТВЫЙ КОД (1):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-29. adminLogicService.js          ❌ Не импортируется
+28. adminLogicService.js          ❌ Не импортируется
 ```
 
 ### BACKEND ROUTES (13)

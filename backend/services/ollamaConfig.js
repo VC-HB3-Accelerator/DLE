@@ -11,8 +11,12 @@
  */
 
 /**
- * Конфигурационный сервис для Ollama
- * Централизует все настройки и URL для Ollama API
+ * Конфигурационный сервис для Ollama и AI инфраструктуры
+ * Централизует все настройки, URL и таймауты для:
+ * - Ollama API
+ * - Vector Search
+ * - AI Cache
+ * - AI Queue
  * 
  * ВАЖНО: Настройки берутся из таблицы ai_providers_settings (через aiProviderSettingsService)
  */
@@ -140,11 +144,43 @@ async function getEmbeddingModel() {
 }
 
 /**
- * Получает timeout для запросов к Ollama
+ * Централизованные таймауты для Ollama и AI сервисов
+ * @returns {Object} Объект с различными таймаутами
+ */
+function getTimeouts() {
+  return {
+    // Ollama API - таймауты запросов
+    ollamaChat: 120000,        // 120 сек (2 мин) - генерация ответов LLM
+    ollamaEmbedding: 60000,    // 60 сек (1 мин) - генерация embeddings
+    ollamaHealth: 5000,        // 5 сек - health check
+    ollamaTags: 10000,         // 10 сек - список моделей
+    
+    // Vector Search - таймауты запросов
+    vectorSearch: 30000,       // 30 сек - поиск по векторам
+    vectorUpsert: 60000,       // 60 сек - индексация данных
+    vectorHealth: 5000,        // 5 сек - health check
+    
+    // AI Cache - TTL (Time To Live) для кэширования
+    cacheLLM: 24 * 60 * 60 * 1000,   // 24 часа - LLM ответы
+    cacheRAG: 5 * 60 * 1000,         // 5 минут - RAG результаты
+    cacheMax: 1000,                  // Максимум записей в кэше
+    
+    // AI Queue - параметры очереди
+    queueTimeout: 120000,      // 120 сек - таймаут задачи в очереди
+    queueMaxSize: 100,         // Максимум задач в очереди
+    queueInterval: 100,        // 100 мс - интервал проверки очереди
+    
+    // Default для совместимости
+    default: 120000            // 120 сек
+  };
+}
+
+/**
+ * Получает timeout для запросов к Ollama (обратная совместимость)
  * @returns {number} Timeout в миллисекундах
  */
 function getTimeout() {
-  return 30000; // 30 секунд
+  return getTimeouts().ollamaChat; // 120 секунд (2 минуты) - для генерации длинных ответов
 }
 
 /**
@@ -242,7 +278,8 @@ module.exports = {
   getDefaultModel,
   getDefaultModelAsync,
   getEmbeddingModel,
-  getTimeout,
+  getTimeout,        // Обратная совместимость (возвращает ollamaChat timeout)
+  getTimeouts,       // ✨ НОВОЕ: Централизованные таймауты для всех сервисов
   getConfig,
   getConfigAsync,
   loadSettingsFromDb,

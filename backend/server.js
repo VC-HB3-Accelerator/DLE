@@ -42,7 +42,16 @@ async function startServer() {
   const botManager = require('./services/botManager');
   console.log('[Server] ▶️ Вызываем botManager.initialize()...');
   botManager.initialize()
-    .then(() => console.log('[Server] ✅ botManager.initialize() завершен'))
+    .then(() => {
+      console.log('[Server] ✅ botManager.initialize() завершен');
+      
+      // ✨ НОВОЕ: Запускаем AI Queue Worker после инициализации ботов
+      if (process.env.USE_AI_QUEUE !== 'false') {
+        const ragService = require('./services/ragService');
+        ragService.startQueueWorker();
+        console.log('[Server] ✅ AI Queue Worker запущен');
+      }
+    })
     .catch(error => {
       console.error('[Server] ❌ Ошибка botManager.initialize():', error.message);
       logger.error('[Server] Ошибка инициализации ботов:', error);
@@ -79,6 +88,13 @@ if (process.env.NODE_ENV === 'production') {
 process.on('SIGINT', async () => {
   console.log('[Server] Получен SIGINT, завершаем работу...');
   try {
+    // ✨ Останавливаем AI Queue Worker
+    if (process.env.USE_AI_QUEUE !== 'false') {
+      const ragService = require('./services/ragService');
+      ragService.stopQueueWorker();
+      console.log('[Server] ✅ AI Queue Worker остановлен');
+    }
+    
     // Останавливаем боты
     const botManager = require('./services/botManager');
     if (botManager.isInitialized) {
@@ -96,6 +112,13 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   console.log('[Server] Получен SIGTERM, завершаем работу...');
   try {
+    // ✨ Останавливаем AI Queue Worker
+    if (process.env.USE_AI_QUEUE !== 'false') {
+      const ragService = require('./services/ragService');
+      ragService.stopQueueWorker();
+      console.log('[Server] ✅ AI Queue Worker остановлен');
+    }
+    
     // Останавливаем боты
     const botManager = require('./services/botManager');
     if (botManager.isInitialized) {

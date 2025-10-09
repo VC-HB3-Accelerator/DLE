@@ -12,8 +12,10 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const ollamaConfig = require('./ollamaConfig');
 
 const VECTOR_SEARCH_URL = process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
+const TIMEOUTS = ollamaConfig.getTimeouts();
 
 async function upsert(tableId, rows) {
   logger.info(`[VectorSearch] upsert: tableId=${tableId}, rows=${rows.length}`);
@@ -25,6 +27,8 @@ async function upsert(tableId, rows) {
         text: r.text,
         metadata: r.metadata || {}
       }))
+    }, {
+      timeout: TIMEOUTS.vectorUpsert // Централизованный таймаут для индексации
     });
     logger.info(`[VectorSearch] upsert result:`, res.data);
     return res.data;
@@ -41,6 +45,8 @@ async function search(tableId, query, topK = 3) {
       table_id: String(tableId),
       query,
       top_k: topK
+    }, {
+      timeout: TIMEOUTS.vectorSearch // Централизованный таймаут для поиска
     });
     logger.info(`[VectorSearch] search result:`, res.data.results);
     return res.data.results;
@@ -87,7 +93,7 @@ async function rebuild(tableId, rows) {
 async function health() {
   logger.info(`[VectorSearch] health check`);
   try {
-    const res = await axios.get(`${VECTOR_SEARCH_URL}/health`, { timeout: 5000 });
+    const res = await axios.get(`${VECTOR_SEARCH_URL}/health`, { timeout: TIMEOUTS.vectorHealth });
     logger.info(`[VectorSearch] health result:`, res.data);
     return {
       status: 'ok',

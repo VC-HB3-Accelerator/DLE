@@ -15,7 +15,11 @@
  * @returns {string} - Уникальный ID
  */
 export const generateUniqueId = () => {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Генерируем в формате guest_* для совместимости с UniversalGuestService
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  const hex = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `guest_${hex}`;
 };
 
 /**

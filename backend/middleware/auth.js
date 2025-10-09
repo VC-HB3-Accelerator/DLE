@@ -40,15 +40,15 @@ const requireAuth = async (req, res, next) => {
  */
 async function requireAdmin(req, res, next) {
   try {
-    // Убираем избыточное логирование
-    // logger.info(`[requireAdmin] Проверка доступа для ${req.method} ${req.url}`);
-    // logger.info(`[requireAdmin] Session:`, {
-    //   exists: !!req.session,
-    //   authenticated: req.session?.authenticated,
-    //   isAdmin: req.session?.isAdmin,
-    //   userId: req.session?.userId,
-    //   address: req.session?.address
-    // });
+    // Временно включаем логирование для диагностики
+    logger.info(`[requireAdmin] Проверка доступа для ${req.method} ${req.url}`);
+    logger.info(`[requireAdmin] Session:`, {
+      exists: !!req.session,
+      authenticated: req.session?.authenticated,
+      isAdmin: req.session?.isAdmin,
+      userId: req.session?.userId,
+      address: req.session?.address
+    });
     
     // Проверка аутентификации
     if (!req.session || !req.session.authenticated) {

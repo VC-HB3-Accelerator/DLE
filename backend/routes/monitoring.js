@@ -19,8 +19,11 @@ const aiCache = require('../services/ai-cache');
 const logger = require('../utils/logger');
 const ollamaConfig = require('../services/ollamaConfig');
 
+const TIMEOUTS = ollamaConfig.getTimeouts();
+
 router.get('/', async (req, res) => {
   const results = {};
+  
   // Backend
   results.backend = { status: 'ok' };
 
@@ -28,7 +31,7 @@ router.get('/', async (req, res) => {
   try {
     const baseUrl = process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
     const healthUrl = baseUrl.replace(/\/$/, '') + '/health';
-    const vs = await axios.get(healthUrl, { timeout: 2000 });
+    const vs = await axios.get(healthUrl, { timeout: TIMEOUTS.vectorHealth });
     results.vectorSearch = { status: 'ok', ...vs.data };
   } catch (e) {
     console.log('Vector Search error:', e.message, 'Status:', e.response?.status);
@@ -37,8 +40,7 @@ router.get('/', async (req, res) => {
 
   // Ollama
   try {
-    const ollamaConfig = require('../services/ollamaConfig');
-    const ollama = await axios.get(ollamaConfig.getApiUrl('tags'), { timeout: 2000 });
+    const ollama = await axios.get(ollamaConfig.getApiUrl('tags'), { timeout: TIMEOUTS.ollamaHealth });
     results.ollama = { status: 'ok', models: ollama.data.models?.length || 0 };
   } catch (e) {
     results.ollama = { status: 'error', error: e.message };
@@ -50,6 +52,37 @@ router.get('/', async (req, res) => {
     results.postgres = { status: 'ok' };
   } catch (e) {
     results.postgres = { status: 'error', error: e.message };
+  }
+
+  // ✨ НОВОЕ: AI Cache статистика
+  try {
+    const ragService = require('../services/ragService');
+    const cacheStats = ragService.getCacheStats();
+    results.aiCache = {
+      status: 'ok',
+      size: cacheStats.size,
+      maxSize: cacheStats.maxSize,
+      hitRate: `${(cacheStats.hitRate * 100).toFixed(2)}%`,
+      byType: cacheStats.byType
+    };
+  } catch (e) {
+    results.aiCache = { status: 'error', error: e.message };
+  }
+
+  // ✨ НОВОЕ: AI Queue статистика
+  try {
+    const ragService = require('../services/ragService');
+    const queueStats = ragService.getQueueStats();
+    results.aiQueue = {
+      status: 'ok',
+      currentSize: queueStats.currentQueueSize,
+      totalProcessed: queueStats.totalProcessed,
+      totalFailed: queueStats.totalFailed,
+      avgResponseTime: `${Math.round(queueStats.averageProcessingTime)}ms`,
+      uptime: `${Math.round(queueStats.uptime / 1000)}s`
+    };
+  } catch (e) {
+    results.aiQueue = { status: 'error', error: e.message };
   }
 
   res.json({ status: 'ok', services: results, timestamp: new Date().toISOString() });

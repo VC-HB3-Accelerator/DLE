@@ -75,19 +75,22 @@ class AIAssistant {
       const aiAssistantRulesService = require('./aiAssistantRulesService');
       const { ragAnswer } = require('./ragService');
       
-      // 1. Проверяем дедупликацию
-      const cleanMessageId = messageDeduplicationService.cleanMessageId(messageId, channel);
-      const isAlreadyProcessed = await messageDeduplicationService.isMessageAlreadyProcessed(
-        channel, 
-        cleanMessageId, 
-        userId, 
-        'user'
-      );
+      // 1. Проверяем дедупликацию через хеш
+      const messageForDedup = {
+        userId,
+        content: userQuestion,
+        channel
+      };
+      
+      const isDuplicate = messageDeduplicationService.isDuplicate(messageForDedup);
 
-      if (isAlreadyProcessed) {
-        logger.info(`[AIAssistant] Сообщение ${cleanMessageId} уже обработано - пропускаем`);
+      if (isDuplicate) {
+        logger.info(`[AIAssistant] Сообщение уже обработано - пропускаем`);
         return { success: false, reason: 'duplicate' };
       }
+      
+      // Помечаем как обработанное
+      messageDeduplicationService.markAsProcessed(messageForDedup);
 
       // 2. Получаем настройки AI ассистента
       const aiSettings = await aiAssistantSettingsService.getSettings();
@@ -96,13 +99,32 @@ class AIAssistant {
         rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
       }
 
-      // 3. Генерируем AI ответ через RAG
-      const aiResponse = await ragAnswer({
+      // 3. Определяем tableId для RAG
+      let tableId = ragTableId;
+      if (!tableId && aiSettings && aiSettings.selected_rag_tables && aiSettings.selected_rag_tables.length > 0) {
+        tableId = aiSettings.selected_rag_tables[0];
+      }
+
+      // 4. Выполняем RAG поиск если есть tableId
+      let ragResult = null;
+      if (tableId) {
+        ragResult = await ragAnswer({
+          tableId,
+          userQuestion
+          // threshold использует дефолтное значение 300 из ragService
+        });
+      }
+
+      // 5. Генерируем LLM ответ
+      const { generateLLMResponse } = require('./ragService');
+      const aiResponse = await generateLLMResponse({
         userQuestion,
-        conversationHistory,
+        context: ragResult?.context || '',
+        answer: ragResult?.answer || '',
         systemPrompt: aiSettings ? aiSettings.system_prompt : '',
-        rules: rules ? rules.rules : null,
-        ragTableId
+        history: conversationHistory,
+        model: aiSettings ? aiSettings.model : undefined,
+        rules: rules ? rules.rules : null
       });
 
       if (!aiResponse) {
@@ -110,38 +132,13 @@ class AIAssistant {
         return { success: false, reason: 'empty_response' };
       }
 
-      // 4. Сохраняем ответ с дедупликацией
-      const aiResponseId = `ai_response_${cleanMessageId}_${Date.now()}`;
-      const saveResult = await messageDeduplicationService.saveMessageWithDeduplication(
-        {
-          user_id: userId,
-          conversation_id: conversationId,
-          sender_type: 'assistant',
-          content: aiResponse,
-          channel: channel,
-          role: 'assistant',
-          direction: 'out',
-          created_at: new Date(),
-          ...metadata
-        },
-        channel,
-        aiResponseId,
-        userId,
-        'assistant',
-        'messages'
-      );
-
-      if (!saveResult.success) {
-        logger.error(`[AIAssistant] Ошибка сохранения AI ответа:`, saveResult.error);
-        return { success: false, reason: 'save_error' };
-      }
-
-      logger.info(`[AIAssistant] AI ответ успешно сгенерирован и сохранен для пользователя ${userId}`);
+      logger.info(`[AIAssistant] AI ответ успешно сгенерирован для пользователя ${userId}`);
       
       return {
         success: true,
         response: aiResponse,
-        messageId: aiResponseId,
+        ragData: ragResult,
+        messageId: messageId,
         conversationId: conversationId
       };
 
@@ -153,18 +150,20 @@ class AIAssistant {
 
   /**
    * Простая генерация ответа (для гостевых сообщений)
-   * Используется в guestMessageService
+   * Используется в UniversalGuestService
    */
   async getResponse(message, history = null, systemPrompt = '', rules = null) {
     try {
-      const { ragAnswer } = require('./ragService');
+      const { generateLLMResponse } = require('./ragService');
       
-      const result = await ragAnswer({
+      const result = await generateLLMResponse({
         userQuestion: message,
-        conversationHistory: history || [],
+        context: '',
+        answer: '',
         systemPrompt: systemPrompt || '',
-        rules: rules || null,
-        ragTableId: null
+        history: history || [],
+        model: undefined,
+        rules: rules
       });
 
       return result;

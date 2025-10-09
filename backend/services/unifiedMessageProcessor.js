@@ -15,59 +15,104 @@ const logger = require('../utils/logger');
 const encryptionUtils = require('../utils/encryptionUtils');
 const aiAssistant = require('./ai-assistant');
 const conversationService = require('./conversationService');
+const adminLogicService = require('./adminLogicService');
+const universalGuestService = require('./UniversalGuestService');
+const identityService = require('./identity-service');
 const { broadcastMessagesUpdate } = require('../wsHub');
 
 /**
  * Унифицированный процессор сообщений для всех каналов
  * Обрабатывает сообщения из web, telegram, email
+ * НОВАЯ ВЕРСИЯ с поддержкой универсальной гостевой системы
  */
 
 /**
- * Обработать сообщение от пользователя
+ * Обработать сообщение (гость или пользователь)
  * @param {Object} messageData - Данные сообщения
- * @param {number} messageData.userId - ID пользователя
+ * @param {string} messageData.identifier - Универсальный идентификатор
  * @param {string} messageData.content - Текст сообщения
  * @param {string} messageData.channel - Канал (web/telegram/email)
  * @param {Array} messageData.attachments - Вложения
  * @param {number} messageData.conversationId - ID беседы (опционально)
+ * @param {number} messageData.recipientId - ID получателя (для админов)
  * @returns {Promise<Object>}
  */
 async function processMessage(messageData) {
   try {
     const {
-      userId,
+      identifier,
       content,
       channel = 'web',
       attachments = [],
       conversationId: inputConversationId,
-      guestId
+      recipientId,
+      metadata = {}
     } = messageData;
 
     logger.info('[UnifiedMessageProcessor] Обработка сообщения:', {
-      userId,
+      identifier,
       channel,
       contentLength: content?.length,
       hasAttachments: attachments.length > 0
     });
 
-    const encryptionKey = encryptionUtils.getEncryptionKey();
+    // 1. Определяем: гость или пользователь?
+    const isGuestIdentifier = await checkIfGuest(identifier);
 
-    // 1. Получаем или создаем беседу
+    if (isGuestIdentifier) {
+      // ГОСТЬ: обработка через UniversalGuestService
+      logger.info('[UnifiedMessageProcessor] Обработка гостевого сообщения');
+      return await universalGuestService.processMessage({
+        identifier,
+        content,
+        channel,
+        metadata,
+        ...messageData
+      });
+    }
+
+    // 2. ПОЛЬЗОВАТЕЛЬ: ищем user_id
+    const [provider, providerId] = identifier.split(':');
+    const user = await identityService.findUserByIdentity(provider, providerId);
+
+    if (!user) {
+      throw new Error(`User not found for identifier: ${identifier}`);
+    }
+
+    const userId = user.id;
+    const userRole = user.role || 'user';
+
+    logger.info('[UnifiedMessageProcessor] Обработка сообщения пользователя:', {
+      userId,
+      role: userRole
+    });
+
+    // 3. Проверяем: админ или обычный пользователь?
+    const isAdmin = userRole === 'editor' || userRole === 'readonly';
+
+    // 4. Определяем нужно ли генерировать AI ответ
+    const shouldGenerateAi = adminLogicService.shouldGenerateAiReply({
+      senderType: isAdmin ? 'admin' : 'user',
+      userId: userId,
+      recipientId: recipientId || userId,
+      channel: channel
+    });
+
+    logger.info('[UnifiedMessageProcessor] Генерация AI:', { shouldGenerateAi, isAdmin });
+
+    // 5. Получаем или создаем беседу
     let conversation;
     if (inputConversationId) {
       conversation = await conversationService.getConversationById(inputConversationId);
     }
     
-    if (!conversation && userId) {
+    if (!conversation) {
       conversation = await conversationService.getOrCreateConversation(userId, 'Беседа');
     }
 
-    const conversationId = conversation?.id || null;
+    const conversationId = conversation.id;
 
-    // 2. Сохраняем входящее сообщение пользователя
-    let userMessage;
-    
-    // Обработка вложений
+    // 6. Обработка вложений
     let attachment_filename = null;
     let attachment_mimetype = null;
     let attachment_size = null;
@@ -81,57 +126,62 @@ async function processMessage(messageData) {
       attachment_data = firstAttachment.data;
     }
 
-    if (userId) {
-      const { rows } = await db.getQuery()(
-        `INSERT INTO messages (
-          user_id,
-          conversation_id,
-          sender_type_encrypted,
-          content_encrypted,
-          channel_encrypted,
-          role_encrypted,
-          direction_encrypted,
-          attachment_filename_encrypted,
-          attachment_mimetype_encrypted,
-          attachment_size,
-          attachment_data,
-          created_at
-        ) VALUES (
-          $1, $2,
-          encrypt_text($3, $12),
-          encrypt_text($4, $12),
-          encrypt_text($5, $12),
-          encrypt_text($6, $12),
-          encrypt_text($7, $12),
-          encrypt_text($8, $12),
-          encrypt_text($9, $12),
-          $10, $11,
-          NOW()
-        ) RETURNING id`,
-        [
-          userId,
-          conversationId,
-          'user',
-          content,
-          channel,
-          'user',
-          'incoming',
-          attachment_filename,
-          attachment_mimetype,
-          attachment_size,
-          attachment_data,
-          encryptionKey
-        ]
-      );
-      
-      userMessage = rows[0];
-      logger.info('[UnifiedMessageProcessor] Сообщение пользователя сохранено:', userMessage.id);
-    }
+    // 7. Сохраняем входящее сообщение пользователя
+    const encryptionKey = encryptionUtils.getEncryptionKey();
 
-    // 3. Получаем историю беседы для контекста
-    let conversationHistory = [];
-    if (conversationId && userId) {
-      const { rows } = await db.getQuery()(
+    const { rows } = await db.getQuery()(
+      `INSERT INTO messages (
+        user_id,
+        conversation_id,
+        sender_type_encrypted,
+        content_encrypted,
+        channel_encrypted,
+        role_encrypted,
+        direction_encrypted,
+        attachment_filename_encrypted,
+        attachment_mimetype_encrypted,
+        attachment_size,
+        attachment_data,
+        message_type,
+        created_at
+      ) VALUES (
+        $1, $2,
+        encrypt_text($3, $13),
+        encrypt_text($4, $13),
+        encrypt_text($5, $13),
+        encrypt_text($6, $13),
+        encrypt_text($7, $13),
+        encrypt_text($8, $13),
+        encrypt_text($9, $13),
+        $10, $11, $12,
+        NOW()
+      ) RETURNING id`,
+      [
+        userId,
+        conversationId,
+        isAdmin ? 'admin' : 'user',
+        content,
+        channel,
+        'user',
+        'incoming',
+        attachment_filename,
+        attachment_mimetype,
+        attachment_size,
+        attachment_data,
+        'user_chat', // message_type
+        encryptionKey
+      ]
+    );
+    
+    const userMessageId = rows[0].id;
+    logger.info('[UnifiedMessageProcessor] Сообщение пользователя сохранено:', userMessageId);
+
+    // 8. Генерируем AI ответ (если нужно)
+    let aiResponse = null;
+
+    if (shouldGenerateAi) {
+      // Загружаем историю беседы
+      const { rows: historyRows } = await db.getQuery()(
         `SELECT 
           decrypt_text(role_encrypted, $2) as role,
           decrypt_text(content_encrypted, $2) as content,
@@ -143,98 +193,91 @@ async function processMessage(messageData) {
         [conversationId, encryptionKey, userId]
       );
       
-      conversationHistory = rows.map(row => ({
+      const conversationHistory = historyRows.map(row => ({
         role: row.role,
         content: row.content
       }));
-    }
 
-    // 4. Генерируем AI ответ
-    logger.info('[UnifiedMessageProcessor] Генерация AI ответа...');
-    
-    const aiResponse = await aiAssistant.generateResponse({
-      channel,
-      messageId: userMessage?.id || `guest_${Date.now()}`,
-      userId: userId || guestId,
-      userQuestion: content,
-      conversationHistory,
-      conversationId,
-      metadata: {
-        hasAttachments: attachments.length > 0,
-        channel
-      }
-    });
-
-    if (!aiResponse || !aiResponse.success) {
-      logger.warn('[UnifiedMessageProcessor] AI не вернул ответ или ошибка:', aiResponse?.reason);
+      logger.info('[UnifiedMessageProcessor] Генерация AI ответа...');
       
-      // Возвращаем результат без AI ответа
-      return {
-        success: true,
-        userMessageId: userMessage?.id,
+      aiResponse = await aiAssistant.generateResponse({
+        channel,
+        messageId: userMessageId,
+        userId: userId,
+        userQuestion: content,
+        conversationHistory,
         conversationId,
-        noAiResponse: true,
-        reason: aiResponse?.reason
-      };
-    }
-
-    // 5. Сохраняем ответ AI
-    if (userId && aiResponse.response) {
-      const { rows: aiMessageRows } = await db.getQuery()(
-        `INSERT INTO messages (
-          user_id,
-          conversation_id,
-          sender_type_encrypted,
-          content_encrypted,
-          channel_encrypted,
-          role_encrypted,
-          direction_encrypted,
-          created_at
-        ) VALUES (
-          $1, $2,
-          encrypt_text($3, $8),
-          encrypt_text($4, $8),
-          encrypt_text($5, $8),
-          encrypt_text($6, $8),
-          encrypt_text($7, $8),
-          NOW()
-        ) RETURNING id`,
-        [
-          userId,
-          conversationId,
-          'assistant',
-          aiResponse.response,
+        metadata: {
+          hasAttachments: attachments.length > 0,
           channel,
-          'assistant',
-          'outgoing',
-          encryptionKey
-        ]
-      );
+          isAdmin
+        }
+      });
 
-      logger.info('[UnifiedMessageProcessor] Ответ AI сохранен:', aiMessageRows[0].id);
+      if (aiResponse && aiResponse.success && aiResponse.response) {
+        // Сохраняем ответ AI
+        const { rows: aiMessageRows } = await db.getQuery()(
+          `INSERT INTO messages (
+            user_id,
+            conversation_id,
+            sender_type_encrypted,
+            content_encrypted,
+            channel_encrypted,
+            role_encrypted,
+            direction_encrypted,
+            message_type,
+            created_at
+          ) VALUES (
+            $1, $2,
+            encrypt_text($3, $9),
+            encrypt_text($4, $9),
+            encrypt_text($5, $9),
+            encrypt_text($6, $9),
+            encrypt_text($7, $9),
+            $8,
+            NOW()
+          ) RETURNING id`,
+          [
+            userId,
+            conversationId,
+            'assistant',
+            aiResponse.response,
+            channel,
+            'assistant',
+            'outgoing',
+            'user_chat',
+            encryptionKey
+          ]
+        );
 
-      // 6. Обновляем время беседы
-      if (conversationId) {
-        await conversationService.touchConversation(conversationId);
+        logger.info('[UnifiedMessageProcessor] Ответ AI сохранен:', aiMessageRows[0].id);
+      } else {
+        logger.warn('[UnifiedMessageProcessor] AI не вернул ответ:', aiResponse?.reason);
       }
-
-      // 7. Отправляем уведомление через WebSocket
-      try {
-        broadcastMessagesUpdate(userId);
-      } catch (wsError) {
-        logger.warn('[UnifiedMessageProcessor] Ошибка отправки WebSocket:', wsError.message);
-      }
+    } else {
+      logger.info('[UnifiedMessageProcessor] AI ответ не требуется (админ → пользователь)');
     }
 
-    // 8. Возвращаем результат
+    // 9. Обновляем время беседы
+    await conversationService.touchConversation(conversationId);
+
+    // 10. Отправляем уведомление через WebSocket
+    try {
+      broadcastMessagesUpdate(userId);
+    } catch (wsError) {
+      logger.warn('[UnifiedMessageProcessor] Ошибка отправки WebSocket:', wsError.message);
+    }
+
+    // 11. Возвращаем результат
     return {
       success: true,
-      userMessageId: userMessage?.id,
+      userMessageId,
       conversationId,
-      aiResponse: {
+      aiResponse: aiResponse && aiResponse.success ? {
         response: aiResponse.response,
         ragData: aiResponse.ragData
-      }
+      } : null,
+      noAiResponse: !shouldGenerateAi
     };
 
   } catch (error) {
@@ -244,50 +287,71 @@ async function processMessage(messageData) {
 }
 
 /**
+ * Проверить, является ли идентификатор гостевым
+ * @param {string} identifier
+ * @returns {Promise<boolean>}
+ */
+async function checkIfGuest(identifier) {
+  try {
+    if (!identifier || typeof identifier !== 'string') {
+      return true; // По умолчанию гость
+    }
+
+    // Разбираем идентификатор
+    const [provider, providerId] = identifier.split(':');
+
+    // Проверяем что это не web:guest_*
+    if (provider === 'web' && providerId.startsWith('guest_')) {
+      return true; // Это web гость
+    }
+
+    // Проверяем есть ли пользователь с wallet
+    const user = await identityService.findUserByIdentity(provider, providerId);
+    
+    if (!user) {
+      return true; // Пользователь не найден - это гость
+    }
+
+    // Проверяем есть ли у пользователя wallet
+    const walletIdentity = await identityService.findIdentity(user.id, 'wallet');
+    
+    if (!walletIdentity) {
+      // Нет кошелька - это временный пользователь, считаем гостем
+      return true;
+    }
+
+    // Есть кошелек - полноценный пользователь
+    return false;
+
+  } catch (error) {
+    logger.error('[UnifiedMessageProcessor] Ошибка проверки гостя:', error);
+    return true; // В случае ошибки считаем гостем для безопасности
+  }
+}
+
+/**
+ * DEPRECATED: Используйте processMessage()
  * Обработать сообщение от гостя
  * @param {Object} messageData - Данные сообщения
  * @returns {Promise<Object>}
  */
 async function processGuestMessage(messageData) {
-  try {
-    const guestService = require('./guestService');
-    
-    // Создаем guest ID если нет
-    const guestId = messageData.guestId || guestService.createGuestId();
-    
-    // Сохраняем гостевое сообщение
-    await guestService.saveGuestMessage({
-      guestId,
-      content: messageData.content,
-      channel: messageData.channel || 'web'
-    });
-
-    // Генерируем AI ответ для гостя (без сохранения в messages)
-    const aiResponse = await aiAssistant.generateResponse({
-      channel: messageData.channel || 'web',
-      messageId: `guest_${guestId}_${Date.now()}`,
-      userId: guestId,
-      userQuestion: messageData.content,
-      conversationHistory: [],
-      metadata: { isGuest: true }
-    });
-
-    return {
-      success: true,
-      guestId,
-      aiResponse: aiResponse?.success ? {
-        response: aiResponse.response
-      } : null
-    };
-
-  } catch (error) {
-    logger.error('[UnifiedMessageProcessor] Ошибка обработки гостевого сообщения:', error);
-    throw error;
-  }
+  logger.warn('[UnifiedMessageProcessor] processGuestMessage() устарел, используйте processMessage()');
+  
+  // Для обратной совместимости
+  const { guestId, content, channel } = messageData;
+  const identifier = universalGuestService.createIdentifier(channel || 'web', guestId);
+  
+  return processMessage({
+    identifier,
+    content,
+    channel: channel || 'web',
+    ...messageData
+  });
 }
 
 module.exports = {
   processMessage,
-  processGuestMessage
+  processGuestMessage, // deprecated
+  checkIfGuest
 };
-

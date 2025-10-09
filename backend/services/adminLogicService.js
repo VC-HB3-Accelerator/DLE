@@ -18,23 +18,6 @@ const logger = require('../utils/logger');
  */
 
 /**
- * Определить тип отправителя на основе сессии
- * @param {Object} session - Сессия пользователя
- * @returns {Object} { senderType, role }
- */
-function determineSenderType(session) {
-  if (!session) {
-    return { senderType: 'user', role: 'user' };
-  }
-
-  if (session.isAdmin === true) {
-    return { senderType: 'admin', role: 'admin' };
-  }
-
-  return { senderType: 'user', role: 'user' };
-}
-
-/**
  * Определить, нужно ли генерировать AI ответ
  * @param {Object} params - Параметры
  * @param {string} params.senderType - Тип отправителя (user/admin)
@@ -81,142 +64,112 @@ function canWriteToConversation(params) {
   return userId === conversationUserId;
 }
 
-/**
- * Получить приоритет запроса для очереди AI
- * @param {Object} params - Параметры
- * @param {boolean} params.isAdmin - Является ли админом
- * @param {string} params.message - Текст сообщения
- * @param {Array} params.history - История сообщений
- * @returns {number} Приоритет (чем выше, тем важнее)
- */
-function getRequestPriority(params) {
-  const { isAdmin, message, history = [] } = params;
-
-  let priority = 10; // Базовый приоритет
-
-  // Админ получает повышенный приоритет
-  if (isAdmin) {
-    priority += 5;
-  }
-
-  // Срочные ключевые слова
-  const urgentKeywords = ['срочно', 'urgent', 'помогите', 'help', 'критично', 'critical'];
-  const messageLC = (message || '').toLowerCase();
-  
-  if (urgentKeywords.some(keyword => messageLC.includes(keyword))) {
-    priority += 10;
-  }
-
-  // Короткие сообщения обрабатываются быстрее
-  if (message && message.length < 50) {
-    priority += 5;
-  }
-
-  // Первое сообщение в беседе
-  if (!history || history.length === 0) {
-    priority += 3;
-  }
-
-  return priority;
-}
 
 /**
  * Проверить, может ли пользователь выполнить админское действие
  * @param {Object} params - Параметры
- * @param {boolean} params.isAdmin - Является ли админом
+ * @param {string} params.role - Роль пользователя ('editor', 'readonly', 'user')
  * @param {string} params.action - Название действия
  * @returns {boolean}
  */
 function canPerformAdminAction(params) {
-  const { isAdmin, action } = params;
+  const { role, action } = params;
 
-  // Только админ может выполнять админские действия
-  if (!isAdmin) {
+  // Обычный пользователь не может выполнять админские действия
+  if (role === 'user') {
     return false;
   }
 
-  // Список разрешенных админских действий
-  const allowedActions = [
+  // Список действий только для editor (с правами редактирования)
+  const editorOnlyActions = [
     'delete_message_history',
-    'view_all_conversations',
     'manage_users',
     'manage_ai_settings',
-    'broadcast_message',
+    'broadcast_message',      // ← Массовая рассылка только для editor!
     'delete_user',
     'modify_user_settings'
   ];
 
-  return allowedActions.includes(action);
+  // Список действий для readonly (только просмотр и личные чаты)
+  const readonlyActions = [
+    'view_all_conversations',  // Просмотр всех бесед
+    'create_admin_chat',       // Создание приватных чатов между админами
+    'view_admin_chat'          // Просмотр приватных чатов
+  ];
+
+  // readonly может только просматривать и общаться
+  if (role === 'readonly') {
+    return readonlyActions.includes(action);
+  }
+
+  // editor может все (и свои действия, и readonly действия)
+  if (role === 'editor') {
+    return editorOnlyActions.includes(action) || readonlyActions.includes(action);
+  }
+
+  return false;
 }
 
 /**
- * Получить настройки админа
+ * Получить настройки админа с учетом роли
  * @param {Object} params - Параметры
- * @param {boolean} params.isAdmin - Является ли админом
- * @param {string} params.channel - Канал
- * @returns {Object} Настройки
+ * @param {string} params.role - Роль пользователя ('editor', 'readonly', 'user')
+ * @returns {Object} Настройки прав доступа
  */
 function getAdminSettings(params) {
-  const { isAdmin } = params;
+  const { role } = params;
 
-  if (!isAdmin) {
-    // Ограниченные права для обычного пользователя
+  // Editor - полные права
+  if (role === 'editor') {
     return {
-      canWriteToAnyConversation: false,
-      canViewAllConversations: false,
-      canManageUsers: false,
-      canManageAISettings: false,
-      aiReplyPriority: 0
+      role: 'editor',
+      roleDisplay: 'Редактор',
+      canWriteToAnyConversation: true,
+      canViewAllConversations: true,
+      canManageUsers: true,
+      canManageAISettings: true,
+      canBroadcast: true,
+      canDeleteUsers: true,
+      canModifySettings: true,
+      canCreateAdminChat: true
     };
   }
 
-  // Полные права для админа
+  // Readonly - только просмотр и общение
+  if (role === 'readonly') {
+    return {
+      role: 'readonly',
+      roleDisplay: 'Только чтение',
+      canWriteToAnyConversation: false,  // Только в свои беседы
+      canViewAllConversations: true,     // Может просматривать все
+      canManageUsers: false,
+      canManageAISettings: false,
+      canBroadcast: false,
+      canDeleteUsers: false,
+      canModifySettings: false,
+      canCreateAdminChat: true           // Может создавать приватные чаты с админами
+    };
+  }
+
+  // User - минимальные права
   return {
-    canWriteToAnyConversation: true,
-    canViewAllConversations: true,
-    canManageUsers: true,
-    canManageAISettings: true,
-    aiReplyPriority: 15
+    role: 'user',
+    roleDisplay: 'Пользователь',
+    canWriteToAnyConversation: false,
+    canViewAllConversations: false,
+    canManageUsers: false,
+    canManageAISettings: false,
+    canBroadcast: false,
+    canDeleteUsers: false,
+    canModifySettings: false,
+    canCreateAdminChat: false
   };
 }
 
-/**
- * Логирование админского действия
- * @param {Object} params - Параметры
- * @param {number} params.adminId - ID админа
- * @param {string} params.action - Действие
- * @param {Object} params.details - Детали
- */
-function logAdminAction(params) {
-  const { adminId, action, details } = params;
-  
-  logger.info('[AdminLogic] Админское действие:', {
-    adminId,
-    action,
-    details,
-    timestamp: new Date().toISOString()
-  });
-}
-
-/**
- * Проверить, является ли сообщение от админа личным
- * @param {Object} params - Параметры
- * @returns {boolean}
- */
-function isPersonalAdminMessage(params) {
-  const { senderType, userId, recipientId } = params;
-  
-  return senderType === 'admin' && userId !== recipientId;
-}
-
 module.exports = {
-  determineSenderType,
   shouldGenerateAiReply,
   canWriteToConversation,
-  getRequestPriority,
   canPerformAdminAction,
-  getAdminSettings,
-  logAdminAction,
-  isPersonalAdminMessage
+  getAdminSettings
 };
 

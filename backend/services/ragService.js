@@ -13,14 +13,23 @@
 const encryptedDb = require('./encryptedDatabaseService');
 const vectorSearch = require('./vectorSearchClient');
 const { getProviderSettings } = require('./aiProviderSettingsService');
+const axios = require('axios');
+const ollamaConfig = require('./ollamaConfig');
+const aiCache = require('./ai-cache');
+const AIQueue = require('./ai-queue');
+const logger = require('../utils/logger');
 
 // console.log('[RAG] ragService.js loaded');
 
-// Простой кэш для RAG результатов
-const ragCache = new Map();
-const RAG_CACHE_TTL = 5 * 60 * 1000; // 5 минут
 // Управляет поведением: выполнять ли upsert всех строк на каждый запрос поиска
 const UPSERT_ON_QUERY = process.env.RAG_UPSERT_ON_QUERY === 'true';
+
+// Флаги для включения/выключения Queue и Cache
+const USE_AI_CACHE = process.env.USE_AI_CACHE !== 'false'; // default: true
+const USE_AI_QUEUE = process.env.USE_AI_QUEUE !== 'false'; // default: true
+
+// Создаем экземпляр очереди
+const aiQueue = new AIQueue();
 
 async function getTableData(tableId) {
       // console.log(`[RAG] getTableData called for tableId: ${tableId}`);
@@ -72,15 +81,17 @@ async function getTableData(tableId) {
   return data;
 }
 
-async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10, forceReindex = false }) {
+async function ragAnswer({ tableId, userQuestion, product = null, threshold = 300, forceReindex = false }) {
       // console.log(`[RAG] ragAnswer called: tableId=${tableId}, userQuestion="${userQuestion}"`);
   
-  // Проверяем кэш
-  const cacheKey = `${tableId}:${userQuestion}:${product}`;
-  const cached = ragCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < RAG_CACHE_TTL) {
-    // console.log(`[RAG] Returning cached result for: ${cacheKey}`);
-    return cached.result;
+  // Проверяем кэш (используем ai-cache вместо ragCache)
+  if (USE_AI_CACHE) {
+    const cacheKey = aiCache.generateKeyForRAG(tableId, userQuestion, product);
+    const cached = aiCache.getWithTTL(cacheKey, 'rag');
+    if (cached) {
+      console.log(`[RAG] Возврат RAG результата из кэша`);
+      return cached;
+    }
   }
   
   const data = await getTableData(tableId);
@@ -125,18 +136,18 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
   let results = [];
   if (rowsForUpsert.length > 0 && userQuestion && userQuestion.trim()) {
     results = await vectorSearch.search(tableId, userQuestion, 3); // Увеличиваем до 3 результатов для лучшего поиска
-    // console.log(`[RAG] Search completed, got ${results.length} results`);
+    console.log(`[RAG] Search completed, got ${results.length} results`);
     
     // Подробное логирование результатов поиска
     results.forEach((result, index) => {
-      // console.log(`[RAG] Search result ${index}:`, {
-      //   row_id: result.row_id,
-      //   score: result.score,
-      //   metadata: result.metadata
-      // });
+      console.log(`[RAG] Search result ${index}:`, {
+        row_id: result.row_id,
+        score: result.score,
+        metadata: result.metadata
+      });
     });
   } else {
-    // console.log(`[RAG] No data in table, skipping search`);
+    console.log(`[RAG] No data in table, skipping search`);
   }
   
   // Фильтрация по тегам/продукту
@@ -150,14 +161,14 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
   }
   
   // Берём ближайший результат с учётом порога (по модулю)
-  // console.log(`[RAG] Looking for best result with abs(threshold): ${threshold}`);
+  console.log(`[RAG] Looking for best result with abs(threshold): ${threshold}`);
   const best = filtered.reduce((acc, row) => {
     if (Math.abs(row.score) <= threshold && (acc === null || Math.abs(row.score) < Math.abs(acc.score))) {
       return row;
     }
     return acc;
   }, null);
-  // console.log(`[RAG] Best result:`, best);
+  console.log(`[RAG] Best result:`, best);
   
   // Логируем все результаты с их score для диагностики
   if (filtered.length > 0) {
@@ -176,11 +187,13 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 10
     score: best?.score !== undefined && best?.score !== null ? Number(best.score) : null,
   };
   
-  // Кэшируем результат
-  ragCache.set(cacheKey, {
-    result,
-    timestamp: Date.now()
-  });
+  console.log(`[RAG] Final result:`, result);
+  
+  // Кэшируем результат (используем ai-cache вместо ragCache)
+  if (USE_AI_CACHE) {
+    const cacheKey = aiCache.generateKeyForRAG(tableId, userQuestion, product);
+    aiCache.setWithType(cacheKey, result, 'rag');
+  }
   
   return result;
 }
@@ -302,7 +315,8 @@ async function generateLLMResponse({
     
     // Добавляем найденную информацию из RAG
     if (answer) {
-      prompt += `\n\nНайденный ответ из базы знаний: ${answer}`;
+      // Формат: делаем RAG ответ главным, вопрос - контекстом
+      prompt = `База знаний содержит ответ:\n"${answer}"\n\nВопрос пользователя: ${userQuestion}\n\nДай пользователю этот ответ из базы знаний.`;
     }
     
     if (context) {
@@ -330,50 +344,80 @@ async function generateLLMResponse({
     }
     // --- КОНЕЦ ДОБАВЛЕНИЯ ---
 
-    // Используем системный промпт из настроек, если он есть
-    if (!finalSystemPrompt || !finalSystemPrompt.trim()) {
-      // Fallback инструкция, если системный промпт не настроен
-      prompt += `\n\nИнструкция: Используй найденную информацию из базы знаний для ответа. Если найденный ответ подходит к вопросу пользователя, используй его как основу. Если нужно дополнить или уточнить ответ, сделай это. Поддерживай естественную беседу, учитывая предыдущие сообщения. Отвечай на русском языке кратко и по делу. Если пользователь задает уточняющие вопросы, используй контекст предыдущих ответов.`;
-    }
+    // Системный промпт полностью настраивается пользователем в /settings/ai/assistant
+    // RAG ответ уже добавлен в prompt выше
 
     console.log(`[RAG] Сформированный промпт:`, prompt.substring(0, 200) + '...');
 
     // Получаем ответ от AI с учетом истории беседы
     let llmResponse;
-    try {
-      // Прямое обращение к модели без очереди для снижения задержек при fallback
-      const messages = [];
-      if (finalSystemPrompt) {
-        messages.push({ role: 'system', content: finalSystemPrompt });
+    
+    // Формируем сообщения для LLM
+    const messages = [];
+    if (finalSystemPrompt) {
+      messages.push({ role: 'system', content: finalSystemPrompt });
+    }
+    for (const h of (history || [])) {
+      if (h && h.content) {
+        const role = h.role === 'assistant' ? 'assistant' : 'user';
+        messages.push({ role, content: h.content });
       }
-      for (const h of (history || [])) {
-        if (h && h.content) {
-          const role = h.role === 'assistant' ? 'assistant' : 'user';
-          messages.push({ role, content: h.content });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    try {
+      // ✨ НОВОЕ: Используем очередь (если включена)
+      if (USE_AI_QUEUE) {
+        try {
+          llmResponse = await aiQueue.addTask({
+            messages,
+            model
+            // Приоритет не используется - все запросы обрабатываются FIFO
+          });
+          
+          console.log('[RAG] LLM response from queue:', llmResponse ? llmResponse.substring(0, 100) + '...' : 'null');
+          return llmResponse;
+          
+        } catch (queueError) {
+          console.warn('[RAG] Queue error, fallback to direct call:', queueError.message);
+          
+          // Fallback: если очередь переполнена и есть ответ из RAG - возвращаем его
+          if (queueError.message.includes('переполнена') && answer) {
+            console.log('[RAG] Возврат прямого ответа из RAG (очередь переполнена)');
+            return answer;
+          }
+          
+          // Продолжаем к прямому вызову
         }
       }
-      messages.push({ role: 'user', content: prompt });
-      // Облегченные опции для снижения времени ответа на CPU
-      llmResponse = await aiAssistant.directRequest(messages, finalSystemPrompt, {
-        temperature: 0.2,
-        numPredict: 192,
-        numCtx: 1024,
-        numThread: 4
-      });
-    } catch (error) {
-      console.error(`[RAG] Error in getResponse:`, error.message);
+
+      // Прямой вызов Ollama (если очередь отключена или ошибка очереди)
+      const ollamaUrl = ollamaConfig.getBaseUrl();
+      const timeouts = ollamaConfig.getTimeouts();
       
-      // Fallback: если очередь перегружена, возвращаем найденный ответ напрямую
-      if (error.message.includes('очередь перегружена') && answer) {
-        console.log(`[RAG] Queue overloaded, returning direct answer from RAG`);
+      const response = await axios.post(`${ollamaUrl}/api/chat`, {
+        model: model || ollamaConfig.getDefaultModel(),
+        messages: messages,
+        stream: false
+      }, {
+        timeout: timeouts.ollamaChat
+      });
+      
+      llmResponse = response.data.message.content;
+      
+    } catch (error) {
+      console.error(`[RAG] Error in Ollama call:`, error.message);
+      
+      // Финальный fallback - возврат ответа из RAG
+      if (answer) {
+        console.log('[RAG] Возврат прямого ответа из RAG (ошибка Ollama)');
         return answer;
       }
       
-      // Другой fallback для других ошибок
       return 'Извините, произошла ошибка при генерации ответа.';
     }
 
-    console.log(`[RAG] LLM response generated:`, llmResponse ? llmResponse.substring(0, 100) + '...' : 'null');
+    console.log(`[RAG] LLM response generated:`, llmResponse ? (typeof llmResponse === 'string' ? llmResponse.substring(0, 100) + '...' : JSON.stringify(llmResponse).substring(0, 100) + '...') : 'null');
     return llmResponse;
   } catch (error) {
     console.error(`[RAG] Error generating LLM response:`, error);
@@ -423,7 +467,7 @@ async function ragAnswerWithConversation({
   tableId, 
   userQuestion, 
   product = null, 
-  threshold = 10,
+  threshold = 300,
   history = [],
   conversationId = null,
   forceReindex = false
@@ -487,9 +531,43 @@ async function ragAnswerWithConversation({
   };
 }
 
+// ✨ НОВОЕ: Функция для запуска AI Queue Worker
+function startQueueWorker() {
+  if (USE_AI_QUEUE) {
+    aiQueue.startWorker();
+    logger.info('[RAG] ✅ AI Queue Worker запущен из ragService');
+  } else {
+    logger.info('[RAG] AI Queue отключена (USE_AI_QUEUE=false)');
+  }
+}
+
+// ✨ НОВОЕ: Функция для остановки AI Queue Worker
+function stopQueueWorker() {
+  if (aiQueue && aiQueue.workerInterval) {
+    aiQueue.stopWorker();
+    logger.info('[RAG] ⏹️ AI Queue Worker остановлен');
+  }
+}
+
+// ✨ НОВОЕ: Получение статистики
+function getQueueStats() {
+  return aiQueue.getStats();
+}
+
+function getCacheStats() {
+  return {
+    ...aiCache.getStats(),
+    byType: aiCache.getStatsByType()
+  };
+}
+
 module.exports = {
   ragAnswer,
   getTableData,
   generateLLMResponse,
-  ragAnswerWithConversation
+  ragAnswerWithConversation,
+  startQueueWorker,      // ✨ НОВОЕ
+  stopQueueWorker,       // ✨ НОВОЕ
+  getQueueStats,         // ✨ НОВОЕ
+  getCacheStats          // ✨ НОВОЕ
 }; 

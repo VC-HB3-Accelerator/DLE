@@ -276,6 +276,11 @@ const routes = [
     name: 'vds-mock',
     component: () => import('../views/VdsMockView.vue')
   },
+  {
+    path: '/connect-wallet',
+    name: 'connect-wallet',
+    component: () => import('../views/ConnectWalletView.vue')
+  },
 ];
 
 const router = createRouter({

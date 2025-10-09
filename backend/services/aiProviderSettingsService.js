@@ -13,8 +13,11 @@
 const encryptedDb = require('./encryptedDatabaseService');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
+const axios = require('axios');
+const ollamaConfig = require('./ollamaConfig');
 
 const TABLE = 'ai_providers_settings';
+const TIMEOUTS = ollamaConfig.getTimeouts();
 
 async function getProviderSettings(provider) {
   const settings = await encryptedDb.getData(TABLE, { provider: provider }, 1);
@@ -144,12 +147,10 @@ async function getAllLLMModels() {
     
     // Для Ollama проверяем реально установленные модели через HTTP API
     try {
-      const axios = require('axios');
-      const ollamaConfig = require('./ollamaConfig');
       const ollamaUrl = ollamaConfig.getBaseUrl();
       
       const response = await axios.get(`${ollamaUrl}/api/tags`, { 
-        timeout: 5000 
+        timeout: TIMEOUTS.ollamaTags 
       });
       
       const models = response.data.models || [];
@@ -214,12 +215,10 @@ async function getAllEmbeddingModels() {
     
     // Для Ollama проверяем реально установленные embedding модели через HTTP API
     try {
-      const axios = require('axios');
-      const ollamaConfig = require('./ollamaConfig');
       const ollamaUrl = ollamaConfig.getBaseUrl();
       
       const response = await axios.get(`${ollamaUrl}/api/tags`, { 
-        timeout: 5000 
+        timeout: TIMEOUTS.ollamaTags 
       });
       
       const models = response.data.models || [];

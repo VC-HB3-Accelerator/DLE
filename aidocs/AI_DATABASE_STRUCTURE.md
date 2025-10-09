@@ -880,13 +880,122 @@ user_rows[from_row_id]
 
 ---
 
+## 28. `unified_guest_messages` ⭐ НОВАЯ (2025-10-09)
+
+**Назначение:** Централизованное хранилище сообщений гостей для всех каналов
+
+**Столбцы:**
+- `id` - SERIAL PRIMARY KEY
+- `identifier_encrypted` - TEXT NOT NULL - зашифрованный универсальный идентификатор ("channel:id")
+- `channel` - VARCHAR(20) NOT NULL - канал ('web', 'telegram', 'email')
+- `content_encrypted` - TEXT NOT NULL - зашифрованный текст сообщения
+- `is_ai` - BOOLEAN NOT NULL DEFAULT false - TRUE если ответ AI, FALSE если от гостя
+- `metadata` - JSONB DEFAULT '{}' - метаданные канала (username, chat_id и т.д.)
+- `created_at` - TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+- `attachment_filename_encrypted` - TEXT
+- `attachment_mimetype_encrypted` - TEXT
+- `attachment_size` - BIGINT
+- `attachment_data` - BYTEA
+
+**Индексы:**
+- idx_unified_guest_identifier
+- idx_unified_guest_channel
+- idx_unified_guest_created_at
+- idx_unified_guest_is_ai
+
+**Связи:**
+- Нет FK (временное хранилище до авторизации)
+
+**Используется в:**
+- UniversalGuestService.js (сохранение/загрузка истории)
+- unifiedMessageProcessor.js (обработка гостевых сообщений)
+
+**Логика:**
+- Заменяет старую таблицу `guest_messages`
+- Работает для ВСЕХ каналов (web, telegram, email)
+- Сохраняет как вопросы гостей (is_ai=false), так и ответы AI (is_ai=true)
+- При подключении кошелька - данные мигрируют в `messages`
+
+---
+
+## 29. `identity_link_tokens` ⭐ НОВАЯ (2025-10-09)
+
+**Назначение:** Токены для связывания Telegram/Email с Web3 кошельками
+
+**Столбцы:**
+- `id` - SERIAL PRIMARY KEY
+- `token` - VARCHAR(64) UNIQUE NOT NULL - уникальный токен
+- `source_provider` - VARCHAR(20) NOT NULL - провайдер ('telegram', 'email')
+- `source_identifier_encrypted` - TEXT NOT NULL - зашифрованный ID источника
+- `user_id` - INTEGER FK → users - опциональный user_id
+- `is_used` - BOOLEAN NOT NULL DEFAULT false - флаг использования
+- `used_at` - TIMESTAMP WITH TIME ZONE - время использования
+- `linked_wallet` - TEXT - адрес привязанного кошелька
+- `expires_at` - TIMESTAMP WITH TIME ZONE NOT NULL - время истечения (TTL)
+- `created_at` - TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+**Индексы:**
+- idx_link_tokens_token (UNIQUE)
+- idx_link_tokens_expires
+- idx_link_tokens_used
+- idx_link_tokens_provider
+
+**Связи:**
+- → `users` (user_id, ON DELETE CASCADE)
+
+**Используется в:**
+- IdentityLinkService.js (генерация/проверка токенов)
+- routes/auth.js (подключение кошелька через токен)
+- routes/identities.js (проверка статуса токена)
+
+**Логика:**
+- Telegram/Email бот генерирует токен и ссылку
+- Пользователь переходит по ссылке и подключает кошелек
+- Токен связывает Telegram/Email с wallet без дубликатов
+- TTL 1 час, после использования помечается is_used=true
+
+---
+
+## 30. `unified_guest_mapping` ⭐ НОВАЯ (2025-10-09)
+
+**Назначение:** Маппинг между гостевыми идентификаторами и пользователями
+
+**Столбцы:**
+- `id` - SERIAL PRIMARY KEY
+- `user_id` - INTEGER NOT NULL FK → users
+- `identifier_encrypted` - TEXT NOT NULL - зашифрованный идентификатор ("channel:id")
+- `channel` - VARCHAR(20) NOT NULL - канал ('web', 'telegram', 'email')
+- `processed` - BOOLEAN NOT NULL DEFAULT false - флаг миграции
+- `processed_at` - TIMESTAMP WITH TIME ZONE - время миграции
+- `created_at` - TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+**Индексы:**
+- idx_unified_mapping_user_id
+- idx_unified_mapping_identifier
+- idx_unified_mapping_processed
+- idx_unified_mapping_channel
+- UNIQUE(identifier_encrypted, channel)
+
+**Связи:**
+- → `users` (user_id, ON DELETE CASCADE)
+
+**Используется в:**
+- UniversalGuestService.js (маппинг при миграции)
+
+**Логика:**
+- Создается при миграции гостевой истории в user_id
+- UNIQUE constraint предотвращает дубликаты
+- processed=true означает что сообщения уже мигрированы
+
+---
+
 ## 📊 ИТОГОВАЯ СТАТИСТИКА
 
-**Всего проверено:** 27 таблиц
+**Всего проверено:** 30 таблиц
 
 **По категориям:**
 - ⭐ КРИТИЧЕСКИЕ: 4 (users, user_identities, messages, conversations)
-- ⭐ КЛЮЧЕВЫЕ: 10 (ai_assistant_settings, ai_providers_settings, message_deduplication, user_tables, user_columns, user_rows, user_cell_values, user_table_relations)
+- ⭐ КЛЮЧЕВЫЕ: 13 (ai_assistant_settings, ai_providers_settings, message_deduplication, user_tables, user_columns, user_rows, user_cell_values, user_table_relations, unified_guest_messages ✨, identity_link_tokens ✨, unified_guest_mapping ✨)
 - ✅ АКТИВНЫЕ: 10 (ai_assistant_rules, telegram_settings, email_settings, is_rag_source, conversation_participants, global_read_status, admin_read_messages, user_tag_links, admin_read_contacts, user_preferences)
 - ⚠️ ПРОБЛЕМНЫЕ: 1 (roles - не используется)
 - ⚠️ НЕ СВЯЗАНЫ С AI: 2 (admin_pages, admin_pages_simple)
@@ -904,8 +1013,14 @@ user_rows[from_row_id]
 - 065_add_fk_user_cell_values_column_id.sql
 - 066_add_fk_admin_read_tables.sql
 - 067_add_cascade_user_preferences.sql
+- 068_create_unified_guest_messages.sql ✨ НОВАЯ (2025-10-09)
+- 069_create_identity_link_tokens.sql ✨ НОВАЯ (2025-10-09)
+- 070_create_unified_guest_mapping.sql ✨ НОВАЯ (2025-10-09)
+- 071_cleanup_test_data.sql ⚠️ ОЧИСТКА ДАННЫХ (2025-10-09)
+- 072_migrate_existing_guest_data.sql ✨ МИГРАЦИЯ (2025-10-09)
 
 **Дата проверки:** 2025-10-08  
 **Дата исправлений:** 2025-10-08  
-**Статус:** ✅ ПРОВЕРКА ЗАВЕРШЕНА + КРИТИЧНЫЕ ПРОБЛЕМЫ ИСПРАВЛЕНЫ
+**Дата обновления:** 2025-10-09 (Универсальная гостевая система)  
+**Статус:** ✅ ПРОВЕРКА ЗАВЕРШЕНА + КРИТИЧНЫЕ ПРОБЛЕМЫ ИСПРАВЛЕНЫ + НОВАЯ СИСТЕМА ГОСТЕЙ
 

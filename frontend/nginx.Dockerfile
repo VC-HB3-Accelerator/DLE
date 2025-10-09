@@ -24,7 +24,8 @@ RUN apk add --no-cache curl
 COPY --from=frontend-builder /app/dist/ /usr/share/nginx/html/
 
 # Копируем конфигурацию nginx
-COPY nginx-simple.conf /etc/nginx/nginx.conf.template
+COPY nginx-simple.conf /etc/nginx/nginx-ssl.conf.template
+COPY nginx-local.conf /etc/nginx/nginx-local.conf.template
 
 # Копируем скрипт запуска
 COPY docker-entrypoint.sh /docker-entrypoint.sh

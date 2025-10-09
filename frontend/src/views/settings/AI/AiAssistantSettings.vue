@@ -273,12 +273,22 @@ async function loadSettings() {
   }
 }
 async function loadTelegramBots() {
-  const { data } = await axios.get('/settings/telegram-settings/list');
-  telegramBots.value = data.items || [];
+  try {
+    const { data } = await axios.get('/settings/telegram-settings/list');
+    telegramBots.value = data.items || [];
+  } catch (error) {
+    console.error('[AiAssistantSettings] Ошибка загрузки telegram bots:', error);
+    telegramBots.value = [];
+  }
 }
 async function loadEmailList() {
-  const { data } = await axios.get('/settings/email-settings/list');
-  emailList.value = data.items || [];
+  try {
+    const { data } = await axios.get('/settings/email-settings/list');
+    emailList.value = data.items || [];
+  } catch (error) {
+    console.error('[AiAssistantSettings] Ошибка загрузки email list:', error);
+    emailList.value = [];
+  }
 }
 async function loadLLMModels() {
   const { data } = await axios.get('/settings/llm-models');
@@ -306,15 +316,15 @@ async function savePlaceholderEdit() {
   await loadPlaceholders();
   closeEditPlaceholder();
 }
-onMounted(() => {
-  loadSettings();
-  loadUserTables();
-  loadRules();
-  loadTelegramBots();
-  loadEmailList();
-  loadLLMModels();
-  loadEmbeddingModels();
-  loadPlaceholders();
+onMounted(async () => {
+  await loadSettings();
+  await loadUserTables();
+  await loadRules();
+  await loadTelegramBots();
+  await loadEmailList();
+  await loadLLMModels();
+  await loadEmbeddingModels();
+  await loadPlaceholders();
   // Подписка на глобальное событие обновления плейсхолдеров
   window.addEventListener('placeholders-updated', loadPlaceholders);
 });

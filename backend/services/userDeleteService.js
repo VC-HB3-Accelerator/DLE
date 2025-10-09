@@ -73,13 +73,13 @@ async function deleteUserById(userId) {
     );
     console.log('[DELETE] Удалено verification_codes:', resCodes.rows.length);
     
-    // 7. Удаляем guest_user_mapping
-    console.log('[DELETE] Начинаем удаление guest_user_mapping для userId:', userId);
+    // 7. Удаляем unified_guest_mapping
+    console.log('[DELETE] Начинаем удаление unified_guest_mapping для userId:', userId);
     const resGuestMapping = await db.getQuery()(
-      'DELETE FROM guest_user_mapping WHERE user_id = $1 RETURNING id',
+      'DELETE FROM unified_guest_mapping WHERE user_id = $1 RETURNING id',
       [userId]
     );
-    console.log('[DELETE] Удалено guest_user_mapping:', resGuestMapping.rows.length);
+    console.log('[DELETE] Удалено unified_guest_mapping:', resGuestMapping.rows.length);
     
     // 8. Удаляем user_tag_links
     console.log('[DELETE] Начинаем удаление user_tag_links для userId:', userId);

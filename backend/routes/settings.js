@@ -17,6 +17,7 @@ const logger = require('../utils/logger');
 const { ethers } = require('ethers');
 const db = require('../db');
 const rpcProviderService = require('../services/rpcProviderService');
+const encryptedDb = require('../services/encryptedDatabaseService');
 
 // Функция для получения информации о сети по chain_id
 function getNetworkInfo(chainId) {
@@ -494,10 +495,13 @@ router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) =>
 // Получить текущие настройки Email (для страницы Email)
 router.get('/email-settings', requireAdmin, async (req, res) => {
   try {
-    const settings = await botsSettings.getEmailSettings();
+    logger.info('[Settings] Запрос getBotSettings(email)');
+    const settings = await botsSettings.getBotSettings('email');
+    logger.info('[Settings] getBotSettings(email) успешно:', settings);
     res.json({ success: true, settings });
   } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    logger.error('[Settings] Ошибка getBotSettings(email):', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -540,7 +544,7 @@ router.put('/email-settings', requireAdmin, async (req, res, next) => {
       updated_at: new Date()
     };
     
-    const result = await botsSettings.saveEmailSettings(settings);
+    const result = await botsSettings.saveBotSettings('email', settings);
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Ошибка при обновлении email настроек:', error);
@@ -599,20 +603,27 @@ router.post('/email-settings/test-smtp', requireAdmin, async (req, res, next) =>
 // Получить список всех email (для ассистента)
 router.get('/email-settings/list', requireAdmin, async (req, res) => {
   try {
-    const emails = await botsSettings.getAllEmailSettings();
+    logger.info('[Settings] Запрос списка email');
+    const emails = await encryptedDb.getData('email_settings', {}, 1000, 'id ASC');
+    logger.info('[Settings] Получено email:', emails ? emails.length : 0);
     res.json({ success: true, items: emails });
   } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    logger.error('[Settings] Ошибка получения списка email:', error);
+    logger.error('[Settings] Stack:', error.stack);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Получить текущие настройки Telegram-бота (для страницы Telegram)
 router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
   try {
-    const settings = await botsSettings.getTelegramSettings();
+    logger.info('[Settings] Запрос getBotSettings(telegram)');
+    const settings = await botsSettings.getBotSettings('telegram');
+    logger.info('[Settings] getBotSettings успешно:', settings);
     res.json({ success: true, settings });
   } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    logger.error('[Settings] Ошибка getBotSettings(telegram):', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -637,7 +648,7 @@ router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
       updated_at: new Date()
     };
     
-    const result = await botsSettings.saveTelegramSettings(settings);
+    const result = await botsSettings.saveBotSettings('telegram', settings);
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Ошибка при обновлении настроек Telegram:', error);
@@ -648,10 +659,14 @@ router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
 // Получить список всех Telegram-ботов (для ассистента)
 router.get('/telegram-settings/list', requireAdmin, async (req, res, next) => {
   try {
-    const bots = await botsSettings.getAllTelegramBots();
+    logger.info('[Settings] Запрос списка telegram ботов');
+    const bots = await encryptedDb.getData('telegram_settings', {}, 1000, 'id ASC');
+    logger.info('[Settings] Получено telegram ботов:', bots ? bots.length : 0);
     res.json({ success: true, items: bots });
   } catch (error) {
-    res.status(404).json({ success: false, error: error.message });
+    logger.error('[Settings] Ошибка получения списка telegram:', error);
+    logger.error('[Settings] Stack:', error.stack);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

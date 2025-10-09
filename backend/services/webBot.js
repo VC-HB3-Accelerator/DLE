@@ -12,6 +12,7 @@
 
 const logger = require('../utils/logger');
 const unifiedMessageProcessor = require('./unifiedMessageProcessor');
+const universalMediaProcessor = require('./UniversalMediaProcessor');
 
 /**
  * WebBot - обработчик веб-чата
@@ -47,7 +48,7 @@ class WebBot {
   }
 
   /**
-   * Обработка сообщения из веб-чата
+   * Обработка сообщения из веб-чата с поддержкой медиа
    * @param {Object} messageData - Данные сообщения
    * @returns {Promise<Object>}
    */
@@ -59,6 +60,59 @@ class WebBot {
 
       // Устанавливаем канал
       messageData.channel = 'web';
+
+      // Если есть вложения, обрабатываем их через медиа-процессор
+      if (messageData.attachments && messageData.attachments.length > 0) {
+        const processedFiles = [];
+        
+        for (const attachment of messageData.attachments) {
+          try {
+            const processedFile = await universalMediaProcessor.processFile(
+              attachment.data,
+              attachment.filename,
+              {
+                webUpload: true,
+                originalSize: attachment.size,
+                mimeType: attachment.mimetype
+              }
+            );
+            
+            processedFiles.push(processedFile);
+          } catch (fileError) {
+            logger.error('[WebBot] Ошибка обработки файла:', fileError);
+            // Fallback: сохраняем как есть
+            processedFiles.push({
+              type: 'document',
+              content: `[Файл: ${attachment.filename}]`,
+              processed: false,
+              error: fileError.message,
+              file: attachment
+            });
+          }
+        }
+        
+        // Создаем структурированные данные контента
+        messageData.contentData = {
+          text: messageData.content,
+          files: processedFiles.map(file => ({
+            data: file.file?.data || file.file?.buffer,
+            filename: file.file?.originalName || file.file?.filename,
+            metadata: {
+              type: file.type,
+              processed: file.processed,
+              webUpload: true
+            }
+          }))
+        };
+        
+        // Добавляем информацию о медиа в метаданные
+        messageData.metadata = {
+          ...messageData.metadata,
+          hasMedia: processedFiles.length > 0,
+          mediaTypes: processedFiles.map(f => f.type),
+          processedFiles: processedFiles
+        };
+      }
 
       // Обрабатываем через unified processor
       return await unifiedMessageProcessor.processMessage(messageData);

@@ -73,17 +73,23 @@ class IdentityService {
       const { provider: normalizedProvider, providerId: normalizedProviderId } =
         this.normalizeIdentity(provider, providerId);
 
-      // Проверяем тип провайдера и перенаправляем гостевые идентификаторы в guest_user_mapping
+      // Проверяем тип провайдера и перенаправляем гостевые идентификаторы в unified_guest_mapping
       if (normalizedProvider === 'guest') {
         logger.info(
-          `[IdentityService] Converting guest identity for user ${userId} to guest_user_mapping: ${normalizedProviderId}`
+          `[IdentityService] Converting guest identity for user ${userId} to unified_guest_mapping: ${normalizedProviderId}`
         );
 
         try {
-          await encryptedDb.saveData('guest_user_mapping', {
-            user_id: userId,
-            guest_id: normalizedProviderId
-          });
+          const db = require('../db');
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          
+          await db.getQuery()(
+            `INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at)
+             VALUES ($1, encrypt_text($2, $4), $3, NOW())
+             ON CONFLICT (identifier_encrypted, channel) DO NOTHING`,
+            [userId, `web:${normalizedProviderId}`, 'web', encryptionKey]
+          );
           return { success: true };
         } catch (guestError) {
           logger.error(
@@ -285,13 +291,19 @@ class IdentityService {
         results.push({ type: 'telegram', result: telegramResult });
       }
 
-      // Сохраняем гостевые идентификаторы в guest_user_mapping
+      // Сохраняем гостевые идентификаторы в unified_guest_mapping
       if (session.guestId) {
         try {
-          await encryptedDb.saveData('guest_user_mapping', {
-            user_id: userId,
-            guest_id: session.guestId
-          });
+          const db = require('../db');
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          
+          await db.getQuery()(
+            `INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at)
+             VALUES ($1, encrypt_text($2, $4), $3, NOW())
+             ON CONFLICT (identifier_encrypted, channel) DO NOTHING`,
+            [userId, `web:${session.guestId}`, 'web', encryptionKey]
+          );
           results.push({ type: 'guest', result: { success: true } });
         } catch (error) {
           logger.error(`[IdentityService] Error saving guest ID for user ${userId}:`, error);
@@ -301,10 +313,16 @@ class IdentityService {
 
       if (session.previousGuestId && session.previousGuestId !== session.guestId) {
         try {
-          await encryptedDb.saveData('guest_user_mapping', {
-            user_id: userId,
-            guest_id: session.previousGuestId
-          });
+          const db = require('../db');
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          
+          await db.getQuery()(
+            `INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at)
+             VALUES ($1, encrypt_text($2, $4), $3, NOW())
+             ON CONFLICT (identifier_encrypted, channel) DO NOTHING`,
+            [userId, `web:${session.previousGuestId}`, 'web', encryptionKey]
+          );
           results.push({ type: 'previousGuest', result: { success: true } });
         } catch (error) {
           logger.error(
@@ -364,19 +382,24 @@ class IdentityService {
         }
 
       // Мигрируем гостевые идентификаторы
-      const guestMappings = await encryptedDb.getData('guest_user_mapping', { user_id: fromUserId });
+      const guestMappings = await encryptedDb.getData('unified_guest_mapping', { user_id: fromUserId });
 
         // Переносим каждый гостевой идентификатор
       for (const mapping of guestMappings) {
-        await encryptedDb.saveData('guest_user_mapping', {
-          user_id: toUserId,
-          guest_id: mapping.guest_id,
-          processed: mapping.processed
-        });
+        const db = require('../db');
+        const encryptionUtils = require('../utils/encryptionUtils');
+        const encryptionKey = encryptionUtils.getEncryptionKey();
+        
+        await db.getQuery()(
+          `INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, processed, processed_at, created_at)
+           VALUES ($1, encrypt_text($2, $6), $3, $4, $5, NOW())
+           ON CONFLICT (identifier_encrypted, channel) DO UPDATE SET user_id = $1, processed = $4, processed_at = $5`,
+          [toUserId, mapping.identifier_encrypted, mapping.channel, mapping.processed, mapping.processed_at, encryptionKey]
+        );
         }
 
         // Удаляем старые гостевые маппинги
-      await encryptedDb.deleteData('guest_user_mapping', { user_id: fromUserId });
+      await encryptedDb.deleteData('unified_guest_mapping', { user_id: fromUserId });
 
         // Переносим все сообщения
       const messages = await encryptedDb.getData('messages', { user_id: fromUserId });
