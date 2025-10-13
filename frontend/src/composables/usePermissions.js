@@ -12,69 +12,77 @@
 
 import { computed } from 'vue';
 import { useAuthContext } from './useAuth';
+import { PERMISSIONS, ROLES, hasPermission as checkPermission, getRoleDescription } from '/app/shared/permissions';
 
 /**
  * Composable для работы с правами доступа
+ * Использует единую матрицу прав из shared/permissions.js
  * @returns {Object} - Объект с функциями для проверки прав доступа
  */
 export function usePermissions() {
-  const { userAccessLevel, isAdmin } = useAuthContext();
+  const { userAccessLevel, isAuthenticated } = useAuthContext();
 
   /**
-   * Проверяет, может ли пользователь только читать данные
+   * Текущая роль пользователя
    */
-  const canRead = computed(() => {
-    return (userAccessLevel.value && userAccessLevel.value.hasAccess) || isAdmin.value;
+  const currentRole = computed(() => {
+    if (!isAuthenticated.value) {
+      return ROLES.GUEST; // Неавторизованный
+    }
+    
+    // Если userAccessLevel не определен, возвращаем USER (авторизованный пользователь)
+    return userAccessLevel.value?.level || ROLES.USER;
   });
 
   /**
-   * Проверяет, может ли пользователь редактировать данные
-   */
-  const canEdit = computed(() => {
-    return userAccessLevel.value && userAccessLevel.value.level === 'editor';
-  });
-
-  /**
-   * Проверяет, может ли пользователь удалять данные
-   */
-  const canDelete = computed(() => {
-    return userAccessLevel.value && userAccessLevel.value.level === 'editor';
-  });
-
-  /**
-   * Проверяет, может ли пользователь управлять настройками системы
-   */
-  const canManageSettings = computed(() => {
-    return userAccessLevel.value && userAccessLevel.value.level === 'editor';
-  });
-
-  /**
-   * Получает текущий уровень доступа
-   */
-  const currentLevel = computed(() => {
-    return userAccessLevel.value ? userAccessLevel.value.level : 'user';
-  });
-
-  /**
-   * Получает количество токенов пользователя
+   * Количество токенов пользователя
    */
   const tokenCount = computed(() => {
-    return userAccessLevel.value ? userAccessLevel.value.tokenCount : 0;
+    return userAccessLevel.value?.tokenCount || 0;
   });
 
+  /**
+   * Универсальная проверка любого права
+   * @param {string} permission - Право для проверки
+   * @returns {boolean}
+   */
+  const hasPermission = (permission) => {
+    return checkPermission(currentRole.value, permission);
+  };
+
+  // ========================================================================
+  // Computed проверки для частого использования
+  // ========================================================================
+  
+  // Просмотр данных
+  const canViewData = computed(() => hasPermission(PERMISSIONS.VIEW_DATA));
+  const canViewContacts = computed(() => hasPermission(PERMISSIONS.VIEW_CONTACTS));
+  const canViewCrm = computed(() => hasPermission(PERMISSIONS.VIEW_CRM));
+  
+  // Редактирование и удаление
+  const canEditData = computed(() => hasPermission(PERMISSIONS.EDIT_USER_DATA));
+  const canEditContacts = computed(() => hasPermission(PERMISSIONS.EDIT_CONTACTS));
+  const canDeleteData = computed(() => hasPermission(PERMISSIONS.DELETE_USER_DATA));
+  const canDeleteMessages = computed(() => hasPermission(PERMISSIONS.DELETE_MESSAGES));
+  
+  // Коммуникация
+  const canSendToUsers = computed(() => hasPermission(PERMISSIONS.SEND_TO_USERS));
+  const canChatWithAdmins = computed(() => hasPermission(PERMISSIONS.CHAT_WITH_ADMINS));
+  const canGenerateAI = computed(() => hasPermission(PERMISSIONS.GENERATE_AI_REPLIES));
+  const canBroadcast = computed(() => hasPermission(PERMISSIONS.BROADCAST));
+  
+  // Управление
+  const canManageTags = computed(() => hasPermission(PERMISSIONS.MANAGE_TAGS));
+  const canBlockUsers = computed(() => hasPermission(PERMISSIONS.BLOCK_USERS));
+  const canManageSettings = computed(() => hasPermission(PERMISSIONS.MANAGE_SETTINGS));
+  
+  const currentLevel = computed(() => currentRole.value);
+  
   /**
    * Получает описание текущего уровня доступа
    */
   const getLevelDescription = (level) => {
-    switch (level) {
-      case 'readonly':
-        return 'Только чтение';
-      case 'editor':
-        return 'Редактор';
-      case 'user':
-      default:
-        return 'Пользователь';
-    }
+    return getRoleDescription(level);
   };
 
   /**
@@ -82,24 +90,56 @@ export function usePermissions() {
    */
   const getLevelClass = (level) => {
     switch (level) {
-      case 'readonly':
+      case ROLES.READONLY:
         return 'access-readonly';
-      case 'editor':
+      case ROLES.EDITOR:
         return 'access-editor';
-      case 'user':
+      case ROLES.USER:
+        return 'access-user';
+      case ROLES.GUEST:
+        return 'access-guest';
       default:
         return 'access-user';
     }
   };
 
   return {
-    canRead,
-    canEdit,
-    canDelete,
-    canManageSettings,
-    currentLevel,
+    // Главная функция
+    hasPermission,
+    
+    // Информация о роли
+    currentRole,
+    currentLevel, // alias для совместимости
     tokenCount,
+    
+    // Просмотр
+    canViewData,
+    canViewContacts,
+    canViewCrm,
+    
+    // Редактирование
+    canEditData,
+    canEditContacts,
+    canDeleteData,
+    canDeleteMessages,
+    
+    // Коммуникация
+    canSendToUsers,
+    canChatWithAdmins,
+    canGenerateAI,
+    canBroadcast,
+    
+    // Управление
+    canManageTags,
+    canBlockUsers,
+    canManageSettings,
+    
+    // Утилиты
     getLevelDescription,
-    getLevelClass
+    getLevelClass,
+    
+    // Константы
+    ROLES,
+    PERMISSIONS
   };
 }

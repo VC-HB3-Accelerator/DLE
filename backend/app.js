@@ -160,7 +160,7 @@ app.use((req, res, next) => {
   if (req.session && req.session.userId) {
     req.user = {
       id: req.session.userId,
-      isAdmin: req.session.isAdmin,
+      userAccessLevel: req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false },
       address: req.session.address,
     };
   }

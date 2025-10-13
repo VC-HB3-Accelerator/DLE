@@ -82,6 +82,20 @@ const emit = defineEmits(['auth-action-completed']);
 const auth = useAuthContext();
 const router = useRouter();
 const isLoading = ref(true);
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[CrmView] Clearing CRM data');
+    // Очищаем данные при выходе из системы
+    contacts.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[CrmView] Refreshing CRM data');
+    loadContacts(); // Обновляем данные при входе в систему
+  });
+});
 const dleList = ref([]);
 const selectedDleIndex = ref(null);
 

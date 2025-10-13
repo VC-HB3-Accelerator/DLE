@@ -15,7 +15,8 @@
 const { createError } = require('../utils/error');
 const authService = require('../services/auth-service');
 const logger = require('../utils/logger');
-// Используем новые роли: 'editor' и 'readonly' вместо 'admin'
+// НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
+const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 const db = require('../db');
 const { checkAdminTokens } = require('../services/auth-service');
 
@@ -45,7 +46,7 @@ async function requireAdmin(req, res, next) {
     logger.info(`[requireAdmin] Session:`, {
       exists: !!req.session,
       authenticated: req.session?.authenticated,
-      isAdmin: req.session?.isAdmin,
+      userAccessLevel: req.session?.userAccessLevel,
       userId: req.session?.userId,
       address: req.session?.address
     });
@@ -57,18 +58,18 @@ async function requireAdmin(req, res, next) {
     }
 
     // Проверка через сессию
-    if (req.session.isAdmin) {
-      // logger.info(`[requireAdmin] Доступ разрешен через сессию isAdmin`); // Убрано
+    if (req.session.userAccessLevel?.hasAccess) {
+      // logger.info(`[requireAdmin] Доступ разрешен через сессию userAccessLevel`); // Убрано
       return next();
     }
 
     // Проверка через кошелек
     if (req.session.address) {
       // logger.info(`[requireAdmin] Проверка через кошелек: ${req.session.address}`); // Убрано
-      const isAdmin = await authService.checkAdminTokens(req.session.address);
-      if (isAdmin) {
+      const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+      if (userAccessLevel.hasAccess) {
         // Обновляем сессию
-        req.session.isAdmin = true;
+        req.session.userAccessLevel = userAccessLevel;
         // logger.info(`[requireAdmin] Доступ разрешен через кошелек`); // Убрано
         return next();
       }
@@ -82,7 +83,7 @@ async function requireAdmin(req, res, next) {
       ]);
       if (userResult.rows.length > 0 && (userResult.rows[0].role === 'editor' || userResult.rows[0].role === 'readonly')) {
         // Обновляем сессию
-        req.session.isAdmin = true;
+        req.session.userAccessLevel = { level: 'editor', tokenCount: 0, hasAccess: true };
         // logger.info(`[requireAdmin] Доступ разрешен через userId`); // Убрано
         return next();
       }
@@ -110,7 +111,7 @@ function requireRole(role) {
       }
 
       // Для администраторов разрешаем все
-      if (req.session.isAdmin) {
+      if (req.session.userAccessLevel?.hasAccess) {
         return next();
       }
 
@@ -145,11 +146,11 @@ async function checkRole(req, res, next) {
 
     // Если есть адрес кошелька - проверяем токены
     if (req.session.address) {
-      req.session.isAdmin = await checkAdminTokens(req.session.address);
+      req.session.userAccessLevel = await authService.getUserAccessLevel(req.session.address);
       await req.session.save();
     }
 
-    if (!req.session.isAdmin) {
+    if (!req.session.userAccessLevel?.hasAccess) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -166,9 +167,29 @@ async function checkRole(req, res, next) {
 const isAuthenticated = requireAuth;
 
 /**
- * Проверка прав администратора - алиас для requireAdmin
+ * НОВАЯ СИСТЕМА: проверка прав через permissions
  */
-const isAdmin = requireAdmin;
+const isAdmin = (req, res, next) => {
+  // Определяем роль пользователя через новую систему
+  let userRole = ROLES.GUEST;
+  
+  if (req.user?.userAccessLevel) {
+    if (req.user.userAccessLevel.level === 'readonly') {
+      userRole = ROLES.READONLY;
+    } else if (req.user.userAccessLevel.level === 'editor') {
+      userRole = ROLES.EDITOR;
+    }
+  } else if (req.user?.id) {
+    userRole = ROLES.USER;
+  }
+  
+  // Проверяем права через новую систему
+  if (!hasPermission(userRole, PERMISSIONS.VIEW_CRM)) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  
+  next();
+};
 
 module.exports = {
   requireAuth,

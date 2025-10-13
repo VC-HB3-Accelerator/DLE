@@ -81,8 +81,8 @@ router.post('/', async (req, res) => {
   
   // Проверяем роль админа через токены в кошельке
   const authService = require('../services/auth-service');
-  const isAdmin = await authService.checkAdminTokens(req.session.address);
-  if (!isAdmin) {
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
     return res.status(403).json({ error: 'Only admin can create pages' });
   }
   
@@ -114,8 +114,8 @@ router.get('/', async (req, res) => {
   
   // Проверяем роль админа через токены в кошельке
   const authService = require('../services/auth-service');
-  const isAdmin = await authService.checkAdminTokens(req.session.address);
-  if (!isAdmin) {
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
     return res.status(403).json({ error: 'Only admin can view pages' });
   }
   
@@ -152,8 +152,8 @@ router.get('/:id', async (req, res) => {
   
   // Проверяем роль админа через токены в кошельке
   const authService = require('../services/auth-service');
-  const isAdmin = await authService.checkAdminTokens(req.session.address);
-  if (!isAdmin) {
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
     return res.status(403).json({ error: 'Only admin can view pages' });
   }
   
@@ -182,8 +182,8 @@ router.patch('/:id', async (req, res) => {
   
   // Проверяем роль админа через токены в кошельке
   const authService = require('../services/auth-service');
-  const isAdmin = await authService.checkAdminTokens(req.session.address);
-  if (!isAdmin) {
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
     return res.status(403).json({ error: 'Only admin can edit pages' });
   }
   
@@ -222,8 +222,8 @@ router.delete('/:id', async (req, res) => {
   
   // Проверяем роль админа через токены в кошельке
   const authService = require('../services/auth-service');
-  const isAdmin = await authService.checkAdminTokens(req.session.address);
-  if (!isAdmin) {
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
     return res.status(403).json({ error: 'Only admin can delete pages' });
   }
   

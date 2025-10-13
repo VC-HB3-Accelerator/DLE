@@ -18,6 +18,8 @@ const db = require('../db');
 const encryptedDb = require('../services/encryptedDatabaseService');
 const logger = require('../utils/logger');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('../shared/permissions');
 const aiAssistantSettingsService = require('../services/aiAssistantSettingsService');
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botManager = require('../services/botManager');
@@ -208,10 +210,9 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     const adminLogicService = require('../services/adminLogicService');
     const sessionUserId = req.session.userId;
     const targetUserId = userId;
-    const isAdmin = req.session.isAdmin || false;
-    
+    const userAccessLevel = req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
     const canWrite = adminLogicService.canWriteToConversation({
-      isAdmin: isAdmin,
+      userAccessLevel: userAccessLevel,
       userId: sessionUserId,
       conversationUserId: targetUserId
     });
@@ -431,7 +432,8 @@ router.post('/process-guest', requireAuth, async (req, res) => {
 });
 
 // POST /api/chat/ai-draft — генерация черновика ответа ИИ
-router.post('/ai-draft', requireAuth, async (req, res) => {
+// Генерация AI-черновика ответа (только для админов-редакторов)
+router.post('/ai-draft', requireAuth, requirePermission(PERMISSIONS.GENERATE_AI_REPLIES), async (req, res) => {
   const userId = req.session.userId;
   const { conversationId, messages, language } = req.body;
 

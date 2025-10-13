@@ -67,11 +67,25 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import AIProviderSettings from './AIProviderSettings.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[AiSettingsView] Clearing AI settings data');
+    // Очищаем данные при выходе из системы
+    // AiSettingsView не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[AiSettingsView] Refreshing AI settings data');
+    // AiSettingsView не нуждается в обновлении данных
+  });
+});
 
 const showProvider = ref(null);
 const showTelegramSettings = ref(false);
@@ -80,7 +94,6 @@ const showDbSettings = ref(false);
 const showAiAssistantSettings = ref(false);
 const showNoAccessModal = ref(false);
 
-const { isAdmin } = useAuthContext();
 const { canManageSettings } = usePermissions();
 
 const providerLabels = {

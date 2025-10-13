@@ -518,7 +518,7 @@ async function getQuestionAnswerColumnIds(tableId) {
 // Пересобрать векторный индекс для таблицы (только для админа)
 router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
   try {
-    if (!req.session.isAdmin) {
+    if (!req.session.userAccessLevel?.hasAccess) {
       return res.status(403).json({ error: 'Доступ только для администратора' });
     }
     
@@ -565,7 +565,7 @@ router.post('/:id/rebuild-index', requireAuth, async (req, res, next) => {
 // DELETE: удалить таблицу и каскадно все связанные строки/столбцы/ячейки (доступно всем)
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
-    if (!req.session.isAdmin) {
+    if (!req.session.userAccessLevel?.hasAccess) {
       return res.status(403).json({ error: 'Удаление доступно только администраторам' });
     }
     

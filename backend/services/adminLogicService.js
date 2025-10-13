@@ -47,16 +47,16 @@ function shouldGenerateAiReply(params) {
 /**
  * Проверить, может ли пользователь писать в беседу
  * @param {Object} params - Параметры
- * @param {boolean} params.isAdmin - Является ли админом
+ * @param {Object} params.userAccessLevel - Уровень доступа пользователя
  * @param {number} params.userId - ID пользователя
  * @param {number} params.conversationUserId - ID владельца беседы
  * @returns {boolean}
  */
 function canWriteToConversation(params) {
-  const { isAdmin, userId, conversationUserId } = params;
+  const { userAccessLevel, userId, conversationUserId } = params;
 
   // Админ может писать в любую беседу
-  if (isAdmin) {
+  if (userAccessLevel?.hasAccess) {
     return true;
   }
 

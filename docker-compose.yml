@@ -136,6 +136,7 @@ services:
       - backend_node_modules:/app/node_modules
       - ./frontend/dist:/app/frontend_dist:ro
       - ./ssl:/app/ssl:ro
+      - ./shared:/app/shared:ro
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=${PORT:-8000}
@@ -183,11 +184,13 @@ services:
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
+      - ./shared:/app/shared:ro
     ports:
-      - '5173:5173'  # Закрываем - используем nginx
+      - '5173:5173'  # Vite dev server для локальной разработки
     command: yarn run dev -- --host 0.0.0.0
 
   frontend-nginx:
+    profiles: ["production"]  # Запускается только в production режиме
     build:
       context: ./frontend
       dockerfile: nginx.Dockerfile
@@ -198,10 +201,10 @@ services:
       - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
       - 8.8.8.8        # Google (надежность, fallback)
     ports:
-      - "9000:80" # Frontend nginx (для локальной разработки)
-      - "9443:443" # HTTPS порт для локальной разработки
+      - "9000:80" # Frontend nginx (для production на VDS)
+      - "9443:443" # HTTPS порт для production на VDS
     environment:
-      - DOMAIN=localhost:9000
+      - DOMAIN=${DOMAIN:-localhost:9000}
       - BACKEND_CONTAINER=dapp-backend
     depends_on:
       - backend
@@ -243,9 +246,11 @@ services:
       - 8.8.8.8        # Google (надежность, fallback)
     volumes:
       - ~/.ssh:/root/.ssh:rw
-      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Только чтение для безопасности
       - /tmp:/tmp  # для временных файлов
       - ./ssl:/app/ssl:ro  # для доступа к ключу шифрования
+    security_opt:
+      - no-new-privileges:true  # Запрет повышения привилегий
     ports:
       - '3000:3000'  # Локальный доступ
     environment:

@@ -38,7 +38,8 @@ router.post('/task', requireAuth, async (req, res) => {
   try {
     const { message, language, history, systemPrompt, rules, type = 'chat' } = req.body;
     const userId = req.session.userId;
-    const userRole = req.session.isAdmin ? 'admin' : 'user';
+    const userAccessLevel = req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
+    const userRole = userAccessLevel.hasAccess ? 'admin' : 'user';
 
     if (!message) {
       return res.status(400).json({
@@ -108,7 +109,7 @@ router.post('/control', requireAuth, async (req, res) => {
   try {
     const { action } = req.body;
     
-    if (!req.session.isAdmin) {
+    if (!req.session.userAccessLevel?.hasAccess) {
       return res.status(403).json({
         success: false,
         error: 'Admin access required'

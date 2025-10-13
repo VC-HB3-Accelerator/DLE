@@ -22,16 +22,12 @@
       <!-- Заголовок страницы -->
       <div class="page-header">
           <div class="header-content">
-          <h1>📄 Управление контентом</h1>
-          <p v-if="isAdmin && address">Создавайте и управляйте страницами вашего DLE</p>
+          <h1>Управление контентом</h1>
+          <p v-if="canEditData && address">Создавайте и управляйте страницами вашего DLE</p>
           <p v-else>Просмотр опубликованных страниц DLE</p>
-          <button v-if="isAdmin && address" class="btn btn-primary" @click="goToCreate">
+          <button v-if="canEditData && address" class="btn btn-primary" @click="goToCreate">
             <i class="fas fa-plus"></i>
             Создать страницу
-          </button>
-          <button v-else class="btn btn-primary" @click="goToPublicPages">
-            <i class="fas fa-eye"></i>
-            Публичные страницы
           </button>
         </div>
         <div class="header-actions">
@@ -68,7 +64,7 @@
           <!-- Вкладка Страницы -->
           <div v-if="activeTab === 'pages'" class="pages-section">
             <div class="section-header">
-              <h2 v-if="isAdmin && address">Созданные страницы</h2>
+              <h2 v-if="canEditData && address">Созданные страницы</h2>
               <h2 v-else>Опубликованные страницы</h2>
               <div class="search-box">
                 <input 
@@ -91,7 +87,7 @@
               >
                 <div class="page-card-header">
                   <h3>{{ page.title }}</h3>
-                  <div class="page-actions" v-if="isAdmin && address">
+                  <div class="page-actions" v-if="canEditData && address">
                     <button 
                       class="action-btn edit-btn"
                       @click.stop="goToEdit(page.id)"
@@ -133,17 +129,13 @@
               <div class="empty-icon">
                 <i class="fas fa-file-alt"></i>
               </div>
-              <h3 v-if="isAdmin && address">Нет созданных страниц</h3>
+              <h3 v-if="canEditData && address">Нет созданных страниц</h3>
               <h3 v-else>Нет опубликованных страниц</h3>
-              <p v-if="isAdmin && address">Создайте первую страницу для вашего DLE</p>
+              <p v-if="canEditData && address">Создайте первую страницу для вашего DLE</p>
               <p v-else>Публичные страницы появятся здесь после их создания администраторами</p>
-              <button v-if="isAdmin && address" class="btn btn-primary" @click="goToCreate">
+              <button v-if="canEditData && address" class="btn btn-primary" @click="goToCreate">
                 <i class="fas fa-plus"></i>
                 Создать страницу
-              </button>
-              <button v-else class="btn btn-primary" @click="goToPublicPages">
-                <i class="fas fa-eye"></i>
-                Публичные страницы
               </button>
             </div>
 
@@ -193,6 +185,7 @@ import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
 import { useAuthContext } from '../../composables/useAuth';
+import { usePermissions } from '../../composables/usePermissions';
 
 // Props
 const props = defineProps({
@@ -218,7 +211,22 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
-const { isAdmin, address } = useAuthContext();
+const { address } = useAuthContext();
+const { canEditData } = usePermissions();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[ContentListView] Clearing pages data');
+    // Очищаем данные при выходе из системы
+    pages.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[ContentListView] Refreshing pages data');
+    loadPages(); // Обновляем данные при входе в систему
+  });
+});
 
 // Состояние
 const activeTab = ref('pages');
@@ -250,16 +258,13 @@ function goToCreate() {
   router.push({ name: 'content-create' });
 }
 
-function goToPublicPages() {
-  router.push({ name: 'public-pages' });
-}
 
 function goBack() {
   router.go(-1);
 }
 
 function goToPage(id) {
-  if (isAdmin.value && address.value) {
+  if (canEditData.value && address.value) {
     router.push({ name: 'page-view', params: { id } });
   } else {
     router.push({ name: 'public-page-view', params: { id } });
@@ -307,7 +312,7 @@ async function loadPages() {
     isLoading.value = true;
     
     // Проверяем роль админа через кошелек
-    if (isAdmin.value && address.value) {
+    if (canEditData.value && address.value) {
       try {
         // Пытаемся загрузить админские страницы
         const response = await pagesService.getPages();

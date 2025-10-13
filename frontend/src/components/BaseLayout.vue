@@ -112,6 +112,20 @@ const handleAuthFlowSuccess = (authType) => {
   eventBus.emit('auth-success', { authType });
 };
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[BaseLayout] Clearing base layout data');
+    // Очищаем данные при выходе из системы
+    // BaseLayout не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[BaseLayout] Refreshing base layout data');
+    // BaseLayout не нуждается в обновлении данных
+  });
+});
+
 const {
   telegramAuth,
   handleTelegramAuth,

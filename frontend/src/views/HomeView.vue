@@ -103,6 +103,18 @@
     
     // Подписка на события авторизации
     unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
+    
+    // Подписываемся на централизованные события очистки и обновления данных
+    window.addEventListener('clear-application-data', () => {
+      console.log('[HomeView] Clearing chat data');
+      // Очищаем данные при выходе из системы
+      messages.value = [];
+    });
+    
+    window.addEventListener('refresh-application-data', () => {
+      console.log('[HomeView] Refreshing chat data');
+      loadMessages(); // Обновляем данные при входе в систему
+    });
   });
 
   onBeforeUnmount(() => {

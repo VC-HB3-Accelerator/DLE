@@ -59,10 +59,10 @@ class AuthService {
   /**
    * Находит или создает пользователя по адресу кошелька
    * @param {string} address - Адрес кошелька
-   * @param {boolean} isAdmin - Предварительно проверенный статус админа
-   * @returns {Promise<{userId: number, isAdmin: boolean}>}
+   * @param {Object} userAccessLevel - Предварительно проверенный уровень доступа
+   * @returns {Promise<{userId: number, userAccessLevel: Object}>}
    */
-  async findOrCreateUser(address, isAdmin = null) {
+  async findOrCreateUser(address, userAccessLevel = null) {
     try {
       // Нормализуем адрес - всегда приводим к нижнему регистру
       const normalizedAddress = ethers.getAddress(address).toLowerCase();
@@ -80,29 +80,27 @@ class AuthService {
         }
         const userData = user[0];
 
-        // Используем предварительно проверенный статус админа или проверяем заново
-        const adminStatus = isAdmin !== null ? isAdmin : await checkAdminRole(normalizedAddress);
+        // Используем предварительно проверенный уровень доступа или проверяем заново
+        const currentAccessLevel = userAccessLevel !== null ? userAccessLevel : await this.getUserAccessLevel(normalizedAddress);
 
-        // Если статус админа изменился, обновляем роль в базе данных
-        if (userData.role === 'admin' && !adminStatus) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', userData.id]);
-          logger.info(`Updated user ${userData.id} role to user (admin tokens no longer present)`);
-          return { userId: userData.id, isAdmin: false };
-        } else if (userData.role !== 'admin' && adminStatus) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userData.id]);
-          logger.info(`Updated user ${userData.id} role to admin (admin tokens found)`);
-          return { userId: userData.id, isAdmin: true };
+        // Если уровень доступа изменился, обновляем роль в базе данных
+        const currentRole = userData.role === 'admin' ? 'editor' : 'user';
+        const newRole = currentAccessLevel.hasAccess ? 'admin' : 'user';
+        
+        if (currentRole !== newRole) {
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, userData.id]);
+          logger.info(`Updated user ${userData.id} role to ${newRole} (access level changed)`);
         }
 
         return {
           userId: userData.id,
-          isAdmin: userData.role === 'admin',
+          userAccessLevel: currentAccessLevel,
         };
       }
 
       // Если пользователь не найден, создаем нового с правильной ролью
-      const adminStatus = isAdmin !== null ? isAdmin : await checkAdminRole(normalizedAddress);
-      const initialRole = adminStatus ? 'admin' : 'user';
+      const currentAccessLevel = userAccessLevel !== null ? userAccessLevel : await this.getUserAccessLevel(normalizedAddress);
+      const initialRole = currentAccessLevel.hasAccess ? 'admin' : 'user';
       
       const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [initialRole]);
       const userId = newUserResult.rows[0].id;
@@ -118,7 +116,7 @@ class AuthService {
 
       broadcastContactsUpdate();
 
-      return { userId, isAdmin: adminStatus };
+      return { userId, userAccessLevel: currentAccessLevel };
     } catch (error) {
       logger.error('Error finding or creating user:', error);
       throw error;
@@ -210,7 +208,7 @@ class AuthService {
   }
 
   // Создание сессии с проверкой роли
-  async createSession(session, { userId, authenticated, authType, guestId, address, isAdmin }) {
+  async createSession(session, { userId, authenticated, authType, guestId, address, userAccessLevel }) {
     try {
       // Если пользователь аутентифицирован, обрабатываем гостевые сообщения
       if (authenticated && guestId) {
@@ -221,7 +219,7 @@ class AuthService {
       session.userId = userId;
       session.authenticated = authenticated;
       session.authType = authType;
-      session.isAdmin = isAdmin || false;
+      session.userAccessLevel = userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
 
       // Сохраняем адрес кошелька если есть
       if (address) {
@@ -239,7 +237,7 @@ class AuthService {
             authenticated,
             authType,
             address,
-            isAdmin: isAdmin || false,
+            userAccessLevel: userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false },
             cookie: session.cookie,
           }),
           session.id,
@@ -306,12 +304,12 @@ class AuthService {
         return 'user';
       }
 
-      // Если есть кошелек, проверяем админские токены
-      const isAdmin = await checkAdminRole(wallet);
+      // Если есть кошелек, проверяем уровень доступа
+      const userAccessLevel = await this.getUserAccessLevel(wallet);
       logger.info(
-        `Role check for user ${userId} with wallet ${wallet}: ${isAdmin ? 'admin' : 'user'}`
+        `Role check for user ${userId} with wallet ${wallet}: ${userAccessLevel.hasAccess ? 'admin' : 'user'}`
       );
-      return isAdmin ? 'admin' : 'user';
+      return userAccessLevel.hasAccess ? 'admin' : 'user';
     } catch (error) {
       logger.error('Error checking user role:', error);
       return 'user';
@@ -343,9 +341,9 @@ class AuthService {
       let role = 'user'; // Базовая роль для доступа к чату
 
       if (wallet) {
-        // Если есть кошелек, проверяем баланс токенов
-        const isAdmin = await checkAdminRole(wallet);
-        role = isAdmin ? 'admin' : 'user';
+        // Если есть кошелек, проверяем уровень доступа
+        const userAccessLevel = await this.getUserAccessLevel(wallet);
+        role = userAccessLevel.hasAccess ? 'admin' : 'user';
         logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
       } else {
         logger.info(`User ${userId} has no wallet, using basic user role`);
@@ -388,7 +386,7 @@ class AuthService {
         return {
           success: true,
           userId,
-          role: session.isAdmin ? 'admin' : 'user',
+          role: session.userAccessLevel?.hasAccess ? 'admin' : 'user',
           telegramId,
           isNewUser: false,
         };
@@ -651,10 +649,10 @@ class AuthService {
     try {
       // Используем новую функцию для определения уровня доступа
       const accessLevel = await this.getUserAccessLevel(address);
-      const isAdmin = accessLevel.hasAccess; // Любой доступ выше 'user' считается админским
+      const hasAccess = accessLevel.hasAccess; // Любой доступ выше 'user' считается админским
 
       // Обновляем роль пользователя в базе данных
-      if (isAdmin) {
+      if (hasAccess) {
         try {
           // Получаем ключ шифрования
           const fs = require('fs');
@@ -725,7 +723,7 @@ class AuthService {
         }
       }
 
-      return isAdmin;
+      return hasAccess;
     } catch (error) {
       logger.error(`Error in checkAdminTokens: ${error.message}`);
       return false; // При любой ошибке считаем, что пользователь не админ
@@ -946,12 +944,12 @@ class AuthService {
       });
 
       // Проверяем и обновляем роль администратора, если это идентификатор кошелька
-      let isAdmin = false;
+      let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
       if (provider === 'wallet') {
-        isAdmin = await this.checkAdminTokens(normalizedProviderId);
+        userAccessLevel = await this.getUserAccessLevel(normalizedProviderId);
 
         // Обновляем роль пользователя в базе данных, если нужно
-        if (isAdmin) {
+        if (userAccessLevel.hasAccess) {
           await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
           logger.info(`[AuthService] Updated user ${userId} role to admin based on token holdings`);
         }
@@ -960,7 +958,7 @@ class AuthService {
       logger.info(
         `[AuthService] Identity ${provider}:${normalizedProviderId} successfully linked to user ${userId}`
       );
-      return { success: true, isAdmin };
+      return { success: true, userAccessLevel };
     } catch (error) {
       logger.error(
         `[AuthService] Error linking identity ${provider}:${providerId} to user ${userId}:`,
@@ -1027,8 +1025,8 @@ class AuthService {
         const linkedWallet = await getLinkedWallet(userId);
         if (linkedWallet && linkedWallet.provider_id) {
           logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet.provider_id}. Checking role...`);
-          const isAdmin = await checkAdminRole(linkedWallet.provider_id);
-          userRole = isAdmin ? 'admin' : 'user';
+          const userAccessLevel = await this.getUserAccessLevel(linkedWallet.provider_id);
+          userRole = userAccessLevel.hasAccess ? 'admin' : 'user';
           logger.info(`[handleEmailVerification] Role determined as: ${userRole}`);
 
           // Опционально: Обновить роль в таблице users

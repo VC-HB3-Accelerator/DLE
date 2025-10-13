@@ -57,6 +57,20 @@ const router = useRouter();
 const route = useRoute();
 const isLoading = ref(true);
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[SettingsView] Clearing settings data');
+    // Очищаем данные при выходе из системы
+    // SettingsView не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[SettingsView] Refreshing settings data');
+    // SettingsView не нуждается в обновлении данных
+  });
+});
+
 // Вычисляемый заголовок страницы в зависимости от роута
 const pageTitle = computed(() => {
   if (route.name === 'settings-blockchain-dle-deploy') {

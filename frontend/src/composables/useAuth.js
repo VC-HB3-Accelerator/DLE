@@ -19,12 +19,11 @@ const authType = ref(null);
 const userId = ref(null);
 const address = ref(null);
 const telegramId = ref(null);
-const isAdmin = ref(false);
 const email = ref(null);
 const processedGuestIds = ref([]);
 const identities = ref([]);
 const tokenBalances = ref([]);
-const userAccessLevel = ref({ level: 'user', tokenCount: 0, hasAccess: false });
+const userAccessLevel = ref({ level: 'guest', tokenCount: 0, hasAccess: false });
 
 // Функция для обновления списка идентификаторов
 const updateIdentities = async () => {
@@ -134,8 +133,8 @@ const updateAuth = async ({
   userId: newUserId,
   address: newAddress,
   telegramId: newTelegramId,
-  isAdmin: newIsAdmin,
   email: newEmail,
+  userAccessLevel: newUserAccessLevel,
 }) => {
   const wasAuthenticated = isAuthenticated.value;
   const previousUserId = userId.value;
@@ -146,8 +145,8 @@ const updateAuth = async ({
     newUserId,
     newAddress,
     newTelegramId,
-    newIsAdmin,
     newEmail,
+    newUserAccessLevel,
   });
 
   // Убедимся, что переменные являются реактивными
@@ -156,8 +155,31 @@ const updateAuth = async ({
   userId.value = newUserId || null;
   address.value = newAddress || null;
   telegramId.value = newTelegramId || null;
-  isAdmin.value = newIsAdmin === true;
   email.value = newEmail || null;
+  
+  // Обновляем userAccessLevel только если он изменился
+  if (newUserAccessLevel) {
+    // Используем userAccessLevel из ответа сервера
+    console.log('[updateAuth] Setting userAccessLevel from server:', JSON.stringify(newUserAccessLevel, null, 2));
+    userAccessLevel.value = newUserAccessLevel;
+  } else if (authenticated && newAddress) {
+    // Если userAccessLevel не передан, но пользователь аутентифицирован, запрашиваем его
+    try {
+      const accessLevel = await checkUserAccessLevel(newAddress);
+      if (accessLevel && accessLevel.level !== userAccessLevel.value.level) {
+        console.log('[updateAuth] Updating userAccessLevel from API:', accessLevel);
+        userAccessLevel.value = accessLevel;
+      }
+    } catch (error) {
+      console.error('Error updating userAccessLevel in updateAuth:', error);
+    }
+  } else if (!authenticated) {
+    // Сбрасываем userAccessLevel для неавторизованных пользователей
+    if (userAccessLevel.value.level !== 'guest') {
+      console.log('[updateAuth] Resetting userAccessLevel to guest');
+      userAccessLevel.value = { level: 'guest', tokenCount: 0, hasAccess: false };
+    }
+  }
 
   // Кэшируем данные аутентификации
   localStorage.setItem(
@@ -168,7 +190,6 @@ const updateAuth = async ({
       userId: newUserId,
       address: newAddress,
       telegramId: newTelegramId,
-      isAdmin: newIsAdmin,
       email: newEmail,
     })
   );
@@ -204,8 +225,34 @@ const updateAuth = async ({
     address: address.value,
     telegramId: telegramId.value,
     email: email.value,
-    isAdmin: isAdmin.value,
   });
+  
+  // Уведомляем все компоненты об изменении состояния аутентификации
+  // Только если состояние действительно изменилось
+  if (wasAuthenticated !== isAuthenticated.value || previousUserId !== newUserId) {
+    // Централизованная очистка данных при отключении
+    if (!isAuthenticated.value && wasAuthenticated) {
+      console.log('[useAuth] User logged out, clearing application data');
+      // Очищаем глобальные данные приложения
+      window.dispatchEvent(new CustomEvent('clear-application-data'));
+    }
+    
+    // Централизованное обновление данных при подключении
+    if (isAuthenticated.value && !wasAuthenticated) {
+      console.log('[useAuth] User logged in, refreshing application data');
+      window.dispatchEvent(new CustomEvent('refresh-application-data'));
+    }
+    
+    window.dispatchEvent(new CustomEvent('auth-state-changed', {
+      detail: {
+        authenticated: isAuthenticated.value,
+        authType: authType.value,
+        userId: userId.value,
+        address: address.value,
+        userAccessLevel: userAccessLevel.value
+      }
+    }));
+  }
 
   // Если пользователь только что аутентифицировался или сменил аккаунт,
   // пробуем связать сообщения
@@ -314,22 +361,34 @@ const linkMessages = async () => {
 const checkAuth = async () => {
   try {
     const response = await axios.get('/auth/check');
-    console.log('Auth check response:', response.data);
+    console.log('Auth check response:', JSON.stringify(response.data, null, 2));
 
     const wasAuthenticated = isAuthenticated.value;
     const previousUserId = userId.value;
     const previousAuthType = authType.value;
 
-    // Обновляем данные авторизации через updateAuth вместо прямого изменения
-    await updateAuth({
-      authenticated: response.data.authenticated,
-      authType: response.data.authType,
-      userId: response.data.userId,
-      address: response.data.address,
-      telegramId: response.data.telegramId,
-      email: response.data.email,
-      isAdmin: response.data.isAdmin,
-    });
+    // Проверяем, изменилось ли состояние аутентификации
+    const authChanged = (
+      wasAuthenticated !== response.data.authenticated ||
+      previousUserId !== response.data.userId ||
+      previousAuthType !== response.data.authType
+    );
+
+    if (authChanged) {
+      console.log('[checkAuth] Authentication state changed, updating...');
+      // Обновляем данные авторизации через updateAuth вместо прямого изменения
+      await updateAuth({
+        authenticated: response.data.authenticated,
+        authType: response.data.authType,
+        userId: response.data.userId,
+        address: response.data.address,
+        telegramId: response.data.telegramId,
+        email: response.data.email,
+        userAccessLevel: response.data.userAccessLevel, // Добавляем userAccessLevel из ответа сервера
+      });
+    } else {
+      console.log('[checkAuth] No authentication changes, skipping update');
+    }
 
     // Если пользователь аутентифицирован, обновляем список идентификаторов и связываем сообщения
     if (response.data.authenticated) {
@@ -385,7 +444,6 @@ const disconnect = async () => {
       address: null,
       telegramId: null,
       email: null,
-      isAdmin: false,
     });
 
     // Обновляем отображение отключенного состояния
@@ -399,7 +457,6 @@ const disconnect = async () => {
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('userId');
     localStorage.removeItem('address');
-    localStorage.removeItem('isAdmin');
     localStorage.removeItem('guestId');
     localStorage.removeItem('guestMessages');
     localStorage.removeItem('telegramId');
@@ -507,7 +564,6 @@ const authApi = {
   authType,
   userId,
   address,
-  isAdmin,
   telegramId,
   email,
   identities,

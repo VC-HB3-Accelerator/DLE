@@ -80,6 +80,20 @@ import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
 import wsClient from '@/utils/websocket';
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[SecuritySettingsView] Clearing security data');
+    // Очищаем данные при выходе из системы
+    // SecuritySettingsView не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[SecuritySettingsView] Refreshing security data');
+    // SecuritySettingsView не нуждается в обновлении данных
+  });
+});
+
 // Состояние для отображения/скрытия дополнительных настроек
 const showRpcSettings = ref(false);
 const showAuthSettings = ref(false);
@@ -88,7 +102,6 @@ const isSaving = ref(false);
 const showNoAccessModal = ref(false);
 
 // Получаем контекст авторизации
-const { isAdmin } = useAuthContext();
 const { canManageSettings } = usePermissions();
 
 // Настройки безопасности

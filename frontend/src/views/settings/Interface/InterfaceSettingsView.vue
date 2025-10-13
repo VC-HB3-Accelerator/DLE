@@ -73,7 +73,13 @@
         <span class="feature">✓ Безопасно</span>
         <span class="feature">✓ Для локальных и VPS</span>
       </div>
-      <button class="btn-primary" @click="goToWebSsh">Подробнее</button>
+      <button 
+        class="btn-primary" 
+        @click="canManageSettings ? goToWebSsh() : null"
+        :disabled="!canManageSettings"
+      >
+        Подробнее
+      </button>
     </div>
 
     <!-- Модальное окно с формой WEB SSH -->
@@ -93,9 +99,23 @@ import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import NoAccessModal from '@/components/NoAccessModal.vue';
+import { onMounted } from 'vue';
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[InterfaceSettingsView] Clearing interface data');
+    // Очищаем данные при выходе из системы
+    // InterfaceSettingsView не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[InterfaceSettingsView] Refreshing interface data');
+    // InterfaceSettingsView не нуждается в обновлении данных
+  });
+});
 import { ref } from 'vue';
 const router = useRouter();
-const { isAdmin } = useAuthContext();
 const { canManageSettings } = usePermissions();
 const goBack = () => router.push('/settings');
 

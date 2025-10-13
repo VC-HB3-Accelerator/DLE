@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import WebSshForm from '@/components/WebSshForm.vue';
 import Header from '@/components/Header.vue';
@@ -57,6 +57,20 @@ const toggleSidebar = () => {
 const auth = useAuthContext();
 const isAuthenticated = auth.isAuthenticated.value;
 const identities = auth.identities?.value || [];
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[InterfaceWebSshView] Clearing WebSSH data');
+    // Очищаем данные при выходе из системы
+    // InterfaceWebSshView не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[InterfaceWebSshView] Refreshing WebSSH data');
+    // InterfaceWebSshView не нуждается в обновлении данных
+  });
+});
 const tokenBalances = auth.tokenBalances?.value || [];
 const isLoadingTokens = false;
 </script>

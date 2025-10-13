@@ -14,7 +14,7 @@
   <div class="chat-container" :style="{ '--chat-input-height': chatInputHeight + 'px' }">
     <div ref="messagesContainer" class="chat-messages" @scroll="handleScroll">
       <div v-for="message in messages" :key="message.id" :class="['message-wrapper', { 'selected-message': selectedMessageIds.includes(message.id) }]">
-        <template v-if="isAdmin">
+        <template v-if="props.canSelectMessages">
           <input type="checkbox" class="admin-select-checkbox" :checked="selectedMessageIds.includes(message.id)" @change="() => toggleSelectMessage(message.id)" />
         </template>
         <Message :message="message" />
@@ -28,7 +28,7 @@
           :value="newMessage"
           @input="handleInput"
           placeholder="Введите сообщение..."
-          :disabled="isLoading"
+          :disabled="isLoading || !props.canSend"
           rows="1"
           autofocus
           @keydown.enter.prevent="sendMessage"
@@ -43,6 +43,7 @@
             @mouseup="stopAudioRecording"
             @mouseleave="stopAudioRecording"
             :class="{ 'recording': isAudioRecording }"
+            :disabled="!props.canSend"
           >
             <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
               <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" fill="currentColor"/>
@@ -56,12 +57,13 @@
             @mouseup="stopVideoRecording"
             @mouseleave="stopVideoRecording"
             :class="{ 'recording': isVideoRecording }"
+            :disabled="!props.canSend"
           >
             <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
               <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" fill="currentColor"/>
             </svg>
           </button>
-          <button class="chat-icon-btn" title="Прикрепить файл" @click="handleFileUpload">
+          <button class="chat-icon-btn" title="Прикрепить файл" @click="handleFileUpload" :disabled="!props.canSend">
             <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
               <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" fill="currentColor"/>
             </svg>
@@ -81,7 +83,7 @@
               <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" fill="currentColor"/>
             </svg>
           </button>
-          <button v-if="props.isAdmin" class="chat-icon-btn ai-reply-btn" title="Сгенерировать ответ ИИ" @click="handleAiReply" :disabled="isAiLoading">
+          <button v-if="props.canGenerateAI" class="chat-icon-btn ai-reply-btn" title="Сгенерировать ответ ІІ" @click="handleAiReply" :disabled="isAiLoading">
             <template v-if="isAiLoading">
               <svg class="ai-spinner" width="22" height="22" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
             </template>
@@ -125,7 +127,11 @@ const props = defineProps({
   attachments: Array, // Для v-model
   // Добавляем пропс для проверки, есть ли еще сообщения для загрузки
   hasMoreMessages: Boolean,
-  isAdmin: { type: Boolean, default: false }
+  
+  // Новые props для точного контроля прав
+  canSend: { type: Boolean, default: true },           // Может отправлять сообщения
+  canGenerateAI: { type: Boolean, default: false },    // Может генерировать AI-ответы
+  canSelectMessages: { type: Boolean, default: false } // Может выбирать сообщения
 });
 
 const emit = defineEmits([
@@ -347,7 +353,7 @@ const clearInput = () => {
 
 // --- Отправка сообщения --- 
 const isSendDisabled = computed(() => {
-  return props.isLoading || (!props.newMessage.trim() && localAttachments.value.length === 0);
+  return props.isLoading || !props.canSend || (!props.newMessage.trim() && localAttachments.value.length === 0);
 });
 
 const sendMessage = () => {

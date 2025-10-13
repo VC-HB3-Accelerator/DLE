@@ -137,7 +137,6 @@ export const connectWallet = async () => {
         success: true,
         address: normalizedAddress,
         userId: verifyResponse.data.userId,
-        isAdmin: verifyResponse.data.isAdmin,
       };
     } else {
       return {

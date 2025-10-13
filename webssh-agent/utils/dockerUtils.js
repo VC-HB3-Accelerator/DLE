@@ -1,10 +1,33 @@
-const Docker = require('dockerode');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs-extra');
 const { execSshCommand, execScpCommand } = require('./sshUtils');
 const log = require('./logger');
 
-// Инициализируем Docker клиент через socket
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+// Безопасные CLI команды
+const execAsync = promisify(exec);
+
+// Разрешенные Docker команды для безопасности
+const ALLOWED_DOCKER_COMMANDS = [
+  'docker save',
+  'docker load', 
+  'docker images',
+  'docker ps',
+  'docker run'
+];
+
+// Валидация команд
+const validateDockerCommand = (command) => {
+  return ALLOWED_DOCKER_COMMANDS.some(allowed => command.startsWith(allowed));
+};
+
+// Безопасное выполнение Docker команд
+const execDockerCommand = async (command) => {
+  if (!validateDockerCommand(command)) {
+    throw new Error(`Command not allowed: ${command}`);
+  }
+  return execAsync(command);
+};
 
 /**
  * Экспорт Docker образов и данных с локальной машины
@@ -30,21 +53,12 @@ const exportDockerImages = async (sendWebSocketLog) => {
     sendWebSocketLog('info', `📦 Экспорт образа: ${image.name}`, 'export_images', progress);
     
     try {
-      const dockerImage = docker.getImage(image.name);
-      const stream = await dockerImage.get();
       const outputPath = `/tmp/${image.file}`;
       
-      // Сохраняем stream в файл
-      await new Promise((resolve, reject) => {
-        const writeStream = fs.createWriteStream(outputPath);
-        stream.pipe(writeStream);
-        stream.on('end', () => {
-          sendWebSocketLog('success', `✅ Экспорт ${image.name} завершен`, 'export_images', progress);
-          resolve();
-        });
-        stream.on('error', reject);
-        writeStream.on('error', reject);
-      });
+      // Безопасный экспорт через CLI
+      await execDockerCommand(`docker save ${image.name} > ${outputPath}`);
+      
+      sendWebSocketLog('success', `✅ Экспорт ${image.name} завершен`, 'export_images', progress);
     } catch (error) {
       log.error(`Ошибка экспорта ${image.name}: ${error.message}`);
       sendWebSocketLog('error', `❌ Ошибка экспорта ${image.name}`, 'export_images', progress);
@@ -75,18 +89,9 @@ const exportDockerImages = async (sendWebSocketLog) => {
     const tarFiles = images.map(img => img.file).join(' ');
     const dataFiles = 'postgres_data.tar.gz ollama_data.tar.gz vector_search_data.tar.gz';
     
-    // Создаем архив через временный контейнер
-    const container = await docker.createContainer({
-      Image: 'alpine',
-      Cmd: ['sh', '-c', `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles}`],
-      HostConfig: {
-        Binds: ['/tmp:/tmp'],
-        AutoRemove: true
-      }
-    });
-    
-    await container.start();
-    await container.wait();
+    // Безопасное создание архива через CLI
+    const archiveCommand = `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles}`;
+    await execDockerCommand(archiveCommand);
     
     sendWebSocketLog('success', '✅ Архив создан успешно', 'export_data', 80);
   } catch (error) {
@@ -103,20 +108,9 @@ const exportDockerImages = async (sendWebSocketLog) => {
  */
 const exportVolumeData = async (volumeName, outputFile, sendWebSocketLog, progress) => {
   try {
-    const container = await docker.createContainer({
-      Image: 'alpine',
-      Cmd: ['tar', 'czf', `/backup/${outputFile}`, '-C', '/data', '.'],
-      HostConfig: {
-        Binds: [
-          `${volumeName}:/data:ro`,
-          '/tmp:/backup'
-        ],
-        AutoRemove: true
-      }
-    });
-    
-    await container.start();
-    await container.wait();
+    // Безопасный экспорт через CLI с временным контейнером
+    const exportCommand = `docker run --rm -v ${volumeName}:/data:ro -v /tmp:/backup alpine tar czf /backup/${outputFile} -C /data .`;
+    await execDockerCommand(exportCommand);
     
     sendWebSocketLog('success', `✅ Экспорт ${outputFile} завершен`, 'export_data', progress);
   } catch (error) {

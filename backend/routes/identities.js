@@ -69,7 +69,8 @@ router.post('/link', requireAuth, async (req, res, next) => {
     // Обновляем сессию
     if (type === 'wallet') {
       req.session.address = value;
-      req.session.isAdmin = await authService.checkTokensAndUpdateRole(value);
+      const userAccessLevel = await authService.getUserAccessLevel(value);
+      req.session.userAccessLevel = userAccessLevel;
     } else if (type === 'telegram') {
       req.session.telegramId = value;
     } else if (type === 'email') {
@@ -79,7 +80,7 @@ router.post('/link', requireAuth, async (req, res, next) => {
     res.json({
       success: true,
       message: 'Identity linked successfully',
-      isAdmin: req.session.isAdmin,
+      userAccessLevel: req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false },
     });
   } catch (error) {
     logger.error('Error linking identity:', error);

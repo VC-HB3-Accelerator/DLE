@@ -58,6 +58,20 @@ const editMode = ref(false);
 
 const auth = useAuthContext();
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[TelegramSettingsView] Clearing Telegram settings data');
+    // Очищаем данные при выходе из системы
+    settings.value = { botToken: '', webhookUrl: '', enabled: false };
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[TelegramSettingsView] Refreshing Telegram settings data');
+    loadTelegramSettings(); // Обновляем данные при входе в систему
+  });
+});
+
 const loadTelegramSettings = async () => {
   // Не загружаем если не авторизован
   if (!auth.isAuthenticated.value) {

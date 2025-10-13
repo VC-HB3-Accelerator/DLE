@@ -180,6 +180,20 @@ const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet
 
 const { deleteIdentity } = useAuthContext();
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[Sidebar] Clearing sidebar data');
+    // Очищаем данные при выходе из системы
+    // Sidebar не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[Sidebar] Refreshing sidebar data');
+    // Sidebar не нуждается в обновлении данных
+  });
+});
+
 // Обработчики событий
 const handleWalletAuth = () => {
   emit('wallet-auth');

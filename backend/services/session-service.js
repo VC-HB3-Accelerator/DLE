@@ -225,7 +225,7 @@ class SessionService {
         return false;
       }
 
-      const { userId, authType, isAdmin, ...otherData } = authData;
+      const { userId, authType, userAccessLevel, ...otherData } = authData;
 
       if (!userId || !authType) {
         logger.warn('[SessionService] Missing userId or authType in authData');
@@ -237,8 +237,8 @@ class SessionService {
       session.authType = authType;
       session.authenticated = true;
 
-      if (isAdmin !== undefined) {
-        session.isAdmin = isAdmin;
+      if (userAccessLevel !== undefined) {
+        session.userAccessLevel = userAccessLevel;
       }
 
       // Обновляем дополнительные данные в зависимости от типа аутентификации
@@ -314,7 +314,7 @@ class SessionService {
       delete session.userId;
       delete session.authenticated;
       delete session.authType;
-      delete session.isAdmin;
+      delete session.userAccessLevel;
       delete session.address;
       delete session.email;
       delete session.telegramId;

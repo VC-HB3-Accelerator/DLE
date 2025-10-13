@@ -14,6 +14,8 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('../shared/permissions');
 const { broadcastTagsUpdate } = require('../wsHub');
 
 // console.log('[tags.js] ROUTER LOADED');
@@ -24,7 +26,7 @@ router.use((req, res, next) => {
 });
 
 // PATCH /api/tags/user/:userId — установить теги пользователю
-router.patch('/user/:userId', async (req, res) => {
+router.patch('/user/:userId', requireAuth, requirePermission(PERMISSIONS.MANAGE_TAGS), async (req, res) => {
   const userIdParam = req.params.userId;
   const { tags } = req.body; // массив tagIds (id строк из таблицы тегов)
   
@@ -64,7 +66,8 @@ router.patch('/user/:userId', async (req, res) => {
 });
 
 // GET /api/tags/user/:userId — получить все теги пользователя
-router.get('/user/:userId', async (req, res) => {
+// Получение тегов пользователя
+router.get('/user/:userId', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
   const userIdParam = req.params.userId;
   
   // Гостевые пользователи (guest_123) не имеют тегов
@@ -90,7 +93,8 @@ router.get('/user/:userId', async (req, res) => {
 });
 
 // DELETE /api/tags/user/:userId/tag/:tagId — удалить тег у пользователя
-router.delete('/user/:userId/tag/:tagId', async (req, res) => {
+// Удаление тега у пользователя
+router.delete('/user/:userId/tag/:tagId', requireAuth, requirePermission(PERMISSIONS.MANAGE_TAGS), async (req, res) => {
   const userIdParam = req.params.userId;
   
   // Гостевые пользователи (guest_123) не могут иметь теги
@@ -121,7 +125,8 @@ router.delete('/user/:userId/tag/:tagId', async (req, res) => {
 });
 
 // POST /api/tags/user/:rowId/multirelations — массовое обновление тегов через multirelations
-router.post('/user/:rowId/multirelations', async (req, res) => {
+// Добавление множественных тегов пользователю
+router.post('/user/:rowId/multirelations', requireAuth, requirePermission(PERMISSIONS.MANAGE_TAGS), async (req, res) => {
   const rowId = Number(req.params.rowId);
   const { column_id, to_table_id, to_row_ids } = req.body; // to_row_ids: массив id тегов
   if (!Array.isArray(to_row_ids)) return res.status(400).json({ error: 'to_row_ids должен быть массивом' });

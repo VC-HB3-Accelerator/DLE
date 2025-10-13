@@ -15,9 +15,9 @@
     <h2>{{ tableMeta.name }}</h2>
     <div class="table-desc">{{ tableMeta.description }}</div>
     <div class="table-header-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; margin-bottom: 18px;">
-      <el-button v-if="canEdit" type="danger" :disabled="!selectedRows.length" @click="deleteSelectedRows">Удалить выбранные</el-button>
+      <el-button v-if="canEditData" type="danger" :disabled="!selectedRows.length" @click="deleteSelectedRows">Удалить выбранные</el-button>
       <span v-if="selectedRows.length">Выбрано: {{ selectedRows.length }}</span>
-      <button v-if="canEdit" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
+      <button v-if="canEditData" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
         {{ rebuilding ? 'Пересборка...' : 'Пересобрать индекс' }}
       </button>
       <el-button @click="resetFilters" type="default" icon="el-icon-refresh">Сбросить фильтры</el-button>
@@ -68,7 +68,7 @@
           </template>
           <template v-else>
             <span>{{ col.name }}</span>
-            <button v-if="canEdit" class="col-menu" @click.stop="openColMenu(col, $event)">⋮</button>
+            <button v-if="canEditData" class="col-menu" @click.stop="openColMenu(col, $event)">⋮</button>
           </template>
         </template>
         <template #default="{ row }">
@@ -90,7 +90,7 @@
         :resizable="false"
       >
         <template #header>
-          <button v-if="canEdit" class="add-col-btn" @click.stop="openAddMenu($event)" title="Добавить">
+          <button v-if="canEditData" class="add-col-btn" @click.stop="openAddMenu($event)" title="Добавить">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="11" cy="11" r="10" fill="#f3f4f6" stroke="#b6c6e6"/>
               <rect x="10" y="5.5" width="2" height="11" rx="1" fill="#4f8cff"/>
@@ -105,7 +105,7 @@
           </teleport>
         </template>
         <template #default="{ row }">
-          <button v-if="canEdit" class="row-menu" @click.stop="openRowMenu(row, $event)">⋮</button>
+          <button v-if="canEditData" class="row-menu" @click.stop="openRowMenu(row, $event)">⋮</button>
           <teleport to="body">
             <div v-if="openedRowMenuId === row.id" class="context-menu" :style="rowMenuStyle">
               <button class="menu-item" @click="addRowAfter(row)">Добавить строку</button>
@@ -172,6 +172,21 @@ import TableCell from './TableCell.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import axios from 'axios';
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[UserTableView] Clearing table data');
+    // Очищаем данные при выходе из системы
+    tableData.value = [];
+    columns.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[UserTableView] Refreshing table data');
+    loadTableData(); // Обновляем данные при входе в систему
+  });
+});
 // Импортируем компоненты Element Plus
 import { ElSelect, ElOption, ElButton } from 'element-plus';
 import websocketService from '../../services/websocketService';
@@ -180,8 +195,7 @@ import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
 let unsubscribeFromTableUpdate = null;
 let unsubscribeFromTagsUpdate = null;
 
-const { isAdmin } = useAuthContext();
-const { canEdit } = usePermissions();
+const { canEditData } = usePermissions();
 const rebuilding = ref(false);
 const rebuildStatus = ref(null);
 

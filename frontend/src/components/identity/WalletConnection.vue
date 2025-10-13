@@ -30,6 +30,20 @@
 <script setup>
   import { ref, computed } from 'vue';
   import { useAuthContext } from '@/composables/useAuth';
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[WalletConnection] Clearing wallet connection data');
+    // Очищаем данные при выходе из системы
+    // WalletConnection не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[WalletConnection] Refreshing wallet connection data');
+    // WalletConnection не нуждается в обновлении данных
+  });
+});
   import { connectWithWallet } from '@/services/wallet';
 
   const emit = defineEmits(['close']);

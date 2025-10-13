@@ -13,13 +13,13 @@
 <template>
   <div class="contact-table-modal">
     <div class="contact-table-header">
-      <el-button v-if="canRead" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">Личные сообщения</el-button>
-      <el-button v-if="canEdit" type="success" :disabled="!selectedIds.length" @click="() => openChatForSelected()" style="margin-right: 1em;">Публичное сообщение</el-button>
-      <el-button v-if="canRead" type="warning" :disabled="!selectedIds.length" @click="() => openPrivateChatForSelected()" style="margin-right: 1em;">Приватное сообщение</el-button>
+      <el-button v-if="canChatWithAdmins" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">Личные сообщения</el-button>
+      <el-button v-if="canSendToUsers" type="success" :disabled="!selectedIds.length" @click="() => openChatForSelected()" style="margin-right: 1em;">Публичное сообщение</el-button>
+      <el-button v-if="canViewContacts" type="warning" :disabled="!selectedIds.length" @click="() => openPrivateChatForSelected()" style="margin-right: 1em;">Приватное сообщение</el-button>
       <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
-      <el-button v-if="canDelete" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
-      <el-button v-if="canDelete" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
-      <el-button v-if="canEdit" type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
+      <el-button v-if="canDeleteMessages" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
+      <el-button v-if="canDeleteData" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
+      <el-button v-if="canEditData" type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
     <el-form :inline="true" class="filters-form" label-position="top">
@@ -77,7 +77,7 @@
     <table class="contact-table">
         <thead>
           <tr>
-            <th v-if="canRead"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
+            <th v-if="canViewContacts"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
             <th>Тип</th>
             <th>Имя</th>
             <th>Email</th>
@@ -89,9 +89,11 @@
         </thead>
       <tbody>
         <tr v-for="contact in contactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
-          <td v-if="canRead"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
+          <td v-if="canViewContacts"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
           <td>
             <span v-if="contact.contact_type === 'admin'" class="admin-badge">Админ</span>
+            <span v-else-if="contact.contact_type === 'editor'" class="editor-badge">Редактор</span>
+            <span v-else-if="contact.contact_type === 'readonly'" class="readonly-badge">Чтение</span>
             <span v-else class="user-badge">Пользователь</span>
           </td>
           <td>{{ contact.name || '-' }}</td>
@@ -133,7 +135,7 @@ const contactsArray = ref([]); // теперь управляем вручную
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
-const { canRead, canEdit, canDelete, canManageSettings } = usePermissions();
+const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData } = usePermissions();
 
 // Фильтры
 const filterSearch = ref('');
@@ -548,6 +550,22 @@ async function deleteMessagesSelected() {
 .admin-badge {
   background: #e3f2fd;
   color: #1976d2;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85em;
+}
+
+.editor-badge {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.85em;
+}
+
+.readonly-badge {
+  background: #e8f5e8;
+  color: #2e7d32;
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 0.85em;

@@ -54,7 +54,7 @@ import { usePermissions } from '@/composables/usePermissions';
 
 const router = useRouter();
 const route = useRoute();
-const { canRead } = usePermissions();
+const { canChatWithAdmins } = usePermissions();
 
 const isLoading = ref(true);
 const personalMessages = ref([]);
@@ -150,14 +150,14 @@ const formatDate = (dateString) => {
 
 // Следим за изменениями роута для обновления при возврате на страницу
 watch(() => route.path, async (newPath) => {
-  if (newPath === '/personal-messages' && canRead.value) {
+  if (newPath === '/personal-messages' && canChatWithAdmins.value) {
     console.log('[PersonalMessagesView] Возврат на страницу, обновляем список');
     await fetchPersonalMessages();
   }
 });
 
 onMounted(async () => {
-  if (canRead.value) {
+  if (canChatWithAdmins.value) {
     await fetchPersonalMessages();
     connectWebSocket();
   }

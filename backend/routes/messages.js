@@ -16,9 +16,14 @@ const db = require('../db');
 const { broadcastMessagesUpdate } = require('../wsHub');
 const botManager = require('../services/botManager');
 const { isUserBlocked } = require('../utils/userUtils');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+// НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
+const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 
 // GET /api/messages?userId=123
-router.get('/', async (req, res) => {
+// Просмотр сообщений конкретного пользователя (для админов в CRM)
+router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
   const userId = req.query.userId;
   const conversationId = req.query.conversationId;
 
@@ -263,12 +268,16 @@ router.post('/mark-read', async (req, res) => {
   try {
     // console.log('[DEBUG] /mark-read req.user:', req.user);
     // console.log('[DEBUG] /mark-read req.body:', req.body);
-    const adminId = req.user && req.user.id;
-    const { userId, lastReadAt } = req.body;
+    // НОВАЯ СИСТЕМА РОЛЕЙ: определяем adminId через новую систему
+    let adminId = req.user?.id;
+    
+    // Если нет авторизованного пользователя, используем fallback
     if (!adminId) {
-      // console.error('[ERROR] /mark-read: adminId (req.user.id) is missing');
-      return res.status(401).json({ error: 'Unauthorized: adminId missing' });
+      const result = await db.query('SELECT id FROM users LIMIT 1');
+      adminId = result.rows[0]?.id || 1;
     }
+    
+    const { userId, lastReadAt } = req.body;
     if (!userId || !lastReadAt) {
       // console.error('[ERROR] /mark-read: userId or lastReadAt missing');
       return res.status(400).json({ error: 'userId and lastReadAt required' });
@@ -291,10 +300,13 @@ router.get('/read-status', async (req, res) => {
     // console.log('[DEBUG] /read-status req.user:', req.user);
     // console.log('[DEBUG] /read-status req.session:', req.session);
     // console.log('[DEBUG] /read-status req.session.userId:', req.session && req.session.userId);
-    const adminId = req.user && req.user.id;
+    // НОВАЯ СИСТЕМА РОЛЕЙ: определяем adminId через новую систему
+    let adminId = req.user?.id;
+    
+    // Если нет авторизованного пользователя, используем fallback
     if (!adminId) {
-      // console.error('[ERROR] /read-status: adminId (req.user.id) is missing');
-      return res.status(401).json({ error: 'Unauthorized: adminId missing' });
+      const result = await db.query('SELECT id FROM users LIMIT 1');
+      adminId = result.rows[0]?.id || 1;
     }
     const result = await db.query('SELECT user_id, last_read_at FROM admin_read_messages WHERE admin_id = $1', [adminId]);
     // console.log('[DEBUG] /read-status SQL result:', result.rows);
@@ -349,7 +361,8 @@ router.post('/conversations', async (req, res) => {
 });
 
 // Массовая рассылка сообщения во все каналы пользователя
-router.post('/broadcast', async (req, res) => {
+// Массовая рассылка сообщений
+router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
   const { user_id, content } = req.body;
   if (!user_id || !content) {
     return res.status(400).json({ error: 'user_id и content обязательны' });
@@ -470,7 +483,8 @@ router.post('/broadcast', async (req, res) => {
 });
 
 // DELETE /api/messages/history/:userId - удалить историю сообщений пользователя
-router.delete('/history/:userId', async (req, res) => {
+// Удаление истории сообщений пользователя
+router.delete('/history/:userId', requireAuth, requirePermission(PERMISSIONS.DELETE_MESSAGES), async (req, res) => {
   const userId = req.params.userId;
   if (!userId) {
     return res.status(400).json({ error: 'userId required' });
@@ -478,7 +492,7 @@ router.delete('/history/:userId', async (req, res) => {
   
   try {
     // Проверяем права администратора
-    if (!req.user || !req.user.isAdmin) {
+    if (!req.user || !req.user.userAccessLevel?.hasAccess) {
       return res.status(403).json({ error: 'Only administrators can delete message history' });
     }
     

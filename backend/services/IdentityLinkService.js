@@ -210,10 +210,10 @@ class IdentityLinkService {
       );
 
       // 6. Проверяем админские права
-      const { checkAdminRole } = require('./admin-role');
-      const isAdmin = await checkAdminRole(walletAddress);
+      const authService = require('./auth-service');
+      const userAccessLevel = await authService.getUserAccessLevel(walletAddress);
 
-      if (isAdmin) {
+      if (userAccessLevel.hasAccess) {
         await db.getQuery()(
           `UPDATE users SET role = $1 WHERE id = $2`,
           ['editor', userId]
@@ -235,7 +235,7 @@ class IdentityLinkService {
         userId,
         identifier,
         provider: tokenData.source_provider,
-        role: isAdmin ? 'admin' : 'user'
+        role: userAccessLevel.hasAccess ? 'admin' : 'user'
       };
 
     } catch (error) {

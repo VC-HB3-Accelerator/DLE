@@ -64,6 +64,18 @@ onMounted(() => {
       });
     }
   });
+  
+  // Подписываемся на централизованные события очистки и обновления данных
+  window.addEventListener('clear-application-data', () => {
+    console.log('[Header] Clearing header data');
+    // Очищаем данные при выходе из системы
+    // Header не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[Header] Refreshing header data');
+    // Header не нуждается в обновлении данных
+  });
 });
 
 // Очищаем наблюдатель при удалении компонента

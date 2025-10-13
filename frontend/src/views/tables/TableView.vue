@@ -17,10 +17,10 @@
       <button class="nav-btn" @click="goToTables">Таблицы</button>
       <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
       <button class="close-btn" @click="closeTable">Закрыть</button>
-      <button v-if="canEdit" class="action-btn" @click="goToEdit">Редактировать</button>
-      <button v-if="canDelete" class="danger-btn" @click="goToDelete">Удалить</button>
+      <button v-if="canEditData" class="action-btn" @click="goToEdit">Редактировать</button>
+      <button v-if="canDeleteData" class="danger-btn" @click="goToDelete">Удалить</button>
     </div>
-    <UserTableView v-if="canRead" :table-id="Number($route.params.id)" />
+    <UserTableView v-if="canViewData" :table-id="Number($route.params.id)" />
     <div v-else class="empty-table-placeholder">Нет данных для отображения</div>
     </div>
   </BaseLayout>
@@ -32,10 +32,25 @@ import UserTableView from '../../components/tables/UserTableView.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
+import { onMounted } from 'vue';
 const $route = useRoute();
 const router = useRouter();
-const { isAdmin } = useAuthContext();
-const { canRead, canEdit, canDelete } = usePermissions();
+const { canViewData, canEditData, canDeleteData } = usePermissions();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[TableView] Clearing table data');
+    // Очищаем данные при выходе из системы
+    tableData.value = [];
+    columns.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[TableView] Refreshing table data');
+    loadTableData(); // Обновляем данные при входе в систему
+  });
+});
 
 function closeTable() {
   if (window.history.length > 1) {

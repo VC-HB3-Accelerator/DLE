@@ -15,6 +15,8 @@ const router = express.Router();
 const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('../shared/permissions');
 const { deleteUserById } = require('../services/userDeleteService');
 const { broadcastContactsUpdate } = require('../wsHub');
 // const userService = require('../services/userService');
@@ -64,8 +66,8 @@ router.put('/profile', requireAuth, async (req, res) => {
 });
 */
 
-// Получение списка пользователей с фильтрацией
-router.get('/', requireAuth, async (req, res, next) => {
+// Получение списка пользователей с фильтрацией (CRM/Контакты)
+router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res, next) => {
   try {
     const {
       tagIds = '',
@@ -145,8 +147,9 @@ router.get('/', requireAuth, async (req, res, next) => {
         END as last_name,
         u.created_at, u.preferred_language, u.is_blocked, u.role,
         CASE 
-          WHEN u.role = 'editor' THEN 'admin'
-          WHEN u.role = 'readonly' THEN 'admin'
+          WHEN u.role = 'editor' THEN 'editor'
+          WHEN u.role = 'readonly' THEN 'readonly'
+          WHEN u.role = 'admin' THEN 'admin'
           ELSE 'user'
         END as contact_type,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
@@ -345,29 +348,67 @@ router.get('/read-contacts-status', async (req, res) => {
 // Пометить контакт как просмотренный
 router.post('/mark-contact-read', async (req, res) => {
   try {
-    const adminId = req.user && req.user.id;
+    console.log('[DEBUG] /mark-contact-read: req.body:', req.body);
+    console.log('[DEBUG] /mark-contact-read: req.user:', req.user);
+    console.log('[DEBUG] /mark-contact-read: req.session:', req.session);
+    console.log('[DEBUG] /mark-contact-read: req.user.userAccessLevel:', req.user?.userAccessLevel);
+    
     const { contactId } = req.body;
     
-    if (!adminId || !contactId) {
-      return res.status(400).json({ error: 'adminId and contactId required' });
+    if (!contactId) {
+      console.log('[ERROR] /mark-contact-read: contactId missing');
+      return res.status(400).json({ error: 'contactId required' });
     }
 
-    // Валидация contactId: может быть числом (user.id) или строкой (guest identifier)
-    // Приводим к строке для универсальности
-    const contactIdStr = String(contactId);
+    // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
+    const { hasPermission, ROLES } = require('/app/shared/permissions');
     
-    // Проверка на допустимые форматы:
-    // - Число (user.id): "123"
-    // - Гостевой идентификатор: "telegram:123", "email:user@example.com", "web:uuid"
-    if (!contactIdStr || contactIdStr.length > 255) {
-      return res.status(400).json({ error: 'Invalid contactId format' });
+    // Определяем роль пользователя через новую систему
+    let userRole = ROLES.GUEST; // По умолчанию гость
+    
+    if (req.user?.userAccessLevel) {
+      // Используем новую систему ролей
+      if (req.user.userAccessLevel.level === 'readonly') {
+        userRole = ROLES.READONLY;
+      } else if (req.user.userAccessLevel.level === 'editor') {
+        userRole = ROLES.EDITOR;
+      }
+    } else if (req.user?.id) {
+      // Fallback для старой системы
+      userRole = ROLES.USER;
     }
-
+    
+    console.log('[DEBUG] /mark-contact-read: userRole:', userRole);
+    
+    // Проверяем права через новую систему
+    if (!hasPermission(userRole, PERMISSIONS.VIEW_CONTACTS)) {
+      console.log('[ERROR] /mark-contact-read: Insufficient permissions for role:', userRole);
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    
+    // ИСПРАВЛЕННАЯ ЛОГИКА: все админы (EDITOR и READONLY) могут влиять на цвет контактов
+    let adminId;
+    if (req.user?.id && (userRole === ROLES.EDITOR || userRole === ROLES.READONLY)) {
+      // Админы (редактор и чтение) могут записывать в admin_read_contacts
+      adminId = req.user.id;
+      console.log('[DEBUG] /mark-contact-read: Using admin ID:', adminId, 'Role:', userRole);
+      
+      // Админ может помечать любого контакта как прочитанного, включая самого себя
+    } else {
+      // Для всех остальных ролей (GUEST, USER) - НЕ записываем в БД
+      console.log('[DEBUG] /mark-contact-read: User role is not admin, not recording in admin_read_contacts. Role:', userRole);
+      return res.json({ success: true }); // Просто возвращаем успех без записи в БД
+    }
+    
+    const contactIdStr = String(contactId);
+    console.log('[DEBUG] /mark-contact-read: Final adminId:', adminId, 'contactId:', contactIdStr);
+    
     await db.query(
       'INSERT INTO admin_read_contacts (admin_id, contact_id, read_at) VALUES ($1, $2, NOW()) ON CONFLICT (admin_id, contact_id) DO UPDATE SET read_at = NOW()',
       [adminId, contactIdStr]
     );
     
+    console.log('[SUCCESS] /mark-contact-read: Contact marked as read');
     res.json({ success: true });
   } catch (e) {
     console.error('[ERROR] /mark-contact-read:', e);
@@ -376,7 +417,8 @@ router.post('/mark-contact-read', async (req, res) => {
 });
 
 // Заблокировать пользователя
-router.patch('/:id/block', requireAuth, async (req, res) => {
+// Блокировка пользователя
+router.patch('/:id/block', requireAuth, requirePermission(PERMISSIONS.BLOCK_USERS), async (req, res) => {
   try {
     const userId = req.params.id;
     await db.query('UPDATE users SET is_blocked = true, blocked_at = NOW() WHERE id = $1', [userId]);
@@ -388,7 +430,8 @@ router.patch('/:id/block', requireAuth, async (req, res) => {
 });
 
 // Разблокировать пользователя
-router.patch('/:id/unblock', requireAuth, async (req, res) => {
+// Разблокировка пользователя
+router.patch('/:id/unblock', requireAuth, requirePermission(PERMISSIONS.BLOCK_USERS), async (req, res) => {
   try {
     const userId = req.params.id;
     await db.query('UPDATE users SET is_blocked = false, blocked_at = NULL WHERE id = $1', [userId]);
@@ -400,7 +443,8 @@ router.patch('/:id/unblock', requireAuth, async (req, res) => {
 });
 
 // Обновить пользователя (в том числе is_blocked)
-router.patch('/:id', requireAuth, async (req, res) => {
+// Обновление данных пользователя
+router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   try {
     const userId = req.params.id;
     const { first_name, last_name, name, preferred_language, language, is_blocked } = req.body;
@@ -464,7 +508,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/users/:id — удалить контакт и все связанные данные
-router.delete('/:id', requireAuth, async (req, res) => {
+// Удаление пользователя
+router.delete('/:id', requireAuth, requirePermission(PERMISSIONS.DELETE_USER_DATA), async (req, res) => {
   const userIdParam = req.params.id;
   
   try {
@@ -539,7 +584,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 // Получить пользователя по id
-router.get('/:id', async (req, res, next) => {
+// Получение деталей конкретного контакта
+router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res, next) => {
   const userId = req.params.id;
 
   // Получаем ключ шифрования

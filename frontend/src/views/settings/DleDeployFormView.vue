@@ -854,8 +854,8 @@
                 @click="deploySmartContracts" 
                 type="button" 
                 class="btn btn-primary btn-lg deploy-btn"
-                :disabled="!isFormValid || !canEdit || adminTokenCheck.isLoading"
-                :title="`isFormValid: ${isFormValid}, isAdmin: ${adminTokenCheck.isAdmin}, isLoading: ${adminTokenCheck.isLoading}`"
+                :disabled="!isFormValid || !canManageSettings || adminTokenCheck.isLoading"
+                :title="`isFormValid: ${isFormValid}, canManageSettings: ${canManageSettings}, isLoading: ${adminTokenCheck.isLoading}`"
               >
                 <i class="fas fa-cogs"></i> 
                 Поэтапный деплой DLE
@@ -921,13 +921,27 @@ function normalizePrivateKey(raw) {
 
 
 // Получаем контекст авторизации для адреса кошелька
-const { address, isAdmin } = useAuthContext();
-const { canEdit } = usePermissions();
+const { address } = useAuthContext();
+const { canManageSettings } = usePermissions();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[DleDeployFormView] Clearing DLE deploy data');
+    // Очищаем данные при выходе из системы
+    // DleDeployFormView не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[DleDeployFormView] Refreshing DLE deploy data');
+    checkAdminTokens(); // Обновляем данные при входе в систему
+  });
+});
 
 // Состояние для проверки админских токенов
 const adminTokenCheck = ref({
   isLoading: false,
-  isAdmin: false,
+  canManageSettings: false,
   error: null
 });
 
@@ -2381,7 +2395,7 @@ watch(address, (newAddress) => {
 // Функция проверки админских токенов
 const checkAdminTokens = async () => {
   if (!address.value) {
-    adminTokenCheck.value = { isLoading: false, isAdmin: false, error: 'Кошелек не подключен' };
+    adminTokenCheck.value = { isLoading: false, canManageSettings: false, error: 'Кошелек не подключен' };
     return;
   }
 
@@ -2391,7 +2405,7 @@ const checkAdminTokens = async () => {
     const response = await api.get(`/dle-v2/check-admin-tokens?address=${address.value}`);
     
     if (response.data.success) {
-      adminTokenCheck.value = { ...adminTokenCheck.value, isAdmin: response.data.data.isAdmin };
+      adminTokenCheck.value = { ...adminTokenCheck.value, canManageSettings: response.data.data.userAccessLevel.hasAccess };
       console.log('Проверка админских токенов:', response.data.data);
     } else {
       adminTokenCheck.value = { ...adminTokenCheck.value, error: response.data.message || 'Ошибка проверки токенов' };
@@ -2589,7 +2603,7 @@ const handleDeploymentCompleted = (result) => {
   console.log('🔍 unifiedPrivateKey.value:', unifiedPrivateKey.value);
   console.log('🔍 keyValidation.unified:', keyValidation.unified);
   console.log('🔍 dleSettings.coordinates:', dleSettings.coordinates);
-  console.log('🔍 Кнопка должна быть активна:', !(!validation.jurisdiction || !validation.name || !validation.tokenSymbol || !validation.partners || !validation.partnersValid || !validation.quorum || !validation.networks || !validation.privateKey || !validation.keyValid || !validation.coordinates) && adminTokenCheck.value.isAdmin && !adminTokenCheck.value.isLoading);
+  console.log('🔍 Кнопка должна быть активна:', !(!validation.jurisdiction || !validation.name || !validation.tokenSymbol || !validation.partners || !validation.partnersValid || !validation.quorum || !validation.networks || !validation.privateKey || !validation.keyValid || !validation.coordinates) && adminTokenCheck.value.canManageSettings && !adminTokenCheck.value.isLoading);
   
   return Boolean(
     validation.jurisdiction &&

@@ -52,6 +52,20 @@
   import axios from '@/api/axios';
   import { useAuthContext } from '@/composables/useAuth';
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[EmailConnect] Clearing email connect data');
+    // Очищаем данные при выходе из системы
+    // EmailConnect не нуждается в очистке данных
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[EmailConnect] Refreshing email connect data');
+    // EmailConnect не нуждается в обновлении данных
+  });
+});
+
 const emit = defineEmits(['close', 'success']);
   const { linkIdentity } = useAuthContext();
 

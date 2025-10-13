@@ -60,15 +60,15 @@ logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
 // Получение RPC настроек
 router.get('/rpc', async (req, res, next) => {
   try {
-    let isAdmin = false;
+    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
     
     // Проверяем, авторизован ли пользователь и является ли он админом
     if (req.session && req.session.authenticated) {
       if (req.session.address) {
         const authService = require('../services/auth-service');
-        isAdmin = await authService.checkAdminTokens(req.session.address);
+        userAccessLevel = await authService.getUserAccessLevel(req.session.address);
       } else {
-        isAdmin = req.session.isAdmin || false;
+        userAccessLevel = req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
       }
     }
     
@@ -93,7 +93,7 @@ router.get('/rpc', async (req, res, next) => {
       };
     });
     
-    if (isAdmin) {
+    if (userAccessLevel.hasAccess) {
       // Для админов возвращаем полные данные
       res.json({ success: true, data: rpcConfigs });
     } else {
@@ -320,19 +320,19 @@ router.post('/rpc-test', async (req, res, next) => {
 // Получить настройки AI-провайдера
 router.get('/ai-settings/:provider', async (req, res, next) => {
   try {
-    let isAdmin = false;
+    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
     
     // Проверяем, авторизован ли пользователь и является ли он админом
     if (req.session && req.session.authenticated) {
       if (req.session.address) {
         const authService = require('../services/auth-service');
-        isAdmin = await authService.checkAdminTokens(req.session.address);
+        userAccessLevel = await authService.getUserAccessLevel(req.session.address);
       } else {
-        isAdmin = req.session.isAdmin || false;
+        userAccessLevel = req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
       }
     }
     
-    if (isAdmin) {
+    if (userAccessLevel.hasAccess) {
       const { provider } = req.params;
       const settings = await aiProviderSettingsService.getProviderSettings(provider);
       res.json({ success: true, settings });

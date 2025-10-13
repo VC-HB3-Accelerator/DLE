@@ -19,13 +19,7 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="public-page-view">
-      <!-- Кнопка назад -->
-      <div class="back-button">
-        <button class="btn btn-outline" @click="goBack">
-          <i class="fas fa-arrow-left"></i>
-          Назад к списку страниц
-        </button>
-      </div>
+      <button class="close-btn" @click="goBack">×</button>
 
       <!-- Заголовок страницы -->
       <div class="page-header" v-if="page">
@@ -127,7 +121,7 @@ const isLoading = ref(false);
 
 // Методы
 function goBack() {
-  router.push({ name: 'public-pages' });
+  router.push({ name: 'content-list' });
 }
 
 function formatDate(date) {
@@ -176,10 +170,24 @@ onMounted(() => {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+  position: relative;
 }
 
-.back-button {
-  margin-bottom: 20px;
+.close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #bbb;
+  transition: color 0.2s;
+  z-index: 10;
+}
+
+.close-btn:hover {
+  color: #333;
 }
 
 .page-header {

@@ -16,6 +16,9 @@ const UnifiedDeploymentService = require('../services/unifiedDeploymentService')
 const unifiedDeploymentService = new UnifiedDeploymentService();
 const logger = require('../utils/logger');
 const auth = require('../middleware/auth');
+const authService = require('../services/auth-service');
+// НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
+const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 const path = require('path');
 const fs = require('fs');
 const ethers = require('ethers'); // Added ethers for private key validation
@@ -61,6 +64,26 @@ router.post('/', auth.requireAuth, auth.requireAdmin, async (req, res, next) => 
     
     // Если параметр initialPartners не был передан явно, используем адрес авторизованного пользователя
     if (!dleParams.initialPartners || dleParams.initialPartners.length === 0) {
+      // НОВАЯ СИСТЕМА РОЛЕЙ: проверяем права через новую систему
+      let userRole = ROLES.GUEST;
+      if (req.user?.userAccessLevel) {
+        if (req.user.userAccessLevel.level === 'readonly') {
+          userRole = ROLES.READONLY;
+        } else if (req.user.userAccessLevel.level === 'editor') {
+          userRole = ROLES.EDITOR;
+        }
+      } else if (req.user?.id) {
+        userRole = ROLES.USER;
+      }
+      
+      // Проверяем права на управление настройками
+      if (!hasPermission(userRole, PERMISSIONS.MANAGE_SETTINGS)) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Insufficient permissions for DLE deployment' 
+        });
+      }
+      
       // Проверяем, есть ли в сессии адрес кошелька пользователя
       if (!req.user || !req.user.walletAddress) {
         return res.status(400).json({ 
@@ -245,15 +268,13 @@ router.get('/check-admin-tokens', async (req, res, next) => {
     }
 
     // Проверяем баланс токенов
-    const { checkAdminRole } = require('../services/admin-role');
-    const isAdmin = await checkAdminRole(address);
-    
+    const userAccessLevel = await authService.getUserAccessLevel(address);
     res.json({
       success: true,
       data: {
-        isAdmin: isAdmin,
+        userAccessLevel: userAccessLevel,
         address: address,
-        message: isAdmin ? 'Админские токены найдены' : 'Админские токены не найдены'
+        message: userAccessLevel.hasAccess ? 'Админские токены найдены' : 'Админские токены не найдены'
       }
     });
     

@@ -22,10 +22,10 @@
       <p><strong>Кошелек:</strong> {{ contact.wallet || '-' }}</p>
       <p><strong>Дата создания:</strong> {{ formatDate(contact.created_at) }}</p>
       <div class="confirm-actions">
-        <button v-if="canDelete" class="delete-btn" @click="deleteContact" :disabled="isDeleting">Удалить</button>
+        <button v-if="canDeleteData" class="delete-btn" @click="deleteContact" :disabled="isDeleting">Удалить</button>
         <button class="cancel-btn" @click="cancelDelete" :disabled="isDeleting">Отменить</button>
       </div>
-      <div v-if="!canDelete" class="empty-table-placeholder">Нет прав для удаления контакта</div>
+      <div v-if="!canDeleteData" class="empty-table-placeholder">Нет прав для удаления контакта</div>
       <div v-if="error" class="error">{{ error }}</div>
     </div>
   </div>
@@ -42,10 +42,23 @@ const route = useRoute();
 const router = useRouter();
 const contact = ref(null);
 const isLoading = ref(true);
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[ContactDeleteConfirm] Clearing contact data');
+    // Очищаем данные при выходе из системы
+    contact.value = null;
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[ContactDeleteConfirm] Refreshing contact data');
+    loadContact(); // Обновляем данные при входе в систему
+  });
+});
 const isDeleting = ref(false);
 const error = ref('');
-const { isAdmin } = useAuthContext();
-const { canDelete } = usePermissions();
+const { canDeleteData } = usePermissions();
 
 function formatDate(date) {
   if (!date) return '-';

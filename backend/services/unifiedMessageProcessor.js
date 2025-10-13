@@ -19,6 +19,8 @@ const adminLogicService = require('./adminLogicService');
 const universalGuestService = require('./UniversalGuestService');
 const identityService = require('./identity-service');
 const { broadcastMessagesUpdate } = require('../wsHub');
+// НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
+const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 
 /**
  * Унифицированный процессор сообщений для всех каналов
@@ -87,8 +89,8 @@ async function processMessage(messageData) {
       role: userRole
     });
 
-    // 3. Проверяем: админ или обычный пользователь?
-    const isAdmin = userRole === 'editor' || userRole === 'readonly';
+    // НОВАЯ СИСТЕМА РОЛЕЙ: определяем права через новую систему
+    const isAdmin = userRole === ROLES.EDITOR || userRole === ROLES.READONLY;
 
     // 4. Определяем нужно ли генерировать AI ответ
     const shouldGenerateAi = adminLogicService.shouldGenerateAiReply({
@@ -98,7 +100,7 @@ async function processMessage(messageData) {
       channel: channel
     });
 
-    logger.info('[UnifiedMessageProcessor] Генерация AI:', { shouldGenerateAi, isAdmin });
+    logger.info('[UnifiedMessageProcessor] Генерация AI:', { shouldGenerateAi, userRole, isAdmin });
 
     // 5. Получаем или создаем беседу
     let conversation;

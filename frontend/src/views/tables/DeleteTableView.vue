@@ -16,10 +16,10 @@
       <h2>Удалить таблицу?</h2>
       <p>Вы уверены, что хотите удалить эту таблицу? Это действие необратимо.</p>
       <div class="actions">
-        <button v-if="canDelete" class="danger" @click="remove">Удалить</button>
+        <button v-if="canDeleteData" class="danger" @click="remove">Удалить</button>
         <button @click="cancel">Отмена</button>
       </div>
-      <div v-if="!canDelete" class="empty-table-placeholder">Нет прав для удаления таблицы</div>
+      <div v-if="!canDeleteData" class="empty-table-placeholder">Нет прав для удаления таблицы</div>
     </div>
   </BaseLayout>
 </template>
@@ -29,10 +29,24 @@ import BaseLayout from '../../components/BaseLayout.vue';
 import axios from 'axios';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
+import { onMounted } from 'vue';
 const $route = useRoute();
 const router = useRouter();
-const { isAdmin } = useAuthContext();
-const { canDelete } = usePermissions();
+const { canDeleteData } = usePermissions();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[DeleteTableView] Clearing confirmation data');
+    // Очищаем данные при выходе из системы
+    table.value = null;
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[DeleteTableView] Refreshing confirmation data');
+    // DeleteTableView не нуждается в обновлении данных
+  });
+});
 
 async function remove() {
       await axios.delete(`/tables/${$route.params.id}`);

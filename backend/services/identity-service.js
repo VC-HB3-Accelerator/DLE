@@ -521,8 +521,8 @@ class IdentityService {
     const wallet = await getLinkedWallet(user.id);
     let role = 'user';
     if (wallet) {
-      const isAdmin = await checkAdminRole(wallet);
-      role = isAdmin ? 'admin' : 'user';
+      const userAccessLevel = await authService.getUserAccessLevel(wallet);
+      role = userAccessLevel.hasAccess ? 'admin' : 'user';
       // Обновляем роль в users, если изменилась
       if (user.role !== role) {
         await encryptedDb.saveData('users', {

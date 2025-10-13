@@ -186,6 +186,20 @@ const { address, isAuthenticated, tokenBalances, checkTokenBalances } = useAuthC
 const router = useRouter();
 const route = useRoute();
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[CreateProposalView] Clearing DLE proposal data');
+    // Очищаем данные при выходе из системы
+    dleInfo.value = null;
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[CreateProposalView] Refreshing DLE proposal data');
+    loadDLEInfo(); // Обновляем данные при входе в систему
+  });
+});
+
 // Получаем адрес DLE из URL
 const dleAddress = computed(() => {
   const address = route.query.address || props.dleAddress;

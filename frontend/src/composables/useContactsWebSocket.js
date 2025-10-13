@@ -63,21 +63,42 @@ export function useContactsAndMessagesWebSocket() {
   }
 
   function updateNewContacts() {
+    console.log('[useContactsWebSocket] updateNewContacts called');
+    console.log('[useContactsWebSocket] contacts:', contacts.value.length);
+    console.log('[useContactsWebSocket] readContacts:', readContacts.value);
+    
     if (!contacts.value.length) {
       newContacts.value = [];
+      console.log('[useContactsWebSocket] No contacts, newContacts cleared');
       return;
     }
-    newContacts.value = contacts.value.filter(c => !readContacts.value.includes(c.id));
+    
+    const beforeCount = newContacts.value.length;
+    newContacts.value = contacts.value.filter(c => !readContacts.value.includes(String(c.id)));
+    console.log('[useContactsWebSocket] newContacts updated:', beforeCount, '->', newContacts.value.length);
   }
 
   async function markContactAsRead(contactId) {
     try {
-      await axios.post('/users/mark-contact-read', { contactId });
-      if (!readContacts.value.includes(contactId)) {
-        readContacts.value.push(contactId);
+      console.log('[useContactsWebSocket] Marking contact as read:', contactId);
+      const response = await axios.post('/users/mark-contact-read', { contactId });
+      console.log('[useContactsWebSocket] Mark contact response:', response.data);
+      
+      // Приводим contactId к строке для совместимости с readContacts
+      const contactIdStr = String(contactId);
+      console.log('[useContactsWebSocket] Converting contactId to string:', contactId, '->', contactIdStr);
+      
+      if (!readContacts.value.includes(contactIdStr)) {
+        readContacts.value.push(contactIdStr);
         updateNewContacts();
+        console.log('[useContactsWebSocket] Contact marked as read, updated newContacts');
+      } else {
+        console.log('[useContactsWebSocket] Contact already marked as read:', contactIdStr);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[useContactsWebSocket] Error marking contact as read:', e);
+      console.error('[useContactsWebSocket] Error response:', e.response?.data);
+    }
   }
 
   async function fetchReadStatus() {
@@ -139,16 +160,40 @@ export function useContactsAndMessagesWebSocket() {
     };
   }
 
+  function clearContactsData() {
+    contacts.value = [];
+    messages.value = [];
+    readContacts.value = [];
+    newContacts.value = [];
+    newMessages.value = [];
+    readUserIds.value = [];
+    lastReadMessageDate.value = {};
+  }
+
+  // Централизованная подписка на изменения аутентификации
   onMounted(async () => {
     await fetchContactsReadStatus();
     await fetchContacts();
     await fetchReadStatus();
     await fetchMessages();
     setupWebSocket();
+    
+    // Подписываемся на централизованные события очистки и обновления данных
+    window.addEventListener('clear-application-data', () => {
+      console.log('[useContactsWebSocket] Clearing contacts data');
+      clearContactsData(); // Очищаем данные при выходе из системы
+    });
+    
+    window.addEventListener('refresh-application-data', () => {
+      console.log('[useContactsWebSocket] Refreshing contacts data');
+      fetchContacts(); // Обновляем данные при входе в систему
+    });
   });
   onUnmounted(() => {
     if (ws) ws.close();
   });
+
+  // Логика обновления данных централизована в useAuth.js через события
 
   return {
     contacts,
@@ -158,6 +203,8 @@ export function useContactsAndMessagesWebSocket() {
     markContactAsRead,
     markMessagesAsRead,
     markMessagesAsReadForUser,
-    readUserIds
+    readUserIds,
+    fetchContacts,
+    clearContactsData
   };
 } 

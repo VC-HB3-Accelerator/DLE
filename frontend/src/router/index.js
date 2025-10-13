@@ -19,6 +19,7 @@ const SettingsInterfaceView = () => import('../views/settings/Interface/Interfac
 
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
+import { PERMISSIONS, hasPermission } from '/app/shared/permissions.js';
 
 // console.log('router/index.js: Script loaded');
 
@@ -148,30 +149,33 @@ const routes = [
     path: '/contacts/:id',
     name: 'contact-details',
     component: () => import('../views/contacts/ContactDetailsView.vue'),
-    props: true
+    props: true,
+    // meta: { permission: PERMISSIONS.VIEW_CONTACTS } // Временно убираем проверку прав
   },
   {
     path: '/contacts/:id/delete',
     name: 'contact-delete-confirm',
     component: () => import('../views/contacts/ContactDeleteConfirm.vue'),
-    props: true
+    props: true,
+    meta: { permission: PERMISSIONS.DELETE_USER_DATA }
   },
   {
     path: '/contacts-list',
     name: 'contacts-list',
-    component: () => import('../views/ContactsView.vue')
+    component: () => import('../views/ContactsView.vue'),
+    // meta: { permission: PERMISSIONS.VIEW_CONTACTS } // Временно убираем проверку прав
   },
   {
     path: '/admin-chat/:adminId',
     name: 'admin-chat',
     component: () => import('../views/AdminChatView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS }
   },
   {
     path: '/personal-messages',
     name: 'personal-messages',
     component: () => import('../views/PersonalMessagesView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { permission: PERMISSIONS.CHAT_WITH_ADMINS }
   },
 
   {
@@ -208,6 +212,11 @@ const routes = [
     path: '/content/page/:id/edit',
     name: 'page-edit',
     component: () => import('../views/content/PageEditView.vue'),
+  },
+  {
+    path: '/public/page/:id',
+    name: 'public-page-view',
+    component: () => import('../views/content/PublicPageView.vue'),
   },
   {
     path: '/management',
@@ -297,21 +306,48 @@ router.beforeEach(async (to, from, next) => {
     return next({ name: 'home' });
   }
 
-  // Проверяем аутентификацию, если маршрут требует авторизации
-  if (to.matched.some((record) => record.meta.requiresAuth)) {
+  // Проверяем права доступа (новая система permissions)
+  const requiredPermission = to.meta?.permission;
+  
+  if (requiredPermission) {
     try {
       const response = await axios.get('/auth/check');
-      if (response.data.authenticated) {
-        next();
-      } else {
-        // Перенаправляем на главную страницу, где есть форма аутентификации
-        next({ name: 'home' });
+      
+      if (!response.data.authenticated) {
+        // Неавторизованный - редирект на главную
+        console.log('[Router] Доступ запрещен: требуется авторизация для', requiredPermission);
+        return next({ name: 'home' });
       }
+      
+      // Получаем уровень доступа пользователя
+      const userAccessLevel = response.data.userAccessLevel;
+      if (!userAccessLevel) {
+        console.log('[Router] Доступ запрещен: нет данных об уровне доступа');
+        return next({ name: 'home' });
+      }
+      
+      // Определяем роль на основе уровня доступа
+      let userRole = 'user'; // по умолчанию
+      if (userAccessLevel.level === 'readonly') {
+        userRole = 'readonly';
+      } else if (userAccessLevel.level === 'editor') {
+        userRole = 'editor';
+      }
+      
+      // Проверяем право доступа
+      if (!hasPermission(userRole, requiredPermission)) {
+        console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права ${requiredPermission}`);
+        return next({ name: 'home' });
+      }
+      
+      // Есть право - разрешаем переход
+      next();
     } catch (error) {
-      // При ошибке также перенаправляем на главную
-      next({ name: 'home' });
+      console.error('[Router] Ошибка проверки прав:', error);
+      return next({ name: 'home' });
     }
-  } else {
+  }
+  else {
     next();
   }
 });

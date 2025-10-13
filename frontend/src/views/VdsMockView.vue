@@ -117,7 +117,11 @@
         <div class="call-to-action">
           <h2>Настройте VDS сервер</h2>
           <p>Для использования всех функций управления VDS сервером необходимо его настроить.</p>
-          <button class="setup-btn" @click="goToSetup">
+          <button 
+            class="setup-btn" 
+            @click="canManageSettings ? goToSetup() : null"
+            :disabled="!canManageSettings"
+          >
             Перейти к настройке VDS
           </button>
         </div>
@@ -130,6 +134,7 @@
 import { defineProps, defineEmits, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
+import { usePermissions } from '@/composables/usePermissions';
 
 // Props
 const props = defineProps({
@@ -143,6 +148,7 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const { canManageSettings } = usePermissions();
 
 // Состояние VDS
 const vdsConfigured = ref(false);
@@ -436,10 +442,18 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-.setup-btn:hover {
+.setup-btn:hover:not(:disabled) {
   background: var(--color-primary-dark);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.setup-btn:disabled {
+  background: #e0e0e0 !important;
+  color: #aaa !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 /* Адаптивность */

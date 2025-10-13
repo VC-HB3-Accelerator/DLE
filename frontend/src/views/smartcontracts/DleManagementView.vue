@@ -154,6 +154,20 @@ const emit = defineEmits(['auth-action-completed']);
 const router = useRouter();
 const { address } = useAuthContext();
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[DleManagementView] Clearing DLE management data');
+    // Очищаем данные при выходе из системы
+    dles.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[DleManagementView] Refreshing DLE management data');
+    loadDleList(); // Обновляем данные при входе в систему
+  });
+});
+
 // Состояние формы
 const isAdding = ref(false);
 

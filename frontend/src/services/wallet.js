@@ -106,7 +106,6 @@ export async function connectWithWallet() {
       localStorage.setItem('isAuthenticated', 'true');
       localStorage.setItem('userId', verificationResponse.data.userId);
       localStorage.setItem('address', verificationResponse.data.address);
-      localStorage.setItem('isAdmin', verificationResponse.data.isAdmin);
     }
 
     return verificationResponse.data;

@@ -12,8 +12,8 @@
 
 <template>
   <BaseLayout>
-    <div v-if="!canRead" class="empty-table-placeholder">Нет доступа</div>
-    <div v-else class="contact-details-page">
+    <!-- Доступ проверяет router guard, v-if не нужен -->
+    <div class="contact-details-page">
     <div v-if="isLoading">Загрузка...</div>
     <div v-else-if="!contact">Контакт не найден</div>
     <div v-else class="contact-details-content">
@@ -24,7 +24,7 @@
       <div class="contact-info-block">
         <div>
           <strong>Имя:</strong>
-            <template v-if="canEdit">
+            <template v-if="canEditContacts">
           <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
           <span v-if="isSavingName" class="saving">Сохранение...</span>
             </template>
@@ -41,10 +41,10 @@
             <div class="selected-langs">
               <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
                 {{ getLanguageLabel(lang) }}
-                <span v-if="canEdit" class="remove-tag" @click="removeLanguage(lang)">×</span>
+                <span v-if="canEditContacts" class="remove-tag" @click="removeLanguage(lang)">×</span>
               </span>
               <input
-                v-if="canEdit"
+                v-if="canEditContacts"
                 v-model="langInput"
                 @focus="showLangDropdown = true"
                 @input="showLangDropdown = true"
@@ -53,7 +53,7 @@
                 placeholder="Добавить язык..."
               />
             </div>
-            <ul v-if="showLangDropdown && canEdit" class="lang-dropdown">
+            <ul v-if="showLangDropdown && canEditContacts" class="lang-dropdown">
               <li
                 v-for="lang in filteredLanguages"
                 :key="lang.value"
@@ -72,15 +72,15 @@
           <strong>Теги пользователя:</strong>
           <span v-for="tag in userTags" :key="tag.id" class="user-tag">
             {{ tag.name }}
-            <span v-if="canEdit" class="remove-tag" @click="removeUserTag(tag.id)">×</span>
+            <span v-if="canManageTags" class="remove-tag" @click="removeUserTag(tag.id)">×</span>
           </span>
-          <button v-if="canEdit" class="add-tag-btn" @click="openTagModal">Добавить тег</button>
+          <button v-if="canManageTags" class="add-tag-btn" @click="openTagModal">Добавить тег</button>
         </div>
         <div class="block-user-section">
           <strong>Статус блокировки:</strong>
           <span v-if="contact.is_blocked" class="blocked-status">Заблокирован</span>
           <span v-else class="unblocked-status">Не заблокирован</span>
-          <template v-if="canEdit">
+          <template v-if="canBlockUsers">
             <el-button
               v-if="!contact.is_blocked"
               type="danger"
@@ -97,7 +97,7 @@
             >Разблокировать</el-button>
           </template>
         </div>
-        <div class="delete-actions">
+        <div class="delete-actions" v-if="canDeleteData">
           <button class="delete-history-btn" @click="deleteMessagesHistory">Удалить историю сообщений</button>
           <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
         </div>
@@ -109,14 +109,16 @@
           :isLoading="isLoadingMessages"
           :attachments="chatAttachments"
           :newMessage="chatNewMessage"
-          :isAdmin="canEdit"
+          :canSend="canSendToUsers"
+          :canGenerateAI="canGenerateAI"
+          :canSelectMessages="canGenerateAI"
           @send-message="handleSendMessage"
           @update:newMessage="val => chatNewMessage = val"
           @update:attachments="val => chatAttachments = val"
           @ai-reply="handleAiReply"
         />
       </div>
-      <el-dialog v-if="canEdit" v-model="showTagModal" title="Добавить тег пользователю">
+      <el-dialog v-if="canManageTags" v-model="showTagModal" title="Добавить тег пользователю">
         <div v-if="allTags.length">
           <el-select
             v-model="selectedTags"
@@ -160,6 +162,24 @@ import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
+import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
+const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts } = usePermissions();
+const { markContactAsRead } = useContactsAndMessagesWebSocket();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[ContactDetailsView] Clearing contact data');
+    // Очищаем данные при выходе из системы
+    contact.value = null;
+    messages.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[ContactDetailsView] Refreshing contact data');
+    reloadContact(); // Обновляем данные при входе в систему
+  });
+});
 import { ElMessageBox } from 'element-plus';
 import tablesService from '../../services/tablesService';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
@@ -183,8 +203,6 @@ const newTagDescription = ref('');
 const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
-const { isAdmin } = useAuthContext();
-const { canRead, canEdit, canDelete } = usePermissions();
 const isAiLoading = ref(false);
 const conversationId = ref(null);
 
@@ -253,7 +271,7 @@ async function loadAllTags() {
 }
 
 function openTagModal() {
-  if (!canEdit.value) return;
+  if (!canManageTags.value) return;
   showTagModal.value = true;
   loadAllTags();
 }
@@ -293,7 +311,7 @@ function getLanguageLabel(val) {
   return found ? found.label : val;
 }
 function addLanguage(lang) {
-  if (!canEdit.value) return;
+  if (!canEditContacts.value) return;
   if (!selectedLanguages.value.includes(lang)) {
     selectedLanguages.value.push(lang);
     saveLanguages();
@@ -302,17 +320,17 @@ function addLanguage(lang) {
   showLangDropdown.value = false;
 }
 function addLanguageFromInput() {
-  if (!canEdit.value) return;
+  if (!canEditContacts.value) return;
   const found = filteredLanguages.value[0];
   if (found) addLanguage(found.value);
 }
 function removeLanguage(lang) {
-  if (!canEdit.value) return;
+  if (!canEditContacts.value) return;
   selectedLanguages.value = selectedLanguages.value.filter(l => l !== lang);
   saveLanguages();
 }
 function saveLanguages() {
-  if (!canEdit.value) return;
+  if (!canEditContacts.value) return;
   isSavingLangs.value = true;
   contactsService.updateContact(contact.value.id, { language: selectedLanguages.value })
     .then(() => reloadContact())
@@ -397,7 +415,7 @@ async function loadMessages() {
     
     // Получаем conversationId только для зарегистрированных пользователей
     // Гости не имеют conversations
-    if (!contact.value.id.startsWith('guest_')) {
+    if (!String(contact.value.id).startsWith('guest_')) {
       try {
         const conv = await messagesService.getConversationByUserId(contact.value.id);
         conversationId.value = conv?.id || null;
@@ -554,7 +572,7 @@ async function unblockUser() {
 
 // --- Теги ---
 async function createTag() {
-  if (!canEdit.value) return;
+  if (!canManageTags.value) return;
   if (!newTagName.value) return;
   const tableId = await ensureTagsTable();
   const table = await tablesService.getTable(tableId);
@@ -614,7 +632,7 @@ async function loadUserTags() {
 
 // После добавления/удаления тегов всегда обновляем userTags
 async function addTagsToUser() {
-  if (!canEdit.value) return;
+  if (!canManageTags.value) return;
   if (!contact.value || !contact.value.id) return;
   if (!selectedTags.value || selectedTags.value.length === 0) return;
   try {
@@ -628,7 +646,7 @@ async function addTagsToUser() {
 }
 
 async function removeUserTag(tagId) {
-  if (!canEdit.value) return;
+  if (!canManageTags.value) return;
   if (!contact.value || !contact.value.id) return;
   try {
     await contactsService.removeTagFromContact(contact.value.id, tagId);
@@ -643,6 +661,17 @@ onMounted(async () => {
   await reloadContact();
   await loadUserTags();
   await loadMessages();
+  
+  // Помечаем контакт как прочитанный при загрузке страницы
+  // Для всех админов (EDITOR и READONLY) - каждый видит свой статус просмотра
+  console.log('[ContactDetailsView] DEBUG - canViewContacts:', canViewContacts.value);
+  console.log('[ContactDetailsView] DEBUG - userId:', userId.value);
+  if (userId.value && canViewContacts.value) {
+    console.log('[ContactDetailsView] Marking contact as read (admin):', userId.value);
+    await markContactAsRead(userId.value);
+  } else if (userId.value) {
+    console.log('[ContactDetailsView] Skipping markContactAsRead - user is not admin');
+  }
   
   // Подписываемся на обновления тегов
   unsubscribeFromTags = onTagsUpdate(async () => {

@@ -207,7 +207,7 @@ router.post('/verify', async (req, res) => {
     logger.info(`[verify] Admin status for ${normalizedAddress}: ${adminStatus}`);
 
     let userId;
-    let isAdmin = adminStatus;
+    let userAccessLevel = adminStatus ? { level: 'editor', tokenCount: 0, hasAccess: true } : { level: 'user', tokenCount: 0, hasAccess: false };
 
     // Проверяем, авторизован ли пользователь уже
     if (req.session.authenticated && req.session.userId) {
@@ -226,10 +226,10 @@ router.post('/verify', async (req, res) => {
       );
     } else {
       // Находим или создаем пользователя с уже известной ролью
-      const result = await authService.findOrCreateUser(address, adminStatus);
+      const result = await authService.findOrCreateUser(address, userAccessLevel);
       userId = result.userId;
-      isAdmin = result.isAdmin;
-      logger.info(`[verify] Found or created user ${userId} for wallet ${normalizedAddress} with admin status: ${isAdmin}`);
+      userAccessLevel = result.userAccessLevel;
+      logger.info(`[verify] Found or created user ${userId} for wallet ${normalizedAddress} with access level: ${userAccessLevel.hasAccess}`);
     }
 
     // Сохраняем идентификаторы гостевой сессии
@@ -245,7 +245,7 @@ router.post('/verify', async (req, res) => {
     req.session.userId = userId;
     req.session.authenticated = true;
     req.session.authType = 'wallet';
-    req.session.isAdmin = adminStatus || isAdmin;
+    req.session.userAccessLevel = userAccessLevel;
     req.session.address = normalizedAddress; // Всегда сохраняем нормализованный адрес
 
     // Удаляем временный ID
@@ -258,11 +258,12 @@ router.post('/verify', async (req, res) => {
     await sessionService.linkGuestMessages(req.session, userId);
 
     // Возвращаем успешный ответ
+    userAccessLevel = await authService.getUserAccessLevel(normalizedAddress);
     return res.json({
       success: true,
       userId,
       address: normalizedAddress, // Возвращаем нормализованный адрес
-      isAdmin: adminStatus || isAdmin,
+      userAccessLevel: userAccessLevel,
       authenticated: true,
     });
   } catch (error) {
@@ -347,7 +348,7 @@ router.post('/telegram/verify', async (req, res) => {
       req.session.telegramId = telegramId;
       req.session.authType = 'telegram';
       req.session.authenticated = true;
-      req.session.isAdmin = finalIsAdmin; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
+      req.session.userAccessLevel = finalIsAdmin ? { level: 'editor', tokenCount: 0, hasAccess: true } : { level: 'user', tokenCount: 0, hasAccess: false }; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
 
       // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ (ЕСЛИ НАЙДЕН) <---
       if (linkedWalletAddress) {
@@ -368,10 +369,16 @@ router.post('/telegram/verify', async (req, res) => {
         await sessionService.linkGuestMessages(req.session, verificationResult.userId);
       }
 
+      // Получаем уровень доступа для пользователя
+      let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
+      if (linkedWalletAddress) {
+        userAccessLevel = await authService.getUserAccessLevel(linkedWalletAddress);
+      }
+
       return res.json({
         success: true,
         userId: verificationResult.userId,
-        isAdmin: finalIsAdmin, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНУЮ РОЛЬ
+        userAccessLevel: userAccessLevel, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНЫЙ УРОВЕНЬ ДОСТУПА
         telegramId,
         isNewUser: verificationResult.isNewUser,
         address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
@@ -511,7 +518,7 @@ router.post('/email/verify-code', async (req, res) => {
     req.session.authenticated = true;
     req.session.authType = 'email';
     req.session.email = authResult.email;
-    req.session.isAdmin = finalIsAdmin; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
+    req.session.userAccessLevel = finalIsAdmin ? { level: 'editor', tokenCount: 0, hasAccess: true } : { level: 'user', tokenCount: 0, hasAccess: false }; // <-- УСТАНАВЛИВАЕМ РОЛЬ ПОСЛЕ ПРОВЕРКИ БАЛАНСА
     // ---> ДОБАВЛЯЕМ АДРЕС КОШЕЛЬКА В СЕССИЮ <---
     if (linkedWalletAddress) {
       req.session.address = linkedWalletAddress;
@@ -533,11 +540,17 @@ router.post('/email/verify-code', async (req, res) => {
     await sessionService.linkGuestMessages(req.session, authResult.userId);
 
     // 4. Отправляем ответ
+    // Получаем уровень доступа для пользователя
+    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
+    if (linkedWalletAddress) {
+      userAccessLevel = await authService.getUserAccessLevel(linkedWalletAddress);
+    }
+
     return res.json({
       success: true,
       userId: authResult.userId,
       email: authResult.email,
-      isAdmin: finalIsAdmin, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНУЮ РОЛЬ
+      userAccessLevel: userAccessLevel, // <-- ВОЗВРАЩАЕМ АКТУАЛЬНЫЙ УРОВЕНЬ ДОСТУПА
       authenticated: true,
       isNewAuth: authResult.isNewUser,
       address: linkedWalletAddress || null // <-- ВОЗВРАЩАЕМ АДРЕС КОШЕЛЬКА
@@ -630,7 +643,7 @@ router.get('/check', async (req, res) => {
     const authType = req.session.authType || null;
 
     let identities = [];
-    let isAdmin = false;
+    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
 
     if (authenticated && req.session.userId) {
       // Если пользователь аутентифицирован, получаем его идентификаторы из БД
@@ -639,8 +652,8 @@ router.get('/check', async (req, res) => {
 
         // Для пользователей с кошельком проверяем токены в реальном времени
         if (authType === 'wallet' && req.session.address) {
-          isAdmin = await authService.checkAdminTokens(req.session.address);
-          logger.info(`[auth/check] Admin status for wallet ${req.session.address}: ${isAdmin}`);
+          userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+          logger.info(`[auth/check] Access level for wallet ${req.session.address}:`, userAccessLevel);
         } else {
           // Для других типов аутентификации используем роль из БД
           const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
@@ -648,11 +661,17 @@ router.get('/check', async (req, res) => {
           ]);
 
           if (roleResult.rows.length > 0) {
-            isAdmin = roleResult.rows[0].role === 'admin';
+            const role = roleResult.rows[0].role;
+            // Преобразуем старую роль в новый формат
+            if (role === 'admin') {
+              userAccessLevel = { level: 'editor', tokenCount: 1, hasAccess: true };
+            } else {
+              userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
+            }
           }
         }
         
-        req.session.isAdmin = isAdmin;
+        req.session.userAccessLevel = userAccessLevel;
       } catch (error) {
         logger.error(`[session/check] Error fetching identities: ${error.message}`);
       }
@@ -674,7 +693,7 @@ router.get('/check', async (req, res) => {
       guestId: req.session.guestId || null,
       authType,
       identitiesCount: identities.length,
-      isAdmin: isAdmin || false,
+      userAccessLevel: userAccessLevel,
     };
 
     // Добавляем специфические поля в зависимости от типа аутентификации
@@ -711,7 +730,7 @@ router.post('/logout', async (req, res) => {
     req.session.address = null;
     req.session.telegramId = null;
     req.session.email = null;
-    req.session.isAdmin = false;
+    req.session.userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: false };
     req.session.guestId = null;
     req.session.previousGuestId = null;
     req.session.processedGuestIds = [];
@@ -743,15 +762,15 @@ router.get('/check-access', requireAuth, async (req, res) => {
     const address = req.session.address;
 
     if (address) {
-      const isAdmin = await authService.checkAdminTokens(address);
+      const userAccessLevel = await authService.getUserAccessLevel(address);
 
       // Обновляем сессию
-      req.session.isAdmin = isAdmin;
+      req.session.userAccessLevel = userAccessLevel;
       await sessionService.saveSession(req.session);
 
       return res.json({
         success: true,
-        isAdmin,
+        userAccessLevel,
         userId,
         address,
       });
@@ -759,7 +778,7 @@ router.get('/check-access', requireAuth, async (req, res) => {
 
     return res.json({
       success: true,
-      isAdmin: false,
+      userAccessLevel: { level: 'user', tokenCount: 0, hasAccess: false },
       userId,
       address: null,
     });
@@ -794,7 +813,7 @@ router.post('/refresh-session', async (req, res) => {
           req.session.authenticated = true;
           req.session.userId = user.id;
           req.session.address = address.toLowerCase();
-          req.session.isAdmin = user.role === 'admin';
+          req.session.userAccessLevel = user.role === 'admin' ? { level: 'editor', tokenCount: 0, hasAccess: true } : { level: 'user', tokenCount: 0, hasAccess: false };
           req.session.authType = 'wallet';
 
           // Сохраняем обновленную сессию
@@ -847,10 +866,10 @@ router.post('/wallet', async (req, res) => {
     const { userId } = await authService.findOrCreateUser(address);
 
     // Проверяем наличие админских токенов
-    const isAdmin = await authService.checkAdminTokens(address);
+    const userAccessLevel = await authService.getUserAccessLevel(address);
 
     // Обновляем роль пользователя в базе данных, если нужно
-    if (isAdmin) {
+    if (userAccessLevel.hasAccess) {
       await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
     }
 
@@ -870,7 +889,7 @@ router.post('/wallet', async (req, res) => {
     req.session.address = address.toLowerCase();
     req.session.authType = 'wallet';
     req.session.authenticated = true;
-    req.session.isAdmin = isAdmin;
+    req.session.userAccessLevel = userAccessLevel;
 
     // Сохраняем сессию
     await sessionService.saveSession(req.session);
@@ -883,7 +902,7 @@ router.post('/wallet', async (req, res) => {
       success: true,
       userId,
       address,
-      isAdmin,
+      userAccessLevel,
       authenticated: true,
     });
   } catch (error) {
@@ -1039,7 +1058,8 @@ router.post('/wallet-with-link', authLimiter, async (req, res) => {
     req.session.address = address.toLowerCase();
     req.session.authenticated = true;
     req.session.authType = 'wallet';
-    req.session.isAdmin = (role === 'admin' || role === 'editor' || role === 'readonly');
+    const hasAccess = (role === 'admin' || role === 'editor' || role === 'readonly');
+    req.session.userAccessLevel = hasAccess ? { level: role === 'editor' ? 'editor' : 'readonly', tokenCount: 0, hasAccess: true } : { level: 'user', tokenCount: 0, hasAccess: false };
 
     await sessionService.saveSession(req.session, 'wallet-with-link');
 

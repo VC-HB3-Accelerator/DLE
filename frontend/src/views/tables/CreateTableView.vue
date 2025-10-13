@@ -14,7 +14,7 @@
   <BaseLayout>
     <div class="create-table-container">
       <h2>Создать новую таблицу</h2>
-      <form v-if="canEdit" @submit.prevent="handleCreateTable" class="create-table-form">
+      <form v-if="canEditData" @submit.prevent="handleCreateTable" class="create-table-form">
         <label>Название таблицы</label>
         <input v-model="newTableName" required placeholder="Введите название" />
         <label>Описание</label>
@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import tablesService from '../../services/tablesService';
@@ -49,8 +49,21 @@ const router = useRouter();
 const newTableName = ref('');
 const newTableDescription = ref('');
 const newTableIsRagSourceId = ref(2);
-const { isAdmin } = useAuthContext();
-const { canEdit } = usePermissions();
+const { canEditData } = usePermissions();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[CreateTableView] Clearing form data');
+    // Очищаем данные формы при выходе из системы
+    form.value = { name: '', description: '' };
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[CreateTableView] Refreshing form data');
+    // CreateTableView не нуждается в обновлении данных
+  });
+});
 
 async function handleCreateTable() {
   if (!newTableName.value) return;

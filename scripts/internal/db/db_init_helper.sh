@@ -24,12 +24,11 @@ ENCRYPTION_KEY=$(cat ./ssl/keys/full_db_encryption.key)
 
 # Создаем роли Read-Only и Editor
 docker exec dapp-postgres psql -U dapp_user -d dapp_db -c "
-INSERT INTO roles (id, name, description) VALUES 
-  (1, 'readonly', 'Read-Only доступ - только просмотр данных'),
-  (2, 'editor', 'Editor доступ - просмотр и редактирование данных')
+INSERT INTO roles (id, name_encrypted) VALUES 
+  (1, encrypt_text('readonly', '$ENCRYPTION_KEY')),
+  (2, encrypt_text('editor', '$ENCRYPTION_KEY'))
 ON CONFLICT (id) DO UPDATE SET 
-  name = EXCLUDED.name,
-  description = EXCLUDED.description;"
+  name_encrypted = EXCLUDED.name_encrypted;"
 
 docker exec dapp-postgres psql -U dapp_user -d dapp_db -c "
 INSERT INTO rpc_providers (network_id_encrypted, rpc_url_encrypted, chain_id)

@@ -99,6 +99,20 @@ const editMode = ref(false);
 
 const auth = useAuthContext();
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[EmailSettingsView] Clearing Email settings data');
+    // Очищаем данные при выходе из системы
+    settings.value = { smtpHost: '', smtpPort: '', smtpUser: '', smtpPass: '', enabled: false };
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[EmailSettingsView] Refreshing Email settings data');
+    loadEmailSettings(); // Обновляем данные при входе в систему
+  });
+});
+
 const loadEmailSettings = async () => {
   // Не загружаем если не авторизован
   if (!auth.isAuthenticated.value) {

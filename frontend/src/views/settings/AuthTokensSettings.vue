@@ -35,9 +35,9 @@
         <span><strong>Editor:</strong> {{ token.editorThreshold || 2 }} токен{{ token.editorThreshold === 1 ? '' : token.editorThreshold < 5 ? 'а' : 'ов' }}</span>
         <button 
           class="btn btn-sm" 
-          :class="canEdit ? 'btn-danger' : 'btn-secondary'" 
-          @click="canEdit ? removeToken(index) : null"
-          :disabled="!canEdit"
+          :class="canManageSettings ? 'btn-danger' : 'btn-secondary'" 
+          @click="canManageSettings ? removeToken(index) : null"
+          :disabled="!canManageSettings"
         >
           Удалить
         </button>
@@ -53,7 +53,7 @@
           v-model="newToken.name" 
           class="form-control" 
           placeholder="test2"
-          :disabled="!canEdit"
+          :disabled="!canManageSettings"
         >
       </div>
       <div class="form-group">
@@ -63,12 +63,12 @@
           v-model="newToken.address" 
           class="form-control" 
           placeholder="0x..."
-          :disabled="!canEdit"
+          :disabled="!canManageSettings"
         >
       </div>
       <div class="form-group">
         <label>Сеть:</label>
-        <select v-model="newToken.network" class="form-control" :disabled="!canEdit">
+        <select v-model="newToken.network" class="form-control" :disabled="!canManageSettings">
           <option value="">-- Выберите сеть --</option>
           <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
             <option v-for="option in group.options" :key="option.value" :value="option.value">
@@ -86,7 +86,7 @@
           placeholder="0"
           min="0"
           step="0.01"
-          :disabled="!canEdit"
+          :disabled="!canManageSettings"
         >
         <small class="form-text">Минимальный баланс токена для получения доступа</small>
       </div>
@@ -102,7 +102,7 @@
             class="form-control" 
             placeholder="1"
             min="1"
-            :disabled="!canEdit"
+            :disabled="!canManageSettings"
           >
           <small class="form-text">Количество токенов для получения прав только на чтение</small>
         </div>
@@ -114,16 +114,16 @@
             class="form-control" 
             placeholder="2"
             min="2"
-            :disabled="!canEdit"
+            :disabled="!canManageSettings"
           >
           <small class="form-text">Количество токенов для получения прав на редактирование и удаление</small>
         </div>
       </div>
       <button 
         class="btn" 
-        :class="canEdit ? 'btn-primary' : 'btn-secondary'" 
-        @click="canEdit ? addToken() : null"
-        :disabled="!canEdit"
+        :class="canManageSettings ? 'btn-primary' : 'btn-secondary'" 
+        @click="canManageSettings ? addToken() : null"
+        :disabled="!canManageSettings"
       >
         Добавить токен
       </button>
@@ -132,7 +132,7 @@
 </template>
 
 <script setup>
-import { reactive, computed } from 'vue';
+import { reactive, computed, onMounted } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
 import { useAuthContext } from '@/composables/useAuth';
@@ -152,8 +152,22 @@ const newToken = reactive({
 });
 
 const { networkGroups, networks } = useBlockchainNetworks();
-const { isAdmin, checkTokenBalances, address, checkAuth, userAccessLevel, checkUserAccessLevel } = useAuthContext();
-const { canEdit, getLevelClass, getLevelDescription } = usePermissions();
+const { checkTokenBalances, address, checkAuth, userAccessLevel, checkUserAccessLevel } = useAuthContext();
+const { canManageSettings, getLevelClass, getLevelDescription } = usePermissions();
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[AuthTokensSettings] Clearing tokens data');
+    // Очищаем данные при выходе из системы
+    tokens.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[AuthTokensSettings] Refreshing tokens data');
+    loadTokens(); // Обновляем данные при входе в систему
+  });
+});
 
 async function addToken() {
   if (!newToken.name || !newToken.address || !newToken.network) {

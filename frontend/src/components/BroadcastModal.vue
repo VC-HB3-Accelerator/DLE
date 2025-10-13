@@ -16,12 +16,13 @@
       <div style="margin-bottom:1em;">Вы выбрали {{userIds.length}} пользователей для рассылки.</div>
       <ChatInterface
         v-model:newMessage="message"
-        :isAdmin="true"
+        :canSend="true"
+        :canGenerateAI="false"
+        :canSelectMessages="false"
         :messages="[]"
         :attachments="attachments"
         @update:attachments="val => attachments = val"
         @send-message="onSend"
-        :showSendButton="false"
       />
       <el-button type="primary" :disabled="!message.trim()" @click="sendBroadcast" :loading="loading">Отправить</el-button>
       <el-button @click="$emit('close')" style="margin-left:1em;">Отмена</el-button>

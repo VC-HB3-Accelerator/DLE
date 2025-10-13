@@ -512,11 +512,28 @@ export function useChat(auth) {
     
     // Подключаем WebSocket если пользователь уже аутентифицирован
     setupChatWebSocket();
+    
+    // Логика обновления данных централизована в useAuth.js
   });
   
   onUnmounted(() => {
     cleanupWebSocket();
   });
+
+    // Подписываемся на централизованные события очистки и обновления данных
+    window.addEventListener('clear-application-data', () => {
+      console.log('[useChat] Clearing chat data');
+      // Очищаем данные при выходе из системы
+      messages.value = [];
+      newMessages.value = [];
+      readUserIds.value = [];
+      lastReadMessageDate.value = {};
+    });
+    
+    window.addEventListener('refresh-application-data', () => {
+      console.log('[useChat] Refreshing chat data');
+      loadMessages({ initial: true }); // Обновляем данные при входе в систему
+    });
 
   return {
     messages,

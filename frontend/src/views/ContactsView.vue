@@ -16,7 +16,7 @@
       <span>Контакты</span>
       <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
     </div>
-    <ContactTable v-if="canRead" :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markMessagesAsRead" 
+    <ContactTable v-if="canViewContacts" :contacts="contacts" :new-contacts="newContacts" :new-messages="newMessages" @markNewAsRead="markMessagesAsRead" 
       :markMessagesAsReadForUser="markMessagesAsReadForUser" :markContactAsRead="markContactAsRead" @close="goBack" />
     
     <!-- Таблица-заглушка для обычных пользователей -->
@@ -96,21 +96,31 @@ import { usePermissions } from '@/composables/usePermissions';
 
 const {
   contacts, newContacts, newMessages,
-  markMessagesAsRead, markMessagesAsReadForUser, markContactAsRead
+  markMessagesAsRead, markMessagesAsReadForUser, markContactAsRead, fetchContacts, clearContactsData
 } = useContactsAndMessagesWebSocket();
 const router = useRouter();
 const auth = useAuthContext();
-const { canRead } = usePermissions();
+const { canViewContacts } = usePermissions();
 
 // Отладочная информация о правах доступа
 onMounted(() => {
   console.log('[ContactsView] Permissions debug:', {
-    canRead: canRead.value,
-    isAdmin: auth.isAdmin?.value,
-    userAccessLevel: auth.userAccessLevel?.value,
-    userId: auth.userId?.value,
-    address: auth.address?.value
+    canViewContacts: canViewContacts.value,
+    userAccessLevel: auth.userAccessLevel,
+    userId: auth.userId,
+    address: auth.address
   });
+  
+  // Логика обновления данных централизована в useContactsWebSocket
+});
+
+// Отслеживаем изменения прав доступа
+watch(canViewContacts, (newValue, oldValue) => {
+  console.log('[ContactsView] canViewContacts changed:', { newValue, oldValue });
+  if (newValue && !oldValue) {
+    // Если права появились, загружаем данные
+    fetchContacts();
+  }
 });
 
 function goBack() {

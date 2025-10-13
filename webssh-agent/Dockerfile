@@ -10,33 +10,45 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    tar \
+    gzip \
+    zip \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
+# Устанавливаем Docker CLI
+RUN curl -fsSL https://get.docker.com | sh
+
+# Создаем пользователя для безопасности
+RUN useradd -m -s /bin/bash webssh
 
 # Создаем рабочую директорию
 WORKDIR /app
 
-# Копируем package.json и package-lock.json
+# Копируем package.json
 COPY package*.json ./
 
-# Устанавливаем зависимости
-RUN npm install
+# Устанавливаем зависимости через yarn
+RUN yarn install
 
 # Копируем исходный код
 COPY . .
 
-# Создаем SSH директорию для root с правильными правами
-RUN mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh && \
-    touch /root/.ssh/config && \
-    chmod 600 /root/.ssh/config
+# Создаем SSH директорию для пользователя
+RUN mkdir -p /home/webssh/.ssh && \
+    chmod 700 /home/webssh/.ssh && \
+    touch /home/webssh/.ssh/config && \
+    chmod 600 /home/webssh/.ssh/config && \
+    chown -R webssh:webssh /home/webssh/.ssh
 
-# Оставляем root для доступа к Docker socket
-# USER webssh
+# Добавляем пользователя в группу docker
+RUN usermod -aG docker webssh
+
+# Переключаемся на пользователя
+USER webssh
 
 # Открываем порт
 EXPOSE 3000
 
 # Команда запуска
-CMD ["npm", "start"]
+CMD ["yarn", "start"]

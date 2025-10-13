@@ -110,6 +110,20 @@ const goBackToBlocks = () => {
 // Получаем адрес пользователя из контекста аутентификации
 const { address: userAddress } = useAuthContext();
 
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    console.log('[SettingsView] Clearing DLE settings data');
+    // Очищаем данные при выходе из системы
+    dleInfo.value = null;
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[SettingsView] Refreshing DLE settings data');
+    loadDLEInfo(); // Обновляем данные при входе в систему
+  });
+});
+
 // Загружаем информацию о DLE
 const loadDLEInfo = async () => {
   if (!address) {

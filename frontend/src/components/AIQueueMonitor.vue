@@ -91,7 +91,7 @@
     </div>
 
     <!-- Управление очередью (только для админов) -->
-    <div v-if="isAdmin" class="queue-controls">
+    <div v-if="canManageSettings" class="queue-controls">
       <h4>Управление очередью</h4>
       <div class="control-buttons">
         <button @click="controlQueue('pause')" class="btn-control btn-pause">
@@ -123,16 +123,12 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import axios from 'axios'
 import Chart from 'chart.js/auto'
+import { usePermissions } from '@/composables/usePermissions'
 
 export default {
   name: 'AIQueueMonitor',
-  props: {
-    isAdmin: {
-      type: Boolean,
-      default: false
-    }
-  },
   setup() {
+    const { canManageSettings } = usePermissions();
     const stats = ref({
       totalProcessed: 0,
       totalFailed: 0,
@@ -287,6 +283,7 @@ export default {
     })
 
     return {
+      canManageSettings,
       stats,
       loading,
       autoRefresh,
