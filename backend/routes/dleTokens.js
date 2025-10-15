@@ -72,7 +72,7 @@ router.post('/get-token-balance', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function balanceOf(address account) external view returns (uint256)"
@@ -158,7 +158,7 @@ router.post('/get-total-supply', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)"
@@ -243,7 +243,7 @@ router.post('/get-token-holders', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)",

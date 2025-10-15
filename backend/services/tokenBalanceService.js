@@ -32,25 +32,51 @@ async function getUserTokenBalances(address) {
   );
   const tokens = tokensResult.rows;
 
-  const rpcProvidersResult = await db.getQuery()(
-    'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
-    [encryptionKey]
-  );
-  const rpcProviders = rpcProvidersResult.rows;
-  const rpcMap = {};
-  for (const rpc of rpcProviders) {
-    rpcMap[rpc.network_id] = rpc.rpc_url;
-  }
+  // Убрано - используем rpcService вместо прямого запроса к БД
+  // Используем правильный RPC URL из базы данных
+  const rpcService = require('./rpcProviderService');
 
   const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
   const results = [];
 
+  // Получаем все RPC провайдеры из базы данных для маппинга
+  const allRpcProviders = await rpcService.getAllRpcProviders();
+  const networkToChainId = {};
+  
+  // Создаем маппинг из базы данных
+  for (const provider of allRpcProviders) {
+    if (provider.network_id) {
+      networkToChainId[provider.network_id] = provider.chain_id;
+    }
+  }
+
   for (const token of tokens) {
-    const rpcUrl = rpcMap[token.network];
-    if (!rpcUrl) {
-      logger.warn(`[tokenBalanceService] RPC URL не найден для сети ${token.network}`);
+    // Получаем chain_id из названия сети из базы данных
+    const chainId = networkToChainId[token.network];
+    if (!chainId) {
+      logger.warn(`[tokenBalanceService] Неизвестная сеть: ${token.network}`);
       continue;
     }
+    
+    logger.info(`[tokenBalanceService] Ищем RPC для token.network: ${token.network} (chainId: ${chainId})`);
+    const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+    if (!rpcUrl) {
+      logger.warn(`[tokenBalanceService] RPC URL не найден для сети ${token.network} (chainId: ${chainId})`);
+      // Пропускаем токен, если нет RPC URL
+      results.push({
+        network: token.network,
+        tokenAddress: token.address,
+        tokenName: token.name,
+        symbol: token.symbol || '',
+        balance: '0',
+        minBalance: token.min_balance,
+        readonlyThreshold: token.readonly_threshold || 1,
+        editorThreshold: token.editor_threshold || 2,
+        error: 'RPC URL не настроен'
+      });
+      continue;
+    }
+    logger.info(`[tokenBalanceService] Найден RPC URL: ${rpcUrl}`);
     
     // Создаем провайдер с таймаутом
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
@@ -84,8 +110,38 @@ async function getUserTokenBalances(address) {
         `[tokenBalanceService] Ошибка получения баланса для ${token.name} (${token.address}) в сети ${token.network}:`,
         e.message || e
       );
+      
+      // Проверяем тип ошибки для лучшей диагностики
+      const errorMessage = e.message || e.toString();
+      let errorType = 'Неизвестная ошибка';
+      
+      if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
+        errorType = 'Таймаут соединения - возможно, нужен VPN';
+      } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
+        errorType = 'Не удается подключиться к RPC провайдеру';
+      } else if (errorMessage.includes('NETWORK_ERROR')) {
+        errorType = 'Ошибка сети - проверьте интернет-соединение';
+      }
+      
       balance = '0';
+      
+      // Добавляем информацию об ошибке в результат
+      results.push({
+        network: token.network,
+        tokenAddress: token.address,
+        tokenName: token.name,
+        symbol: token.symbol || '',
+        balance,
+        minBalance: token.min_balance,
+        readonlyThreshold: token.readonly_threshold || 1,
+        editorThreshold: token.editor_threshold || 2,
+        error: errorType,
+        errorDetails: errorMessage
+      });
+      continue;
     }
+    
+    // Добавляем успешный результат
     results.push({
       network: token.network,
       tokenAddress: token.address,
@@ -98,7 +154,8 @@ async function getUserTokenBalances(address) {
     });
   }
 
-  return results;
+  // Преобразуем в обычный массив для корректной сериализации
+  return JSON.parse(JSON.stringify(results));
 }
 
 module.exports = { getUserTokenBalances };

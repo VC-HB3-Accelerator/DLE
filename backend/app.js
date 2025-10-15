@@ -330,6 +330,12 @@ const initializeDbSettingsService = async () => {
 // Инициализируем сервис настроек БД при запуске
 if (process.env.NODE_ENV !== 'migration') {
   initializeDbSettingsService();
+  
+  // Загружаем RPC URL из базы данных
+  const { loadRpcFromDatabase } = require('./utils/loadRpcFromDatabase');
+  loadRpcFromDatabase().catch(error => {
+    logger.error('[App] Ошибка загрузки RPC URL из базы данных:', error);
+  });
 }
 
 module.exports = { app, nonceStore };

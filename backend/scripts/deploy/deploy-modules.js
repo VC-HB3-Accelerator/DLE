@@ -179,27 +179,30 @@ async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, con
 async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce, moduleInit, moduleType) {
   const { ethers } = hre;
   
+  // Создаем временный провайдер для получения chainId
+  const tempProvider = new ethers.JsonRpcProvider(rpcUrl);
+  const network = await tempProvider.getNetwork();
+  const chainId = Number(network.chainId);
+  
   // Используем новый менеджер RPC с retry логикой
-  const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
+  const { provider, wallet, network: rpcNetwork } = await createRPCConnection(chainId, pk, {
     maxRetries: 3,
     timeout: 30000
   });
   
-  const net = network;
-
-  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType}...`);
+  const net = rpcNetwork;
   
   // 1) Используем NonceManager для правильного управления nonce
-  const chainId = Number(net.chainId);
+  logger.info(`[MODULES_DBG] chainId=${chainId} deploying ${moduleType}...`);
   let current = await nonceManager.getNonce(wallet.address, rpcUrl, chainId);
   logger.info(`[MODULES_DBG] chainId=${chainId} current nonce=${current} target=${targetNonce}`);
   
   if (current > targetNonce) {
-    throw new Error(`Current nonce ${current} > targetNonce ${targetNonce} on chainId=${Number(net.chainId)}`);
+    throw new Error(`Current nonce ${current} > targetNonce ${targetNonce} on chainId=${chainId}`);
   }
   
   if (current < targetNonce) {
-    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} aligning nonce from ${current} to ${targetNonce} (${targetNonce - current} transactions needed)`);
+    logger.info(`[MODULES_DBG] chainId=${chainId} aligning nonce from ${current} to ${targetNonce} (${targetNonce - current} transactions needed)`);
     
     // Используем burn address для более надежных транзакций
     const burnAddress = "0x000000000000000000000000000000000000dEaD";
@@ -219,15 +222,15 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
             gasLimit,
             ...overrides
           };
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} sending filler tx nonce=${current} attempt=${attempt + 1}`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} sending filler tx nonce=${current} attempt=${attempt + 1}`);
           const rpcManager = new RPCConnectionManager();
           const { tx: txFill, receipt } = await rpcManager.sendTransactionWithRetry(wallet, txReq, { maxRetries: 3 });
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx sent, hash=${txFill.hash}, waiting for confirmation...`);
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} confirmed, hash=${txFill.hash}`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} filler tx sent, hash=${txFill.hash}, waiting for confirmation...`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} filler tx nonce=${current} confirmed, hash=${txFill.hash}`);
           sent = true;
         } catch (e) {
           lastErr = e;
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx nonce=${current} attempt=${attempt + 1} failed: ${e?.message || e}`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} filler tx nonce=${current} attempt=${attempt + 1} failed: ${e?.message || e}`);
           
           if (String(e?.message || '').toLowerCase().includes('intrinsic gas too low') && attempt < 2) {
             gasLimit = 50000;
@@ -236,13 +239,13 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
           
           if (String(e?.message || '').toLowerCase().includes('nonce too low') && attempt < 2) {
             // Сбрасываем кэш и получаем актуальный nonce
-            nonceManager.resetNonce(wallet.address, Number(net.chainId));
+            nonceManager.resetNonce(wallet.address, chainId);
             current = await provider.getTransactionCount(wallet.address, 'pending');
-            logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated nonce to ${current}`);
+            logger.info(`[MODULES_DBG] chainId=${chainId} updated nonce to ${current}`);
             
             // Если новый nonce больше целевого, это критическая ошибка
             if (current > targetNonce) {
-              throw new Error(`Current nonce ${current} > target nonce ${targetNonce} on chainId=${Number(net.chainId)}. Cannot proceed with module deployment.`);
+              throw new Error(`Current nonce ${current} > target nonce ${targetNonce} on chainId=${chainId}. Cannot proceed with module deployment.`);
             }
             
             continue;
@@ -253,20 +256,20 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
       }
       
       if (!sent) {
-        logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} failed to send filler tx for nonce=${current}`);
+        logger.error(`[MODULES_DBG] chainId=${chainId} failed to send filler tx for nonce=${current}`);
         throw lastErr || new Error('filler tx failed');
       }
       
       current++;
     }
     
-    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce alignment completed, current nonce=${current}`);
+    logger.info(`[MODULES_DBG] chainId=${chainId} nonce alignment completed, current nonce=${current}`);
   } else {
-    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce already aligned at ${current}`);
+    logger.info(`[MODULES_DBG] chainId=${chainId} nonce already aligned at ${current}`);
   }
 
   // 2) Деплой модуля напрямую на согласованном nonce
-  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying ${moduleType} directly with nonce=${targetNonce}`);
+  logger.info(`[MODULES_DBG] chainId=${chainId} deploying ${moduleType} directly with nonce=${targetNonce}`);
   
   const feeOverrides = await getFeeOverrides(provider);
   let gasLimit;
@@ -283,7 +286,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
     const fallbackGas = maxByBalance > 2_000_000n ? 2_000_000n : (maxByBalance < 500_000n ? 500_000n : maxByBalance);
     gasLimit = est ? (est + est / 5n) : fallbackGas;
     
-    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
+    logger.info(`[MODULES_DBG] chainId=${chainId} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
   } catch (_) {
     gasLimit = 1_000_000n;
   }
@@ -293,13 +296,13 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
     from: wallet.address,
     nonce: targetNonce
   });
-  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} predicted ${moduleType} address=${predictedAddress}`);
+  logger.info(`[MODULES_DBG] chainId=${chainId} predicted ${moduleType} address=${predictedAddress}`);
 
   // Проверяем, не развернут ли уже контракт
   const existingCode = await provider.getCode(predictedAddress);
   if (existingCode && existingCode !== '0x') {
-    logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} already exists at predictedAddress, skip deploy`);
-    return { address: predictedAddress, chainId: Number(net.chainId) };
+    logger.info(`[MODULES_DBG] chainId=${chainId} ${moduleType} already exists at predictedAddress, skip deploy`);
+    return { address: predictedAddress, chainId: chainId };
   }
 
   // Деплоим модуль с retry логикой для обработки race conditions
@@ -312,8 +315,8 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
       deployAttempts++;
       
       // Получаем актуальный nonce прямо перед отправкой транзакции
-      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, Number(net.chainId), { timeout: 15000, maxRetries: 5 });
-      logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetNonce})`);
+      const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+      logger.info(`[MODULES_DBG] chainId=${chainId} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetNonce})`);
       
       const txData = {
         data: moduleInit,
@@ -326,26 +329,26 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
       const result = await rpcManager.sendTransactionWithRetry(wallet, txData, { maxRetries: 3 });
       tx = result.tx;
       
-      logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy successful on attempt ${deployAttempts}`);
+      logger.info(`[MODULES_DBG] chainId=${chainId} deploy successful on attempt ${deployAttempts}`);
       break; // Успешно отправили, выходим из цикла
       
     } catch (e) {
       const errorMsg = e?.message || e;
-      logger.warn(`[MODULES_DBG] chainId=${Number(net.chainId)} deploy attempt ${deployAttempts} failed: ${errorMsg}`);
+      logger.warn(`[MODULES_DBG] chainId=${chainId} deploy attempt ${deployAttempts} failed: ${errorMsg}`);
       
       // Проверяем, является ли это ошибкой nonce
       if (String(errorMsg).toLowerCase().includes('nonce too low') && deployAttempts < maxDeployAttempts) {
-        logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} nonce race condition detected, retrying...`);
+        logger.info(`[MODULES_DBG] chainId=${chainId} nonce race condition detected, retrying...`);
         
         // Получаем актуальный nonce из сети
-        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, Number(net.chainId), { timeout: 15000, maxRetries: 5 });
-        logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} current nonce: ${currentNonce}, target: ${targetNonce}`);
+        const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
+        logger.info(`[MODULES_DBG] chainId=${chainId} current nonce: ${currentNonce}, target: ${targetNonce}`);
         
         // Если текущий nonce больше целевого, обновляем targetNonce
         if (currentNonce > targetNonce) {
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} current nonce ${currentNonce} > target nonce ${targetNonce}, updating target`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} current nonce ${currentNonce} > target nonce ${targetNonce}, updating target`);
           targetNonce = currentNonce;
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated targetNonce to: ${targetNonce}`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} updated targetNonce to: ${targetNonce}`);
           
           // Короткая задержка перед следующей попыткой
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -354,7 +357,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
         
         // Если текущий nonce меньше целевого, выравниваем его
         if (currentNonce < targetNonce) {
-          logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} aligning nonce from ${currentNonce} to ${targetNonce}`);
+          logger.info(`[MODULES_DBG] chainId=${chainId} aligning nonce from ${currentNonce} to ${targetNonce}`);
           
           // Выравниваем nonce нулевыми транзакциями
           for (let i = currentNonce; i < targetNonce; i++) {
@@ -368,13 +371,13 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
               });
               
               await fillerTx.wait();
-              logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx ${i} confirmed`);
+              logger.info(`[MODULES_DBG] chainId=${chainId} filler tx ${i} confirmed`);
               
               // Обновляем nonce в кэше
-              nonceManager.reserveNonce(wallet.address, Number(net.chainId), i);
+              nonceManager.reserveNonce(wallet.address, chainId, i);
               
             } catch (fillerError) {
-              logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} filler tx ${i} failed: ${fillerError.message}`);
+              logger.error(`[MODULES_DBG] chainId=${chainId} filler tx ${i} failed: ${fillerError.message}`);
               throw fillerError;
             }
           }
@@ -382,7 +385,7 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
         
         // ВАЖНО: Обновляем targetNonce на актуальный nonce для следующей попытки
         targetNonce = currentNonce;
-        logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} updated targetNonce to: ${targetNonce}`);
+        logger.info(`[MODULES_DBG] chainId=${chainId} updated targetNonce to: ${targetNonce}`);
         
         // Короткая задержка перед следующей попыткой
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -402,24 +405,32 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   const rc = await tx.wait();
   const deployedAddress = rc.contractAddress || predictedAddress;
   
-  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployed at=${deployedAddress}`);
-  return { address: deployedAddress, chainId: Number(net.chainId) };
+  logger.info(`[MODULES_DBG] chainId=${chainId} ${moduleType} deployed at=${deployedAddress}`);
+  return { address: deployedAddress, chainId: chainId };
 }
 
 
 // Деплой всех модулей в одной сети
-async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params) {
+async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params) {
   const { ethers } = hre;
   
+  // Получаем RPC URL для данной сети
+  const rpcService = require('../../services/rpcProviderService');
+  const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+  if (!rpcUrl) {
+    throw new Error(`RPC URL не найден для chainId ${chainId}`);
+  }
+  
   // Используем новый менеджер RPC с retry логикой
-  const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
+  const { provider, wallet, network } = await createRPCConnection(chainId, pk, {
     maxRetries: 3,
     timeout: 30000
   });
   
   const net = network;
+  const chainId = Number(net.chainId);
 
-  logger.info(`[MODULES_DBG] chainId=${Number(net.chainId)} deploying modules: ${modulesToDeploy.join(', ')}`);
+  logger.info(`[MODULES_DBG] chainId=${chainId} deploying modules: ${modulesToDeploy.join(', ')}`);
   
   const results = {};
   
@@ -432,14 +443,14 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
     logger.info(`[MODULES_DBG] Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
     
     if (!MODULE_CONFIGS[moduleType]) {
-      logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} Unknown module type: ${moduleType}`);
+      logger.error(`[MODULES_DBG] chainId=${chainId} Unknown module type: ${moduleType}`);
       results[moduleType] = { success: false, error: `Unknown module type: ${moduleType}` };
       logger.error(`[MODULES_DBG] Неизвестный тип модуля: ${moduleType}`);
       continue;
     }
     
     if (!moduleInit) {
-      logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} No init code for module: ${moduleType}`);
+      logger.error(`[MODULES_DBG] chainId=${chainId} No init code for module: ${moduleType}`);
       results[moduleType] = { success: false, error: `No init code for module: ${moduleType}` };
       logger.error(`[MODULES_DBG] Отсутствует код инициализации для модуля: ${moduleType}`);
       continue;
@@ -458,7 +469,7 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
           
           // Получаем аргументы конструктора для модуля
           const moduleConfig = MODULE_CONFIGS[moduleType];
-          const constructorArgs = moduleConfig.constructorArgs(dleAddress, Number(net.chainId), wallet.address);
+          const constructorArgs = moduleConfig.constructorArgs(dleAddress, chainId, wallet.address);
           
           // Ждем 30 секунд перед верификацией, чтобы транзакция получила подтверждения
           logger.info(`[MODULES_DBG] Ждем 30 секунд перед верификацией модуля ${moduleType}...`);
@@ -478,7 +489,7 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
           }
           
           const verificationResult = await verifyModuleAfterDeploy(
-            Number(net.chainId),
+            chainId,
             result.address,
             moduleType,
             constructorArgs,
@@ -510,9 +521,9 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
         }
       }
     } catch (error) {
-      logger.error(`[MODULES_DBG] chainId=${Number(net.chainId)} ${moduleType} deployment failed:`, error.message);
+      logger.error(`[MODULES_DBG] chainId=${chainId} ${moduleType} deployment failed:`, error.message);
       results[moduleType] = { 
-        chainId: Number(net.chainId), 
+        chainId: chainId, 
         success: false, 
         error: error.message 
       };
@@ -521,7 +532,7 @@ async function deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesTo
   }
   
   return {
-    chainId: Number(net.chainId),
+    chainId: chainId,
     modules: results
   };
 }
@@ -544,6 +555,15 @@ async function deployAllModulesInAllNetworks(networks, pk, salt, dleAddress, mod
 }
 
 async function main() {
+  // 🔧 BEST PRACTICE: Настраиваем NO_PROXY перед деплоем
+  try {
+    const proxyManager = require('../../utils/proxyManager');
+    await proxyManager.initialize();
+    console.log('[MODULES_DBG] ✅ ProxyManager инициализирован');
+  } catch (error) {
+    console.warn('[MODULES_DBG] ⚠️ Не удалось инициализировать ProxyManager:', error.message);
+  }
+  
   const { ethers } = hre;
   
   // Обрабатываем аргументы командной строки и переменные окружения
@@ -609,6 +629,7 @@ async function main() {
 
   const pk = params.privateKey || params.private_key || process.env.PRIVATE_KEY;
   const networks = params.rpcUrls || params.rpc_urls || [];
+  const supportedChainIds = params.supportedChainIds || [];
   const dleAddress = params.dleAddress;
   const salt = params.CREATE2_SALT || params.create2_salt;
   
@@ -666,7 +687,7 @@ async function main() {
     const ContractFactory = await hre.ethers.getContractFactory(moduleConfig.contractName);
     
     // Получаем аргументы конструктора для первой сети (для расчета init кода)
-    const firstConnection = await createRPCConnection(networks[0], pk, {
+    const firstConnection = await createRPCConnection(supportedChainIds[0], pk, {
       maxRetries: 3,
       timeout: 30000
     });
@@ -688,8 +709,8 @@ async function main() {
 
   // Подготовим провайдеры и вычислим общие nonce для каждого модуля
   // Создаем RPC соединения с retry логикой
-  logger.info(`[MODULES_DBG] Создаем RPC соединения для ${networks.length} сетей...`);
-  const connections = await createMultipleRPCConnections(networks, pk, {
+  logger.info(`[MODULES_DBG] Создаем RPC соединения для ${supportedChainIds.length} сетей...`);
+  const connections = await createMultipleRPCConnections(supportedChainIds, pk, {
     maxRetries: 3,
     timeout: 30000
   });
@@ -698,7 +719,7 @@ async function main() {
     throw new Error('Не удалось установить ни одного RPC соединения');
   }
   
-  logger.info(`[MODULES_DBG] ✅ Успешно подключились к ${connections.length}/${networks.length} сетям`);
+  logger.info(`[MODULES_DBG] ✅ Успешно подключились к ${connections.length}/${supportedChainIds.length} сетям`);
   
   const nonces = [];
   for (const connection of connections) {
@@ -718,33 +739,28 @@ async function main() {
   logger.info(`[MODULES_DBG] nonces=${JSON.stringify(nonces)} targetNonces=${JSON.stringify(targetNonces)}`);
 
   // ПАРАЛЛЕЛЬНЫЙ деплой всех модулей во всех сетях одновременно
-  logger.info(`[MODULES_DBG] Starting PARALLEL deployment of all modules to ${networks.length} networks`);
+  logger.info(`[MODULES_DBG] Starting PARALLEL deployment of all modules to ${connections.length} networks`);
   
-  const deploymentPromises = networks.map(async (rpcUrl, networkIndex) => {
-    logger.info(`[MODULES_DBG] 🚀 Starting deployment to network ${networkIndex + 1}/${networks.length}: ${rpcUrl}`);
+  const deploymentPromises = connections.map(async (connection, networkIndex) => {
+    logger.info(`[MODULES_DBG] 🚀 Starting deployment to network ${networkIndex + 1}/${connections.length}: ${connection.rpcUrl}`);
     
     try {
-      // Получаем chainId динамически из сети с retry логикой
-      const { provider, network } = await createRPCConnection(rpcUrl, pk, {
-        maxRetries: 3,
-        timeout: 30000
-      });
-      const chainId = Number(network.chainId);
+      const chainId = Number(connection.network.chainId);
       
       logger.info(`[MODULES_DBG] 📡 Network ${networkIndex + 1} chainId: ${chainId}`);
       
-      const result = await deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params);
+      const result = await deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params);
       logger.info(`[MODULES_DBG] ✅ Network ${networkIndex + 1} (chainId: ${chainId}) deployment SUCCESS`);
-      return { rpcUrl, chainId, ...result };
+      return { rpcUrl: connection.rpcUrl, chainId, ...result };
     } catch (error) {
       logger.error(`[MODULES_DBG] ❌ Network ${networkIndex + 1} deployment FAILED:`, error.message);
-      return { rpcUrl, error: error.message };
+      return { rpcUrl: connection.rpcUrl, error: error.message };
     }
   });
   
   // Ждем завершения всех деплоев
   const deployResults = await Promise.all(deploymentPromises);
-  logger.info(`[MODULES_DBG] All ${networks.length} deployments completed`);
+  logger.info(`[MODULES_DBG] All ${connections.length} deployments completed`);
   
   // Логируем результаты деплоя для каждой сети
   deployResults.forEach((result, index) => {

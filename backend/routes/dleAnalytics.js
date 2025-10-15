@@ -72,7 +72,7 @@ router.post('/get-dle-analytics', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)",
@@ -242,7 +242,7 @@ router.post('/get-dle-history', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getProposalsCount() external view returns (uint256)",

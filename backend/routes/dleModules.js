@@ -213,7 +213,7 @@ router.post('/is-module-active', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
@@ -296,7 +296,7 @@ router.post('/get-module-address', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
@@ -348,7 +348,13 @@ router.post('/prepare-initialize-modules-all-networks', async (req, res) => {
     const results = [];
     for (const network of supportedNetworks) {
       try {
-        const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+        // Получаем RPC URL из базы данных
+        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(network.chainId);
+        if (!rpcUrl) {
+          console.warn(`[DLE Modules] RPC URL не найден для chainId ${network.chainId}`);
+          continue;
+        }
+        const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
         const dle = new ethers.Contract(
           dleAddress,
           [
@@ -576,14 +582,16 @@ router.post('/get-all-modules', async (req, res) => {
       return networks[chainId] || `Chain ${chainId}`;
     }
     
-    function getFallbackRpcUrl(chainId) {
-      const fallbackUrls = {
-        11155111: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY',
-        17000: 'https://ethereum-holesky.publicnode.com',
-        421614: 'https://sepolia-rollup.arbitrum.io/rpc',
-        84532: 'https://sepolia.base.org'
-      };
-      return fallbackUrls[chainId] || null;
+    async function getFallbackRpcUrl(chainId) {
+      try {
+        // Получаем RPC URL из базы данных
+        const rpcService = require('../services/rpcProviderService');
+        const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+        return rpcUrl;
+      } catch (error) {
+        console.error(`[DLE Modules] Ошибка получения RPC из базы данных для chain_id ${chainId}:`, error);
+        return null;
+      }
     }
     
     function getEtherscanUrl(chainId) {
@@ -621,48 +629,19 @@ router.post('/get-all-modules', async (req, res) => {
         const supportedChainIds = params.supportedChainIds || [];
         const rpcUrls = params.rpcUrls || params.rpc_urls || {};
         
-        supportedNetworks = supportedChainIds.map((chainId, index) => ({
+        supportedNetworks = await Promise.all(supportedChainIds.map(async (chainId, index) => ({
           chainId: Number(chainId),
           networkName: getNetworkName(Number(chainId)),
-          rpcUrl: rpcUrls[chainId] || getFallbackRpcUrl(chainId),
+          rpcUrl: rpcUrls[chainId] || await getFallbackRpcUrl(chainId),
           etherscanUrl: getEtherscanUrl(chainId),
           networkIndex: index
-        }));
+        })));
       }
       await deployParamsService.close();
     } catch (error) {
       console.error('❌ Ошибка получения параметров деплоя:', error);
-      // Fallback для совместимости
-      supportedNetworks = [
-        {
-          chainId: 11155111,
-          networkName: 'Sepolia',
-          rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY',
-          etherscanUrl: 'https://sepolia.etherscan.io',
-          networkIndex: 0
-        },
-        {
-          chainId: 17000,
-          networkName: 'Holesky',
-          rpcUrl: 'https://ethereum-holesky.publicnode.com',
-          etherscanUrl: 'https://holesky.etherscan.io',
-          networkIndex: 1
-        },
-        {
-          chainId: 421614,
-          networkName: 'Arbitrum Sepolia',
-          rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
-          etherscanUrl: 'https://sepolia.arbiscan.io',
-          networkIndex: 2
-        },
-        {
-          chainId: 84532,
-          networkName: 'Base Sepolia',
-          rpcUrl: 'https://sepolia.base.org',
-          etherscanUrl: 'https://sepolia.basescan.org',
-          networkIndex: 3
-        }
-      ];
+      // НЕ показываем fallback цепочки - только те, что выбрал пользователь
+      supportedNetworks = [];
     }
 
     res.json({
@@ -754,7 +733,7 @@ router.post('/create-add-module-proposal', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     // Получаем приватный ключ из параметров деплоя
     let privateKey;
@@ -1003,7 +982,7 @@ router.post('/create-remove-module-proposal', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function createRemoveModuleProposal(string memory _description, uint256 _duration, bytes32 _moduleId, uint256 _chainId) external returns (uint256)"
@@ -1276,7 +1255,7 @@ router.post('/verify-module', async (req, res) => {
 
     // Получаем ABI и bytecode для модуля
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
 
     // Получаем код контракта для проверки существования
     const code = await provider.getCode(moduleAddress);
@@ -1389,7 +1368,11 @@ router.post('/check-modules-status', async (req, res) => {
 
     // Проверяем первую доступную сеть
     const network = supportedNetworks[0];
-    const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+    const rpcUrl = await rpcProviderService.getRpcUrlByChainId(network.chainId);
+    if (!rpcUrl) {
+      return res.status(400).json({ success: false, message: `RPC URL не найден для chainId ${network.chainId}` });
+    }
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function initializer() external view returns (address)",
@@ -1603,7 +1586,12 @@ router.post('/initialize-modules-all-networks', async (req, res) => {
       console.log(`[DLE Modules] Инициализация модулей в сети: ${network.networkName} (${network.chainId})`);
       
       try {
-        const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(network.chainId);
+        if (!rpcUrl) {
+          console.warn(`[DLE Modules] RPC URL не найден для chainId ${network.chainId}`);
+          continue;
+        }
+        const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
         const wallet = new ethers.Wallet(privateKey, provider);
         const dle = new ethers.Contract(dleAddress, dleAbi, wallet);
 
@@ -1723,7 +1711,12 @@ router.post('/verify-modules-all-networks', async (req, res) => {
       };
 
       try {
-        const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(network.chainId);
+        if (!rpcUrl) {
+          console.warn(`[DLE Modules] RPC URL не найден для chainId ${network.chainId}`);
+          continue;
+        }
+        const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
         const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
         for (const [moduleKey, moduleId] of Object.entries(moduleIds)) {
@@ -1892,7 +1885,7 @@ router.post('/check-dle-deployment-status', async (req, res) => {
               throw new Error(`RPC URL не найден для сети ${chainId}`);
             }
 
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
             
             // Проверяем, что контракт существует и имеет код
             const code = await provider.getCode(dleAddress);
@@ -2019,7 +2012,7 @@ router.post('/check-module-deployment-status', async (req, res) => {
               throw new Error(`RPC URL не найден для сети ${chainId}`);
             }
 
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
             
             const dleAbi = [
               "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
@@ -2179,7 +2172,7 @@ router.post('/deploy-module-all-networks', async (req, res) => {
       try {
         const result = await executeWithRetries(
           async () => {
-            const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(network.chainId));
             const wallet = new ethers.Wallet(privateKey, provider);
             
             // Используем NonceManager для правильного управления nonce
@@ -2558,7 +2551,7 @@ router.post('/verify-module-all-networks', async (req, res) => {
       try {
         const result = await executeWithRetries(
           async () => {
-            const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(network.chainId));
             const dle = new ethers.Contract(dleAddress, [
               "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
             ], provider);
@@ -2698,7 +2691,7 @@ router.post('/initialize-module-all-networks', async (req, res) => {
       try {
         const result = await executeWithRetries(
           async () => {
-            const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(network.chainId));
             const wallet = new ethers.Wallet(privateKey, provider);
             
             const dleAbi = [
@@ -2826,7 +2819,7 @@ router.post('/final-deployment-check', async (req, res) => {
               throw new Error(`RPC URL не найден для сети ${chainId}`);
             }
 
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
             
             const dleAbi = [
               "function name() external view returns (string)",
@@ -3025,7 +3018,7 @@ router.post('/get-deployment-status', async (req, res) => {
       const result = await executeWithRetries(
         async () => {
           const rpcUrl = await rpcProviderService.getRpcUrlByChainId(supportedNetworks[0].chainId);
-          const provider = new ethers.JsonRpcProvider(rpcUrl);
+          const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
           const dleCode = await provider.getCode(dleAddress);
           return dleCode !== '0x';
         },
@@ -3045,7 +3038,7 @@ router.post('/get-deployment-status', async (req, res) => {
           const verificationResult = await executeWithRetries(
             async () => {
               const rpcUrl = await rpcProviderService.getRpcUrlByChainId(supportedNetworks[0].chainId);
-              const provider = new ethers.JsonRpcProvider(rpcUrl);
+              const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
               // Простая проверка - если код контракта не пустой, считаем верифицированным
               const code = await provider.getCode(dleAddress);
               return code !== '0x' && code.length > 2;
@@ -3102,7 +3095,7 @@ router.post('/get-deployment-status', async (req, res) => {
         const result = await executeWithRetries(
           async () => {
             const rpcUrl = await rpcProviderService.getRpcUrlByChainId(supportedNetworks[0].chainId);
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
+            const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
             const dle = new ethers.Contract(dleAddress, [
               "function getModuleAddress(bytes32 _moduleId) external view returns (address)",
               "function isModuleActive(bytes32 _moduleId) external view returns (bool)"
@@ -3129,7 +3122,7 @@ router.post('/get-deployment-status', async (req, res) => {
             const verificationResult = await executeWithRetries(
               async () => {
                 const rpcUrl = await rpcProviderService.getRpcUrlByChainId(supportedNetworks[0].chainId);
-                const provider = new ethers.JsonRpcProvider(rpcUrl);
+                const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
                 const moduleCode = await provider.getCode(moduleAddress);
                 return moduleCode !== '0x';
               },
@@ -3168,7 +3161,7 @@ router.post('/get-deployment-status', async (req, res) => {
       const result = await executeWithRetries(
         async () => {
           const rpcUrl = await rpcProviderService.getRpcUrlByChainId(supportedNetworks[0].chainId);
-          const provider = new ethers.JsonRpcProvider(rpcUrl);
+          const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
           const dle = new ethers.Contract(dleAddress, [
           ], provider);
           

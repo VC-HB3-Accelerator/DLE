@@ -121,10 +121,13 @@
           </div>
           <div v-else>
 
-            <div v-for="(token, index) in tokenBalances" :key="token.tokenAddress ? token.tokenAddress : 'token-' + index" class="token-balance-row">
+            <div v-for="(token, index) in tokenBalances" :key="token.tokenAddress ? token.tokenAddress : 'token-' + index" class="token-balance-row" :class="{ 'token-error': token.error }">
               <span class="token-name">{{ token.tokenName }}</span>
               <span class="token-network">{{ token.network }}</span>
-              <span class="token-amount">{{ isNaN(Number(token.balance)) ? '—' : Number(token.balance).toLocaleString() }}</span>
+              <span v-if="token.error" class="token-error-message" :title="token.errorDetails">
+                ❌ {{ token.error }}
+              </span>
+              <span v-else class="token-amount">{{ isNaN(Number(token.balance)) ? '—' : Number(token.balance).toLocaleString() }}</span>
             </div>
           </div>
         </div>
@@ -454,6 +457,22 @@ h3 {
   color: var(--color-text-light);
   font-style: italic;
   font-size: var(--font-size-sm);
+}
+
+/* Стили для ошибок токенов */
+.token-balance-row.token-error {
+  background-color: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-xs);
+}
+
+.token-error-message {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  font-weight: bold;
+  flex: 1;
+  cursor: help;
 }
 
 /* Медиа-запросы для адаптивности */

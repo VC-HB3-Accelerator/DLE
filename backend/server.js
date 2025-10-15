@@ -11,6 +11,51 @@
  */
 
 require('dotenv').config();
+
+// Функция для настройки NO_PROXY на основе RPC провайдеров из базы данных
+async function configureNoProxyFromRpcProviders() {
+  try {
+    const rpcService = require('./services/rpcProviderService');
+    const providers = await rpcService.getAllRpcProviders();
+    
+    const rpcDomains = providers
+      .map(provider => provider.rpc_url)
+      .filter(url => url && url.startsWith('http'))
+      .map(url => {
+        try {
+          const urlObj = new URL(url);
+          return urlObj.hostname;
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(hostname => hostname)
+      .filter((hostname, index, array) => array.indexOf(hostname) === index); // убираем дубликаты
+    
+    if (rpcDomains.length > 0) {
+      const existingNoProxy = process.env.NO_PROXY || '';
+      
+      // Добавляем RPC домены к существующему NO_PROXY
+      const newDomains = rpcDomains.filter(domain => !existingNoProxy.includes(domain));
+      
+      if (newDomains.length > 0) {
+        process.env.NO_PROXY = existingNoProxy ? `${existingNoProxy},${newDomains.join(',')}` : newDomains.join(',');
+        console.log('[Server] ✅ Добавлены RPC домены в NO_PROXY:', newDomains.join(', '));
+        console.log('[Server] 📋 Обновленный NO_PROXY:', process.env.NO_PROXY);
+      } else {
+        console.log('[Server] ℹ️ Все RPC домены уже в NO_PROXY');
+      }
+    } else {
+      console.warn('[Server] ⚠️ Не найдено RPC провайдеров для настройки NO_PROXY');
+    }
+  } catch (error) {
+    console.warn('[Server] ❌ Не удалось загрузить RPC провайдеры для NO_PROXY:', error.message);
+  }
+}
+
+// Экспортируем функцию для использования в других модулях
+module.exports.configureNoProxyFromRpcProviders = configureNoProxyFromRpcProviders;
+
 const { app, nonceStore } = require('./app');
 const http = require('http');
 const { initWSS } = require('./wsHub');
@@ -31,6 +76,9 @@ initWSS(server);
 
 async function startServer() {
   await initDbPool();
+  
+  // Настройка NO_PROXY для RPC провайдеров из базы данных
+  await configureNoProxyFromRpcProviders();
   
   // Инициализация AI ассистента В ФОНЕ (неблокирующая)
   seedAIAssistantSettings().catch(error => {

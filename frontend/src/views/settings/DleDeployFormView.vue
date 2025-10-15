@@ -906,6 +906,7 @@ import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import api from '@/api/axios';
 import DeploymentWizard from '@/components/deployment/DeploymentWizard.vue';
+import eventBus from '@/utils/eventBus';
 
 const router = useRouter();
 // Нормализация приватного ключа: убираем пробелы/"0x", посторонние символы,
@@ -924,19 +925,10 @@ function normalizePrivateKey(raw) {
 const { address } = useAuthContext();
 const { canManageSettings } = usePermissions();
 
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[DleDeployFormView] Clearing DLE deploy data');
-    // Очищаем данные при выходе из системы
-    // DleDeployFormView не нуждается в очистке данных
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[DleDeployFormView] Refreshing DLE deploy data');
-    checkAdminTokens(); // Обновляем данные при входе в систему
-  });
-});
+// Обработчики событий будут определены после функций clearAllData и resetUIState
+
+// Подписка на события авторизации (как в других файлах проекта)
+let unsubscribe = null;
 
 // Состояние для проверки админских токенов
 const adminTokenCheck = ref({
@@ -944,6 +936,28 @@ const adminTokenCheck = ref({
   canManageSettings: false,
   error: null
 });
+
+// Обработка события изменения авторизации
+const handleAuthEvent = (eventData) => {
+  console.log('[DleDeployFormView] Получено событие изменения авторизации:', eventData);
+  
+  // Если пользователь отключился, сбрасываем все данные формы
+  if (!eventData.authenticated) {
+    console.log('[DleDeployFormView] User disconnected, clearing form data');
+    clearAllData();
+    resetUIState();
+  } else {
+    // При подключении обновляем проверку токенов
+    checkAdminTokens();
+  }
+};
+
+// Watcher для отслеживания изменений в правах доступа
+watch(canManageSettings, (newValue, oldValue) => {
+  console.log('[DleDeployFormView] canManageSettings changed:', { oldValue, newValue });
+  // При изменении прав обновляем локальное состояние
+  adminTokenCheck.value.canManageSettings = newValue;
+}, { immediate: true });
 
 // Основные настройки DLE
 const dleSettings = reactive({
@@ -1573,12 +1587,17 @@ const clearAllData = () => {
   // Очищаем также поиск адресов и флаги автовыбора
   postalCodeInput.value = '';
   searchResults.value = [];
+  isSearchingAddress.value = false;
   autoSelectedOktmo.value = false;
   lastApiResult.value = null;
   
   // Сбрасываем выбранные уровни ОКВЭД
   selectedOkvedLevel1.value = '';
   selectedOkvedLevel2.value = '';
+  selectedOkvedLevel3.value = '';
+  selectedOkvedLevel4.value = '';
+  currentSelectedOkvedCode.value = '';
+  currentSelectedOkvedText.value = '';
   
   // Очищаем мульти-чейн состояние
   selectedNetworks.value = [];
@@ -1591,9 +1610,78 @@ const clearAllData = () => {
   Object.keys(keyValidation).forEach(key => delete keyValidation[key]);
   showUnifiedKey.value = false;
   
+  // Очищаем настройки деплоя
+  etherscanApiKey.value = '';
+  unifiedScanKeyVisible.value = false;
+  autoVerifyAfterDeploy.value = true;
+  showDeploymentWizard.value = false;
+  deployedDLEAddress.value = '';
+  
   // Очищаем localStorage
   clearStoredData();
 };
+
+// Сброс состояния UI компонентов
+const resetUIState = () => {
+  // Сбрасываем состояние загрузки
+  isLoadingCountries.value = false;
+  isLoadingRussianClassifiers.value = false;
+  isLoadingNetworks.value = false;
+  isLoadingOkvedLevel1.value = false;
+  isLoadingOkvedLevel2.value = false;
+  isLoadingOkvedLevel3.value = false;
+  isLoadingOkvedLevel4.value = false;
+  isLoadingKppCodes.value = false;
+  
+  // Сбрасываем состояние админских токенов
+  adminTokenCheck.value = {
+    isLoading: false,
+    canManageSettings: false,
+    error: null
+  };
+  
+  // Очищаем файл логотипа
+  logoFile.value = null;
+  logoPreviewUrl.value = '';
+  ensDomain.value = '';
+  ensResolvedUrl.value = '';
+  
+  // Сбрасываем состояние видимости ключей
+  showPrivateKey.value = false;
+  showUnifiedKey.value = false;
+  
+  console.log('[DleDeployFormView] UI state reset completed');
+};
+
+// Обработчики событий для очистки и обновления данных
+const handleClearApplicationData = () => {
+  console.log('[DleDeployFormView] Clearing DLE deploy data');
+  // Очищаем все данные формы при выходе из системы
+  clearAllData();
+  // Сбрасываем состояние UI
+  resetUIState();
+};
+
+// handleRefreshApplicationData будет определен после checkAdminTokens
+
+// Подписываемся на централизованные события очистки и обновления данных
+onMounted(() => {
+  window.addEventListener('clear-application-data', handleClearApplicationData);
+  window.addEventListener('refresh-application-data', handleRefreshApplicationData);
+  // Подписка на события авторизации
+  unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
+});
+
+onUnmounted(() => {
+  // Отписка от события при удалении компонента
+  if (unsubscribe) {
+    unsubscribe();
+  }
+  
+  // Удаляем слушатели событий window
+  window.removeEventListener('clear-application-data', handleClearApplicationData);
+  window.removeEventListener('refresh-application-data', handleRefreshApplicationData);
+});
 
 // (Старые функции ОКВЭД удалены - заменены каскадной системой)
 
@@ -2382,7 +2470,12 @@ onUnmounted(() => {
 });
 
 // Watcher для автоматического обновления адреса первого партнера при подключении кошелька
-watch(address, (newAddress) => {
+watch(address, (newAddress, oldAddress) => {
+  console.log('[DleDeployFormView] Address changed:', { oldAddress, newAddress });
+  
+  // Обновляем состояние при изменении адреса (подключение/отключение кошелька)
+  checkAdminTokens();
+  
   if (newAddress && dleSettings.partners[0]) {
     // Подставляем адрес, если поле пустое или пользователь только что подключил кошелек
     if (!dleSettings.partners[0].address) {
@@ -2394,8 +2487,16 @@ watch(address, (newAddress) => {
 
 // Функция проверки админских токенов
 const checkAdminTokens = async () => {
+  console.log('[DleDeployFormView] checkAdminTokens called, address:', address.value);
+  
+  // Небольшая задержка чтобы дать время useAuth обновить состояние
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // Обновляем локальное состояние на основе текущих прав из usePermissions
+  adminTokenCheck.value.canManageSettings = canManageSettings.value;
+  
   if (!address.value) {
-    adminTokenCheck.value = { isLoading: false, canManageSettings: false, error: 'Кошелек не подключен' };
+    adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: false, error: 'Кошелек не подключен' };
     return;
   }
 
@@ -2405,8 +2506,8 @@ const checkAdminTokens = async () => {
     const response = await api.get(`/dle-v2/check-admin-tokens?address=${address.value}`);
     
     if (response.data.success) {
-      adminTokenCheck.value = { ...adminTokenCheck.value, canManageSettings: response.data.data.userAccessLevel.hasAccess };
       console.log('Проверка админских токенов:', response.data.data);
+      // Не перезаписываем canManageSettings, так как это управляется usePermissions
     } else {
       adminTokenCheck.value = { ...adminTokenCheck.value, error: response.data.message || 'Ошибка проверки токенов' };
     }
@@ -2416,6 +2517,12 @@ const checkAdminTokens = async () => {
   } finally {
     adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: false };
   }
+};
+
+// Определяем handleRefreshApplicationData после checkAdminTokens
+const handleRefreshApplicationData = () => {
+  console.log('[DleDeployFormView] Refreshing DLE deploy data');
+  checkAdminTokens(); // Обновляем данные при входе в систему
 };
 
 // Функции для работы с партнерами

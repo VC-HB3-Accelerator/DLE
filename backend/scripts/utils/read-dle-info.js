@@ -20,10 +20,12 @@ async function main() {
   console.log(`Читаем данные DLE из блокчейна по адресу: ${dleAddress}`);
   
   // Получаем RPC URL из переменных окружения или используем дефолтный для Sepolia
-  const rpcUrl = process.env.RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY';
+  // Получаем RPC URL из базы данных
+  const rpcService = require('../../services/rpcProviderService');
+  const rpcUrl = await rpcService.getRpcUrlByChainId(11155111);
   
   // Создаем провайдер
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const provider = new ethers.JsonRpcProvider(await rpcService.getRpcUrlByChainId(11155111));
   
   try {
     // Получаем ABI контракта DLE

@@ -67,7 +67,7 @@ async function checkAdminRole(address) {
         errorCount++;
         return null;
       }
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const provider = new ethers.JsonRpcProvider(await rpcService.getRpcUrlByChainId(chainId));
       // Проверяем доступность сети с таймаутом
       try {
         const networkCheckPromise = provider.getNetwork();

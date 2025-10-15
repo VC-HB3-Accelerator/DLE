@@ -220,12 +220,19 @@ async function verifyDLEAfterDeploy(chainId, contractAddress, constructorArgs, a
   }
 }
 
-async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit, params, dleConfig, initializer, etherscanKey) {
+async function deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, dleInit, params, dleConfig, initializer, etherscanKey) {
   try {
     const { ethers } = hre;
     
+    // Получаем RPC URL для данной сети
+    const rpcService = require('../../services/rpcProviderService');
+    const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+    if (!rpcUrl) {
+      throw new Error(`RPC URL не найден для chainId ${chainId}`);
+    }
+    
     // Используем новый менеджер RPC с retry логикой
-    const { provider, wallet, network } = await createRPCConnection(rpcUrl, pk, {
+    const { provider, wallet, network } = await createRPCConnection(chainId, pk, {
       maxRetries: 3,
       timeout: 30000
     });
@@ -245,27 +252,26 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
   }
 
   // 1) Используем NonceManager для получения актуального nonce
-  const chainId = Number(net.chainId);
   let current = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
   logger.info(`[MULTI_DBG] chainId=${chainId} current nonce=${current} (target was ${targetDLENonce})`);
   
   // Если текущий nonce больше целевого, обновляем targetDLENonce
   if (current > targetDLENonce) {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} current nonce ${current} > targetDLENonce ${targetDLENonce}, updating target`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} current nonce ${current} > targetDLENonce ${targetDLENonce}, updating target`);
     targetDLENonce = current;
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} updated targetDLENonce to: ${targetDLENonce}`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} updated targetDLENonce to: ${targetDLENonce}`);
   }
   
   // Если текущий nonce меньше целевого, выравниваем его
   if (current < targetDLENonce) {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} starting nonce alignment: ${current} -> ${targetDLENonce} (${targetDLENonce - current} transactions needed)`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} starting nonce alignment: ${current} -> ${targetDLENonce} (${targetDLENonce - current} transactions needed)`);
   } else {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce already aligned: ${current} = ${targetDLENonce}`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} nonce already aligned: ${current} = ${targetDLENonce}`);
   }
   
   // 2) Выравниваем nonce если нужно (используем NonceManager)
   if (current < targetDLENonce) {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} aligning nonce from ${current} to ${targetDLENonce}`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} aligning nonce from ${current} to ${targetDLENonce}`);
     
     try {
       current = await nonceManager.alignNonceToTarget(
@@ -277,31 +283,31 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
         { gasLimit: 21000, maxRetries: 5 }
       );
       
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce alignment completed, current nonce=${current}`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} nonce alignment completed, current nonce=${current}`);
       
       // Зарезервируем nonce в NonceManager
       nonceManager.reserveNonce(wallet.address, chainId, targetDLENonce);
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} ready for DLE deployment with nonce=${current}`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} ready for DLE deployment with nonce=${current}`);
       
     } catch (error) {
-      logger.error(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce alignment failed: ${error.message}`);
+      logger.error(`[MULTI_DBG] chainId=${chainId} nonce alignment failed: ${error.message}`);
       throw error;
     }
   } else {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce already aligned at ${current}`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} nonce already aligned at ${current}`);
   }
 
   // 2) Проверяем баланс перед деплоем
   const balance = await provider.getBalance(wallet.address, 'latest');
   const balanceEth = ethers.formatEther(balance);
-  logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} wallet balance: ${balanceEth} ETH`);
+  logger.info(`[MULTI_DBG] chainId=${chainId} wallet balance: ${balanceEth} ETH`);
   
   if (balance < ethers.parseEther('0.01')) {
-    throw new Error(`Insufficient balance for deployment on chainId=${Number(net.chainId)}. Current: ${balanceEth} ETH, required: 0.01 ETH minimum`);
+    throw new Error(`Insufficient balance for deployment on chainId=${chainId}. Current: ${balanceEth} ETH, required: 0.01 ETH minimum`);
   }
   
   // 3) Деплой DLE с актуальным nonce
-  logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} deploying DLE with current nonce`);
+  logger.info(`[MULTI_DBG] chainId=${chainId} deploying DLE with current nonce`);
   
   const feeOverrides = await getFeeOverrides(provider);
   let gasLimit;
@@ -318,7 +324,7 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
     const fallbackGas = maxByBalance > 5_000_000n ? 5_000_000n : (maxByBalance < 2_500_000n ? 2_500_000n : maxByBalance);
     gasLimit = est ? (est + est / 5n) : fallbackGas;
     
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} estGas=${est?.toString?.()||'null'} effGasPrice=${effPrice?.toString?.()||'0'} maxByBalance=${maxByBalance.toString()} chosenGasLimit=${gasLimit.toString()}`);
   } catch (_) {
     gasLimit = 3_000_000n;
   }
@@ -328,17 +334,17 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
     from: wallet.address,
     nonce: targetDLENonce
   });
-  logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} predicted DLE address=${predictedAddress} (nonce=${targetDLENonce})`);
+  logger.info(`[MULTI_DBG] chainId=${chainId} predicted DLE address=${predictedAddress} (nonce=${targetDLENonce})`);
 
   // Проверяем, не развернут ли уже контракт
   const existingCode = await provider.getCode(predictedAddress);
   if (existingCode && existingCode !== '0x') {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE already exists at predictedAddress, skip deploy`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} DLE already exists at predictedAddress, skip deploy`);
     
     // Проверяем и инициализируем логотип для существующего контракта
     if (params.logoURI && params.logoURI !== '') {
       try {
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} checking logoURI for existing contract`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} checking logoURI for existing contract`);
         
         // Ждем 2 секунды для стабильности соединения
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -348,19 +354,19 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
         
         const currentLogo = await dleContract.logoURI();
         if (currentLogo === '' || currentLogo === '0x') {
-          logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing logoURI for existing contract: ${params.logoURI}`);
+          logger.info(`[MULTI_DBG] chainId=${chainId} initializing logoURI for existing contract: ${params.logoURI}`);
           const logoTx = await dleContract.connect(wallet).initializeLogoURI(params.logoURI, feeOverrides);
           await logoTx.wait();
-          logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized for existing contract`);
+          logger.info(`[MULTI_DBG] chainId=${chainId} logoURI initialized for existing contract`);
         } else {
-          logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI already set: ${currentLogo}`);
+          logger.info(`[MULTI_DBG] chainId=${chainId} logoURI already set: ${currentLogo}`);
         }
       } catch (error) {
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed for existing contract: ${error.message}`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} logoURI initialization failed for existing contract: ${error.message}`);
       }
     }
     
-    return { address: predictedAddress, chainId: Number(net.chainId) };
+    return { address: predictedAddress, chainId: chainId };
   }
 
   // Деплоим DLE с retry логикой для обработки race conditions
@@ -374,13 +380,13 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
       
       // Получаем актуальный nonce прямо перед отправкой транзакции
       const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetDLENonce})`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} deploy attempt ${deployAttempts}/${maxDeployAttempts} with current nonce=${currentNonce} (target was ${targetDLENonce})`);
       
       // Если текущий nonce больше целевого, обновляем targetDLENonce
       if (currentNonce > targetDLENonce) {
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} current nonce ${currentNonce} > target nonce ${targetDLENonce}, updating target`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} current nonce ${currentNonce} > target nonce ${targetDLENonce}, updating target`);
         targetDLENonce = currentNonce;
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} updated targetDLENonce to: ${targetDLENonce}`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} updated targetDLENonce to: ${targetDLENonce}`);
       }
       
       const txData = {
@@ -397,25 +403,25 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
       // Отмечаем транзакцию как pending в NonceManager
       nonceManager.markTransactionPending(wallet.address, chainId, currentNonce, tx.hash);
       
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} deploy successful on attempt ${deployAttempts}`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} deploy successful on attempt ${deployAttempts}`);
       break; // Успешно отправили, выходим из цикла
       
     } catch (e) {
       const errorMsg = e?.message || e;
-      logger.warn(`[MULTI_DBG] chainId=${Number(net.chainId)} deploy attempt ${deployAttempts} failed: ${errorMsg}`);
+      logger.warn(`[MULTI_DBG] chainId=${chainId} deploy attempt ${deployAttempts} failed: ${errorMsg}`);
       
       // Проверяем, является ли это ошибкой nonce
       if (String(errorMsg).toLowerCase().includes('nonce too low') && deployAttempts < maxDeployAttempts) {
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} nonce race condition detected, retrying...`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} nonce race condition detected, retrying...`);
         
         // Используем NonceManager для обновления nonce
         nonceManager.resetNonce(wallet.address, chainId);
         const currentNonce = await nonceManager.getNonce(wallet.address, rpcUrl, chainId, { timeout: 15000, maxRetries: 5 });
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} current nonce: ${currentNonce}, target was: ${targetDLENonce}`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} current nonce: ${currentNonce}, target was: ${targetDLENonce}`);
         
         // Обновляем targetDLENonce на актуальный nonce
         targetDLENonce = currentNonce;
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} updated targetDLENonce to: ${targetDLENonce}`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} updated targetDLENonce to: ${targetDLENonce}`);
         
         // Короткая задержка перед следующей попыткой
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -440,19 +446,19 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
   
   // Проверяем, что адрес соответствует предсказанному
   if (deployedAddress !== predictedAddress) {
-    logger.error(`[MULTI_DBG] chainId=${Number(net.chainId)} ADDRESS MISMATCH! predicted=${predictedAddress} actual=${deployedAddress}`);
+    logger.error(`[MULTI_DBG] chainId=${chainId} ADDRESS MISMATCH! predicted=${predictedAddress} actual=${deployedAddress}`);
     throw new Error(`Address mismatch: predicted ${predictedAddress} != actual ${deployedAddress}`);
   }
   
-  logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} DLE deployed at=${deployedAddress} ✅`);
+  logger.info(`[MULTI_DBG] chainId=${chainId} DLE deployed at=${deployedAddress} ✅`);
   
   // Инициализация логотипа если он указан
   if (params.logoURI && params.logoURI !== '') {
     try {
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} initializing logoURI: ${params.logoURI}`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} initializing logoURI: ${params.logoURI}`);
       
       // Ждем 5 секунд, чтобы контракт получил подтверждения
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} waiting 5 seconds for contract confirmations...`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} waiting 5 seconds for contract confirmations...`);
       await new Promise(resolve => setTimeout(resolve, 5000));
       
       const DLE = await hre.ethers.getContractFactory('contracts/DLE.sol:DLE');
@@ -460,24 +466,24 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
       
       // Проверяем текущий логотип перед инициализацией
       const currentLogo = await dleContract.logoURI();
-      logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} current logoURI: ${currentLogo}`);
+      logger.info(`[MULTI_DBG] chainId=${chainId} current logoURI: ${currentLogo}`);
       
       if (currentLogo === '' || currentLogo === '0x') {
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI is empty, initializing...`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} logoURI is empty, initializing...`);
         const logoTx = await dleContract.connect(wallet).initializeLogoURI(params.logoURI, feeOverrides);
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI transaction sent: ${logoTx.hash}`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} logoURI transaction sent: ${logoTx.hash}`);
         await logoTx.wait(2); // Ждем 2 подтверждения с таймаутом
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialized successfully`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} logoURI initialized successfully`);
       } else {
-        logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI already set: ${currentLogo}, skipping initialization`);
+        logger.info(`[MULTI_DBG] chainId=${chainId} logoURI already set: ${currentLogo}, skipping initialization`);
       }
     } catch (error) {
-      logger.error(`[MULTI_DBG] chainId=${Number(net.chainId)} logoURI initialization failed: ${error.message}`);
-      logger.error(`[MULTI_DBG] chainId=${Number(net.chainId)} error stack: ${error.stack}`);
+      logger.error(`[MULTI_DBG] chainId=${chainId} logoURI initialization failed: ${error.message}`);
+      logger.error(`[MULTI_DBG] chainId=${chainId} error stack: ${error.stack}`);
       // Не прерываем деплой из-за ошибки логотипа
     }
   } else {
-    logger.info(`[MULTI_DBG] chainId=${Number(net.chainId)} no logoURI specified, skipping initialization`);
+    logger.info(`[MULTI_DBG] chainId=${chainId} no logoURI specified, skipping initialization`);
   }
   
   // Автоматическая верификация DLE контракта после успешного деплоя
@@ -573,6 +579,15 @@ async function deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, dleInit
 
 async function main() {
   console.log('[MULTI_DBG] 🚀 ВХОДИМ В ФУНКЦИЮ MAIN!');
+  
+  // 🔧 BEST PRACTICE: Настраиваем NO_PROXY перед деплоем
+  try {
+    const proxyManager = require('../../utils/proxyManager');
+    await proxyManager.initialize();
+    console.log('[MULTI_DBG] ✅ ProxyManager инициализирован');
+  } catch (error) {
+    console.warn('[MULTI_DBG] ⚠️ Не удалось инициализировать ProxyManager:', error.message);
+  }
   const { ethers } = hre;
   console.log('[MULTI_DBG] ✅ ethers получен');
   
@@ -699,8 +714,8 @@ async function main() {
   }
 
   // Подготовим провайдеры и вычислим общий nonce для DLE с retry логикой
-  logger.info(`[MULTI_DBG] Создаем RPC соединения для ${networks.length} сетей...`);
-  const connections = await createMultipleRPCConnections(networks, pk, {
+  logger.info(`[MULTI_DBG] Создаем RPC соединения для ${supportedChainIds.length} сетей...`);
+  const connections = await createMultipleRPCConnections(supportedChainIds, pk, {
     maxRetries: 3,
     timeout: 30000
   });
@@ -709,7 +724,7 @@ async function main() {
     throw new Error('Не удалось установить ни одного RPC соединения');
   }
   
-  logger.info(`[MULTI_DBG] ✅ Успешно подключились к ${connections.length}/${networks.length} сетям`);
+  logger.info(`[MULTI_DBG] ✅ Успешно подключились к ${connections.length}/${supportedChainIds.length} сетям`);
   
   // Очищаем старые pending транзакции для всех сетей
   for (const connection of connections) {
@@ -719,12 +734,13 @@ async function main() {
   
   const nonces = [];
   for (const connection of connections) {
+    logger.info(`[MULTI_DBG] Получаем nonce для connection: address=${connection.wallet.address}, rpcUrl=${connection.rpcUrl}, chainId=${Number(connection.network.chainId)}`);
     const n = await nonceManager.getNonce(connection.wallet.address, connection.rpcUrl, Number(connection.network.chainId));
     nonces.push(n);
   }
   const targetDLENonce = Math.max(...nonces);
   logger.info(`[MULTI_DBG] nonces=${JSON.stringify(nonces)} targetDLENonce=${targetDLENonce}`);
-  logger.info(`[MULTI_DBG] Starting deployment to ${networks.length} networks:`, networks);
+  logger.info(`[MULTI_DBG] Starting deployment to ${connections.length} networks`);
 
   // ПАРАЛЛЕЛЬНЫЙ деплой во всех успешных сетях одновременно
   console.log(`[MULTI_DBG] 🚀 ДОШЛИ ДО ПАРАЛЛЕЛЬНОГО ДЕПЛОЯ!`);
@@ -744,7 +760,7 @@ async function main() {
         throw new Error(`InitCode не найден для chainId: ${chainId}`);
       }
       
-      const r = await deployInNetwork(rpcUrl, pk, initCodeHash, targetDLENonce, networkInitCode, params, dleConfig, initializer, etherscanKey);
+      const r = await deployInNetwork(chainId, pk, initCodeHash, targetDLENonce, networkInitCode, params, dleConfig, initializer, etherscanKey);
       logger.info(`[MULTI_DBG] ✅ Network ${i + 1} (chainId: ${chainId}) deployment SUCCESS: ${r.address}`);
       return {
         rpcUrl, 

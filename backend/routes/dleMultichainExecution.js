@@ -42,7 +42,7 @@ router.post('/get-proposal-multichain-info', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function proposals(uint256) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, bytes memory operation, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targetChains)",
@@ -294,7 +294,7 @@ async function executeProposalInChain(dleAddress, proposalId, chainId, privateKe
     throw new Error(`RPC URL для сети ${chainId} не найден`);
   }
 
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
   const wallet = new ethers.Wallet(privateKey, provider);
   
   const dleAbi = [

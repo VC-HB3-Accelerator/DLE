@@ -12,6 +12,7 @@
 
 import { ref, onMounted, onUnmounted, provide, inject } from 'vue';
 import axios from '../api/axios';
+import eventBus from '../utils/eventBus';
 
 // === SINGLETON STATE ===
 const isAuthenticated = ref(false);
@@ -243,15 +244,14 @@ const updateAuth = async ({
       window.dispatchEvent(new CustomEvent('refresh-application-data'));
     }
     
-    window.dispatchEvent(new CustomEvent('auth-state-changed', {
-      detail: {
-        authenticated: isAuthenticated.value,
-        authType: authType.value,
-        userId: userId.value,
-        address: address.value,
-        userAccessLevel: userAccessLevel.value
-      }
-    }));
+    // Отправляем событие через eventBus (централизованный подход)
+    eventBus.emit('auth-state-changed', {
+      authenticated: isAuthenticated.value,
+      authType: authType.value,
+      userId: userId.value,
+      address: address.value,
+      userAccessLevel: userAccessLevel.value
+    });
   }
 
   // Если пользователь только что аутентифицировался или сменил аккаунт,

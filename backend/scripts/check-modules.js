@@ -18,9 +18,11 @@ async function checkModules() {
     const dleAddress = '0xCaa85e96a6929F0373442e31FD9888d985869EcE';
     
     // RPC URL для Sepolia
-    const rpcUrl = process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.nodereal.io/v1/YOUR_NODEREAL_KEY';
+    // Получаем RPC URL из базы данных
+    const rpcService = require('../services/rpcProviderService');
+    const rpcUrl = await rpcService.getRpcUrlByChainId(11155111);
     
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcService.getRpcUrlByChainId(11155111));
     
     // ABI для DLE контракта
     const dleAbi = [

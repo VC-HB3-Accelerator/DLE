@@ -29,54 +29,8 @@ function getNetworks() {
   
   // console.log удален - может мешать flatten
   
-  // Базовые сети
-  const baseNetworks = {
-    sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || 'https://1rpc.io/sepolia',
-      chainId: 11155111,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    holesky: {
-      url: process.env.HOLESKY_RPC_URL || 'https://ethereum-holesky.publicnode.com',
-      chainId: 17000,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    mainnet: {
-      url: process.env.MAINNET_RPC_URL || 'https://eth-mainnet.nodereal.io/v1/YOUR_NODEREAL_KEY',
-      chainId: 1,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    arbitrumSepolia: {
-      url: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
-      chainId: 421614,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    baseSepolia: {
-      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-      chainId: 84532,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    arbitrumOne: {
-      url: process.env.ARBITRUM_ONE_RPC_URL || 'https://arb1.arbitrum.io/rpc',
-      chainId: 42161,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    base: {
-      url: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
-      chainId: 8453,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    polygon: {
-      url: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
-      chainId: 137,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    bsc: {
-      url: process.env.BSC_RPC_URL || 'https://bsc-dataseed.binance.org',
-      chainId: 56,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    }
-  };
+  // Базовые сети - УБРАНО, используем только базу данных
+  const baseNetworks = {}; // Пустой объект - никаких хардкод цепочек
   
   // Если есть supported_chain_ids, фильтруем только нужные сети
   if (supportedChainIds.length > 0) {
@@ -104,35 +58,9 @@ function getNetworks() {
   }
 }
 
-// Функция для получения базовых сетей (fallback)
+// Функция для получения базовых сетей (fallback) - УБРАНО, используем только базу данных
 function getBaseNetworks() {
-  return {
-    sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || 'https://1rpc.io/sepolia',
-      chainId: 11155111,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    holesky: {
-      url: process.env.HOLESKY_RPC_URL || 'https://ethereum-holesky.publicnode.com',
-      chainId: 17000,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    mainnet: {
-      url: process.env.MAINNET_RPC_URL || 'https://eth-mainnet.nodereal.io/v1/YOUR_NODEREAL_KEY',
-      chainId: 1,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    arbitrumSepolia: {
-      url: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
-      chainId: 421614,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    },
-    baseSepolia: {
-      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-      chainId: 84532,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
-    }
-  };
+  return {}; // Пустой объект - никаких хардкод цепочек
 }
 
 

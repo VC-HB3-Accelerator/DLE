@@ -455,6 +455,7 @@ class AuthService {
     }
   }
 
+
   /**
    * Определяет уровень доступа пользователя на основе количества токенов
    * @param {string} address - Адрес кошелька
@@ -490,23 +491,35 @@ class AuthService {
       const tokens = tokensResult.rows;
 
       // Получаем RPC провайдеры
-      const rpcProvidersResult = await db.getQuery()(
-        'SELECT id, chain_id, created_at, updated_at, decrypt_text(network_id_encrypted, $1) as network_id, decrypt_text(rpc_url_encrypted, $1) as rpc_url FROM rpc_providers',
-        [encryptionKey]
-      );
-      const rpcProviders = rpcProvidersResult.rows;
+      // Убрано - используем rpcService вместо прямого запроса к БД
       
-      const rpcMap = {};
-      for (const rpc of rpcProviders) {
-        rpcMap[rpc.network_id] = rpc.rpc_url;
-      }
+      // Используем правильный RPC URL из базы данных
+      const rpcService = require('./rpcProviderService');
 
       // Получаем балансы токенов из блокчейна
       const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
       const tokenBalances = [];
 
+      // Получаем все RPC провайдеры из базы данных для маппинга
+      const allRpcProviders = await rpcService.getAllRpcProviders();
+      const networkToChainId = {};
+      
+      // Создаем маппинг из базы данных
+      for (const provider of allRpcProviders) {
+        if (provider.network_id) {
+          networkToChainId[provider.network_id] = provider.chain_id;
+        }
+      }
+
       for (const token of tokens) {
-        const rpcUrl = rpcMap[token.network];
+        // Получаем chain_id из названия сети из базы данных
+        const chainId = networkToChainId[token.network];
+        if (!chainId) {
+          logger.warn(`[getUserAccessLevel] Неизвестная сеть: ${token.network}`);
+          continue;
+        }
+        
+        const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
         if (!rpcUrl) continue;
         
         try {

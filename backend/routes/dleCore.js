@@ -63,7 +63,7 @@ router.post('/read-dle-info', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     // ABI для чтения данных DLE
     const dleAbi = [
@@ -254,7 +254,7 @@ router.post('/get-governance-params', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getGovernanceParams() external view returns (uint256 quorumPct, uint256 chainId, uint256 supportedCount)"
@@ -323,7 +323,7 @@ router.post('/is-active', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function isActive() external view returns (bool)"
@@ -408,7 +408,7 @@ router.post('/deactivate-dle', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     // ABI для проверки деактивации DLE
     const dleAbi = [

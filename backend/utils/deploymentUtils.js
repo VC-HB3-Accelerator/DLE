@@ -93,26 +93,26 @@ async function getBalance(provider, address) {
 
 /**
  * Создает RPC соединение с retry логикой
- * @param {string} rpcUrl - URL RPC
+ * @param {number} chainId - ID цепочки
  * @param {string} privateKey - Приватный ключ
  * @param {Object} options - Опции соединения
  * @returns {Promise<Object>} - {provider, wallet, network}
  */
-async function createRPCConnection(rpcUrl, privateKey, options = {}) {
+async function createRPCConnection(chainId, privateKey, options = {}) {
   const rpcManager = new RPCConnectionManager();
-  return await rpcManager.createConnection(rpcUrl, privateKey, options);
+  return await rpcManager.createConnection(chainId, privateKey, options);
 }
 
 /**
  * Создает множественные RPC соединения с обработкой ошибок
- * @param {Array} rpcUrls - Массив RPC URL
+ * @param {Array} chainIds - Массив chain ID
  * @param {string} privateKey - Приватный ключ
  * @param {Object} options - Опции соединения
  * @returns {Promise<Array>} - Массив успешных соединений
  */
-async function createMultipleRPCConnections(rpcUrls, privateKey, options = {}) {
+async function createMultipleRPCConnections(chainIds, privateKey, options = {}) {
   const rpcManager = new RPCConnectionManager();
-  return await rpcManager.createMultipleConnections(rpcUrls, privateKey, options);
+  return await rpcManager.createMultipleConnections(chainIds, privateKey, options);
 }
 
 // sendTransactionWithRetry функция удалена - используем RPCConnectionManager напрямую

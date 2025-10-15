@@ -54,7 +54,7 @@ router.post('/read-dle-info', async (req, res) => {
       if (!rpcUrl) {
         return res.status(500).json({ success: false, error: `RPC URL для сети ${targetChainId} не найден` });
       }
-      provider = new ethers.JsonRpcProvider(rpcUrl);
+      provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
       const code = await provider.getCode(dleAddress);
       if (!code || code === '0x') {
         return res.status(400).json({ success: false, error: `По адресу ${dleAddress} нет контракта в сети ${targetChainId}` });
@@ -358,7 +358,7 @@ router.post('/get-proposals', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     // ABI для чтения предложений (используем правильные функции из смарт-контракта)
     const dleAbi = [
@@ -520,7 +520,7 @@ router.post('/get-proposal-info', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     // ABI для чтения информации о предложении
     const dleAbi = [
@@ -614,7 +614,7 @@ router.post('/deactivate-dle', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     // ABI для проверки деактивации DLE
     const dleAbi = [
@@ -707,7 +707,7 @@ router.post('/check-deactivation-proposal-result', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function checkDeactivationProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached)"
@@ -785,7 +785,7 @@ router.post('/load-deactivation-proposals', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function deactivationProposalCounter() external view returns (uint256)",
@@ -889,7 +889,7 @@ router.post('/execute-proposal', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     const wallet = new ethers.Wallet(privateKey, provider);
     
     const dleAbi = [
@@ -965,7 +965,7 @@ router.post('/cancel-proposal', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function cancelProposal(uint256 _proposalId, string calldata reason) external"
@@ -1050,7 +1050,7 @@ router.post('/get-governance-params', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getGovernanceParams() external view returns (uint256 quorumPct, uint256 chainId, uint256 supportedCount)"
@@ -1126,7 +1126,7 @@ router.post('/get-proposal-state', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getProposalState(uint256 _proposalId) public view returns (uint8 state)"
@@ -1201,7 +1201,7 @@ router.post('/get-proposal-votes', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getProposalVotes(uint256 _proposalId) external view returns (uint256 forVotes, uint256 againstVotes, uint256 totalVotes, uint256 quorumRequired)"
@@ -1279,7 +1279,7 @@ router.post('/get-proposals-count', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getProposalsCount() external view returns (uint256)"
@@ -1353,7 +1353,7 @@ router.post('/list-proposals', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory)"
@@ -1429,7 +1429,7 @@ router.post('/get-voting-power-at', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getVotingPowerAt(address voter, uint256 timepoint) external view returns (uint256)"
@@ -1505,7 +1505,7 @@ router.post('/get-quorum-at', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getQuorumAt(uint256 timepoint) external view returns (uint256)"
@@ -1580,7 +1580,7 @@ router.post('/get-token-balance', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function balanceOf(address account) external view returns (uint256)"
@@ -1655,7 +1655,7 @@ router.post('/get-total-supply', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)"
@@ -1729,7 +1729,7 @@ router.post('/is-active', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function isActive() external view returns (bool)"
@@ -1809,7 +1809,7 @@ router.post('/get-dle-analytics', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)",
@@ -1956,7 +1956,7 @@ router.post('/get-dle-history', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
       "function getProposalsCount() external view returns (uint256)",

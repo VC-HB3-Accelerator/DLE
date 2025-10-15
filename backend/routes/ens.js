@@ -17,9 +17,23 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 
-function getMainnetProvider() {
-  const url = process.env.MAINNET_RPC_URL || process.env.ETH_MAINNET_RPC || 'https://ethereum.publicnode.com';
-  return new ethers.JsonRpcProvider(url);
+async function getMainnetProvider() {
+  try {
+    // Получаем RPC URL из базы данных для mainnet (chain_id = 1)
+    const rpcService = require('../services/rpcProviderService');
+    const rpcUrl = await rpcService.getRpcUrlByChainId(1);
+    
+    if (!rpcUrl) {
+      throw new Error('RPC URL для mainnet не найден в базе данных');
+    }
+    
+    console.log(`[ENS] Используем RPC из базы данных: ${rpcUrl}`);
+    return new ethers.JsonRpcProvider(await rpcService.getRpcUrlByChainId(1));
+    
+  } catch (error) {
+    console.error(`[ENS] Ошибка получения RPC из базы данных:`, error);
+    throw new Error(`Не удалось получить RPC провайдер: ${error.message}`);
+  }
 }
 
 // GET /api/ens/avatar?name=vc-hb3-accelerator.eth
@@ -29,7 +43,7 @@ router.get('/avatar', async (req, res) => {
     if (!name || !name.endsWith('.eth')) {
       return res.status(400).json({ success: false, message: 'ENS name is required (e.g., example.eth)' });
     }
-    const provider = getMainnetProvider();
+    const provider = await getMainnetProvider();
     const url = await provider.getAvatar(name);
     return res.json({ success: true, data: { url: url || null } });
   } catch (e) {

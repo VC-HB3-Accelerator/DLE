@@ -23,10 +23,20 @@ class NonceManager {
   async getNonce(address, rpcUrl, chainId, options = {}) {
     const { timeout = 15000, maxRetries = 5 } = options; // Увеличиваем таймаут и попытки
     
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: логируем входящие параметры
+    console.log(`[NonceManager] getNonce вызван с параметрами: address=${address}, rpcUrl=${rpcUrl}, chainId=${chainId}`);
+    
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: если rpcUrl содержит 127.0.0.1:8545, это ошибка!
+    if (rpcUrl && rpcUrl.includes('127.0.0.1:8545')) {
+      console.error(`[NonceManager] ❌ КРИТИЧЕСКАЯ ОШИБКА: Получен неправильный rpcUrl: ${rpcUrl} для chainId ${chainId}`);
+      throw new Error(`Получен неправильный rpcUrl: ${rpcUrl} для chainId ${chainId}`);
+    }
+    
     const cacheKey = `${address}-${chainId}`;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        console.log(`[NonceManager] Попытка ${attempt}: создаем JsonRpcProvider с rpcUrl: ${rpcUrl}`);
         const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
           polling: false, // Отключаем polling для более быстрого получения nonce
           staticNetwork: true
@@ -204,8 +214,8 @@ class NonceManager {
       console.warn(`[NonceManager] networkLoader недоступен для chainId ${chainId}, используем fallback: ${error.message}`);
     }
     
-    // Всегда добавляем fallback RPC для надежности
-    const fallbackRPCs = this.getFallbackRPCs(chainId);
+    // Всегда добавляем fallback RPC для надежности ИЗ БАЗЫ ДАННЫХ
+    const fallbackRPCs = await this.getFallbackRPCs(chainId);
     for (const fallbackRpc of fallbackRPCs) {
       if (!rpcUrls.includes(fallbackRpc)) {
         rpcUrls.push(fallbackRpc);
@@ -217,34 +227,31 @@ class NonceManager {
   }
 
   /**
-   * Получить список fallback RPC для сети
+   * Получить список fallback RPC для сети ИЗ БАЗЫ ДАННЫХ
    * @param {number} chainId - ID сети
-   * @returns {Array} - Массив RPC URL
+   * @returns {Array} - Массив RPC URL из базы данных
    */
-  getFallbackRPCs(chainId) {
-    const fallbackRPCs = {
-      1: [ // Mainnet
-        'https://eth.llamarpc.com',
-        'https://rpc.ankr.com/eth',
-        'https://ethereum.publicnode.com'
-      ],
-      11155111: [ // Sepolia
-        'https://rpc.sepolia.org',
-        process.env.SEPOLIA_INFURA_URL || 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY'
-      ],
-      17000: [ // Holesky
-        'https://ethereum-holesky.publicnode.com',
-        process.env.HOLESKY_INFURA_URL || 'https://holesky.infura.io/v3/YOUR_INFURA_KEY'
-      ],
-      421614: [ // Arbitrum Sepolia
-        'https://sepolia-rollup.arbitrum.io/rpc'
-      ],
-      84532: [ // Base Sepolia
-        'https://sepolia.base.org'
-      ]
-    };
-    
-    return fallbackRPCs[chainId] || [];
+  async getFallbackRPCs(chainId) {
+    try {
+      // Получаем ВСЕ RPC провайдеры для данной сети из базы данных
+      const rpcService = require('../services/rpcProviderService');
+      const providers = await rpcService.getAllRpcProviders();
+      
+      // Фильтруем по chain_id
+      const networkProviders = providers.filter(p => p.chain_id === chainId);
+      
+      if (networkProviders.length === 0) {
+        console.warn(`[NonceManager] Нет RPC провайдеров в базе данных для chain_id: ${chainId}`);
+        return [];
+      }
+      
+      // Возвращаем только RPC URL из базы данных
+      return networkProviders.map(p => p.rpc_url).filter(url => url);
+      
+    } catch (error) {
+      console.error(`[NonceManager] Ошибка получения RPC из базы данных для chain_id ${chainId}:`, error);
+      return [];
+    }
   }
 
   /**
@@ -276,7 +283,7 @@ class NonceManager {
     const cacheKey = `${address}-${chainId}`;
     
     try {
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const provider = new ethers.JsonRpcProvider(await rpcService.getRpcUrlByChainId(chainId));
       const networkNonce = await provider.getTransactionCount(address, 'pending');
       
       // Принудительно обновляем кэш

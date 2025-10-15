@@ -554,34 +554,56 @@ module.exports = {
 // Обработчик запроса балансов токенов
 async function handleTokenBalancesRequest(ws, address, userId) {
   try {
-    // console.log(`[WebSocket] Запрос балансов для адреса: ${address}`); // Убрано избыточное логирование
+    console.log(`[WebSocket] Запрос балансов для адреса: ${address}`);
 
     // Получаем балансы через отдельный сервис без зависимостей от wsHub
     const balances = await tokenBalanceService.getUserTokenBalances(address);
     
+    console.log(`[WebSocket] Получены балансы для ${address}:`, balances);
+    console.log(`[WebSocket] Количество токенов:`, balances?.length || 0);
+    
     // Отправляем ответ клиенту
-    ws.send(JSON.stringify({
+    const response = {
       type: 'token_balances_response',
       data: {
         address: address,
         balances: balances,
         timestamp: Date.now()
       }
-    }));
+    };
     
-    // console.log(`[WebSocket] Отправлены балансы для ${address}:`, balances.length, 'токенов'); // Убрано избыточное логирование
+    console.log(`[WebSocket] Отправляем ответ:`, JSON.stringify(response, null, 2));
+    ws.send(JSON.stringify(response));
   } catch (error) {
     console.error('[WebSocket] Ошибка при получении балансов:', error);
     
+    // Определяем тип ошибки для лучшей диагностики
+    let errorType = 'Неизвестная ошибка';
+    const errorMessage = error.message || error.toString();
+    
+    if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
+      errorType = 'Таймаут соединения - возможно, нужен VPN';
+    } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
+      errorType = 'Не удается подключиться к RPC провайдеру';
+    } else if (errorMessage.includes('TLS') || errorMessage.includes('socket disconnected')) {
+      errorType = 'Проблема с TLS соединением - проверьте VPN';
+    } else if (errorMessage.includes('NETWORK_ERROR')) {
+      errorType = 'Ошибка сети - проверьте интернет-соединение';
+    }
+    
     // Отправляем ошибку клиенту
-    ws.send(JSON.stringify({
+    const errorResponse = {
       type: 'token_balances_error',
       data: {
         address: address,
-        error: error.message,
+        error: errorType,
+        errorDetails: errorMessage,
         timestamp: Date.now()
       }
-    }));
+    };
+    
+    console.log('[WebSocket] Отправляем ошибку клиенту:', JSON.stringify(errorResponse, null, 2));
+    ws.send(JSON.stringify(errorResponse));
   }
 }
 

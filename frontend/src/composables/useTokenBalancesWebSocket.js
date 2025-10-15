@@ -51,9 +51,24 @@ export function useTokenBalancesWebSocket() {
   
   // Обработчик ошибки
   const handleTokenBalancesError = (data) => {
-    console.error('[useTokenBalancesWebSocket] Ошибка получения балансов:', data.error);
+    console.error('[useTokenBalancesWebSocket] Ошибка получения балансов:', data);
     isLoadingTokens.value = false;
-    tokenBalances.value = [];
+    
+    // Создаем объект с информацией об ошибке для отображения пользователю
+    const errorInfo = {
+      network: 'unknown',
+      tokenAddress: 'error',
+      tokenName: 'Ошибка получения балансов',
+      symbol: 'ERROR',
+      balance: '0',
+      minBalance: '0',
+      readonlyThreshold: 1,
+      editorThreshold: 1,
+      error: data.error || 'Неизвестная ошибка',
+      errorDetails: data.errorDetails || data.error
+    };
+    
+    tokenBalances.value = [errorInfo];
   };
   
   // Обработчик обновления балансов

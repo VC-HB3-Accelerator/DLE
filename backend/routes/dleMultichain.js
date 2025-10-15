@@ -63,10 +63,10 @@ router.post('/get-multichain-contracts', async (req, res) => {
       // Если не найден в параметрах, используем fallback
       if (!rpcUrl) {
         const fallbackConfigs = {
-          '11155111': 'https://1rpc.io/sepolia',
-          '17000': 'https://ethereum-holesky.publicnode.com',
-          '421614': 'https://sepolia-rollup.arbitrum.io/rpc',
-          '84532': 'https://sepolia.base.org'
+          '11155111': null,
+          '17000': null,
+          '421614': null,
+          '84532': null
         };
         rpcUrl = fallbackConfigs[targetChainId];
       }
@@ -86,7 +86,7 @@ router.post('/get-multichain-contracts', async (req, res) => {
     }
     
     try {
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
       const contractCode = await provider.getCode(originalContract);
       
       if (contractCode && contractCode !== '0x') {

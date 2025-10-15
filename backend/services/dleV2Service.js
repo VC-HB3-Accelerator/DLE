@@ -565,7 +565,7 @@ class DLEV2Service {
    * @param {Array} allDles - Все DLE
    * @returns {Array} - Сгруппированные DLE
    */
-  groupMultichainDLEs(allDles) {
+  async groupMultichainDLEs(allDles) {
     const groups = new Map();
     
     for (const dle of allDles) {
@@ -588,7 +588,7 @@ class DLEV2Service {
       groups.get(groupKey).networks.push({
           chainId: dle.chainId,
         address: dle.address,
-        networkName: this.getRpcUrlForChain(dle.chainId)?.name || `Chain ${dle.chainId}`,
+        networkName: (await this.getRpcUrlForChain(dle.chainId))?.name || `Chain ${dle.chainId}`,
         status: dle.status || 'active'
       });
     }
@@ -610,16 +610,25 @@ class DLEV2Service {
    * @param {number} chainId - ID сети
    * @returns {Object|null} - Информация о RPC
    */
-  getRpcUrlForChain(chainId) {
-    const rpcMappings = {
-      1: { name: 'Ethereum Mainnet', url: 'https://mainnet.infura.io/v3/' },
-      11155111: { name: 'Sepolia Testnet', url: 'https://sepolia.infura.io/v3/' },
-      17000: { name: 'Holesky Testnet', url: 'https://holesky.infura.io/v3/' },
-      421614: { name: 'Arbitrum Sepolia', url: 'https://sepolia-rollup.arbitrum.io/rpc' },
-      84532: { name: 'Base Sepolia', url: 'https://sepolia.base.org' }
-    };
-
-    return rpcMappings[chainId] || null;
+  async getRpcUrlForChain(chainId) {
+    try {
+      // Получаем RPC URL из базы данных
+      const rpcService = require('./rpcProviderService');
+      const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+      
+      if (!rpcUrl) {
+        return null;
+      }
+      
+      // Возвращаем объект с RPC URL из базы данных
+      return { 
+        name: `Chain ${chainId}`, 
+        url: rpcUrl 
+      };
+    } catch (error) {
+      console.error(`[DLE V2 Service] Ошибка получения RPC для chain_id ${chainId}:`, error);
+      return null;
+    }
   }
 
   /**
@@ -639,7 +648,7 @@ class DLEV2Service {
           throw new Error(`RPC URL не найден для сети ${chainId}`);
         }
 
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const provider = new ethers.JsonRpcProvider(await getRpcUrlByChainId(chainId));
         const balance = await provider.getBalance(wallet.address);
         
         console.log(`💰 Баланс в сети ${chainId}: ${ethers.formatEther(balance)} ETH`);

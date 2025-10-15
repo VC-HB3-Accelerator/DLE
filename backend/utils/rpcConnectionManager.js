@@ -5,6 +5,7 @@
 
 const { ethers } = require('ethers');
 const logger = require('./logger');
+const rpcService = require('../services/rpcProviderService');
 
 class RPCConnectionManager {
   constructor() {
@@ -19,13 +20,26 @@ class RPCConnectionManager {
 
   /**
    * Создает RPC соединение с retry логикой
-   * @param {string} rpcUrl - URL RPC
+   * @param {number} chainId - ID цепочки
    * @param {string} privateKey - Приватный ключ
    * @param {Object} options - Опции соединения
    * @returns {Promise<Object>} - {provider, wallet, network}
    */
-  async createConnection(rpcUrl, privateKey, options = {}) {
+  async createConnection(chainId, privateKey, options = {}) {
     const config = { ...this.retryConfig, ...options };
+    const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
+    logger.info(`[RPC_MANAGER] Получен RPC URL для chainId ${chainId}: ${rpcUrl}`);
+    
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: если rpcUrl содержит 127.0.0.1:8545, это ошибка!
+    if (rpcUrl && rpcUrl.includes('127.0.0.1:8545')) {
+      logger.error(`[RPC_MANAGER] ❌ КРИТИЧЕСКАЯ ОШИБКА: Получен неправильный RPC URL: ${rpcUrl} для chainId ${chainId}`);
+      throw new Error(`Получен неправильный RPC URL: ${rpcUrl} для chainId ${chainId}`);
+    }
+    
+    if (!rpcUrl) {
+      throw new Error(`RPC URL не найден для chainId ${chainId}`);
+    }
+    
     const connectionKey = `${rpcUrl}_${privateKey}`;
     
     // Проверяем кэш
@@ -33,7 +47,8 @@ class RPCConnectionManager {
       const cached = this.connections.get(connectionKey);
       if (Date.now() - cached.timestamp < 60000) { // 1 минута кэш
         logger.info(`[RPC_MANAGER] Используем кэшированное соединение: ${rpcUrl}`);
-        return cached.connection;
+        // Убеждаемся, что кэшированное соединение содержит rpcUrl
+        return { ...cached.connection, rpcUrl };
       }
     }
 
@@ -56,7 +71,7 @@ class RPCConnectionManager {
         
         const wallet = new ethers.Wallet(privateKey, provider);
         
-        const connection = { provider, wallet, network };
+        const connection = { provider, wallet, network, rpcUrl };
         
         // Кэшируем соединение
         this.connections.set(connectionKey, {
@@ -84,21 +99,21 @@ class RPCConnectionManager {
 
   /**
    * Создает множественные RPC соединения с обработкой ошибок
-   * @param {Array} rpcUrls - Массив RPC URL
+   * @param {Array} chainIds - Массив chain ID
    * @param {string} privateKey - Приватный ключ
    * @param {Object} options - Опции соединения
    * @returns {Promise<Array>} - Массив успешных соединений
    */
-  async createMultipleConnections(rpcUrls, privateKey, options = {}) {
-    logger.info(`[RPC_MANAGER] Создаем ${rpcUrls.length} RPC соединений...`);
+  async createMultipleConnections(chainIds, privateKey, options = {}) {
+    logger.info(`[RPC_MANAGER] Создаем ${chainIds.length} RPC соединений...`);
     
-    const connectionPromises = rpcUrls.map(async (rpcUrl, index) => {
+    const connectionPromises = chainIds.map(async (chainId, index) => {
       try {
-        const connection = await this.createConnection(rpcUrl, privateKey, options);
-        return { index, rpcUrl, ...connection, success: true };
+        const connection = await this.createConnection(chainId, privateKey, options);
+        return { index, chainId, ...connection, success: true };
       } catch (error) {
-        logger.error(`[RPC_MANAGER] ❌ Соединение ${index + 1} failed: ${rpcUrl} - ${error.message}`);
-        return { index, rpcUrl, error: error.message, success: false };
+        logger.error(`[RPC_MANAGER] ❌ Соединение ${index + 1} failed: chainId ${chainId} - ${error.message}`);
+        return { index, chainId, error: error.message, success: false };
       }
     });
     
@@ -106,10 +121,10 @@ class RPCConnectionManager {
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
     
-    logger.info(`[RPC_MANAGER] ✅ Успешных соединений: ${successful.length}/${rpcUrls.length}`);
+    logger.info(`[RPC_MANAGER] ✅ Успешных соединений: ${successful.length}/${chainIds.length}`);
     if (failed.length > 0) {
       logger.warn(`[RPC_MANAGER] ⚠️ Неудачных соединений: ${failed.length}`);
-      failed.forEach(f => logger.warn(`[RPC_MANAGER] - ${f.rpcUrl}: ${f.error}`));
+      failed.forEach(f => logger.warn(`[RPC_MANAGER] - ChainId ${f.chainId}: ${f.error}`));
     }
     
     if (successful.length === 0) {
@@ -183,13 +198,25 @@ class RPCConnectionManager {
       'ENOTFOUND',
       'ETIMEDOUT',
       'RPC timeout',
-      'Transaction timeout'
+      'Transaction timeout',
+      'ECONNREFUSED',
+      'ENETUNREACH',
+      'EHOSTUNREACH'
     ];
     
     const errorMessage = error.message.toLowerCase();
-    return retryableErrors.some(retryableError => 
+    const isRetryable = retryableErrors.some(retryableError => 
       errorMessage.includes(retryableError.toLowerCase())
     );
+    
+    // Логируем информацию об ошибке для диагностики
+    if (isRetryable) {
+      logger.warn(`[RPC_MANAGER] Повторяемая ошибка: ${error.message}`);
+    } else {
+      logger.error(`[RPC_MANAGER] Неповторяемая ошибка: ${error.message}`);
+    }
+    
+    return isRetryable;
   }
 
   // getNonceWithRetry функция удалена - используем nonceManager.getNonceWithRetry() вместо этого
