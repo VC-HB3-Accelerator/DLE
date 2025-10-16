@@ -44,7 +44,8 @@ const adminChatService = {
   async getAdminContacts() {
     try {
       console.log('[adminChatService] Запрашиваем админские контакты...');
-      const response = await api.get('/messages/admin/contacts');
+      // Используем существующий API для получения контактов
+      const response = await api.get('/users');
       console.log('[adminChatService] Получен ответ:', response.data);
       return response.data;
     } catch (error) {
@@ -60,7 +61,8 @@ const adminChatService = {
    */
   async getMessages(adminId) {
     try {
-      const response = await api.get(`/messages/admin/${adminId}`);
+      // Используем новый API для приватных сообщений
+      const response = await api.get('/messages/private');
       return response.data;
     } catch (error) {
       console.error('[adminChatService] Ошибка получения сообщений:', error);

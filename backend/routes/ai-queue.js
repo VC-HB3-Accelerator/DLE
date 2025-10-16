@@ -38,8 +38,10 @@ router.post('/task', requireAuth, async (req, res) => {
   try {
     const { message, language, history, systemPrompt, rules, type = 'chat' } = req.body;
     const userId = req.session.userId;
-    const userAccessLevel = req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
-    const userRole = userAccessLevel.hasAccess ? 'admin' : 'user';
+    const userAccessLevel = req.session.userAccessLevel || { level: ROLES.USER, tokenCount: 0, hasAccess: false };
+    const { ROLES } = require('/app/shared/permissions');
+    // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
+    const userRole = userAccessLevel.level;
 
     if (!message) {
       return res.status(400).json({

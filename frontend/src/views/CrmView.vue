@@ -53,6 +53,13 @@
           Подробнее
         </button>
       </div>
+      <!-- Блок Акселератор -->
+      <div class="crm-accelerator-block">
+        <h2>Акселератор</h2>
+        <button class="details-btn" @click="goToAcceleratorRegistration">
+          Подробнее
+        </button>
+      </div>
     </div>
   </BaseLayout>
 </template>
@@ -242,6 +249,10 @@ function goToManagement() {
 function goToWeb3App() {
   router.push({ name: 'vds-mock' });
 }
+
+function goToAcceleratorRegistration() {
+  router.push({ name: 'accelerator-registration' });
+}
 </script>
 
 <style scoped>
@@ -400,6 +411,25 @@ strong {
   font-weight: 600;
 }
 .crm-web3-block .details-btn {
+  margin-top: 0;
+}
+
+.crm-accelerator-block {
+  margin: 32px 0 24px 0;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.crm-accelerator-block h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.crm-accelerator-block .details-btn {
   margin-top: 0;
 }
 </style> 

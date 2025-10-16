@@ -67,7 +67,7 @@ router.put('/profile', requireAuth, async (req, res) => {
 */
 
 // Получение списка пользователей с фильтрацией (CRM/Контакты)
-router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res, next) => {
+router.get('/', requireAuth, async (req, res, next) => {
   try {
     const {
       tagIds = '',
@@ -79,6 +79,7 @@ router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async
       blocked = 'all'
     } = req.query;
     const adminId = req.user && req.user.id;
+    const userRole = req.user.role;
 
     // Получаем ключ шифрования
     const fs = require('fs');
@@ -91,6 +92,13 @@ router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async
     const where = [];
     const params = [];
     let idx = 1;
+
+    // Фильтрация для USER - видит только editor админов и себя
+    if (userRole === 'user') {
+      const { ROLES } = require('/app/shared/permissions');
+      where.push(`(u.role = '${ROLES.EDITOR}' OR u.id = $${idx++})`);
+      params.push(req.user.id);
+    }
 
     // Фильтр по дате
     if (dateFrom) {
@@ -148,8 +156,7 @@ router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async
         u.created_at, u.preferred_language, u.is_blocked, u.role,
         CASE 
           WHEN u.role = 'editor' THEN 'editor'
-          WHEN u.role = 'readonly' THEN 'readonly'
-          WHEN u.role = 'admin' THEN 'admin'
+          WHEN u.role = 'readonly' THEN 'editor'  -- readonly админы тоже editor
           ELSE 'user'
         END as contact_type,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
@@ -368,9 +375,10 @@ router.post('/mark-contact-read', async (req, res) => {
     
     if (req.user?.userAccessLevel) {
       // Используем новую систему ролей
-      if (req.user.userAccessLevel.level === 'readonly') {
+      const { ROLES } = require('/app/shared/permissions');
+      if (req.user.userAccessLevel.level === ROLES.READONLY) {
         userRole = ROLES.READONLY;
-      } else if (req.user.userAccessLevel.level === 'editor') {
+      } else if (req.user.userAccessLevel.level === ROLES.EDITOR) {
         userRole = ROLES.EDITOR;
       }
     } else if (req.user?.id) {
@@ -396,7 +404,7 @@ router.post('/mark-contact-read', async (req, res) => {
       // Админ может помечать любого контакта как прочитанного, включая самого себя
     } else {
       // Для всех остальных ролей (GUEST, USER) - НЕ записываем в БД
-      console.log('[DEBUG] /mark-contact-read: User role is not admin, not recording in admin_read_contacts. Role:', userRole);
+      console.log('[DEBUG] /mark-contact-read: User role is not editor/readonly, not recording in admin_read_contacts. Role:', userRole);
       return res.json({ success: true }); // Просто возвращаем успех без записи в БД
     }
     
@@ -583,6 +591,37 @@ router.delete('/:id', requireAuth, requirePermission(PERMISSIONS.DELETE_USER_DAT
   }
 });
 
+// --- Получение ролей из базы данных (созданных через миграции) ---
+router.get('/roles', requireAuth, async (req, res, next) => {
+  try {
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+
+    const sql = `
+      SELECT 
+        id,
+        decrypt_text(name_encrypted, $1) as name,
+        created_at
+      FROM roles 
+      ORDER BY id
+    `;
+
+    const result = await db.getQuery()(sql, [encryptionKey]);
+    
+    res.json({
+      success: true,
+      roles: result.rows
+    });
+  } catch (error) {
+    console.error('[users/roles] Ошибка при получении ролей:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при получении ролей',
+      details: error.message
+    });
+  }
+});
+
 // Получить пользователя по id
 // Получение деталей конкретного контакта
 router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res, next) => {
@@ -717,17 +756,17 @@ router.post('/', async (req, res) => {
   const { first_name, last_name, preferred_language } = req.body;
   
   // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  // Получаем ключ шифрования через унифицированную утилиту
   const encryptionUtils = require('../utils/encryptionUtils');
   const encryptionKey = encryptionUtils.getEncryptionKey();
+  
+  // Используем централизованную систему ролей
+  const { ROLES } = require('/app/shared/permissions');
 
   try {
     const result = await db.getQuery()(
-      `INSERT INTO users (first_name_encrypted, last_name_encrypted, preferred_language, created_at)
-       VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3, NOW()) RETURNING *`,
-      [first_name, last_name, JSON.stringify(preferred_language || []), encryptionKey]
+      `INSERT INTO users (first_name_encrypted, last_name_encrypted, preferred_language, role, created_at)
+       VALUES (encrypt_text($1, $5), encrypt_text($2, $5), $3, $4, NOW()) RETURNING *`,
+      [first_name, last_name, JSON.stringify(preferred_language || []), ROLES.USER, encryptionKey]
     );
     broadcastContactsUpdate();
     res.json({ success: true, user: result.rows[0] });
@@ -784,8 +823,9 @@ router.post('/import', requireAuth, async (req, res) => {
             await dbq('UPDATE users SET first_name_encrypted = COALESCE(encrypt_text($1, $4), first_name_encrypted), last_name_encrypted = COALESCE(encrypt_text($2, $4), last_name_encrypted) WHERE id = $3', [first_name, last_name, userId, encryptionKey]);
           }
         } else {
-          // Создаём нового пользователя
-          const ins = await dbq('INSERT INTO users (first_name_encrypted, last_name_encrypted, created_at) VALUES (encrypt_text($1, $3), encrypt_text($2, $3), NOW()) RETURNING id', [first_name, last_name, encryptionKey]);
+          // Создаём нового пользователя с централизованной ролью
+          const { ROLES } = require('/app/shared/permissions');
+          const ins = await dbq('INSERT INTO users (first_name_encrypted, last_name_encrypted, role, created_at) VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3, NOW()) RETURNING id', [first_name, last_name, ROLES.USER, encryptionKey]);
           userId = ins.rows[0].id;
           added++;
         }
@@ -819,5 +859,6 @@ router.post('/import', requireAuth, async (req, res) => {
 // GET /api/tags/user/:id — получить теги пользователя  
 // DELETE /api/tags/user/:id/tag/:tagId — удалить тег у пользователя
 // POST /api/tags/user/:id/multirelations — массовое обновление тегов
+
 
 module.exports = router;

@@ -15,7 +15,8 @@ import api from '@/api/axios';
 export default {
   async getMessagesByUserId(userId) {
     if (!userId) return [];
-    const { data } = await api.get(`/messages?userId=${userId}`);
+    // Используем новый API для публичных сообщений конкретного пользователя
+    const { data } = await api.get(`/messages/public?userId=${userId}`);
     return data;
   },
   async sendMessage({ conversationId, message, attachments = [], toUserId }) {
@@ -34,7 +35,8 @@ export default {
   },
   async getMessagesByConversationId(conversationId) {
     if (!conversationId) return [];
-    const { data } = await api.get(`/messages?conversationId=${conversationId}`);
+    // Используем новый API для публичных сообщений
+    const { data } = await api.get('/messages/public');
     return data;
   },
   async getConversationByUserId(userId) {
@@ -64,6 +66,58 @@ export default {
 };
 
 export async function getAllMessages() {
-  const { data } = await api.get('/messages');
+  // Используем новый API для публичных сообщений
+  const { data } = await api.get('/messages/public');
+  return data;
+}
+
+// Новые методы для работы с типами сообщений
+export async function sendMessage({ recipientId, content, messageType = 'public' }) {
+  const { data } = await api.post('/messages/send', {
+    recipientId,
+    content,
+    messageType
+  });
+  return data;
+}
+
+export async function getPublicMessages(userId = null, options = {}) {
+  const params = { ...options };
+  if (userId) params.userId = userId;
+  const { data } = await api.get('/messages/public', { params });
+  return data;
+}
+
+export async function getPrivateMessages(options = {}) {
+  const { data } = await api.get('/messages/private', { params: options });
+  return data;
+}
+
+// Новые функции для работы с диалогами
+export async function getConversations(userId) {
+  const { data } = await api.get('/messages/conversations', { params: { userId } });
+  return data;
+}
+
+export async function createConversation(userId, title) {
+  const { data } = await api.post('/messages/conversations', { userId, title });
+  return data;
+}
+
+// Функция для отметки сообщений как прочитанных
+export async function markMessagesAsRead(userId, lastReadAt) {
+  const { data } = await api.post('/messages/mark-read', { userId, lastReadAt });
+  return data;
+}
+
+// Функция для получения статуса прочтения
+export async function getReadStatus() {
+  const { data } = await api.get('/messages/read-status');
+  return data;
+}
+
+// Функция для удаления истории сообщений
+export async function deleteMessageHistory(userId) {
+  const { data } = await api.delete(`/messages/delete-history/${userId}`);
   return data;
 } 

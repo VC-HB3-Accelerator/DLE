@@ -18,7 +18,6 @@ const logger = require('../utils/logger');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 const db = require('../db');
-const { checkAdminTokens } = require('../services/auth-service');
 
 // Получаем ключ шифрования
 const encryptionUtils = require('../utils/encryptionUtils');
@@ -29,10 +28,21 @@ const encryptionKey = encryptionUtils.getEncryptionKey();
  */
 const requireAuth = async (req, res, next) => {
   // console.log('[DIAG][requireAuth] session:', req.session);
-  if (!req.session || !req.session.authenticated) {
+  
+  // Проверяем аутентификацию через сессию
+  if (!req.session) {
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
-  // Можно добавить проверку isAdmin здесь, если нужно
+  
+  // Проверяем различные способы аутентификации
+  const isAuthenticated = req.session.authenticated || 
+                         (req.session.userId && req.session.authType) ||
+                         (req.session.address && req.session.authType === 'wallet');
+  
+  if (!isAuthenticated) {
+    return res.status(401).json({ error: 'Требуется аутентификация' });
+  }
+  
   next();
 };
 

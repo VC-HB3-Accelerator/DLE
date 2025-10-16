@@ -15,6 +15,7 @@ import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
 import websocketModule from '../services/websocketService';
+import { getPublicMessages } from '../services/messagesService';
 
 const { websocketService } = websocketModule;
 
@@ -104,7 +105,7 @@ export function useChat(auth) {
         let totalMessages = -1;
         if (initial || messageLoading.value.offset === 0) {
              try {
-                const countResponse = await api.get('/chat/history', { params: { count_only: true } });
+                const countResponse = await api.get('/messages/public', { params: { count_only: true } });
                 if (!countResponse.data.success) throw new Error('Не удалось получить количество сообщений');
                 totalMessages = countResponse.data.total || countResponse.data.count || 0;
                 // console.log(`[useChat] Всего сообщений в истории: ${totalMessages}`);
@@ -121,15 +122,17 @@ export function useChat(auth) {
             // console.log(`[useChat] Рассчитано начальное смещение: ${effectiveOffset}`);
         }
 
-        const response = await api.get('/chat/history', {
-            params: {
-                offset: effectiveOffset,
-                limit: messageLoading.value.limit,
-            },
+        // Используем новый API для публичных сообщений с пагинацией
+        const response = await api.get('/messages/public', { 
+            params: { 
+                offset: effectiveOffset, 
+                limit: messageLoading.value.limit 
+            } 
         });
 
-        if (response.data.success) {
-            const loadedMessages = response.data.messages || [];
+        if (response.data.success && response.data.messages) {
+            const loadedMessages = response.data.messages;
+            const totalFromResponse = response.data.total;
             // console.log(`[useChat] Загружено ${loadedMessages.length} сообщений.`);
 
             if (loadedMessages.length > 0) {
@@ -142,7 +145,7 @@ export function useChat(auth) {
                 
                 // Обновляем смещение для следующей загрузки
                 // Если загружали последние, offset = total - limit + loaded
-                if (initial && totalMessages > 0 && effectiveOffset > 0) {
+                if (initial && totalFromResponse > 0 && effectiveOffset > 0) {
                    messageLoading.value.offset = effectiveOffset + loadedMessages.length;
                 } else {
                    messageLoading.value.offset += loadedMessages.length;
@@ -150,12 +153,12 @@ export function useChat(auth) {
                  // console.log(`[useChat] Новое смещение: ${messageLoading.value.offset}`);
 
                 // Проверяем, есть ли еще сообщения для загрузки
-                // Используем totalMessages, если он был успешно получен
-                if (totalMessages >= 0) {
-                     messageLoading.value.hasMoreMessages = messageLoading.value.offset < totalMessages;
+                // Используем totalFromResponse из нового API
+                if (totalFromResponse >= 0) {
+                     messageLoading.value.hasMoreMessages = messageLoading.value.offset < totalFromResponse;
                 } else {
-                    // Если total не известен, считаем, что есть еще, если загрузили полный лимит
-                     messageLoading.value.hasMoreMessages = loadedMessages.length === messageLoading.value.limit;
+                    // Если total не известен, используем hasMore из ответа
+                     messageLoading.value.hasMoreMessages = response.data.hasMore || false;
                 }
                  // console.log(`[useChat] Есть еще сообщения: ${messageLoading.value.hasMoreMessages}`);
             } else {

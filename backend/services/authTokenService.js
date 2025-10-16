@@ -28,8 +28,8 @@ async function saveAllAuthTokens(authTokens) {
       address: token.address,
       network: token.network,
       min_balance: token.minBalance == null ? 0 : Number(token.minBalance),
-      readonly_threshold: token.readonlyThreshold == null ? 1 : Number(token.readonlyThreshold),
-      editor_threshold: token.editorThreshold == null ? 2 : Number(token.editorThreshold)
+      readonly_threshold: token.readonlyThreshold == null ? null : Number(token.readonlyThreshold),
+      editor_threshold: token.editorThreshold == null ? null : Number(token.editorThreshold)
     });
   }
 }
@@ -40,8 +40,8 @@ async function upsertAuthToken(token) {
   console.log('[AuthTokenService] token.editorThreshold:', token.editorThreshold, 'тип:', typeof token.editorThreshold);
   
   const minBalance = token.minBalance == null ? 0 : Number(token.minBalance);
-  const readonlyThreshold = (token.readonlyThreshold === null || token.readonlyThreshold === undefined || token.readonlyThreshold === '') ? 1 : Number(token.readonlyThreshold);
-  const editorThreshold = (token.editorThreshold === null || token.editorThreshold === undefined || token.editorThreshold === '') ? 2 : Number(token.editorThreshold);
+  const readonlyThreshold = (token.readonlyThreshold === null || token.readonlyThreshold === undefined || token.readonlyThreshold === '') ? null : Number(token.readonlyThreshold);
+  const editorThreshold = (token.editorThreshold === null || token.editorThreshold === undefined || token.editorThreshold === '') ? null : Number(token.editorThreshold);
   
   // Валидация порогов доступа
   if (readonlyThreshold >= editorThreshold) {

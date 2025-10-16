@@ -160,6 +160,7 @@ import Message from '../../components/Message.vue';
 import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
+import { getPublicMessages, getConversationByUserId } from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
@@ -401,11 +402,15 @@ async function loadMessages() {
   console.log('[ContactDetailsView] 📥 loadMessages START for:', contact.value.id);
   isLoadingMessages.value = true;
   try {
-    // Загружаем ВСЕ публичные сообщения этого пользователя (как на главной странице)
-    const loadedMessages = await messagesService.getMessagesByUserId(contact.value.id);
-    console.log('[ContactDetailsView] 📩 Loaded messages:', loadedMessages.length, 'for', contact.value.id);
+    // Загружаем только публичные сообщения этого пользователя с пагинацией
+    const response = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
+    console.log('[ContactDetailsView] 📩 Loaded messages:', response.messages?.length || 0, 'for', contact.value.id);
     
-    messages.value = loadedMessages;
+    if (response.success && response.messages) {
+      messages.value = response.messages;
+    } else {
+      messages.value = [];
+    }
     
     if (messages.value.length > 0) {
       lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
@@ -417,7 +422,7 @@ async function loadMessages() {
     // Гости не имеют conversations
     if (!String(contact.value.id).startsWith('guest_')) {
       try {
-        const conv = await messagesService.getConversationByUserId(contact.value.id);
+        const conv = await getConversationByUserId(contact.value.id);
         conversationId.value = conv?.id || null;
       } catch (convError) {
         console.warn('[ContactDetailsView] Не удалось загрузить conversationId:', convError.message);

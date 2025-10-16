@@ -16,7 +16,6 @@ const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { getLinkedWallet } = require('./wallet-service');
-const { checkAdminRole } = require('./admin-role');
 const { broadcastContactsUpdate } = require('../wsHub');
 
 /**
@@ -506,23 +505,26 @@ class IdentityService {
     let user = await this.findUserByIdentity(provider, providerId);
     let isNew = false;
     if (!user) {
-      // Создаем пользователя
+      // Создаем пользователя с централизованной ролью
+      const { ROLES } = require('/app/shared/permissions');
       const newUser = await encryptedDb.saveData('users', {
-        role: 'user'
+        role: ROLES.USER
       });
       const userId = newUser.id;
       await this.saveIdentity(userId, provider, providerId, true);
-      user = { id: userId, role: 'user' };
+      user = { id: userId, role: ROLES.USER };
       isNew = true;
       logger.info('[WS] broadcastContactsUpdate after new user created');
       broadcastContactsUpdate();
     }
     // Проверяем связь с кошельком
     const wallet = await getLinkedWallet(user.id);
-    let role = 'user';
+    const { ROLES } = require('/app/shared/permissions');
+    let role = ROLES.USER;
     if (wallet) {
       const userAccessLevel = await authService.getUserAccessLevel(wallet);
-      role = userAccessLevel.hasAccess ? 'admin' : 'user';
+      // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
+      role = userAccessLevel.level;
       // Обновляем роль в users, если изменилась
       if (user.role !== role) {
         await encryptedDb.saveData('users', {

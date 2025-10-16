@@ -290,6 +290,11 @@ const routes = [
     name: 'connect-wallet',
     component: () => import('../views/ConnectWalletView.vue')
   },
+  {
+    path: '/accelerator/registration',
+    name: 'accelerator-registration',
+    component: () => import('../views/accelerator/AcceleratorRegistrationView.vue')
+  },
 ];
 
 const router = createRouter({

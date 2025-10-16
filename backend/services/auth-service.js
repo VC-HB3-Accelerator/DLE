@@ -18,11 +18,14 @@ const crypto = require('crypto');
 const { processMessage } = require('./ai-assistant'); // Используем AI Assistant
 const verificationService = require('./verification-service'); // Используем сервис верификации
 const identityService = require('./identity-service'); // <-- ДОБАВЛЕН ИМПОРТ
+const { ROLES } = require('/app/shared/permissions'); // Централизованная система ролей
 const authTokenService = require('./authTokenService');
 const rpcProviderService = require('./rpcProviderService');
 const tokenBalanceService = require('./tokenBalanceService');
 const { getLinkedWallet } = require('./wallet-service');
-const { checkAdminRole } = require('./admin-role');
+
+// Периодическая проверка и обновление ролей пользователей
+let roleUpdateInterval = null;
 const { broadcastContactsUpdate } = require('../wsHub');
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
@@ -84,12 +87,14 @@ class AuthService {
         const currentAccessLevel = userAccessLevel !== null ? userAccessLevel : await this.getUserAccessLevel(normalizedAddress);
 
         // Если уровень доступа изменился, обновляем роль в базе данных
-        const currentRole = userData.role === 'admin' ? 'editor' : 'user';
-        const newRole = currentAccessLevel.hasAccess ? 'admin' : 'user';
+        const currentRole = userData.role;
+        
+        // Используем роль из currentAccessLevel, которая уже правильно определена с учетом порогов
+        const newRole = currentAccessLevel.level;
         
         if (currentRole !== newRole) {
           await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [newRole, userData.id]);
-          logger.info(`Updated user ${userData.id} role to ${newRole} (access level changed)`);
+          logger.info(`Updated user ${userData.id} role to ${newRole} (access level changed, tokens: ${currentAccessLevel.tokenCount})`);
         }
 
         return {
@@ -100,7 +105,15 @@ class AuthService {
 
       // Если пользователь не найден, создаем нового с правильной ролью
       const currentAccessLevel = userAccessLevel !== null ? userAccessLevel : await this.getUserAccessLevel(normalizedAddress);
-      const initialRole = currentAccessLevel.hasAccess ? 'admin' : 'user';
+      logger.info(`[verify] Creating user - userAccessLevel: ${userAccessLevel ? JSON.stringify(userAccessLevel) : 'null'}`);
+      logger.info(`[verify] Creating user - currentAccessLevel: ${JSON.stringify(currentAccessLevel)}`);
+      
+      let initialRole = ROLES.USER;
+      if (currentAccessLevel.hasAccess) {
+        initialRole = currentAccessLevel.level;
+      }
+      
+      logger.info(`[verify] Creating user - initialRole determined: ${initialRole}`);
       
       const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [initialRole]);
       const userId = newUserResult.rows[0].id;
@@ -219,7 +232,7 @@ class AuthService {
       session.userId = userId;
       session.authenticated = authenticated;
       session.authType = authType;
-      session.userAccessLevel = userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
+      session.userAccessLevel = userAccessLevel || { level: ROLES.USER, tokenCount: 0, hasAccess: false };
 
       // Сохраняем адрес кошелька если есть
       if (address) {
@@ -237,7 +250,7 @@ class AuthService {
             authenticated,
             authType,
             address,
-            userAccessLevel: userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false },
+            userAccessLevel: userAccessLevel || { level: ROLES.USER, tokenCount: 0, hasAccess: false },
             cookie: session.cookie,
           }),
           session.id,
@@ -301,18 +314,21 @@ class AuthService {
       // с базовым доступом к чату и истории сообщений
       if (!wallet) {
         logger.info(`No wallet linked for user ${userId}, assigning basic user role`);
-        return 'user';
+        return ROLES.USER;
       }
 
       // Если есть кошелек, проверяем уровень доступа
       const userAccessLevel = await this.getUserAccessLevel(wallet);
       logger.info(
-        `Role check for user ${userId} with wallet ${wallet}: ${userAccessLevel.hasAccess ? 'admin' : 'user'}`
+        `Role check for user ${userId} with wallet ${wallet}: ${userAccessLevel.hasAccess ? 'editor/readonly' : 'user'}`
       );
-      return userAccessLevel.hasAccess ? 'admin' : 'user';
+      if (userAccessLevel.hasAccess) {
+        return userAccessLevel.level;
+      }
+      return ROLES.USER;
     } catch (error) {
       logger.error('Error checking user role:', error);
-      return 'user';
+      return ROLES.USER;
     }
   }
 
@@ -338,12 +354,12 @@ class AuthService {
 
       // Проверяем наличие кошелька и определяем роль
       const wallet = await getLinkedWallet(userId);
-      let role = 'user'; // Базовая роль для доступа к чату
+      let role = ROLES.USER; // Базовая роль для доступа к чату
 
       if (wallet) {
         // Если есть кошелек, проверяем уровень доступа
         const userAccessLevel = await this.getUserAccessLevel(wallet);
-        role = userAccessLevel.hasAccess ? 'admin' : 'user';
+        role = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
         logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
       } else {
         logger.info(`User ${userId} has no wallet, using basic user role`);
@@ -386,7 +402,7 @@ class AuthService {
         return {
           success: true,
           userId,
-          role: session.userAccessLevel?.hasAccess ? 'admin' : 'user',
+          role: session.userAccessLevel?.level || ROLES.USER,
           telegramId,
           isNewUser: false,
         };
@@ -412,7 +428,7 @@ class AuthService {
       } else {
         // Создаем нового пользователя для нового telegramId
         const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
-          'user',
+          ROLES.USER,
         ]);
         userId = newUserResult.rows[0].id;
         isNewUser = true;
@@ -445,7 +461,7 @@ class AuthService {
       return {
         success: true,
         userId,
-        role: 'user',
+        role: ROLES.USER,
         telegramId,
         isNewUser,
       };
@@ -463,13 +479,13 @@ class AuthService {
    */
   async getUserAccessLevel(address) {
     if (!address) {
-      return { level: 'user', tokenCount: 0, hasAccess: false };
+      return { level: ROLES.USER, tokenCount: 0, hasAccess: false };
     }
 
     logger.info(`Checking access level for address: ${address}`);
 
     try {
-      // Получаем токены из базы данных напрямую (как в checkAdminRole)
+      // Получаем токены из базы данных напрямую
       const fs = require('fs');
       const path = require('path');
       let encryptionKey = 'default-key';
@@ -542,8 +558,8 @@ class AuthService {
             symbol: '',
             balance,
             minBalance: token.min_balance,
-            readonlyThreshold: token.readonly_threshold || 1,
-            editorThreshold: token.editor_threshold || 2,
+            readonlyThreshold: token.readonly_threshold,
+            editorThreshold: token.editor_threshold,
           });
           
           logger.info(`[getUserAccessLevel] Token balance for ${token.name} (${token.address}): ${balance}`);
@@ -557,15 +573,15 @@ class AuthService {
             symbol: '',
             balance: '0',
             minBalance: token.min_balance,
-            readonlyThreshold: token.readonly_threshold || 1,
-            editorThreshold: token.editor_threshold || 2,
+            readonlyThreshold: token.readonly_threshold,
+            editorThreshold: token.editor_threshold,
           });
         }
       }
       
       if (!tokenBalances || !Array.isArray(tokenBalances)) {
         logger.warn(`No token balances found for address: ${address}`);
-        return { level: 'user', tokenCount: 0, hasAccess: false };
+        return { level: ROLES.USER, tokenCount: 0, hasAccess: false };
       }
 
       // Подсчитываем сумму токенов с достаточным балансом
@@ -594,7 +610,7 @@ class AuthService {
       });
 
       // Определяем уровень доступа на основе настроек токенов
-      let accessLevel = 'user';
+      let accessLevel = ROLES.USER;
       let hasAccess = false;
       
       // Получаем настройки порогов из токенов (используем самые низкие требования для максимального доступа)
@@ -604,8 +620,8 @@ class AuthService {
       if (tokenBalances.length > 0) {
         // Находим самые низкие пороги среди всех токенов
         for (const token of tokenBalances) {
-          const tokenReadonlyThreshold = token.readonlyThreshold || 1;
-          const tokenEditorThreshold = token.editorThreshold || 2;
+          const tokenReadonlyThreshold = token.readonlyThreshold;
+          const tokenEditorThreshold = token.editorThreshold;
           
           if (tokenReadonlyThreshold < readonlyThreshold) {
             readonlyThreshold = tokenReadonlyThreshold;
@@ -615,27 +631,25 @@ class AuthService {
           }
         }
         
-        // Если не нашли токены с порогами, используем дефолтные значения
-        if (readonlyThreshold === Infinity) readonlyThreshold = 1;
-        if (editorThreshold === Infinity) editorThreshold = 2;
-        
         logger.info(`[AuthService] Определены пороги доступа: readonly=${readonlyThreshold}, editor=${editorThreshold} (из ${tokenBalances.length} токенов)`);
       } else {
-        readonlyThreshold = 1;
-        editorThreshold = 2;
+        // Если токенов нет, пользователь не имеет доступа
+        logger.warn(`[AuthService] Токены не найдены, пользователь не имеет доступа`);
+        readonlyThreshold = Infinity;
+        editorThreshold = Infinity;
       }
 
       if (validTokenCount >= editorThreshold) {
         // Достаточно токенов для полных прав редактора
-        accessLevel = 'editor';
+        accessLevel = ROLES.EDITOR;
         hasAccess = true;
       } else if (validTokenCount > 0) {
         // Есть токены, но недостаточно для редактора - права только на чтение
-        accessLevel = 'readonly';
+        accessLevel = ROLES.READONLY;
         hasAccess = true;
       } else {
         // Нет токенов - обычный пользователь
-        accessLevel = 'user';
+        accessLevel = ROLES.USER;
         hasAccess = false;
       }
 
@@ -649,106 +663,17 @@ class AuthService {
       };
     } catch (error) {
       logger.error(`Error in getUserAccessLevel: ${error.message}`);
-      return { level: 'user', tokenCount: 0, hasAccess: false };
+      return { level: ROLES.USER, tokenCount: 0, hasAccess: false };
     }
   }
 
-  // Добавляем псевдоним функции checkAdminRole для обратной совместимости
-  async checkAdminTokens(address) {
-    if (!address) return false;
-
-    logger.info(`Checking admin tokens for address: ${address}`);
-
-    try {
-      // Используем новую функцию для определения уровня доступа
-      const accessLevel = await this.getUserAccessLevel(address);
-      const hasAccess = accessLevel.hasAccess; // Любой доступ выше 'user' считается админским
-
-      // Обновляем роль пользователя в базе данных
-      if (hasAccess) {
-        try {
-          // Получаем ключ шифрования
-          const fs = require('fs');
-          const path = require('path');
-          let encryptionKey = 'default-key';
-          
-          try {
-            const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-            if (fs.existsSync(keyPath)) {
-              encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-            }
-          } catch (keyError) {
-            console.error('Error reading encryption key:', keyError);
-          }
-
-          // Находим userId по адресу
-          const userResult = await db.getQuery()(
-            `
-            SELECT u.id FROM users u 
-            JOIN user_identities ui ON u.id = ui.user_id 
-            WHERE ui.provider_encrypted = encrypt_text('wallet', $2) AND ui.provider_id_encrypted = encrypt_text($1, $2)`,
-            [address.toLowerCase(), encryptionKey]
-          );
-
-          if (userResult.rows.length > 0) {
-            const userId = userResult.rows[0].id;
-            // Обновляем роль пользователя с учетом уровня доступа
-            const role = accessLevel.level;
-            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
-            logger.info(`Updated user ${userId} role to ${role} based on token holdings (${accessLevel.tokenCount} tokens)`);
-          }
-        } catch (error) {
-          logger.error('Error updating user role:', error);
-          // Продолжаем выполнение, даже если обновление роли не удалось
-        }
-      } else {
-        // Если пользователь не имеет доступа, сбрасываем роль на "user"
-        try {
-          // Получаем ключ шифрования
-          const fs = require('fs');
-          const path = require('path');
-          let encryptionKey = 'default-key';
-          
-          try {
-            const keyPath = path.join(__dirname, '../ssl/keys/full_db_encryption.key');
-            if (fs.existsSync(keyPath)) {
-              encryptionKey = fs.readFileSync(keyPath, 'utf8').trim();
-            }
-          } catch (keyError) {
-            console.error('Error reading encryption key:', keyError);
-          }
-
-          const userResult = await db.getQuery()(
-            `
-            SELECT u.id, u.role FROM users u 
-            JOIN user_identities ui ON u.id = ui.user_id 
-            WHERE ui.provider_encrypted = encrypt_text('wallet', $2) AND ui.provider_id_encrypted = encrypt_text($1, $2)`,
-            [address.toLowerCase(), encryptionKey]
-          );
-
-          if (userResult.rows.length > 0 && userResult.rows[0].role !== 'user') {
-            const userId = userResult.rows[0].id;
-            await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['user', userId]);
-            logger.info(`Reset user ${userId} role to user (no valid tokens found)`);
-          }
-        } catch (error) {
-          logger.error('Error updating user role:', error);
-        }
-      }
-
-      return hasAccess;
-    } catch (error) {
-      logger.error(`Error in checkAdminTokens: ${error.message}`);
-      return false; // При любой ошибке считаем, что пользователь не админ
-    }
-  }
 
   /**
-   * Перепроверяет админский статус ВСЕХ пользователей с кошельками
+   * Перепроверяет роли ВСЕХ пользователей с кошельками
    * @returns {Promise<void>}
    */
   async recheckAllUsersAdminStatus() {
-    logger.info('Starting recheck of admin status for all users with wallets');
+    logger.info('Starting recheck of user roles for all users with wallets');
 
     try {
       // Получаем ключ шифрования через унифицированную утилиту
@@ -963,8 +888,9 @@ class AuthService {
 
         // Обновляем роль пользователя в базе данных, если нужно
         if (userAccessLevel.hasAccess) {
-          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', ['admin', userId]);
-          logger.info(`[AuthService] Updated user ${userId} role to admin based on token holdings`);
+          const role = userAccessLevel.level;
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+          logger.info(`[AuthService] Updated user ${userId} role to ${role} based on token holdings (${userAccessLevel.tokenCount} tokens)`);
         }
       }
 
@@ -1011,13 +937,13 @@ class AuthService {
           userId = session.tempUserId;
           logger.info(`[handleEmailVerification] Using temporary user ${userId}`);
         } else {
-          // Создаем нового пользователя
+          // Создаем нового пользователя с ролью по умолчанию
           const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
-            'user',
+            ROLES.USER,
           ]);
           userId = newUserResult.rows[0].id;
           isNewUser = true;
-          logger.info(`[handleEmailVerification] Created new user ${userId}`);
+          logger.info(`[handleEmailVerification] Created new user ${userId} with role ${ROLES.USER}`);
         }
       }
 
@@ -1039,7 +965,11 @@ class AuthService {
         if (linkedWallet && linkedWallet.provider_id) {
           logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet.provider_id}. Checking role...`);
           const userAccessLevel = await this.getUserAccessLevel(linkedWallet.provider_id);
-          userRole = userAccessLevel.hasAccess ? 'admin' : 'user';
+          if (userAccessLevel.hasAccess) {
+            userRole = userAccessLevel.level;
+          } else {
+            userRole = ROLES.USER;
+          }
           logger.info(`[handleEmailVerification] Role determined as: ${userRole}`);
 
           // Опционально: Обновить роль в таблице users
@@ -1057,7 +987,7 @@ class AuthService {
           }
         }
       } catch (roleCheckError) {
-        logger.error(`[handleEmailVerification] Error checking admin role:`, roleCheckError);
+        logger.error(`[handleEmailVerification] Error checking user role:`, roleCheckError);
         // В случае ошибки берем текущую роль из базы или оставляем 'user'
         try {
           const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
@@ -1128,6 +1058,78 @@ class AuthService {
     } catch (error) {
       logger.error(`[verifyNonce] Error verifying nonce for address ${address}:`, error);
       return false;
+    }
+  }
+
+  // Периодическая проверка и обновление ролей пользователей
+  async updateUserRolesPeriodically() {
+    try {
+      logger.info('[AuthService] Начинаем периодическую проверку ролей пользователей');
+      
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+      
+      // Получаем всех пользователей с привязанными кошельками
+      const usersResult = await db.getQuery()(`
+        SELECT DISTINCT u.id, u.role, decrypt_text(ui.provider_id_encrypted, $1) as wallet_address
+        FROM users u
+        JOIN user_identities ui ON u.id = ui.user_id
+        WHERE ui.provider_encrypted = encrypt_text('wallet', $1)
+      `, [encryptionKey]);
+
+      let updatedCount = 0;
+      
+      for (const user of usersResult.rows) {
+        try {
+          const userAccessLevel = await this.getUserAccessLevel(user.wallet_address);
+          const expectedRole = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
+          
+          if (user.role !== expectedRole) {
+            logger.info(`[AuthService] Обновляем роль пользователя ${user.id} с ${user.role} на ${expectedRole} (токены: ${userAccessLevel.tokenCount})`);
+            const updateResult = await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2 RETURNING role', [expectedRole, user.id]);
+            logger.info(`[AuthService] SQL UPDATE выполнен для пользователя ${user.id}, результат:`, updateResult.rows[0]);
+            logger.info(`[AuthService] Обновлена роль пользователя ${user.id} с ${user.role} на ${expectedRole} (токены: ${userAccessLevel.tokenCount})`);
+            updatedCount++;
+          } else {
+            logger.info(`[AuthService] Роль пользователя ${user.id} не требует обновления: ${user.role} (токены: ${userAccessLevel.tokenCount})`);
+          }
+        } catch (error) {
+          logger.error(`[AuthService] Ошибка при обновлении роли пользователя ${user.id}:`, error);
+        }
+      }
+      
+      logger.info(`[AuthService] Периодическая проверка завершена. Обновлено ролей: ${updatedCount}`);
+      
+      if (updatedCount > 0) {
+        // Уведомляем frontend об обновлении контактов
+        broadcastContactsUpdate();
+      }
+      
+    } catch (error) {
+      logger.error('[AuthService] Ошибка при периодической проверке ролей:', error);
+    }
+  }
+
+  // Запуск периодической проверки ролей
+  startRoleUpdateInterval() {
+    if (roleUpdateInterval) {
+      clearInterval(roleUpdateInterval);
+    }
+    
+    // Проверяем роли каждые 5 минут
+    roleUpdateInterval = setInterval(() => {
+      this.updateUserRolesPeriodically();
+    }, 5 * 60 * 1000);
+    
+    logger.info('[AuthService] Запущена периодическая проверка ролей (каждые 5 минут)');
+  }
+
+  // Остановка периодической проверки
+  stopRoleUpdateInterval() {
+    if (roleUpdateInterval) {
+      clearInterval(roleUpdateInterval);
+      roleUpdateInterval = null;
+      logger.info('[AuthService] Остановлена периодическая проверка ролей');
     }
   }
 }

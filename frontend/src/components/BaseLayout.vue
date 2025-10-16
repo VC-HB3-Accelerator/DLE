@@ -217,11 +217,15 @@ const handleWalletAuth = async () => {
 const disconnectWallet = async () => {
       // console.log('[BaseLayout] Выполняется выход из системы...');
   try {
-    await api.post('/auth/logout');
-    showSuccessMessage('Вы успешно вышли из системы');
-    removeFromStorage('guestMessages');
-    removeFromStorage('hasUserSentMessage');
-    emit('auth-action-completed');
+    // Используем централизованную функцию disconnect из useAuth
+    const result = await auth.disconnect();
+    
+    if (result.success) {
+      showSuccessMessage('Вы успешно вышли из системы');
+      emit('auth-action-completed');
+    } else {
+      showErrorMessage(result.error || 'Произошла ошибка при выходе из системы');
+    }
   } catch (error) {
           // console.error('[BaseLayout] Ошибка при выходе из системы:', error);
     showErrorMessage('Произошла ошибка при выходе из системы');

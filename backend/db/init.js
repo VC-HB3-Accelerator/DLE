@@ -41,7 +41,7 @@ async function initRoles() {
       await pool.query(`
         INSERT INTO roles (id, name, description) VALUES 
         (3, 'user', 'Обычный пользователь'),
-        (4, 'admin', 'Администратор с полным доступом');
+        (4, 'editor', 'Администратор с полным доступом');
       `);
 
       // console.log('Таблица roles создана и заполнена');
@@ -57,7 +57,7 @@ async function initRoles() {
           `SELECT EXISTS (SELECT FROM roles WHERE name = 'user');`
         );
         const adminRoleExists = await pool.query(
-          `SELECT EXISTS (SELECT FROM roles WHERE name = 'admin');`
+          `SELECT EXISTS (SELECT FROM roles WHERE name = 'editor');`
         );
 
         if (!userRoleExists.rows[0].exists) {
@@ -70,7 +70,7 @@ async function initRoles() {
         if (!adminRoleExists.rows[0].exists) {
           await pool.query(`
             INSERT INTO roles (id, name, description) VALUES 
-            (4, 'admin', 'Администратор с полным доступом');
+            (4, 'editor', 'Администратор с полным доступом');
           `);
         }
 

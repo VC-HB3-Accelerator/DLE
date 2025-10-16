@@ -94,7 +94,7 @@ async function processMessage(messageData) {
 
     // 4. Определяем нужно ли генерировать AI ответ
     const shouldGenerateAi = adminLogicService.shouldGenerateAiReply({
-      senderType: isAdmin ? 'admin' : 'user',
+      senderType: isAdmin ? 'editor' : 'user',
       userId: userId,
       recipientId: recipientId || userId,
       channel: channel
@@ -161,7 +161,7 @@ async function processMessage(messageData) {
       [
         userId,
         conversationId,
-        isAdmin ? 'admin' : 'user',
+        isAdmin ? 'editor' : 'user',
         content,
         channel,
         'user',

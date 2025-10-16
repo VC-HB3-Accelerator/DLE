@@ -15,7 +15,6 @@ const verificationService = require('./verification-service');
 const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
 const authService = require('./auth-service');
-const { checkAdminRole } = require('./admin-role');
 const { broadcastContactsUpdate } = require('../wsHub');
 const nodemailer = require('nodemailer');
 const db = require('../db');
@@ -114,8 +113,9 @@ class EmailAuth {
         logger.info(`[initEmailAuth] Found existing user ${userId} with email ${email}`);
       } else {
         // Создаем временного пользователя, если нужно будет создать нового
+        const { ROLES } = require('/app/shared/permissions');
         const newUser = await encryptedDb.saveData('users', {
-          role: 'user'
+          role: ROLES.USER
         });
         userId = newUser.id;
         session.tempUserId = userId;
@@ -243,10 +243,12 @@ class EmailAuth {
       try {
         const linkedWallet = await authService.getLinkedWallet(finalUserId);
         if (linkedWallet) {
-          logger.info(`[checkEmailVerification] Found linked wallet ${linkedWallet} for user ${finalUserId}. Checking admin role...`);
+          logger.info(`[checkEmailVerification] Found linked wallet ${linkedWallet} for user ${finalUserId}. Checking user role...`);
           const authService = require('./auth-service');
           const userAccessLevel = await authService.getUserAccessLevel(linkedWallet);
-          userRole = userAccessLevel.hasAccess ? 'admin' : 'user';
+          const { ROLES } = require('/app/shared/permissions');
+          // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
+          userRole = userAccessLevel.level;
           logger.info(`[checkEmailVerification] Role for user ${finalUserId} determined as: ${userRole}`);
 
           // Опционально: Обновить роль в таблице users, если она отличается
@@ -259,7 +261,7 @@ class EmailAuth {
           logger.info(`[checkEmailVerification] No linked wallet found for user ${finalUserId}. Role remains 'user'.`);
         }
       } catch (roleCheckError) {
-        logger.error(`[checkEmailVerification] Error checking admin role for user ${finalUserId}:`, roleCheckError);
+        logger.error(`[checkEmailVerification] Error checking user role for user ${finalUserId}:`, roleCheckError);
         // В случае ошибки оставляем роль 'user'
       }
       // ----> КОНЕЦ: Проверка роли

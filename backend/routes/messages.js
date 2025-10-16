@@ -21,8 +21,133 @@ const { requirePermission } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 
-// GET /api/messages?userId=123
-// Просмотр сообщений конкретного пользователя (для админов в CRM)
+// GET /api/messages/public?userId=123 - получить публичные сообщения пользователя
+router.get('/public', requireAuth, async (req, res) => {
+  const userId = req.query.userId;
+  const currentUserId = req.user.id;
+  
+  // Параметры пагинации
+  const limit = parseInt(req.query.limit, 10) || 30;
+  const offset = parseInt(req.query.offset, 10) || 0;
+  const countOnly = req.query.count_only === 'true';
+
+  // Получаем ключ шифрования
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+
+  try {
+    // Публичные сообщения видны на главной странице пользователя
+    const targetUserId = userId || currentUserId;
+    
+    // Если нужен только подсчет
+    if (countOnly) {
+      const countResult = await db.getQuery()(
+        `SELECT COUNT(*) FROM messages WHERE user_id = $1 AND message_type = 'public'`,
+        [targetUserId]
+      );
+      const totalCount = parseInt(countResult.rows[0].count, 10);
+      return res.json({ success: true, count: totalCount, total: totalCount });
+    }
+    
+    const result = await db.getQuery()(
+      `SELECT m.id, m.user_id, decrypt_text(m.sender_type_encrypted, $2) as sender_type, 
+              decrypt_text(m.content_encrypted, $2) as content, 
+              decrypt_text(m.channel_encrypted, $2) as channel, 
+              decrypt_text(m.role_encrypted, $2) as role, 
+              decrypt_text(m.direction_encrypted, $2) as direction, 
+              m.created_at, m.message_type,
+              arm.last_read_at
+       FROM messages m
+       LEFT JOIN admin_read_messages arm ON arm.user_id = m.user_id AND arm.admin_id = $5
+       WHERE m.user_id = $1 AND m.message_type = 'public'
+       ORDER BY m.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [targetUserId, encryptionKey, limit, offset, currentUserId]
+    );
+    
+    // Получаем общее количество для пагинации
+    const countResult = await db.getQuery()(
+      `SELECT COUNT(*) FROM messages WHERE user_id = $1 AND message_type = 'public'`,
+      [targetUserId]
+    );
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+    
+    res.json({
+      success: true,
+      messages: result.rows,
+      total: totalCount,
+      limit,
+      offset,
+      hasMore: offset + limit < totalCount
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// GET /api/messages/private - получить приватные сообщения текущего пользователя
+router.get('/private', requireAuth, async (req, res) => {
+  const currentUserId = req.user.id;
+  
+  // Параметры пагинации
+  const limit = parseInt(req.query.limit, 10) || 30;
+  const offset = parseInt(req.query.offset, 10) || 0;
+  const countOnly = req.query.count_only === 'true';
+
+  // Получаем ключ шифрования
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+
+  try {
+    // Если нужен только подсчет
+    if (countOnly) {
+      const countResult = await db.getQuery()(
+        `SELECT COUNT(*) FROM messages WHERE user_id = $1 AND message_type = 'private'`,
+        [currentUserId]
+      );
+      const totalCount = parseInt(countResult.rows[0].count, 10);
+      return res.json({ success: true, count: totalCount, total: totalCount });
+    }
+    
+    // Приватные сообщения видны только в личных сообщениях
+    const result = await db.getQuery()(
+      `SELECT m.id, m.user_id, decrypt_text(m.sender_type_encrypted, $2) as sender_type, 
+              decrypt_text(m.content_encrypted, $2) as content, 
+              decrypt_text(m.channel_encrypted, $2) as channel, 
+              decrypt_text(m.role_encrypted, $2) as role, 
+              decrypt_text(m.direction_encrypted, $2) as direction, 
+              m.created_at, m.message_type,
+              arm.last_read_at
+       FROM messages m
+       LEFT JOIN admin_read_messages arm ON arm.user_id = m.user_id AND arm.admin_id = $5
+       WHERE m.user_id = $1 AND m.message_type = 'private'
+       ORDER BY m.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [currentUserId, encryptionKey, limit, offset, currentUserId]
+    );
+    
+    // Получаем общее количество для пагинации
+    const countResult = await db.getQuery()(
+      `SELECT COUNT(*) FROM messages WHERE user_id = $1 AND message_type = 'private'`,
+      [currentUserId]
+    );
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+    
+    res.json({
+      success: true,
+      messages: result.rows,
+      total: totalCount,
+      limit,
+      offset,
+      hasMore: offset + limit < totalCount
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// GET /api/messages?userId=123 - УСТАРЕВШИЙ эндпоинт, используйте /api/messages/public или /api/messages/private
+// Оставлен для обратной совместимости
 router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
   const userId = req.query.userId;
   const conversationId = req.query.conversationId;
@@ -107,28 +232,29 @@ router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async
       return res.json(messages);
     }
 
-    // Стандартная логика для зарегистрированных пользователей
+    // Стандартная логика для зарегистрированных пользователей - ТОЛЬКО ПУБЛИЧНЫЕ СООБЩЕНИЯ
     let result;
     if (conversationId) {
       result = await db.getQuery()(
-        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data
+        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data, message_type
          FROM messages
-         WHERE conversation_id = $1
+         WHERE conversation_id = $1 AND message_type = 'public'
          ORDER BY created_at ASC`,
         [conversationId, encryptionKey]
       );
     } else if (userId) {
       result = await db.getQuery()(
-        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data
+        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data, message_type
          FROM messages
-         WHERE user_id = $1
+         WHERE user_id = $1 AND message_type = 'public'
          ORDER BY created_at ASC`,
         [userId, encryptionKey]
       );
     } else {
       result = await db.getQuery()(
-        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $1) as sender_type, decrypt_text(content_encrypted, $1) as content, decrypt_text(channel_encrypted, $1) as channel, decrypt_text(role_encrypted, $1) as role, decrypt_text(direction_encrypted, $1) as direction, created_at, decrypt_text(attachment_filename_encrypted, $1) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $1) as attachment_mimetype, attachment_size, attachment_data
+        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $1) as sender_type, decrypt_text(content_encrypted, $1) as content, decrypt_text(channel_encrypted, $1) as channel, decrypt_text(role_encrypted, $1) as role, decrypt_text(direction_encrypted, $1) as direction, created_at, decrypt_text(attachment_filename_encrypted, $1) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $1) as attachment_mimetype, attachment_size, attachment_data, message_type
          FROM messages
+         WHERE message_type = 'public'
          ORDER BY created_at ASC`,
         [encryptionKey]
       );
@@ -139,7 +265,8 @@ router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async
   }
 });
 
-// POST /api/messages
+// POST /api/messages - УСТАРЕВШИЙ эндпоинт, используйте /api/messages/send
+// Оставлен для обратной совместимости, но теперь сохраняет как публичные сообщения
 router.post('/', async (req, res) => {
   const { user_id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data } = req.body;
 
@@ -197,11 +324,11 @@ router.post('/', async (req, res) => {
     } else {
       conversation = conversationResult.rows[0];
     }
-    // 3. Сохраняем сообщение с conversation_id
+    // 3. Сохраняем сообщение с conversation_id и типом 'public' (для обратной совместимости)
     const result = await db.getQuery()(
-      `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, created_at, attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
-       VALUES ($1,$2,encrypt_text($3,$12),encrypt_text($4,$12),encrypt_text($5,$12),encrypt_text($6,$12),encrypt_text($7,$12),NOW(),encrypt_text($8,$12),encrypt_text($9,$12),$10,$11) RETURNING *`,
-      [user_id, conversation.id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, encryptionKey]
+      `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, created_at, attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
+       VALUES ($1,$2,encrypt_text($3,$13),encrypt_text($4,$13),encrypt_text($5,$13),encrypt_text($6,$13),encrypt_text($7,$13),$12,NOW(),encrypt_text($8,$13),encrypt_text($9,$13),$10,$11) RETURNING *`,
+      [user_id, conversation.id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, 'public', encryptionKey]
     );
     // 4. Если это исходящее сообщение для Telegram — отправляем через бота
     if (channel === 'telegram' && direction === 'out') {
@@ -426,7 +553,7 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
           await db.getQuery()(
             `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, created_at)
              VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), $9, NOW())`,
-            [user_id, conversation.id, 'admin', content, 'email', 'user', 'out', encryptionKey, 'user_chat']
+            [user_id, conversation.id, 'editor', content, 'email', 'user', 'out', encryptionKey, 'user_chat']
           );
           results.push({ channel: 'email', status: 'sent' });
           sent = true;
@@ -449,7 +576,7 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
           await db.getQuery()(
             `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, created_at)
              VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), $9, NOW())`,
-            [user_id, conversation.id, 'admin', content, 'telegram', 'user', 'out', encryptionKey, 'user_chat']
+            [user_id, conversation.id, 'editor', content, 'telegram', 'user', 'out', encryptionKey, 'user_chat']
           );
           results.push({ channel: 'telegram', status: 'sent' });
           sent = true;
@@ -466,9 +593,9 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
     if (wallet) {
       // Здесь можно реализовать отправку через web3, если нужно
       await db.getQuery()(
-        `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, created_at)
-         VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), NOW())`,
-        [user_id, conversation.id, 'admin', content, 'wallet', 'user', 'out', encryptionKey]
+        `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, created_at)
+         VALUES ($1, $2, encrypt_text($3, $9), encrypt_text($4, $9), encrypt_text($5, $9), encrypt_text($6, $9), encrypt_text($7, $9), $8, NOW())`,
+        [user_id, conversation.id, 'editor', content, 'wallet', 'user', 'out', 'user_chat', encryptionKey]
       );
       results.push({ channel: 'wallet', status: 'saved' });
       sent = true;
@@ -479,6 +606,171 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
     res.json({ success: true, results });
   } catch (e) {
     res.status(500).json({ error: 'Broadcast error', details: e.message });
+  }
+});
+
+// POST /api/messages/send - новый эндпоинт для отправки сообщений с проверкой ролей
+router.post('/send', requireAuth, async (req, res) => {
+  const { recipientId, content, messageType = 'public', markAsRead = false } = req.body;
+  
+  if (!recipientId || !content) {
+    return res.status(400).json({ error: 'recipientId и content обязательны' });
+  }
+  
+  if (!['public', 'private'].includes(messageType)) {
+    return res.status(400).json({ error: 'messageType должен быть "public" или "private"' });
+  }
+  
+  try {
+    // Получаем информацию об отправителе
+    const senderId = req.user.id;
+    const senderRole = req.user.contact_type || req.user.role;
+    
+    // Получаем информацию о получателе
+    const recipientResult = await db.getQuery()(
+      'SELECT id, contact_type FROM users WHERE id = $1',
+      [recipientId]
+    );
+    
+    if (recipientResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Получатель не найден' });
+    }
+    
+    const recipientRole = recipientResult.rows[0].contact_type;
+    
+    // Проверка прав согласно матрице разрешений
+    const canSend = (
+      // Editor может отправлять всем
+      (senderRole === 'editor') ||
+      // User и readonly могут отправлять только editor
+      ((senderRole === 'user' || senderRole === 'readonly') && recipientRole === 'editor')
+    );
+    
+    if (!canSend) {
+      return res.status(403).json({ 
+        error: 'Недостаточно прав для отправки сообщения этому получателю' 
+      });
+    }
+    
+    // Получаем ключ шифрования
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Находим или создаем беседу
+    let conversationResult = await db.getQuery()(
+      'SELECT id FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1',
+      [recipientId]
+    );
+    
+    let conversationId;
+    if (conversationResult.rows.length === 0) {
+      const title = `Чат с пользователем ${recipientId}`;
+      const newConv = await db.getQuery()(
+        'INSERT INTO conversations (user_id, title_encrypted, created_at, updated_at) VALUES ($1, encrypt_text($2, $3), NOW(), NOW()) RETURNING id',
+        [recipientId, title, encryptionKey]
+      );
+      conversationId = newConv.rows[0].id;
+    } else {
+      conversationId = conversationResult.rows[0].id;
+    }
+    
+    // Сохраняем сообщение с типом
+    const result = await db.getQuery()(
+      `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, created_at)
+       VALUES ($1, $2, encrypt_text($3, $8), encrypt_text($4, $8), encrypt_text($5, $8), encrypt_text($6, $8), encrypt_text($7, $8), $9, NOW()) RETURNING *`,
+      [recipientId, conversationId, 'editor', content, 'web', 'user', 'out', encryptionKey, messageType]
+    );
+    
+    // Отправляем обновление через WebSocket
+    broadcastMessagesUpdate();
+    
+    // Если нужно отметить как прочитанное
+    if (markAsRead) {
+      try {
+        const lastReadAt = new Date().toISOString();
+        await db.getQuery()(
+          `INSERT INTO admin_read_messages (admin_id, user_id, last_read_at)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (admin_id, user_id) DO UPDATE SET last_read_at = EXCLUDED.last_read_at`,
+          [senderId, recipientId, lastReadAt]
+        );
+      } catch (markError) {
+        console.warn('[WARNING] /send mark-read error:', markError);
+        // Не прерываем выполнение, если mark-read не удался
+      }
+    }
+    
+    res.json({ success: true, message: result.rows[0] });
+  } catch (e) {
+    console.error('[ERROR] /send:', e);
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// GET /api/messages/conversations?userId=123 - получить диалоги пользователя
+router.get('/conversations', requireAuth, async (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  
+  try {
+    const result = await db.getQuery()(
+      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC',
+      [userId]
+    );
+    res.json({ success: true, conversations: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// POST /api/messages/conversations - создать диалог для пользователя
+router.post('/conversations', requireAuth, async (req, res) => {
+  const { userId, title } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  
+  // Получаем ключ шифрования через унифицированную утилиту
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+  
+  try {
+    const result = await db.getQuery()(
+      `INSERT INTO conversations (user_id, title_encrypted, created_at, updated_at)
+       VALUES ($1, encrypt_text($2, $3), NOW(), NOW()) RETURNING *`,
+      [userId, title || 'Новый диалог', encryptionKey]
+    );
+    res.json({ success: true, conversation: result.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// DELETE /api/messages/delete-history/:userId - удалить историю сообщений пользователя (новый API)
+router.delete('/delete-history/:userId', requireAuth, requirePermission(PERMISSIONS.DELETE_MESSAGES), async (req, res) => {
+  const userId = req.params.userId;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
+  
+  try {
+    // Проверяем права администратора
+    if (!req.user || !req.user.userAccessLevel?.hasAccess) {
+      return res.status(403).json({ error: 'Only administrators can delete message history' });
+    }
+    
+    // Удаляем все сообщения пользователя
+    const result = await db.getQuery()(
+      'DELETE FROM messages WHERE user_id = $1 RETURNING id',
+      [userId]
+    );
+    
+    res.json({ 
+      success: true, 
+      deletedCount: result.rows.length,
+      message: `Deleted ${result.rows.length} messages for user ${userId}`
+    });
+  } catch (e) {
+    console.error('[ERROR] /delete-history/:userId:', e);
+    res.status(500).json({ error: 'DB error', details: e.message });
   }
 });
 

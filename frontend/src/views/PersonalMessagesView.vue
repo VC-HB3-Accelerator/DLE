@@ -51,6 +51,7 @@ import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import adminChatService from '../services/adminChatService.js';
 import { usePermissions } from '@/composables/usePermissions';
+import { getPrivateMessages } from '../services/messagesService';
 
 const router = useRouter();
 const route = useRoute();
@@ -65,15 +66,41 @@ let ws = null;
 async function fetchPersonalMessages() {
   try {
     isLoading.value = true;
-    console.log('[PersonalMessagesView] Загружаем личные сообщения...');
-    const response = await adminChatService.getAdminContacts();
-    console.log('[PersonalMessagesView] API ответ:', response);
-    personalMessages.value = response?.contacts || [];
-    console.log('[PersonalMessagesView] Загружено бесед:', personalMessages.value.length);
-    console.log('[PersonalMessagesView] Беседы:', personalMessages.value);
-    newMessagesCount.value = personalMessages.value.length; // Simplified for now
+    console.log('[PersonalMessagesView] Загружаем приватные сообщения...');
+    
+    // Загружаем приватные сообщения через новый API с пагинацией
+    const response = await getPrivateMessages({ limit: 100, offset: 0 });
+    console.log('[PersonalMessagesView] Загружено приватных сообщений:', response.messages?.length || 0);
+    
+    const privateMessages = response.success && response.messages ? response.messages : [];
+    
+    // Группируем сообщения по отправителям для отображения списка бесед
+    const messageGroups = {};
+    privateMessages.forEach(msg => {
+      const senderId = msg.sender_id || 'unknown';
+      if (!messageGroups[senderId]) {
+        messageGroups[senderId] = {
+          id: senderId,
+          name: `Админ ${senderId}`,
+          last_message: msg.content,
+          last_message_at: msg.created_at,
+          messages: []
+        };
+      }
+      messageGroups[senderId].messages.push(msg);
+      // Обновляем последнее сообщение
+      if (new Date(msg.created_at) > new Date(messageGroups[senderId].last_message_at)) {
+        messageGroups[senderId].last_message = msg.content;
+        messageGroups[senderId].last_message_at = msg.created_at;
+      }
+    });
+    
+    personalMessages.value = Object.values(messageGroups);
+    newMessagesCount.value = personalMessages.value.length;
+    
+    console.log('[PersonalMessagesView] Сформировано бесед:', personalMessages.value.length);
   } catch (error) {
-    console.error('[PersonalMessagesView] Ошибка загрузки личных сообщений:', error);
+    console.error('[PersonalMessagesView] Ошибка загрузки приватных сообщений:', error);
     personalMessages.value = [];
   } finally {
     isLoading.value = false;

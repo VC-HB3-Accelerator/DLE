@@ -13,9 +13,10 @@
 <template>
   <div class="contact-table-modal">
     <div class="contact-table-header">
+      <!-- Кнопка "Личные сообщения" для всех пользователей -->
       <el-button v-if="canChatWithAdmins" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">Личные сообщения</el-button>
-      <el-button v-if="canSendToUsers" type="success" :disabled="!selectedIds.length" @click="() => openChatForSelected()" style="margin-right: 1em;">Публичное сообщение</el-button>
-      <el-button v-if="canViewContacts" type="warning" :disabled="!selectedIds.length" @click="() => openPrivateChatForSelected()" style="margin-right: 1em;">Приватное сообщение</el-button>
+      <el-button v-if="canSendToUsers" type="success" :disabled="!hasSelectedEditor" @click="sendPublicMessage" style="margin-right: 1em;">Публичное сообщение</el-button>
+      <el-button v-if="canViewContacts" type="warning" :disabled="!hasSelectedEditor" @click="sendPrivateMessage" style="margin-right: 1em;">Приватное сообщение</el-button>
       <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
       <el-button v-if="canDeleteMessages" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
       <el-button v-if="canDeleteData" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
@@ -88,13 +89,16 @@
           </tr>
         </thead>
       <tbody>
-        <tr v-for="contact in contactsArray" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
+        <tr v-for="contact in filteredContacts" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
           <td v-if="canViewContacts"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
           <td>
-            <span v-if="contact.contact_type === 'admin'" class="admin-badge">Админ</span>
-            <span v-else-if="contact.contact_type === 'editor'" class="editor-badge">Редактор</span>
-            <span v-else-if="contact.contact_type === 'readonly'" class="readonly-badge">Чтение</span>
-            <span v-else class="user-badge">Пользователь</span>
+            <span 
+              v-if="getRoleDisplayName(contact.role)" 
+              :class="getRoleClass(contact.role)"
+            >
+              {{ getRoleDisplayName(contact.role) }}
+            </span>
+            <span v-else class="user-badge">Неизвестно</span>
           </td>
           <td>{{ contact.name || '-' }}</td>
           <td>{{ contact.email || '-' }}</td>
@@ -122,8 +126,12 @@ import BroadcastModal from './BroadcastModal.vue';
 import tablesService from '../services/tablesService';
 import messagesService from '../services/messagesService';
 import { useTagsWebSocket } from '../composables/useTagsWebSocket';
+import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
 import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
 import api from '../api/axios';
+import { sendMessage } from '../services/messagesService';
+import { useRoles } from '@/composables/useRoles';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -131,11 +139,14 @@ const props = defineProps({
   markMessagesAsReadForUser: { type: Function, default: null },
   markContactAsRead: { type: Function, default: null }
 });
-const contactsArray = ref([]); // теперь управляем вручную
+// Используем переданные через props данные вместо создания собственного массива
+const contactsArray = computed(() => props.contacts || []);
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
 const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData } = usePermissions();
+const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
+const { roles, getRoleDisplayName, getRoleClass, fetchRoles, clearRoles } = useRoles();
 
 // Фильтры
 const filterSearch = ref('');
@@ -155,14 +166,106 @@ const showBroadcastModal = ref(false);
 const selectedIds = ref([]);
 const selectAll = ref(false);
 
+// Проверяем, есть ли среди выбранных контактов editor
+const hasSelectedEditor = computed(() => {
+  return selectedIds.value.some(id => {
+    const contact = contactsArray.value.find(c => c.id === id);
+    return contact?.role === 'editor';
+  });
+});
+
+// Фильтрация контактов для USER - видит только editor админов и себя
+const filteredContacts = computed(() => {
+  console.log('[ContactTable] 🔍 Фильтрация контактов:');
+  console.log('[ContactTable] userAccessLevel:', userAccessLevel.value);
+  console.log('[ContactTable] userId:', userId.value);
+  console.log('[ContactTable] Все контакты:', contactsArray.value);
+  
+  if (userAccessLevel.value?.level === 'user') {
+    // USER видит только editor админов и себя
+    const filtered = contactsArray.value.filter(contact => {
+      const isEditor = contact.role === 'editor';  // Используем role вместо contact_type
+      const isSelf = contact.id === userId.value;
+      console.log(`[ContactTable] Контакт ${contact.id}: role=${contact.role}, contact_type=${contact.contact_type}, isEditor=${isEditor}, isSelf=${isSelf}`);
+      console.log(`[ContactTable] Полный объект контакта:`, contact);
+      return isEditor || isSelf;
+    });
+    console.log('[ContactTable] Отфильтрованные контакты:', filtered);
+    return filtered;
+  }
+  
+  // READONLY и EDITOR видят всех
+  console.log('[ContactTable] Показываем всех (не user роль)');
+  return contactsArray.value;
+});
+
 // WebSocket для тегов - ОТКЛЮЧАЕМ из-за циклических запросов
 // const { onTagsUpdate } = useTagsWebSocket();
 // let unsubscribeFromTags = null;
 let lastTagsHash = ref(''); // Хеш последних загруженных тегов
 let tagsUpdateInterval = null; // Интервал для периодического обновления тегов
 
+// Реактивная загрузка ролей и контактов при авторизации
+watch(isAuthenticated, async (newValue) => {
+  if (newValue) {
+    console.log('[ContactTable] Пользователь авторизован, загружаем роли');
+    try {
+      await fetchRoles();
+      // Контакты загружаются автоматически через useContactsAndMessagesWebSocket
+    } catch (error) {
+      console.log('[ContactTable] Ошибка загрузки ролей (возможно, пользователь не авторизован):', error.message);
+    }
+  }
+});
+
+// Контакты обновляются автоматически через useContactsAndMessagesWebSocket при смене пользователя
+
+// WebSocket для обновления контактов в реальном времени
+let ws = null;
+
+function setupContactsWebSocket() {
+  if (ws) {
+    ws.close();
+  }
+  
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws`);
+  
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'contacts-updated') {
+      console.log('[ContactTable] Получено WebSocket уведомление об обновлении контактов');
+      // Контакты обновляются автоматически через useContactsAndMessagesWebSocket
+      fetchRoles(); // Обновляем роли
+    }
+  };
+  
+  ws.onopen = () => {
+    console.log('[ContactTable] WebSocket подключен для обновления контактов');
+  };
+  
+  ws.onerror = (error) => {
+    console.error('[ContactTable] WebSocket ошибка:', error);
+  };
+}
+
 onMounted(async () => {
-  await fetchContacts();
+  // Контакты загружаются автоматически через useContactsAndMessagesWebSocket
+  // Загружаем роли только если пользователь авторизован
+  if (isAuthenticated.value) {
+    try {
+      await fetchRoles();
+    } catch (error) {
+      console.log('[ContactTable] Ошибка загрузки ролей в onMounted:', error.message);
+    }
+  }
+  
+  // Настраиваем WebSocket для обновления контактов в реальном времени
+  setupContactsWebSocket();
+  
+  // ContactTable - дочерний компонент, данные управляются через props
+  // Централизованные события обрабатываются в родительском компоненте (ContactsView)
+  // Здесь только очищаем локальные состояния таблицы при изменении props.contacts
   // ВРЕМЕННО ОТКЛЮЧАЕМ - await loadAvailableTags();
   
   // ВРЕМЕННО ОТКЛЮЧАЕМ - Вместо WebSocket используем периодическое обновление каждые 30 секунд
@@ -183,6 +286,16 @@ onUnmounted(() => {
   // if (unsubscribeFromTags) {
   //   unsubscribeFromTags();
   // }
+  
+  // Закрываем WebSocket для контактов
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  
+  // Удаляем обработчики централизованных событий
+  window.removeEventListener('clear-application-data', () => {});
+  window.removeEventListener('refresh-application-data', () => {});
   
   // Очищаем интервал
   if (tagsUpdateInterval) {
@@ -243,27 +356,9 @@ function buildQuery() {
   return params.toString();
 }
 
-async function fetchContacts() {
-  try {
-    // Загружаем обычные контакты
-    let url = '/users';
-    const query = buildQuery();
-    if (query) url += '?' + query;
-    console.log('[ContactTable] Загружаем контакты по URL:', url);
-    const res = await api.get(url);
-    console.log('[ContactTable] Получен ответ:', res.data);
-    contactsArray.value = res.data.contacts || [];
-    console.log('[ContactTable] Загружено контактов:', contactsArray.value.length);
-    console.log('[ContactTable] Первые 3 контакта:', contactsArray.value.slice(0, 3));
-  } catch (error) {
-    console.error('[ContactTable] Ошибка загрузки контактов:', error);
-    contactsArray.value = [];
-  }
-}
+// Функция fetchContacts больше не нужна - данные загружаются через useContactsAndMessagesWebSocket
 
-function onAnyFilterChange() {
-  fetchContacts();
-}
+// Фильтрация происходит реактивно через computed свойство filteredContacts
 
 function resetFilters() {
   filterSearch.value = '';
@@ -273,7 +368,7 @@ function resetFilters() {
   filterNewMessages.value = '';
   filterBlocked.value = 'all';
   selectedTagIds.value = []; // Сбрасываем выбранные теги
-  fetchContacts();
+  // Фильтрация происходит реактивно через computed свойство filteredContacts
 }
 
 function formatDateOnly(date) {
@@ -301,7 +396,7 @@ async function showDetails(contact) {
 
 function onImported() {
   showImportModal.value = false;
-  fetchContacts();
+  // Контакты обновляются автоматически через useContactsAndMessagesWebSocket
 }
 
 async function openChatForSelected() {
@@ -311,11 +406,59 @@ async function openChatForSelected() {
   const contactId = selectedIds.value[0];
   
   // Находим контакт в списке
-  const contact = contactsArray.value.find(c => c.id === contactId);
+  const contact = filteredContacts.value.find(c => c.id === contactId);
   if (!contact) return;
   
   // Открываем чат с этим контактом (user_chat)
   await showDetails(contact);
+}
+
+// Новая функция для отправки публичного сообщения
+async function sendPublicMessage() {
+  if (selectedIds.value.length === 0) return;
+  
+  const contactId = selectedIds.value[0];
+  const contact = filteredContacts.value.find(c => c.id === contactId);
+  if (!contact) return;
+  
+  try {
+    const content = prompt('Введите текст публичного сообщения:');
+    if (!content) return;
+    
+    await sendMessage({
+      recipientId: contactId,
+      content,
+      messageType: 'public'
+    });
+    
+    ElMessage.success('Публичное сообщение отправлено');
+  } catch (error) {
+    ElMessage.error('Ошибка отправки сообщения: ' + (error.message || error));
+  }
+}
+
+// Новая функция для отправки приватного сообщения
+async function sendPrivateMessage() {
+  if (selectedIds.value.length === 0) return;
+  
+  const contactId = selectedIds.value[0];
+  const contact = filteredContacts.value.find(c => c.id === contactId);
+  if (!contact) return;
+  
+  try {
+    const content = prompt('Введите текст приватного сообщения:');
+    if (!content) return;
+    
+    await sendMessage({
+      recipientId: contactId,
+      content,
+      messageType: 'private'
+    });
+    
+    ElMessage.success('Приватное сообщение отправлено');
+  } catch (error) {
+    ElMessage.error('Ошибка отправки сообщения: ' + (error.message || error));
+  }
 }
 
 async function openPrivateChatForSelected(contact = null) {
@@ -334,7 +477,7 @@ async function openPrivateChatForSelected(contact = null) {
     console.log('[ContactTable] Доступные контакты:', contactsArray.value.map(c => ({ id: c.id, name: c.name })));
     
     // Находим контакт в списке
-    targetContact = contactsArray.value.find(c => c.id === contactId);
+    targetContact = filteredContacts.value.find(c => c.id === contactId);
     if (!targetContact) {
       console.error('[ContactTable] Контакт не найден с ID:', contactId);
       return;
@@ -359,17 +502,40 @@ function goToPersonalMessages() {
 
 function toggleSelectAll() {
   if (selectAll.value) {
-    selectedIds.value = contactsArray.value.map(c => c.id);
+    selectedIds.value = filteredContacts.value.map(c => c.id);
   } else {
     selectedIds.value = [];
   }
 }
 
-watch(contactsArray, () => {
+watch(contactsArray, (newContacts, oldContacts) => {
+  console.log('[ContactTable] Contacts array changed:', {
+    oldLength: oldContacts?.length || 0,
+    newLength: newContacts?.length || 0
+  });
+  
   // Сбросить выбор при обновлении данных
   selectedIds.value = [];
   selectAll.value = false;
+  
+  // Если контакты очищены (например, при отключении кошелька), очищаем и локальные фильтры
+  if (newContacts?.length === 0 && oldContacts?.length > 0) {
+    console.log('[ContactTable] Contacts cleared, resetting filters');
+    filterSearch.value = '';
+    filterContactType.value = 'all';
+    filterDateFrom.value = null;
+    filterDateTo.value = null;
+    filterNewMessages.value = '';
+    filterBlocked.value = 'all';
+  }
 });
+
+// Функция для обработки изменений фильтров
+const onAnyFilterChange = () => {
+  // Просто сбрасываем выбор при изменении фильтров
+  selectedIds.value = [];
+  selectAll.value = false;
+};
 
 async function deleteSelected() {
   if (!selectedIds.value.length) return;
@@ -383,7 +549,7 @@ async function deleteSelected() {
       await fetch(`/api/users/${id}`, { method: 'DELETE' });
     }
     ElMessage.success('Контакты удалены');
-    fetchContacts();
+    // Контакты обновляются автоматически через useContactsAndMessagesWebSocket
     selectedIds.value = [];
     selectAll.value = false;
   } catch (e) {

@@ -30,7 +30,7 @@ function shouldGenerateAiReply(params) {
   const { senderType, userId, recipientId } = params;
 
   // Обычные пользователи всегда получают AI ответ
-  if (senderType !== 'admin') {
+  if (senderType !== 'editor') {
     return true;
   }
 
@@ -103,7 +103,7 @@ function canPerformAdminAction(params) {
   }
 
   // editor может все (и свои действия, и readonly действия)
-  if (role === 'editor') {
+  if (role === 'editor' || role === 'readonly') {
     return editorOnlyActions.includes(action) || readonlyActions.includes(action);
   }
 
@@ -120,7 +120,7 @@ function getAdminSettings(params) {
   const { role } = params;
 
   // Editor - полные права
-  if (role === 'editor') {
+  if (role === 'editor' || role === 'readonly') {
     return {
       role: 'editor',
       roleDisplay: 'Редактор',

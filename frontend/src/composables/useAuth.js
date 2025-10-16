@@ -235,7 +235,9 @@ const updateAuth = async ({
     if (!isAuthenticated.value && wasAuthenticated) {
       console.log('[useAuth] User logged out, clearing application data');
       // Очищаем глобальные данные приложения
-      window.dispatchEvent(new CustomEvent('clear-application-data'));
+      const event = new CustomEvent('clear-application-data');
+      console.log('[useAuth] Dispatching clear-application-data event:', event);
+      window.dispatchEvent(event);
     }
     
     // Централизованное обновление данных при подключении
@@ -436,8 +438,8 @@ const disconnect = async () => {
     // Удаляем все идентификаторы перед выходом
     await axios.post('/auth/logout');
 
-    // Обновляем состояние в памяти
-    updateAuth({
+    // Обновляем состояние в памяти через updateAuth (это запустит централизованные события)
+    await updateAuth({
       authenticated: false,
       authType: null,
       userId: null,

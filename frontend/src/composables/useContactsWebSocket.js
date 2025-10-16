@@ -12,7 +12,7 @@
 
 import { ref, onMounted, onUnmounted } from 'vue';
 import { getContacts } from '../services/contactsService';
-import { getAllMessages } from '../services/messagesService';
+import { getPublicMessages } from '../services/messagesService';
 import axios from 'axios';
 
 export function useContactsAndMessagesWebSocket() {
@@ -111,9 +111,19 @@ export function useContactsAndMessagesWebSocket() {
   }
 
   async function fetchMessages() {
-    const all = await getAllMessages();
-    messages.value = all;
-    filterNewMessages();
+    try {
+      // Используем новый API для публичных сообщений с пагинацией
+      const response = await getPublicMessages(null, { limit: 50, offset: 0 });
+      if (response.success && response.messages) {
+        messages.value = response.messages;
+        filterNewMessages();
+      } else {
+        messages.value = [];
+      }
+    } catch (error) {
+      console.error('[useContactsWebSocket] Ошибка загрузки публичных сообщений:', error);
+      messages.value = [];
+    }
   }
 
   function markMessagesAsRead() {
@@ -170,6 +180,18 @@ export function useContactsAndMessagesWebSocket() {
     lastReadMessageDate.value = {};
   }
 
+  // Подписываемся на централизованные события очистки и обновления данных
+  window.addEventListener('clear-application-data', () => {
+    console.log('[useContactsWebSocket] Received clear-application-data event, clearing contacts data');
+    clearContactsData(); // Очищаем данные при выходе из системы
+    console.log('[useContactsWebSocket] Contacts data cleared successfully');
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    console.log('[useContactsWebSocket] Refreshing contacts data');
+    fetchContacts(); // Обновляем данные при входе в систему
+  });
+
   // Централизованная подписка на изменения аутентификации
   onMounted(async () => {
     await fetchContactsReadStatus();
@@ -177,17 +199,6 @@ export function useContactsAndMessagesWebSocket() {
     await fetchReadStatus();
     await fetchMessages();
     setupWebSocket();
-    
-    // Подписываемся на централизованные события очистки и обновления данных
-    window.addEventListener('clear-application-data', () => {
-      console.log('[useContactsWebSocket] Clearing contacts data');
-      clearContactsData(); // Очищаем данные при выходе из системы
-    });
-    
-    window.addEventListener('refresh-application-data', () => {
-      console.log('[useContactsWebSocket] Refreshing contacts data');
-      fetchContacts(); // Обновляем данные при входе в систему
-    });
   });
   onUnmounted(() => {
     if (ws) ws.close();

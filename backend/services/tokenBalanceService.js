@@ -70,8 +70,8 @@ async function getUserTokenBalances(address) {
         symbol: token.symbol || '',
         balance: '0',
         minBalance: token.min_balance,
-        readonlyThreshold: token.readonly_threshold || 1,
-        editorThreshold: token.editor_threshold || 2,
+        readonlyThreshold: token.readonly_threshold,
+        editorThreshold: token.editor_threshold,
         error: 'RPC URL не настроен'
       });
       continue;
@@ -133,8 +133,8 @@ async function getUserTokenBalances(address) {
         symbol: token.symbol || '',
         balance,
         minBalance: token.min_balance,
-        readonlyThreshold: token.readonly_threshold || 1,
-        editorThreshold: token.editor_threshold || 2,
+        readonlyThreshold: token.readonly_threshold,
+        editorThreshold: token.editor_threshold,
         error: errorType,
         errorDetails: errorMessage
       });
@@ -149,8 +149,8 @@ async function getUserTokenBalances(address) {
       symbol: token.symbol || '',
       balance,
       minBalance: token.min_balance,
-      readonlyThreshold: token.readonly_threshold || 1,
-      editorThreshold: token.editor_threshold || 2,
+      readonlyThreshold: token.readonly_threshold,
+      editorThreshold: token.editor_threshold,
     });
   }
 

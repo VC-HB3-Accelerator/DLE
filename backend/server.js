@@ -117,6 +117,16 @@ async function startServer() {
         ragService.startQueueWorker();
         console.log('[Server] ✅ AI Queue Worker запущен');
       }
+      
+      // ✨ Запускаем периодическую проверку ролей пользователей
+      const authService = require('./services/auth-service');
+      authService.startRoleUpdateInterval();
+      console.log('[Server] ✅ Периодическая проверка ролей запущена');
+      
+      // ✨ Выполняем немедленную проверку ролей при запуске
+      authService.updateUserRolesPeriodically().catch(error => {
+        console.error('[Server] ❌ Ошибка при первоначальной проверке ролей:', error);
+      });
     })
     .catch(error => {
       console.error('[Server] ❌ Ошибка инициализации:', error.message);

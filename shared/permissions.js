@@ -76,6 +76,8 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_HOME,
     PERMISSIONS.CHAT_AI,
     PERMISSIONS.RECEIVE_MESSAGES,
+    PERMISSIONS.VIEW_CONTACTS, // Пользователи могут видеть контакты для выбора
+    PERMISSIONS.SEND_TO_USERS, // Пользователи могут отправлять сообщения
     PERMISSIONS.CHAT_WITH_ADMINS // Авторизованные пользователи могут видеть личные сообщения
   ],
   

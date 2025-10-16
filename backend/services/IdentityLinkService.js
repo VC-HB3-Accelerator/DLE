@@ -218,7 +218,7 @@ class IdentityLinkService {
           `UPDATE users SET role = $1 WHERE id = $2`,
           ['editor', userId]
         );
-        logger.info(`[IdentityLinkService] Пользователь ${userId} получил роль admin`);
+        logger.info(`[IdentityLinkService] Пользователь ${userId} получил роль editor`);
       }
 
       // 7. Создаем identifier для миграции
@@ -235,7 +235,7 @@ class IdentityLinkService {
         userId,
         identifier,
         provider: tokenData.source_provider,
-        role: userAccessLevel.hasAccess ? 'admin' : 'user'
+        role: userAccessLevel.hasAccess ? 'editor' : 'user'
       };
 
     } catch (error) {
