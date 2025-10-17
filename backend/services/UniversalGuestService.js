@@ -460,17 +460,18 @@ class UniversalGuestService {
               attachment_mimetype_encrypted,
               attachment_size,
               attachment_data,
+              message_type,
               created_at
             ) VALUES (
               $1, $2,
-              encrypt_text($3, $13),
-              encrypt_text($4, $13),
-              encrypt_text($5, $13),
-              encrypt_text($6, $13),
-              encrypt_text($7, $13),
-              encrypt_text($8, $13),
-              encrypt_text($9, $13),
-              $10, $11, $12
+              encrypt_text($3, $14),
+              encrypt_text($4, $14),
+              encrypt_text($5, $14),
+              encrypt_text($6, $14),
+              encrypt_text($7, $14),
+              encrypt_text($8, $14),
+              encrypt_text($9, $14),
+              $10, $11, $12, $13
             )`,
             [
               userId,
@@ -484,6 +485,7 @@ class UniversalGuestService {
               msg.attachment_mimetype,
               msg.attachment_size,
               msg.attachment_data,
+              'public', // message_type для мигрированных сообщений
               msg.created_at,
               encryptionKey
             ]

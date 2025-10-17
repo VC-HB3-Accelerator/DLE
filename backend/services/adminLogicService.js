@@ -29,18 +29,13 @@ const logger = require('../utils/logger');
 function shouldGenerateAiReply(params) {
   const { senderType, userId, recipientId } = params;
 
-  // Обычные пользователи всегда получают AI ответ
+  // Обычные пользователи (USER, READONLY) всегда получают AI ответ
   if (senderType !== 'editor') {
     return true;
   }
 
-  // Админ, пишущий себе, получает AI ответ
-  if (userId === recipientId) {
-    return true;
-  }
-
-  // Админ, пишущий другому пользователю, не получает AI ответ
-  // (это личное сообщение от админа)
+  // Админы-редакторы (EDITOR) НЕ получают AI ответы
+  // ни себе, ни другим админам (по спецификации)
   return false;
 }
 

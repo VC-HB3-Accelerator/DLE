@@ -130,9 +130,16 @@ class SessionService {
    */
   async isGuestIdProcessed(guestId) {
     try {
-      const result = await encryptedDb.getData('unified_guest_mapping', { identifier_encrypted: `web:${guestId}` });
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
       
-      return result.length > 0 && result[0].processed === true;
+      const result = await db.getQuery()(
+        `SELECT * FROM unified_guest_mapping 
+         WHERE decrypt_text(identifier_encrypted, $2) = $1 AND processed = true`,
+        [`web:${guestId}`, encryptionKey]
+      );
+      
+      return result.rows.length > 0;
     } catch (error) {
       logger.error(`[isGuestIdProcessed] Error checking guest ID ${guestId}:`, error);
       return false;

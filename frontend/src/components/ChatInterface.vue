@@ -17,7 +17,11 @@
         <template v-if="props.canSelectMessages">
           <input type="checkbox" class="admin-select-checkbox" :checked="selectedMessageIds.includes(message.id)" @change="() => toggleSelectMessage(message.id)" />
         </template>
-        <Message :message="message" />
+        <Message 
+          :message="message" 
+          :isPrivateChat="isPrivateChat"
+          :currentUserId="currentUserId"
+        />
       </div>
     </div>
 
@@ -131,7 +135,11 @@ const props = defineProps({
   // Новые props для точного контроля прав
   canSend: { type: Boolean, default: true },           // Может отправлять сообщения
   canGenerateAI: { type: Boolean, default: false },    // Может генерировать AI-ответы
-  canSelectMessages: { type: Boolean, default: false } // Может выбирать сообщения
+  canSelectMessages: { type: Boolean, default: false }, // Может выбирать сообщения
+  
+  // Props для приватного чата
+  isPrivateChat: { type: Boolean, default: false },    // Это приватный чат
+  currentUserId: { type: [String, Number], default: null } // ID текущего пользователя
 });
 
 const emit = defineEmits([
@@ -832,5 +840,21 @@ async function handleAiReply() {
 }
 .admin-select-checkbox {
   margin-right: 8px;
+}
+
+/* Стили для приватного чата */
+.message-wrapper {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+/* Для приватного чата выравниваем сообщения по сторонам */
+.chat-messages:has(.private-current-user) .message-wrapper {
+  justify-content: flex-end;
+}
+
+.chat-messages:has(.private-other-user) .message-wrapper {
+  justify-content: flex-start;
 }
 </style> 

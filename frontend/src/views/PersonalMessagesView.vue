@@ -37,7 +37,7 @@
           <div class="message-preview">{{ message.last_message || 'Нет сообщений' }}</div>
           <div class="message-date">{{ formatDate(message.last_message_at) }}</div>
         </div>
-        <el-button type="primary" size="small" @click="openPersonalChat(message.id)">
+        <el-button type="primary" size="small" @click="openPersonalChat(message)">
           Открыть
         </el-button>
       </div>
@@ -51,7 +51,7 @@ import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import adminChatService from '../services/adminChatService.js';
 import { usePermissions } from '@/composables/usePermissions';
-import { getPrivateMessages } from '../services/messagesService';
+import { getPrivateConversations } from '../services/messagesService';
 
 const router = useRouter();
 const route = useRoute();
@@ -66,41 +66,43 @@ let ws = null;
 async function fetchPersonalMessages() {
   try {
     isLoading.value = true;
-    console.log('[PersonalMessagesView] Загружаем приватные сообщения...');
+    console.log('[PersonalMessagesView] Загружаем приватные чаты...');
     
-    // Загружаем приватные сообщения через новый API с пагинацией
-    const response = await getPrivateMessages({ limit: 100, offset: 0 });
-    console.log('[PersonalMessagesView] Загружено приватных сообщений:', response.messages?.length || 0);
+    // Загружаем приватные чаты через новый API
+    const response = await getPrivateConversations();
+    console.log('[PersonalMessagesView] Загружено приватных чатов:', response.conversations?.length || 0);
     
-    const privateMessages = response.success && response.messages ? response.messages : [];
+    const conversations = response.success && response.conversations ? response.conversations : [];
     
-    // Группируем сообщения по отправителям для отображения списка бесед
-    const messageGroups = {};
-    privateMessages.forEach(msg => {
-      const senderId = msg.sender_id || 'unknown';
-      if (!messageGroups[senderId]) {
-        messageGroups[senderId] = {
-          id: senderId,
-          name: `Админ ${senderId}`,
-          last_message: msg.content,
-          last_message_at: msg.created_at,
-          messages: []
-        };
-      }
-      messageGroups[senderId].messages.push(msg);
-      // Обновляем последнее сообщение
-      if (new Date(msg.created_at) > new Date(messageGroups[senderId].last_message_at)) {
-        messageGroups[senderId].last_message = msg.content;
-        messageGroups[senderId].last_message_at = msg.created_at;
-      }
+    console.log('[PersonalMessagesView] Полученные conversations:', conversations);
+    
+    // Проверяем, что у нас есть данные
+    if (!conversations || conversations.length === 0) {
+      console.log('[PersonalMessagesView] Нет приватных чатов');
+      personalMessages.value = [];
+      newMessagesCount.value = 0;
+      return;
+    }
+    
+    // Формируем список бесед
+    personalMessages.value = conversations.map(conv => {
+      console.log('[PersonalMessagesView] Обрабатываем conversation:', conv);
+      return {
+        id: conv.conversation_id,
+        conversation_id: conv.conversation_id,
+        user_id: conv.user_id,
+        name: conv.title || `Чат с пользователем ${conv.user_id}`,
+        last_message: 'Приватный чат',
+        last_message_at: conv.updated_at,
+        message_count: conv.message_count || 0
+      };
     });
     
-    personalMessages.value = Object.values(messageGroups);
     newMessagesCount.value = personalMessages.value.length;
     
     console.log('[PersonalMessagesView] Сформировано бесед:', personalMessages.value.length);
   } catch (error) {
-    console.error('[PersonalMessagesView] Ошибка загрузки приватных сообщений:', error);
+    console.error('[PersonalMessagesView] Ошибка загрузки приватных чатов:', error);
     personalMessages.value = [];
   } finally {
     isLoading.value = false;
@@ -156,9 +158,19 @@ function disconnectWebSocket() {
   }
 }
 
-function openPersonalChat(adminId) {
-  console.log('[PersonalMessagesView] Открываем приватный чат с админом:', adminId);
-  router.push({ name: 'admin-chat', params: { adminId } });
+function openPersonalChat(conversation) {
+  console.log('[PersonalMessagesView] Открываем приватный чат:', conversation);
+  
+  // Проверяем, что у нас есть user_id
+  if (!conversation.user_id) {
+    console.error('[PersonalMessagesView] Ошибка: user_id не найден в conversation:', conversation);
+    return;
+  }
+  
+  // Переходим к чату с ID админа (user_id в conversation)
+  const adminId = parseInt(conversation.user_id);
+  console.log('[PersonalMessagesView] Переходим к чату с adminId:', adminId);
+  router.push({ name: 'admin-chat', params: { adminId: adminId } });
 }
 
 function goBack() {

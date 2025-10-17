@@ -35,7 +35,7 @@ const upload = multer({ storage: storage });
 router.post('/guest-message', upload.array('attachments'), async (req, res) => {
   try {
     // Frontend отправляет FormData, поэтому читаем из req.body
-    const content = req.body.content || req.body.message;
+    const content = req.body.message;
     const guestId = req.body.guestId;
     const files = req.files || [];
 
@@ -173,7 +173,9 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
 // Обработчик для сообщений аутентифицированных пользователей (НОВАЯ ВЕРСИЯ)
 router.post('/message', requireAuth, upload.array('attachments'), async (req, res) => {
   try {
-    const { content, conversationId, recipientId } = req.body;
+    // Frontend отправляет FormData, поэтому читаем из req.body
+    const content = req.body.message;
+    const { conversationId, recipientId } = req.body;
     const userId = req.session.userId;
     const files = req.files || [];
 

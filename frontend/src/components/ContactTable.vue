@@ -14,7 +14,10 @@
   <div class="contact-table-modal">
     <div class="contact-table-header">
       <!-- Кнопка "Личные сообщения" для всех пользователей -->
-      <el-button v-if="canChatWithAdmins" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">Личные сообщения</el-button>
+      <el-button v-if="canChatWithAdmins" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">
+        Личные сообщения
+        <el-badge v-if="privateUnreadCount > 0" :value="privateUnreadCount" class="notification-badge" />
+      </el-button>
       <el-button v-if="canSendToUsers" type="success" :disabled="!hasSelectedEditor" @click="sendPublicMessage" style="margin-right: 1em;">Публичное сообщение</el-button>
       <el-button v-if="canViewContacts" type="warning" :disabled="!hasSelectedEditor" @click="sendPrivateMessage" style="margin-right: 1em;">Приватное сообщение</el-button>
       <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
@@ -130,7 +133,7 @@ import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSo
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import api from '../api/axios';
-import { sendMessage } from '../services/messagesService';
+import { sendMessage, getPrivateUnreadCount } from '../services/messagesService';
 import { useRoles } from '@/composables/useRoles';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
@@ -155,6 +158,22 @@ const filterDateFrom = ref('');
 const filterDateTo = ref('');
 const filterNewMessages = ref('');
 const filterBlocked = ref('all');
+
+// Уведомления для приватных сообщений
+const privateUnreadCount = ref(0);
+
+// Функция для загрузки количества непрочитанных приватных сообщений
+async function loadPrivateUnreadCount() {
+  try {
+    const response = await getPrivateUnreadCount();
+    if (response.success) {
+      privateUnreadCount.value = response.unreadCount || 0;
+    }
+  } catch (error) {
+    console.error('[ContactTable] Ошибка загрузки непрочитанных сообщений:', error);
+    privateUnreadCount.value = 0;
+  }
+}
 
 // Новый фильтр тегов через мультисвязи
 const availableTags = ref([]);
@@ -255,6 +274,7 @@ onMounted(async () => {
   if (isAuthenticated.value) {
     try {
       await fetchRoles();
+      await loadPrivateUnreadCount();
     } catch (error) {
       console.log('[ContactTable] Ошибка загрузки ролей в onMounted:', error.message);
     }
@@ -437,28 +457,15 @@ async function sendPublicMessage() {
   }
 }
 
-// Новая функция для отправки приватного сообщения
-async function sendPrivateMessage() {
-  if (selectedIds.value.length === 0) return;
-  
-  const contactId = selectedIds.value[0];
-  const contact = filteredContacts.value.find(c => c.id === contactId);
-  if (!contact) return;
-  
-  try {
-    const content = prompt('Введите текст приватного сообщения:');
-    if (!content) return;
-    
-    await sendMessage({
-      recipientId: contactId,
-      content,
-      messageType: 'private'
-    });
-    
-    ElMessage.success('Приватное сообщение отправлено');
-  } catch (error) {
-    ElMessage.error('Ошибка отправки сообщения: ' + (error.message || error));
+// Функция для открытия приватного чата
+function sendPrivateMessage() {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('Выберите контакт для отправки приватного сообщения');
+    return;
   }
+  
+  // Открываем приватный чат вместо отправки через prompt
+  openPrivateChatForSelected();
 }
 
 async function openPrivateChatForSelected(contact = null) {
@@ -745,5 +752,9 @@ async function deleteMessagesSelected() {
   border-radius: 12px;
   font-size: 0.85em;
   font-weight: 500;
+}
+
+.notification-badge {
+  margin-left: 8px;
 }
 </style> 

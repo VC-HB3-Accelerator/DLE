@@ -12,6 +12,13 @@
 
 import api from '@/api/axios';
 
+// Вспомогательные функции для экспорта
+async function getConversationByUserId(userId) {
+  if (!userId) return null;
+  const { data } = await api.get(`/messages/conversations?userId=${userId}`);
+  return data;
+}
+
 export default {
   async getMessagesByUserId(userId) {
     if (!userId) return [];
@@ -40,9 +47,7 @@ export default {
     return data;
   },
   async getConversationByUserId(userId) {
-    if (!userId) return null;
-    const { data } = await api.get(`/messages/conversations?userId=${userId}`);
-    return data;
+    return getConversationByUserId(userId);
   },
   async generateAiDraft(conversationId, messages, language = 'auto') {
     const { data } = await api.post('/chat/ai-draft', { conversationId, messages, language });
@@ -65,6 +70,9 @@ export default {
   }
 };
 
+// Экспортируем функцию для использования в других компонентах
+export { getConversationByUserId };
+
 export async function getAllMessages() {
   // Используем новый API для публичных сообщений
   const { data } = await api.get('/messages/public');
@@ -73,12 +81,22 @@ export async function getAllMessages() {
 
 // Новые методы для работы с типами сообщений
 export async function sendMessage({ recipientId, content, messageType = 'public' }) {
-  const { data } = await api.post('/messages/send', {
-    recipientId,
-    content,
-    messageType
-  });
-  return data;
+  if (messageType === 'private') {
+    // Используем новый API для приватных сообщений
+    const { data } = await api.post('/messages/private/send', {
+      recipientId,
+      content
+    });
+    return data;
+  } else {
+    // Используем старый API для публичных сообщений
+    const { data } = await api.post('/messages/send', {
+      recipientId,
+      content,
+      messageType
+    });
+    return data;
+  }
 }
 
 export async function getPublicMessages(userId = null, options = {}) {
@@ -88,10 +106,6 @@ export async function getPublicMessages(userId = null, options = {}) {
   return data;
 }
 
-export async function getPrivateMessages(options = {}) {
-  const { data } = await api.get('/messages/private', { params: options });
-  return data;
-}
 
 // Новые функции для работы с диалогами
 export async function getConversations(userId) {
@@ -119,5 +133,37 @@ export async function getReadStatus() {
 // Функция для удаления истории сообщений
 export async function deleteMessageHistory(userId) {
   const { data } = await api.delete(`/messages/delete-history/${userId}`);
+  return data;
+}
+
+// Новые функции для приватных сообщений
+export async function getPrivateConversations() {
+  const { data } = await api.get('/messages/private/conversations');
+  return data;
+}
+
+export async function getPrivateMessages(conversationId) {
+  const { data } = await api.get(`/messages/private/${conversationId}`);
+  return data;
+}
+
+export async function sendPrivateMessage({ recipientId, content }) {
+  const { data } = await api.post('/messages/private/send', {
+    recipientId,
+    content
+  });
+  return data;
+}
+
+// Функции для работы с уведомлениями
+export async function getPrivateUnreadCount() {
+  const { data } = await api.get('/messages/private/unread-count');
+  return data;
+}
+
+export async function markPrivateMessagesAsRead(conversationId) {
+  const { data } = await api.post('/messages/private/mark-read', {
+    conversationId
+  });
   return data;
 } 

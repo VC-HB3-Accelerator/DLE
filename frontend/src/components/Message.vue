@@ -14,11 +14,13 @@
   <div
     :class="[
       'message',
-      message.sender_type === 'assistant' || message.role === 'assistant'
-        ? 'ai-message'
-        : message.sender_type === 'system' || message.role === 'system'
-          ? 'system-message'
-          : 'user-message',
+      isPrivateChat 
+        ? (isCurrentUserMessage ? 'private-current-user' : 'private-other-user')
+        : message.sender_type === 'assistant' || message.role === 'assistant'
+          ? 'ai-message'
+          : message.sender_type === 'system' || message.role === 'system'
+            ? 'system-message'
+            : 'user-message',
       message.isLocal ? 'is-local' : '',
       message.hasError ? 'has-error' : '',
     ]"
@@ -100,11 +102,24 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  isPrivateChat: {
+    type: Boolean,
+    default: false,
+  },
+  currentUserId: {
+    type: [String, Number],
+    default: null,
+  },
 });
 
 // Простая функция для определения, является ли сообщение отправленным текущим пользователем
 // Используем данные из самого сообщения для определения направления
 const isCurrentUserMessage = computed(() => {
+  // Для приватного чата используем sender_id и currentUserId
+  if (props.isPrivateChat && props.currentUserId) {
+    return props.message.sender_id == props.currentUserId;
+  }
+  
   // Если это admin_chat, используем sender_id для определения
   if (props.message.message_type === 'admin_chat') {
     // Для простоты, считаем что если sender_id равен user_id, то это ответное сообщение
@@ -499,5 +514,51 @@ function copyEmail(email) {
 
 .read-status:contains('✓') {
   color: var(--color-success, #10b981);
+}
+
+/* Стили для приватного чата */
+.private-current-user {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8); /* Синий градиент */
+  color: white;
+  margin-left: auto;
+  margin-right: 0;
+  max-width: 70%;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.private-other-user {
+  background: linear-gradient(135deg, #10b981, #059669); /* Зеленый градиент */
+  color: white;
+  margin-left: 0;
+  margin-right: auto;
+  max-width: 70%;
+  border-radius: 18px 18px 18px 4px;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+/* Анимация появления сообщений */
+.private-current-user,
+.private-other-user {
+  animation: slideInMessage 0.3s ease-out;
+}
+
+@keyframes slideInMessage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+  .private-current-user,
+  .private-other-user {
+    max-width: 85%;
+  }
 }
 </style> 

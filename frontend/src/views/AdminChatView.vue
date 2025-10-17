@@ -30,6 +30,8 @@
         :canSend="true"
         :canGenerateAI="false"
         :canSelectMessages="false"
+        :isPrivateChat="true"
+        :currentUserId="currentUserId"
         @send-message="handleSendMessage"
         @update:newMessage="val => chatNewMessage = val"
         @update:attachments="val => chatAttachments = val"
@@ -44,12 +46,15 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import ChatInterface from '../components/ChatInterface.vue';
-import adminChatService from '../services/adminChatService.js';
+import { getPrivateMessages, sendPrivateMessage, getPrivateConversations, markPrivateMessagesAsRead } from '../services/messagesService.js';
+import { useAuthContext } from '@/composables/useAuth';
 
 const route = useRoute();
 const router = useRouter();
+const { userId } = useAuthContext();
 
 const adminId = computed(() => route.params.adminId);
+const currentUserId = computed(() => userId.value);
 const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
@@ -60,12 +65,35 @@ async function loadMessages() {
   
   try {
     isLoadingMessages.value = true;
-    console.log('[AdminChatView] Загружаем сообщения для админа:', adminId.value);
+    console.log('[AdminChatView] Загружаем приватные сообщения для админа:', adminId.value);
     
-    const response = await adminChatService.getMessages(adminId.value);
-    console.log('[AdminChatView] Получен ответ:', response);
+    // Получаем приватные чаты пользователя
+    const conversationsResponse = await getPrivateConversations();
+    console.log('[AdminChatView] Приватные чаты:', conversationsResponse);
     
-    messages.value = response?.messages || [];
+    // Находим чат с нужным админом
+    const conversation = conversationsResponse.conversations?.find(conv => 
+      conv.user_id == adminId.value
+    );
+    
+    if (conversation) {
+      // Загружаем историю чата
+      const messagesResponse = await getPrivateMessages(conversation.conversation_id);
+      console.log('[AdminChatView] История чата:', messagesResponse);
+      
+      messages.value = messagesResponse?.messages || [];
+      
+      // Отмечаем сообщения как прочитанные
+      try {
+        await markPrivateMessagesAsRead(conversation.conversation_id);
+        console.log('[AdminChatView] Сообщения отмечены как прочитанные');
+      } catch (error) {
+        console.error('[AdminChatView] Ошибка отметки сообщений как прочитанных:', error);
+      }
+    } else {
+      messages.value = [];
+    }
+    
     console.log('[AdminChatView] Загружено сообщений:', messages.value.length);
   } catch (error) {
     console.error('[AdminChatView] Ошибка загрузки сообщений:', error);
@@ -79,9 +107,12 @@ async function handleSendMessage({ message, attachments }) {
   if (!message.trim() || !adminId.value) return;
   
   try {
-    console.log('[AdminChatView] Отправляем сообщение:', message, 'админу:', adminId.value);
+    console.log('[AdminChatView] Отправляем приватное сообщение:', message, 'админу:', adminId.value);
     
-    await adminChatService.sendMessage(adminId.value, message, attachments);
+    await sendPrivateMessage({
+      recipientId: parseInt(adminId.value),
+      content: message
+    });
     
     // Очищаем поле ввода
     chatNewMessage.value = '';

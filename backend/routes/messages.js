@@ -146,249 +146,10 @@ router.get('/private', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/messages?userId=123 - УСТАРЕВШИЙ эндпоинт, используйте /api/messages/public или /api/messages/private
-// Оставлен для обратной совместимости
-router.get('/', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
-  const userId = req.query.userId;
-  const conversationId = req.query.conversationId;
 
-  // Получаем ключ шифрования через унифицированную утилиту
-  const encryptionUtils = require('../utils/encryptionUtils');
-  const encryptionKey = encryptionUtils.getEncryptionKey();
 
-  try {
-    // Проверяем, это гостевой идентификатор (формат: guest_123)
-    if (userId && userId.startsWith('guest_')) {
-      const guestId = parseInt(userId.replace('guest_', ''));
-      
-      if (isNaN(guestId)) {
-        return res.status(400).json({ error: 'Invalid guest ID format' });
-      }
-      
-      // Сначала получаем guest_identifier по guestId
-      const identifierResult = await db.getQuery()(
-        `WITH decrypted_guest AS (
-          SELECT 
-            id,
-            decrypt_text(identifier_encrypted, $2) as guest_identifier,
-            channel
-          FROM unified_guest_messages
-          WHERE user_id IS NULL
-        )
-        SELECT guest_identifier, channel
-        FROM decrypted_guest
-        GROUP BY guest_identifier, channel
-        HAVING MIN(id) = $1
-        LIMIT 1`,
-        [guestId, encryptionKey]
-      );
-      
-      if (identifierResult.rows.length === 0) {
-        return res.json([]);
-      }
-      
-      const guestIdentifier = identifierResult.rows[0].guest_identifier;
-      const guestChannel = identifierResult.rows[0].channel;
-      
-      // Теперь получаем все сообщения этого гостя (по идентификатору И каналу)
-      const guestResult = await db.getQuery()(
-        `SELECT 
-          id,
-          decrypt_text(identifier_encrypted, $3) as user_id,
-          channel,
-          decrypt_text(content_encrypted, $3) as content,
-          content_type,
-          attachments,
-          media_metadata,
-          is_ai,
-          created_at
-        FROM unified_guest_messages
-        WHERE decrypt_text(identifier_encrypted, $3) = $1 
-          AND channel = $2
-        ORDER BY created_at ASC`,
-        [guestIdentifier, guestChannel, encryptionKey]
-      );
-
-      // Преобразуем формат для совместимости с фронтендом
-      const messages = guestResult.rows.map(msg => ({
-        id: msg.id,
-        user_id: `guest_${guestId}`,
-        sender_type: msg.is_ai ? 'bot' : 'user',
-        content: msg.content,
-        channel: msg.channel,
-        role: 'guest',
-        direction: msg.is_ai ? 'incoming' : 'outgoing',
-        created_at: msg.created_at,
-        attachment_filename: null,
-        attachment_mimetype: null,
-        attachment_size: null,
-        attachment_data: null,
-        // Дополнительные поля для медиа
-        content_type: msg.content_type,
-        attachments: msg.attachments,
-        media_metadata: msg.media_metadata
-      }));
-
-      return res.json(messages);
-    }
-
-    // Стандартная логика для зарегистрированных пользователей - ТОЛЬКО ПУБЛИЧНЫЕ СООБЩЕНИЯ
-    let result;
-    if (conversationId) {
-      result = await db.getQuery()(
-        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data, message_type
-         FROM messages
-         WHERE conversation_id = $1 AND message_type = 'public'
-         ORDER BY created_at ASC`,
-        [conversationId, encryptionKey]
-      );
-    } else if (userId) {
-      result = await db.getQuery()(
-        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $2) as sender_type, decrypt_text(content_encrypted, $2) as content, decrypt_text(channel_encrypted, $2) as channel, decrypt_text(role_encrypted, $2) as role, decrypt_text(direction_encrypted, $2) as direction, created_at, decrypt_text(attachment_filename_encrypted, $2) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $2) as attachment_mimetype, attachment_size, attachment_data, message_type
-         FROM messages
-         WHERE user_id = $1 AND message_type = 'public'
-         ORDER BY created_at ASC`,
-        [userId, encryptionKey]
-      );
-    } else {
-      result = await db.getQuery()(
-        `SELECT id, user_id, decrypt_text(sender_type_encrypted, $1) as sender_type, decrypt_text(content_encrypted, $1) as content, decrypt_text(channel_encrypted, $1) as channel, decrypt_text(role_encrypted, $1) as role, decrypt_text(direction_encrypted, $1) as direction, created_at, decrypt_text(attachment_filename_encrypted, $1) as attachment_filename, decrypt_text(attachment_mimetype_encrypted, $1) as attachment_mimetype, attachment_size, attachment_data, message_type
-         FROM messages
-         WHERE message_type = 'public'
-         ORDER BY created_at ASC`,
-        [encryptionKey]
-      );
-    }
-    res.json(result.rows);
-  } catch (e) {
-    res.status(500).json({ error: 'DB error', details: e.message });
-  }
-});
-
-// POST /api/messages - УСТАРЕВШИЙ эндпоинт, используйте /api/messages/send
-// Оставлен для обратной совместимости, но теперь сохраняет как публичные сообщения
-router.post('/', async (req, res) => {
-  const { user_id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data } = req.body;
-
-  // Получаем ключ шифрования через унифицированную утилиту
-  const encryptionUtils = require('../utils/encryptionUtils');
-  const encryptionKey = encryptionUtils.getEncryptionKey();
-
-  try {
-    // Проверка блокировки пользователя
-    if (await isUserBlocked(user_id)) {
-      return res.status(403).json({ error: 'Пользователь заблокирован. Сообщение не принимается.' });
-    }
-    // Проверка наличия идентификатора для выбранного канала
-    if (channel === 'email') {
-      const emailIdentity = await db.getQuery()(
-        'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
-        [user_id, 'email', encryptionKey]
-      );
-      if (emailIdentity.rows.length === 0) {
-        return res.status(400).json({ error: 'У пользователя не указан email. Сообщение не отправлено.' });
-      }
-    }
-    if (channel === 'telegram') {
-      const tgIdentity = await db.getQuery()(
-        'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
-        [user_id, 'telegram', encryptionKey]
-      );
-      if (tgIdentity.rows.length === 0) {
-        return res.status(400).json({ error: 'У пользователя не привязан Telegram. Сообщение не отправлено.' });
-      }
-    }
-    if (channel === 'wallet' || channel === 'web3' || channel === 'web') {
-      const walletIdentity = await db.getQuery()(
-        'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
-        [user_id, 'wallet', encryptionKey]
-      );
-      if (walletIdentity.rows.length === 0) {
-        return res.status(400).json({ error: 'У пользователя не привязан кошелёк. Сообщение не отправлено.' });
-      }
-    }
-    // 1. Проверяем, есть ли беседа для user_id
-    let conversationResult = await db.getQuery()(
-      'SELECT id, user_id, created_at, updated_at, decrypt_text(title_encrypted, $2) as title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-      [user_id, encryptionKey]
-    );
-    let conversation;
-    if (conversationResult.rows.length === 0) {
-      // 2. Если нет — создаём новую беседу
-      const title = `Чат с пользователем ${user_id}`;
-      const newConv = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title_encrypted, created_at, updated_at) VALUES ($1, encrypt_text($2, $3), NOW(), NOW()) RETURNING *',
-        [user_id, title, encryptionKey]
-      );
-      conversation = newConv.rows[0];
-    } else {
-      conversation = conversationResult.rows[0];
-    }
-    // 3. Сохраняем сообщение с conversation_id и типом 'public' (для обратной совместимости)
-    const result = await db.getQuery()(
-      `INSERT INTO messages (user_id, conversation_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, created_at, attachment_filename_encrypted, attachment_mimetype_encrypted, attachment_size, attachment_data)
-       VALUES ($1,$2,encrypt_text($3,$13),encrypt_text($4,$13),encrypt_text($5,$13),encrypt_text($6,$13),encrypt_text($7,$13),$12,NOW(),encrypt_text($8,$13),encrypt_text($9,$13),$10,$11) RETURNING *`,
-      [user_id, conversation.id, sender_type, content, channel, role, direction, attachment_filename, attachment_mimetype, attachment_size, attachment_data, 'public', encryptionKey]
-    );
-    // 4. Если это исходящее сообщение для Telegram — отправляем через бота
-    if (channel === 'telegram' && direction === 'out') {
-      try {
-        // console.log(`[messages.js] Попытка отправки сообщения в Telegram для user_id=${user_id}`);
-        // Получаем Telegram ID пользователя
-        const tgIdentity = await db.getQuery()(
-          'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
-          [user_id, 'telegram', encryptionKey]
-        );
-        // console.log(`[messages.js] Результат поиска Telegram ID:`, tgIdentity.rows);
-        if (tgIdentity.rows.length > 0) {
-          const telegramId = tgIdentity.rows[0].provider_id;
-          // console.log(`[messages.js] Отправка сообщения в Telegram ID: ${telegramId}, текст: ${content}`);
-          try {
-            const telegramBot = botManager.getBot('telegram');
-            if (telegramBot && telegramBot.isInitialized) {
-              const bot = telegramBot.getBot();
-              const sendResult = await bot.telegram.sendMessage(telegramId, content);
-              // console.log(`[messages.js] Результат отправки в Telegram:`, sendResult);
-            } else {
-              logger.warn('[messages.js] Telegram Bot не инициализирован');
-            }
-          } catch (sendErr) {
-            // console.error(`[messages.js] Ошибка при отправке в Telegram:`, sendErr);
-          }
-        } else {
-          // console.warn(`[messages.js] Не найден Telegram ID для user_id=${user_id}`);
-        }
-      } catch (err) {
-        // console.error('[messages.js] Ошибка отправки сообщения в Telegram:', err);
-      }
-    }
-    // 5. Если это исходящее сообщение для Email — отправляем email
-    if (channel === 'email' && direction === 'out') {
-      try {
-        // Получаем email пользователя
-        const emailIdentity = await db.getQuery()(
-          'SELECT decrypt_text(provider_id_encrypted, $3) as provider_id FROM user_identities WHERE user_id = $1 AND provider_encrypted = encrypt_text($2, $3) LIMIT 1',
-          [user_id, 'email', encryptionKey]
-        );
-        if (emailIdentity.rows.length > 0) {
-          const email = emailIdentity.rows[0].provider_id;
-          const emailBot = botManager.getBot('email');
-          if (emailBot && emailBot.isInitialized) {
-            await emailBot.sendEmail(email, 'Новое сообщение', content);
-          } else {
-            logger.warn('[messages.js] Email Bot не инициализирован для отправки');
-          }
-        }
-      } catch (err) {
-        // console.error('[messages.js] Ошибка отправки email:', err);
-      }
-    }
-    broadcastMessagesUpdate();
-    res.json({ success: true, message: result.rows[0] });
-  } catch (e) {
-    res.status(500).json({ error: 'DB error', details: e.message });
-  }
-});
+// УДАЛЕНО: GET /api/messages - УСТАРЕВШИЙ эндпоинт (используйте /api/messages/public или /api/messages/private)
+// УДАЛЕНО: POST /api/messages - УСТАРЕВШИЙ эндпоинт (используйте /api/messages/send или /api/chat/message)
 
 // POST /api/messages/mark-read
 router.post('/mark-read', async (req, res) => {
@@ -704,6 +465,305 @@ router.post('/send', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[ERROR] /send:', e);
     res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// POST /api/messages/private/send - отправка приватного сообщения
+router.post('/private/send', requireAuth, async (req, res) => {
+  const { recipientId, content } = req.body;
+  const senderId = req.user.id;
+  
+  if (!recipientId || !content) {
+    return res.status(400).json({ error: 'recipientId и content обязательны' });
+  }
+  
+  try {
+    // Получаем информацию об отправителе и получателе
+    const senderResult = await db.getQuery()(
+      'SELECT id, role FROM users WHERE id = $1',
+      [senderId]
+    );
+    
+    const recipientResult = await db.getQuery()(
+      'SELECT id, role FROM users WHERE id = $1',
+      [recipientId]
+    );
+    
+    if (senderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Отправитель не найден' });
+    }
+    
+    if (recipientResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Получатель не найден' });
+    }
+    
+    const sender = senderResult.rows[0];
+    const recipient = recipientResult.rows[0];
+    
+    // Проверяем права: только к админам-редакторам
+    if (recipient.role !== 'editor') {
+      return res.status(403).json({ 
+        error: 'Приватные сообщения можно отправлять только админам-редакторам' 
+      });
+    }
+    
+    // Получаем ключ шифрования
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Находим или создаем приватную беседу
+    let conversationResult = await db.getQuery()(
+      `SELECT id FROM conversations 
+       WHERE user_id = $1 AND conversation_type = 'private'
+       ORDER BY updated_at DESC LIMIT 1`,
+      [recipientId] // Беседа принадлежит получателю (админу)
+    );
+    
+    let conversationId;
+    if (conversationResult.rows.length === 0) {
+      // Создаем новую приватную беседу
+      const title = `Приватный чат с пользователем ${senderId}`;
+      const newConv = await db.getQuery()(
+        'INSERT INTO conversations (user_id, conversation_type, title_encrypted, created_at, updated_at) VALUES ($1, $2, encrypt_text($3, $4), NOW(), NOW()) RETURNING id',
+        [recipientId, 'private', title, encryptionKey]
+      );
+      conversationId = newConv.rows[0].id;
+      
+      // Добавляем участников в conversation_participants
+      await db.getQuery()(
+        'INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [conversationId, senderId]
+      );
+      await db.getQuery()(
+        'INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [conversationId, recipientId]
+      );
+    } else {
+      conversationId = conversationResult.rows[0].id;
+    }
+    
+    // Сохраняем приватное сообщение
+    const result = await db.getQuery()(
+      `INSERT INTO messages (
+        conversation_id, 
+        sender_id, 
+        user_id, 
+        sender_type_encrypted, 
+        content_encrypted, 
+        channel_encrypted, 
+        role_encrypted, 
+        direction_encrypted, 
+        message_type, 
+        created_at
+      ) VALUES (
+        $1, $2, $3, 
+        encrypt_text($4, $10), 
+        encrypt_text($5, $10), 
+        encrypt_text($6, $10), 
+        encrypt_text($7, $10), 
+        encrypt_text($8, $10), 
+        $9, 
+        NOW()
+      ) RETURNING id`,
+      [
+        conversationId,
+        senderId,           // sender_id - ID отправителя
+        recipientId,        // user_id - ID получателя
+        sender.role,        // sender_type_encrypted
+        content,            // content_encrypted
+        'web',              // channel_encrypted
+        sender.role,        // role_encrypted
+        'outgoing',         // direction_encrypted
+        'private',          // message_type
+        encryptionKey
+      ]
+    );
+    
+    // Обновляем время последнего обновления беседы
+    await db.getQuery()(
+      'UPDATE conversations SET updated_at = NOW() WHERE id = $1',
+      [conversationId]
+    );
+    
+    // Отправляем обновление через WebSocket
+    const { broadcastMessagesUpdate } = require('../wsHub');
+    broadcastMessagesUpdate();
+    
+    res.json({ 
+      success: true, 
+      messageId: result.rows[0].id,
+      conversationId: conversationId
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] /messages/private/send:', error);
+    res.status(500).json({ error: 'DB error', details: error.message });
+  }
+});
+
+// GET /api/messages/private/conversations - получить приватные чаты пользователя
+router.get('/private/conversations', requireAuth, async (req, res) => {
+  const currentUserId = req.user.id;
+  console.log('[DEBUG] /messages/private/conversations currentUserId:', currentUserId);
+  
+  try {
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Получаем приватные чаты где пользователь является участником
+    const result = await db.getQuery()(
+      `SELECT DISTINCT 
+         c.id as conversation_id,
+         c.user_id,
+         decrypt_text(c.title_encrypted, $2) as title,
+         c.updated_at,
+         COUNT(m.id) as message_count
+       FROM conversations c
+       INNER JOIN conversation_participants cp ON c.id = cp.conversation_id
+       LEFT JOIN messages m ON c.id = m.conversation_id AND m.message_type = 'private'
+       WHERE cp.user_id = $1 AND c.conversation_type = 'private'
+       GROUP BY c.id, c.user_id, c.title_encrypted, c.updated_at
+       ORDER BY c.updated_at DESC`,
+      [currentUserId, encryptionKey]
+    );
+    
+    console.log('[DEBUG] /messages/private/conversations result:', result.rows);
+    
+    res.json({
+      success: true,
+      conversations: result.rows
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] /messages/private/conversations:', error);
+    res.status(500).json({ error: 'DB error', details: error.message });
+  }
+});
+
+// GET /api/messages/private/:conversationId - получить историю приватного чата
+router.get('/private/:conversationId', requireAuth, async (req, res) => {
+  const conversationId = req.params.conversationId;
+  const currentUserId = req.user.id;
+  
+  try {
+    // Проверяем, что пользователь является участником этого чата
+    const participantCheck = await db.getQuery()(
+      'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, currentUserId]
+    );
+    
+    if (participantCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Доступ запрещен' });
+    }
+    
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Получаем историю сообщений
+    const result = await db.getQuery()(
+      `SELECT 
+         m.id,
+         m.sender_id,
+         m.user_id,
+         decrypt_text(m.sender_type_encrypted, $2) as sender_type,
+         decrypt_text(m.content_encrypted, $2) as content,
+         decrypt_text(m.channel_encrypted, $2) as channel,
+         decrypt_text(m.role_encrypted, $2) as role,
+         decrypt_text(m.direction_encrypted, $2) as direction,
+         m.message_type,
+         m.created_at
+       FROM messages m
+       WHERE m.conversation_id = $1 AND m.message_type = 'private'
+       ORDER BY m.created_at ASC`,
+      [conversationId, encryptionKey]
+    );
+    
+    res.json({
+      success: true,
+      messages: result.rows
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] /messages/private/:conversationId:', error);
+    res.status(500).json({ error: 'DB error', details: error.message });
+  }
+});
+
+// GET /api/messages/private/unread-count - получить количество непрочитанных приватных сообщений
+router.get('/private/unread-count', requireAuth, async (req, res) => {
+  const currentUserId = req.user.id;
+  
+  try {
+    // Подсчитываем непрочитанные приватные сообщения для текущего пользователя
+    const result = await db.getQuery()(
+      `SELECT COUNT(*) as unread_count
+       FROM messages m
+       INNER JOIN conversations c ON m.conversation_id = c.id
+       INNER JOIN conversation_participants cp ON c.id = cp.conversation_id
+       WHERE cp.user_id = $1 
+         AND c.conversation_type = 'private'
+         AND m.message_type = 'private'
+         AND m.user_id = $1  -- сообщения адресованные текущему пользователю
+         AND m.sender_id != $1  -- исключаем собственные сообщения
+         AND NOT EXISTS (
+           SELECT 1 FROM admin_read_messages arm 
+           WHERE arm.admin_id = $1 
+             AND arm.user_id = $1
+             AND arm.last_read_at >= m.created_at
+         )`,
+      [currentUserId]
+    );
+    
+    const unreadCount = parseInt(result.rows[0].unread_count) || 0;
+    
+    res.json({
+      success: true,
+      unreadCount: unreadCount
+    });
+    
+  } catch (error) {
+    console.error('[ERROR] /messages/private/unread-count:', error);
+    res.status(500).json({ error: 'DB error', details: error.message });
+  }
+});
+
+// POST /api/messages/private/mark-read - отметить приватные сообщения как прочитанные
+router.post('/private/mark-read', requireAuth, async (req, res) => {
+  const { conversationId } = req.body;
+  const currentUserId = req.user.id;
+  
+  if (!conversationId) {
+    return res.status(400).json({ error: 'conversationId обязателен' });
+  }
+  
+  try {
+    // Проверяем, что пользователь является участником этого чата
+    const participantCheck = await db.getQuery()(
+      'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, currentUserId]
+    );
+    
+    if (participantCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Доступ запрещен' });
+    }
+    
+    // Отмечаем сообщения как прочитанные
+    await db.getQuery()(
+      `INSERT INTO admin_read_messages (admin_id, user_id, last_read_at)
+       VALUES ($1, $1, NOW())
+       ON CONFLICT (admin_id, user_id)
+       DO UPDATE SET last_read_at = NOW()`,
+      [currentUserId]
+    );
+    
+    // Отправляем обновление через WebSocket
+    broadcastMessagesUpdate();
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('[ERROR] /messages/private/mark-read:', error);
+    res.status(500).json({ error: 'DB error', details: error.message });
   }
 });
 
