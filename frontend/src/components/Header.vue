@@ -14,8 +14,6 @@
   <div class="header">
     <div class="header-content">
       <div class="header-text">
-        <h1 class="title">✌️HB3 - Accelerator DLE</h1>
-        <p class="subtitle">Венчурный фонд и поставщик программного обеспечения</p>
       </div>
       <button
         class="header-wallet-btn"
@@ -89,7 +87,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .header {
   background-color: var(--color-white);
-  padding: 15px 20px; /* Возвращаем горизонтальный padding */
+  padding: 30px 20px 25px 20px; /* Увеличиваем высоту шапки еще на 10px */
   position: sticky;
   top: 0;
   z-index: 100; /* Ensure header stays on top */
@@ -124,7 +122,7 @@ onBeforeUnmount(() => {
   background-color: var(--color-white);
   color: var(--color-primary);
   border: none;
-  padding: 10px 15px;
+  padding: 8px;
   border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition-normal);
@@ -198,7 +196,7 @@ onBeforeUnmount(() => {
     font-size: 0.8rem;
   }
   .header-wallet-btn {
-    padding: 8px 12px;
+    padding: 6px;
   }
   .nav-btn-text {
     font-size: 0.8rem;

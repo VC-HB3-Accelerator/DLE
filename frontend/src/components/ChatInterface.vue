@@ -550,11 +550,13 @@ async function handleAiReply() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin: var(--spacing-lg) 0;
+  margin: 0;
   padding: 0;
   min-height: 500px;
   width: 100%;
   position: relative;
+  background: transparent;
+  height: 100%;
 }
 
 .chat-messages {
@@ -562,15 +564,11 @@ async function handleAiReply() {
   flex-direction: column;
   overflow-y: auto;
   padding: var(--spacing-lg);
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-grey-light);
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--chat-input-height, 80px) + 15px);
-  transition: bottom var(--transition-normal);
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  flex: 1;
+  min-height: 0;
 }
 
 .chat-input {
@@ -578,12 +576,10 @@ async function handleAiReply() {
   flex-direction: column;
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-white);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-grey-light);
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  border-radius: 0;
+  border: none;
+  border-top: 1px solid #e9ecef;
+  flex-shrink: 0;
   transition: all var(--transition-normal);
   z-index: 10;
   box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
@@ -773,50 +769,32 @@ async function handleAiReply() {
 
 @media (max-width: 480px) {
   .chat-input {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100vw !important;
-    z-index: 1000 !important;
-    margin: 0 !important;
-    border-radius: 12px 12px 0 0 !important;
+    position: static !important;
+    border-radius: 0 !important;
+    padding: 8px 12px !important;
+    background: #f8f8f8 !important;
+    border-top: 1px solid #eee !important;
   }
   .chat-messages {
-    padding-bottom: 70px !important; /* чтобы сообщения не перекрывались input */
-    max-height: calc(100vh - 70px) !important;
+    padding: var(--spacing-md) !important;
     overflow-y: auto !important;
   }
 }
 
 @media (max-width: 600px) {
   .chat-input {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100vw !important;
-    z-index: 1000 !important;
-    margin: 0 !important;
-    border-radius: 12px 12px 0 0 !important;
+    position: static !important;
+    border-radius: 0 !important;
     padding: 8px 12px !important;
     background: #f8f8f8 !important;
     border-top: 1px solid #eee !important;
-    box-sizing: border-box !important;
   }
   .chat-messages {
-    padding-bottom: 70px !important; /* чтобы сообщения не перекрывались input */
-    max-height: calc(100vh - 70px) !important;
+    padding: var(--spacing-md) !important;
     overflow-y: auto !important;
-    box-sizing: border-box !important;
   }
   .chat-container {
-    padding: 0 !important;
-    margin: 0 !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    min-height: 0 !important;
-    box-sizing: border-box !important;
+    height: 100% !important;
   }
 }
 

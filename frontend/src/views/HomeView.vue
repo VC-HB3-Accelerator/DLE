@@ -18,28 +18,40 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <template v-if="auth.userAccessLevel.value && auth.userAccessLevel.value.hasAccess">
-      <ChatInterface 
-        :messages="messages" 
-        :is-loading="isLoading || isConnectingWallet"
-        :has-more-messages="messageLoading.hasMoreMessages"
-        v-model:newMessage="newMessage"
-        v-model:attachments="attachments"
-        @send-message="handleSendMessage"
-        @load-more="loadMessages"
-      />
-    </template>
-    <template v-else>
-    <ChatInterface 
-      :messages="messages" 
-      :is-loading="isLoading || isConnectingWallet"
-      :has-more-messages="messageLoading.hasMoreMessages"
-      v-model:newMessage="newMessage"
-      v-model:attachments="attachments"
-      @send-message="handleSendMessage"
-      @load-more="loadMessages"
-    />
-    </template>
+    <div class="home-management">
+      <!-- Заголовок -->
+      <div class="management-header">
+        <div class="header-content">
+          <h1>ИИ Ассистент</h1>
+        </div>
+      </div>
+
+      <!-- Чат интерфейс -->
+      <div class="chat-wrapper">
+        <template v-if="auth.userAccessLevel.value && auth.userAccessLevel.value.hasAccess">
+          <ChatInterface 
+            :messages="messages" 
+            :is-loading="isLoading || isConnectingWallet"
+            :has-more-messages="messageLoading.hasMoreMessages"
+            v-model:newMessage="newMessage"
+            v-model:attachments="attachments"
+            @send-message="handleSendMessage"
+            @load-more="loadMessages"
+          />
+        </template>
+        <template v-else>
+          <ChatInterface 
+            :messages="messages" 
+            :is-loading="isLoading || isConnectingWallet"
+            :has-more-messages="messageLoading.hasMoreMessages"
+            v-model:newMessage="newMessage"
+            v-model:attachments="attachments"
+            @send-message="handleSendMessage"
+            @load-more="loadMessages"
+          />
+        </template>
+      </div>
+    </div>
   </BaseLayout>
 </template>
 
@@ -142,3 +154,83 @@
     }
   };
 </script>
+
+<style scoped>
+.home-management {
+  padding: 20px;
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  height: calc(100vh - 40px);
+  overflow: hidden;
+}
+
+.management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.header-content h1 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.chat-wrapper {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+  
+  .home-management {
+    padding: 16px;
+    height: calc(100vh - 32px);
+  }
+  
+  .chat-wrapper {
+    border-radius: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-management {
+    padding: 12px;
+    height: calc(100vh - 24px);
+  }
+  
+  .management-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+  }
+  
+  .header-content h1 {
+    font-size: 1.3rem;
+  }
+  
+  .chat-wrapper {
+    border-radius: 6px;
+  }
+}
+</style>

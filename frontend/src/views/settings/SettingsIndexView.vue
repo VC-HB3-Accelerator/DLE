@@ -11,31 +11,49 @@
 -->
 
 <template>
-  <div class="main-blocks">
-    <div class="main-block">
-      <h3>ИИ</h3>
-      <p>Настройки интеграций, моделей, ассистента и RAG.</p>
-      <button class="details-btn" @click="$router.push('/settings/ai')">Подробнее</button>
-    </div>
-    <div class="main-block">
-      <h3>Блокчейн</h3>
-      <p>Интеграция с блокчейн-сетями, RPC, токены и смарт-контракты.</p>
-      <button class="details-btn" @click="$router.push('/settings/dle-v2-deploy')">Подробнее</button>
-    </div>
-    <div class="main-block">
-      <h3>Безопасность</h3>
-      <p>Управление доступом, токенами, аутентификацией и правами.</p>
-      <button class="details-btn" @click="$router.push('/settings/security')">Подробнее</button>
-    </div>
-    <div class="main-block">
-      <h3>Сервер</h3>
-      <p>Настройки серверов, хостинга и публикации приложения.</p>
-      <button class="details-btn" @click="$router.push('/settings/interface')">Подробнее</button>
+  <div class="settings-management">
+    <!-- Заголовок -->
+    <div class="management-header">
+      <div class="header-content">
+        <h1>Настройки системы</h1>
+      </div>
     </div>
 
+    <!-- Блоки настроек -->
+    <div class="management-blocks">
+      <!-- Столбец 1 -->
+      <div class="blocks-column">
+        <div class="management-block">
+          <h3>ИИ</h3>
+          <p>Настройки интеграций, моделей, ассистента и RAG</p>
+          <button class="details-btn" @click="$router.push('/settings/ai')">
+            Подробнее
+          </button>
+        </div>
+        
+        <div class="management-block">
+          <h3>Блокчейн</h3>
+          <p>Интеграция с блокчейн-сетями, RPC, токены и смарт-контракты</p>
+          <button class="details-btn" @click="$router.push('/settings/dle-v2-deploy')">Подробнее</button>
+        </div>
+      </div>
+
+      <!-- Столбец 2 -->
+      <div class="blocks-column">
+        <div class="management-block">
+          <h3>Безопасность</h3>
+          <p>Управление доступом, токенами, аутентификацией и правами</p>
+          <button class="details-btn" @click="$router.push('/settings/security')">Подробнее</button>
+        </div>
+        
+        <div class="management-block">
+          <h3>Сервер</h3>
+          <p>Настройки серверов, хостинга и публикации приложения</p>
+          <button class="details-btn" @click="$router.push('/settings/interface')">Подробнее</button>
+        </div>
+      </div>
+    </div>
   </div>
-
-
 </template>
 
 <script setup>
@@ -43,57 +61,114 @@
 </script>
 
 <style scoped>
-.main-blocks {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
+.settings-management {
+  padding: 20px;
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  min-height: 100vh;
 }
-.main-block {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  padding: 2rem;
-  min-width: 260px;
-  flex: 1 1 300px;
+
+.management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.header-content h1 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.management-blocks {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+}
+
+.blocks-column {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: 1.5rem;
+  align-items: stretch;
 }
-.button-group {
-  margin-top: 1.5rem;
+
+.management-block {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+  text-align: center;
   display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 250px;
+}
+
+.management-block:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+.management-block h3 {
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.management-block p {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  flex-grow: 1;
 }
 
 .details-btn {
   background: var(--color-primary);
   color: #fff;
   border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
   cursor: pointer;
   font-size: 1rem;
-  transition: background 0.2s;
-  margin: 0;
+  font-weight: 600;
+  transition: all 0.2s;
+  min-width: 120px;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .details-btn:hover {
   background: var(--color-primary-dark);
+  transform: translateY(-1px);
 }
 
-.details-btn-secondary {
-  background: #6c757d;
+/* Адаптивность */
+@media (max-width: 1024px) {
+  .management-blocks {
+    grid-template-columns: 1fr;
+  }
 }
 
-.details-btn-secondary:hover {
-  background: #5a6268;
+@media (max-width: 768px) {
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
 }
-
-/* Для блоков без группы кнопок */
-.main-block .details-btn:not(.button-group .details-btn) {
-  margin-top: 1.5rem;
-}
-
-
 </style> 

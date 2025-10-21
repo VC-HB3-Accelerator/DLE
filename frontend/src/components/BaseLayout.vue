@@ -261,9 +261,10 @@ onMounted(() => {
 <style scoped>
 .app-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
   background-color: var(--color-light);
+  overflow: hidden;
 }
 
 .main-content {
@@ -274,6 +275,8 @@ onMounted(() => {
   max-width: calc(100% - 350px);
   padding: 0 20px;
   background-color: var(--color-white);
+  height: 100vh;
+  overflow: hidden;
 }
 
 .main-content.no-right-sidebar {

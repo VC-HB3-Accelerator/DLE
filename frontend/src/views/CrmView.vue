@@ -18,47 +18,62 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="crm-view-container">
+    <div class="crm-management">
+      <!-- Заголовок -->
+      <div class="management-header">
+        <div class="header-content">
+          <h1>CRM Система</h1>
+        </div>
+      </div>
 
-      <div class="crm-contacts-block">
-        <h2>Контакты</h2>
-        <button class="details-btn" @click="goToContactsList">
-          Подробнее
-        </button>
-      </div>
-      <div class="crm-tables-block">
-        <h2>Таблицы</h2>
-        <button class="details-btn" @click="goToTables">
-          Подробнее
-        </button>
-      </div>
-      <!-- Новый блок Контент -->
-      <div class="crm-content-block">
-        <h2>Контент</h2>
-        <button class="details-btn" @click="goToContent">
-          Подробнее
-        </button>
-      </div>
-      <!-- Новый блок Управление -->
-      <div class="crm-management-block">
-        <h2>Управление</h2>
-        <button class="details-btn" @click="goToManagement">
-          Подробнее
-        </button>
-      </div>
-      <!-- Блок Веб3 приложение -->
-      <div class="crm-web3-block">
-        <h2>Веб3 приложение</h2>
-        <button class="details-btn" @click="goToWeb3App">
-          Подробнее
-        </button>
-      </div>
-      <!-- Блок Акселератор -->
-      <div class="crm-accelerator-block">
-        <h2>Акселератор</h2>
-        <button class="details-btn" @click="goToAcceleratorRegistration">
-          Подробнее
-        </button>
+      <!-- Блоки CRM -->
+      <div class="management-blocks">
+        <!-- Столбец 1 -->
+        <div class="blocks-column">
+          <div class="management-block">
+            <h3>Контакты</h3>
+            <p>Управление контактной базой, клиентами и партнерами</p>
+            <button class="details-btn" @click="goToContactsList">
+              Подробнее
+            </button>
+          </div>
+          
+          <div class="management-block">
+            <h3>Таблицы</h3>
+            <p>Создание и управление таблицами данных</p>
+            <button class="details-btn" @click="goToTables">Подробнее</button>
+          </div>
+        </div>
+
+        <!-- Столбец 2 -->
+        <div class="blocks-column">
+          <div class="management-block">
+            <h3>Контент</h3>
+            <p>Управление контентом, страницами и публикациями</p>
+            <button class="details-btn" @click="goToContent">Подробнее</button>
+          </div>
+          
+          <div class="management-block">
+            <h3>Управление</h3>
+            <p>Администрирование системы и настройки</p>
+            <button class="details-btn" @click="goToManagement">Подробнее</button>
+          </div>
+        </div>
+
+        <!-- Столбец 3 -->
+        <div class="blocks-column">
+          <div class="management-block">
+            <h3>VDS Сервер</h3>
+            <p>Настройки и управление</p>
+            <button class="details-btn" @click="goToWeb3App">Подробнее</button>
+          </div>
+          
+          <div class="management-block">
+            <h3>Акселератор</h3>
+            <p>Регистрация и управление проектами</p>
+            <button class="details-btn" @click="goToAcceleratorRegistration">Подробнее</button>
+          </div>
+        </div>
       </div>
     </div>
   </BaseLayout>
@@ -256,180 +271,124 @@ function goToAcceleratorRegistration() {
 </script>
 
 <style scoped>
-.crm-view-container {
+.crm-management {
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-top: 20px;
-  margin-bottom: 20px;
+  min-height: 100vh;
 }
 
-h1, h2, h3, h4 {
-  color: var(--color-dark);
-  margin-bottom: 16px;
+.management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
 }
 
-p {
-  line-height: 1.6;
-  margin-bottom: 10px;
+.header-content h1 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 2rem;
+  font-weight: 700;
 }
 
-strong {
- color: var(--color-primary);
+.crm-description {
+  margin: 0.5rem 0 0 0;
+  color: #666;
+  font-size: 1.1rem;
 }
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-left-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 20px auto;
+.management-blocks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.blocks-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.management-block {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 250px;
+}
+
+.management-block:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+.management-block h3 {
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.management-block p {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  flex-grow: 1;
 }
 
 .details-btn {
   background: var(--color-primary);
   color: #fff;
   border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.5rem;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
   cursor: pointer;
   font-size: 1rem;
-  transition: background 0.2s;
-  margin: 0;
+  font-weight: 600;
+  transition: all 0.2s;
+  min-width: 120px;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .details-btn:hover {
   background: var(--color-primary-dark);
+  transform: translateY(-1px);
 }
 
-.details-btn-secondary {
-  background: #6c757d;
+/* Адаптивность */
+@media (max-width: 1024px) {
+  .management-blocks {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-.details-btn-secondary:hover {
-  background: #5a6268;
-}
-
-
-
-.crm-contacts-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.crm-contacts-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.crm-contacts-block .details-btn {
-  margin-top: 0;
-}
-
-.crm-tables-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.crm-tables-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.crm-tables-block .details-btn {
-  margin-top: 0;
-}
-
-.crm-content-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.crm-content-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.crm-content-block .details-btn {
-  margin-top: 0;
-}
-
-.crm-management-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.crm-management-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.crm-management-block .details-btn {
-  margin-top: 0;
-}
-
-.crm-web3-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.crm-web3-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.crm-web3-block .details-btn {
-  margin-top: 0;
-}
-
-.crm-accelerator-block {
-  margin: 32px 0 24px 0;
-  padding: 24px;
-  background: #f8fafc;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.crm-accelerator-block h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-.crm-accelerator-block .details-btn {
-  margin-top: 0;
+@media (max-width: 768px) {
+  .management-blocks {
+    grid-template-columns: 1fr;
+  }
+  
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
 }
 </style> 

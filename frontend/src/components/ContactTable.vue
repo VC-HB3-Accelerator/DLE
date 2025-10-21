@@ -434,27 +434,21 @@ async function openChatForSelected() {
 }
 
 // Новая функция для отправки публичного сообщения
-async function sendPublicMessage() {
-  if (selectedIds.value.length === 0) return;
+function sendPublicMessage() {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('Выберите контакт для отправки публичного сообщения');
+    return;
+  }
   
   const contactId = selectedIds.value[0];
   const contact = filteredContacts.value.find(c => c.id === contactId);
-  if (!contact) return;
-  
-  try {
-    const content = prompt('Введите текст публичного сообщения:');
-    if (!content) return;
-    
-    await sendMessage({
-      recipientId: contactId,
-      content,
-      messageType: 'public'
-    });
-    
-    ElMessage.success('Публичное сообщение отправлено');
-  } catch (error) {
-    ElMessage.error('Ошибка отправки сообщения: ' + (error.message || error));
+  if (!contact) {
+    ElMessage.error('Контакт не найден');
+    return;
   }
+  
+  // Открываем страницу детали контакта с чатом для публичных сообщений
+  showDetails(contact);
 }
 
 // Функция для открытия приватного чата
