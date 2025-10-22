@@ -48,6 +48,23 @@
           <div class="view-row"><span>Database:</span> <b>{{ form.dbName }}</b> <span class="readonly-badge">(неизменяемо)</span></div>
           <div class="view-row"><span>User:</span> <b>{{ form.dbUser }}</b></div>
           <div class="view-row"><span>Password:</span> <b>••••••••••••••••••••••••••••••••</b></div>
+          <div class="view-row encryption-key-row">
+            <span>Ключ шифрования:</span> 
+            <div class="encryption-key-inline">
+              <div class="encryption-key-field">
+                <span class="key-display">{{ displayKey }}</span>
+                <button type="button" class="eye-btn" @click="toggleKeyVisibility" v-if="encryptionKeyState.exists">
+                  {{ showKey ? '👁️' : '👁️‍🗨️' }}
+                </button>
+              </div>
+              <span class="key-status" :class="keyStatusClass">
+                {{ keyStatus }}
+              </span>
+              <button type="button" class="generate-key-btn" @click="generateNewEncryptionKey">
+                {{ buttonText }}
+              </button>
+            </div>
+          </div>
           <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
           <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
         </div>
@@ -59,7 +76,7 @@
 <script setup>
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, nextTick, computed, watch } from 'vue';
 import api from '@/api/axios';
 
 const router = useRouter();
@@ -74,6 +91,36 @@ const form = reactive({
 });
 const original = reactive({});
 const editMode = ref(false);
+const encryptionKeyState = reactive({ exists: false, key: null });
+const showKey = ref(false);
+
+// Computed свойство для отображения статуса ключа
+const keyStatus = computed(() => {
+  return encryptionKeyState.exists ? 'Настроен' : 'Не настроен';
+});
+
+const keyStatusClass = computed(() => {
+  return encryptionKeyState.exists ? 'key-exists' : 'key-missing';
+});
+
+const buttonText = computed(() => {
+  return encryptionKeyState.exists ? 'Сгенерировать новый' : 'Сгенерировать ключ';
+});
+
+const displayKey = computed(() => {
+  if (!encryptionKeyState.exists) return 'Ключ не найден';
+  if (!encryptionKeyState.key) return 'Ключ не загружен';
+  return showKey.value ? encryptionKeyState.key : '••••••••••••••••••••••••••••••••';
+});
+
+const toggleKeyVisibility = () => {
+  showKey.value = !showKey.value;
+};
+
+// Watch для отслеживания изменений состояния ключа
+watch(() => encryptionKeyState.exists, (newValue, oldValue) => {
+  console.log('encryptionKeyState.exists changed from', oldValue, 'to', newValue);
+}, { immediate: true });
 
 const loadDbSettings = async () => {
   try {
@@ -92,8 +139,49 @@ const loadDbSettings = async () => {
   }
 };
 
+const checkEncryptionKey = async () => {
+  try {
+    const res = await api.get('/settings/encryption-key/status');
+    console.log('Encryption key status response:', res.data);
+    encryptionKeyState.exists = res.data.exists;
+    encryptionKeyState.key = res.data.key; // Сохраняем ключ из API
+    console.log('encryptionKeyState.exists updated to:', encryptionKeyState.exists);
+    console.log('encryptionKeyState.key updated to:', encryptionKeyState.key);
+    console.log('encryptionKeyState.exists type:', typeof encryptionKeyState.exists);
+    console.log('encryptionKeyState.exists === true:', encryptionKeyState.exists === true);
+    
+    // Принудительно обновляем DOM
+    await nextTick();
+    console.log('DOM updated after nextTick');
+  } catch (e) {
+    console.error('Ошибка проверки ключа шифрования:', e);
+    encryptionKeyState.exists = false;
+    encryptionKeyState.key = null;
+  }
+};
+
+const generateNewEncryptionKey = async () => {
+  try {
+    const confirmRotate = confirm('Сгенерировать новый ключ шифрования? Все зашифрованные данные будут безопасно перешифрованы новым ключом.');
+    if (!confirmRotate) return;
+    
+    // Безопасная смена ключа (работает как для первой генерации, так и для смены)
+    const res = await api.post('/settings/encryption-key/rotate');
+    if (res.data.success) {
+      alert(res.data.message);
+      await checkEncryptionKey();
+    } else {
+      alert('Ошибка смены ключа шифрования');
+    }
+  } catch (e) {
+    console.error('Ошибка генерации ключа шифрования:', e);
+    alert('Ошибка генерации ключа шифрования');
+  }
+};
+
 onMounted(async () => {
   await loadDbSettings();
+  await checkEncryptionKey();
   editMode.value = false;
 });
 
@@ -249,5 +337,87 @@ h2 {
   border-radius: 4px;
   font-size: 0.8em;
   margin-left: 0.5rem;
+}
+
+.encryption-key-row {
+  align-items: center !important;
+}
+
+.encryption-key-inline {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.encryption-key-field {
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-family: monospace;
+  font-size: 0.9em;
+  word-break: break-all;
+  max-width: 300px;
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.key-display {
+  color: #333;
+  font-weight: 500;
+  flex: 1;
+}
+
+.eye-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2em;
+  padding: 0.2rem;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.eye-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.key-status {
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.key-exists {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.key-missing {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.generate-key-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background 0.2s;
+}
+
+.generate-key-btn:hover {
+  background: var(--color-primary-dark);
 }
 </style> 

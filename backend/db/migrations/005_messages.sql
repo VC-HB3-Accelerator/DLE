@@ -1,13 +1,14 @@
 CREATE TABLE IF NOT EXISTS messages (
   id SERIAL PRIMARY KEY,
   conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
-  sender_type VARCHAR(20) NOT NULL,
+  sender_type_encrypted TEXT NOT NULL,
   sender_id INTEGER,
-  content TEXT,
-  channel VARCHAR(20) NOT NULL,
+  content_encrypted TEXT,
+  channel_encrypted TEXT NOT NULL,
+  role_encrypted TEXT NOT NULL DEFAULT 'user',
+  direction_encrypted TEXT,
   metadata JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  role VARCHAR(20) NOT NULL DEFAULT 'user',
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   tokens_used INTEGER DEFAULT 0,
   is_processed BOOLEAN DEFAULT FALSE

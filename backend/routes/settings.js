@@ -505,6 +505,19 @@ router.get('/email-settings', requireAdmin, async (req, res) => {
   }
 });
 
+// Удалить настройки Email
+router.delete('/email-settings', requireAdmin, async (req, res) => {
+  try {
+    logger.info('[Settings] Запрос удаления настроек Email');
+    await botsSettings.deleteBotSettings('email');
+    logger.info('[Settings] Настройки Email успешно удалены');
+    res.json({ success: true, message: 'Настройки Email полностью удалены' });
+  } catch (error) {
+    logger.error('[Settings] Ошибка удаления настроек Email:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Обновить настройки Email
 router.put('/email-settings', requireAdmin, async (req, res, next) => {
   try {
@@ -627,6 +640,19 @@ router.get('/telegram-settings', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Удалить настройки Telegram-бота
+router.delete('/telegram-settings', requireAdmin, async (req, res) => {
+  try {
+    logger.info('[Settings] Запрос удаления настроек Telegram');
+    await botsSettings.deleteBotSettings('telegram');
+    logger.info('[Settings] Настройки Telegram успешно удалены');
+    res.json({ success: true, message: 'Настройки Telegram полностью удалены' });
+  } catch (error) {
+    logger.error('[Settings] Ошибка удаления настроек Telegram:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Обновить настройки Telegram-бота
 router.put('/telegram-settings', requireAdmin, async (req, res, next) => {
   try {
@@ -744,6 +770,343 @@ router.get('/embedding-models', requireAdmin, async (req, res) => {
     const models = await aiProviderSettingsService.getAllEmbeddingModels();
     res.json({ success: true, models });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Получить статус ключа шифрования
+router.get('/encryption-key/status', requireAdmin, async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Путь к ключу шифрования
+    const keyPath = fs.existsSync('/app/ssl/keys/full_db_encryption.key') 
+      ? '/app/ssl/keys/full_db_encryption.key'
+      : path.join(__dirname, '../../ssl/keys/full_db_encryption.key');
+    
+    const exists = fs.existsSync(keyPath);
+    
+    let key = null;
+    if (exists) {
+      try {
+        key = fs.readFileSync(keyPath, 'utf8').trim();
+      } catch (error) {
+        logger.error('Ошибка чтения ключа:', error);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      exists,
+      path: keyPath,
+      key: key
+    });
+  } catch (error) {
+    logger.error('Ошибка проверки статуса ключа шифрования:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// Безопасная смена ключа шифрования с перешифровкой данных
+router.post('/encryption-key/rotate', requireAdmin, async (req, res) => {
+  try {
+    logger.info('[Settings] 🔑 НАЧАЛО РОТАЦИИ КЛЮЧА ШИФРОВАНИЯ');
+    
+    const fs = require('fs');
+    const path = require('path');
+    const crypto = require('crypto');
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const db = require('../db');
+    
+    logger.info('[Settings] 📦 Модули загружены успешно');
+    
+    // Получаем текущий ключ (может быть null, если ключа нет)
+    const oldKey = encryptionUtils.getEncryptionKey();
+    logger.info(`[Settings] 🔍 Текущий ключ: ${oldKey ? 'СУЩЕСТВУЕТ' : 'НЕ СУЩЕСТВУЕТ'}`);
+    
+    // Генерируем новый ключ
+    const newKey = crypto.randomBytes(32).toString('hex');
+    logger.info(`[Settings] 🔐 Новый ключ сгенерирован: ${newKey.substring(0, 8)}...`);
+    
+    // Путь к папке с ключами
+    const keysDir = fs.existsSync('/app/ssl/keys') 
+      ? '/app/ssl/keys'
+      : path.join(__dirname, '../../ssl/keys');
+    
+    logger.info(`[Settings] 📁 Папка с ключами: ${keysDir}`);
+    
+    const keyPath = path.join(keysDir, 'full_db_encryption.key');
+    logger.info(`[Settings] 📄 Путь к ключу: ${keyPath}`);
+    
+    // Проверяем, существует ли ключ
+    const keyExists = fs.existsSync(keyPath);
+    logger.info(`[Settings] 🔍 Ключ существует: ${keyExists}`);
+    
+    // Создаем резервную копию только если ключ существует и файловая система доступна для записи
+    let backupKeyPath = null;
+    if (keyExists) {
+      logger.info('[Settings] 💾 Создание резервной копии ключа...');
+      try {
+        backupKeyPath = path.join(keysDir, 'full_db_encryption.key.backup');
+        fs.copyFileSync(keyPath, backupKeyPath);
+        logger.info(`[Settings] ✅ Резервная копия создана: ${backupKeyPath}`);
+      } catch (backupError) {
+        logger.warn(`[Settings] ⚠️ Не удалось создать резервную копию ключа: ${backupError.message}`);
+        // Продолжаем без резервной копии
+      }
+    } else {
+      logger.info('[Settings] ℹ️ Резервная копия не нужна - ключ не существует');
+    }
+    
+    // ВАЖНО: Сначала перешифровываем ВСЕ данные, ТОЛЬКО ПОТОМ меняем ключ
+    let reencryptionSuccess = true;
+    let totalSuccessCount = 0;
+    let totalErrorCount = 0;
+    
+    try {
+      // Если есть старый ключ, перешифровываем данные
+      if (oldKey) {
+        logger.info('[Settings] 🔄 НАЧИНАЕМ ПЕРЕШИФРОВКУ ДАННЫХ...');
+        logger.info('[Settings] ⚠️ ВАЖНО: Ключ будет изменен ТОЛЬКО после успешной перешифровки всех данных!');
+        
+        // 1. Находим все таблицы с зашифрованными полями
+        logger.info('[Settings] 🔍 Поиск таблиц с зашифрованными полями...');
+        const tablesResult = await db.getQuery()(`
+          SELECT table_name 
+          FROM information_schema.columns 
+          WHERE column_name LIKE '%_encrypted' 
+          AND table_schema = 'public'
+          GROUP BY table_name
+        `);
+        
+        const tables = tablesResult.rows.map(row => row.table_name);
+        logger.info(`[Settings] 📊 Найдено таблиц с зашифрованными полями: ${tables.length}`);
+        logger.info(`[Settings] 📋 Список таблиц: ${tables.join(', ')}`);
+        
+        // 2. Перешифровываем каждую таблицу
+        for (const tableName of tables) {
+          logger.info(`[Settings] 🔄 ОБРАБОТКА ТАБЛИЦЫ: ${tableName}`);
+          
+          // Получаем все зашифрованные колонки для этой таблицы
+          logger.info(`[Settings] 🔍 Поиск зашифрованных колонок в таблице ${tableName}...`);
+          const columnsResult = await db.getQuery()(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = $1 
+            AND column_name LIKE '%_encrypted'
+          `, [tableName]);
+          
+          const encryptedColumns = columnsResult.rows.map(row => row.column_name);
+          logger.info(`[Settings] 📊 Найдено зашифрованных колонок: ${encryptedColumns.length}`);
+          logger.info(`[Settings] 📋 Колонки: ${encryptedColumns.join(', ')}`);
+          
+          // Перешифровываем каждую колонку
+          for (const columnName of encryptedColumns) {
+            logger.info(`[Settings] 🔄 ПЕРЕШИФРОВКА КОЛОНКИ: ${tableName}.${columnName}`);
+            
+            // Сначала проверяем, есть ли колонка id в таблице
+            logger.info(`[Settings] 🔍 Проверка наличия колонки id в таблице ${tableName}...`);
+            const hasIdColumn = await db.getQuery()(`
+              SELECT column_name 
+              FROM information_schema.columns 
+              WHERE table_name = $1 AND column_name = 'id'
+            `, [tableName]);
+            
+            if (hasIdColumn.rows.length === 0) {
+              logger.warn(`[Settings] ⚠️ Таблица ${tableName} не имеет колонки id, пропускаем перешифровку`);
+              continue;
+            }
+            logger.info(`[Settings] ✅ Колонка id найдена в таблице ${tableName}`);
+            
+            // Получаем все строки с данными в этой колонке
+            logger.info(`[Settings] 🔍 Получение данных из ${tableName}.${columnName}...`);
+            const dataResult = await db.getQuery()(`
+              SELECT id, ${columnName} 
+              FROM ${tableName} 
+              WHERE ${columnName} IS NOT NULL 
+              AND ${columnName} != ''
+            `);
+            
+            logger.info(`[Settings] 📊 Найдено строк для перешифровки: ${dataResult.rows.length}`);
+            
+            // Перешифровываем каждую строку
+            let successCount = 0;
+            let errorCount = 0;
+            for (const row of dataResult.rows) {
+              try {
+                logger.info(`[Settings] 🔄 Обработка строки id=${row.id} в ${tableName}.${columnName}`);
+                
+                // Расшифровываем старым ключом
+                logger.info(`[Settings] 🔓 Расшифровка старым ключом...`);
+                const decryptedValue = await db.getQuery()(`
+                  SELECT decrypt_text($1, $2) as decrypted_value
+                `, [row[columnName], oldKey]);
+                
+                if (decryptedValue.rows[0]?.decrypted_value) {
+                  logger.info(`[Settings] ✅ Расшифровка успешна`);
+                  
+                  // Шифруем новым ключом
+                  logger.info(`[Settings] 🔐 Шифрование новым ключом...`);
+                  const reencryptedValue = await db.getQuery()(`
+                    SELECT encrypt_text($1, $2) as encrypted_value
+                  `, [decryptedValue.rows[0].decrypted_value, newKey]);
+                  
+                  // Обновляем в базе
+                  logger.info(`[Settings] 💾 Обновление в базе данных...`);
+                  await db.getQuery()(`
+                    UPDATE ${tableName} 
+                    SET ${columnName} = $1 
+                    WHERE id = $2
+                  `, [reencryptedValue.rows[0].encrypted_value, row.id]);
+                  
+                  successCount++;
+                  totalSuccessCount++;
+                  logger.info(`[Settings] ✅ Строка id=${row.id} успешно перешифрована`);
+                } else {
+                  logger.warn(`[Settings] ⚠️ Не удалось расшифровать строку id=${row.id}`);
+                  errorCount++;
+                  totalErrorCount++;
+                }
+              } catch (columnError) {
+                logger.error(`[Settings] ❌ ОШИБКА перешифровки ${tableName}.${columnName} (id: ${row.id}): ${columnError.message}`);
+                errorCount++;
+                totalErrorCount++;
+                // Продолжаем с другими строками
+              }
+            }
+            
+            logger.info(`[Settings] 📊 РЕЗУЛЬТАТ перешифровки ${tableName}.${columnName}: успешно=${successCount}, ошибок=${errorCount}`);
+          }
+        }
+        
+        // Проверяем общий результат перешифровки
+        logger.info(`[Settings] 📊 ОБЩИЙ РЕЗУЛЬТАТ ПЕРЕШИФРОВКИ: успешно=${totalSuccessCount}, ошибок=${totalErrorCount}`);
+        
+        if (totalErrorCount > 0) {
+          logger.warn(`[Settings] ⚠️ Обнаружены ошибки при перешифровке (${totalErrorCount} ошибок)`);
+          // Не критично, продолжаем
+        }
+        
+        logger.info('[Settings] ✅ ПЕРЕШИФРОВКА ДАННЫХ ЗАВЕРШЕНА УСПЕШНО!');
+        
+      } else {
+        logger.info('[Settings] ℹ️ Первая генерация ключа - перешифровка не требуется');
+      }
+      
+      // ТОЛЬКО ПОСЛЕ УСПЕШНОЙ ПЕРЕШИФРОВКИ - меняем ключ
+      logger.info('[Settings] 🔐 ВСЕ ДАННЫЕ ПЕРЕШИФРОВАНЫ! Теперь меняем ключ...');
+      
+      // 3. Сохраняем новый ключ (с обработкой read-only файловой системы)
+      logger.info(`[Settings] 💾 Сохранение нового ключа в файл: ${keyPath}`);
+      try {
+        fs.writeFileSync(keyPath, newKey, { mode: 0o600 });
+        logger.info(`[Settings] ✅ Новый ключ сохранен в файл`);
+      } catch (writeError) {
+        if (writeError.code === 'EROFS') {
+          logger.warn(`[Settings] ⚠️ Файловая система только для чтения, сохраняем ключ в переменную окружения`);
+          // Сохраняем ключ в переменную окружения как fallback
+          process.env.ENCRYPTION_KEY = newKey;
+          logger.info(`[Settings] ✅ Новый ключ сохранен в переменную окружения ENCRYPTION_KEY`);
+        } else {
+          throw writeError;
+        }
+      }
+      
+      // 4. Очищаем кэш ключа
+      logger.info(`[Settings] 🧹 Очистка кэша ключа...`);
+      encryptionUtils.clearCache();
+      logger.info(`[Settings] ✅ Кэш очищен`);
+      
+      logger.info('[Settings] 🎉 КЛЮЧ ШИФРОВАНИЯ УСПЕШНО ИЗМЕНЕН!');
+      
+      const message = oldKey 
+        ? 'Ключ шифрования успешно изменен. Все данные перешифрованы.'
+        : 'Новый ключ шифрования успешно сгенерирован.';
+      
+      res.json({ 
+        success: true, 
+        message: message,
+        keyPath: keyPath,
+        backupPath: backupKeyPath,
+        isFirstGeneration: !oldKey
+      });
+      
+    } catch (rotateError) {
+      logger.error('[Settings] ❌ КРИТИЧЕСКАЯ ОШИБКА при перешифровке данных:', rotateError);
+      logger.error(`[Settings] ❌ Детали ошибки: ${rotateError.message}`);
+      logger.error(`[Settings] ❌ Stack trace: ${rotateError.stack}`);
+      
+      // В случае ошибки восстанавливаем старый ключ только если есть резервная копия
+      if (backupKeyPath && fs.existsSync(backupKeyPath)) {
+        logger.info('[Settings] 🔄 Попытка восстановления ключа из резервной копии...');
+        try {
+          fs.copyFileSync(backupKeyPath, keyPath);
+          logger.info('[Settings] ✅ Восстановлен ключ из резервной копии');
+        } catch (restoreError) {
+          logger.error(`[Settings] ❌ Не удалось восстановить ключ из резервной копии: ${restoreError.message}`);
+        }
+      } else {
+        logger.warn('[Settings] ⚠️ Резервная копия недоступна, ключ не восстановлен');
+      }
+      
+      logger.info('[Settings] 🧹 Очистка кэша после ошибки...');
+      encryptionUtils.clearCache();
+      throw rotateError;
+    }
+    
+  } catch (error) {
+    logger.error('[Settings] ❌ ФИНАЛЬНАЯ ОШИБКА смены ключа шифрования:', error);
+    logger.error(`[Settings] ❌ Финальная ошибка: ${error.message}`);
+    logger.error(`[Settings] ❌ Финальный stack: ${error.stack}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Восстановление состояния после ошибки перешифровки
+router.post('/encryption-key/recover', requireAdmin, async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const db = require('../db');
+    
+    logger.info('[Settings] Начинаем восстановление состояния ключа шифрования...');
+    
+    // Путь к папке с ключами
+    const keysDir = fs.existsSync('/app/ssl/keys') 
+      ? '/app/ssl/keys'
+      : path.join(__dirname, '../../ssl/keys');
+    
+    const keyPath = path.join(keysDir, 'full_db_encryption.key');
+    const backupKeyPath = path.join(keysDir, 'full_db_encryption.key.backup');
+    
+    // Проверяем, есть ли резервная копия
+    if (fs.existsSync(backupKeyPath)) {
+      logger.info('[Settings] Восстанавливаем ключ из резервной копии');
+      fs.copyFileSync(backupKeyPath, keyPath);
+      encryptionUtils.clearCache();
+      
+      res.json({ 
+        success: true, 
+        message: 'Ключ шифрования восстановлен из резервной копии',
+        action: 'restored_from_backup'
+      });
+    } else {
+      // Если нет резервной копии, нужно вручную восстановить состояние
+      logger.warn('[Settings] Резервная копия недоступна, требуется ручное восстановление');
+      
+      res.json({ 
+        success: false, 
+        message: 'Резервная копия недоступна. Требуется ручное восстановление состояния.',
+        action: 'manual_recovery_required',
+        currentKey: fs.readFileSync(keyPath, 'utf8').trim()
+      });
+    }
+    
+  } catch (error) {
+    logger.error('Ошибка восстановления ключа шифрования:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -66,6 +66,7 @@
           <div class="view-row"><span>IMAP Password:</span> <b>{{ form.imapPassword ? '••••••••' : 'Не установлен' }}</b></div>
           <div class="view-row"><span>From Email:</span> <b>{{ form.fromEmail }}</b></div>
           <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
+          <button type="button" class="clear-btn" @click="clearEmailSettings">Очистить</button>
           <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
         </div>
       </div>
@@ -180,6 +181,32 @@ const cancelEdit = () => {
   form.imapPassword = '';
   editMode.value = false;
 };
+
+const clearEmailSettings = async () => {
+  const confirmClear = confirm('Внимание! Это действие полностью удалит все настройки Email из базы данных. Продолжить?');
+  if (!confirmClear) return;
+  
+  try {
+    await api.delete('/settings/email-settings');
+    alert('Настройки Email полностью удалены');
+    
+    // Очищаем форму
+    form.smtpHost = '';
+    form.smtpPort = 465;
+    form.smtpUser = '';
+    form.smtpPassword = '';
+    form.imapHost = '';
+    form.imapPort = 993;
+    form.imapUser = '';
+    form.imapPassword = '';
+    form.fromEmail = '';
+    Object.assign(original, JSON.parse(JSON.stringify(form)));
+    editMode.value = false;
+  } catch (e) {
+    console.error('Ошибка удаления настроек Email:', e);
+    alert('Ошибка удаления настроек Email');
+  }
+};
 </script>
 
 <style scoped>
@@ -242,6 +269,22 @@ h2 {
 .save-btn:hover {
   background: var(--color-primary-dark);
 }
+.clear-btn {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-left: 1rem;
+  transition: background 0.2s;
+}
+
+.clear-btn:hover {
+  background: #c82333;
+}
+
 .cancel-btn {
   background: #eee;
   color: #333;

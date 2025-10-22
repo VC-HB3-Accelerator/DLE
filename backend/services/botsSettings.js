@@ -106,9 +106,53 @@ async function getAllBotsSettings() {
   }
 }
 
+/**
+ * Удалить настройки бота
+ * @param {string} botType - Тип бота (telegram, email)
+ * @returns {Promise<void>}
+ */
+async function deleteBotSettings(botType) {
+  try {
+    let tableName;
+    let foreignKeyColumn;
+    
+    switch (botType) {
+      case 'telegram':
+        tableName = 'telegram_settings';
+        foreignKeyColumn = 'telegram_settings_id';
+        break;
+      case 'email':
+        tableName = 'email_settings';
+        foreignKeyColumn = 'email_settings_id';
+        break;
+      default:
+        throw new Error(`Unknown bot type: ${botType}`);
+    }
+
+    // Сначала обновляем связанные записи, устанавливая foreign key в NULL
+    await db.getQuery()(`
+      UPDATE ai_assistant_settings 
+      SET ${foreignKeyColumn} = NULL 
+      WHERE ${foreignKeyColumn} IS NOT NULL
+    `);
+    
+    logger.info(`[BotsSettings] Обновлены связанные записи для ${botType}`);
+    
+    // Затем удаляем все записи из таблицы настроек
+    await db.getQuery()(`DELETE FROM ${tableName}`);
+    
+    logger.info(`[BotsSettings] Настройки ${botType} успешно удалены`);
+    
+  } catch (error) {
+    logger.error(`[BotsSettings] Ошибка удаления настроек ${botType}:`, error);
+    throw error;
+  }
+}
+
 module.exports = {
   getBotSettings,
   saveBotSettings,
-  getAllBotsSettings
+  getAllBotsSettings,
+  deleteBotSettings
 };
 

@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS nonces (
   id SERIAL PRIMARY KEY,
-  identity_value VARCHAR(255) NOT NULL,
-  nonce VARCHAR(255) NOT NULL,
+  identity_value_encrypted TEXT NOT NULL,
+  nonce_encrypted TEXT NOT NULL,
   expires_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );

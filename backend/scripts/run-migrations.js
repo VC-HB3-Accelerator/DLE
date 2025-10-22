@@ -17,9 +17,25 @@ const { getPool } = require('../db');
 const pool = getPool();
 const logger = require('../utils/logger');
 
+// Читаем ключ шифрования из файла
+async function getEncryptionKey() {
+  try {
+    const keyPath = '/app/ssl/keys/full_db_encryption.key';
+    const key = await fs.readFile(keyPath, 'utf8');
+    return key.trim();
+  } catch (error) {
+    logger.error('Ошибка чтения ключа шифрования:', error);
+    throw new Error('Не удалось прочитать ключ шифрования');
+  }
+}
+
 async function runMigrations() {
   try {
     console.log('Запуск миграций...');
+
+    // Читаем ключ шифрования
+    const encryptionKey = await getEncryptionKey();
+    console.log('Ключ шифрования загружен');
 
     // Создаем таблицу для отслеживания миграций, если её нет
     await pool.query(`
@@ -85,6 +101,16 @@ async function runMigrations() {
         logger.info(`Executing UP migration from ${file}...`);
         await pool.query('BEGIN');
         try {
+          // Создаем функцию для получения ключа шифрования
+          await pool.query(`
+            CREATE OR REPLACE FUNCTION get_encryption_key()
+            RETURNS TEXT AS $$
+            BEGIN
+              RETURN '${encryptionKey}';
+            END;
+            $$ LANGUAGE plpgsql;
+          `);
+          
           // Выполняем только извлеченный UP SQL
           await pool.query(sqlToExecute);
           await pool.query('INSERT INTO migrations (name) VALUES ($1)', [file]);

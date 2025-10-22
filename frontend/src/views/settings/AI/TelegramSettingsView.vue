@@ -32,6 +32,7 @@
           <div class="view-row"><span>Bot Token:</span> <b>••••••••••••••••••••••••••••••••••••••••</b></div>
           <div class="view-row"><span>Bot Username:</span> <b>{{ form.botUsername }}</b></div>
           <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
+          <button type="button" class="clear-btn" @click="clearTelegramSettings">Очистить</button>
           <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
         </div>
       </div>
@@ -123,6 +124,25 @@ const cancelEdit = () => {
   form.botToken = '';
   editMode.value = false;
 };
+
+const clearTelegramSettings = async () => {
+  const confirmClear = confirm('Внимание! Это действие полностью удалит все настройки Telegram из базы данных. Продолжить?');
+  if (!confirmClear) return;
+  
+  try {
+    await api.delete('/settings/telegram-settings');
+    alert('Настройки Telegram полностью удалены');
+    
+    // Очищаем форму
+    form.botToken = '';
+    form.botUsername = '';
+    Object.assign(original, JSON.parse(JSON.stringify(form)));
+    editMode.value = false;
+  } catch (e) {
+    console.error('Ошибка удаления настроек Telegram:', e);
+    alert('Ошибка удаления настроек Telegram');
+  }
+};
 </script>
 
 <style scoped>
@@ -185,6 +205,22 @@ h2 {
 .save-btn:hover {
   background: var(--color-primary-dark);
 }
+.clear-btn {
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-left: 1rem;
+  transition: background 0.2s;
+}
+
+.clear-btn:hover {
+  background: #c82333;
+}
+
 .cancel-btn {
   background: #eee;
   color: #333;

@@ -32,7 +32,14 @@ function getEncryptionKey() {
     return cachedKey;
   }
 
-  // Сначала пробуем прочитать из файла (приоритет)
+  // Сначала пробуем переменную окружения (приоритет для Docker)
+  if (process.env.ENCRYPTION_KEY) {
+    cachedKey = process.env.ENCRYPTION_KEY;
+    logger.info('[EncryptionUtils] Ключ шифрования загружен из переменной окружения');
+    return cachedKey;
+  }
+
+  // Если переменной нет, пробуем прочитать из файла
   // В Docker контейнере путь /app/ssl/keys/full_db_encryption.key
   // В локальной разработке ../../ssl/keys/full_db_encryption.key
   const keyPath = fs.existsSync('/app/ssl/keys/full_db_encryption.key') 
@@ -47,13 +54,6 @@ function getEncryptionKey() {
     } catch (error) {
       logger.error('[EncryptionUtils] Ошибка чтения ключа из файла:', error);
     }
-  }
-
-  // Если файла нет, пробуем переменную окружения
-  if (process.env.ENCRYPTION_KEY) {
-    cachedKey = process.env.ENCRYPTION_KEY;
-    logger.info('[EncryptionUtils] Ключ шифрования загружен из переменной окружения');
-    return cachedKey;
   }
 
   // Если ничего не найдено, бросаем ошибку

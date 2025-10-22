@@ -135,7 +135,7 @@ services:
       - ./backend/uploads:/app/uploads
       - backend_node_modules:/app/node_modules
       - ./frontend/dist:/app/frontend_dist:ro
-      - ./ssl:/app/ssl:ro
+      - ./ssl:/app/ssl
       - ./shared:/app/shared:ro
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -222,7 +222,7 @@ services:
       - 8.8.8.8        # Google (надежность, fallback)
     volumes:
       - ./scripts/ssh-key-server.js:/app/ssh-key-server.js:ro
-      - ./ssl:/app/ssl:ro
+      - ./ssl:/app/ssl
       - ~/.ssh:/root/.ssh:rw
     ports:
       - '3001:3001'
@@ -248,7 +248,7 @@ services:
       - ~/.ssh:/root/.ssh:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro  # Только чтение для безопасности
       - /tmp:/tmp  # для временных файлов
-      - ./ssl:/app/ssl:ro  # для доступа к ключу шифрования
+      - ./ssl:/app/ssl  # для доступа к ключу шифрования
     security_opt:
       - no-new-privileges:true  # Запрет повышения привилегий
     ports:

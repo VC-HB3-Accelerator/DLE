@@ -1,10 +1,9 @@
 CREATE TABLE IF NOT EXISTS user_identities (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  provider VARCHAR(50) NOT NULL,
-  provider_id VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(provider, provider_id)
+  provider_encrypted TEXT NOT NULL,
+  provider_id_encrypted TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Создаем индексы после создания таблицы
