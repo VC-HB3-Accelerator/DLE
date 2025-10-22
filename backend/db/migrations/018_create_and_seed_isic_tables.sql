@@ -38,7 +38,7 @@ BEGIN
     
     -- Загружаем данные во временную таблицу
     COPY tmp_isic_level_names (code_level_tmp, level_name_en_tmp)
-    FROM '/app/db/data/isic_level_names.csv'
+    FROM '/mnt/isic_csv_data/isic_level_names.csv'
     WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',', QUOTE '"');
     
     -- Вставляем данные в основную таблицу
@@ -74,11 +74,11 @@ BEGIN
 
     -- Загружаем данные во временные таблицы
     COPY tmp_isic_titles (sort_order_tmp, code_tmp, description_tmp, inclusion_tmp, exclusion_tmp)
-    FROM '/app/db/data/isic_titles.csv'
+    FROM '/mnt/isic_csv_data/isic_titles.csv'
     WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',', QUOTE '"');
 
     COPY tmp_isic_structure (sort_order_tmp, code_tmp, code_level_tmp, level1_tmp, level2_tmp, level3_tmp, level4_tmp, level5_tmp, level6_tmp)
-    FROM '/app/db/data/isic_structure.csv'
+    FROM '/mnt/isic_csv_data/isic_structure.csv'
     WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',', QUOTE '"');
 
     -- Переносим и объединяем данные из временных таблиц в основную таблицу isic_rev4_codes

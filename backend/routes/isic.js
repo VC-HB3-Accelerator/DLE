@@ -91,7 +91,7 @@ router.get('/codes', async (req, res) => {
 
   const baseQuerySelect = `
     SELECT c.code, c.description, c.code_level, c.explanatory_note_inclusion, c.explanatory_note_exclusion,
-           l.level_name_en,
+           l.level_name_en_encrypted as level_name_en,
            c.level1, c.level2, c.level3, c.level4, c.level5, c.level6
     FROM isic_rev4_codes c
     LEFT JOIN isic_rev4_level_names l ON c.code_level = l.code_level

@@ -34,8 +34,8 @@
         </select>
       </div>
 
-          <!-- Российские классификаторы (отображается только для России) -->
-      <div v-if="dleSettings.jurisdiction === '643'">
+          <!-- Классификаторы видов деятельности -->
+      <div v-if="dleSettings.jurisdiction">
         <div v-if="isLoadingRussianClassifiers" class="loading-section">
           <p><i class="fas fa-spinner fa-spin"></i> Загрузка российских классификаторов...</p>
         </div>
@@ -196,12 +196,14 @@
                 </div>
               </div>
 
-              <!-- ОКВЭД - Виды экономической деятельности -->
+              <!-- Виды экономической деятельности -->
               <div class="form-group okved-section">
-                <label class="form-label okved-title">ОКВЭД (виды экономической деятельности):</label>
+                <label class="form-label okved-title">
+                  {{ dleSettings.jurisdiction === '643' ? 'ОКВЭД (виды экономической деятельности)' : 'ISIC (виды экономической деятельности)' }}:
+                </label>
                 
-                <!-- Простой 2-уровневый выбор ОКВЭД -->
-                <div class="okved-cascade">
+                <!-- Форма для России (ОКВЭД) -->
+                <div v-if="dleSettings.jurisdiction === '643'" class="okved-cascade">
                   <!-- Уровень 1: Класс (01.11, 01.12...) -->
                   <div class="form-group">
                     <label class="form-label-small">Выберите класс деятельности:</label>
@@ -239,6 +241,77 @@
                       Добавить код деятельности
                     </button>
                   </div>
+                </div>
+
+                <!-- Форма для других стран (ISIC) -->
+                <div v-else class="isic-cascade">
+                  <!-- Уровень 1: Раздел (A, B, C...) -->
+                  <div class="form-group">
+                    <label class="form-label-small">Выберите раздел деятельности:</label>
+                    <select v-model="selectedIsicLevel1" class="form-control" :disabled="isLoadingIsicLevel1">
+                      <option value="">-- {{ isLoadingIsicLevel1 ? 'Загрузка разделов...' : 'Выберите раздел' }} --</option>
+                      <option 
+                        v-for="option in isicLevel1Options" 
+                        :key="option.value" 
+                        :value="option.value"
+                      >
+                        {{ option.text }}
+                      </option>
+                    </select>
+                  </div>
+
+             <!-- Уровень 2: Группа (01, 02, 03...) -->
+             <div class="form-group" v-if="selectedIsicLevel1">
+               <label class="form-label-small">Выберите группу деятельности:</label>
+               <select v-model="selectedIsicLevel2" class="form-control" :disabled="isLoadingIsicLevel2">
+                 <option value="">-- {{ isLoadingIsicLevel2 ? 'Загрузка групп...' : 'Выберите группу' }} --</option>
+                 <option 
+                   v-for="option in isicLevel2Options" 
+                   :key="option.value" 
+                   :value="option.value"
+                 >
+                   {{ option.text }}
+                 </option>
+               </select>
+             </div>
+
+             <!-- Уровень 3: Класс (011, 012, 013...) -->
+             <div class="form-group" v-if="selectedIsicLevel2">
+               <label class="form-label-small">Выберите класс деятельности:</label>
+               <select v-model="selectedIsicLevel3" class="form-control" :disabled="isLoadingIsicLevel3">
+                 <option value="">-- {{ isLoadingIsicLevel3 ? 'Загрузка классов...' : 'Выберите класс' }} --</option>
+                 <option 
+                   v-for="option in isicLevel3Options" 
+                   :key="option.value" 
+                   :value="option.value"
+                 >
+                   {{ option.text }}
+                 </option>
+               </select>
+             </div>
+
+             <!-- Уровень 4: Подкласс (0111, 0112, 0113...) -->
+             <div class="form-group" v-if="selectedIsicLevel3">
+               <label class="form-label-small">Выберите подкласс деятельности:</label>
+               <select v-model="selectedIsicLevel4" class="form-control" :disabled="isLoadingIsicLevel4">
+                 <option value="">-- {{ isLoadingIsicLevel4 ? 'Загрузка подклассов...' : 'Выберите подкласс' }} --</option>
+                 <option 
+                   v-for="option in isicLevel4Options" 
+                   :key="option.value" 
+                   :value="option.value"
+                 >
+                   {{ option.text }}
+                 </option>
+               </select>
+             </div>
+
+             <!-- Выбранный код ISIC -->
+             <div v-if="currentSelectedIsicText" class="current-isic-selection">
+               <p><strong>Выбранный код:</strong> {{ currentSelectedIsicText }}</p>
+               <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">
+                 Добавить код деятельности
+               </button>
+             </div>
                 </div>
 
                 <!-- Основной код ОКВЭД (оставляем для совместимости) -->
@@ -1117,17 +1190,29 @@ const autoSelectedOktmoInfo = computed(() => {
   return russianClassifiers.oktmo.find(oktmo => oktmo.code === dleSettings.selectedOktmo);
 });
 
-// ===== КАСКАДНАЯ СИСТЕМА ОКВЭД =====
+// ===== КАСКАДНАЯ СИСТЕМА КЛАССИФИКАТОРОВ =====
 
-// Состояние для загрузки и опций ОКВЭД
+// Состояние для загрузки и опций ОКВЭД/ISIC
 const okvedLevel1Options = ref([]);
 const okvedLevel2Options = ref([]);
 const okvedLevel3Options = ref([]);
+
+// Состояние для загрузки ISIC кодов
+const isicLevel1Options = ref([]);
+const isicLevel2Options = ref([]);
+const isicLevel3Options = ref([]);
+const isicLevel4Options = ref([]);
 const okvedLevel4Options = ref([]);
 
 const isLoadingOkvedLevel1 = ref(false);
 const isLoadingOkvedLevel2 = ref(false);
 const isLoadingOkvedLevel3 = ref(false);
+
+// Состояние загрузки ISIC
+const isLoadingIsicLevel1 = ref(false);
+const isLoadingIsicLevel2 = ref(false);
+const isLoadingIsicLevel3 = ref(false);
+const isLoadingIsicLevel4 = ref(false);
 const isLoadingOkvedLevel4 = ref(false);
 
 // Состояние для КПП кодов
@@ -1140,9 +1225,19 @@ const selectedOkvedLevel2 = ref('');
 const selectedOkvedLevel3 = ref('');
 const selectedOkvedLevel4 = ref('');
 
+// Выбранные значения на каждом уровне ISIC
+const selectedIsicLevel1 = ref('');
+const selectedIsicLevel2 = ref('');
+const selectedIsicLevel3 = ref('');
+const selectedIsicLevel4 = ref('');
+
 // Текущий выбранный код ОКВЭД
 const currentSelectedOkvedCode = ref('');
 const currentSelectedOkvedText = ref('');
+
+// Текущий выбранный код ISIC
+const currentSelectedIsicCode = ref('');
+const currentSelectedIsicText = ref('');
 
 
 // Функция определения уровня ОКВЭД кода
@@ -1154,6 +1249,42 @@ const getOkvedLevel = (code) => {
   if (parts.length === 2 && parts[1].length === 2) return 3; // 01.11
   if (parts.length === 3) return 4; // 01.11.1
   return parts.length + 1; // для более глубоких уровней
+};
+
+// Функция для загрузки ISIC кодов определенного уровня
+const fetchIsicCodes = async (level, parentCode, optionsRef, loadingRef) => {
+  loadingRef.value = true;
+  optionsRef.value = [];
+  
+  try {
+    console.log(`[DleDeployForm] Загрузка ISIC уровень ${level}, родитель: ${parentCode || 'root'}`);
+    
+    const params = {
+      level: level,
+      limit: 1000 // Увеличиваем лимит для получения всех кодов
+    };
+    
+    if (parentCode) {
+      params.parent_code = parentCode;
+    }
+    
+    const response = await api.get('/isic/codes', { params });
+    
+    if (response.data && response.data.codes) {
+      optionsRef.value = response.data.codes.map(code => ({
+        value: code.code,
+        text: `${code.code} - ${code.description}`
+      }));
+      
+      console.log(`[DleDeployForm] Загружено ISIC кодов уровня ${level}: ${optionsRef.value.length}`);
+    } else {
+      console.error('[DleDeployForm] Ошибка ответа API ISIC:', response.data);
+    }
+  } catch (error) {
+    console.error('[DleDeployForm] Ошибка при загрузке ISIC кодов:', error);
+  } finally {
+    loadingRef.value = false;
+  }
 };
 
 // Функция для загрузки ОКВЭД кодов определенного уровня
@@ -1204,6 +1335,45 @@ const fetchOkvedCodes = async (level, parentCode, optionsRef, loadingRef) => {
   }
 };
 
+// Функция для обновления текущего выбранного кода ISIC
+const updateCurrentIsicSelection = () => {
+  let code = '';
+  let text = '';
+  let optionsToSearch = [];
+  let valueToFind = '';
+
+  // Приоритет: сначала подкласс, потом класс, потом группа, потом раздел
+  if (selectedIsicLevel4.value) {
+    code = selectedIsicLevel4.value;
+    optionsToSearch = isicLevel4Options.value;
+    valueToFind = selectedIsicLevel4.value;
+  } else if (selectedIsicLevel3.value) {
+    code = selectedIsicLevel3.value;
+    optionsToSearch = isicLevel3Options.value;
+    valueToFind = selectedIsicLevel3.value;
+  } else if (selectedIsicLevel2.value) {
+    code = selectedIsicLevel2.value;
+    optionsToSearch = isicLevel2Options.value;
+    valueToFind = selectedIsicLevel2.value;
+  } else if (selectedIsicLevel1.value) {
+    code = selectedIsicLevel1.value;
+    optionsToSearch = isicLevel1Options.value;
+    valueToFind = selectedIsicLevel1.value;
+  }
+
+  if (code && optionsToSearch.length > 0 && valueToFind) {
+    const foundOption = optionsToSearch.find(opt => opt.value === valueToFind);
+    if (foundOption) {
+      text = foundOption.text;
+    } else {
+      text = code;
+    }
+  }
+
+  currentSelectedIsicCode.value = code;
+  currentSelectedIsicText.value = text;
+};
+
 // Функция для обновления текущего выбранного кода ОКВЭД
 const updateCurrentOkvedSelection = () => {
   let code = '';
@@ -1249,6 +1419,69 @@ watch(selectedOkvedLevel2, () => {
   // console.log('[DleDeployForm] selectedOkvedLevel2 changed to:', selectedOkvedLevel2.value);
   updateCurrentOkvedSelection();
 });
+
+// Watchers для ISIC
+watch(selectedIsicLevel1, (newVal) => {
+  selectedIsicLevel2.value = '';
+  selectedIsicLevel3.value = '';
+  selectedIsicLevel4.value = '';
+  if (newVal) {
+    fetchIsicCodes(2, newVal, isicLevel2Options, isLoadingIsicLevel2);
+  } else {
+    isicLevel2Options.value = [];
+    isicLevel3Options.value = [];
+    isicLevel4Options.value = [];
+  }
+  updateCurrentIsicSelection();
+});
+
+watch(selectedIsicLevel2, (newVal) => {
+  selectedIsicLevel3.value = '';
+  selectedIsicLevel4.value = '';
+  if (newVal) {
+    fetchIsicCodes(3, newVal, isicLevel3Options, isLoadingIsicLevel3);
+  } else {
+    isicLevel3Options.value = [];
+    isicLevel4Options.value = [];
+  }
+  updateCurrentIsicSelection();
+});
+
+watch(selectedIsicLevel3, (newVal) => {
+  selectedIsicLevel4.value = '';
+  if (newVal) {
+    fetchIsicCodes(4, newVal, isicLevel4Options, isLoadingIsicLevel4);
+  } else {
+    isicLevel4Options.value = [];
+  }
+  updateCurrentIsicSelection();
+});
+
+watch(selectedIsicLevel4, () => {
+  updateCurrentIsicSelection();
+});
+
+// Функция добавления выбранного ISIC кода в список
+const addIsicCode = () => {
+  if (currentSelectedIsicCode.value && currentSelectedIsicText.value) {
+    const alreadyExists = dleSettings.selectedOkved.find(c => c === currentSelectedIsicCode.value);
+    if (!alreadyExists) {
+      dleSettings.selectedOkved.push(currentSelectedIsicCode.value);
+      dleSettings.mainOkvedCode = currentSelectedIsicCode.value; // Обновляем основной код
+      
+      // Сбрасываем селекторы для выбора следующего кода
+      selectedIsicLevel1.value = '';
+      selectedIsicLevel2.value = '';
+      selectedIsicLevel3.value = '';
+      selectedIsicLevel4.value = '';
+      // Остальные опции сбросятся через watchers
+    } else {
+      alert('Этот код уже добавлен.');
+    }
+  } else {
+    alert('Код не выбран полностью.');
+  }
+};
 
 // Функция добавления выбранного ОКВЭД кода в список
 const addOkvedCode = () => {
@@ -1940,7 +2173,59 @@ const loadCountries = async () => {
   }
 };
 
-// Функция загрузки российских классификаторов
+// Функция загрузки классификаторов в зависимости от выбранной страны
+const loadClassifiers = async () => {
+  isLoadingRussianClassifiers.value = true;
+  try {
+    if (dleSettings.jurisdiction === '643') {
+      // Для России загружаем российские классификаторы
+      console.log('Загружаем российские классификаторы...');
+      
+      const response = await api.get('/russian-classifiers/all');
+      
+      if (response.data && response.data.success) {
+        const data = response.data.data;
+        russianClassifiers.oktmo = data.oktmo || [];
+        russianClassifiers.okved = data.okved || [];
+        
+        console.log('Российские классификаторы загружены:', {
+          oktmo: russianClassifiers.oktmo.length,
+          okved: russianClassifiers.okved.length
+        });
+        
+        // Инициализируем каскадную систему ОКВЭД
+        if (russianClassifiers.okved.length > 0) {
+          console.log('🎯 Инициализируем каскадную систему ОКВЭД...');
+          await fetchOkvedCodes(1, null, okvedLevel1Options, isLoadingOkvedLevel1);
+          
+          if (selectedOkvedLevel1.value) {
+            await fetchOkvedCodes(2, selectedOkvedLevel1.value, okvedLevel2Options, isLoadingOkvedLevel2);
+          }
+        }
+        
+        loadKppCodes();
+      }
+    } else {
+      // Для других стран загружаем ISIC
+      console.log('Загружаем ISIC классификаторы...');
+      
+      // Инициализируем каскадную систему ISIC
+      console.log('🎯 Инициализируем каскадную систему ISIC...');
+      await fetchIsicCodes(1, null, isicLevel1Options, isLoadingIsicLevel1);
+      
+      if (selectedIsicLevel1.value) {
+        await fetchIsicCodes(2, selectedIsicLevel1.value, isicLevel2Options, isLoadingIsicLevel2);
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке классификаторов:', error);
+    alert('Не удалось загрузить классификаторы с сервера.');
+  } finally {
+    isLoadingRussianClassifiers.value = false;
+  }
+};
+
+// Функция загрузки российских классификаторов (для совместимости)
 const loadRussianClassifiers = async () => {
   isLoadingRussianClassifiers.value = true;
   try {
@@ -2324,9 +2609,9 @@ watch(() => dleSettings.jurisdiction, (newJurisdiction, oldJurisdiction) => {
   autoSelectedOktmo.value = false;
   lastApiResult.value = null;
   
-  // Загружаем российские классификаторы при выборе России
-  if (newJurisdiction === '643') {
-    loadRussianClassifiers();
+  // Загружаем классификаторы в зависимости от выбранной страны
+  if (newJurisdiction) {
+    loadClassifiers();
   }
   
   // Автосохранение
@@ -2840,20 +3125,21 @@ async function submitDeploy() {
   .explorer-keys-grid { grid-template-columns: 1fr 1fr; }
 }
 .settings-panel {
-  padding: var(--block-padding);
-  background-color: var(--color-light);
-  border-radius: var(--radius-md);
-  margin-top: var(--spacing-lg);
+  padding: 0; /* Убираем отступы, так как они уже есть в родительском контейнере */
+  background-color: transparent; /* Убираем фон, так как он уже есть в родительском контейнере */
+  border-radius: 0; /* Убираем скругление углов */
+  margin-top: 0; /* Убираем отступ сверху */
   animation: fadeIn var(--transition-normal);
 }
 
 .settings-block {
-  background: #fff;
-  border-radius: var(--radius-lg, 16px);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  background: white;
+  border-radius: 12px; /* Согласуем с основными блоками */
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); /* Согласуем тень */
+  border: 1px solid #e9ecef; /* Добавляем границу как у основных блоков */
+  padding: 2rem; /* Увеличиваем отступы */
+  margin-top: 2rem; /* Увеличиваем отступ сверху */
+  margin-bottom: 2rem; /* Увеличиваем отступ снизу */
   width: 100%;
   position: relative;
   overflow-x: auto;
@@ -2878,7 +3164,8 @@ async function submitDeploy() {
 .form-section h3 {
   color: var(--color-primary);
   margin-bottom: 1rem;
-  font-size: 1.2rem;
+  font-size: 1.5rem;
+  font-weight: 600; /* Согласуем с основными заголовками */
 }
 
 .form-group {
@@ -2910,16 +3197,16 @@ async function submitDeploy() {
 .form-control {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  border: 1px solid #e9ecef; /* Согласуем с общими стилями */
+  border-radius: 8px; /* Согласуем с кнопками */
   font-size: 1rem;
-  transition: border-color 0.2s;
+  transition: all 0.2s; /* Добавляем плавный переход для всех свойств */
 }
 
 .form-control:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2); /* Согласуем с основными стилями */
 }
 
 .address-input-group {
@@ -3012,9 +3299,10 @@ async function submitDeploy() {
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px; /* Согласуем с основными кнопками */
   cursor: pointer;
   font-size: 1rem;
+  font-weight: 600; /* Добавляем жирность */
   transition: all 0.2s;
   text-decoration: none;
   display: inline-flex;
@@ -3029,11 +3317,13 @@ async function submitDeploy() {
 
 .btn-primary:hover {
   background: var(--color-primary-dark);
+  transform: translateY(-1px); /* Добавляем эффект hover */
 }
 
 .btn-primary:disabled {
   background: #ccc;
   cursor: not-allowed;
+  transform: none; /* Убираем эффект hover для отключенных кнопок */
 }
 
 .btn-secondary {
@@ -3604,6 +3894,24 @@ async function submitDeploy() {
   margin: 0 0 0.5rem 0;
   font-weight: 500;
   color: #155724;
+}
+
+.current-isic-selection {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #e8f5e8;
+  border-radius: 4px;
+  border: 1px solid #28a745;
+}
+
+.current-isic-selection p {
+  margin: 0 0 0.5rem 0;
+  font-weight: 500;
+  color: #155724;
+}
+
+.isic-cascade {
+  margin-bottom: 1rem;
 }
 
 .selected-okved-codes {

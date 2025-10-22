@@ -583,6 +583,8 @@ async function handleAiReply() {
   transition: all var(--transition-normal);
   z-index: 10;
   box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  bottom: 0;
 }
 
 .chat-input textarea {
@@ -769,7 +771,8 @@ async function handleAiReply() {
 
 @media (max-width: 480px) {
   .chat-input {
-    position: static !important;
+    position: sticky !important;
+    bottom: 0 !important;
     border-radius: 0 !important;
     padding: 8px 12px !important;
     background: #f8f8f8 !important;
@@ -783,7 +786,8 @@ async function handleAiReply() {
 
 @media (max-width: 600px) {
   .chat-input {
-    position: static !important;
+    position: sticky !important;
+    bottom: 0 !important;
     border-radius: 0 !important;
     padding: 8px 12px !important;
     background: #f8f8f8 !important;

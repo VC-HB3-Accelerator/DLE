@@ -62,10 +62,10 @@
 
 <style scoped>
 .settings-management {
-  padding: 20px;
-  background-color: var(--color-white);
-  border-radius: var(--radius-lg);
-  min-height: 100vh;
+  padding: 0; /* Убираем отступы, так как они уже есть в родительском контейнере */
+  background-color: transparent; /* Убираем фон, так как он уже есть в родительском контейнере */
+  border-radius: 0; /* Убираем скругление углов */
+  min-height: auto; /* Убираем фиксированную высоту */
 }
 
 .management-header {

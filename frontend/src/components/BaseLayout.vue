@@ -273,10 +273,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   max-width: calc(100% - 350px);
-  padding: 0 20px;
+  padding: 0 20px 20px 20px; /* Уменьшаем отступ снизу */
   background-color: var(--color-white);
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh; /* Изменяем на min-height для возможности прокрутки */
+  overflow-y: auto; /* Разрешаем вертикальную прокрутку */
+  overflow-x: hidden;
 }
 
 .main-content.no-right-sidebar {
@@ -293,22 +294,22 @@ onMounted(() => {
 @media (max-width: 768px) {
   .main-content {
     max-width: 100%;
-    padding-bottom: 20px; /* Убираем большой отступ, так как панель теперь полноэкранная */
+    padding-bottom: 10px; /* Уменьшаем отступ для мобильных устройств */
   }
   
   .main-content.no-right-sidebar {
-    padding-bottom: 20px;
+    padding-bottom: 10px;
   }
 }
 
 @media (max-width: 480px) {
   .main-content {
     padding: 0 10px;
-    padding-bottom: 10px; /* Убираем большой отступ */
+    padding-bottom: 5px; /* Минимальный отступ для очень маленьких экранов */
   }
   
   .main-content.no-right-sidebar {
-    padding-bottom: 10px;
+    padding-bottom: 5px;
   }
 }
 

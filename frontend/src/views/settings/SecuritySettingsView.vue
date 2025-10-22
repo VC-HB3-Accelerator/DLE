@@ -11,51 +11,56 @@
 -->
 
 <template>
-  <div class="security-settings settings-panel">
+  <div class="security-settings">
     <button class="close-btn" @click="goBack">×</button>
-    <h2>Настройки безопасности и подключения к блокчейну</h2>
+    
+    <!-- Заголовок в стиле основной страницы настроек -->
+    <div class="management-header">
+      <div class="header-content">
+        <h1>Настройки безопасности</h1>
+      </div>
+    </div>
 
-    <div class="settings-cards">
-      <!-- Блок RPC Провайдеры -->
-      <div class="info-card">
-        <h3>RPC Провайдеры</h3>
-        <div class="info-row">
-          <span class="info-label">Провайдеры:</span>
-          <span class="info-value">{{ securitySettings.rpcConfigs.length > 0 ? `${securitySettings.rpcConfigs.length} настроено` : 'Не настроено' }}</span>
-        </div>
-        <div class="card-actions">
-          <button class="btn btn-info" @click="handleRpcDetailsClick">
-            <i class="fas fa-info-circle"></i> Подробнее
+    <!-- Блоки настроек в едином стиле -->
+    <div class="management-blocks">
+      <!-- Столбец 1 -->
+      <div class="blocks-column">
+        <!-- Блок RPC Провайдеры -->
+        <div class="management-block">
+          <h3>RPC Провайдеры</h3>
+          <p>{{ securitySettings.rpcConfigs.length > 0 ? `${securitySettings.rpcConfigs.length} провайдеров настроено` : 'RPC провайдеры не настроены' }}</p>
+          <button class="details-btn" @click="handleRpcDetailsClick">
+            Подробнее
           </button>
         </div>
       </div>
 
-      <!-- Блок Аутентификация -->
-      <div class="info-card">
-        <h3>Аутентификация</h3>
-        <div class="info-row">
-          <span class="info-label">Токены:</span>
-          <span class="info-value">{{ securitySettings.authTokens.length > 0 ? `${securitySettings.authTokens.length} настроено` : 'Не настроено' }}</span>
-        </div>
-        <div class="card-actions">
-          <button class="btn btn-info" @click="showAuthSettings = !showAuthSettings">
-            <i class="fas fa-info-circle"></i> Подробнее
+      <!-- Столбец 2 -->
+      <div class="blocks-column">
+        <!-- Блок Аутентификация -->
+        <div class="management-block">
+          <h3>Аутентификация</h3>
+          <p>{{ securitySettings.authTokens.length > 0 ? `${securitySettings.authTokens.length} токенов настроено` : 'Токены аутентификации не настроены' }}</p>
+          <button class="details-btn" @click="showAuthSettings = !showAuthSettings">
+            Подробнее
           </button>
         </div>
       </div>
     </div>
     
-    <RpcProvidersSettings
-      v-if="showRpcSettings"
-      :rpcConfigs="securitySettings.rpcConfigs"
-      @update="loadSettings"
-      @test="testRpcHandler"
-    />
-    <AuthTokensSettings
-      v-if="showAuthSettings"
-      :authTokens="securitySettings.authTokens"
-      @update="loadSettings"
-    />
+    <div v-if="showRpcSettings" class="detail-panel">
+      <RpcProvidersSettings
+        :rpcConfigs="securitySettings.rpcConfigs"
+        @update="loadSettings"
+        @test="testRpcHandler"
+      />
+    </div>
+    <div v-if="showAuthSettings" class="detail-panel">
+      <AuthTokensSettings
+        :authTokens="securitySettings.authTokens"
+        @update="loadSettings"
+      />
+    </div>
     
     <!-- Модальное окно "Нет доступа" -->
     <NoAccessModal 
@@ -367,82 +372,105 @@ const goBack = () => router.push('/settings');
 </script>
 
 <style scoped>
-.settings-panel {
-  padding: var(--block-padding, 20px);
-  background-color: var(--color-light, #fff);
-  border-radius: var(--radius-md, 8px);
-  margin-top: var(--spacing-lg, 20px);
-  animation: fadeIn var(--transition-normal, 0.3s);
+.security-settings {
   position: relative;
 }
 
-h2 {
-  margin-bottom: var(--spacing-lg, 20px);
-  border-bottom: 1px solid var(--color-grey-light, #eee);
-  padding-bottom: var(--spacing-md, 15px);
-  color: var(--color-dark, #333);
+/* Заголовок в стиле основной страницы настроек */
+.management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e9ecef;
 }
 
-h3 {
-  margin-bottom: var(--spacing-md, 15px);
-  color: var(--color-primary, #4caf50);
+.header-content h1 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 2rem;
+  font-weight: 700;
 }
 
-h4 {
-  margin-bottom: var(--spacing-sm, 10px);
-  color: var(--color-dark, #333);
-}
-
-.settings-cards {
+/* Блоки настроек в едином стиле */
+.management-blocks {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-md, 15px);
-  margin-bottom: var(--spacing-lg, 20px);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
 }
 
-.info-card {
-  border: 1px solid var(--color-grey-light, #eee);
-  border-radius: var(--radius-md, 8px);
-  padding: var(--spacing-md, 15px);
-  background-color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.3s ease, transform 0.3s ease;
+.blocks-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: stretch;
 }
 
-.info-card:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+.management-block {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  transition: all 0.3s ease;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 250px;
+}
+
+.management-block:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   transform: translateY(-2px);
+  border-color: var(--color-primary);
 }
 
-.info-row {
-  display: flex;
-  margin-bottom: var(--spacing-xs, 5px);
+.management-block h3 {
+  margin: 0 0 1rem 0;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
-.info-label {
-  font-weight: 500;
-  color: var(--color-primary, #4caf50);
-  margin-right: var(--spacing-sm, 10px);
-  min-width: 80px;
+.management-block p {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  flex-grow: 1;
 }
 
-.info-value {
-  color: var(--color-dark, #333);
+.details-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  min-width: 120px;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
-.card-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--spacing-md, 15px);
+.details-btn:hover {
+  background: var(--color-primary-dark);
+  transform: translateY(-1px);
 }
 
 .detail-panel {
-  margin-top: var(--spacing-md, 15px);
-  margin-bottom: var(--spacing-lg, 20px);
-  padding: var(--spacing-md, 15px);
-  border: 1px solid var(--color-grey-light, #eee);
-  border-radius: var(--radius-md, 8px);
-  background-color: var(--color-light, #fafafa);
+  margin-top: 3rem; /* Увеличиваем отступ сверху */
+  margin-bottom: 2rem; /* Добавляем отступ снизу */
+  padding: 2rem; /* Увеличиваем внутренние отступы */
+  border: 1px solid #e9ecef;
+  border-radius: 12px; /* Согласуем с основными блоками */
+  background-color: white; /* Белый фон как у основных блоков */
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); /* Добавляем тень */
   animation: slideDown 0.3s ease;
 }
 
@@ -656,13 +684,41 @@ small {
   right: 18px;
   background: none;
   border: none;
-  font-size: 2rem;
+  font-size: 1.5rem;
   cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
   z-index: 10;
 }
+
 .close-btn:hover {
+  background: #f0f0f0;
   color: #333;
+}
+
+/* Адаптивность */
+@media (max-width: 1024px) {
+  .management-blocks {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .management-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
 }
 </style> 

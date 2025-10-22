@@ -77,7 +77,10 @@ const pageTitle = computed(() => {
     return 'Создать новое DLE (Digital Legal Entity)';
   }
   if (route.name === 'settings-dle-v2-deploy') {
-    return 'Создать современное DLE v2 (Digital Legal Entity)';
+    return 'Деплой контракта DLE (Digital Legal Entity)';
+  }
+  if (route.name === 'settings-security') {
+    return ''; // Убираем заголовок для страницы безопасности, так как он есть внутри компонента
   }
   return 'Настройки';
 });
@@ -119,7 +122,8 @@ onBeforeUnmount(() => {
   border-radius: var(--block-radius);
   box-shadow: var(--shadow-md);
   margin-top: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 20px; /* Уменьшаем отступ, так как он уже есть в BaseLayout */
+  min-height: auto; /* Убираем фиксированную высоту */
 }
 
 /* Заголовки */
