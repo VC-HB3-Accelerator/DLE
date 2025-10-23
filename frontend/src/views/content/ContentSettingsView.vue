@@ -12,9 +12,23 @@
 
 <template>
   <BaseLayout>
-    <div class="content-settings-block">
-      <h2>Настройки контента</h2>
-      <div class="empty-settings-placeholder">Здесь будут настройки для управления страницами.</div>
+    <div class="list-page">
+      <div class="page-header">
+        <div class="header-content">
+          <h1>Настройки контента</h1>
+          <p>Юр. реквизиты и параметры подстановки переменных</p>
+        </div>
+      </div>
+      <div class="content-block">
+        <div class="section-header">
+          <h2>Юр. реквизиты (переменные)</h2>
+        </div>
+        <div class="empty-state">
+          <div class="empty-icon"><i class="fas fa-cog"></i></div>
+          <h3>Скоро здесь появится настройка переменных</h3>
+          <p>Редактор сможет заполнить реквизиты для подстановки во все шаблоны</p>
+        </div>
+      </div>
     </div>
   </BaseLayout>
 </template>
@@ -24,19 +38,13 @@ import BaseLayout from '../../components/BaseLayout.vue';
 </script>
 
 <style scoped>
-.content-settings-block {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-  padding: 32px 24px 24px 24px;
-  width: 100%;
-  margin-top: 40px;
-  position: relative;
-  overflow-x: auto;
-}
-.empty-settings-placeholder {
-  color: #888;
-  font-size: 1.1em;
-  margin-top: 2em;
-}
+.list-page { padding: 20px; width: 100%; }
+.page-header { display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; }
+.header-content h1 { color: var(--color-primary); font-size: 2.2rem; margin: 0 0 8px 0; }
+.header-content p { color: var(--color-grey-dark); margin: 0; }
+.content-block { background: #f8f9fa; border-radius: var(--radius-lg); padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.section-header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 20px; }
+.section-header h2 { color: var(--color-primary); margin: 0; }
+.empty-state { text-align:center; padding: 60px 20px; }
+.empty-icon { font-size: 3rem; color: var(--color-grey-dark); margin-bottom: 10px; }
 </style> 

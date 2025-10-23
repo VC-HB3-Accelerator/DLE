@@ -25,10 +25,6 @@
           <h1>Управление контентом</h1>
           <p v-if="canEditData && address">Создавайте и управляйте страницами вашего DLE</p>
           <p v-else>Просмотр опубликованных страниц DLE</p>
-          <button v-if="canEditData && address" class="btn btn-primary" @click="goToCreate">
-            <i class="fas fa-plus"></i>
-            Создать страницу
-          </button>
         </div>
         <div class="header-actions">
           <button class="close-btn" @click="goBack">×</button>
@@ -37,153 +33,57 @@
 
       <!-- Основной контент с тенью -->
       <div class="content-block">
-        <!-- Навигация -->
-        <div class="content-navigation">
-          <div class="nav-tabs">
-            <button 
-              class="nav-tab" 
-              :class="{ active: activeTab === 'pages' }"
-              @click="activeTab = 'pages'"
-            >
-              <i class="fas fa-file-alt"></i>
-              Страницы
-            </button>
-            <button 
-              class="nav-tab" 
-              :class="{ active: activeTab === 'settings' }"
-              @click="activeTab = 'settings'"
-            >
-              <i class="fas fa-cog"></i>
-              Настройки
-            </button>
-          </div>
-        </div>
+        <!-- Быстрые разделы -->
+        <div class="quick-sections">
+          <div class="management-blocks">
+            <div class="blocks-column">
+              <div class="management-block">
+                <h3>Создать страницу</h3>
+                <p>Создайте новую страницу и заполните содержимое</p>
+                <button class="details-btn" @click="goToCreate">Подробнее</button>
+              </div>
 
-        <!-- Контент в зависимости от активной вкладки -->
-        <div class="content-section">
-          <!-- Вкладка Страницы -->
-          <div v-if="activeTab === 'pages'" class="pages-section">
-            <div class="section-header">
-              <h2 v-if="canEditData && address">Созданные страницы</h2>
-              <h2 v-else>Опубликованные страницы</h2>
-              <div class="search-box">
-                <input 
-                  v-model="searchQuery" 
-                  type="text" 
-                  placeholder="Поиск страниц..."
-                  class="search-input"
-                >
-                <i class="fas fa-search search-icon"></i>
+              <div class="management-block">
+                <h3>Шаблоны</h3>
+                <p>Системные шаблоны документов. Персонализируйте перед публикацией</p>
+                <button class="details-btn" @click="goToTemplates">Подробнее</button>
               </div>
             </div>
 
-            <!-- Список страниц -->
-            <div v-if="filteredPages.length" class="pages-grid">
-              <div 
-                v-for="page in filteredPages" 
-                :key="page.id" 
-                class="page-card"
-                @click="goToPage(page.id)"
-              >
-                <div class="page-card-header">
-                  <h3>{{ page.title }}</h3>
-                  <div class="page-actions" v-if="canEditData && address">
-                    <button 
-                      class="action-btn edit-btn"
-                      @click.stop="goToEdit(page.id)"
-                      title="Редактировать"
-                    >
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button 
-                      class="action-btn delete-btn"
-                      @click.stop="deletePage(page.id)"
-                      title="Удалить"
-                    >
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </div>
-                </div>
-                <div class="page-card-content">
-                  <p class="page-summary">{{ page.summary || 'Без описания' }}</p>
-                  <div class="page-meta">
-                    <span class="page-date">
-                      <i class="fas fa-calendar"></i>
-                      {{ formatDate(page.created_at) }}
-                    </span>
-                    <span class="page-status" :class="page.status">
-                      <i class="fas fa-circle"></i>
-                      {{ getStatusText(page.status) }}
-                    </span>
-                    <span class="page-author" v-if="page.author_address">
-                      <i class="fas fa-user"></i>
-                      {{ formatAddress(page.author_address) }}
-                    </span>
-                  </div>
-                </div>
+            <div class="blocks-column">
+              <div class="management-block">
+                <h3>Публичные</h3>
+                <p>Публичные документы, доступные пользователям</p>
+                <button class="details-btn" @click="goToPublished">Подробнее</button>
+              </div>
+
+              <div class="management-block">
+                <h3>Настройка</h3>
+                <p>Юр. реквизиты и параметры подстановки переменных</p>
+                <button class="details-btn" @click="goToContentSettings">Подробнее</button>
               </div>
             </div>
 
-            <!-- Пустое состояние -->
-            <div v-else-if="!isLoading" class="empty-state">
-              <div class="empty-icon">
-                <i class="fas fa-file-alt"></i>
-              </div>
-              <h3 v-if="canEditData && address">Нет созданных страниц</h3>
-              <h3 v-else>Нет опубликованных страниц</h3>
-              <p v-if="canEditData && address">Создайте первую страницу для вашего DLE</p>
-              <p v-else>Публичные страницы появятся здесь после их создания администраторами</p>
-              <button v-if="canEditData && address" class="btn btn-primary" @click="goToCreate">
-                <i class="fas fa-plus"></i>
-                Создать страницу
-              </button>
-            </div>
-
-            <!-- Загрузка -->
-            <div v-else class="loading-state">
-              <div class="loading-spinner"></div>
-              <p>Загрузка страниц...</p>
-            </div>
-          </div>
-
-
-          <!-- Вкладка Настройки -->
-          <div v-if="activeTab === 'settings'" class="settings-section">
-            <div class="section-header">
-              <h2>Настройки контента</h2>
-            </div>
-            
-            <div class="settings-grid">
-              <div class="setting-card">
-                <h3>SEO настройки</h3>
-                <div class="setting-item">
-                  <label>Мета-теги по умолчанию</label>
-                  <textarea v-model="seoSettings.defaultMeta" placeholder="Введите мета-теги..."></textarea>
-                </div>
-              </div>
-              
-              <div class="setting-card">
-                <h3>Настройки публикации</h3>
-                <div class="setting-item">
-                  <label>
-                    <input type="checkbox" v-model="publishSettings.autoPublish">
-                    Автоматическая публикация
-                  </label>
-                </div>
+            <div class="blocks-column">
+              <div class="management-block">
+                <h3>Внутренние</h3>
+                <p>Внутренние документы, видимые только по ролям</p>
+                <button class="details-btn" @click="goToInternal">Подробнее</button>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Секции списков и настроек удалены: навигация через карточки выше -->
       </div>
     </div>
   </BaseLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
-import pagesService from '../../services/pagesService';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
 
@@ -214,45 +114,6 @@ const router = useRouter();
 const { address } = useAuthContext();
 const { canEditData } = usePermissions();
 
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[ContentListView] Clearing pages data');
-    // Очищаем данные при выходе из системы
-    pages.value = [];
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[ContentListView] Refreshing pages data');
-    loadPages(); // Обновляем данные при входе в систему
-  });
-});
-
-// Состояние
-const activeTab = ref('pages');
-const pages = ref([]);
-const isLoading = ref(false);
-const searchQuery = ref('');
-
-// Настройки
-const seoSettings = ref({
-  defaultMeta: ''
-});
-
-const publishSettings = ref({
-  autoPublish: false
-});
-
-
-// Вычисляемые свойства
-const filteredPages = computed(() => {
-  if (!searchQuery.value) return pages.value;
-  return pages.value.filter(page => 
-    page.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    page.summary?.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
-});
-
 // Методы
 function goToCreate() {
   router.push({ name: 'content-create' });
@@ -263,23 +124,26 @@ function goBack() {
   router.go(-1);
 }
 
-function goToPage(id) {
-  if (canEditData.value && address.value) {
-    router.push({ name: 'page-view', params: { id } });
-  } else {
-    router.push({ name: 'public-page-view', params: { id } });
-  }
+function goToTemplates() {
+  router.push({ name: 'content-templates' });
 }
 
-function goToEdit(id) {
-  router.push({ name: 'page-edit', params: { id } });
+function goToPublished() {
+  router.push({ name: 'content-published' });
+}
+
+function goToInternal() {
+  router.push({ name: 'content-internal' });
+}
+
+function goToContentSettings() {
+  router.push({ name: 'content-settings' });
 }
 
 async function deletePage(id) {
   if (confirm('Вы уверены, что хотите удалить эту страницу?')) {
     try {
-      await pagesService.deletePage(id);
-      await loadPages();
+      // удаление здесь больше не используется
     } catch (error) {
       console.error('Ошибка удаления страницы:', error);
     }
@@ -287,60 +151,7 @@ async function deletePage(id) {
 }
 
 
-function formatDate(date) {
-  if (!date) return 'Не указана';
-  return new Date(date).toLocaleDateString('ru-RU');
-}
-
-function formatAddress(address) {
-  if (!address) return '';
-  // Показываем сокращенный адрес: 0x1234...5678
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function getStatusText(status) {
-  const statusMap = {
-    draft: 'Черновик',
-    published: 'Опубликовано',
-    archived: 'Архив'
-  };
-  return statusMap[status] || 'Неизвестно';
-}
-
-async function loadPages() {
-  try {
-    isLoading.value = true;
-    
-    // Проверяем роль админа через кошелек
-    if (canEditData.value && address.value) {
-      try {
-        // Пытаемся загрузить админские страницы
-        const response = await pagesService.getPages();
-        pages.value = response;
-      } catch (error) {
-        if (error.response?.status === 403) {
-          // Пользователь не админ или нет токенов, загружаем публичные страницы
-          pages.value = await pagesService.getPublicPages();
-        } else {
-          throw error;
-        }
-      }
-    } else {
-      // Пользователь не админ или нет кошелька, загружаем публичные страницы
-      pages.value = await pagesService.getPublicPages();
-    }
-  } catch (error) {
-    console.error('Ошибка загрузки страниц:', error);
-    pages.value = [];
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-// Загрузка данных
-onMounted(() => {
-  loadPages();
-});
+// Удалены: загрузка и локальные списки — навигация через карточки
 </script>
 
 <style scoped>
@@ -414,6 +225,21 @@ onMounted(() => {
   padding: 25px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
+
+.quick-sections { margin-bottom: 24px; }
+
+/* Стили блоков как в CRM */
+.management-blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+.blocks-column { display: flex; flex-direction: column; gap: 1.5rem; align-items: stretch; }
+.management-block { background: #fff; border-radius: 12px; padding: 2rem; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid #e9ecef; transition: all 0.3s ease; text-align: center; display: flex; flex-direction: column; justify-content: space-between; height: 250px; }
+.management-block:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); transform: translateY(-2px); border-color: var(--color-primary); }
+.management-block h3 { margin: 0 0 1rem 0; color: var(--color-primary); font-size: 1.5rem; font-weight: 600; }
+.management-block p { margin: 0 0 1.5rem 0; color: #666; font-size: 1rem; line-height: 1.5; }
+.details-btn { background: var(--color-primary); color: #fff; border: none; border-radius: 8px; padding: 0.75rem 1.5rem; cursor: pointer; font-size: 1rem; font-weight: 600; transition: all 0.2s; min-width: 120px; margin-top: auto; }
+.details-btn:hover { background: var(--color-primary-dark); transform: translateY(-1px); }
+
+@media (max-width: 1024px) { .management-blocks { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) { .management-blocks { grid-template-columns: 1fr; } }
 
 .content-section {
   background: #f8f9fa;

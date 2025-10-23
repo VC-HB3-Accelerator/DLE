@@ -39,13 +39,9 @@
           </div>
         </div>
         <div class="header-actions">
-          <button class="btn btn-outline" @click="goToEdit">
+          <button v-if="canEditData && address" class="btn btn-outline" @click="goToEdit">
             <i class="fas fa-edit"></i>
             Редактировать
-          </button>
-          <button class="btn btn-danger" @click="deletePage">
-            <i class="fas fa-trash"></i>
-            Удалить
           </button>
           <button class="close-btn" @click="goBack">×</button>
         </div>
@@ -66,7 +62,21 @@
           <div class="content-section">
             <h2>Содержание</h2>
             <div class="main-content">
-              <div v-if="page.content" v-html="formatContent(page.content)"></div>
+              <!-- HTML -->
+              <div v-if="page.format === 'html' && page.content" v-html="formatContent(page.content)"></div>
+
+              <!-- PDF -->
+              <div v-else-if="page.format === 'pdf' && page.file_path" class="file-preview">
+                <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
+                <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
+              </div>
+
+              <!-- Image -->
+              <div v-else-if="page.format === 'image' && page.file_path" class="file-preview">
+                <img :src="page.file_path" alt="Документ" class="image-preview" />
+                <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать изображение</a>
+              </div>
+
               <div v-else class="empty-content">
                 <i class="fas fa-file-alt"></i>
                 <p>Контент не добавлен</p>
@@ -141,6 +151,9 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
+import api from '../../api/axios';
+import { useAuthContext } from '../../composables/useAuth';
+import { usePermissions } from '../../composables/usePermissions';
 
 // Props
 const props = defineProps({
@@ -170,11 +183,22 @@ const router = useRouter();
 
 // Состояние
 const page = ref(null);
+const { address } = useAuthContext();
+const { canEditData } = usePermissions();
 const isLoading = ref(false);
 
 // Методы
 function goToEdit() {
-  router.push({ name: 'page-edit', params: { id: route.params.id } });
+  router.push({ name: 'content-create', query: { edit: route.params.id } });
+}
+
+async function reindex() {
+  try {
+    await api.post(`/pages/${route.params.id}/reindex`);
+    alert('Индексация выполнена');
+  } catch (e) {
+    alert('Ошибка индексации: ' + (e?.response?.data?.error || e.message));
+  }
 }
 
 async function deletePage() {
@@ -362,6 +386,10 @@ onMounted(() => {
   line-height: 1.8;
   color: #333;
 }
+
+.file-preview { display: flex; flex-direction: column; gap: 12px; }
+.pdf-embed { width: 100%; height: 70vh; border: 1px solid #e9ecef; border-radius: var(--radius-sm); }
+.image-preview { max-width: 100%; border: 1px solid #e9ecef; border-radius: var(--radius-sm); }
 
 .empty-content {
   text-align: center;

@@ -13,6 +13,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const vectorSearchClient = require('../services/vectorSearchClient');
 
 const FIELDS_TO_EXCLUDE = ['image', 'tags'];
 
@@ -70,8 +74,31 @@ async function ensureAdminPagesTable(fields) {
   return { tableName, encryptionKey };
 }
 
+// Конфигурация загрузки файлов для юридических документов
+// Храним файлы там, откуда их раздаёт express.static('/uploads', path.join(__dirname, 'uploads'))
+const uploadsRoot = path.join(__dirname, '..', 'uploads');
+const legalDir = path.join(uploadsRoot, 'legal');
+if (!fs.existsSync(legalDir)) {
+  try { fs.mkdirSync(legalDir, { recursive: true }); } catch (e) {}
+}
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, legalDir);
+  },
+  filename: function (req, file, cb) {
+    const safeName = Date.now() + '-' + (file.originalname || 'file');
+    cb(null, safeName);
+  }
+});
+const upload = multer({ storage });
+
+function stripHtml(html) {
+  if (!html) return '';
+  return String(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // Создать страницу (только для админа)
-router.post('/', async (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
   if (!req.session || !req.session.authenticated) {
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
@@ -87,20 +114,65 @@ router.post('/', async (req, res) => {
   }
   
   const authorAddress = req.session.address;
-  const fields = Object.keys(req.body).filter(f => !FIELDS_TO_EXCLUDE.includes(f));
   const tableName = `admin_pages_simple`;
 
-  // Формируем SQL для вставки данных
-  const colNames = ['author_address', ...fields].join(', ');
-  const values = [authorAddress, ...fields.map(f => {
-    const value = typeof req.body[f] === 'object' ? JSON.stringify(req.body[f]) : req.body[f];
-    return value || '';
-  })];
+  // Собираем данные страницы
+  const bodyRaw = req.body || {};
+  const pageData = {
+    title: bodyRaw.title || '',
+    summary: bodyRaw.summary || '',
+    content: bodyRaw.content || '',
+    seo: bodyRaw.seo ? (typeof bodyRaw.seo === 'string' ? bodyRaw.seo : JSON.stringify(bodyRaw.seo)) : null,
+    status: bodyRaw.status || 'draft',
+    settings: bodyRaw.settings ? (typeof bodyRaw.settings === 'string' ? bodyRaw.settings : JSON.stringify(bodyRaw.settings)) : null,
+    visibility: bodyRaw.visibility || 'public',
+    required_permission: bodyRaw.required_permission || null,
+    format: bodyRaw.format || (req.file ? (req.file.mimetype?.startsWith('image/') ? 'image' : 'pdf') : 'html'),
+    mime_type: req.file ? (req.file.mimetype || null) : (bodyRaw.mime_type || (bodyRaw.format === 'html' ? 'text/html' : null)),
+    storage_type: req.file ? 'file' : (bodyRaw.storage_type || 'embedded'),
+    file_path: req.file ? path.join('/uploads', 'legal', path.basename(req.file.path)) : (bodyRaw.file_path || null),
+    size_bytes: req.file ? req.file.size : (bodyRaw.size_bytes || null),
+    checksum: bodyRaw.checksum || null
+  };
+
+  // Формируем SQL для вставки данных (только непустые поля)
+  const dataEntries = Object.entries(pageData).filter(([, v]) => v !== undefined);
+  const colNames = ['author_address', ...dataEntries.map(([k]) => k)].join(', ');
+  const values = [authorAddress, ...dataEntries.map(([, v]) => v)];
   const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-  
+
   const sql = `INSERT INTO ${tableName} (${colNames}) VALUES (${placeholders}) RETURNING *`;
   const { rows } = await db.getQuery()(sql, values);
-  res.json(rows[0]);
+  const created = rows[0];
+
+  // Индексация в vector-search (только для HTML, если есть текст)
+  try {
+    if (created && (created.format === 'html' || pageData.format === 'html')) {
+      const text = stripHtml(created.content || pageData.content || '');
+      if (text && text.length > 0) {
+        const url = created.visibility === 'public' && created.status === 'published'
+          ? `/public/page/${created.id}`
+          : `/content/page/${created.id}`;
+        await vectorSearchClient.upsert('legal_docs', [{
+          row_id: created.id,
+          text,
+          metadata: {
+            doc_id: created.id,
+            title: created.title,
+            url,
+            visibility: created.visibility || pageData.visibility,
+            required_permission: created.required_permission || pageData.required_permission,
+            format: created.format || pageData.format,
+            updated_at: created.updated_at || null
+          }
+        }]);
+      }
+    }
+  } catch (e) {
+    console.error('[pages] vector upsert error:', e.message);
+  }
+
+  res.json(created);
 });
 
 // Получить все страницы админов
@@ -171,8 +243,65 @@ router.get('/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
+// Ручная переиндексация документа в vector-search (только для админа)
+router.post('/:id/reindex', async (req, res) => {
+  if (!req.session || !req.session.authenticated) {
+    return res.status(401).json({ error: 'Требуется аутентификация' });
+  }
+  if (!req.session.address) {
+    return res.status(403).json({ error: 'Требуется подключение кошелька' });
+  }
+
+  // Проверяем роль админа через токены в кошельке
+  const authService = require('../services/auth-service');
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
+    return res.status(403).json({ error: 'Only admin can reindex pages' });
+  }
+
+  const tableName = `admin_pages_simple`;
+  const existsRes = await db.getQuery()( `SELECT to_regclass($1) as exists`, [tableName] );
+  if (!existsRes.rows[0].exists) return res.status(404).json({ error: 'Page table not found' });
+
+  const { rows } = await db.getQuery()( `SELECT * FROM ${tableName} WHERE id = $1`, [req.params.id] );
+  if (!rows.length) return res.status(404).json({ error: 'Page not found' });
+  const page = rows[0];
+
+  if (page.format !== 'html') {
+    return res.status(422).json({ error: 'Индексация поддерживается только для HTML' });
+  }
+
+  const text = stripHtml(page.content || '');
+  if (!text) {
+    return res.status(422).json({ error: 'Пустое содержимое для индексации' });
+  }
+
+  try {
+    const url = page.visibility === 'public' && page.status === 'published'
+      ? `/public/page/${page.id}`
+      : `/content/page/${page.id}`;
+    await vectorSearchClient.upsert('legal_docs', [{
+      row_id: page.id,
+      text,
+      metadata: {
+        doc_id: page.id,
+        title: page.title,
+        url,
+        visibility: page.visibility,
+        required_permission: page.required_permission,
+        format: page.format,
+        updated_at: page.updated_at || null
+      }
+    }]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[pages] manual reindex error:', e.message);
+    res.status(500).json({ error: 'Ошибка индексации' });
+  }
+});
+
 // Редактировать страницу по id
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', upload.single('file'), async (req, res) => {
   if (!req.session || !req.session.authenticated) {
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
@@ -193,22 +322,58 @@ router.patch('/:id', async (req, res) => {
   );
   if (!existsRes.rows[0].exists) return res.status(404).json({ error: 'Page table not found' });
   
-  const fields = Object.keys(req.body).filter(f => !FIELDS_TO_EXCLUDE.includes(f));
-  if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
-  
-  const filteredBody = {};
-  fields.forEach(f => { 
-    // Преобразуем объекты в JSON строки
-    filteredBody[f] = typeof req.body[f] === 'object' ? JSON.stringify(req.body[f]) : req.body[f];
-  });
-  const setClause = fields.map((f, i) => `"${f}" = $${i + 1}`).join(', ');
-  const values = Object.values(filteredBody);
+  const incoming = req.body || {};
+  const updateData = {};
+  for (const [k, v] of Object.entries(incoming)) {
+    if (FIELDS_TO_EXCLUDE.includes(k)) continue;
+    updateData[k] = typeof v === 'object' ? JSON.stringify(v) : v;
+  }
+  if (req.file) {
+    updateData.format = req.file.mimetype?.startsWith('image/') ? 'image' : 'pdf';
+    updateData.mime_type = req.file.mimetype || null;
+    updateData.storage_type = 'file';
+    updateData.file_path = path.join('/uploads', 'legal', path.basename(req.file.path));
+    updateData.size_bytes = req.file.size;
+  }
+  const entries = Object.entries(updateData);
+  if (!entries.length) return res.status(400).json({ error: 'No fields to update' });
+  const setClause = entries.map(([f], i) => `"${f}" = $${i + 1}`).join(', ');
+  const values = entries.map(([, v]) => v);
   values.push(req.params.id);
-  
-  const sql = `UPDATE ${tableName} SET ${setClause}, updated_at = NOW() WHERE id = $${fields.length + 1} RETURNING *`;
+
+  const sql = `UPDATE ${tableName} SET ${setClause}, updated_at = NOW() WHERE id = $${entries.length + 1} RETURNING *`;
   const { rows } = await db.getQuery()(sql, values);
   if (!rows.length) return res.status(404).json({ error: 'Page not found' });
-  res.json(rows[0]);
+  const updated = rows[0];
+
+  // Индексация для HTML
+  try {
+    if (updated && (updated.format === 'html')) {
+      const text = stripHtml(updated.content || '');
+      if (text) {
+        const url = updated.visibility === 'public' && updated.status === 'published'
+          ? `/public/page/${updated.id}`
+          : `/content/page/${updated.id}`;
+        await vectorSearchClient.upsert('legal_docs', [{
+          row_id: updated.id,
+          text,
+          metadata: {
+            doc_id: updated.id,
+            title: updated.title,
+            url,
+            visibility: updated.visibility,
+            required_permission: updated.required_permission,
+            format: updated.format,
+            updated_at: updated.updated_at || null
+          }
+        }]);
+      }
+    }
+  } catch (e) {
+    console.error('[pages] vector upsert (update) error:', e.message);
+  }
+
+  res.json(updated);
 });
 
 // Удалить страницу по id
@@ -238,7 +403,15 @@ router.delete('/:id', async (req, res) => {
     [req.params.id]
   );
   if (!rows.length) return res.status(404).json({ error: 'Page not found' });
-  res.json(rows[0]);
+  const deleted = rows[0];
+  try {
+    if (deleted && deleted.format === 'html') {
+      await vectorSearchClient.remove('legal_docs', [deleted.id]);
+    }
+  } catch (e) {
+    console.error('[pages] vector remove error:', e.message);
+  }
+  res.json(deleted);
 });
 
 // Публичные маршруты для просмотра страниц (доступны всем пользователям)
@@ -266,6 +439,44 @@ router.get('/public/all', async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error('Ошибка получения публичных страниц:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Внутренние документы (доступны аутентифицированным пользователям с доступом)
+router.get('/internal/all', async (req, res) => {
+  try {
+    if (!req.session || !req.session.authenticated) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    if (!req.session.address) {
+      return res.status(403).json({ error: 'Требуется подключение кошелька' });
+    }
+
+    const tableName = `admin_pages_simple`;
+    const existsRes = await db.getQuery()( `SELECT to_regclass($1) as exists`, [tableName] );
+    if (!existsRes.rows[0].exists) {
+      return res.json([]);
+    }
+
+    const authService = require('../services/auth-service');
+    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+    if (!userAccessLevel.hasAccess) {
+      return res.status(403).json({ error: 'Only internal users can view pages' });
+    }
+
+    // READONLY/EDITOR видят внутренние опубликованные; EDITOR может видеть и черновики
+    const role = userAccessLevel.level; // 'readonly' | 'editor'
+    let sql;
+    if (role === 'editor') {
+      sql = `SELECT * FROM ${tableName} WHERE visibility = 'internal' ORDER BY created_at DESC`;
+    } else {
+      sql = `SELECT * FROM ${tableName} WHERE visibility = 'internal' AND status = 'published' ORDER BY created_at DESC`;
+    }
+    const { rows } = await db.getQuery()(sql);
+    res.json(rows);
+  } catch (error) {
+    console.error('Ошибка получения внутренних страниц:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });

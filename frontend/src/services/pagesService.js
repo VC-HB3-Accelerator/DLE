@@ -18,8 +18,9 @@ export default {
     const res = await api.get('/pages');
     return res.data;
   },
-  async createPage(data) {
-    const res = await api.post('/pages', data);
+  async createPage(data, isFormData = false) {
+    const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined;
+    const res = await api.post('/pages', data, config);
     return res.data;
   },
   async getPage(id) {
@@ -38,6 +39,10 @@ export default {
   // Публичные методы (доступны всем пользователям)
   async getPublicPages() {
     const res = await api.get('/pages/public/all');
+    return res.data;
+  },
+  async getInternalPages() {
+    const res = await api.get('/pages/internal/all');
     return res.data;
   },
   async getPublicPage(id) {

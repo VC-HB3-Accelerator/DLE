@@ -62,7 +62,12 @@ const PERMISSIONS = {
   BLOCK_USERS: 'block_users',
   
   // Управление настройками
-  MANAGE_SETTINGS: 'manage_settings'
+  MANAGE_SETTINGS: 'manage_settings',
+
+  // Контент: юридические документы
+  VIEW_BASIC_DOCS: 'view_basic_docs',      // Базовые документы для пользователей
+  VIEW_LEGAL_DOCS: 'view_legal_docs',     // Юридические документы для читателей
+  MANAGE_LEGAL_DOCS: 'manage_legal_docs'  // Управление документами для редакторов
 };
 
 // Матрица: какая роль имеет какие права
@@ -78,7 +83,8 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.RECEIVE_MESSAGES,
     PERMISSIONS.VIEW_CONTACTS, // Пользователи могут видеть контакты для выбора
     PERMISSIONS.SEND_TO_USERS, // Пользователи могут отправлять сообщения
-    PERMISSIONS.CHAT_WITH_ADMINS // Авторизованные пользователи могут видеть личные сообщения
+    PERMISSIONS.CHAT_WITH_ADMINS, // Авторизованные пользователи могут видеть личные сообщения
+    PERMISSIONS.VIEW_BASIC_DOCS // Базовые документы для пользователей
   ],
   
   [ROLES.READONLY]: [
@@ -89,7 +95,11 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.VIEW_CONTACTS,
     PERMISSIONS.VIEW_DATA,
     PERMISSIONS.SEND_TO_USERS,
-    PERMISSIONS.CHAT_WITH_ADMINS
+    PERMISSIONS.CHAT_WITH_ADMINS,
+    // Базовые документы для пользователей
+    PERMISSIONS.VIEW_BASIC_DOCS,
+    // Чтение внутренних юридических документов
+    PERMISSIONS.VIEW_LEGAL_DOCS
   ],
   
   [ROLES.EDITOR]: [
@@ -109,7 +119,12 @@ const PERMISSIONS_MAP = {
     PERMISSIONS.BROADCAST,
     PERMISSIONS.MANAGE_TAGS,
     PERMISSIONS.BLOCK_USERS,
-    PERMISSIONS.MANAGE_SETTINGS
+    PERMISSIONS.MANAGE_SETTINGS,
+    // Базовые документы для пользователей
+    PERMISSIONS.VIEW_BASIC_DOCS,
+    // Полный доступ к юридическим документам
+    PERMISSIONS.VIEW_LEGAL_DOCS,
+    PERMISSIONS.MANAGE_LEGAL_DOCS
   ]
 };
 

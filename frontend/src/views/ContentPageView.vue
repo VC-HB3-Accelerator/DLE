@@ -22,8 +22,8 @@
       <!-- Заголовок страницы -->
       <div class="page-header">
         <div class="header-content">
-          <h1>📝 Создание страницы</h1>
-          <p>Создайте новую страницу для вашего DLE</p>
+          <h1>{{ isEditMode ? 'Редактирование страницы' : 'Создание страницы' }}</h1>
+          <p>{{ isEditMode ? 'Редактируйте существующую страницу' : 'Создайте новую страницу для вашего DLE' }}</p>
         </div>
         <div class="header-actions">
           <button class="close-btn" @click="goBack">×</button>
@@ -33,6 +33,41 @@
       <!-- Основной контент с тенью -->
       <div class="content-block">
         <form class="content-form" @submit.prevent="handleSubmit">
+          <!-- Параметры документа -->
+          <div class="form-section">
+            <h2>Параметры документа</h2>
+            <div class="form-group">
+              <label for="visibility">Видимость</label>
+              <select v-model="form.visibility" id="visibility" class="form-select">
+                <option value="public">Публичный</option>
+                <option value="internal">Внутренний</option>
+              </select>
+            </div>
+            <div class="form-group" v-if="form.visibility === 'internal'">
+              <label for="required-permission">Уровень доступа к документу</label>
+              <select
+                v-model="form.requiredPermission"
+                id="required-permission"
+                class="form-select"
+              >
+                <option value="">— Выберите роль —</option>
+                <option :value="PERMISSIONS.VIEW_BASIC_DOCS">Пользователь</option>
+                <option :value="PERMISSIONS.VIEW_LEGAL_DOCS">Читатель</option>
+                <option :value="PERMISSIONS.MANAGE_LEGAL_DOCS">Редактор</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="format">Формат</label>
+              <select v-model="form.format" id="format" class="form-select">
+                <option value="html">HTML (встроенный)</option>
+                <option value="pdf" disabled>PDF (загрузка файла) — скоро</option>
+                <option value="image" disabled>Изображение (PNG/JPG) — скоро</option>
+              </select>
+            </div>
+            <p class="form-hint">
+              Для HTML-постов переменные подставляются при рендере. Реквизиты заполняются на странице настроек контента.
+            </p>
+          </div>
           <!-- Основная информация -->
           <div class="form-section">
             <h2>Основная информация</h2>
@@ -63,7 +98,7 @@
           <!-- Контент -->
           <div class="form-section">
             <h2>Содержание</h2>
-            <div class="form-group">
+            <div class="form-group" v-if="form.format === 'html'">
               <label for="content">Основной контент *</label>
               <textarea 
                 v-model="form.content" 
@@ -77,6 +112,11 @@
                 <span>Слов: {{ wordCount }}</span>
                 <span>Символов: {{ characterCount }}</span>
               </div>
+            </div>
+            <div class="form-group" v-else>
+              <label for="file">Файл (PDF/PNG/JPG) *</label>
+              <input id="file" type="file" accept="application/pdf,image/png,image/jpeg" @change="onFileChange" class="form-input" />
+              <p class="form-hint" v-if="fileName">Выбран файл: {{ fileName }}</p>
             </div>
           </div>
 
@@ -115,28 +155,6 @@
             </div>
           </div>
 
-          <!-- Настройки публикации -->
-          <div class="form-section">
-            <h2>Настройки публикации</h2>
-            <div class="form-group">
-              <label class="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  v-model="form.settings.autoPublish"
-                  class="form-checkbox"
-                />
-                <span>Опубликовать сразу после создания</span>
-              </label>
-            </div>
-            <div class="form-group">
-              <label for="status">Статус</label>
-              <select v-model="form.status" id="status" class="form-select">
-                <option value="draft">Черновик</option>
-                <option value="published">Опубликовано</option>
-                <option value="pending">На модерации</option>
-              </select>
-            </div>
-          </div>
 
           <!-- Кнопки действий -->
           <div class="form-actions">
@@ -145,8 +163,8 @@
               Отмена
             </button>
             <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
-              <i class="fas fa-save"></i>
-              {{ isSubmitting ? 'Сохранение...' : 'Создать страницу' }}
+              <i class="fas fa-globe"></i>
+              {{ isSubmitting ? 'Публикация...' : 'Опубликовать' }}
             </button>
           </div>
         </form>
@@ -156,10 +174,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import pagesService from '../services/pagesService';
+import { PERMISSIONS } from '/app/shared/permissions.js';
+import { useAuthContext } from '../composables/useAuth';
+import { usePermissions } from '../composables/usePermissions';
 
 // Props
 const props = defineProps({
@@ -185,6 +206,17 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const route = useRoute();
+const PERMISSIONS_REF = PERMISSIONS; // для шаблона
+
+// Проверка прав доступа
+const { address } = useAuthContext();
+const { hasPermission } = usePermissions();
+const canManageLegalDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
+
+// Режим редактирования
+const isEditMode = computed(() => !!route.query.edit);
+const editId = computed(() => route.query.edit);
 
 // Состояние формы
 const form = ref({
@@ -199,10 +231,15 @@ const form = ref({
   settings: {
     autoPublish: false
   },
-  status: 'draft'
+  status: 'published',
+  visibility: 'public',
+  requiredPermission: '',
+  format: 'html'
 });
 
 const isSubmitting = ref(false);
+const fileBlob = ref(null);
+const fileName = ref('');
 
 // Вычисляемые свойства
 const wordCount = computed(() => {
@@ -218,6 +255,41 @@ function goBack() {
   router.push({ name: 'content-list' });
 }
 
+function onFileChange(e) {
+  const f = e.target.files && e.target.files[0];
+  if (f) {
+    fileBlob.value = f;
+    fileName.value = f.name;
+  } else {
+    fileBlob.value = null;
+    fileName.value = '';
+  }
+}
+
+// Загрузка данных для редактирования
+async function loadPageForEdit() {
+  if (!isEditMode.value || !editId.value) return;
+  
+  try {
+    const page = await pagesService.getPage(editId.value);
+    if (page) {
+      form.value.title = page.title || '';
+      form.value.summary = page.summary || '';
+      form.value.content = page.content || '';
+      form.value.seo.title = page.seo?.title || '';
+      form.value.seo.description = page.seo?.description || '';
+      form.value.seo.keywords = page.seo?.keywords || '';
+      form.value.status = page.status || 'draft';
+      form.value.visibility = page.visibility || 'public';
+      form.value.requiredPermission = page.required_permission || '';
+      form.value.format = page.format || 'html';
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки страницы для редактирования:', error);
+    alert('Ошибка загрузки данных страницы');
+  }
+}
+
 async function handleSubmit() {
   if (!form.value.title.trim()) {
     alert('Заполните заголовок страницы!');
@@ -229,27 +301,98 @@ async function handleSubmit() {
     return;
   }
 
-  if (!form.value.content.trim()) {
-    alert('Заполните контент страницы!');
-    return;
+  if (form.value.format === 'html') {
+    if (!form.value.content.trim()) {
+      alert('Заполните контент страницы!');
+      return;
+    }
+  } else {
+    if (!fileBlob.value) {
+      alert('Загрузите файл документа!');
+      return;
+    }
   }
 
   try {
     isSubmitting.value = true;
     
-    const pageData = {
-      title: form.value.title.trim(),
-      summary: form.value.summary.trim(),
-      content: form.value.content.trim(),
-      seo: form.value.seo,
-      status: form.value.status,
-      settings: form.value.settings
-    };
-
-    const page = await pagesService.createPage(pageData);
+    let page;
+    if (isEditMode.value) {
+      // Режим редактирования
+      if (form.value.format === 'html') {
+        const pageData = {
+          title: form.value.title.trim(),
+          summary: form.value.summary.trim(),
+          content: form.value.content.trim(),
+          seo: form.value.seo,
+          status: form.value.status,
+          settings: form.value.settings,
+          visibility: form.value.visibility,
+          required_permission: form.value.visibility === 'internal' && form.value.requiredPermission
+            ? form.value.requiredPermission.trim()
+            : null,
+          format: form.value.format,
+          mime_type: 'text/html',
+          storage_type: 'embedded'
+        };
+        page = await pagesService.updatePage(editId.value, pageData);
+      } else {
+        // Отправляем как FormData для редактирования
+        const fd = new FormData();
+        fd.append('title', form.value.title.trim());
+        fd.append('summary', form.value.summary.trim());
+        fd.append('seo', JSON.stringify(form.value.seo));
+        fd.append('status', form.value.status);
+        fd.append('settings', JSON.stringify(form.value.settings));
+        fd.append('visibility', form.value.visibility);
+        if (form.value.visibility === 'internal' && form.value.requiredPermission) {
+          fd.append('required_permission', form.value.requiredPermission.trim());
+        }
+        fd.append('format', form.value.format);
+        if (fileBlob.value) {
+          fd.append('file', fileBlob.value);
+        }
+        page = await pagesService.updatePage(editId.value, fd, true);
+      }
+    } else {
+      // Режим создания
+      if (form.value.format === 'html') {
+        const pageData = {
+          title: form.value.title.trim(),
+          summary: form.value.summary.trim(),
+          content: form.value.content.trim(),
+          seo: form.value.seo,
+          status: form.value.status,
+          settings: form.value.settings,
+          visibility: form.value.visibility,
+          required_permission: form.value.visibility === 'internal' && form.value.requiredPermission
+            ? form.value.requiredPermission.trim()
+            : null,
+          format: form.value.format,
+          mime_type: 'text/html',
+          storage_type: 'embedded'
+        };
+        page = await pagesService.createPage(pageData);
+      } else {
+        // Отправляем как FormData
+        const fd = new FormData();
+        fd.append('title', form.value.title.trim());
+        fd.append('summary', form.value.summary.trim());
+        fd.append('seo', JSON.stringify(form.value.seo));
+        fd.append('status', form.value.status);
+        fd.append('settings', JSON.stringify(form.value.settings));
+        fd.append('visibility', form.value.visibility);
+        if (form.value.visibility === 'internal' && form.value.requiredPermission) {
+          fd.append('required_permission', form.value.requiredPermission.trim());
+        }
+        fd.append('format', form.value.format);
+        fd.append('file', fileBlob.value);
+        page = await pagesService.createPage(fd, true);
+      }
+    }
     
     if (!page || !page.id) {
-      throw new Error('Страница не была создана');
+      throw new Error(isEditMode.value ? 'Страница не была обновлена' : 'Страница не была создана');
     }
 
     // Перенаправляем на список страниц
@@ -261,6 +404,19 @@ async function handleSubmit() {
     isSubmitting.value = false;
   }
 }
+
+// Загрузка данных при монтировании
+onMounted(() => {
+  // Проверяем права доступа
+  if (!canManageLegalDocs.value || !address.value) {
+    router.push({ name: 'content-list' });
+    return;
+  }
+  
+  if (isEditMode.value) {
+    loadPageForEdit();
+  }
+});
 </script>
 
 <style scoped>

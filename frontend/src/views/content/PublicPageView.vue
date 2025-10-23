@@ -51,13 +51,35 @@
         <!-- Основной контент -->
         <div class="page-content">
           <h2>Содержание</h2>
-          <div class="content-text" v-html="formatContent(page.content)"></div>
+          <div class="content-text" v-if="page.format === 'html'" v-html="formatContent(page.content)"></div>
+          <div v-else-if="page.format === 'pdf' && page.file_path" class="file-preview">
+            <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
+            <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
+          </div>
+          <div v-else-if="page.format === 'image' && page.file_path" class="file-preview">
+            <img :src="page.file_path" alt="Документ" class="image-preview" />
+            <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать изображение</a>
+          </div>
+          <div v-else class="content-text">Контент не добавлен</div>
         </div>
 
         <!-- SEO информация -->
         <div v-if="page.seo" class="page-seo">
           <h2>SEO информация</h2>
-          <div class="seo-content" v-html="formatContent(page.seo)"></div>
+          <div class="seo-info">
+            <div class="seo-item">
+              <label>Meta Title:</label>
+              <span>{{ page.seo.title || 'Не указан' }}</span>
+            </div>
+            <div class="seo-item">
+              <label>Meta Description:</label>
+              <span>{{ page.seo.description || 'Не указан' }}</span>
+            </div>
+            <div class="seo-item">
+              <label>Keywords:</label>
+              <span>{{ page.seo.keywords || 'Не указаны' }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -141,6 +163,7 @@ function formatAddress(address) {
 
 function formatContent(content) {
   if (!content) return '';
+  if (typeof content !== 'string') return '';
   // Простое форматирование - замена переносов строк на <br>
   return content.replace(/\n/g, '<br>');
 }
@@ -261,6 +284,15 @@ onMounted(() => {
   font-size: 1rem;
   line-height: 1.7;
 }
+.seo-info { display: grid; gap: 12px; }
+.seo-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+.seo-item:last-child { border-bottom: none; }
+.seo-item label { font-weight: 500; color: var(--color-grey-dark); min-width: 150px; }
+.seo-item span { color: #333; flex: 1; margin-left: 20px; }
+
+.file-preview { display: flex; flex-direction: column; gap: 12px; }
+.pdf-embed { width: 100%; height: 70vh; border: 1px solid #e9ecef; border-radius: var(--radius-sm); }
+.image-preview { max-width: 100%; border: 1px solid #e9ecef; border-radius: var(--radius-sm); }
 
 .loading-state,
 .error-state {

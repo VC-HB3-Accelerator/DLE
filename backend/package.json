@@ -25,7 +25,12 @@
     "deploy:modules": "node scripts/deploy/deploy-modules.js",
     "generate:abi": "node scripts/generate-abi.js",
     "generate:flattened": "node scripts/generate-flattened.js",
-    "compile:full": "npx hardhat compile && npm run generate:abi && npm run generate:flattened"
+    "compile:full": "npx hardhat compile && npm run generate:abi && npm run generate:flattened",
+    "seed:legal": "node scripts/seed/legalTemplatesSeed.js"
+  },
+  "bin": {},
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
