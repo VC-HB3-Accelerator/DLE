@@ -82,18 +82,19 @@
         <thead>
           <tr>
             <th v-if="canViewContacts"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
+            <th>ID</th>
             <th>Тип</th>
             <th>Имя</th>
             <th>Email</th>
             <th>Telegram</th>
             <th>Кошелек</th>
             <th>Дата создания</th>
-            <th>Действие</th>
           </tr>
         </thead>
       <tbody>
-        <tr v-for="contact in filteredContacts" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }">
-          <td v-if="canViewContacts"><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
+        <tr v-for="contact in filteredContacts" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }" @click="goToContactDetails(contact.id)" style="cursor: pointer;">
+          <td v-if="canViewContacts" @click.stop><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
+          <td>{{ contact.id }}</td>
           <td>
             <span 
               v-if="getRoleDisplayName(contact.role)" 
@@ -104,14 +105,10 @@
             <span v-else class="user-badge">Неизвестно</span>
           </td>
           <td>{{ contact.name || '-' }}</td>
-          <td>{{ contact.email || '-' }}</td>
-          <td>{{ contact.telegram || '-' }}</td>
-          <td>{{ contact.wallet || '-' }}</td>
+          <td>{{ maskPersonalData(contact.email) }}</td>
+          <td>{{ maskPersonalData(contact.telegram) }}</td>
+          <td>{{ maskPersonalData(contact.wallet) }}</td>
           <td>{{ contact.created_at ? new Date(contact.created_at).toLocaleString() : '-' }}</td>
-          <td>
-            <span v-if="newMsgUserIds.includes(String(contact.id))" class="new-msg-icon" title="Новое сообщение">✉️</span>
-            <button class="details-btn" @click="showDetails(contact)">Подробнее</button>
-          </td>
         </tr>
       </tbody>
     </table>
@@ -132,6 +129,7 @@ import { useTagsWebSocket } from '../composables/useTagsWebSocket';
 import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
+import { PERMISSIONS } from '/app/shared/permissions.js';
 import api from '../api/axios';
 import { sendMessage, getPrivateUnreadCount } from '../services/messagesService';
 import { useRoles } from '@/composables/useRoles';
@@ -147,7 +145,7 @@ const contactsArray = computed(() => props.contacts || []);
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
-const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData } = usePermissions();
+const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData, hasPermission } = usePermissions();
 const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
 const { roles, getRoleDisplayName, getRoleClass, fetchRoles, clearRoles } = useRoles();
 
@@ -173,6 +171,19 @@ async function loadPrivateUnreadCount() {
     console.error('[ContactTable] Ошибка загрузки непрочитанных сообщений:', error);
     privateUnreadCount.value = 0;
   }
+}
+
+// Функция маскировки персональных данных для читателей
+function maskPersonalData(data) {
+  if (!data || data === '-') return '-';
+  
+  // Если пользователь имеет права редактора, показываем полные данные
+  if (hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS)) {
+    return data;
+  }
+  
+  // Для читателей маскируем данные полностью звездочками
+  return '***';
 }
 
 // Новый фильтр тегов через мультисвязи
@@ -404,14 +415,14 @@ function formatDate(date) {
   if (!date) return '-';
   return new Date(date).toLocaleString();
 }
-async function showDetails(contact) {
+async function goToContactDetails(contactId) {
   if (props.markContactAsRead) {
-    await props.markContactAsRead(contact.id);
+    await props.markContactAsRead(contactId);
   }
   if (props.markMessagesAsReadForUser) {
-    props.markMessagesAsReadForUser(contact.id);
+    props.markMessagesAsReadForUser(contactId);
   }
-  router.push({ name: 'contact-details', params: { id: contact.id } });
+  router.push({ name: 'contact-details', params: { id: contactId } });
 }
 
 function onImported() {
@@ -430,7 +441,7 @@ async function openChatForSelected() {
   if (!contact) return;
   
   // Открываем чат с этим контактом (user_chat)
-  await showDetails(contact);
+  await goToContactDetails(contact.id);
 }
 
 // Новая функция для отправки публичного сообщения
@@ -448,7 +459,7 @@ function sendPublicMessage() {
   }
   
   // Открываем страницу детали контакта с чатом для публичных сообщений
-  showDetails(contact);
+  goToContactDetails(contactId);
 }
 
 // Функция для открытия приватного чата

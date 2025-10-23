@@ -166,4 +166,13 @@ export async function markPrivateMessagesAsRead(conversationId) {
     conversationId
   });
   return data;
+}
+
+// Функция для загрузки личных сообщений с ИИ
+export async function getPersonalChatHistory(options = {}) {
+  const { limit = 50, offset = 0 } = options;
+  const { data } = await api.get('/chat/history', {
+    params: { limit, offset }
+  });
+  return data;
 } 

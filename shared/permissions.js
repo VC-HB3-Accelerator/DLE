@@ -186,6 +186,54 @@ function getRoleDescription(role) {
   return descriptions[role] || 'Неизвестная роль';
 }
 
+/**
+ * Проверить, может ли отправитель отправлять сообщения получателю
+ * @param {string} senderRole - Роль отправителя
+ * @param {string} recipientRole - Роль получателя
+ * @param {number} senderId - ID отправителя
+ * @param {number} recipientId - ID получателя
+ * @returns {Object} { canSend: boolean, errorMessage?: string }
+ */
+function canSendMessage(senderRole, recipientRole, senderId, recipientId) {
+  // Проверяем базовое право на отправку сообщений
+  if (!hasPermission(senderRole, PERMISSIONS.SEND_TO_USERS)) {
+    return {
+      canSend: false,
+      errorMessage: 'У вас нет права на отправку сообщений'
+    };
+  }
+  
+  // Собственный чат - всегда разрешен (для ИИ ассистента)
+  if (senderId === recipientId) {
+    return { canSend: true };
+  }
+  
+  // USER и READONLY могут писать только EDITOR
+  if ((senderRole === 'user' || senderRole === 'readonly') && recipientRole === 'editor') {
+    return { canSend: true };
+  }
+  
+  // EDITOR может писать всем (USER, READONLY, EDITOR)
+  if (senderRole === 'editor') {
+    return { canSend: true };
+  }
+  
+  // USER и READONLY НЕ могут писать друг другу
+  if ((senderRole === 'user' || senderRole === 'readonly') && 
+      (recipientRole === 'user' || recipientRole === 'readonly')) {
+    return {
+      canSend: false,
+      errorMessage: 'Пользователи и читатели не могут отправлять сообщения друг другу'
+    };
+  }
+  
+  // Остальные случаи запрещены
+  return {
+    canSend: false,
+    errorMessage: `Роль ${senderRole} не может отправлять сообщения роли ${recipientRole}`
+  };
+}
+
 // Экспорты для CommonJS (Node.js)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -196,7 +244,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getPermissionsForRole,
     hasAnyPermission,
     hasAllPermissions,
-    getRoleDescription
+    getRoleDescription,
+    canSendMessage
   };
 }
 
@@ -209,7 +258,8 @@ export {
   getPermissionsForRole,
   hasAnyPermission,
   hasAllPermissions,
-  getRoleDescription
+  getRoleDescription,
+  canSendMessage
 };
 
 // CommonJS для Backend
@@ -222,7 +272,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getPermissionsForRole,
     hasAnyPermission,
     hasAllPermissions,
-    getRoleDescription
+    getRoleDescription,
+    canSendMessage
   };
 }
 

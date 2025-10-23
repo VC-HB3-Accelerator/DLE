@@ -30,12 +30,12 @@ async function getOrCreateConversation(userId, title = 'Новая беседа'
 
     // Ищем существующую активную беседу
     const { rows: existing } = await db.getQuery()(
-      `SELECT id, user_id, decrypt_text(title_encrypted, $2) as title, created_at, updated_at
+      `SELECT id, user_id, title, created_at, updated_at
        FROM conversations
        WHERE user_id = $1
        ORDER BY updated_at DESC
        LIMIT 1`,
-      [userId, encryptionKey]
+      [userId]
     );
 
     if (existing.length > 0) {
@@ -44,10 +44,10 @@ async function getOrCreateConversation(userId, title = 'Новая беседа'
 
     // Создаем новую беседу
     const { rows: newConv } = await db.getQuery()(
-      `INSERT INTO conversations (user_id, title_encrypted)
-       VALUES ($1, encrypt_text($2, $3))
-       RETURNING id, user_id, decrypt_text(title_encrypted, $3) as title, created_at, updated_at`,
-      [userId, title, encryptionKey]
+      `INSERT INTO conversations (user_id, title)
+       VALUES ($1, $2)
+       RETURNING id, user_id, title, created_at, updated_at`,
+      [userId, title]
     );
 
     logger.info('[ConversationService] Создана новая беседа:', newConv[0].id);
@@ -55,6 +55,60 @@ async function getOrCreateConversation(userId, title = 'Новая беседа'
     
   } catch (error) {
     logger.error('[ConversationService] Ошибка получения/создания беседы:', error);
+    throw error;
+  }
+}
+
+/**
+ * Получить или создать публичную беседу между двумя пользователями
+ * @param {number} userId1 - ID первого пользователя
+ * @param {number} userId2 - ID второго пользователя
+ * @returns {Promise<Object>}
+ */
+async function getOrCreatePublicConversation(userId1, userId2) {
+  try {
+    // Ищем существующую публичную беседу между этими пользователями
+    const { rows: existing } = await db.getQuery()(
+      `SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at, c.conversation_type
+       FROM conversations c
+       INNER JOIN conversation_participants cp1 ON c.id = cp1.conversation_id
+       INNER JOIN conversation_participants cp2 ON c.id = cp2.conversation_id
+       WHERE c.conversation_type = 'public_chat'
+         AND cp1.user_id = $1 AND cp2.user_id = $2
+       ORDER BY c.created_at DESC
+       LIMIT 1`,
+      [userId1, userId2]
+    );
+
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    // Создаем новую публичную беседу
+    const { rows: newConv } = await db.getQuery()(
+      `INSERT INTO conversations (user_id, title, conversation_type)
+       VALUES ($1, $2, 'public_chat')
+       RETURNING id, user_id, title, created_at, updated_at, conversation_type`,
+      [userId1, `Публичная беседа ${userId1}-${userId2}`]
+    );
+
+    const conversation = newConv[0];
+
+    // Добавляем участников
+    await db.getQuery()(
+      `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)`,
+      [conversation.id, userId1]
+    );
+    await db.getQuery()(
+      `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)`,
+      [conversation.id, userId2]
+    );
+
+    logger.info('[ConversationService] Создана публичная беседа:', conversation.id);
+    return conversation;
+    
+  } catch (error) {
+    logger.error('[ConversationService] Ошибка создания публичной беседы:', error);
     throw error;
   }
 }
@@ -69,10 +123,10 @@ async function getConversationById(conversationId) {
     const encryptionKey = encryptionUtils.getEncryptionKey();
 
     const { rows } = await db.getQuery()(
-      `SELECT id, user_id, decrypt_text(title_encrypted, $2) as title, created_at, updated_at
+      `SELECT id, user_id, title, created_at, updated_at
        FROM conversations
        WHERE id = $1`,
-      [conversationId, encryptionKey]
+      [conversationId]
     );
 
     return rows.length > 0 ? rows[0] : null;
@@ -93,11 +147,11 @@ async function getUserConversations(userId) {
     const encryptionKey = encryptionUtils.getEncryptionKey();
 
     const { rows } = await db.getQuery()(
-      `SELECT id, user_id, decrypt_text(title_encrypted, $2) as title, created_at, updated_at
+      `SELECT id, user_id, title, created_at, updated_at
        FROM conversations
        WHERE user_id = $1
        ORDER BY updated_at DESC`,
-      [userId, encryptionKey]
+      [userId]
     );
 
     return rows;
@@ -164,10 +218,10 @@ async function updateConversationTitle(conversationId, userId, newTitle) {
 
     const { rows } = await db.getQuery()(
       `UPDATE conversations 
-       SET title_encrypted = encrypt_text($3, $4), updated_at = NOW()
+       SET title = $3, updated_at = NOW()
        WHERE id = $1 AND user_id = $2
-       RETURNING id, user_id, decrypt_text(title_encrypted, $4) as title, created_at, updated_at`,
-      [conversationId, userId, newTitle, encryptionKey]
+       RETURNING id, user_id, title, created_at, updated_at`,
+      [conversationId, userId, newTitle]
     );
 
     return rows.length > 0 ? rows[0] : null;
@@ -180,6 +234,7 @@ async function updateConversationTitle(conversationId, userId, newTitle) {
 
 module.exports = {
   getOrCreateConversation,
+  getOrCreatePublicConversation,
   getConversationById,
   getUserConversations,
   touchConversation,

@@ -18,6 +18,60 @@ const conversationService = require('./conversationService');
 const adminLogicService = require('./adminLogicService');
 const universalGuestService = require('./UniversalGuestService');
 const identityService = require('./identity-service');
+
+/**
+ * Определить тип сообщения по контексту
+ * @param {number|null} recipientId - ID получателя
+ * @param {number} userId - ID отправителя
+ * @param {boolean} isAdminSender - Является ли отправитель админом
+ * @returns {string} - Тип сообщения: 'user_chat', 'admin_chat', 'public'
+ */
+function determineMessageType(recipientId, userId, isAdminSender) {
+  // 1. Личный чат с ИИ (recipientId не указан или равен userId)
+  if (!recipientId || recipientId === userId) {
+    return 'user_chat';
+  }
+  
+  // 2. Приватное сообщение к редактору (recipientId = 1)
+  if (recipientId === 1) {
+    return 'admin_chat';
+  }
+  
+  // 3. Публичное сообщение между пользователями
+  return 'public';
+}
+
+/**
+ * Определить тип беседы
+ * @param {string} messageType - Тип сообщения
+ * @param {number|null} recipientId - ID получателя
+ * @param {number} userId - ID отправителя
+ * @returns {string} - Тип беседы: 'user_chat', 'private', 'public'
+ */
+function determineConversationType(messageType, recipientId, userId) {
+  switch (messageType) {
+    case 'user_chat':
+      return 'user_chat'; // Личная беседа с ИИ
+    case 'admin_chat':
+      return 'private'; // Приватная беседа с редактором
+    case 'public':
+      return 'public_chat'; // Публичная беседа между пользователями
+    default:
+      return 'user_chat';
+  }
+}
+
+/**
+ * Определить, нужно ли генерировать AI ответ
+ * @param {string} messageType - Тип сообщения
+ * @param {number|null} recipientId - ID получателя
+ * @param {number} userId - ID отправителя
+ * @returns {boolean}
+ */
+function shouldGenerateAiReply(messageType, recipientId, userId) {
+  // ИИ отвечает только в личных чатах
+  return messageType === 'user_chat';
+}
 const { broadcastMessagesUpdate } = require('../wsHub');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
@@ -92,24 +146,39 @@ async function processMessage(messageData) {
     // НОВАЯ СИСТЕМА РОЛЕЙ: определяем права через новую систему
     const isAdmin = userRole === ROLES.EDITOR || userRole === ROLES.READONLY;
 
-    // 4. Определяем нужно ли генерировать AI ответ
-    const shouldGenerateAi = adminLogicService.shouldGenerateAiReply({
-      senderType: isAdmin ? 'editor' : 'user',
-      userId: userId,
-      recipientId: recipientId || userId,
-      channel: channel
-    });
+    // 4. Определяем тип сообщения по контексту
+    const messageType = determineMessageType(recipientId, userId, isAdmin);
+    
+    // 5. Определяем нужно ли генерировать AI ответ
+    const shouldGenerateAi = shouldGenerateAiReply(messageType, recipientId, userId);
 
     logger.info('[UnifiedMessageProcessor] Генерация AI:', { shouldGenerateAi, userRole, isAdmin });
 
-    // 5. Получаем или создаем беседу
+    // 6. Получаем или создаем беседу с правильным типом
     let conversation;
+    const conversationType = determineConversationType(messageType, recipientId, userId);
+    
     if (inputConversationId) {
       conversation = await conversationService.getConversationById(inputConversationId);
     }
     
     if (!conversation) {
-      conversation = await conversationService.getOrCreateConversation(userId, 'Беседа');
+      // Для публичных сообщений создаем беседу между пользователями
+      if (messageType === 'public') {
+        conversation = await conversationService.getOrCreatePublicConversation(userId, recipientId);
+      } else {
+        // Для личных и админских чатов используем стандартную логику
+        conversation = await conversationService.getOrCreateConversation(userId, 'Беседа');
+      }
+      
+      // Обновляем тип беседы в БД, если он не соответствует
+      if (conversation.conversation_type !== conversationType) {
+        await db.getQuery()(
+          'UPDATE conversations SET conversation_type = $1 WHERE id = $2',
+          [conversationType, conversation.id]
+        );
+        conversation.conversation_type = conversationType;
+      }
     }
 
     const conversationId = conversation.id;
@@ -133,34 +202,38 @@ async function processMessage(messageData) {
 
     const { rows } = await db.getQuery()(
       `INSERT INTO messages (
-        user_id,
         conversation_id,
+        sender_id,
         sender_type_encrypted,
         content_encrypted,
         channel_encrypted,
         role_encrypted,
         direction_encrypted,
-        attachment_filename_encrypted,
-        attachment_mimetype_encrypted,
+        attachment_filename,
+        attachment_mimetype,
         attachment_size,
         attachment_data,
         message_type,
+        user_id,
+        role,
+        direction,
         created_at
       ) VALUES (
         $1, $2,
-        encrypt_text($3, $13),
-        encrypt_text($4, $13),
-        encrypt_text($5, $13),
-        encrypt_text($6, $13),
-        encrypt_text($7, $13),
-        encrypt_text($8, $13),
-        encrypt_text($9, $13),
+        encrypt_text($3, $16),
+        encrypt_text($4, $16),
+        encrypt_text($5, $16),
+        encrypt_text($6, $16),
+        encrypt_text($7, $16),
+        $8,
+        $9,
         $10, $11, $12,
+        $13, $14, $15,
         NOW()
       ) RETURNING id`,
       [
-        userId,
         conversationId,
+        userId, // sender_id
         isAdmin ? 'editor' : 'user',
         content,
         channel,
@@ -170,7 +243,10 @@ async function processMessage(messageData) {
         attachment_mimetype,
         attachment_size,
         attachment_data,
-        'user_chat', // message_type
+        messageType, // message_type
+        recipientId || userId, // user_id (получатель для публичных сообщений)
+        'user', // role (незашифрованное)
+        'incoming', // direction (незашифрованное)
         encryptionKey
       ]
     );
@@ -220,34 +296,40 @@ async function processMessage(messageData) {
         // Сохраняем ответ AI
         const { rows: aiMessageRows } = await db.getQuery()(
           `INSERT INTO messages (
-            user_id,
             conversation_id,
+            sender_id,
             sender_type_encrypted,
             content_encrypted,
             channel_encrypted,
             role_encrypted,
             direction_encrypted,
             message_type,
+            user_id,
+            role,
+            direction,
             created_at
           ) VALUES (
             $1, $2,
-            encrypt_text($3, $9),
-            encrypt_text($4, $9),
-            encrypt_text($5, $9),
-            encrypt_text($6, $9),
-            encrypt_text($7, $9),
-            $8,
+            encrypt_text($3, $12),
+            encrypt_text($4, $12),
+            encrypt_text($5, $12),
+            encrypt_text($6, $12),
+            encrypt_text($7, $12),
+            $8, $9, $10, $11,
             NOW()
           ) RETURNING id`,
           [
-            userId,
             conversationId,
+            userId, // sender_id
             'assistant',
             aiResponse.response,
             channel,
             'assistant',
             'outgoing',
-            'user_chat',
+            messageType,
+            userId, // user_id
+            'assistant', // role (незашифрованное)
+            'outgoing', // direction (незашифрованное)
             encryptionKey
           ]
         );

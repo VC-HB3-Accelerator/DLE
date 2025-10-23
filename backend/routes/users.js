@@ -16,7 +16,7 @@ const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
-const { PERMISSIONS } = require('../shared/permissions');
+const { PERMISSIONS, ROLES } = require('../shared/permissions');
 const { deleteUserById } = require('../services/userDeleteService');
 const { broadcastContactsUpdate } = require('../wsHub');
 // const userService = require('../services/userService');
@@ -95,7 +95,6 @@ router.get('/', requireAuth, async (req, res, next) => {
 
     // Фильтрация для USER - видит только editor админов и себя
     if (userRole === 'user') {
-      const { ROLES } = require('/app/shared/permissions');
       where.push(`(u.role = '${ROLES.EDITOR}' OR u.id = $${idx++})`);
       params.push(req.user.id);
     }
@@ -375,11 +374,12 @@ router.post('/mark-contact-read', async (req, res) => {
     
     if (req.user?.userAccessLevel) {
       // Используем новую систему ролей
-      const { ROLES } = require('/app/shared/permissions');
-      if (req.user.userAccessLevel.level === ROLES.READONLY) {
+      if (req.user.userAccessLevel.level === ROLES.READONLY || req.user.userAccessLevel.level === 'readonly') {
         userRole = ROLES.READONLY;
-      } else if (req.user.userAccessLevel.level === ROLES.EDITOR) {
+      } else if (req.user.userAccessLevel.level === ROLES.EDITOR || req.user.userAccessLevel.level === 'editor') {
         userRole = ROLES.EDITOR;
+      } else if (req.user.userAccessLevel.level === ROLES.USER || req.user.userAccessLevel.level === 'user') {
+        userRole = ROLES.USER;
       }
     } else if (req.user?.id) {
       // Fallback для старой системы
@@ -760,7 +760,6 @@ router.post('/', async (req, res) => {
   const encryptionKey = encryptionUtils.getEncryptionKey();
   
   // Используем централизованную систему ролей
-  const { ROLES } = require('/app/shared/permissions');
 
   try {
     const result = await db.getQuery()(
@@ -824,7 +823,6 @@ router.post('/import', requireAuth, async (req, res) => {
           }
         } else {
           // Создаём нового пользователя с централизованной ролью
-          const { ROLES } = require('/app/shared/permissions');
           const ins = await dbq('INSERT INTO users (first_name_encrypted, last_name_encrypted, role, created_at) VALUES (encrypt_text($1, $4), encrypt_text($2, $4), $3, NOW()) RETURNING id', [first_name, last_name, ROLES.USER, encryptionKey]);
           userId = ins.rows[0].id;
           added++;

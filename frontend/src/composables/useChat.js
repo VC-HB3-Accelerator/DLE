@@ -105,10 +105,16 @@ export function useChat(auth) {
         let totalMessages = -1;
         if (initial || messageLoading.value.offset === 0) {
              try {
-                const countResponse = await api.get('/messages/public', { params: { count_only: true } });
-                if (!countResponse.data.success) throw new Error('Не удалось получить количество сообщений');
-                totalMessages = countResponse.data.total || countResponse.data.count || 0;
-                // console.log(`[useChat] Всего сообщений в истории: ${totalMessages}`);
+                // Получаем количество личных сообщений с ИИ
+                const personalCountResponse = await api.get('/chat/history', { params: { count_only: true } });
+                const personalCount = personalCountResponse.data.success ? (personalCountResponse.data.total || 0) : 0;
+                
+                // Получаем количество публичных сообщений
+                const publicCountResponse = await api.get('/messages/public', { params: { count_only: true } });
+                const publicCount = publicCountResponse.data.success ? (publicCountResponse.data.total || 0) : 0;
+                
+                totalMessages = personalCount + publicCount;
+                // console.log(`[useChat] Всего сообщений в истории: ${totalMessages} (личные: ${personalCount}, публичные: ${publicCount})`);
              } catch(countError) {
                  // console.error('[useChat] Ошибка получения количества сообщений:', countError);
                  // Не прерываем выполнение, попробуем загрузить без total
@@ -122,13 +128,41 @@ export function useChat(auth) {
             // console.log(`[useChat] Рассчитано начальное смещение: ${effectiveOffset}`);
         }
 
-        // Используем новый API для публичных сообщений с пагинацией
-        const response = await api.get('/messages/public', { 
+        // Загружаем личные сообщения с ИИ
+        const personalResponse = await api.get('/chat/history', { 
             params: { 
                 offset: effectiveOffset, 
                 limit: messageLoading.value.limit 
             } 
         });
+        
+        // Загружаем публичные сообщения от других пользователей
+        const publicResponse = await api.get('/messages/public', { 
+            params: { 
+                offset: 0, 
+                limit: 50 
+            } 
+        });
+        
+        // Объединяем сообщения
+        let allMessages = [];
+        if (personalResponse.data.success && personalResponse.data.messages) {
+            allMessages = [...allMessages, ...personalResponse.data.messages];
+        }
+        if (publicResponse.data.success && publicResponse.data.messages) {
+            allMessages = [...allMessages, ...publicResponse.data.messages];
+        }
+        
+        // Сортируем по времени создания
+        allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        
+        const response = {
+            data: {
+                success: true,
+                messages: allMessages,
+                total: allMessages.length
+            }
+        };
 
         if (response.data.success && response.data.messages) {
             const loadedMessages = response.data.messages;

@@ -29,13 +29,14 @@ const logger = require('../utils/logger');
 function shouldGenerateAiReply(params) {
   const { senderType, userId, recipientId } = params;
 
-  // Обычные пользователи (USER, READONLY) всегда получают AI ответ
-  if (senderType !== 'editor') {
+  // Если recipientId не указан или равен userId - это личный чат с ИИ
+  // ИИ должен отвечать в личных чатах
+  if (!recipientId || recipientId === userId) {
     return true;
   }
 
-  // Админы-редакторы (EDITOR) НЕ получают AI ответы
-  // ни себе, ни другим админам (по спецификации)
+  // Если recipientId отличается от userId - это публичный чат между пользователями
+  // ИИ НЕ должен отвечать на сообщения между пользователями
   return false;
 }
 

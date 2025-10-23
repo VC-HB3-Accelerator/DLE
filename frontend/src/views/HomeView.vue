@@ -33,6 +33,7 @@
             :messages="messages" 
             :is-loading="isLoading || isConnectingWallet"
             :has-more-messages="messageLoading.hasMoreMessages"
+            :currentUserId="auth.userId"
             v-model:newMessage="newMessage"
             v-model:attachments="attachments"
             @send-message="handleSendMessage"
@@ -44,6 +45,7 @@
             :messages="messages" 
             :is-loading="isLoading || isConnectingWallet"
             :has-more-messages="messageLoading.hasMoreMessages"
+            :currentUserId="auth.userId"
             v-model:newMessage="newMessage"
             v-model:attachments="attachments"
             @send-message="handleSendMessage"
@@ -161,6 +163,8 @@
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
   height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -171,6 +175,7 @@
   margin-bottom: 2rem;
   padding-bottom: 1rem;
   border-bottom: 2px solid #e9ecef;
+  flex-shrink: 0;
 }
 
 .header-content h1 {
@@ -190,6 +195,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 /* Адаптивность */

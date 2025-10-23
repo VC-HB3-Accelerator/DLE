@@ -522,10 +522,11 @@ async function handleAiReply() {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-height: 100vh;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .chat-messages {
@@ -533,6 +534,7 @@ async function handleAiReply() {
   overflow-y: auto;
   position: relative;
   padding-bottom: 8px;
+  min-height: 0;
 }
 
 .chat-input {
@@ -544,48 +546,12 @@ async function handleAiReply() {
   right: 0;
   border-radius: 12px 12px 0 0;
   box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
-}
-
-.chat-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  min-height: 500px;
-  width: 100%;
-  position: relative;
-  background: transparent;
-  height: 100%;
-}
-
-.chat-messages {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: var(--spacing-lg);
-  background: transparent;
-  border-radius: 0;
-  border: none;
-  flex: 1;
-  min-height: 0;
-}
-
-.chat-input {
-  display: flex;
-  flex-direction: column;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-white);
-  border-radius: 0;
-  border: none;
-  border-top: 1px solid #e9ecef;
   flex-shrink: 0;
-  transition: all var(--transition-normal);
-  z-index: 10;
-  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
-  position: sticky;
-  bottom: 0;
+  min-height: 80px;
 }
+
+
+
 
 .chat-input textarea {
   width: 100%;

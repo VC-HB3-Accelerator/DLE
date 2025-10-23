@@ -40,6 +40,11 @@
     <!-- Текстовый контент, если есть -->
     <!-- eslint-disable-next-line vue/no-v-html -->
     <div v-if="message.content" class="message-content" v-html="formattedContent" />
+    
+    <!-- Ссылка "Ответить" для публичных сообщений от других пользователей -->
+    <div v-if="shouldShowReplyLink" class="message-reply-link">
+      <a :href="replyLink" class="reply-link">Ответить</a>
+    </div>
 
     <!-- Кнопки для системного сообщения -->
     <div v-if="message.sender_type === 'system' && (message.telegramBotUrl || message.supportEmail)" class="system-actions">
@@ -127,6 +132,11 @@ const isCurrentUserMessage = computed(() => {
     return props.message.sender_id === props.message.user_id;
   }
   
+  // Для публичных сообщений сравниваем sender_id с currentUserId
+  if (props.message.message_type === 'public' && props.currentUserId) {
+    return props.message.sender_id == props.currentUserId;
+  }
+  
   // Для обычных сообщений используем стандартную логику
   return props.message.sender_type === 'user' || props.message.role === 'user';
 });
@@ -144,6 +154,22 @@ const formatWalletAddress = (address) => {
   
   return address;
 };
+
+// --- Логика ссылки "Ответить" для публичных сообщений ---
+const shouldShowReplyLink = computed(() => {
+  // Показываем ссылку только для публичных сообщений от других пользователей
+  return props.message.message_type === 'public' && 
+         !isCurrentUserMessage.value && 
+         props.message.sender_id && 
+         props.currentUserId &&
+         props.message.sender_id !== props.currentUserId;
+});
+
+const replyLink = computed(() => {
+  if (!shouldShowReplyLink.value) return '';
+  // Ссылка ведет на страницу контакта отправителя
+  return `/contacts/${props.message.sender_id}`;
+});
 
 // --- Работа с вложениями --- 
 const attachment = computed(() => {
@@ -552,6 +578,30 @@ function copyEmail(email) {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Стили для ссылки "Ответить" */
+.message-reply-link {
+  margin-top: var(--spacing-xs);
+  text-align: right;
+}
+
+.reply-link {
+  color: var(--color-primary, #007bff);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background-color: rgba(0, 123, 255, 0.1);
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.reply-link:hover {
+  background-color: rgba(0, 123, 255, 0.2);
+  color: var(--color-primary-dark, #0056b3);
+  text-decoration: none;
 }
 
 /* Адаптивность для мобильных устройств */

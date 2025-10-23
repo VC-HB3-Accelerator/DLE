@@ -89,13 +89,7 @@ async function deleteUserById(userId) {
     );
     console.log('[DELETE] Удалено user_tag_links:', resTagLinks.rows.length);
     
-    // 9. Удаляем global_read_status
-    console.log('[DELETE] Начинаем удаление global_read_status для userId:', userId);
-    const resReadStatus = await db.getQuery()(
-      'DELETE FROM global_read_status WHERE user_id = $1 RETURNING user_id',
-      [userId]
-    );
-    console.log('[DELETE] Удалено global_read_status:', resReadStatus.rows.length);
+    // 9. global_read_status - таблица не существует, пропускаем
     
     // 10. Удаляем самого пользователя
     console.log('[DELETE] Начинаем удаление пользователя из users:', userId);

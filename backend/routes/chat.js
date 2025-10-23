@@ -208,22 +208,23 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     // Получаем информацию о пользователе
     const users = await encryptedDb.getData('users', { id: userId }, 1);
     
-    // ✨ НОВОЕ: Валидация прав через adminLogicService
-    const adminLogicService = require('../services/adminLogicService');
+    // ✨ Используем централизованную проверку прав
+    const { canSendMessage } = require('/app/shared/permissions');
     const sessionUserId = req.session.userId;
     const targetUserId = userId;
-    const userAccessLevel = req.session.userAccessLevel || { level: 'user', tokenCount: 0, hasAccess: false };
-    const canWrite = adminLogicService.canWriteToConversation({
-      userAccessLevel: userAccessLevel,
-      userId: sessionUserId,
-      conversationUserId: targetUserId
-    });
+    const userRole = req.session.userAccessLevel?.level || 'user';
     
-    if (!canWrite) {
-      logger.warn(`[Chat] Пользователь ${sessionUserId} пытался писать в беседу ${targetUserId} без прав`);
+    // Получаем роль получателя
+    const recipientUser = users[0];
+    const recipientRole = recipientUser.role || 'user';
+    
+    const permissionCheck = canSendMessage(userRole, recipientRole, sessionUserId, targetUserId);
+    
+    if (!permissionCheck.canSend) {
+      logger.warn(`[Chat] Пользователь ${sessionUserId} (${userRole}) пытался писать в беседу ${targetUserId} (${recipientRole}) без прав: ${permissionCheck.errorMessage}`);
       return res.status(403).json({ 
         success: false, 
-        error: 'Нет прав для отправки сообщений в эту беседу' 
+        error: permissionCheck.errorMessage || 'Недостаточно прав для отправки сообщений' 
       });
     }
     if (!users || users.length === 0) {
@@ -327,10 +328,10 @@ router.get('/history', requireAuth, async (req, res) => {
   try {
     // Если нужен только подсчет
     if (countOnly) {
-      let countQuery = 'SELECT COUNT(*) FROM messages WHERE user_id = $1 AND message_type = $2';
-      let countParams = [userId, 'user_chat'];
+      let countQuery = 'SELECT COUNT(*) FROM messages WHERE user_id = $1 AND (message_type = $2 OR message_type = $3)';
+      let countParams = [userId, 'user_chat', 'public'];
       if (conversationId) {
-        countQuery += ' AND conversation_id = $3';
+        countQuery += ' AND conversation_id = $4';
         countParams.push(conversationId);
       }
       const countResult = await db.getQuery()(countQuery, countParams);
@@ -338,17 +339,28 @@ router.get('/history', requireAuth, async (req, res) => {
       return res.json({ success: true, count: totalCount });
     }
 
-    // Загружаем сообщения через encryptedDb
-    const whereConditions = { 
-      user_id: userId,
-      message_type: 'user_chat' // Фильтруем только публичные сообщения
-    };
-    if (conversationId) {
-      whereConditions.conversation_id = conversationId;
-    }
-
-    // Изменяем логику: загружаем ПОСЛЕДНИЕ сообщения, а не с offset
-    const messages = await encryptedDb.getData('messages', whereConditions, limit, 'created_at DESC', 0);
+    // Загружаем сообщения: ИИ сообщения + публичные сообщения от других пользователей
+    // Используем SQL запрос для правильной фильтрации
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    const result = await db.getQuery()(
+      `SELECT m.id, m.user_id, m.sender_id, m.conversation_id,
+              decrypt_text(m.sender_type_encrypted, $2) as sender_type,
+              decrypt_text(m.content_encrypted, $2) as content,
+              decrypt_text(m.channel_encrypted, $2) as channel,
+              decrypt_text(m.role_encrypted, $2) as role,
+              decrypt_text(m.direction_encrypted, $2) as direction,
+              m.message_type, m.created_at
+       FROM messages m
+       WHERE m.user_id = $1 
+         AND (m.message_type = 'user_chat' OR m.message_type = 'public')
+       ORDER BY m.created_at DESC
+       LIMIT $3`,
+      [userId, encryptionKey, limit]
+    );
+    
+    const messages = result.rows;
     // Переворачиваем массив для правильного порядка
     messages.reverse();
 

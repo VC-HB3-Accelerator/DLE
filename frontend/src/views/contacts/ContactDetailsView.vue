@@ -21,7 +21,9 @@
         <h2>Детали контакта</h2>
           <button class="close-btn" @click="goBack">×</button>
       </div>
-      <div class="contact-info-block">
+      <div class="contact-info-section">
+        <div class="contact-info-block">
+        <div><strong>ID пользователя:</strong> {{ contact.id }}</div>
         <div>
           <strong>Имя:</strong>
             <template v-if="canEditContacts">
@@ -32,9 +34,9 @@
               {{ contact.name }}
             </template>
         </div>
-        <div><strong>Email:</strong> {{ contact.email || '-' }}</div>
-        <div><strong>Telegram:</strong> {{ contact.telegram || '-' }}</div>
-        <div><strong>Кошелек:</strong> {{ contact.wallet || '-' }}</div>
+        <div><strong>Email:</strong> {{ maskPersonalData(contact.email) }}</div>
+        <div><strong>Telegram:</strong> {{ maskPersonalData(contact.telegram) }}</div>
+        <div><strong>Кошелек:</strong> {{ maskPersonalData(contact.wallet) }}</div>
         <div>
           <strong>Язык:</strong>
           <div class="multi-select">
@@ -101,6 +103,7 @@
           <button class="delete-history-btn" @click="deleteMessagesHistory">Удалить историю сообщений</button>
           <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
         </div>
+        </div>
       </div>
       <div class="messages-block">
         <h3>Чат с пользователем</h3>
@@ -109,9 +112,10 @@
           :isLoading="isLoadingMessages"
           :attachments="chatAttachments"
           :newMessage="chatNewMessage"
-          :canSend="canSendToUsers"
+          :canSend="canSendToUsers && !!address"
           :canGenerateAI="canGenerateAI"
           :canSelectMessages="canGenerateAI"
+          :currentUserId="currentUserId"
           @send-message="handleSendMessage"
           @update:newMessage="val => chatNewMessage = val"
           @update:attachments="val => chatAttachments = val"
@@ -160,11 +164,13 @@ import Message from '../../components/Message.vue';
 import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
-import { getPublicMessages, getConversationByUserId } from '../../services/messagesService.js';
+import { getPublicMessages, getConversationByUserId, sendMessage, getPersonalChatHistory } from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
+import { PERMISSIONS } from '/app/shared/permissions.js';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
-const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts } = usePermissions();
+const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts, hasPermission } = usePermissions();
+const { address, userId: currentUserId } = useAuthContext();
 const { markContactAsRead } = useContactsAndMessagesWebSocket();
 
 // Подписываемся на централизованные события очистки и обновления данных
@@ -213,6 +219,19 @@ const tagsTableId = ref(null);
 // WebSocket для тегов
 const { onTagsUpdate } = useTagsWebSocket();
 let unsubscribeFromTags = null;
+
+// Функция маскировки персональных данных для читателей
+function maskPersonalData(data) {
+  if (!data || data === '-') return '-';
+  
+  // Если пользователь имеет права редактора, показываем полные данные
+  if (hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS)) {
+    return data;
+  }
+  
+  // Для читателей маскируем данные полностью звездочками
+  return '***';
+}
 
 async function ensureTagsTable() {
   // Получаем все пользовательские таблицы
@@ -402,15 +421,41 @@ async function loadMessages() {
   console.log('[ContactDetailsView] 📥 loadMessages START for:', contact.value.id);
   isLoadingMessages.value = true;
   try {
-    // Загружаем только публичные сообщения этого пользователя с пагинацией
-    const response = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
-    console.log('[ContactDetailsView] 📩 Loaded messages:', response.messages?.length || 0, 'for', contact.value.id);
+    // Проверяем, является ли контакт собственным ID пользователя
+    const isOwnContact = currentUserId.value && contact.value.id == currentUserId.value;
     
-    if (response.success && response.messages) {
-      messages.value = response.messages;
+    let allMessages = [];
+    
+    if (isOwnContact) {
+      // Для собственного ID загружаем И личные сообщения с ИИ, И публичные сообщения от других пользователей
+      console.log('[ContactDetailsView] 🔍 Loading personal chat with AI + public messages for own ID:', contact.value.id);
+      
+      // Загружаем личные сообщения с ИИ
+      const personalResponse = await getPersonalChatHistory({ limit: 50, offset: 0 });
+      if (personalResponse.success && personalResponse.messages) {
+        allMessages = [...allMessages, ...personalResponse.messages];
+      }
+      
+      // Загружаем публичные сообщения от других пользователей (входящие)
+      const publicResponse = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
+      if (publicResponse.success && publicResponse.messages) {
+        allMessages = [...allMessages, ...publicResponse.messages];
+      }
+      
+      // Сортируем по времени создания
+      allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      
     } else {
-      messages.value = [];
+      // Для других пользователей загружаем публичные сообщения между текущим пользователем и выбранным контактом
+      console.log('[ContactDetailsView] 🔍 Loading public messages between current user and contact:', contact.value.id);
+      const response = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
+      if (response.success && response.messages) {
+        allMessages = response.messages;
+      }
     }
+    
+    console.log('[ContactDetailsView] 📩 Loaded messages:', allMessages.length, 'for', contact.value.id);
+    messages.value = allMessages;
     
     if (messages.value.length > 0) {
       lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
@@ -487,27 +532,23 @@ async function handleSendMessage({ message, attachments }) {
     return;
   }
   try {
-    const result = await messagesService.broadcastMessage({
-      userId: contact.value.id,
-      message,
-      attachments
+    const result = await sendMessage({
+      recipientId: contact.value.id,
+      content: message,
+      messageType: 'public'
     });
-    // Формируем текст результата для отображения админу
-    let resultText = '';
-    if (result && Array.isArray(result.results)) {
-      resultText = 'Результат рассылки по каналам:';
-      for (const r of result.results) {
-        resultText += `\n${r.channel}: ${(r.status === 'sent' || r.status === 'saved') ? 'Успех' : 'Ошибка'}${r.error ? ' (' + r.error + ')' : ''}`;
+    
+    if (result && result.success) {
+      // Очищаем поле ввода после успешной отправки
+      chatNewMessage.value = '';
+      // Обновляем список сообщений
+      await loadMessages();
+      if (typeof ElMessageBox === 'function') {
+        ElMessageBox.alert('Сообщение отправлено успешно', 'Успех', { type: 'success' });
       }
     } else {
-      resultText = 'Не удалось получить подробный ответ от сервера.';
+      throw new Error(result?.message || 'Неизвестная ошибка');
     }
-    if (typeof ElMessageBox === 'function') {
-      ElMessageBox.alert(resultText, 'Результат рассылки', { type: 'info' });
-    } else {
-      console.log('Результат рассылки:', resultText);
-    }
-    await loadMessages();
   } catch (e) {
     if (typeof ElMessageBox === 'function') {
       ElMessageBox.alert('Ошибка отправки: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
@@ -701,23 +742,28 @@ watch(userId, async () => {
 
 <style scoped>
 .contact-details-page {
-  padding: 32px 0;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+
 .contact-details-content {
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-  padding: 32px 24px 24px 24px;
+  padding: 24px;
   width: 100%;
-  margin-top: 40px;
-  position: relative;
-  overflow-x: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 .contact-details-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 18px;
+  flex-shrink: 0;
 }
 .close-btn {
   background: none;
@@ -730,8 +776,14 @@ watch(userId, async () => {
 .close-btn:hover {
   color: #333;
 }
+.contact-info-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .contact-info-block {
-  margin-bottom: 18px;
   font-size: 1.08rem;
   line-height: 1.7;
 }
@@ -752,6 +804,7 @@ watch(userId, async () => {
   display: flex;
   gap: 12px;
   margin-top: 18px;
+  flex-shrink: 0;
 }
 
 .delete-history-btn {
@@ -858,6 +911,11 @@ watch(userId, async () => {
   border-radius: 10px;
   padding: 18px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+  max-height: 70vh;
 }
 .messages-list {
   max-height: 350px;

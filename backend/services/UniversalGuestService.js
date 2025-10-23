@@ -449,33 +449,36 @@ class UniversalGuestService {
 
           await db.getQuery()(
             `INSERT INTO messages (
-              user_id,
               conversation_id,
+              sender_id,
               sender_type_encrypted,
               content_encrypted,
               channel_encrypted,
               role_encrypted,
               direction_encrypted,
-              attachment_filename_encrypted,
-              attachment_mimetype_encrypted,
+              attachment_filename,
+              attachment_mimetype,
               attachment_size,
               attachment_data,
               message_type,
+              user_id,
+              role,
+              direction,
               created_at
             ) VALUES (
               $1, $2,
-              encrypt_text($3, $14),
-              encrypt_text($4, $14),
-              encrypt_text($5, $14),
-              encrypt_text($6, $14),
-              encrypt_text($7, $14),
-              encrypt_text($8, $14),
-              encrypt_text($9, $14),
-              $10, $11, $12, $13
+              encrypt_text($3, $17),
+              encrypt_text($4, $17),
+              encrypt_text($5, $17),
+              encrypt_text($6, $17),
+              encrypt_text($7, $17),
+              $8, $9, $10, $11,
+              $12, $13, $14, $15,
+              $16
             )`,
             [
-              userId,
               conversationId,
+              userId, // sender_id
               senderType,
               msg.content,
               msg.channel,
@@ -485,7 +488,10 @@ class UniversalGuestService {
               msg.attachment_mimetype,
               msg.attachment_size,
               msg.attachment_data,
-              'public', // message_type для мигрированных сообщений
+              'user_chat', // message_type для мигрированных сообщений (личный чат с ИИ)
+              userId, // user_id
+              role, // role (незашифрованное)
+              direction, // direction (незашифрованное)
               msg.created_at,
               encryptionKey
             ]
