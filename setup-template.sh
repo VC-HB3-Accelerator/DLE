@@ -53,7 +53,7 @@ check_docker_running() {
   print_green "✅ Docker запущен"
 }
 
-# Скачивание репозитория
+# Скачивание репозитория и архива
 download_repo() {
   print_blue "📥 Скачивание репозитория..."
   if [ -d "DLE" ]; then
@@ -72,6 +72,79 @@ download_repo() {
   git clone https://github.com/VC-HB3-Accelerator/DLE.git
   cd DLE
   print_green "✅ Репозиторий скачан"
+  
+  # Скачивание архива из GitHub Release
+  download_archive
+}
+
+# Скачивание архива из GitHub Release
+download_archive() {
+  print_blue "📦 Скачивание архива из GitHub Release..."
+  
+  # Проверяем наличие архива
+  if [ -f "dle-template.tar.gz" ]; then
+    print_yellow "⚠️  Архив dle-template.tar.gz уже существует"
+    read -p "Перескачать архив? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      rm -f dle-template.tar.gz
+    else
+      print_blue "Используем существующий архив"
+      extract_archive
+      return
+    fi
+  fi
+  
+  # Получаем URL последнего релиза
+  print_blue "🔍 Поиск последнего релиза..."
+  RELEASE_URL=$(curl -s https://api.github.com/repos/VC-HB3-Accelerator/DLE/releases/latest | grep "browser_download_url.*dle-template.tar.gz" | cut -d '"' -f 4)
+  
+  if [ -z "$RELEASE_URL" ]; then
+    print_red "❌ Не удалось найти архив в релизах!"
+    print_yellow "Проверьте, что релиз создан и содержит dle-template.tar.gz"
+    print_blue "Ручная установка:"
+    print_blue "1. Перейдите на https://github.com/VC-HB3-Accelerator/DLE/releases"
+    print_blue "2. Скачайте dle-template.tar.gz"
+    print_blue "3. Поместите в папку DLE"
+    print_blue "4. Запустите скрипт снова"
+    exit 1
+  fi
+  
+  print_blue "📥 Скачивание архива (5.3GB)..."
+  print_yellow "Это может занять несколько минут..."
+  
+  if curl -L -o dle-template.tar.gz "$RELEASE_URL"; then
+    print_green "✅ Архив скачан"
+    extract_archive
+  else
+    print_red "❌ Ошибка скачивания архива!"
+    print_yellow "Попробуйте скачать вручную:"
+    print_blue "1. Перейдите на https://github.com/VC-HB3-Accelerator/DLE/releases"
+    print_blue "2. Скачайте dle-template.tar.gz"
+    print_blue "3. Поместите в папку DLE"
+    print_blue "4. Запустите скрипт снова"
+    exit 1
+  fi
+}
+
+# Распаковка архива
+extract_archive() {
+  print_blue "📦 Распаковка архива..."
+  
+  if [ ! -f "dle-template.tar.gz" ]; then
+    print_red "❌ Архив dle-template.tar.gz не найден!"
+    exit 1
+  fi
+  
+  if tar -xzf dle-template.tar.gz; then
+    print_green "✅ Архив распакован"
+    print_blue "🗑️  Удаление архива для экономии места..."
+    rm -f dle-template.tar.gz
+    print_green "✅ Архив удален"
+  else
+    print_red "❌ Ошибка распаковки архива!"
+    exit 1
+  fi
 }
 
 # Проверка файлов образов
@@ -213,12 +286,14 @@ check_status() {
 main() {
   print_blue "🚀 Установка шаблона приложения Digital Legal Entity"
   print_blue "=================================================="
+  print_blue "📦 Автоматическое скачивание из GitHub Release"
+  print_blue "=================================================="
   
   # Проверки
   check_docker
   check_docker_running
   
-  # Скачивание
+  # Скачивание репозитория и архива
   download_repo
   
   # Проверка файлов
@@ -241,6 +316,9 @@ main() {
   print_blue "   Запуск:   docker-compose up -d"
   print_blue "   Остановка: docker-compose down"
   print_blue "   Логи:     docker-compose logs"
+  print_blue "=================================================="
+  print_blue "📝 Примечание: Архив (5.3GB) автоматически скачан и удален"
+  print_blue "   для экономии места на диске"
 }
 
 # Запуск
