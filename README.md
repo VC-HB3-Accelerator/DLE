@@ -1,97 +1,109 @@
-# Digital_Legal_Entity(DLE)
+# 🚀 Digital Legal Entity (DLE) - Шаблон приложения
 
-Веб3 приложение для бизнеса с ИИ ассистентом
+## Описание
+Полный шаблон приложения Digital Legal Entity
 
-## Авторство и лицензия
-
-**Автор:** Тарабанов Александр Викторович  
-**Организация:** HB3 Accelerator  
-**Email:** info@hb3-accelerator.com  
-**Сайт:** [hb3-accelerator.com](https://hb3-accelerator.com)  
-**GitHub:** [@HB3-ACCELERATOR](https://github.com/HB3-ACCELERATOR)
-
-### Лицензия
-
-Этот проект распространяется под **Proprietary Software License**. 
-
-- ✅ **Разрешено:** Использование в бизнесе для внутренних операций
-- ✅ **Разрешено:** Предоставление услуг клиентам с использованием софта
-- ❌ **Запрещено:** Перепродажа софта без разрешения
-- ❌ **Запрещено:** Модификации кода без разрешения автора
-
-**Для коммерческого использования требуется разрешение автора.**  
-**Контакты:** info@hb3-accelerator.com
-
-**Подробная информация:** [LICENSE](LICENSE)
-
-## Требования
-
+## 📋 Требования
 - Docker и Docker Compose
 
-## Быстрый запуск
+## 🚀 Быстрый запуск
 
-### Вариант 1: через git (рекомендуется)
-
-1. Клонируйте репозиторий:
+### Автоматическая установка (рекомендуется)
 ```bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup-template.sh | bash
+```
+
+### Ручная установка
+```bash
+# 1. Клонирование репозитория
 git clone https://github.com/VC-HB3-Accelerator/DLE.git
-
 cd DLE
+
+# 2. Импорт образов
+docker load -i docker-data/images/backend.tar
+docker load -i docker-data/images/frontend.tar
+docker load -i docker-data/images/vector-search.tar
+docker load -i docker-data/images/ollama.tar
+docker load -i docker-data/images/webssh-agent.tar
+
+# 3. Создание и импорт томов
+docker volume create digital_legal_entitydle_postgres_data
+docker volume create digital_legal_entitydle_ollama_data
+docker volume create digital_legal_entitydle_vector_search_data
+docker volume create digital_legal_entitydle_backend_node_modules
+docker volume create digital_legal_entitydle_frontend_node_modules
+
+docker run --rm -v digital_legal_entitydle_postgres_data:/target -v $(pwd)/docker-data/volumes:/backup alpine tar xzf /backup/postgres_data.tar.gz -C /target
+docker run --rm -v digital_legal_entitydle_ollama_data:/target -v $(pwd)/docker-data/volumes:/backup alpine tar xzf /backup/ollama_data.tar.gz -C /target
+docker run --rm -v digital_legal_entitydle_vector_search_data:/target -v $(pwd)/docker-data/volumes:/backup alpine tar xzf /backup/vector_search_data.tar.gz -C /target
+docker run --rm -v digital_legal_entitydle_backend_node_modules:/target -v $(pwd)/docker-data/volumes:/backup alpine tar xzf /backup/backend_node_modules.tar.gz -C /target
+docker run --rm -v digital_legal_entitydle_frontend_node_modules:/target -v $(pwd)/docker-data/volumes:/backup alpine tar xzf /backup/frontend_node_modules.tar.gz -C /target
+
+# 4. Запуск приложения
+docker-compose up -d
 ```
-2. Запустите скрипт установки:
+
+### Доступ к приложению
+- **Frontend**: http://localhost:5173
+
+## 🔧 Управление
+
+### Запуск
 ```bash
-./setup.sh
+docker-compose up -d
 ```
-3. После запуска контейнеров выполните миграции изнутри контейнера backend:
+
+### Остановка
 ```bash
-docker exec -e NODE_ENV=migration dapp-backend yarn migrate
+docker-compose down
 ```
 
-## Доступные сервисы
+## 📝 Лицензия
 
-После успешного запуска вы получите доступ:
+**ПРОПРИЕТАРНОЕ ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ**
 
-- Frontend: http://localhost:5173
+Copyright (c) 2024-2025 Тарабанов Александр Викторович  
+Все права защищены.
 
-## Ручной запуск
+### ⚠️ **ВАЖНЫЕ ОГРАНИЧЕНИЯ:**
 
-Если вы хотите запустить проект вручную:
+- ❌ **Запрещено** перепродавать, дарить или передавать третьим лицам
+- ❌ **Запрещено** модифицировать без явного разрешения
+- ❌ **Запрещено** использовать в образовательных учреждениях без разрешения
+- ✅ **Разрешено** только личное использование для бизнес-операций
 
-```bash
-# Запуск в фоновом режиме
-docker compose up -d
-
-# Запуск с логами
-docker compose up
-
-# Перезапуск контейнеров
-docker-compose restart
-
-# Остановка сервисов
-docker-compose-down
-```
-
-## Контакты и поддержка
-
-### Для вопросов по разработке:
-- **GitHub Issues:** [Создать issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
+### 📞 **Контакты:**
 - **Email:** info@hb3-accelerator.com
+- **Сайт:** https://hb3-accelerator.com
+- **GitHub:** https://github.com/HB3-ACCELERATOR
 
-### Для коммерческого лицензирования:
-- **Email:** info@hb3-accelerator.com
-- **Тема:** "Commercial License Request - DLE"
-- **Шаблон запроса:** [legal/COMMERCIAL_LICENSE_REQUEST.md](./legal/COMMERCIAL_LICENSE_REQUEST.md)
+**Подробная информация:** [LICENSE](LICENSE) | [Юридическая документация](legal/README.md)
 
-### Юридические документы:
-- **Лицензия:** [LICENSE](LICENSE) | [Подробно](./legal/README.md)
-- **Авторы:** [legal/AUTHORS.md](./legal/AUTHORS.md)
-- **Для контрибьюторов:** [legal/CONTRIBUTING.md](./legal/CONTRIBUTING.md)
-- **Уведомления об авторских правах:** [legal/COPYRIGHT_NOTICE.md](./legal/COPYRIGHT_NOTICE.md)
-- **Условия использования:** [legal/TERMS_OF_SERVICE.md](./legal/TERMS_OF_SERVICE.md)
-- **Коммерческие лицензии:** [legal/COMMERCIAL_LICENSES.md](./legal/COMMERCIAL_LICENSES.md)
-- **Требования атрибуции:** [legal/ATTRIBUTION_REQUIREMENTS.md](./legal/ATTRIBUTION_REQUIREMENTS.md)
-- **Уведомления об использовании:** [legal/USAGE_NOTIFICATION.md](./legal/USAGE_NOTIFICATION.md)
+## 🔐 Проверка подлинности
+
+### Цифровые подписи:
+- **LICENSE.asc** - подпись лицензии
+- **README.md.asc** - подпись README
+- **public-key.asc** - публичный ключ для проверки
+
+### Проверка подписи:
+```bash
+# Скачать публичный ключ
+curl -O https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/public-key.asc
+
+# Импортировать ключ
+gpg --import public-key.asc
+
+# Проверить подпись лицензии
+gpg --verify LICENSE.asc LICENSE
+
+# Проверить подпись README
+gpg --verify README.md.asc README.md
+```
+
+**GPG Key ID:** `4603583F81054FEECE7E821E026FD26F71D70B17`
 
 ---
 
 **© 2024-2025 Тарабанов Александр Викторович. Все права защищены.**
+

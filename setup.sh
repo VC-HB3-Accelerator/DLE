@@ -4,7 +4,10 @@
 # This software is proprietary and confidential.
 # For licensing inquiries: info@hb3-accelerator.com
 
-# Вывод цветного текста
+# Скрипт для автоматической установки шаблона приложения DLE
+# Скачивает репозиторий, проверяет Docker, импортирует образы и тома, запускает приложение
+
+# Цветной вывод
 print_green() {
   echo -e "\e[32m$1\e[0m"
 }
@@ -21,275 +24,224 @@ print_red() {
   echo -e "\e[31m$1\e[0m"
 }
 
-# Проверка и установка Docker и Docker Compose
+# Проверка Docker
 check_docker() {
-  print_blue "Проверка наличия Docker..."
+  print_blue "🔍 Проверка Docker..."
   if ! command -v docker &> /dev/null; then
-    print_yellow "Docker не установлен."
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      print_blue "Автоматическая установка Docker для Linux..."
-      curl -fsSL https://get.docker.com -o get-docker.sh
-      sudo sh get-docker.sh
-      rm get-docker.sh
-      
-      # Добавляем текущего пользователя в группу docker
-      print_blue "Добавление пользователя в группу docker..."
-      sudo usermod -aG docker $USER
-      
-      print_green "Docker установлен!"
-      print_yellow "⚠️  ВАЖНО: Для применения изменений выполните одну из команд:"
-      print_yellow "   1. newgrp docker  (применить в текущем терминале)"
-      print_yellow "   2. Перезапустите терминал"
-      print_yellow "   3. Перезайдите в систему"
-      print_blue "Нажмите Enter для продолжения после выполнения команды..."
-      read
-    else
-      print_yellow "Пожалуйста, установите Docker вручную: https://docs.docker.com/get-docker/"
-      print_yellow "Для Windows/Mac: скачайте и установите Docker Desktop."
-      exit 1
-    fi
+    print_red "❌ Docker не установлен!"
+    print_yellow "Установите Docker: https://docs.docker.com/get-docker/"
+    exit 1
   fi
   
-  # Проверка прав доступа к Docker
-  if ! docker ps &> /dev/null; then
-    print_yellow "⚠️  Нет прав для запуска Docker команд."
-    print_blue "Добавление пользователя в группу docker..."
-    
-    # Проверяем, есть ли пользователь в группе docker
-    if ! groups $USER | grep -q docker; then
-      sudo usermod -aG docker $USER
-      print_yellow "Пользователь добавлен в группу docker."
-      print_yellow "Выполните команду для применения изменений: newgrp docker"
-      print_yellow "Или перезапустите терминал и запустите скрипт снова."
-      exit 0
-    else
-      print_red "Пользователь уже в группе docker, но права не работают."
-      print_yellow "Попробуйте:"
-      print_yellow "  1. newgrp docker"
-      print_yellow "  2. Перезайдите в систему"
-      print_yellow "  3. Перезапустите Docker: sudo systemctl restart docker"
-      exit 1
-    fi
+  if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+    print_red "❌ Docker Compose не установлен!"
+    print_yellow "Установите Docker Compose: https://docs.docker.com/compose/install/"
+    exit 1
   fi
   
-  print_green "Docker установлен и доступен."
-
-  print_blue "Проверка Docker Compose..."
-  if ! docker compose version &> /dev/null; then
-    print_yellow "Docker Compose не установлен или требуется обновление."
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      print_blue "Установка Docker Compose плагина..."
-      sudo apt-get update
-      sudo apt-get install -y docker-compose-plugin
-      
-      if ! docker compose version &> /dev/null; then
-        print_red "Не удалось установить Docker Compose плагин."
-        print_yellow "Попробуйте обновить Docker: https://docs.docker.com/compose/install/"
-        exit 1
-      fi
-    else
-      print_yellow "Пожалуйста, установите Docker Compose вручную: https://docs.docker.com/compose/install/"
-      exit 1
-    fi
-  fi
-  print_green "Docker Compose установлен."
+  print_green "✅ Docker и Docker Compose установлены"
 }
 
-# Инструкция для пользователей без git
-print_no_git_instructions() {
-  print_blue "Если у вас нет git, скачайте архив проекта с GitHub:"
-  print_yellow "1. Перейдите на https://github.com/VC-HB3-Accelerator/DLE"
-  print_yellow "2. Нажмите 'Code' > 'Download ZIP'"
-  print_yellow "3. Распакуйте архив и перейдите в папку проекта"
-  print_yellow "4. Запустите этот скрипт: ./setup.sh"
+# Проверка Docker запущен
+check_docker_running() {
+  print_blue "🔍 Проверка запуска Docker..."
+  if ! docker info &> /dev/null; then
+    print_red "❌ Docker не запущен!"
+    print_yellow "Запустите Docker и повторите попытку"
+    exit 1
+  fi
+  print_green "✅ Docker запущен"
 }
 
-# Все настройки хранятся в зашифрованной базе данных
-
-# Создание ключа шифрования
-create_encryption_key() {
-  print_blue "Проверка ключа шифрования..."
-  
-  # Проверяем наличие OpenSSL
-  if ! command -v openssl &> /dev/null; then
-    print_yellow "OpenSSL не установлен. Установка..."
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      sudo apt-get update && sudo apt-get install -y openssl
+# Скачивание репозитория
+download_repo() {
+  print_blue "📥 Скачивание репозитория..."
+  if [ -d "DLE" ]; then
+    print_yellow "⚠️  Папка DLE уже существует"
+    read -p "Удалить существующую папку? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      rm -rf DLE
     else
-      print_red "Пожалуйста, установите OpenSSL вручную: https://www.openssl.org/"
-      exit 1
+      print_blue "Используем существующую папку"
+      cd DLE
+      return
     fi
   fi
   
-  # Создаём папку для ключей
-  mkdir -p ./ssl/keys
-  
-  # Генерируем ключ шифрования (если его нет)
-  if [ ! -f "./ssl/keys/full_db_encryption.key" ]; then
-    print_blue "🔑 Генерация ключа шифрования..."
-    openssl rand -base64 32 > ./ssl/keys/full_db_encryption.key
-    chmod 600 ./ssl/keys/full_db_encryption.key
-    print_green "✅ Ключ создан: ./ssl/keys/full_db_encryption.key"
-  else
-    print_green "✅ Ключ шифрования уже существует."
-  fi
+  git clone https://github.com/VC-HB3-Accelerator/DLE.git
+  cd DLE
+  print_green "✅ Репозиторий скачан"
 }
 
-# Предварительная загрузка образов
-pull_images() {
-  print_blue "Предварительная загрузка образов Docker..."
+# Проверка файлов образов
+check_images() {
+  print_blue "🔍 Проверка файлов образов..."
+  if [ ! -d "docker-data/images" ]; then
+    print_red "❌ Папка docker-data/images не найдена!"
+    print_yellow "Убедитесь, что репозиторий содержит экспортированные образы"
+    exit 1
+  fi
   
-  images=("node:20-slim" "postgres:16" "ollama/ollama:latest")
+  local images=("backend.tar" "frontend.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
+  for image in "${images[@]}"; do
+    if [ ! -f "docker-data/images/$image" ]; then
+      print_red "❌ Файл образа $image не найден!"
+      exit 1
+    fi
+  done
   
-  for img in "${images[@]}"; do
-    print_blue "Загрузка образа: $img"
-    docker pull $img
-    if [ $? -ne 0 ]; then
-      print_yellow "Предупреждение: Не удалось загрузить образ $img, но продолжаем работу..."
+  print_green "✅ Все файлы образов найдены"
+}
+
+# Проверка файлов томов
+check_volumes() {
+  print_blue "🔍 Проверка файлов томов..."
+  if [ ! -d "docker-data/volumes" ]; then
+    print_red "❌ Папка docker-data/volumes не найдена!"
+    print_yellow "Убедитесь, что репозиторий содержит экспортированные тома"
+    exit 1
+  fi
+  
+  local volumes=("postgres_data.tar.gz" "ollama_data.tar.gz" "vector_search_data.tar.gz" "backend_node_modules.tar.gz" "frontend_node_modules.tar.gz")
+  for volume in "${volumes[@]}"; do
+    if [ ! -f "docker-data/volumes/$volume" ]; then
+      print_red "❌ Файл тома $volume не найден!"
+      exit 1
+    fi
+  done
+  
+  print_green "✅ Все файлы томов найдены"
+}
+
+# Импорт образов
+import_images() {
+  print_blue "📦 Импорт образов..."
+  
+  local images=("backend.tar" "frontend.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
+  for image in "${images[@]}"; do
+    print_blue "Импорт $image..."
+    if docker load -i "docker-data/images/$image"; then
+      print_green "✅ $image импортирован"
     else
-      print_green "Образ $img успешно загружен."
+      print_red "❌ Ошибка импорта $image"
+      exit 1
+    fi
+  done
+  
+  print_green "✅ Все образы импортированы"
+}
+
+# Создание томов
+create_volumes() {
+  print_blue "💾 Создание томов..."
+  
+  local volumes=("digital_legal_entitydle_postgres_data" "digital_legal_entitydle_ollama_data" "digital_legal_entitydle_vector_search_data" "digital_legal_entitydle_backend_node_modules" "digital_legal_entitydle_frontend_node_modules")
+  
+  for volume in "${volumes[@]}"; do
+    if docker volume ls | grep -q "$volume"; then
+      print_yellow "⚠️  Том $volume уже существует"
+    else
+      docker volume create "$volume"
+      print_green "✅ Том $volume создан"
     fi
   done
 }
 
-
-
-
-
-# Запуск проекта
-start_project() {
-  print_blue "Запуск проекта..."
+# Импорт томов
+import_volumes() {
+  print_blue "📥 Импорт данных в тома..."
   
-  # Сначала убедимся, что предыдущие контейнеры остановлены
-  print_blue "Остановка существующих контейнеров..."
-  docker compose down
+  # PostgreSQL
+  print_blue "Импорт postgres_data..."
+  docker run --rm -v digital_legal_entitydle_postgres_data:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/postgres_data.tar.gz -C /target
+  print_green "✅ postgres_data импортирован"
   
-  # Запуск сервисов в Docker Compose
-  print_blue "Запуск сервисов (PostgreSQL, Ollama, Backend, Frontend)..."
-  docker compose up -d
+  # Ollama
+  print_blue "Импорт ollama_data..."
+  docker run --rm -v digital_legal_entitydle_ollama_data:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/ollama_data.tar.gz -C /target
+  print_green "✅ ollama_data импортирован"
   
-  # Проверяем, что сервисы запустились
-  if [ $? -eq 0 ]; then
-    print_green "Сервисы успешно запущены!"
-    
-    # Предзагрузка моделей Ollama
-    print_blue "Предзагрузка моделей Ollama..."
-    print_yellow "Это может занять несколько минут..."
-    
-    # Ждем, пока Ollama запустится
-    print_blue "Ожидание запуска Ollama..."
-    for i in {1..30}; do
-      if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-        print_green "Ollama готов!"
-        break
-      fi
-      if [ $i -eq 30 ]; then
-        print_yellow "Ollama не ответил за 60 секунд, продолжаем без предзагрузки..."
-        break
-      fi
-      sleep 2
-    done
-    
-    # Предзагружаем модели
-    if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-      print_blue "Предзагрузка qwen2.5:7b..."
-      curl -X POST http://localhost:11434/api/generate -d '{"model": "qwen2.5:7b", "prompt": "test", "stream": false}' > /dev/null 2>&1
-      
-      print_blue "Предзагрузка mxbai-embed-large:latest..."
-      curl -X POST http://localhost:11434/api/generate -d '{"model": "mxbai-embed-large:latest", "prompt": "test", "stream": false}' > /dev/null 2>&1
-      
-      print_green "✅ Модели предзагружены и останутся в памяти!"
-    fi
-    
-    # Добавляем токены аутентификации
-    print_blue "🔑 Добавление токенов аутентификации..."
-    ./scripts/internal/db/db_init_helper.sh 2>/dev/null || print_yellow "Токены уже добавлены или скрипт недоступен"
-    
-    # Создаём функции шифрования в PostgreSQL
-    print_blue "📝 Создание функций шифрования в PostgreSQL..."
-    docker exec dapp-postgres psql -U dapp_user -d dapp_db << 'EOF' 2>/dev/null || print_yellow "Функции шифрования уже существуют или БД не готова"
--- Создаём расширение для шифрования
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  # Vector Search
+  print_blue "Импорт vector_search_data..."
+  docker run --rm -v digital_legal_entitydle_vector_search_data:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/vector_search_data.tar.gz -C /target
+  print_green "✅ vector_search_data импортирован"
+  
+  # Backend node_modules
+  print_blue "Импорт backend_node_modules..."
+  docker run --rm -v digital_legal_entitydle_backend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/backend_node_modules.tar.gz -C /target
+  print_green "✅ backend_node_modules импортирован"
+  
+  # Frontend node_modules
+  print_blue "Импорт frontend_node_modules..."
+  docker run --rm -v digital_legal_entitydle_frontend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/frontend_node_modules.tar.gz -C /target
+  print_green "✅ frontend_node_modules импортирован"
+  
+  print_green "✅ Все тома импортированы"
+}
 
--- Функция для шифрования текста
-CREATE OR REPLACE FUNCTION encrypt_text(data text, key text)
-RETURNS text AS $$
-BEGIN
-    IF data IS NULL THEN
-        RETURN NULL;
-    END IF;
-    RETURN encode(encrypt_iv(data::bytea, decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'base64');
-END;
-$$ LANGUAGE plpgsql;
-
--- Функция для расшифровки текста
-CREATE OR REPLACE FUNCTION decrypt_text(encrypted_data text, key text)
-RETURNS text AS $$
-BEGIN
-    IF encrypted_data IS NULL THEN
-        RETURN NULL;
-    END IF;
-    RETURN convert_from(decrypt_iv(decode(encrypted_data, 'base64'), decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'utf8');
-END;
-$$ LANGUAGE plpgsql;
-
--- Функция для шифрования JSON
-CREATE OR REPLACE FUNCTION encrypt_json(data jsonb, key text)
-RETURNS text AS $$
-BEGIN
-    IF data IS NULL THEN
-        RETURN NULL;
-    END IF;
-    RETURN encode(encrypt_iv(data::text::bytea, decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'base64');
-END;
-$$ LANGUAGE plpgsql;
-
--- Функция для расшифровки JSON
-CREATE OR REPLACE FUNCTION decrypt_json(encrypted_data text, key text)
-RETURNS jsonb AS $$
-BEGIN
-    IF encrypted_data IS NULL THEN
-        RETURN NULL;
-    END IF;
-    RETURN convert_from(decrypt_iv(decode(encrypted_data, 'base64'), decode(key, 'base64'), decode('000102030405060708090A0B0C0D0E0F', 'hex'), 'aes-cbc'), 'utf8')::jsonb;
-END;
-$$ LANGUAGE plpgsql;
-EOF
-    
-    print_green "----------------------------------------"
-    print_green "Проект Digital_Legal_Entity(DLE) доступен по адресам:"
-    print_green "Frontend: http://localhost:5173"
-    print_green "Backend API: http://localhost:8000"
-    print_green "Ollama API: http://localhost:11434"
-    print_green "PostgreSQL: localhost:5432"
-    print_green "----------------------------------------"
-    print_green "🔐 Ключ шифрования: ./ssl/keys/full_db_encryption.key"
-    print_green "📋 Все настройки хранятся в зашифрованной базе данных"
-    print_green "----------------------------------------"
-    print_green "ИИ-ассистент готов к работе!"
-    print_green "----------------------------------------"
+# Запуск приложения
+start_application() {
+  print_blue "🚀 Запуск приложения..."
+  
+  if docker-compose up -d; then
+    print_green "✅ Приложение запущено"
+    print_blue "🌐 Доступ к приложению: http://localhost:5173"
   else
-    print_red "Произошла ошибка при запуске сервисов."
-    print_yellow "Проверьте логи командой: docker compose logs"
-    print_yellow "Для просмотра логов конкретного сервиса: docker compose logs [service]"
-    print_yellow "Например: docker compose logs backend"
+    print_red "❌ Ошибка запуска приложения"
+    print_yellow "Проверьте логи: docker-compose logs"
+    exit 1
+  fi
+}
+
+# Проверка статуса
+check_status() {
+  print_blue "🔍 Проверка статуса контейнеров..."
+  sleep 10
+  
+  if docker-compose ps | grep -q "Up"; then
+    print_green "✅ Контейнеры запущены"
+    print_blue "🌐 Приложение доступно по адресу: http://localhost:5173"
+  else
+    print_yellow "⚠️  Некоторые контейнеры могут быть не готовы"
+    print_blue "Проверьте статус: docker-compose ps"
+    print_blue "Просмотрите логи: docker-compose logs"
   fi
 }
 
 # Основная функция
 main() {
-  print_blue "==============================================="
-  print_blue "   Установка и запуск Digital_Legal_Entity(DLE)"
-  print_blue "==============================================="
-
-  print_yellow "\nЕсли у вас нет git, скачайте проект архивом с GitHub!"
-  print_no_git_instructions
-
+  print_blue "🚀 Установка шаблона приложения Digital Legal Entity"
+  print_blue "=================================================="
+  
+  # Проверки
   check_docker
-  create_encryption_key
-  pull_images
-  start_project
+  check_docker_running
+  
+  # Скачивание
+  download_repo
+  
+  # Проверка файлов
+  check_images
+  check_volumes
+  
+  # Импорт
+  import_images
+  create_volumes
+  import_volumes
+  
+  # Запуск
+  start_application
+  check_status
+  
+  print_green "🎉 Установка завершена!"
+  print_blue "=================================================="
+  print_blue "🌐 Приложение доступно: http://localhost:5173"
+  print_blue "🔧 Управление:"
+  print_blue "   Запуск:   docker-compose up -d"
+  print_blue "   Остановка: docker-compose down"
+  print_blue "   Логи:     docker-compose logs"
 }
 
-# Запуск основной функции
-main 
+# Запуск
+main "$@"
