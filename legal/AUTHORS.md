@@ -19,9 +19,6 @@
 - **GitHub Issues:** [Создать issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 - **Сайт:** [hb3-accelerator.com](https://hb3-accelerator.com)
 
-### Для коммерческого лицензирования:
-- **Email:** info@hb3-accelerator.com
-- **Тема письма:** "Commercial License Request - DLE"
 
 ## История проекта
 
