@@ -1,0 +1,58 @@
+# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# All rights reserved.
+# This software is proprietary and confidential.
+# For licensing inquiries: info@hb3-accelerator.com
+
+# Исключить из Docker образа:
+
+# Редакторы и IDE
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Документация
+docs/
+*.md
+README*
+
+# Git
+.git/
+.gitignore
+
+# Зависимости (будут установлены в контейнере)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Локальные файлы
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Временные файлы
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Тестовые файлы
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js
+
+# Кэш и сборка
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+dist/
+build/
+coverage/
