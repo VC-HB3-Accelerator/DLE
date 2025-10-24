@@ -33,11 +33,12 @@ echo "🐳 Очистка логов Docker контейнеров..."
 docker system prune -f
 
 # 3. Очистка логов конкретных контейнеров (без удаления)
-containers=("dapp-backend" "dapp-frontend" "dapp-postgres" "dapp-ollama")
+containers=("dapp-backend" "dapp-frontend" "dapp-frontend-nginx" "dapp-postgres" "dapp-ollama" "dapp-vector-search")
 for container in "${containers[@]}"; do
     if docker ps -a --format "table {{.Names}}" | grep -q "^${container}$"; then
         echo "🧹 Очистка логов контейнера ${container}..."
-        docker logs --since 0s "${container}" > /dev/null 2>&1 || true
+        # Очистка логов контейнера (удаление логов)
+        docker logs "${container}" > /dev/null 2>&1 || true
     fi
 done
 
@@ -46,7 +47,7 @@ echo "🔄 Настройка автоматической очистки..."
 if command -v docker-compose >/dev/null 2>&1; then
     # Добавляем хук для автоматической очистки при docker-compose down
     echo "📝 Добавляем хук для автоматической очистки..."
-    echo "alias docker-compose-down='docker-compose down && ./clean-logs.sh'" >> ~/.bashrc
+    echo "alias docker-compose-down='docker-compose down --remove-orphans && docker-compose --profile production down && docker-compose --profile dev down && ./clean-logs.sh'" >> ~/.bashrc
     echo "✅ Теперь используйте 'docker-compose-down' вместо 'docker-compose down'"
 fi
 
