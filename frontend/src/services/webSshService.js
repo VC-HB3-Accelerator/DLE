@@ -21,7 +21,7 @@ const LOCAL_AGENT_URL = 'http://localhost:3000';
 function getNginxConfig(domain, serverPort) {
   return `# Rate limiting для защиты от DDoS
 limit_req_zone $binary_remote_addr zone=req_limit_per_ip:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=api_limit_per_ip:10m rate=5r/s;
+limit_req_zone $binary_remote_addr zone=api_limit_per_ip:10m rate=50r/s;
 
 # Блокировка известных сканеров и вредоносных ботов
 map $http_user_agent $bad_bot {
@@ -89,7 +89,7 @@ server {
     # API проксирование к backend через туннель
     location /api/ {
         # Rate limiting для API (более строгое)
-        limit_req zone=api_limit_per_ip burst=10 nodelay;
+        limit_req zone=api_limit_per_ip burst=100 nodelay;
         
         proxy_pass http://localhost:8000/api/;
         proxy_set_header Host $host;
@@ -549,7 +549,7 @@ app.post('/tunnel/create', async (req, res) => {
     // Создание конфигурации NGINX с полной защитой
     const nginxConfig = \`# Rate limiting для защиты от DDoS
 limit_req_zone $binary_remote_addr zone=req_limit_per_ip:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=api_limit_per_ip:10m rate=5r/s;
+limit_req_zone $binary_remote_addr zone=api_limit_per_ip:10m rate=50r/s;
 
 # Блокировка известных сканеров и вредоносных ботов
 map $http_user_agent $bad_bot {
@@ -617,7 +617,7 @@ server {
     # API проксирование к backend через туннель
     location /api/ {
         # Rate limiting для API (более строгое)
-        limit_req zone=api_limit_per_ip burst=10 nodelay;
+        limit_req zone=api_limit_per_ip burst=100 nodelay;
         
         proxy_pass http://localhost:8000/api/;
         proxy_set_header Host $host;

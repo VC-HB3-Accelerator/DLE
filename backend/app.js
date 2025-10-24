@@ -185,28 +185,30 @@ const isProduction = process.env.NODE_ENV === 'production';
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: isProduction ? 100 : 1000, // 100 запросов в продакшне, 1000 в dev
+  max: isProduction ? 100 : 2000, // 100 запросов в продакшне, 2000 в dev
   message: {
     error: 'Слишком много запросов, попробуйте позже',
     retryAfter: '15 минут'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  trustProxy: true, // Доверяем nginx proxy
 });
 
-// Применяем rate limiting ко всем запросам
-app.use(limiter);
+// Применяем rate limiting ко всем запросам (временно отключено для тестирования)
+// app.use(limiter);
 
 // Строгий rate limiting для чувствительных эндпоинтов
 const strictLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: 10, // 10 попыток
+  max: isProduction ? 10 : 100, // 10 попыток в продакшне, 100 в разработке
   message: {
     error: 'Превышен лимит попыток, попробуйте позже',
     retryAfter: '15 минут'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  trustProxy: true, // Доверяем nginx proxy
 });
 
 // Статическая раздача загруженных файлов (для dev и prod)
@@ -235,7 +237,7 @@ app.use(
 // Маршруты API
 app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
 // app.use('/api', identitiesRoutes);
-app.use('/api/auth', strictLimiter, authRoutes); // Строгий rate limiting для аутентификации
+app.use('/api/auth', authRoutes); // Rate limiting временно отключен для тестирования
 app.use('/api/users', usersRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
