@@ -787,21 +787,25 @@ router.get('/encryption-key/status', requireAdmin, async (req, res) => {
     
     const exists = fs.existsSync(keyPath);
     
-    let key = null;
-    if (exists) {
-      try {
-        key = fs.readFileSync(keyPath, 'utf8').trim();
-      } catch (error) {
-        logger.error('Ошибка чтения ключа:', error);
-      }
+  // Возвращаем только метаданные без содержимого ключа
+  let checksum = null;
+  if (exists) {
+    try {
+      const data = fs.readFileSync(keyPath);
+      // лёгкая хэш-сумма для проверки целостности без раскрытия ключа
+      const crypto = require('crypto');
+      checksum = crypto.createHash('sha256').update(data).digest('hex');
+    } catch (error) {
+      logger.error('Ошибка чтения ключа для метаданных:', error);
     }
-    
-    res.json({ 
-      success: true, 
-      exists,
-      path: keyPath,
-      key: key
-    });
+  }
+  
+  res.json({ 
+    success: true, 
+    exists,
+    path: keyPath,
+    checksum
+  });
   } catch (error) {
     logger.error('Ошибка проверки статуса ключа шифрования:', error);
     res.status(500).json({ success: false, error: error.message });

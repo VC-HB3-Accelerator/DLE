@@ -55,7 +55,7 @@ import pagesService from '../../services/pagesService';
 import api from '../../api/axios';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
-import { PERMISSIONS as SHARED_PERMISSIONS } from '/app/shared/permissions.js';
+import { PERMISSIONS as SHARED_PERMISSIONS } from './permissions.js';
 
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },

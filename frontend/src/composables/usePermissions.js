@@ -12,7 +12,7 @@
 
 import { computed } from 'vue';
 import { useAuthContext } from './useAuth';
-import { PERMISSIONS, ROLES, hasPermission as checkPermission, getRoleDescription } from '/app/shared/permissions';
+import { PERMISSIONS, ROLES, hasPermission as checkPermission, getRoleDescription } from './permissions.js';
 
 /**
  * Composable для работы с правами доступа

@@ -44,18 +44,55 @@ docker-compose up -d
 ```
 
 ### Доступ к приложению
+
+#### Разработка (dev)
 - **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+
+#### Продакшн (production)
+- **Frontend**: http://localhost:9000 (HTTP) или https://localhost:9443 (HTTPS)
+- **Backend API**: http://localhost:9000/api (через nginx proxy)
 
 ## 🔧 Управление
 
 ### Запуск
+```
+
+#### Продакшн (production)
 ```bash
-docker-compose up -d
+# Пересборка образов
+docker-compose build --no-cache
+
+# Запуск продакшн-сервисов
+NODE_ENV=production docker-compose --profile production up -d
+
+# Проверка
+docker-compose ps
+curl http://localhost:9000/api/health
 ```
 
 ### Остановка
 ```bash
-docker-compose down
+docker-compose-down
+```
+
+### Полезные команды
+```bash
+# Просмотр логов
+docker-compose logs -f backend
+docker-compose logs -f frontend-nginx
+
+# Перезапуск сервиса
+docker-compose restart backend
+docker-compose restart frontend-nginx
+
+# Пересборка конкретного сервиса
+docker-compose build --no-cache backend
+docker-compose build --no-cache frontend-nginx
+
+# Просмотр статуса
+docker-compose ps
+docker ps  # Все контейнеры в системе
 ```
 
 ## 📝 Лицензия

@@ -178,7 +178,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import pagesService from '../services/pagesService';
-import { PERMISSIONS } from '/app/shared/permissions.js';
+import { PERMISSIONS } from './permissions.js';
 import { useAuthContext } from '../composables/useAuth';
 import { usePermissions } from '../composables/usePermissions';
 

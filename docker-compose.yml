@@ -24,8 +24,6 @@ services:
       - POSTGRES_DB=${DB_NAME:-dapp_db}
       - POSTGRES_USER=${DB_USER:-dapp_user}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-dapp_password}
-    ports:
-      - '5432:5432'  # Открываем доступ к базе данных извне для разработки
     healthcheck:
       test:
         - CMD-SHELL
@@ -138,7 +136,7 @@ services:
       - ./ssl:/app/ssl
       - ./shared:/app/shared:ro
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-8000}
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -150,11 +148,12 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-qwen2.5:7b}
-      - FRONTEND_URL=http://localhost:5173
+      # FRONTEND_URL настраивается в коде, не через env
       - VECTOR_SEARCH_URL=http://vector-search:8001
       # Factory адреса теперь хранятся в базе данных
-    ports:
-      - '8000:8000'
+    # Убираем порты для продакшна - доступ только через nginx
+    # ports:
+    #   - '8000:8000'
     extra_hosts:
       - host.docker.internal:host-gateway
     healthcheck:
@@ -164,6 +163,7 @@ services:
       retries: 5
       start_period: 60s
   frontend:
+    profiles: ["dev"]  # Только для разработки
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -204,37 +204,33 @@ services:
       - "9000:80" # Frontend nginx (для production на VDS)
       - "9443:443" # HTTPS порт для production на VDS
     environment:
-      - DOMAIN=${DOMAIN:-localhost:9000}
+      - DOMAIN=${DOMAIN:-production.local}
       - BACKEND_CONTAINER=dapp-backend
     depends_on:
       - backend
 
 
 
-  # SSH Key Server для безопасной передачи ключей
-  ssh-key-server:
-    image: node:20-slim
-    container_name: dapp-ssh-key-server
-    restart: unless-stopped
-    dns:
-      - 1.1.1.1        # Cloudflare (приватность)
-      - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
-      - 8.8.8.8        # Google (надежность, fallback)
-    volumes:
-      - ./scripts/ssh-key-server.js:/app/ssh-key-server.js:ro
-      - ./ssl:/app/ssl
-      - ~/.ssh:/root/.ssh:rw
-    ports:
-      - '3001:3001'
-    command: node /app/ssh-key-server.js
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/ssh-key', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # SSH Key Server отключен по безопасности (оставлен пример профиля dev при необходимости)
+  # ssh-key-server:
+  #   profiles: ["dev"]
+  #   image: node:20-slim
+  #   container_name: dapp-ssh-key-server
+  #   restart: unless-stopped
+  #   dns:
+  #     - 1.1.1.1
+  #     - 9.9.9.9
+  #     - 8.8.8.8
+  #   volumes:
+  #     - ./scripts/ssh-key-server.js:/app/ssh-key-server.js:ro
+  #     - ./ssl:/app/ssl:ro
+  #     - ~/.ssh:/root/.ssh:ro
+  #   command: node /app/ssh-key-server.js
+  #   # Порт намеренно не публикуется, без healthcheck
 
   # WebSSH Agent для настройки VDS
   webssh-agent:
+    profiles: ["dev"]  # Только для разработки
     build:
       context: ./webssh-agent
       dockerfile: Dockerfile

@@ -60,7 +60,7 @@ import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
-import { PERMISSIONS } from '/app/shared/permissions.js';
+import { PERMISSIONS } from './permissions.js';
 
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },

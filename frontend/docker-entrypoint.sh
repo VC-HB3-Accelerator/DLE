@@ -9,7 +9,7 @@ echo "   DOMAIN: $DOMAIN"
 echo "   BACKEND_CONTAINER: $BACKEND_CONTAINER"
 
 # Выбор конфигурации в зависимости от домена
-if echo "$DOMAIN" | grep -qE '^localhost(:[0-9]+)?$'; then
+if echo "$DOMAIN" | grep -qE '^localhost(:[0-9]+)?$|^production\.local$'; then
     echo "   Режим: ЛОКАЛЬНАЯ РАЗРАБОТКА (без SSL)"
     TEMPLATE_FILE="/etc/nginx/nginx-local.conf.template"
 else

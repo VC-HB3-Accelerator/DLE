@@ -129,7 +129,7 @@ import { useTagsWebSocket } from '../composables/useTagsWebSocket';
 import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
-import { PERMISSIONS } from '/app/shared/permissions.js';
+import { PERMISSIONS } from './permissions.js';
 import api from '../api/axios';
 import { sendMessage, getPrivateUnreadCount } from '../services/messagesService';
 import { useRoles } from '@/composables/useRoles';

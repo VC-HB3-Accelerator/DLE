@@ -16,6 +16,7 @@ const cors = require('cors');
 const session = require('express-session');
 const sessionConfig = require('./config/session');
 const logger = require('./utils/logger');
+const rateLimit = require('express-rate-limit');
 // const csurf = require('csurf'); // Закомментировано, так как не используется
 const errorHandler = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
@@ -115,14 +116,21 @@ app.set('host', '0.0.0.0');
 app.set('port', process.env.PORT || 8000);
 
 // Настройка CORS
+const corsOrigins = process.env.NODE_ENV === 'production' 
+  ? [
+      'http://localhost:9000',    // Локальный Docker nginx
+      'https://localhost:9443',    // Локальный Docker nginx HTTPS
+      // Добавьте ваш продакшн домен здесь для VDS
+      // 'https://yourdomain.com',
+    ]
+  : [
+      'http://localhost:5173',     // Vite dev server
+      'http://127.0.0.1:5173',
+    ];
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'https://hb3-accelerator.com',
-      'https://www.hb3-accelerator.com',
-    ],
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
@@ -171,6 +179,36 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Определяем режим работы
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: isProduction ? 100 : 1000, // 100 запросов в продакшне, 1000 в dev
+  message: {
+    error: 'Слишком много запросов, попробуйте позже',
+    retryAfter: '15 минут'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Применяем rate limiting ко всем запросам
+app.use(limiter);
+
+// Строгий rate limiting для чувствительных эндпоинтов
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 10, // 10 попыток
+  message: {
+    error: 'Превышен лимит попыток, попробуйте позже',
+    retryAfter: '15 минут'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Статическая раздача загруженных файлов (для dev и prod)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -178,14 +216,26 @@ app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 // Настройка безопасности
 app.use(
   helmet({
-    contentSecurityPolicy: false, // Отключаем CSP для разработки
+    contentSecurityPolicy: isProduction ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    } : false, // Отключаем CSP для разработки
   })
 );
 
 // Маршруты API
 app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
 // app.use('/api', identitiesRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', strictLimiter, authRoutes); // Строгий rate limiting для аутентификации
 app.use('/api/users', usersRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
@@ -195,10 +245,10 @@ app.use('/api/kpp', kppRoutes); // Добавленное использован
 app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
 
 app.use('/api/dle-v2', dleV2Routes); // Добавляем маршрут DLE v2
-app.use('/api/settings', settingsRoutes); // Добавляем маршрут настроек
+app.use('/api/settings', strictLimiter, settingsRoutes); // Строгий rate limiting для настроек
 app.use('/api/countries', countriesRoutes); // Добавляем маршрут стран
 app.use('/api/russian-classifiers', russianClassifiersRoutes); // Добавляем маршрут российских классификаторов
-app.use('/api/ollama', ollamaRoutes); // Добавляем маршрут Ollama
+app.use('/api/ollama', strictLimiter, ollamaRoutes); // Строгий rate limiting для Ollama
 app.use('/api/ai-queue', aiQueueRoutes); // Добавляем маршрут AI Queue
 app.use('/api/tags', tagsRoutes); // Добавляем маршрут тегов
 app.use('/api/blockchain', blockchainRoutes); // Добавляем маршрут blockchain

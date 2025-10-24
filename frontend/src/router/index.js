@@ -19,7 +19,7 @@ const SettingsInterfaceView = () => import('../views/settings/Interface/Interfac
 
 import axios from 'axios';
 import { setToStorage } from '../utils/storage.js';
-import { PERMISSIONS, hasPermission } from '/app/shared/permissions.js';
+import { PERMISSIONS, hasPermission } from './permissions.js';
 
 // console.log('router/index.js: Script loaded');
 

@@ -167,7 +167,7 @@ import messagesService from '../../services/messagesService.js';
 import { getPublicMessages, getConversationByUserId, sendMessage, getPersonalChatHistory } from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
-import { PERMISSIONS } from '/app/shared/permissions.js';
+import { PERMISSIONS } from './permissions.js';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
 const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts, hasPermission } = usePermissions();
 const { address, userId: currentUserId } = useAuthContext();

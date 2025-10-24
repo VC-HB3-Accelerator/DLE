@@ -24,6 +24,8 @@ function setPoolChangeCallback(cb) {
 let sessionMiddleware = createSessionMiddleware();
 
 function createSessionMiddleware() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   return session({
     store: new pgSession({
       pool: db.getPool(),
@@ -36,8 +38,8 @@ function createSessionMiddleware() {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
+      secure: false,  // false для локального Docker (HTTP)
+      sameSite: 'lax',  // lax для локального Docker
       path: '/',
     },
   });
