@@ -45,10 +45,6 @@ docker-compose up -d
 
 ### Доступ к приложению
 
-#### Разработка (dev)
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000
-
 #### Продакшн (production)
 - **Frontend**: http://localhost:9000 (HTTP) или https://localhost:9443 (HTTPS)
 - **Backend API**: http://localhost:9000/api (через nginx proxy)
