@@ -144,8 +144,7 @@ docs/
 ├── blockchain-integration-technical.md   # Техническая документация (для разработчиков)
 ├── security.md                           # Безопасность DLE ⭐ НОВОЕ!
 ├── application-description.md            # Описание приложения
-├── service-terms.md                      # Условия обслуживания
-└── CHANGELOG.md                          # История изменений документации
+└── service-terms.md                      # Условия обслуживания
 ```
 
 ---
