@@ -147,7 +147,7 @@ services:
         DATABASE_URL=postgresql://${DB_USER:-dapp_user}:${DB_PASSWORD:-dapp_password}@postgres:5432/${DB_NAME:-dapp_db}
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
-      - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-qwen2.5:7b}
+      - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # FRONTEND_URL настраивается в коде, не через env
       - VECTOR_SEARCH_URL=http://vector-search:8001
       # Factory адреса теперь хранятся в базе данных

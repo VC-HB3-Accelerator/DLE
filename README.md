@@ -50,11 +50,11 @@ docker-compose up -d
 - **Backend API**: http://localhost:9000/api (через nginx proxy)
 
 #### 🗳️ Портал голосования токен-холдеров
-- **Governance Portal**: https://hb3-accelerator.com/governance
+- **Governance Portal**: https://hb3-accelerator.com/
 - Создавайте предложения и голосуйте за развитие новых функций
 
 #### 📥 Скачивание обновлений
-- **Updates Platform**: https://hb3-accelerator.com/updates
+- **Updates Platform**: https://hb3-accelerator.com/
 - Скачивайте все версии приложения и читайте Release Notes
 
 ## 🔧 Управление

@@ -202,46 +202,4 @@ backend/test_*.js
 
 # Environment specific files
 backend/.env.local
-backend/.env.production
-
-# ========================================
-# ДОКУМЕНТАЦИЯ - НЕ ПУБЛИКОВАТЬ!
-# ========================================
-
-# Документация проекта
-docs/
-**/docs/
-
-# ========================================
-# ПАТЕНТНЫЕ ДОКУМЕНТЫ - НЕ ПУБЛИКОВАТЬ!
-# ========================================
-
-# Патентные заявки и документы
-legal/patents/
-legal/PATENT_*.md
-legal/INNOVATION_PROCESS.md
-legal/TECHNICAL_SPECIFICATIONS.md
-legal/PATENT_DRAWINGS*.md
-
-# Конфиденциальные технические детали
-legal/REGISTRATION_PLAN.md
-legal/JURISDICTION.md
-
-# Временные файлы патентной работы
-legal/temp/
-legal/drafts/
-legal/confidential/
-
-# ========================================
-# АВТОРСКИЕ ПРАВА И ЛИЦЕНЗИИ - ПУБЛИКОВАТЬ
-# ========================================
-# Исключения для публичных файлов
-!legal/README.md
-!legal/AUTHORS.md
-!legal/CONTRIBUTING.md
-!legal/COPYRIGHT_NOTICE.md
-!legal/TERMS_OF_SERVICE.md
-!legal/COMMERCIAL_LICENSES.md
-!legal/COMMERCIAL_LICENSE_REQUEST.md
-!legal/ATTRIBUTION_REQUIREMENTS.md
-!legal/USAGE_NOTIFICATION.md 
+backend/.env.production 
