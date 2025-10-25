@@ -301,9 +301,9 @@ const routes = [
     component: () => import('../views/ConnectWalletView.vue')
   },
   {
-    path: '/accelerator/registration',
-    name: 'accelerator-registration',
-    component: () => import('../views/accelerator/AcceleratorRegistrationView.vue')
+    path: '/groups',
+    name: 'groups',
+    component: () => import('../views/groups/GroupsView.vue')
   },
 ];
 

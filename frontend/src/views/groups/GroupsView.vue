@@ -18,11 +18,11 @@
     :is-loading-tokens="isLoadingTokens"
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="accelerator-registration-container">
+    <div class="groups-container">
       <div class="page-header">
-        <h1>Программы акселератора HB3</h1>
+        <h1>Группы</h1>
         <p class="page-description">
-          Выберите подходящую программу для развития вашего бизнеса
+          Создание и управление группами
         </p>
       </div>
 
@@ -173,7 +173,7 @@ const goBack = () => {
 </script>
 
 <style scoped>
-.accelerator-registration-container {
+.groups-container {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
@@ -335,7 +335,7 @@ const goBack = () => {
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  .accelerator-registration-container {
+  .groups-container {
     margin: 10px;
     padding: 15px;
   }

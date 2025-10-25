@@ -69,8 +69,8 @@
           </div>
           
           <div class="management-block">
-            <h3>Акселератор</h3>
-            <p>Регистрация и управление проектами</p>
+            <h3>Группы</h3>
+            <p>Создание и управление</p>
             <button class="details-btn" @click="goToAcceleratorRegistration">Подробнее</button>
           </div>
         </div>
@@ -266,7 +266,7 @@ function goToWeb3App() {
 }
 
 function goToAcceleratorRegistration() {
-  router.push({ name: 'accelerator-registration' });
+  router.push({ name: 'groups' });
 }
 </script>
 
