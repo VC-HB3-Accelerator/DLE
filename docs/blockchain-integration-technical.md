@@ -964,9 +964,22 @@ export default {
 
 ## Безопасность
 
-### 1. Защита от реентерабельности
+> 💡 **Подробная информация**: См. [Безопасность DLE](./security.md) - там детально описаны все уровни защиты, сценарии атак и рекомендации по безопасности.
+
+### Краткий обзор технических аспектов
+
+**Ключевые принципы безопасности смарт-контрактов:**
+- 🔒 **ReentrancyGuard** - защита от реентерабельности
+- 🚫 **Блокировка переводов** - токены передаются только через governance
+- 📸 **Снапшоты голосов** - защита от flash-loan атак
+- ✍️ **EIP-712 подписи** - поддержка контрактных кошельков
+- ✅ **Валидация параметров** - проверка всех входных данных
+- 💰 **Custom errors** - экономия gas при ошибках
+
+**Примеры реализации:**
 
 ```solidity
+// Защита от реентерабельности
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract DLE is ReentrancyGuard {
@@ -974,217 +987,35 @@ contract DLE is ReentrancyGuard {
         // Операция защищена от реентерабельности
     }
 }
-```
 
-### 2. Блокировка переводов токенов
-
-Токены управления **НЕ могут быть переведены** обычными способами:
-
-```solidity
-error ErrTransfersDisabled();
-error ErrApprovalsDisabled();
-
+// Блокировка переводов токенов
 function transfer(address, uint256) public pure override returns (bool) {
     revert ErrTransfersDisabled();
 }
 
-function approve(address, uint256) public pure override returns (bool) {
-    revert ErrApprovalsDisabled();
-}
-```
-
-Передача возможна **только через голосование**:
-```solidity
-function _transferTokens(address _recipient, uint256 _amount) internal {
-    _transfer(address(this), _recipient, _amount);
-}
-```
-
-### 3. Снапшоты голосов
-
-Используются **прошлые значения** для предотвращения flash-loans:
-
-```solidity
+// Снапшоты голосов
 uint256 public snapshotTimepoint = block.number - 1;
 
 function vote(uint256 _proposalId, bool _support) external {
     uint256 votingPower = getPastVotes(msg.sender, snapshotTimepoint);
     require(votingPower > 0, "No voting power");
-    // ...
 }
-```
-
-### 4. EIP-712 подписи
-
-Поддержка **структурированных подписей** для контрактных кошельков:
-
-```solidity
-bytes32 private constant EXECUTION_APPROVAL_TYPEHASH = keccak256(
-    "ExecutionApproval(uint256 proposalId,bytes32 operationHash,uint256 chainId,uint256 snapshotTimepoint)"
-);
-
-function executeWithSignatures(
-    uint256 proposalId,
-    bytes32 operationHash,
-    address[] calldata signers,
-    bytes[] calldata signatures
-) external nonReentrant {
-    // Проверка EIP-712 подписей
-    // Поддержка EIP-1271 для контрактных кошельков
-}
-```
-
-### 5. Валидация параметров
-
-Все параметры проверяются перед использованием:
-
-```solidity
-if (_moduleAddress == address(0)) revert ErrZeroAddress();
-if (balanceOf(msg.sender) == 0) revert ErrNotHolder();
-if (_duration < minVotingDuration) revert ErrTooShort();
-if (_duration > maxVotingDuration) revert ErrTooLong();
-if (!supportedChains[_chainId]) revert ErrUnsupportedChain();
-```
-
-### 6. Custom errors
-
-Использование **custom errors** вместо `require` для экономии gas:
-
-```solidity
-error ErrZeroAddress();
-error ErrNotHolder();
-error ErrAlreadyVoted();
-// ... и другие
 ```
 
 ---
 
 ## Практические примеры
 
-### Пример 1: Создание DLE и деплой в несколько сетей
+> 💡 **Подробные примеры и кейсы**: См. [Блокчейн для бизнеса](./blockchain-for-business.md) - там детально описаны реальные бизнес-кейсы, экономические расчеты и практические примеры использования DLE.
 
-```bash
-# 1. Настройка параметров в базе данных
-# Через веб-интерфейс: Настройки → Блокчейн
+### Краткий обзор технических примеров
 
-# 2. Запуск мультичейн деплоя
-cd backend
-yarn deploy:multichain
+**Основные сценарии использования:**
 
-# 3. Результат: DLE развернут в Ethereum, Polygon и Arbitrum с одним адресом
-```
-
-### Пример 2: Добавление Timelock Module
-
-```javascript
-// 1. Деплой модулей
-yarn deploy:modules
-
-// 2. Создание предложения на добавление модуля
-const dleContract = new ethers.Contract(dleAddress, dleAbi, signer);
-
-const operation = dleContract.interface.encodeFunctionData('_addModule', [
-    ethers.id('TIMELOCK_MODULE'),
-    timelockModuleAddress
-]);
-
-const tx = await dleContract.createProposal(
-    'Добавить Timelock Module для защиты от мгновенных изменений',
-    86400 * 7, // 7 дней голосования
-    operation,
-    1, // Ethereum mainnet
-    [1, 137, 42161] // Исполнить во всех сетях
-);
-
-await tx.wait();
-console.log('Предложение создано!');
-
-// 3. Голосование токен-холдеров
-await dleContract.vote(proposalId, true); // "За"
-
-// 4. Исполнение после окончания голосования
-await dleContract.execute(proposalId);
-
-console.log('Timelock Module добавлен!');
-```
-
-### Пример 3: Создание иерархического голосования
-
-```javascript
-// DLE-A будет голосовать в DLE-B
-const dleA = new ethers.Contract(dleAAddress, dleAbi, signer);
-const hierarchicalModule = new ethers.Contract(
-    hierarchicalModuleAddress,
-    hierarchicalModuleAbi,
-    signer
-);
-
-// 1. Добавить внешний DLE (DLE-B) в DLE-A
-const operation1 = hierarchicalModule.interface.encodeFunctionData('addExternalDLE', [
-    dleBAddress,
-    'Company B DLE',
-    'COMPB'
-]);
-
-await dleA.createProposal(
-    'Добавить DLE-B для участия в их голосованиях',
-    86400 * 3,
-    operation1,
-    chainId,
-    [chainId]
-);
-
-// 2. После одобрения, создать предложение в DLE-B от имени DLE-A
-const operation2 = hierarchicalModule.interface.encodeFunctionData(
-    'createProposalInExternalDLE',
-    [
-        dleBAddress,
-        'Предложение от DLE-A',
-        86400,
-        operationBytes,
-        chainId
-    ]
-);
-
-await dleA.createProposal(
-    'Создать предложение в DLE-B',
-    86400 * 3,
-    operation2,
-    chainId,
-    [chainId]
-);
-
-console.log('Иерархическое голосование настроено!');
-```
-
-### Пример 4: Управление Treasury
-
-```javascript
-const dleContract = new ethers.Contract(dleAddress, dleAbi, signer);
-const treasuryModule = new ethers.Contract(
-    treasuryModuleAddress,
-    treasuryModuleAbi,
-    signer
-);
-
-// Перевести 1000 USDC из казны на маркетинг
-const operation = treasuryModule.interface.encodeFunctionData('transferTokens', [
-    usdcTokenAddress,
-    marketingWalletAddress,
-    ethers.parseUnits('1000', 6) // USDC has 6 decimals
-]);
-
-await dleContract.createProposal(
-    'Выделить 1000 USDC на маркетинговую кампанию Q1 2025',
-    86400 * 14, // 14 дней голосования
-    operation,
-    chainId,
-    [chainId]
-);
-
-console.log('Предложение на расход из казны создано!');
-```
-
+1. **Мультичейн деплой** - развертывание DLE в нескольких сетях одновременно
+2. **Добавление модулей** - расширение функциональности через голосование
+3. **Иерархическое голосование** - DLE может голосовать в других DLE
+4. **Управление казной** - распределение средств через голосование токен-холдеров
 ---
 
 ## Заключение

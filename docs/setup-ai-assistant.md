@@ -15,7 +15,9 @@
 ✅ Автоматизация работы с поставщиками  
 ✅ Система обучения персонала  
 ✅ Векторный поиск по вашим данным  
-✅ Экономия **$483,600/год** на рутинных задачах  
+✅ Значительная экономия времени и ресурсов  
+
+> 💡 **Экономический эффект**: См. [AI Ассистент](./ai-assistant.md) - там подробно описаны все возможности и расчеты экономии.  
 
 ---
 
@@ -619,18 +621,14 @@ AI: [Ищет в таблице Заказы, фильтрует по клиен
 
 ### Экономический эффект
 
-При правильной настройке AI ассистента:
+При правильной настройке AI ассистента вы получите:
 
-| Направление | Экономия времени | Экономия в год |
-|-------------|------------------|----------------|
-| Обслуживание клиентов | 85% | $108,000 |
-| Работа с поставщиками | 80% | $96,000 |
-| Обучение персонала | 70% | $84,000 |
-| Подготовка отчетов | 90% | $108,000 |
-| Маркетинговый контент | 75% | $87,600 |
-| **ИТОГО** | **82%** | **$483,600** |
+✅ **Автоматизацию рутинных задач** - высвобождение времени для стратегии  
+✅ **Повышение качества обслуживания** - AI работает 24/7 без усталости  
+✅ **Снижение операционных расходов** - меньше персонала на рутинных задачах  
+✅ **Ускорение принятия решений** - мгновенный доступ к информации  
 
-> 💰 **ROI**: 48,360% (окупается за 1 день!)
+> 💡 **Подробная информация**: См. [AI Ассистент - полное описание](./ai-assistant.md#экономический-эффект) - там детально описаны все возможности, кейсы применения и расчеты экономии.
 
 ---
 
@@ -740,6 +738,176 @@ docker-compose logs ollama
 - 💬 **Чат поддержки**: https://hb3-accelerator.com/
 - 📧 **Email**: info@hb3-accelerator.com
 - 📚 **База знаний**: https://docs.hb3-accelerator.com
+
+---
+
+## 🔧 Техническая документация (для разработчиков)
+
+### Архитектура системы AI
+
+```
+┌───────────────────────────────────────────────────────────┐
+│          Настройка AI Ассистента в DLE                   │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│  🤖 AI Провайдеры:                                        │
+│     ├── OpenAI (GPT-4, GPT-3.5)                          │
+│     ├── Anthropic (Claude)                               │
+│     ├── Google (Gemini)                                  │
+│     └── Ollama (локальные модели)                        │
+│                                                           │
+│  ⚙️  Настройки AI:                                        │
+│     ├── System Prompt                                    │
+│     ├── Выбор LLM модели                                 │
+│     ├── Выбор Embedding модели                           │
+│     ├── Выбор RAG-таблиц                                 │
+│     ├── Правила (Rules)                                  │
+│     └── Настройки RAG поиска                             │
+│                                                           │
+│  📋 Правила (Rules):                                      │
+│     ├── JSON конфигурация поведения                      │
+│     ├── Создание/редактирование/удаление                 │
+│     └── Привязка к AI ассистенту                         │
+│                                                           │
+│  🔗 Интеграции:                                           │
+│     ├── Email (IMAP + SMTP)                              │
+│     └── Telegram Bot                                     │
+│                                                           │
+│  🔍 RAG:                                                  │
+│     ├── Выбор таблиц для поиска                          │
+│     ├── Настройки поиска (гибридный/семантический)       │
+│     ├── Порог релевантности                              │
+│     └── Извлечение ключевых слов                         │
+│                                                           │
+│  📊 Мониторинг:                                           │
+│     ├── Статус сервисов (Backend, Ollama, Postgres)     │
+│     ├── Тест RAG-функциональности                        │
+│     └── Отслеживание прогресса                           │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### База данных
+
+#### Таблица: `ai_providers_settings`
+
+```sql
+CREATE TABLE IF NOT EXISTS ai_providers_settings (
+    id SERIAL PRIMARY KEY,
+    provider_encrypted TEXT,              -- Провайдер: openai, anthropic, google, ollama
+    api_key_encrypted TEXT,               -- API ключ (зашифрован)
+    base_url_encrypted TEXT,              -- Base URL для API
+    selected_model_encrypted TEXT,        -- Выбранная LLM модель
+    embedding_model_encrypted TEXT,       -- Выбранная Embedding модель
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
+
+#### Таблица: `ai_assistant_settings`
+
+```sql
+CREATE TABLE IF NOT EXISTS ai_assistant_settings (
+    id SERIAL PRIMARY KEY,
+    system_prompt_encrypted TEXT,         -- Системный промт
+    selected_rag_tables INTEGER[],        -- Массив ID RAG-таблиц
+    languages TEXT[],                     -- Массив поддерживаемых языков
+    model_encrypted TEXT,                 -- Выбранная LLM модель
+    embedding_model_encrypted TEXT,       -- Выбранная Embedding модель
+    rules JSONB,                          -- Правила (DEPRECATED)
+    rules_id INTEGER REFERENCES ai_assistant_rules(id),  -- Ссылка на правило
+    telegram_settings_id INTEGER,         -- Ссылка на Telegram бота
+    email_settings_id INTEGER,            -- Ссылка на Email настройки
+    rag_settings JSONB,                   -- Настройки RAG поиска
+    updated_at TIMESTAMP DEFAULT NOW(),
+    updated_by INTEGER
+);
+```
+
+#### Таблица: `ai_assistant_rules`
+
+```sql
+CREATE TABLE IF NOT EXISTS ai_assistant_rules (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,                   -- Название набора правил
+    description TEXT,                     -- Описание правила
+    rules JSONB NOT NULL,                 -- JSON конфигурация
+    rules_encrypted TEXT,                 -- Зашифрованная версия правил
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Backend API
+
+#### Настройки AI провайдеров
+
+- **GET** `/settings/ai-settings/:provider` — Получить настройки провайдера
+- **PUT** `/settings/ai-settings/:provider` — Сохранить настройки провайдера
+- **DELETE** `/settings/ai-settings/:provider` — Удалить настройки провайдера
+- **GET** `/settings/ai-settings/:provider/models` — Получить список моделей
+- **POST** `/settings/ai-settings/:provider/verify` — Проверить API ключ
+
+#### Настройки AI ассистента
+
+- **GET** `/settings/ai-assistant` — Получить настройки ассистента
+- **PUT** `/settings/ai-assistant` — Сохранить настройки ассистента
+
+#### Правила AI
+
+- **GET** `/settings/ai-assistant-rules` — Получить все правила
+- **GET** `/settings/ai-assistant-rules/:id` — Получить правило по ID
+- **POST** `/settings/ai-assistant-rules` — Создать правило
+- **PUT** `/settings/ai-assistant-rules/:id` — Обновить правило
+- **DELETE** `/settings/ai-assistant-rules/:id` — Удалить правило
+
+#### Ollama (локальные модели)
+
+- **GET** `/ollama/status` — Проверить статус Ollama
+- **GET** `/ollama/models` — Получить список моделей
+- **POST** `/ollama/install` — Установить модель
+- **DELETE** `/ollama/models/:modelName` — Удалить модель
+
+### Frontend страницы
+
+- **`/settings/ai`** — Главная страница интеграций
+- **`/settings/ai/:provider`** — Настройки AI провайдера
+- **`/settings/ai/assistant`** — Настройки AI ассистента
+
+### Процесс обработки сообщения
+
+```
+1. Пользователь → Сообщение
+              ↓
+2. UnifiedMessageProcessor
+              ↓
+3. Проверка языка (только русский)
+              ↓
+4. Дедупликация (хеш сообщения)
+              ↓
+5. Загрузка настроек (aiAssistantSettingsService)
+              ↓
+6. Загрузка правил (aiAssistantRulesService)
+              ↓
+7. RAG поиск (ragService)
+   ├── Семантический поиск (vector search)
+   ├── Поиск по ключевым словам
+   └── Гибридный поиск
+              ↓
+8. Генерация ответа (generateLLMResponse)
+   ├── System Prompt
+   ├── История разговора
+   ├── Контекст из RAG
+   └── Правила
+              ↓
+9. Ответ → Пользователь
+```
+
+### Безопасность
+
+- **Шифрование**: Все чувствительные поля зашифрованы с помощью AES-256
+- **Права доступа**: Только администраторы могут изменять настройки
+- **Валидация**: Проверка всех входных данных и API ключей
 
 ---
 
