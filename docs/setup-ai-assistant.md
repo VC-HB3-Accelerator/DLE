@@ -737,7 +737,7 @@ docker-compose logs ollama
 
 - 💬 **Чат поддержки**: https://hb3-accelerator.com/
 - 📧 **Email**: info@hb3-accelerator.com
-- 📚 **База знаний**: https://docs.hb3-accelerator.com
+- 📚 **База знаний**: https://hb3-accelerator.com
 
 ---
 

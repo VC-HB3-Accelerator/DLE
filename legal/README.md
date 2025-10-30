@@ -58,8 +58,8 @@
 
 ### Портальи для лицензионеров
 
-- 🗳️ **Портал голосования**: https://hb3-accelerator.com/governance
-- 📥 **Скачивание обновлений**: https://hb3-accelerator.com/updates
+- 🗳️ **Портал голосования**: https://hb3-accelerator.com/
+- 📥 **Скачивание обновлений**: https://hb3-accelerator.com/
 - 💬 **Поддержка**: https://hb3-accelerator.com/
 
 ### 📁 **СТРУКТУРА ЗАЩИТЫ**
