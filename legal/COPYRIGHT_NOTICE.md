@@ -9,7 +9,7 @@
  * @copyright 2024-2025 Тарабанов Александр Викторович
  * @license Proprietary
  * @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
- * @see https://github.com/HB3-ACCELERATOR
+ * @see https://github.com/VC-HB3-Accelerator
  * @see https://hb3-accelerator.com
  */
 ```
@@ -21,7 +21,7 @@
 @copyright 2024-2025 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
-@see https://github.com/HB3-ACCELERATOR
+@see https://github.com/VC-HB3-Accelerator
 @see https://hb3-accelerator.com
 """
 ```
@@ -33,7 +33,7 @@
 @copyright 2024-2025 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
-@see https://github.com/HB3-ACCELERATOR
+@see https://github.com/VC-HB3-Accelerator
 @see https://hb3-accelerator.com
 -->
 ```
@@ -45,7 +45,7 @@
 @copyright 2024-2025 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
-@see https://github.com/HB3-ACCELERATOR
+@see https://github.com/VC-HB3-Accelerator
 @see https://hb3-accelerator.com
 */
 ```
@@ -57,7 +57,7 @@
 @copyright 2024-2025 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
-@see https://github.com/HB3-ACCELERATOR
+@see https://github.com/VC-HB3-Accelerator
 @see https://hb3-accelerator.com
 -->
 ```
@@ -70,7 +70,7 @@
   "_license": "Proprietary",
   "_author": "Тарабанов Александр Викторович <info@hb3-accelerator.com>",
   "_website": "https://hb3-accelerator.com",
-  "_github": "https://github.com/HB3-ACCELERATOR"
+  "_github": "https://github.com/VC-HB3-Accelerator"
 }
 ```
 

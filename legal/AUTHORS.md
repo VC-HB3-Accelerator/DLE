@@ -3,7 +3,7 @@
 ## Основной разработчик
 
 **Тарабанов Александр Викторович**  
-- **GitHub:** [@HB3-ACCELERATOR](https://github.com/HB3-ACCELERATOR)
+- **GitHub:** [@VC-HB3-Accelerator](https://github.com/VC-HB3-Accelerator)
 - **Организация:** HB3 Accelerator
 - **Email:** info@hb3-accelerator.com
 - **Сайт:** [hb3-accelerator.com](https://hb3-accelerator.com)
