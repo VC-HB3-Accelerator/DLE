@@ -1039,7 +1039,7 @@ function vote(uint256 _proposalId, bool _support) external {
 
 - 🌐 **Портал**: https://hb3-accelerator.com/
 - 📧 **Email**: info@hb3-accelerator.com
-- 🐙 **GitHub**: https://github.com/HB3-ACCELERATOR
+- 🐙 **GitHub**: https://github.com/VC-HB3-Accelerator
 
 ---
 

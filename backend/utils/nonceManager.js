@@ -1,4 +1,16 @@
 /**
+ * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * All rights reserved.
+ * 
+ * This software is proprietary and confidential.
+ * Unauthorized copying, modification, or distribution is prohibited.
+ * 
+ * For licensing inquiries: info@hb3-accelerator.com
+ * Website: https://hb3-accelerator.com
+ * GitHub: https://github.com/VC-HB3-Accelerator
+ */
+
+/**
  * Менеджер nonce для управления транзакциями в разных сетях
  * Решает проблему "nonce too low" при деплое в нескольких сетях
  */

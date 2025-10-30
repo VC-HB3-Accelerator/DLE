@@ -1,4 +1,16 @@
 /**
+ * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * All rights reserved.
+ * 
+ * This software is proprietary and confidential.
+ * Unauthorized copying, modification, or distribution is prohibited.
+ * 
+ * For licensing inquiries: info@hb3-accelerator.com
+ * Website: https://hb3-accelerator.com
+ * GitHub: https://github.com/VC-HB3-Accelerator
+ */
+
+/**
  * Seed системных юридических шаблонов (РКН-2025) в admin_pages_simple
  * - Добавляет недостающие колонки (visibility, format и пр.)
  * - Создает шаблоны с is_system_template = true и author_address = NULL

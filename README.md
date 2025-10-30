@@ -161,5 +161,5 @@ Copyright (c) 2024-2025 Тарабанов Александр Викторови
 ### 📞 **Контакты:**
 - **Email:** info@hb3-accelerator.com
 - **Сайт:** https://hb3-accelerator.com
-- **GitHub:** https://github.com/HB3-ACCELERATOR
+- **GitHub:** https://github.com/VC-HB3-Accelerator
 - **Поддержка:** https://hb3-accelerator.com/

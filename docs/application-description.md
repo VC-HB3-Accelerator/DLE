@@ -321,7 +321,7 @@ AI без лимитов:                            $0
 - 📧 **Email**: info@hb3-accelerator.com
 - 🌐 **Сайт**: https://hb3-accelerator.com
 - 💬 **Чат поддержки**: https://hb3-accelerator.com/
-- 🐙 **GitHub**: https://github.com/HB3-ACCELERATOR
+- 🐙 **GitHub**: https://github.com/VC-HB3-Accelerator
 ---
 
 **© 2024-2025 Тарабанов Александр Викторович. Все права защищены.**

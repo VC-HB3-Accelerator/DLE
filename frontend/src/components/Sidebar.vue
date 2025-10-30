@@ -7,7 +7,7 @@
   
   For licensing inquiries: info@hb3-accelerator.com
   Website: https://hb3-accelerator.com
-  GitHub: https://github.com/HB3-ACCELERATOR
+  GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
 <template>
@@ -141,7 +141,7 @@
               2024-2025. Все права защищены.
             </p>
             <div class="copyright-links">
-              <a href="https://github.com/HB3-ACCELERATOR" target="_blank" class="copyright-link" title="GitHub">
+              <a href="https://github.com/VC-HB3-Accelerator" target="_blank" class="copyright-link" title="GitHub">
                 GitHub
               </a>
             </div>

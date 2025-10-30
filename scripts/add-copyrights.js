@@ -9,6 +9,15 @@
 const fs = require('fs');
 const path = require('path');
 
+// Нормализация ссылок/метаданных в уже существующих заголовках
+const GITHUB_OLD = 'https://github.com/VC-HB3-Accelerator';
+const GITHUB_NEW = 'https://github.com/VC-HB3-Accelerator';
+
+function normalizeHeaderContent(content) {
+  let updated = content.replaceAll(GITHUB_OLD, GITHUB_NEW);
+  return updated;
+}
+
 // Копирайт заголовки для разных типов файлов
 const copyrightHeaders = {
   // JavaScript/TypeScript файлы
@@ -21,7 +30,7 @@ const copyrightHeaders = {
  * 
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/HB3-ACCELERATOR
+ * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
 `,
@@ -36,7 +45,7 @@ const copyrightHeaders = {
   
   For licensing inquiries: info@hb3-accelerator.com
   Website: https://hb3-accelerator.com
-  GitHub: https://github.com/HB3-ACCELERATOR
+  GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
 `,
@@ -51,7 +60,7 @@ const copyrightHeaders = {
  * 
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/HB3-ACCELERATOR
+ * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
 `,
@@ -66,7 +75,7 @@ const copyrightHeaders = {
   
   For licensing inquiries: info@hb3-accelerator.com
   Website: https://hb3-accelerator.com
-  GitHub: https://github.com/HB3-ACCELERATOR
+  GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
 `,
@@ -81,7 +90,7 @@ Unauthorized copying, modification, or distribution is prohibited.
 
 For licensing inquiries: info@hb3-accelerator.com
 Website: https://hb3-accelerator.com
-GitHub: https://github.com/HB3-ACCELERATOR
+GitHub: https://github.com/VC-HB3-Accelerator
 """
 
 `,
@@ -96,7 +105,7 @@ GitHub: https://github.com/HB3-ACCELERATOR
 //
 // For licensing inquiries: info@hb3-accelerator.com
 // Website: https://hb3-accelerator.com
-// GitHub: https://github.com/HB3-ACCELERATOR
+// GitHub: https://github.com/VC-HB3-Accelerator
 
 `,
 
@@ -111,7 +120,7 @@ GitHub: https://github.com/HB3-ACCELERATOR
 # 
 # For licensing inquiries: info@hb3-accelerator.com
 # Website: https://hb3-accelerator.com
-# GitHub: https://github.com/HB3-ACCELERATOR
+# GitHub: https://github.com/VC-HB3-Accelerator
 
 `,
 
@@ -125,7 +134,7 @@ GitHub: https://github.com/HB3-ACCELERATOR
   
   For licensing inquiries: info@hb3-accelerator.com
   Website: https://hb3-accelerator.com
-  GitHub: https://github.com/HB3-ACCELERATOR
+  GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
 `,
@@ -140,7 +149,7 @@ GitHub: https://github.com/HB3-ACCELERATOR
 # 
 # For licensing inquiries: info@hb3-accelerator.com
 # Website: https://hb3-accelerator.com
-# GitHub: https://github.com/HB3-ACCELERATOR
+# GitHub: https://github.com/VC-HB3-Accelerator
 
 `
 };
@@ -228,7 +237,14 @@ function addCopyrightToFile(filePath) {
     
     // Проверяем, есть ли уже копирайт
     if (hasCopyright(content)) {
-      console.log(`⚠️  Копирайт уже есть: ${filePath}`);
+      // Нормализуем ссылки в существующем заголовке (например, GitHub организация)
+      const normalized = normalizeHeaderContent(content);
+      if (normalized !== content) {
+        fs.writeFileSync(filePath, normalized, 'utf8');
+        console.log(`🔧 Нормализован копирайт: ${filePath}`);
+        return true;
+      }
+      console.log(`⚠️  Копирайт уже есть (изменений нет): ${filePath}`);
       return false;
     }
     

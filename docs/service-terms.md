@@ -1,3 +1,15 @@
+<!--
+  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  All rights reserved.
+  
+  This software is proprietary and confidential.
+  Unauthorized copying, modification, or distribution is prohibited.
+  
+  For licensing inquiries: info@hb3-accelerator.com
+  Website: https://hb3-accelerator.com
+  GitHub: https://github.com/VC-HB3-Accelerator
+-->
+
 # Условия приобретения и обслуживания Digital Legal Entity — краткое резюме
 
 > Важно: это краткое резюме условий. Канонический и юридически значимый полный текст находится здесь: [legal/service-terms.md](../legal/service-terms.md).
@@ -27,4 +39,4 @@
 - 📧 **Email**: info@hb3-accelerator.com
 - 🌐 **Сайт**: https://hb3-accelerator.com
 - 💬 **Чат поддержки**: https://hb3-accelerator.com/
-- 🐙 **GitHub**: https://github.com/HB3-ACCELERATOR
+- 🐙 **GitHub**: https://github.com/VC-HB3-Accelerator

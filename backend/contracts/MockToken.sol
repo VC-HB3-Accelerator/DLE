@@ -7,7 +7,7 @@
 //
 // For licensing inquiries: info@hb3-accelerator.com
 // Website: https://hb3-accelerator.com
-// GitHub: https://github.com/HB3-ACCELERATOR
+// GitHub: https://github.com/VC-HB3-Accelerator
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";

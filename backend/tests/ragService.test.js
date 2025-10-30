@@ -7,7 +7,7 @@
  * 
  * For licensing inquiries: info@hb3-accelerator.com
  * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/HB3-ACCELERATOR
+ * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
 // Принудительно устанавливаем URL для Docker-сети
