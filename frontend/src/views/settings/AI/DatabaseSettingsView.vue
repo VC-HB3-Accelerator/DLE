@@ -141,12 +141,32 @@ const loadDbSettings = async () => {
 
 const checkEncryptionKey = async () => {
   try {
-    const res = await api.get('/settings/encryption-key/status');
-    console.log('Encryption key status response:', res.data);
-    encryptionKeyState.exists = res.data.exists;
-    encryptionKeyState.key = res.data.key; // Сохраняем ключ из API
+    // Сначала проверяем статус
+    const statusRes = await api.get('/settings/encryption-key/status');
+    console.log('Encryption key status response:', statusRes.data);
+    encryptionKeyState.exists = statusRes.data.exists;
     console.log('encryptionKeyState.exists updated to:', encryptionKeyState.exists);
-    console.log('encryptionKeyState.key updated to:', encryptionKeyState.key);
+    
+    // Если ключ существует, загружаем его содержимое
+    if (encryptionKeyState.exists) {
+      try {
+        const keyRes = await api.get('/settings/encryption-key');
+        console.log('Encryption key response:', keyRes.data);
+        if (keyRes.data.success && keyRes.data.key) {
+          encryptionKeyState.key = keyRes.data.key;
+          console.log('encryptionKeyState.key loaded');
+        } else {
+          encryptionKeyState.key = null;
+          console.log('Key not returned in response');
+        }
+      } catch (keyError) {
+        console.error('Ошибка загрузки ключа шифрования:', keyError);
+        encryptionKeyState.key = null;
+      }
+    } else {
+      encryptionKeyState.key = null;
+    }
+    
     console.log('encryptionKeyState.exists type:', typeof encryptionKeyState.exists);
     console.log('encryptionKeyState.exists === true:', encryptionKeyState.exists === true);
     

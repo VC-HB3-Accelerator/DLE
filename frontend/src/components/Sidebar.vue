@@ -141,12 +141,6 @@
               2024-2025. Все права защищены.
             </p>
             <div class="copyright-links">
-              <a href="mailto:info@hb3-accelerator.com" class="copyright-link" title="Связаться с автором">
-                Контакты
-              </a>
-              <a href="https://hb3-accelerator.com" target="_blank" class="copyright-link" title="Официальный сайт">
-                Сайт
-              </a>
               <a href="https://github.com/HB3-ACCELERATOR" target="_blank" class="copyright-link" title="GitHub">
                 GitHub
               </a>

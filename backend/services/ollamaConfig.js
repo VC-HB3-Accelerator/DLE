@@ -48,16 +48,29 @@ async function loadSettingsFromDb() {
 }
 
 /**
+ * Внутренняя функция: определяет base URL из доступных источников
+ * Приоритет: кэш из БД > переменная окружения > Docker дефолт
+ * @returns {string} Базовый URL Ollama
+ */
+function _getBaseUrlFromSources() {
+  // Приоритет 1: кэш из БД
+  if (settingsCache && settingsCache.base_url) {
+    return settingsCache.base_url;
+  }
+  // Приоритет 2: переменная окружения
+  if (process.env.OLLAMA_BASE_URL) {
+    return process.env.OLLAMA_BASE_URL;
+  }
+  // Приоритет 3: Docker дефолт
+  return 'http://ollama:11434';
+}
+
+/**
  * Получает базовый URL для Ollama (синхронная версия)
  * @returns {string} Базовый URL Ollama
  */
 function getBaseUrl() {
-  // Приоритет: кэш из БД > Docker дефолт
-  if (settingsCache && settingsCache.base_url) {
-    return settingsCache.base_url;
-  }
-  // URL по умолчанию для Docker
-  return 'http://ollama:11434';
+  return _getBaseUrlFromSources();
 }
 
 /**
@@ -69,15 +82,11 @@ async function getBaseUrlAsync() {
     if (!settingsCache) {
       await loadSettingsFromDb();
     }
-    
-    if (settingsCache && settingsCache.base_url) {
-      return settingsCache.base_url;
-    }
   } catch (error) {
     logger.warn('[ollamaConfig] Failed to load base_url from DB, using default');
   }
   
-  return 'http://ollama:11434';
+  return _getBaseUrlFromSources();
 }
 
 /**

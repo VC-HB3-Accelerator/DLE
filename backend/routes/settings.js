@@ -812,6 +812,22 @@ router.get('/encryption-key/status', requireAdmin, async (req, res) => {
   }
 });
 
+// Получить содержимое ключа шифрования
+router.get('/encryption-key', requireAdmin, async (req, res) => {
+  try {
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    if (encryptionKey) {
+      res.json({ success: true, key: encryptionKey });
+    } else {
+      res.status(404).json({ success: false, message: 'Encryption key not found' });
+    }
+  } catch (error) {
+    logger.error('Ошибка получения ключа шифрования:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // Безопасная смена ключа шифрования с перешифровкой данных
 router.post('/encryption-key/rotate', requireAdmin, async (req, res) => {

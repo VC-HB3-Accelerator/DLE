@@ -23,6 +23,22 @@ const ollamaConfig = require('../services/ollamaConfig');
 // Инициализируем один раз
 const TIMEOUTS = ollamaConfig.getTimeouts();
 
+// Получение дефолтного base URL для Ollama (для настроек UI)
+router.get('/default-base-url', requireAuth, async (req, res) => {
+  try {
+    const defaultBaseUrl = ollamaConfig.getBaseUrl();
+    const fromEnv = !!process.env.OLLAMA_BASE_URL;
+    res.json({ 
+      baseUrl: defaultBaseUrl,
+      fromEnv, // флаг, что URL из переменной окружения
+      priority: fromEnv ? 'environment' : 'default'
+    });
+  } catch (error) {
+    logger.error('Error getting default base URL:', error);
+    res.status(500).json({ error: 'Failed to get default base URL' });
+  }
+});
+
 // Проверка статуса подключения к Ollama
 router.get('/status', requireAuth, async (req, res) => {
   try {

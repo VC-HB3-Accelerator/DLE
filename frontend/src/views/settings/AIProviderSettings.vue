@@ -95,9 +95,27 @@ async function loadSettings() {
       }
     } else {
       hasSettings.value = false;
+      // Для провайдеров без API ключа (например, Ollama) устанавливаем base URL по умолчанию
+      if (props.provider === 'ollama') {
+        await loadDefaultBaseUrl();
+      }
     }
   } catch (e) {
     hasSettings.value = false;
+    // Для провайдеров без API ключа (например, Ollama) устанавливаем base URL по умолчанию
+    if (props.provider === 'ollama') {
+      await loadDefaultBaseUrl();
+    }
+  }
+}
+
+async function loadDefaultBaseUrl() {
+  try {
+    const { data } = await axios.get('/ollama/default-base-url');
+    baseUrl.value = data.baseUrl || props.baseUrlPlaceholder || '';
+  } catch (e) {
+    console.error('Error loading default base URL:', e);
+    baseUrl.value = props.baseUrlPlaceholder || '';
   }
 }
 

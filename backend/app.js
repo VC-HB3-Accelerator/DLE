@@ -185,7 +185,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: isProduction ? 100 : 2000, // 100 запросов в продакшне, 2000 в dev
+  max: isProduction ? 1000 : 10000, // 1000 запросов в продакшне, 10000 в dev
   message: {
     error: 'Слишком много запросов, попробуйте позже',
     retryAfter: '15 минут'
@@ -201,7 +201,7 @@ const limiter = rateLimit({
 // Строгий rate limiting для чувствительных эндпоинтов
 const strictLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: isProduction ? 10 : 100, // 10 попыток в продакшне, 100 в разработке
+  max: isProduction ? 100 : 400, // 100 попыток в продакшне, 400 в разработке
   message: {
     error: 'Превышен лимит попыток, попробуйте позже',
     retryAfter: '15 минут'
@@ -209,6 +209,19 @@ const strictLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   trustProxy: true, // Доверяем nginx proxy
+});
+
+// Мягкий rate limiting для RPC настроек (часто запрашиваемых данных)
+const rpcSettingsLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 минута
+  max: isProduction ? 200 : 1000, // 200 запросов в продакшне, 1000 в разработке за минуту
+  message: {
+    error: 'Слишком много запросов к RPC настройкам, попробуйте позже',
+    retryAfter: '1 минута'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  trustProxy: true,
 });
 
 // Статическая раздача загруженных файлов (для dev и prod)
@@ -247,7 +260,9 @@ app.use('/api/kpp', kppRoutes); // Добавленное использован
 app.use('/api/geocoding', geocodingRoutes); // Добавленное использование роута
 
 app.use('/api/dle-v2', dleV2Routes); // Добавляем маршрут DLE v2
-app.use('/api/settings', strictLimiter, settingsRoutes); // Строгий rate limiting для настроек
+// Применяем разные rate limiters к разным частям настроек
+app.use('/api/settings/rpc', rpcSettingsLimiter, settingsRoutes); // Мягкий rate limiting для RPC
+app.use('/api/settings', strictLimiter, settingsRoutes); // Строгий rate limiting для остальных настроек
 app.use('/api/countries', countriesRoutes); // Добавляем маршрут стран
 app.use('/api/russian-classifiers', russianClassifiersRoutes); // Добавляем маршрут российских классификаторов
 app.use('/api/ollama', strictLimiter, ollamaRoutes); // Строгий rate limiting для Ollama
