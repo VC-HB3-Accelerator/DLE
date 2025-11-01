@@ -51,7 +51,7 @@
         <!-- Основной контент -->
         <div class="page-content">
           <h2>Содержание</h2>
-          <div class="content-text" v-if="page.format === 'html'" v-html="formatContent(page.content)"></div>
+          <div class="content-text" v-if="page.format === 'html'" v-html="formatContent"></div>
           <div v-else-if="page.format === 'pdf' && page.file_path" class="file-preview">
             <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
             <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
@@ -106,10 +106,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 // Props
 const props = defineProps({
@@ -161,10 +163,26 @@ function formatAddress(address) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function formatContent(content) {
+const formatContent = computed(() => {
+  if (!page.value || !page.value.content) return '';
+  const content = page.value.content;
+  
+  // Проверяем, является ли контент markdown (содержит markdown синтаксис)
+  const isMarkdown = /^#{1,6}\s|^\*\s|^\-\s|^\d+\.\s|```|\[.+\]\(.+\)|!\[.+\]\(.+\)/m.test(content);
+  
+  if (isMarkdown) {
+    // Конвертируем markdown в HTML
+    const rawHtml = marked.parse(content);
+    return DOMPurify.sanitize(rawHtml);
+  } else {
+    // Простое форматирование - замена переносов строк на <br>
+    return content.replace(/\n/g, '<br>');
+  }
+});
+
+function formatContentAsFunc(content) {
   if (!content) return '';
   if (typeof content !== 'string') return '';
-  // Простое форматирование - замена переносов строк на <br>
   return content.replace(/\n/g, '<br>');
 }
 
@@ -283,6 +301,119 @@ onMounted(() => {
   color: var(--color-grey-dark);
   font-size: 1rem;
   line-height: 1.7;
+}
+
+/* Markdown стили */
+.content-text h1 {
+  color: var(--color-primary);
+  font-size: 2rem;
+  margin: 1.5rem 0 1rem;
+  font-weight: 600;
+}
+
+.content-text h2 {
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  margin: 1.25rem 0 0.75rem;
+  font-weight: 600;
+}
+
+.content-text h3 {
+  color: var(--color-primary);
+  font-size: 1.25rem;
+  margin: 1rem 0 0.5rem;
+  font-weight: 600;
+}
+
+.content-text h4 {
+  color: var(--color-primary);
+  font-size: 1.1rem;
+  margin: 0.75rem 0 0.5rem;
+  font-weight: 600;
+}
+
+.content-text p {
+  margin: 0.75rem 0;
+}
+
+.content-text ul,
+.content-text ol {
+  margin: 1rem 0;
+  padding-left: 2rem;
+}
+
+.content-text li {
+  margin: 0.5rem 0;
+}
+
+.content-text code {
+  background: #f4f4f4;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.content-text pre {
+  background: #f4f4f4;
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.content-text pre code {
+  background: none;
+  padding: 0;
+}
+
+.content-text blockquote {
+  border-left: 4px solid var(--color-primary);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #666;
+}
+
+.content-text table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.content-text table th,
+.content-text table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.content-text table th {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.content-text a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.content-text a:hover {
+  text-decoration: underline;
+}
+
+.content-text hr {
+  border: none;
+  border-top: 2px solid #f0f0f0;
+  margin: 2rem 0;
+}
+
+.content-text strong {
+  font-weight: 600;
+  color: #333;
+}
+
+.content-text em {
+  font-style: italic;
 }
 .seo-info { display: grid; gap: 12px; }
 .seo-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }

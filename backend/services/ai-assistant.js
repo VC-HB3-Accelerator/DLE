@@ -137,7 +137,8 @@ class AIAssistant {
         systemPrompt: aiSettings ? aiSettings.system_prompt : '',
         history: conversationHistory,
         model: aiSettings ? aiSettings.model : undefined,
-        rules: rules ? rules.rules : null
+        rules: rules ? rules.rules : null,
+        selectedRagTables: aiSettings ? aiSettings.selected_rag_tables : []
       });
 
       if (!aiResponse) {

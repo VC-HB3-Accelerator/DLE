@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS user_cell_values (
   id SERIAL PRIMARY KEY,
   row_id INTEGER NOT NULL REFERENCES user_rows(id) ON DELETE CASCADE,
   column_id INTEGER NOT NULL REFERENCES user_columns(id) ON DELETE CASCADE,
-  value TEXT,
+  value_encrypted TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(row_id, column_id)

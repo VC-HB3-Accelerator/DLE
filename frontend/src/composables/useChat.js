@@ -562,9 +562,6 @@ export function useChat(auth) {
       console.log('[useChat] Clearing chat data');
       // Очищаем данные при выходе из системы
       messages.value = [];
-      newMessages.value = [];
-      readUserIds.value = [];
-      lastReadMessageDate.value = {};
     });
     
     window.addEventListener('refresh-application-data', () => {

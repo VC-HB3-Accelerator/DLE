@@ -216,8 +216,18 @@ class EncryptedDataService {
             continue;
           }
           const currentParamIndex = paramIndex++;
-          filteredData[key] = value; // Добавляем в отфильтрованные данные
-          console.log(`✅ Добавили зашифрованное поле ${key} = "${value}" в filteredData`);
+          
+          // Преобразуем значение в строку для шифрования
+          let valueToEncrypt;
+          if (typeof value === 'object') {
+            // Если это объект/массив, преобразуем в JSON
+            valueToEncrypt = JSON.stringify(value);
+          } else {
+            valueToEncrypt = value;
+          }
+          
+          filteredData[key] = valueToEncrypt; // Добавляем в отфильтрованные данные
+          console.log(`✅ Добавили зашифрованное поле ${key} = "${valueToEncrypt}" в filteredData`);
           if (encryptedColumn.data_type === 'jsonb') {
             encryptedData[`${key}_encrypted`] = `encrypt_json($${currentParamIndex}, ${hasEncryptedFields ? '$1::text' : 'NULL'})`;
           } else {
@@ -289,7 +299,27 @@ class EncryptedDataService {
         const placeholders = Object.keys(allData).map(key => allData[key]).join(', ');
 
         const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) RETURNING *`;
-        const params = hasEncryptedFields ? [this.encryptionKey, ...Object.values(filteredData)] : [...Object.values(filteredData)];
+        
+        // Собираем параметры в правильном порядке: сначала для encrypted, потом для unencrypted
+        const paramsArray = [];
+        if (hasEncryptedFields) paramsArray.push(this.encryptionKey);
+        
+        // Добавляем параметры для encrypted колонок
+        for (const key of Object.keys(encryptedData)) {
+          const originalKey = key.replace('_encrypted', '');
+          if (filteredData[originalKey] !== undefined) {
+            paramsArray.push(filteredData[originalKey]);
+          } else if (filteredData[originalKey + '_unencrypted'] !== undefined) {
+            paramsArray.push(filteredData[originalKey + '_unencrypted']);
+          }
+        }
+        
+        // Добавляем параметры для unencrypted колонок
+        for (const key of Object.keys(unencryptedData)) {
+          paramsArray.push(filteredData[key + '_unencrypted'] || filteredData[key]);
+        }
+        
+        const params = paramsArray;
 
         console.log(`🔍 Выполняем INSERT запрос:`, query);
         console.log(`🔍 Параметры:`, params);
@@ -359,9 +389,13 @@ class EncryptedDataService {
         params.push(...paramsToAdd);
       }
 
-      // Добавляем ключ шифрования в начало, если есть зашифрованные поля
-      const hasEncryptedFields = columns.some(col => col.column_name.endsWith('_encrypted'));
-      if (hasEncryptedFields) {
+      // Определяем, нужно ли добавлять ключ шифрования
+      // Проверяем, есть ли в WHERE условиях зашифрованные колонки
+      const hasEncryptedFieldsInConditions = Object.keys(conditions).some(key => {
+        return columns.find(col => col.column_name === `${key}_encrypted`);
+      });
+      
+      if (hasEncryptedFieldsInConditions) {
         params.unshift(this.encryptionKey);
       }
 

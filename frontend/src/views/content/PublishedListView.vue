@@ -85,7 +85,7 @@ const canManageLegalDocs = computed(() => hasPermission(SHARED_PERMISSIONS.MANAG
 
 function goBack() { router.push({ name: 'content-list' }); }
 function openPublic(id) { router.push({ name: 'public-page-view', params: { id } }); }
-function goEdit(id) { router.push({ name: 'page-edit', params: { id } }); }
+function goEdit(id) { router.push({ name: 'content-create', query: { edit: id } }); }
 async function reindex(id) {
   try {
     await api.post(`/pages/${id}/reindex`);

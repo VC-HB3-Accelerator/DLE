@@ -156,7 +156,17 @@
         </div>
         <label>Плейсхолдер</label>
         <input v-model="newColPlaceholder" class="notion-input" placeholder="Плейсхолдер (авто)" />
-        <!-- Удаляю блок назначения столбца -->
+        <label>Назначение (для RAG)</label>
+        <select v-model="newColPurpose" class="notion-input">
+          <option value="">Без назначения</option>
+          <option value="question">Вопрос для AI</option>
+          <option value="answer">Ответ AI</option>
+          <option value="product">Продукт</option>
+          <option value="userTags">Теги пользователя</option>
+          <option value="context">Контекст</option>
+          <option value="priority">Приоритет</option>
+          <option value="date">Дата</option>
+        </select>
         <div class="modal-actions">
           <button class="save-btn" @click="handleAddColumn">Добавить</button>
           <button class="cancel-btn" @click="closeAddColModal">Отмена</button>
@@ -184,7 +194,7 @@ onMounted(() => {
   
   window.addEventListener('refresh-application-data', () => {
     console.log('[UserTableView] Refreshing table data');
-    loadTableData(); // Обновляем данные при входе в систему
+    fetchTable(); // Обновляем данные при входе в систему
   });
 });
 // Импортируем компоненты Element Plus
@@ -236,6 +246,7 @@ const relatedColumnId = ref(null);
 const relatedTableColumns = ref([]);
 const newColPlaceholder = ref('');
 const multiOptionsInput = ref('');
+const newColPurpose = ref('');
 
 // Новые фильтры по relation/multiselect/lookup
 const relationFilters = ref({});
@@ -304,6 +315,7 @@ function closeAddColModal() {
   selectedTagIds.value = [];
   newColPlaceholder.value = '';
   multiOptionsInput.value = '';
+  newColPurpose.value = '';
 }
 
 async function handleAddColumn() {
@@ -324,6 +336,9 @@ async function handleAddColumn() {
   if (newColType.value === 'relation' || newColType.value === 'lookup') {
     options.relatedTableId = relatedTableId.value;
     options.relatedColumnId = relatedColumnId.value;
+  }
+  if (newColPurpose.value) {
+    options.purpose = newColPurpose.value;
   }
   if (Object.keys(options).length > 0) {
     data.options = options;
@@ -901,9 +916,6 @@ async function updateRowData(rowId) {
   word-break: break-word !important;
   min-width: 80px;
   max-width: 600px;
-}
-.el-table-row-custom {
-  /* Можно добавить стили для высоты строк, если нужно */
 }
 
 .notion-input {

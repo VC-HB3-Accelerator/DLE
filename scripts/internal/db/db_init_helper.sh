@@ -30,6 +30,14 @@ INSERT INTO roles (id, name_encrypted) VALUES
 ON CONFLICT (id) DO UPDATE SET 
   name_encrypted = EXCLUDED.name_encrypted;"
 
+# Заполняем справочную таблицу is_rag_source
+docker exec dapp-postgres psql -U dapp_user -d dapp_db -c "
+INSERT INTO is_rag_source (id, name_encrypted) VALUES 
+  (1, encrypt_text('Да', '$ENCRYPTION_KEY')),
+  (2, encrypt_text('Нет', '$ENCRYPTION_KEY'))
+ON CONFLICT (id) DO UPDATE SET 
+  name_encrypted = EXCLUDED.name_encrypted;"
+
 docker exec dapp-postgres psql -U dapp_user -d dapp_db -c "
 INSERT INTO rpc_providers (network_id_encrypted, rpc_url_encrypted, chain_id)
 VALUES

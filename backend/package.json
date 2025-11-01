@@ -26,7 +26,8 @@
     "generate:abi": "node scripts/generate-abi.js",
     "generate:flattened": "node scripts/generate-flattened.js",
     "compile:full": "npx hardhat compile && npm run generate:abi && npm run generate:flattened",
-    "seed:legal": "node scripts/seed/legalTemplatesSeed.js"
+    "seed:legal": "node scripts/seed/legalTemplatesSeed.js",
+    "import:legal": "node scripts/import-legal-docs.js"
   },
   "bin": {},
   "engines": {

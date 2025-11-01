@@ -201,13 +201,20 @@ async function ragAnswer({ tableId, userQuestion, product = null, threshold = 30
 /**
  * Загрузка всех плейсхолдеров и их значений из пользовательских таблиц
  * Возвращает объект: { placeholder1: value1, placeholder2: value2, ... }
+ * @param {Array} selectedRagTables - Массив ID выбранных RAG таблиц для фильтрации
  */
-async function getAllPlaceholdersWithValues() {
+async function getAllPlaceholdersWithValues(selectedRagTables = []) {
   try {
     console.log('[RAG] Начинаем загрузку плейсхолдеров...');
     
-    // Получаем все колонки с плейсхолдерами
-    const columns = await encryptedDb.getData('user_columns', {});
+    // Получаем колонки с плейсхолдерами
+    let columns = await encryptedDb.getData('user_columns', {});
+    
+    // Фильтруем по выбранным RAG таблицам, если они указаны
+    if (selectedRagTables && selectedRagTables.length > 0) {
+      columns = columns.filter(col => selectedRagTables.includes(col.table_id));
+      console.log(`[RAG] Фильтруем по RAG таблицам: ${selectedRagTables.join(', ')}`);
+    }
     console.log(`[RAG] Получено колонок: ${columns.length}`);
     
     const columnsWithPlaceholders = columns.filter(col => col.placeholder && col.placeholder.trim() !== '');
@@ -281,7 +288,8 @@ async function generateLLMResponse({
   date,
   rules,
   history,
-  model
+  model,
+  selectedRagTables
 }) {
   console.log(`[RAG] generateLLMResponse called with:`, {
     userQuestion,
@@ -338,7 +346,7 @@ async function generateLLMResponse({
     // --- ДОБАВЛЕНО: подстановка плейсхолдеров ---
     let finalSystemPrompt = systemPrompt;
     if (systemPrompt && systemPrompt.includes('{')) {
-      const placeholders = await getAllPlaceholdersWithValues();
+      const placeholders = await getAllPlaceholdersWithValues(selectedRagTables);
       finalSystemPrompt = replacePlaceholders(systemPrompt, placeholders);
       console.log(`[RAG] Подставлены плейсхолдеры в системный промпт`);
     }

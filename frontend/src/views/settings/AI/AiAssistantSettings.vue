@@ -300,7 +300,17 @@ async function loadEmbeddingModels() {
 }
 async function loadPlaceholders() {
   const { data } = await axios.get('/tables/placeholders/all');
-  placeholders.value = Array.isArray(data) ? data : [];
+  const allPlaceholders = Array.isArray(data) ? data : [];
+  
+  // Фильтруем только плейсхолдеры из выбранных RAG таблиц
+  if (settings.value.selected_rag_tables) {
+    const selectedTableId = typeof settings.value.selected_rag_tables === 'object' 
+      ? settings.value.selected_rag_tables[0] 
+      : settings.value.selected_rag_tables;
+    placeholders.value = allPlaceholders.filter(ph => ph.table_id === Number(selectedTableId));
+  } else {
+    placeholders.value = [];
+  }
 }
 function openEditPlaceholder(ph) {
   editingPlaceholder.value = { ...ph };
@@ -316,6 +326,11 @@ async function savePlaceholderEdit() {
   await loadPlaceholders();
   closeEditPlaceholder();
 }
+// Обновляем плейсхолдеры при изменении выбранной RAG таблицы
+watch(() => settings.value.selected_rag_tables, () => {
+  loadPlaceholders();
+});
+
 onMounted(async () => {
   await loadSettings();
   await loadUserTables();
