@@ -114,6 +114,46 @@ class SessionService {
           const identifier = `web:${guestId}`; // Старые гости всегда из web
           await universalGuestService.migrateToUser(identifier, userId);
         }
+        
+        // После миграции сообщений переносим согласия по всем гостевых идентификаторам
+        // Это нужно на случай, если согласия были связаны с гостевой сессией
+        try {
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          
+          // Получаем wallet адрес пользователя для обновления согласий
+          const identityService = require('./identity-service');
+          const walletIdentity = await identityService.findIdentity(userId, 'wallet');
+          const normalizedWalletAddress = walletIdentity?.provider_id || null;
+          
+          for (const guestId of guestIdsToProcess) {
+            // Ищем согласия по гостевому идентификатору в формате "guest_${guestId}"
+            const guestWalletAddress = `guest_${guestId}`;
+            
+            const { rows: guestConsents } = await db.getQuery()(`
+              SELECT id FROM consent_logs
+              WHERE wallet_address = $1
+                AND status = 'granted'
+                AND (user_id IS NULL OR user_id = $2)
+            `, [guestWalletAddress, userId]);
+            
+            if (guestConsents.length > 0) {
+              // Переносим согласия на пользователя и обновляем wallet_address
+              await db.getQuery()(`
+                UPDATE consent_logs
+                SET user_id = $1,
+                    wallet_address = COALESCE($2, wallet_address),
+                    updated_at = NOW()
+                WHERE id = ANY($3)
+              `, [userId, normalizedWalletAddress, guestConsents.map(c => c.id)]);
+              
+              logger.info(`[SessionService] Перенесено ${guestConsents.length} согласий для guest ${guestId} → user ${userId}`);
+            }
+          }
+        } catch (consentError) {
+          // Не критично, если не удалось перенести согласия - просто логируем
+          logger.warn(`[SessionService] Ошибка переноса согласий (не критично):`, consentError);
+        }
       }
 
       return { success: true, processedCount: guestIdsToProcess.size };

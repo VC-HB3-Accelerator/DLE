@@ -25,6 +25,9 @@ const emailAuth = require('../services/emailAuth');
 const verificationService = require('../services/verification-service');
 const identityService = require('../services/identity-service');
 const sessionService = require('../services/session-service');
+// Используем централизованный сервис для работы с согласиями
+const consentService = require('../services/consentService');
+const { DOCUMENT_CONSENT_MAP } = consentService;
 
 // Создаем лимитер для попыток аутентификации
 const authLimiter = rateLimit({
@@ -173,30 +176,60 @@ router.post('/verify', async (req, res) => {
     const origin = req.get('origin') || 'http://localhost:5173';
     const domain = new URL(origin).host; // Извлекаем домен из origin
     
+    // Получаем список документов для подписания и добавляем их в resources
+    const documentTitles = Object.keys(DOCUMENT_CONSENT_MAP);
+    const tableName = 'admin_pages_simple';
+    const tableExistsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    let resources = [`${origin}/api/auth/verify`];
+    if (tableExistsRes.rows[0].exists) {
+      const { rows: documents } = await db.getQuery()(`
+        SELECT id FROM ${tableName} 
+        WHERE status = 'published' 
+          AND visibility = 'public'
+          AND title = ANY($1)
+      `, [documentTitles]);
+      
+      // Добавляем ссылки на документы в resources
+      documents.forEach(doc => {
+        resources.push(`${origin}/content/published/${doc.id}`);
+      });
+    }
+    
+    // Сортируем resources для консистентности (должно совпадать с фронтендом)
+    resources = resources.sort();
+    
+    // Используем issuedAt из запроса, если он есть, иначе создаем новый
+    const messageIssuedAt = issuedAt || new Date().toISOString();
+    
     const { SiweMessage } = require('siwe');
     const message = new SiweMessage({
       domain,
       address: normalizedAddress,
-      statement: 'Sign in with Ethereum to the app.',
+      statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
       uri: origin,
       version: '1',
       chainId: 1,
       nonce: nonce,
-      issuedAt: issuedAt || new Date().toISOString(),
-      resources: [`${origin}/api/auth/verify`],
+      issuedAt: messageIssuedAt,
+      resources: resources,
     });
 
     const messageToSign = message.prepareMessage();
     
     logger.info(`[verify] SIWE message for verification: ${messageToSign}`);
+    logger.info(`[verify] Resources: ${JSON.stringify(resources)}`);
+    logger.info(`[verify] IssuedAt: ${messageIssuedAt}`);
     logger.info(`[verify] Domain: ${domain}, Origin: ${origin}`);
     logger.info(`[verify] Normalized address: ${normalizedAddress}`);
     logger.info(`[verify] Request headers origin: ${req.get('origin')}`);
     logger.info(`[verify] Request headers host: ${req.get('host')}`);
     logger.info(`[verify] Request headers referer: ${req.get('referer')}`);
 
-    // Проверяем подпись
-    const isValid = await authService.verifySignature(messageToSign, signature, normalizedAddress);
+    // Проверяем подпись через SiweMessage.verify() (передаем объект сообщения, а не строку)
+    const isValid = await authService.verifySignature(message, signature, normalizedAddress);
     if (!isValid) {
       logger.error(`[verify] Invalid signature for address: ${normalizedAddress}`);
       return res.status(401).json({ success: false, error: 'Invalid signature' });
@@ -257,6 +290,15 @@ router.post('/verify', async (req, res) => {
     // Связываем гостевые сообщения с пользователем
     await sessionService.linkGuestMessages(req.session, userId);
 
+    // Проверяем согласия пользователя через централизованный сервис
+    const consentCheck = await consentService.checkConsents({
+      userId,
+      walletAddress: normalizedAddress
+    });
+    
+    const needsConsent = consentCheck.needsConsent;
+    const missingConsents = consentCheck.missingConsents;
+
     // Возвращаем успешный ответ
     userAccessLevel = await authService.getUserAccessLevel(normalizedAddress);
     return res.json({
@@ -265,6 +307,8 @@ router.post('/verify', async (req, res) => {
       address: normalizedAddress, // Возвращаем нормализованный адрес
       userAccessLevel: userAccessLevel,
       authenticated: true,
+      needsConsent: needsConsent,
+      missingConsents: missingConsents,
     });
   } catch (error) {
     logger.error('[verify] Error:', error);

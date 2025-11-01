@@ -25,6 +25,14 @@ const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botManager = require('../services/botManager');
 const universalMediaProcessor = require('../services/UniversalMediaProcessor');
 
+// Маппинг названий документов на типы согласий
+const DOCUMENT_CONSENT_MAP = {
+  'Политика конфиденциальности': 'privacy_policy',
+  'Права субъектов персональных данных и отзыв согласия': 'personal_data',
+  'Согласие на использование файлов cookie': 'cookies',
+  'Согласие на обработку персональных данных': 'personal_data_processing',
+};
+
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -143,6 +151,7 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     };
 
     // Обработка через unified processor
+    // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
     const result = await unifiedMessageProcessor.processMessage(messageData);
 
     logger.info('[Chat] Результат обработки:', {
@@ -151,13 +160,25 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       aiResponseType: typeof result.aiResponse?.response
     });
 
-    res.json({
+    // Формируем ответ
+    // Системное сообщение уже включено в ответ ИИ (если нужно)
+    const response = {
       success: true,
       guestId: webGuestId,
       aiResponse: result.aiResponse ? {
         response: result.aiResponse.response
       } : null
-    });
+    };
+
+    // Добавляем информацию о согласиях из результата (если есть)
+    if (result.consentRequired) {
+      response.consentRequired = result.consentRequired;
+      response.missingConsents = result.missingConsents;
+      response.consentDocuments = result.consentDocuments;
+      response.autoConsentOnReply = result.autoConsentOnReply;
+    }
+
+    res.json(response);
 
   } catch (error) {
     logger.error('[Chat] Ошибка обработки гостевого сообщения:', error);
@@ -268,9 +289,11 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     };
 
     // Обработка через unified processor
+    // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
     const result = await unifiedMessageProcessor.processMessage(messageData);
 
-    res.json({
+    // Формируем ответ с информацией о согласиях
+    const response = {
       success: true,
       userMessageId: result.userMessageId,
       conversationId: result.conversationId,
@@ -278,7 +301,17 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
         response: result.aiResponse.response
       } : null,
       noAiResponse: result.noAiResponse
-    });
+    };
+
+    // Добавляем информацию о согласиях из результата (если есть)
+    if (result.consentRequired) {
+      response.consentRequired = result.consentRequired;
+      response.missingConsents = result.missingConsents;
+      response.consentDocuments = result.consentDocuments;
+      response.autoConsentOnReply = result.autoConsentOnReply;
+    }
+
+    res.json(response);
 
   } catch (error) {
     logger.error('[Chat] Ошибка обработки сообщения:', error);

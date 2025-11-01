@@ -330,11 +330,75 @@ class UniversalGuestService {
 
       logger.info(`[UniversalGuestService] Обработка сообщения гостя: ${identifier}`);
 
+      // 0.5. Проверяем, нужно ли автоматически подписать согласие при ответе
+      // Загружаем историю для проверки последнего сообщения
+      const previousHistory = await this.getHistory(identifier);
+      
+      // Если в истории есть системное сообщение о согласиях, автоматически подписываем при ответе
+      if (previousHistory.length > 0) {
+        const consentService = require('./consentService');
+        const [provider, providerId] = identifier?.split(':') || [];
+        let walletAddress = null;
+        
+        if (provider === 'web' && providerId?.startsWith('guest_')) {
+          walletAddress = providerId;
+        }
+        
+        // Проверяем, было ли последнее сообщение системным с согласием
+        const lastMessage = previousHistory[previousHistory.length - 1];
+        const hasConsentSystemMessage = lastMessage && 
+          (lastMessage.role === 'system' || lastMessage.consentRequired);
+        
+        if (hasConsentSystemMessage) {
+          // Проверяем текущие согласия
+          const consentCheck = await consentService.checkConsents({
+            userId: null,
+            walletAddress
+          });
+          
+          // Если согласия нужны, автоматически подписываем
+          if (consentCheck.needsConsent) {
+            logger.info(`[UniversalGuestService] Автоматическое подписание согласий при ответе гостя ${identifier}`);
+            
+            const consentDocuments = await consentService.getConsentDocuments(consentCheck.missingConsents);
+            const documentIds = consentDocuments.map(doc => doc.id);
+            const consentTypes = consentDocuments.map(doc => doc.consentType).filter(type => type);
+            
+            if (documentIds.length > 0 && consentTypes.length > 0) {
+              const db = require('../db');
+              try {
+                // Для гостей используем wallet_address в формате guest_ID
+                await db.getQuery()(
+                  `INSERT INTO consent_logs (wallet_address, document_id, document_title, consent_type, status, signed_at, channel, ip_address, created_at, updated_at)
+                   SELECT $1, unnest($2::int[]), unnest($3::text[]), unnest($4::text[]), 'granted', NOW(), 'web', NULL, NOW(), NOW()
+                   ON CONFLICT (wallet_address, consent_type, document_id) 
+                   DO UPDATE SET 
+                     status = 'granted',
+                     signed_at = NOW(),
+                     revoked_at = NULL,
+                     updated_at = NOW()
+                   WHERE consent_logs.wallet_address = $1 AND consent_logs.consent_type = EXCLUDED.consent_type`,
+                  [
+                    walletAddress,
+                    documentIds,
+                    consentDocuments.map(doc => doc.title),
+                    consentTypes
+                  ]
+                );
+                logger.info(`[UniversalGuestService] Согласия автоматически подписаны для гостя ${identifier}`);
+              } catch (consentError) {
+                logger.error(`[UniversalGuestService] Ошибка автоматического подписания согласий:`, consentError);
+              }
+            }
+          }
+        }
+      }
+
       // 1. Сохраняем сообщение гостя
       const saveResult = await this.saveMessage(messageData);
       const processedContent = saveResult.processedContent;
 
-      // 2. Загружаем историю для контекста
+      // 2. Загружаем историю для контекста (заново, так как могли добавиться сообщения)
       const conversationHistory = await this.getHistory(identifier);
 
       // 3. Генерируем AI ответ
@@ -368,24 +432,73 @@ class UniversalGuestService {
         };
       }
 
-      // 4. Сохраняем AI ответ
+      // Проверяем согласия для добавления системного сообщения к ответу ИИ
+      const consentService = require('./consentService');
+      const [provider, providerId] = identifier?.split(':') || [];
+      let walletAddress = null;
+      
+      if (provider === 'web' && providerId?.startsWith('guest_')) {
+        walletAddress = providerId; // Для веб-гостей используем guest_ID
+      }
+      
+      const consentCheck = await consentService.checkConsents({
+        userId: null,
+        walletAddress
+      });
+
+      // Формируем финальный ответ ИИ с системным сообщением, если нужно
+      let finalAiResponse = aiResponse.response;
+      let consentInfo = null;
+
+      if (consentCheck.needsConsent) {
+        const consentSystemMessage = await consentService.getConsentSystemMessage({
+          userId: null,
+          walletAddress,
+          channel: channel === 'web' ? 'web' : channel,
+          baseUrl: process.env.BASE_URL || 'http://localhost:9000'
+        });
+
+        if (consentSystemMessage && consentSystemMessage.consentRequired) {
+          // Добавляем системное сообщение к ответу ИИ
+          finalAiResponse = `${aiResponse.response}\n\n---\n\n${consentSystemMessage.content}`;
+          
+          consentInfo = {
+            consentRequired: true,
+            missingConsents: consentSystemMessage.missingConsents,
+            consentDocuments: consentSystemMessage.consentDocuments,
+            autoConsentOnReply: consentSystemMessage.autoConsentOnReply
+          };
+        }
+      }
+
+      // 4. Сохраняем AI ответ с добавленным системным сообщением
       await this.saveAiResponse({
         identifier,
-        content: aiResponse.response,
+        content: finalAiResponse,
         channel,
         metadata: messageData.metadata || {}
       });
 
       logger.info(`[UniversalGuestService] Сообщение гостя ${identifier} обработано успешно`);
 
-      return {
+      const result = {
         success: true,
         identifier,
         aiResponse: {
-          response: aiResponse.response,
+          response: finalAiResponse,
           ragData: aiResponse.ragData
         }
       };
+
+      // Добавляем информацию о согласиях, если они нужны
+      if (consentInfo) {
+        result.consentRequired = consentInfo.consentRequired;
+        result.missingConsents = consentInfo.missingConsents;
+        result.consentDocuments = consentInfo.consentDocuments;
+        result.autoConsentOnReply = consentInfo.autoConsentOnReply;
+      }
+
+      return result;
 
     } catch (error) {
       logger.error('[UniversalGuestService] Ошибка обработки сообщения гостя:', error);
@@ -532,6 +645,48 @@ class UniversalGuestService {
           ON CONFLICT (identifier_encrypted, channel) DO NOTHING`,
           [userId, identifier, channel, encryptionKey]
         );
+      }
+
+      // 5. Переносим согласия гостя на пользователя, если они есть
+      // Согласия могут быть связаны с гостевой сессией через wallet_address = "guest_${guestId}"
+      try {
+        const [channel, guestId] = identifier.split(':');
+        
+        // Ищем согласия по гостевому идентификатору в формате "guest_${guestId}"
+        const guestWalletAddress = `guest_${guestId}`;
+        
+        const { rows: guestConsents } = await db.getQuery()(`
+          SELECT id, consent_type, document_id, document_title, status, signed_at, ip_address, user_agent, channel as consent_channel
+          FROM consent_logs
+          WHERE wallet_address = $1
+            AND status = 'granted'
+            AND (user_id IS NULL OR user_id = $2)
+        `, [guestWalletAddress, userId]);
+        
+        if (guestConsents.length > 0) {
+          logger.info(`[UniversalGuestService] Найдено ${guestConsents.length} согласий для переноса`);
+          
+          // Переносим согласия на пользователя
+          // Обновляем wallet_address на нормализованный адрес кошелька пользователя, если он есть
+          const identityService = require('./identity-service');
+          const walletIdentity = await identityService.findIdentity(userId, 'wallet');
+          const normalizedWalletAddress = walletIdentity?.provider_id || null;
+          
+          for (const consent of guestConsents) {
+            await db.getQuery()(`
+              UPDATE consent_logs
+              SET user_id = $1,
+                  wallet_address = COALESCE($2, wallet_address),
+                  updated_at = NOW()
+              WHERE id = $3
+            `, [userId, normalizedWalletAddress, consent.id]);
+          }
+          
+          logger.info(`[UniversalGuestService] Перенесено ${guestConsents.length} согласий на user ${userId}`);
+        }
+      } catch (consentError) {
+        // Не критично, если не удалось перенести согласия - просто логируем
+        logger.warn(`[UniversalGuestService] Ошибка переноса согласий (не критично):`, consentError);
       }
 
       logger.info(`[UniversalGuestService] Миграция завершена: ${migrated} перенесено, ${skipped} пропущено`);

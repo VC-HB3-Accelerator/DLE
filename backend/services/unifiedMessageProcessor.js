@@ -183,6 +183,80 @@ async function processMessage(messageData) {
 
     const conversationId = conversation.id;
 
+    // Получаем ключ шифрования (будет использоваться далее)
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+
+    // 5.5. Проверяем, нужно ли автоматически подписать согласие при ответе
+    // Ищем последнее сообщение от ассистента или системное сообщение с согласием
+    const consentService = require('./consentService');
+    
+    const { rows: lastMessages } = await db.getQuery()(
+      `SELECT 
+        decrypt_text(role_encrypted, $2) as role,
+        decrypt_text(content_encrypted, $2) as content,
+        message_type
+      FROM messages
+      WHERE conversation_id = $1 
+        AND user_id = $3
+        AND (
+          decrypt_text(role_encrypted, $2) = 'assistant' 
+          OR message_type = 'system_consent'
+        )
+      ORDER BY created_at DESC
+      LIMIT 1`,
+      [conversationId, encryptionKey, userId]
+    );
+    
+    // Если последнее сообщение было от ассистента, проверяем наличие системного сообщения о согласиях
+    if (lastMessages.length > 0) {
+      // Проверяем согласия пользователя
+      const walletIdentity = await identityService.findIdentity(userId, 'wallet');
+      const consentCheck = await consentService.checkConsents({
+        userId,
+        walletAddress: walletIdentity?.provider_id || null
+      });
+      
+      // Если согласия нужны, но пользователь отвечает на сообщение, автоматически подписываем
+      if (consentCheck.needsConsent) {
+        logger.info(`[UnifiedMessageProcessor] Автоматическое подписание согласий при ответе пользователя ${userId}`);
+        
+        // Получаем документы для подписания
+        const consentDocuments = await consentService.getConsentDocuments(consentCheck.missingConsents);
+        const documentIds = consentDocuments.map(doc => doc.id);
+        const consentTypes = consentDocuments.map(doc => doc.consentType).filter(type => type);
+        
+        // Автоматически подписываем согласие
+        if (documentIds.length > 0 && consentTypes.length > 0) {
+          const consentRoutes = require('../routes/consent');
+          // Вызываем логику подписания напрямую через сервис или API
+          try {
+            await db.getQuery()(
+              `INSERT INTO consent_logs (user_id, wallet_address, document_id, document_title, consent_type, status, signed_at, channel, ip_address, created_at, updated_at)
+               SELECT $1, $2, unnest($3::int[]), unnest($4::text[]), unnest($5::text[]), 'granted', NOW(), 'web', NULL, NOW(), NOW()
+               ON CONFLICT (user_id, consent_type, document_id) 
+               DO UPDATE SET 
+                 status = 'granted',
+                 signed_at = NOW(),
+                 revoked_at = NULL,
+                 updated_at = NOW()
+               WHERE consent_logs.user_id = $1 AND consent_logs.consent_type = EXCLUDED.consent_type`,
+              [
+                userId,
+                walletIdentity?.provider_id || null,
+                documentIds,
+                consentDocuments.map(doc => doc.title),
+                consentTypes
+              ]
+            );
+            logger.info(`[UnifiedMessageProcessor] Согласия автоматически подписаны для пользователя ${userId}`);
+          } catch (consentError) {
+            logger.error(`[UnifiedMessageProcessor] Ошибка автоматического подписания согласий:`, consentError);
+            // Не блокируем обработку сообщения при ошибке подписания
+          }
+        }
+      }
+    }
+
     // 6. Обработка вложений
     let attachment_filename = null;
     let attachment_mimetype = null;
@@ -198,7 +272,7 @@ async function processMessage(messageData) {
     }
 
     // 7. Сохраняем входящее сообщение пользователя
-    const encryptionKey = encryptionUtils.getEncryptionKey();
+    // encryptionKey уже объявлен выше
 
     const { rows } = await db.getQuery()(
       `INSERT INTO messages (
@@ -293,7 +367,31 @@ async function processMessage(messageData) {
       });
 
       if (aiResponse && aiResponse.success && aiResponse.response) {
-        // Сохраняем ответ AI
+        // Проверяем согласия и добавляем системное сообщение к ответу ИИ
+        const walletIdentity = await identityService.findIdentity(userId, 'wallet');
+        const consentSystemMessage = await consentService.getConsentSystemMessage({
+          userId,
+          walletAddress: walletIdentity?.provider_id || null,
+          channel: channel === 'web' ? 'web' : channel,
+          baseUrl: process.env.BASE_URL || 'http://localhost:9000'
+        });
+
+        // Формируем финальный ответ ИИ с системным сообщением, если нужно
+        let finalAiResponse = aiResponse.response;
+        if (consentSystemMessage && consentSystemMessage.consentRequired) {
+          // Добавляем системное сообщение к ответу ИИ
+          finalAiResponse = `${aiResponse.response}\n\n---\n\n${consentSystemMessage.content}`;
+          
+          // Сохраняем информацию о согласиях в метаданные ответа
+          aiResponse.consentInfo = {
+            consentRequired: true,
+            missingConsents: consentSystemMessage.missingConsents,
+            consentDocuments: consentSystemMessage.consentDocuments,
+            autoConsentOnReply: consentSystemMessage.autoConsentOnReply
+          };
+        }
+
+        // Сохраняем ответ AI с добавленным системным сообщением
         const { rows: aiMessageRows } = await db.getQuery()(
           `INSERT INTO messages (
             conversation_id,
@@ -322,7 +420,7 @@ async function processMessage(messageData) {
             conversationId,
             userId, // sender_id
             'assistant',
-            aiResponse.response,
+            finalAiResponse,
             channel,
             'assistant',
             'outgoing',
@@ -353,16 +451,26 @@ async function processMessage(messageData) {
     }
 
     // 11. Возвращаем результат
-    return {
+    const result = {
       success: true,
       userMessageId,
       conversationId,
       aiResponse: aiResponse && aiResponse.success ? {
-        response: aiResponse.response,
+        response: finalAiResponse || aiResponse.response,
         ragData: aiResponse.ragData
       } : null,
       noAiResponse: !shouldGenerateAi
     };
+
+    // Если есть информация о согласиях, добавляем её в результат
+    if (aiResponse && aiResponse.success && aiResponse.consentInfo) {
+      result.consentRequired = aiResponse.consentInfo.consentRequired;
+      result.missingConsents = aiResponse.consentInfo.missingConsents;
+      result.consentDocuments = aiResponse.consentInfo.consentDocuments;
+      result.autoConsentOnReply = aiResponse.consentInfo.autoConsentOnReply;
+    }
+
+    return result;
 
   } catch (error) {
     logger.error('[UnifiedMessageProcessor] Ошибка обработки сообщения:', error);

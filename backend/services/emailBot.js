@@ -297,7 +297,22 @@ class EmailBot {
                 
                 const messageData = await this.extractMessageData(parsed, messageId, uid);
                 if (messageData && this.messageProcessor) {
-                  await this.messageProcessor(messageData);
+                  // Обрабатываем сообщение через унифицированный процессор
+                  // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
+                  const result = await this.messageProcessor(messageData);
+                  
+                  // Если есть ответ ИИ с информацией о согласиях, отправляем email
+                  if (result && result.success && result.aiResponse) {
+                    const fromEmail = parsed.from?.value?.[0]?.address;
+                    if (fromEmail) {
+                      // Ответ ИИ уже содержит системное сообщение о согласиях (если нужно)
+                      await this.sendEmail(
+                        fromEmail,
+                        'Ответ на ваше сообщение',
+                        result.aiResponse.response
+                      );
+                    }
+                  }
                 }
                 
                 processedCount++;
@@ -462,6 +477,40 @@ class EmailBot {
       
     } catch (error) {
       logger.error('[EmailBot] Ошибка отправки email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Отправка email с HTML содержимым
+   * @param {string} to - Email получателя
+   * @param {string} subject - Тема письма
+   * @param {string} text - Текстовая версия
+   * @param {string} html - HTML версия
+   */
+  async sendEmailWithHtml(to, subject, text, html) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(to)) {
+      throw new Error(`Неверный формат email адреса: ${to}`);
+    }
+    
+    try {
+      const mailOptions = {
+        from: this.settings.from_email,
+        to,
+        subject,
+        text,
+        html
+      };
+      
+      await this.transporter.sendMail(mailOptions);
+      this.transporter.close();
+      
+      logger.info(`[EmailBot] Email с HTML отправлен успешно: ${to}`);
+      return true;
+      
+    } catch (error) {
+      logger.error('[EmailBot] Ошибка отправки email с HTML:', error);
       throw error;
     }
   }

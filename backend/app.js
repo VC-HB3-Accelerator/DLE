@@ -108,6 +108,7 @@ const dleAnalyticsRoutes = require('./routes/dleAnalytics'); // Аналитик
 const compileRoutes = require('./routes/compile'); // Компиляция контрактов
 const { router: dleHistoryRoutes } = require('./routes/dleHistory'); // Расширенная история
 const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
+const consentRoutes = require('./routes/consent'); // Добавляем импорт маршрутов согласий
 
 const app = express();
 
@@ -283,6 +284,7 @@ app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/pages', pagesRoutes); // Подключаем роутер страниц
+app.use('/api/consent', consentRoutes); // Добавляем маршрут согласий
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
 app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы)
 app.use('/api/ens', ensRoutes); // ENS utilities

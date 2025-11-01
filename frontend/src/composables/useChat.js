@@ -316,6 +316,7 @@ export function useChat(auth) {
              }
 
             // Добавляем ответ ИИ, если есть
+            // Системное сообщение о согласиях уже включено в ответ ИИ
             if (response.data.aiResponse) {
                 messages.value.push({
                     id: `ai_${Date.now()}`,
@@ -323,12 +324,17 @@ export function useChat(auth) {
                     sender_type: 'assistant',
                     role: 'assistant',
                     timestamp: new Date().toISOString(),
-                    isLocal: false
+                    isLocal: false,
+                    // Добавляем информацию о согласиях, если есть
+                    consentRequired: response.data.consentRequired || false,
+                    missingConsents: response.data.missingConsents || [],
+                    consentDocuments: response.data.consentDocuments || [],
+                    autoConsentOnReply: response.data.autoConsentOnReply || false
                 });
             }
 
-            // Добавляем системное сообщение для гостя (только на клиенте, не сохраняется в истории)
-            if (isGuestMessage && response.data.systemMessage) {
+            // Добавляем системное сообщение для гостя (только если нет согласия, чтобы не дублировать)
+            if (isGuestMessage && response.data.systemMessage && !response.data.consentRequired) {
                 messages.value.push({
                     id: `system-${Date.now()}`,
                     content: response.data.systemMessage,

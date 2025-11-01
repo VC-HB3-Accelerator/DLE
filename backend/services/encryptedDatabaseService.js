@@ -300,26 +300,48 @@ class EncryptedDataService {
 
         const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) RETURNING *`;
         
-        // Собираем параметры в правильном порядке: сначала для encrypted, потом для unencrypted
-        const paramsArray = [];
-        if (hasEncryptedFields) paramsArray.push(this.encryptionKey);
+        // Собираем параметры в правильном порядке по номерам из плейсхолдеров
+        const paramMap = new Map(); // номер параметра -> значение
         
-        // Добавляем параметры для encrypted колонок
-        for (const key of Object.keys(encryptedData)) {
-          const originalKey = key.replace('_encrypted', '');
-          if (filteredData[originalKey] !== undefined) {
-            paramsArray.push(filteredData[originalKey]);
-          } else if (filteredData[originalKey + '_unencrypted'] !== undefined) {
-            paramsArray.push(filteredData[originalKey + '_unencrypted']);
+        if (hasEncryptedFields) {
+          paramMap.set(1, this.encryptionKey); // $1 - ключ шифрования
+        }
+        
+        // Проходим по колонкам в порядке allData и добавляем соответствующие значения
+        for (const key of Object.keys(allData)) {
+          const placeholder = allData[key].toString();
+          // Извлекаем все номера параметров из плейсхолдера (может быть $1 в encrypt_text)
+          const paramMatches = placeholder.match(/\$(\d+)/g);
+          if (paramMatches) {
+            // Для зашифрованных колонок нас интересует второй параметр ($3, $4 и т.д.)
+            // Для незашифрованных - первый параметр ($2, $3 и т.д.)
+            if (encryptedData[key]) {
+              // Это зашифрованная колонка - берем второй параметр (первый это $1 - ключ шифрования)
+              const originalKey = key.replace('_encrypted', '');
+              if (filteredData[originalKey] !== undefined && paramMatches.length > 0) {
+                // Последний параметр это значение для шифрования
+                const valueParam = paramMatches[paramMatches.length - 1];
+                const paramNum = parseInt(valueParam.substring(1));
+                paramMap.set(paramNum, filteredData[originalKey]);
+              }
+            } else if (unencryptedData[key]) {
+              // Это незашифрованная колонка - берем параметр из плейсхолдера
+              const valueParam = paramMatches[0];
+              const paramNum = parseInt(valueParam.substring(1));
+              paramMap.set(paramNum, filteredData[key]);
+            }
           }
         }
         
-        // Добавляем параметры для unencrypted колонок
-        for (const key of Object.keys(unencryptedData)) {
-          paramsArray.push(filteredData[key + '_unencrypted'] || filteredData[key]);
+        // Создаем массив параметров в правильном порядке (от $1 до максимального номера)
+        const maxParamNum = Math.max(...Array.from(paramMap.keys()));
+        const params = [];
+        for (let i = 1; i <= maxParamNum; i++) {
+          if (!paramMap.has(i)) {
+            throw new Error(`Отсутствует параметр $${i} для запроса`);
+          }
+          params.push(paramMap.get(i));
         }
-        
-        const params = paramsArray;
 
         console.log(`🔍 Выполняем INSERT запрос:`, query);
         console.log(`🔍 Параметры:`, params);

@@ -382,9 +382,11 @@ class TelegramBot {
         }
 
       // Обрабатываем сообщение через унифицированный процессор
+      // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
       const result = await messageProcessor(messageData);
 
       // Отправляем ответ пользователю
+      // Системное сообщение о согласиях уже включено в ответ ИИ (если нужно)
       if (result.success && result.aiResponse) {
         await ctx.reply(result.aiResponse.response);
       } else if (result.success) {

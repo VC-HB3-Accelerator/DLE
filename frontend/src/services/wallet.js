@@ -48,12 +48,30 @@ export async function connectWithWallet() {
       throw new Error('Не удалось получить nonce с сервера');
     }
 
+    // Получаем список документов для подписания
+    let resources = [`${window.location.origin}/api/auth/verify`];
+    try {
+      const docsResponse = await axios.get('/consent/documents');
+      if (docsResponse.data && docsResponse.data.length > 0) {
+        docsResponse.data.forEach(doc => {
+          resources.push(`${window.location.origin}/content/published/${doc.id}`);
+        });
+      }
+    } catch (error) {
+      // Если не удалось получить документы, продолжаем без них
+      console.warn('Не удалось получить список документов для подписания:', error);
+    }
+
     // Создаем сообщение для подписи
     const domain = window.location.host;
     const origin = window.location.origin;
-    const statement = 'Sign in with Ethereum to the app.';
+    const statement = 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.';
 
     const issuedAt = new Date().toISOString();
+    
+    // Создаем копию resources и сортируем (не мутируем исходный массив)
+    const sortedResources = [...resources].sort();
+    
     const siweMessage = new SiweMessage({
       domain,
       address,
@@ -63,7 +81,7 @@ export async function connectWithWallet() {
       chainId: 1,
       nonce,
       issuedAt,
-      resources: [`${origin}/api/auth/verify`],
+      resources: sortedResources,
     });
 
     const message = siweMessage.prepareMessage();

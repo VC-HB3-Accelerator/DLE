@@ -38,6 +38,7 @@
             v-model:attachments="attachments"
             @send-message="handleSendMessage"
             @load-more="loadMessages"
+            @remove-consent-messages="handleRemoveConsentMessages"
           />
         </template>
         <template v-else>
@@ -50,6 +51,7 @@
             v-model:attachments="attachments"
             @send-message="handleSendMessage"
             @load-more="loadMessages"
+            @remove-consent-messages="handleRemoveConsentMessages"
           />
         </template>
       </div>
@@ -153,6 +155,13 @@
     } else {
       // Пользователь вышел из системы - можно очистить или обновить данные
       loadMessages({ initial: true });
+    }
+  };
+
+  // Функция удаления системных сообщений о согласиях после подписания
+  const handleRemoveConsentMessages = (messageIds) => {
+    if (messageIds && Array.isArray(messageIds)) {
+      messages.value = messages.value.filter(msg => !messageIds.includes(msg.id));
     }
   };
 </script>

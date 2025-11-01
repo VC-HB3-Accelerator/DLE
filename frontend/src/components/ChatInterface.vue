@@ -21,6 +21,7 @@
           :message="message" 
           :isPrivateChat="isPrivateChat"
           :currentUserId="currentUserId"
+          @consent-granted="handleConsentGranted"
         />
       </div>
     </div>
@@ -113,6 +114,7 @@
         </div>
       </div>
     </div>
+    
   </div>
 </template>
 
@@ -148,12 +150,18 @@ const emit = defineEmits([
   'send-message',
   'load-more', // Событие для загрузки старых сообщений
   'ai-reply',
+  'remove-consent-messages', // Событие для удаления системных сообщений о согласиях
 ]);
 
 const messagesContainer = ref(null);
 const messageInputRef = ref(null);
 const chatInputRef = ref(null); // Ref для chat-input
 const chatInputHeight = ref(80); // Начальная высота (можно подобрать точнее)
+
+function handleConsentGranted(messageId) {
+  // После подписания удаляем системное сообщение о необходимости согласия
+  emit('remove-consent-messages', [messageId]);
+}
 
 // Локальное состояние для предпросмотра, синхронизированное с props.attachments
 const localAttachments = ref([...props.attachments]);

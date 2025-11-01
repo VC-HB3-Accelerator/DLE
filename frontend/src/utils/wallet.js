@@ -43,8 +43,9 @@ export const connectWallet = async () => {
 
     // Берем первый аккаунт в списке
     const address = accounts[0];
-    // Нормализуем адрес (приводим к нижнему регистру для последующих сравнений)
-    const normalizedAddress = ethers.utils.getAddress(address);
+    // Нормализуем адрес (используем getAddress для совместимости)
+    // Проверяем версию ethers - если v6, используем ethers.getAddress, иначе ethers.utils.getAddress
+    const normalizedAddress = ethers.getAddress ? ethers.getAddress(address) : ethers.utils.getAddress(address);
     // console.log('Normalized address:', normalizedAddress);
 
     // Запрашиваем nonce с сервера
@@ -60,34 +61,70 @@ export const connectWallet = async () => {
       };
     }
 
-    // Создаем провайдер Ethers
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
+    // Для SIWE используем personal_sign напрямую через window.ethereum
+    // Не используем ethers signer, так как он добавляет префикс, который нарушает SIWE формат
+
+    // Получаем список документов для подписания
+    let resources = [`${window.location.origin}/api/auth/verify`];
+    try {
+      const docsResponse = await axios.get('/consent/documents');
+      if (docsResponse.data && docsResponse.data.length > 0) {
+        docsResponse.data.forEach(doc => {
+          resources.push(`${window.location.origin}/content/published/${doc.id}`);
+        });
+      }
+    } catch (error) {
+      // Если не удалось получить документы, продолжаем без них
+      console.warn('Не удалось получить список документов для подписания:', error);
+    }
 
     // Создаем сообщение для подписи
-    const domain = window.location.host;
+    // Важно: domain должен быть hostname без протокола и порта (если порт стандартный)
+    const domain = window.location.hostname === 'localhost' ? 
+      `localhost:${window.location.port}` : 
+      window.location.hostname;
     const origin = window.location.origin;
+    
+    // Создаем issuedAt один раз, чтобы использовать одинаковый в сообщении и запросе
+    const issuedAt = new Date().toISOString();
 
-    // Создаем SIWE сообщение
+    // Создаем копию resources и сортируем (не мутируем исходный массив)
+    const sortedResources = [...resources].sort();
+    
+    // Создаем SIWE сообщение с документами в resources
     const message = new SiweMessage({
       domain,
       address: normalizedAddress,
-      statement: 'Sign in with Ethereum to the app.',
+      statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
       uri: origin,
       version: '1',
       chainId: 1, // Ethereum mainnet
       nonce: nonce,
-      issuedAt: new Date().toISOString(),
-      resources: [`${origin}/api/auth/verify`],
+      issuedAt: issuedAt,
+      resources: sortedResources,
     });
 
     // Получаем строку сообщения для подписи
     const messageToSign = message.prepareMessage();
-    // console.log('SIWE message:', messageToSign);
+    
+    // Логируем для отладки
+    console.log('🔐 [Frontend] Domain:', domain);
+    console.log('🔐 [Frontend] Origin:', origin);
+    console.log('🔐 [Frontend] Address:', normalizedAddress);
+    console.log('🔐 [Frontend] Nonce:', nonce);
+    console.log('🔐 [Frontend] IssuedAt:', issuedAt);
+    console.log('🔐 [Frontend] Resources:', JSON.stringify(sortedResources));
+    console.log('🔐 [Frontend] SIWE message to sign:', messageToSign);
+    console.log('🔐 [Frontend] Message length:', messageToSign.length);
 
-    // Запрашиваем подпись
-    // console.log('Requesting signature...');
-    const signature = await signer.signMessage(messageToSign);
+    // Запрашиваем подпись через personal_sign (правильный способ для SIWE)
+    // personal_sign подписывает сообщение С префиксом "\x19Ethereum Signed Message:\n"
+    // ethers.verifyMessage() также добавляет этот префикс, поэтому они совместимы
+    // Параметры: [message, address] - MetaMask принимает строку напрямую
+    const signature = await window.ethereum.request({
+      method: 'personal_sign',
+      params: [messageToSign, normalizedAddress.toLowerCase()],
+    });
 
     if (!signature) {
       return {
@@ -104,7 +141,7 @@ export const connectWallet = async () => {
       address: normalizedAddress,
       signature,
       nonce,
-      issuedAt: new Date().toISOString(),
+      issuedAt: issuedAt, // Используем тот же issuedAt, что и в сообщении
     };
     // console.log('Request data:', requestData);
     

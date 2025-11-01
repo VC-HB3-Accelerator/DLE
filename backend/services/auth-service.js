@@ -33,28 +33,47 @@ const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 class AuthService {
   constructor() {}
 
-  // Проверка подписи
-  async verifySignature(message, signature, address) {
+  // Проверка подписи SIWE
+  // Используем SiweMessage для правильной проверки SIWE подписей
+  async verifySignature(siweMessage, signature, address) {
     try {
-      if (!message || !signature || !address) return false;
+      if (!siweMessage || !signature || !address) return false;
 
       // Нормализуем входящий адрес
       const normalizedAddress = ethers.getAddress(address);
 
-      // Восстанавливаем адрес из подписи
-      const recoveredAddress = ethers.verifyMessage(message, signature);
+      // Используем SiweMessage.verify() для правильной проверки SIWE подписи
+      const { SiweMessage } = require('siwe');
+      
+      // Если siweMessage уже является объектом SiweMessage, используем его напрямую
+      // Если это строка, парсим её
+      let message;
+      if (typeof siweMessage === 'string') {
+        message = new SiweMessage(siweMessage);
+      } else {
+        message = siweMessage;
+      }
+
+      // Проверяем подпись через SiweMessage.verify()
+      const { success, data } = await message.verify({ signature });
 
       // Логируем для отладки
-      logger.info(`[verifySignature] Message: ${message}`);
+      logger.info(`[verifySignature] SIWE verification result: ${success}`);
+      if (data) {
+        logger.info(`[verifySignature] Verified address: ${data.address}`);
+        logger.info(`[verifySignature] Expected address: ${normalizedAddress}`);
+        logger.info(`[verifySignature] Addresses match: ${ethers.getAddress(data.address) === normalizedAddress}`);
+      }
       logger.info(`[verifySignature] Signature: ${signature}`);
-      logger.info(`[verifySignature] Expected address: ${normalizedAddress}`);
-      logger.info(`[verifySignature] Recovered address: ${recoveredAddress}`);
-      logger.info(`[verifySignature] Addresses match: ${ethers.getAddress(recoveredAddress) === normalizedAddress}`);
+
+      if (!success) {
+        return false;
+      }
 
       // Сравниваем нормализованные адреса
-      return ethers.getAddress(recoveredAddress) === normalizedAddress;
+      return data && ethers.getAddress(data.address) === normalizedAddress;
     } catch (error) {
-      logger.error('Error in signature verification:', error);
+      logger.error('Error in SIWE signature verification:', error);
       return false;
     }
   }

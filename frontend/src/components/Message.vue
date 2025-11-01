@@ -46,8 +46,43 @@
       <a :href="replyLink" class="reply-link">Ответить</a>
     </div>
 
+    <!-- Блок с документами для подписания -->
+    <div v-if="message.consentRequired && message.consentDocuments" class="consent-documents-block">
+      <div v-for="doc in message.consentDocuments" :key="doc.id" class="consent-document-item">
+        <label class="consent-document-label">
+          <input 
+            type="checkbox" 
+            :value="doc.id"
+            v-model="selectedConsentDocuments"
+            class="consent-checkbox"
+          />
+          <div class="consent-document-info">
+            <h4 class="consent-document-title">{{ doc.title }}</h4>
+            <p v-if="doc.summary" class="consent-document-summary">{{ doc.summary }}</p>
+            <a 
+              :href="`/content/published/${doc.id}`" 
+              target="_blank" 
+              class="consent-document-link"
+              @click.stop
+            >
+              Открыть документ →
+            </a>
+          </div>
+        </label>
+      </div>
+      <div class="consent-actions">
+        <button 
+          @click="submitConsent" 
+          class="system-btn primary"
+          :disabled="selectedConsentDocuments.length === 0 || isSubmittingConsent"
+        >
+          {{ isSubmittingConsent ? 'Подписание...' : 'Подписать' }}
+        </button>
+      </div>
+    </div>
+
     <!-- Кнопки для системного сообщения -->
-    <div v-if="message.sender_type === 'system' && (message.telegramBotUrl || message.supportEmail)" class="system-actions">
+    <div v-if="message.sender_type === 'system' && (message.telegramBotUrl || message.supportEmail) && !message.consentRequired" class="system-actions">
       <button v-if="message.telegramBotUrl" @click="openTelegram(message.telegramBotUrl)" class="system-btn">Перейти в Telegram-бот</button>
       <button v-if="message.supportEmail" @click="copyEmail(message.supportEmail)" class="system-btn">Скопировать email</button>
     </div>
@@ -116,6 +151,48 @@ const props = defineProps({
     default: null,
   },
 });
+
+const emit = defineEmits(['consent-granted']);
+
+// Состояние для выбранных документов и отправки согласия
+const selectedConsentDocuments = ref([]);
+const isSubmittingConsent = ref(false);
+
+// Инициализируем выбранные документы при монтировании, если есть документы
+watch(() => props.message.consentDocuments, (docs) => {
+  if (docs && Array.isArray(docs) && docs.length > 0) {
+    // Автоматически выбираем все документы
+    selectedConsentDocuments.value = docs.map(doc => doc.id);
+  }
+}, { immediate: true });
+
+// Функция подписания документов
+async function submitConsent() {
+  if (selectedConsentDocuments.value.length === 0 || isSubmittingConsent.value) return;
+  
+  isSubmittingConsent.value = true;
+  try {
+    const api = (await import('../api/axios')).default;
+    const documents = props.message.consentDocuments || [];
+    const consentTypes = documents
+      .filter(doc => selectedConsentDocuments.value.includes(doc.id))
+      .map(doc => doc.consentType)
+      .filter(type => type);
+    
+    await api.post('/consent/grant', {
+      documentIds: selectedConsentDocuments.value,
+      consentTypes: consentTypes,
+    });
+    
+    // Уведомляем родительский компонент об успешном подписании
+    emit('consent-granted', props.message.id);
+  } catch (error) {
+    console.error('Ошибка подписания документов:', error);
+    alert('Ошибка при подписании документов. Попробуйте еще раз.');
+  } finally {
+    isSubmittingConsent.value = false;
+  }
+}
 
 // Простая функция для определения, является ли сообщение отправленным текущим пользователем
 // Используем данные из самого сообщения для определения направления
@@ -493,6 +570,97 @@ function copyEmail(email) {
 }
 .system-btn:hover {
   background: var(--color-primary-dark, #2563eb);
+}
+.system-btn.primary {
+  background: var(--color-primary, #007bff);
+  font-weight: 600;
+}
+.system-btn.primary:hover {
+  background: var(--color-primary-dark, #0056b3);
+}
+.system-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Стили для блока с документами для подписания */
+.consent-documents-block {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.consent-document-item {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+  transition: all 0.2s;
+}
+
+.consent-document-item:hover {
+  border-color: var(--color-primary, #007bff);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.consent-document-item:last-child {
+  margin-bottom: 0;
+}
+
+.consent-document-label {
+  display: flex;
+  gap: 12px;
+  cursor: pointer;
+  align-items: flex-start;
+}
+
+.consent-checkbox {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.consent-document-info {
+  flex: 1;
+}
+
+.consent-document-title {
+  margin: 0 0 6px 0;
+  font-size: 1rem;
+  color: var(--color-primary, #333);
+  font-weight: 600;
+}
+
+.consent-document-summary {
+  margin: 0 0 8px 0;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.consent-document-link {
+  color: var(--color-primary, #007bff);
+  text-decoration: none;
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.consent-document-link:hover {
+  text-decoration: underline;
+}
+
+.consent-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid #e9ecef;
 }
 
 /* Стили для информации об отправителе в приватном чате */
