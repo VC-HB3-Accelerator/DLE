@@ -197,8 +197,6 @@
 .chat-wrapper {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e9ecef;
   overflow: hidden;
   flex: 1;
   min-height: 0;

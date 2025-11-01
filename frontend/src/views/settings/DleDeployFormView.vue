@@ -2970,6 +2970,9 @@ const handleDeploymentCompleted = (result) => {
   console.log('🎉 Поэтапный деплой завершен:', result);
   showDeploymentWizard.value = false;
   
+  // Эмитируем событие о завершении деплоя для обновления Header
+  eventBus.emit('dle-deployed', result);
+  
   // Перенаправляем на главную страницу управления
   router.push('/management');
 };

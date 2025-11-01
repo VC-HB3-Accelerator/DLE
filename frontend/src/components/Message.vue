@@ -60,7 +60,7 @@
             <h4 class="consent-document-title">{{ doc.title }}</h4>
             <p v-if="doc.summary" class="consent-document-summary">{{ doc.summary }}</p>
             <a 
-              :href="`/content/published/${doc.id}`" 
+              :href="`/public/page/${doc.id}`" 
               target="_blank" 
               class="consent-document-link"
               @click.stop
@@ -371,7 +371,6 @@ function copyEmail(email) {
   max-width: 75%;
   word-wrap: break-word;
   position: relative;
-  box-shadow: var(--shadow-sm);
 }
 
 .user-message {
@@ -603,7 +602,7 @@ function copyEmail(email) {
 
 .consent-document-item:hover {
   border-color: var(--color-primary, #007bff);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+  background: #f8f9fa;
 }
 
 .consent-document-item:last-child {
@@ -718,7 +717,6 @@ function copyEmail(email) {
   margin-right: 0;
   max-width: 70%;
   border-radius: 18px 18px 4px 18px;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .private-other-user {
@@ -728,7 +726,6 @@ function copyEmail(email) {
   margin-right: auto;
   max-width: 70%;
   border-radius: 18px 18px 18px 4px;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 /* Анимация появления сообщений */

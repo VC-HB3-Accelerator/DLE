@@ -194,7 +194,7 @@ router.post('/verify', async (req, res) => {
       
       // Добавляем ссылки на документы в resources
       documents.forEach(doc => {
-        resources.push(`${origin}/content/published/${doc.id}`);
+        resources.push(`${origin}/public/page/${doc.id}`);
       });
     }
     

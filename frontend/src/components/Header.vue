@@ -14,6 +14,17 @@
   <div class="header">
     <div class="header-content">
       <div class="header-text">
+        <div v-if="dleDisplayName" class="footer-dle-info">
+          <img 
+            v-if="footerDle?.logoURI" 
+            :src="footerDle.logoURI" 
+            :alt="dleDisplayName.name" 
+            class="footer-dle-logo"
+            @error="handleLogoError"
+          />
+          <div v-else class="footer-dle-logo-placeholder">DLE</div>
+          <span class="dle-name">{{ dleDisplayName.name }} ({{ dleDisplayName.symbol }})</span>
+        </div>
       </div>
       <button
         class="header-wallet-btn"
@@ -27,8 +38,9 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, onMounted, onBeforeUnmount, watch } from 'vue';
+import { defineProps, defineEmits, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { useAuthContext } from '../composables/useAuth';
+import { useFooterDle } from '../composables/useFooterDle';
 import eventBus from '../utils/eventBus';
 
 const props = defineProps({
@@ -48,8 +60,44 @@ const toggleSidebar = () => {
 const auth = useAuthContext();
 const { isAuthenticated } = auth;
 
+// Используем composable для выбранного DLE
+const { footerDle } = useFooterDle();
+
+// Вычисляемое свойство для отображения названия
+const dleDisplayName = computed(() => {
+  if (!footerDle.value || !footerDle.value.name || !footerDle.value.symbol) return null;
+  // Проверяем, что это не fallback данные (не начинается с "DLE " и адресом)
+  if (footerDle.value.name.startsWith('DLE ') && footerDle.value.name.includes('...')) {
+    return null; // Не показываем fallback данные
+  }
+  return {
+    name: footerDle.value.name,
+    symbol: footerDle.value.symbol
+  };
+});
+
+// Обработка ошибки загрузки логотипа
+const handleLogoError = (event) => {
+  console.log('[Header] Ошибка загрузки логотипа:', event.target.src);
+  event.target.style.display = 'none';
+  // Показываем placeholder, если его нет
+  const infoContainer = event.target.closest('.footer-dle-info');
+  if (infoContainer) {
+    let placeholder = infoContainer.querySelector('.footer-dle-logo-placeholder');
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.className = 'footer-dle-logo-placeholder';
+      placeholder.textContent = 'DLE';
+      infoContainer.insertBefore(placeholder, event.target);
+    }
+    placeholder.style.display = 'flex';
+  }
+};
+
 // Мониторинг изменений статуса аутентификации
 let unwatch = null;
+let refreshInterval = null;
+
 onMounted(() => {
   // Следим за изменениями авторизации и сообщаем о них через eventBus
   unwatch = watch(isAuthenticated, (newValue, oldValue) => {
@@ -63,23 +111,24 @@ onMounted(() => {
     }
   });
   
-  // Подписываемся на централизованные события очистки и обновления данных
-  window.addEventListener('clear-application-data', () => {
-    console.log('[Header] Clearing header data');
-    // Очищаем данные при выходе из системы
-    // Header не нуждается в очистке данных
-  });
+  // Обновляем данные DLE из блокчейна периодически (каждые 5 минут)
+  const { refreshFooterDle } = useFooterDle();
+  refreshInterval = setInterval(() => {
+    refreshFooterDle();
+  }, 5 * 60 * 1000); // 5 минут
   
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[Header] Refreshing header data');
-    // Header не нуждается в обновлении данных
-  });
+  // НЕ очищаем footerDle при отключении кошелька, так как это глобальная настройка,
+  // не связанная с пользовательским кошельком
 });
 
 // Очищаем наблюдатель при удалении компонента
 onBeforeUnmount(() => {
   if (unwatch) {
     unwatch();
+  }
+  // Очищаем интервал обновления
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
   }
 });
 </script>
@@ -102,6 +151,45 @@ onBeforeUnmount(() => {
 
 .header-text {
   flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.footer-dle-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-dle-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  border: 2px solid #e9ecef;
+  background: white;
+}
+
+.footer-dle-logo-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--color-primary), #0056b3);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  border: 2px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.dle-name {
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .title {

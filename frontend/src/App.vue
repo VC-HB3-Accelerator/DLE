@@ -42,6 +42,7 @@
   import { ref, watch, onMounted, computed, onUnmounted } from 'vue';
   import { RouterView } from 'vue-router';
   import { useAuth, provideAuth } from './composables/useAuth';
+  import { provideFooterDle } from './composables/useFooterDle';
   import { useTokenBalancesWebSocket } from './composables/useTokenBalancesWebSocket';
   import eventBus from './utils/eventBus';
   import wsClient from './utils/websocket';
@@ -64,6 +65,8 @@
   // --- Логика загрузки баланса токенов через WebSocket --- 
   // Предоставляем auth контекст
   provideAuth();
+  // Предоставляем контекст для выбранного DLE в футере
+  provideFooterDle();
   
   // Инициализируем WebSocket composable
   const { 

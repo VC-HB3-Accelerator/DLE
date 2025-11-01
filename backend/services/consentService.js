@@ -16,7 +16,6 @@ const logger = require('../utils/logger');
 // Маппинг названий документов на типы согласий
 const DOCUMENT_CONSENT_MAP = {
   'Политика конфиденциальности': 'privacy_policy',
-  'Права субъектов персональных данных и отзыв согласия': 'personal_data',
   'Согласие на использование файлов cookie': 'cookies',
   'Согласие на обработку персональных данных': 'personal_data_processing'
 };
@@ -119,7 +118,7 @@ async function getConsentDocuments(missingConsents = []) {
       title: doc.title,
       summary: doc.summary,
       consentType: DOCUMENT_CONSENT_MAP[doc.title],
-      url: `/content/published/${doc.id}`
+      url: `/public/page/${doc.id}`
     }));
   } catch (error) {
     logger.error('[ConsentService] Ошибка получения документов:', error);

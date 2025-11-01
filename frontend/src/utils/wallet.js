@@ -70,7 +70,7 @@ export const connectWallet = async () => {
       const docsResponse = await axios.get('/consent/documents');
       if (docsResponse.data && docsResponse.data.length > 0) {
         docsResponse.data.forEach(doc => {
-          resources.push(`${window.location.origin}/content/published/${doc.id}`);
+          resources.push(`${window.location.origin}/public/page/${doc.id}`);
         });
       }
     } catch (error) {

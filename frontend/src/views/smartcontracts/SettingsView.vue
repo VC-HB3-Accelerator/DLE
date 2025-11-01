@@ -32,6 +32,53 @@
 
       <!-- Основной контент -->
       <div v-if="dleInfo" class="main-content">
+        <!-- Отображение в футере -->
+        <div v-if="canSetFooterDle" class="footer-card">
+          <div class="footer-header">
+            <h3>Отображение в футере</h3>
+          </div>
+          <div class="footer-content">
+            <p>Выберите этот DLE для отображения в футере приложения. Название будет показано в строке с кнопкой бургера.</p>
+            <div v-if="isSelectedForFooter" class="selected-info">
+              <i class="fas fa-check-circle"></i>
+              <span>Этот DLE отображается в футере</span>
+            </div>
+            <div v-else-if="hasFooterDle" class="other-selected-info">
+              <i class="fas fa-info-circle"></i>
+              <span>В футере отображается другой DLE: {{ footerDle.value?.name }} ({{ footerDle.value?.symbol }})</span>
+            </div>
+            <div class="footer-actions">
+              <button 
+                v-if="!isSelectedForFooter" 
+                @click="setAsFooterDle" 
+                class="btn-primary" 
+                :disabled="isLoading"
+              >
+                <i class="fas fa-eye"></i>
+                Отображать в футере
+              </button>
+              <button 
+                v-if="isSelectedForFooter" 
+                @click="removeFromFooter" 
+                class="btn-danger" 
+                :disabled="isLoading"
+              >
+                <i class="fas fa-trash"></i>
+                Удалить из футера
+              </button>
+              <button 
+                v-if="hasFooterDle && !isSelectedForFooter" 
+                @click="removeFromFooter" 
+                class="btn-danger btn-sm" 
+                :disabled="isLoading"
+              >
+                <i class="fas fa-trash"></i>
+                Удалить из футера
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Удаление DLE -->
         <div class="danger-card">
           <div class="danger-header">
@@ -68,9 +115,12 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, onMounted } from 'vue';
+import { ref, defineProps, defineEmits, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '../../composables/useAuth';
+import { useFooterDle } from '../../composables/useFooterDle';
+import { usePermissions } from '../../composables/usePermissions';
+import { ROLES } from '../../composables/permissions';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { deactivateDLE } from '../../utils/dle-contract.js';
 import api from '../../api/axios';
@@ -110,6 +160,74 @@ const goBackToBlocks = () => {
 // Получаем адрес пользователя из контекста аутентификации
 const { address: userAddress } = useAuthContext();
 
+// Используем composable для проверки прав доступа
+const { currentRole } = usePermissions();
+
+// Используем composable для выбранного DLE
+const { footerDle, setFooterDle, clearFooterDle } = useFooterDle();
+
+// Проверяем, может ли пользователь устанавливать DLE для футера (только редактор)
+const canSetFooterDle = computed(() => {
+  return currentRole.value === ROLES.EDITOR;
+});
+
+// Проверяем, выбран ли этот DLE для отображения в футере
+const isSelectedForFooter = computed(() => {
+  if (!address || !footerDle.value) return false;
+  // Сравниваем адреса в нижнем регистре для надежности
+  return footerDle.value.address && footerDle.value.address.toLowerCase() === address.toLowerCase();
+});
+
+// Проверяем, есть ли какой-либо DLE в футере
+const hasFooterDle = computed(() => {
+  return footerDle.value !== null && footerDle.value.address !== null;
+});
+
+// Устанавливает выбранный DLE для отображения в футере
+const setAsFooterDle = async () => {
+  // Проверяем права доступа (только редактор может устанавливать DLE для футера)
+  if (!canSetFooterDle.value) {
+    alert('❌ Только пользователи с ролью редактор могут устанавливать DLE для отображения в футере');
+    return;
+  }
+
+  if (!dleInfo.value || !address) {
+    alert('Информация о DLE не загружена');
+    return;
+  }
+
+  try {
+    // Устанавливаем адрес, данные будут загружены из блокчейна
+    await setFooterDle(address);
+    
+    alert(`✅ DLE "${dleInfo.value.name} (${dleInfo.value.symbol})" теперь отображается в футере приложения`);
+  } catch (error) {
+    console.error('Ошибка при установке выбранного DLE:', error);
+    alert('❌ Не удалось установить выбранный DLE');
+  }
+};
+
+// Удаляет DLE из футера
+const removeFromFooter = async () => {
+  // Проверяем права доступа (только редактор может удалять DLE из футера)
+  if (!canSetFooterDle.value) {
+    alert('❌ Только пользователи с ролью редактор могут удалять DLE из футера');
+    return;
+  }
+
+  if (!confirm('Вы уверены, что хотите удалить этот DLE из футера?')) {
+    return;
+  }
+
+  try {
+    clearFooterDle();
+    alert('✅ DLE удален из футера приложения');
+  } catch (error) {
+    console.error('Ошибка при удалении DLE из футера:', error);
+    alert('❌ Не удалось удалить DLE из футера');
+  }
+};
+
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
@@ -136,7 +254,7 @@ const loadDLEInfo = async () => {
     console.log('Загружаем информацию о DLE:', address);
     
     // Загружаем данные DLE из блокчейна через API
-    const response = await api.post('/dle-core/read-dle-info', {
+    const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: address
     });
     
@@ -147,7 +265,8 @@ const loadDLEInfo = async () => {
       dleInfo.value = {
         name: dleData.name,           // Название DLE из блокчейна
         symbol: dleData.symbol,       // Символ DLE из блокчейна
-        address: dleData.dleAddress || address  // Адрес из API или из URL
+        address: dleData.dleAddress || address,  // Адрес из API или из URL
+        logoURI: dleData.logoURI || '' // URL логотипа
       };
     } else {
       console.error('Ошибка загрузки DLE:', response.data.error);
@@ -156,12 +275,9 @@ const loadDLEInfo = async () => {
     
   } catch (error) {
     console.error('Ошибка при загрузке информации о DLE:', error);
-    // В случае ошибки показываем базовую информацию
-    dleInfo.value = {
-      name: 'DLE ' + address.slice(0, 8) + '...',
-      symbol: 'DLE',
-      address: address
-    };
+    // В случае ошибки НЕ устанавливаем fallback данные, оставляем null
+    // чтобы не показывать некорректную информацию
+    dleInfo.value = null;
   } finally {
     isLoading.value = false;
   }
@@ -302,11 +418,81 @@ onMounted(() => {
 }
 
 /* Карточки */
+.footer-card,
 .danger-card {
   background: white;
   border: 1px solid #e9ecef;
   border-radius: var(--radius-lg);
   overflow: hidden;
+}
+
+.footer-header {
+  background: #f0f7ff;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.footer-header h3 {
+  color: var(--color-primary);
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.footer-content {
+  padding: 20px;
+}
+
+.footer-content p {
+  color: var(--color-grey-dark);
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.selected-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e6f7e6;
+  border: 1px solid #b3e5b3;
+  border-radius: 6px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  color: #2d5a2d;
+  font-weight: 500;
+}
+
+.selected-info i {
+  color: #28a745;
+  font-size: 1.1rem;
+}
+
+.other-selected-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  color: #856404;
+  font-weight: 500;
+}
+
+.other-selected-info i {
+  color: #ffc107;
+  font-size: 1.1rem;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.875rem;
 }
 
 .danger-header {

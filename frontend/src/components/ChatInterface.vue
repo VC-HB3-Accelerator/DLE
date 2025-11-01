@@ -12,7 +12,13 @@
 
 <template>
   <div class="chat-container" :style="{ '--chat-input-height': chatInputHeight + 'px' }">
-    <div ref="messagesContainer" class="chat-messages" @scroll="handleScroll">
+    <!-- Блок истории сообщений -->
+    <div 
+      ref="messagesContainer" 
+      class="chat-messages" 
+      :style="{ width: messagesWidth + '%' }"
+      @scroll="handleScroll"
+    >
       <div v-for="message in messages" :key="message.id" :class="['message-wrapper', { 'selected-message': selectedMessageIds.includes(message.id) }]">
         <template v-if="props.canSelectMessages">
           <input type="checkbox" class="admin-select-checkbox" :checked="selectedMessageIds.includes(message.id)" @change="() => toggleSelectMessage(message.id)" />
@@ -26,7 +32,19 @@
       </div>
     </div>
 
-    <div ref="chatInputRef" class="chat-input">
+    <!-- Разделитель для изменения размера -->
+    <div 
+      class="resizer"
+      @mousedown="startResize"
+      @touchstart="startResize"
+    ></div>
+
+    <!-- Блок ввода сообщений -->
+    <div 
+      ref="chatInputRef" 
+      class="chat-input"
+      :style="{ width: inputWidth + '%' }"
+    >
       <div class="input-area">
         <textarea
           ref="messageInputRef"
@@ -34,69 +52,73 @@
           @input="handleInput"
           placeholder="Введите сообщение..."
           :disabled="isLoading || !props.canSend"
-          rows="1"
           autofocus
           @keydown.enter.prevent="sendMessage"
           @focus="handleFocus"
           @blur="handleBlur"
         />
-        <div class="chat-icons">
-          <button 
-            class="chat-icon-btn" 
-            title="Удерживайте для записи аудио" 
-            @mousedown="startAudioRecording" 
-            @mouseup="stopAudioRecording"
-            @mouseleave="stopAudioRecording"
-            :class="{ 'recording': isAudioRecording }"
-            :disabled="!props.canSend"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" fill="currentColor"/>
-              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" fill="currentColor"/>
-            </svg>
-          </button>
-          <button 
-            class="chat-icon-btn" 
-            title="Удерживайте для записи видео" 
-            @mousedown="startVideoRecording" 
-            @mouseup="stopVideoRecording"
-            @mouseleave="stopVideoRecording"
-            :class="{ 'recording': isVideoRecording }"
-            :disabled="!props.canSend"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
-              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" fill="currentColor"/>
-            </svg>
-          </button>
-          <button class="chat-icon-btn" title="Прикрепить файл" @click="handleFileUpload" :disabled="!props.canSend">
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
-              <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" fill="currentColor"/>
-            </svg>
-          </button>
-          <button class="chat-icon-btn" title="Очистить поле ввода" @click="clearInput">
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
-              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
-            </svg>
-          </button>
-          <button 
-            class="chat-icon-btn send-button" 
-            title="Отправить сообщение" 
-            :disabled="isSendDisabled" 
-            @click="sendMessage"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
-              <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" fill="currentColor"/>
-            </svg>
-          </button>
-          <button v-if="props.canGenerateAI" class="chat-icon-btn ai-reply-btn" title="Сгенерировать ответ ІІ" @click="handleAiReply" :disabled="isAiLoading">
-            <template v-if="isAiLoading">
-              <svg class="ai-spinner" width="22" height="22" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
-            </template>
-            <template v-else>
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="8" r="4"/><path d="M8 16v2M16 16v2"/></svg>
-            </template>
-          </button>
-        </div>
+      </div>
+      <div class="chat-icons">
+        <button 
+          class="chat-icon-btn" 
+          title="Удерживайте для записи аудио" 
+          @mousedown="startAudioRecording" 
+          @mouseup="stopAudioRecording"
+          @mouseleave="stopAudioRecording"
+          :class="{ 'recording': isAudioRecording }"
+          :disabled="!props.canSend"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" fill="currentColor"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button 
+          class="chat-icon-btn" 
+          title="Удерживайте для записи видео" 
+          @mousedown="startVideoRecording" 
+          @mouseup="stopVideoRecording"
+          @mouseleave="stopVideoRecording"
+          :class="{ 'recording': isVideoRecording }"
+          :disabled="!props.canSend"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="chat-icon-btn" title="Прикрепить файл" @click="handleFileUpload" :disabled="!props.canSend">
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+            <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="chat-icon-btn" title="Клавиатура" @click="handleKeyboardToggle">
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+            <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="chat-icon-btn" title="Очистить поле ввода" @click="clearInput">
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button 
+          class="chat-icon-btn send-button" 
+          title="Отправить сообщение" 
+          :disabled="isSendDisabled" 
+          @click="sendMessage"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+            <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button v-if="props.canGenerateAI" class="chat-icon-btn ai-reply-btn" title="Сгенерировать ответ ІІ" @click="handleAiReply" :disabled="isAiLoading">
+          <template v-if="isAiLoading">
+            <svg class="ai-spinner" width="22" height="22" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
+          </template>
+          <template v-else>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="8" r="4"/><path d="M8 16v2M16 16v2"/></svg>
+          </template>
+        </button>
       </div>
       <div class="attachment-preview" v-if="localAttachments.length > 0">
         <div v-for="(file, index) in localAttachments" :key="index" class="preview-item">
@@ -367,6 +389,13 @@ const clearInput = () => {
   nextTick(adjustTextareaHeight); // Сбросить высоту textarea
 };
 
+const handleKeyboardToggle = () => {
+  // Показываем виртуальную клавиатуру или переключаем режим
+  if (messageInputRef.value) {
+    messageInputRef.value.focus();
+  }
+};
+
 // --- Отправка сообщения --- 
 const isSendDisabled = computed(() => {
   return props.isLoading || !props.canSend || (!props.newMessage.trim() && localAttachments.value.length === 0);
@@ -382,6 +411,53 @@ const sendMessage = () => {
   // Очищаем поле ввода и превью после отправки
   clearInput();
   nextTick(adjustTextareaHeight); // Сбросить высоту textarea после отправки
+};
+
+// --- Изменение размера блоков ---
+const messagesWidth = ref(70); // Начальная ширина блока истории (в процентах)
+const inputWidth = ref(30); // Начальная ширина блока ввода (в процентах)
+const isResizing = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+
+const startResize = (e) => {
+  isResizing.value = true;
+  
+  document.addEventListener('mousemove', handleResize);
+  document.addEventListener('mouseup', stopResize);
+  document.addEventListener('touchmove', handleResize);
+  document.addEventListener('touchend', stopResize);
+  
+  e.preventDefault();
+};
+
+const handleResize = (e) => {
+  if (!isResizing.value) return;
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const chatContainer = document.querySelector('.chat-container');
+  if (!chatContainer) return;
+  
+  const containerRect = chatContainer.getBoundingClientRect();
+  const containerWidth = containerRect.width;
+  const mouseX = clientX - containerRect.left; // Позиция курсора относительно левого края контейнера
+  
+  // Вычисляем процент ширины блока истории от позиции курсора
+  const newMessagesWidth = (mouseX / containerWidth) * 100;
+  
+  // Ограничиваем минимальную и максимальную ширину (от 20% до 80%)
+  const clampedWidth = Math.max(20, Math.min(80, newMessagesWidth));
+  
+  messagesWidth.value = clampedWidth;
+  inputWidth.value = 100 - clampedWidth;
+};
+
+const stopResize = () => {
+  isResizing.value = false;
+  document.removeEventListener('mousemove', handleResize);
+  document.removeEventListener('mouseup', stopResize);
+  document.removeEventListener('touchmove', handleResize);
+  document.removeEventListener('touchend', stopResize);
 };
 
 // --- Прокрутка и UI --- 
@@ -529,33 +605,116 @@ async function handleAiReply() {
 <style scoped>
 .chat-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   max-height: 100%;
   min-height: 0;
   position: relative;
   overflow: hidden;
+  gap: 0;
+}
+
+/* На мобильных устройствах возвращаем вертикальный layout */
+@media (max-width: 1024px) {
+  .chat-container {
+    flex-direction: column;
+  }
 }
 
 .chat-messages {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   overflow-y: auto;
   position: relative;
-  padding-bottom: 8px;
+  padding: var(--spacing-md) var(--spacing-md);
   min-height: 0;
+  background-color: #ffffff;
+  border-right: none;
+  /* Скрываем скроллбар, но сохраняем функциональность скролла */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE и Edge */
+  transition: width 0.1s ease;
+}
+
+.chat-messages::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* На мобильных устройствах история занимает всё пространство */
+@media (max-width: 1024px) {
+  .chat-messages {
+    flex: 1 1 auto;
+    width: 100% !important;
+    border-right: none;
+    padding: var(--spacing-md) var(--spacing-md) 8px;
+    /* Скрываем скроллбар и на мобильных */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .chat-messages::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .resizer {
+    display: none;
+  }
+  
+  .chat-input {
+    width: 100% !important;
+  }
+}
+
+.resizer {
+  width: 4px;
+  flex-shrink: 0;
+  background-color: transparent;
+  cursor: col-resize;
+  position: relative;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.resizer:hover {
+  background-color: var(--color-primary, #4CAF50);
+}
+
+.resizer::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  background-color: transparent;
 }
 
 .chat-input {
   position: relative;
-  width: 100%;
-  margin-bottom: 12px;
-  margin-top: 8px;
+  flex: 0 0 auto;
+  margin: 0;
   left: 0;
   right: 0;
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
-  flex-shrink: 0;
+  border-radius: 0;
   min-height: 80px;
+  height: 100%;
+  padding: var(--spacing-md) var(--spacing-md) 0;
+  box-sizing: border-box;
+  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.1s ease;
+}
+
+/* На мобильных устройствах блок ввода занимает всё пространство внизу */
+@media (max-width: 1024px) {
+  .chat-input {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-top: none;
+    border-right: none;
+  }
 }
 
 
@@ -563,80 +722,136 @@ async function handleAiReply() {
 
 .chat-input textarea {
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   border: none;
-  background: transparent;
+  background: #f5f5f5;
+  border-radius: 12px;
   resize: none;
   outline: none;
   font-size: var(--font-size-md);
   line-height: 1.5;
-  padding: var(--spacing-sm);
-  min-height: var(--chat-input-min-height, 40px);
-  max-height: var(--chat-input-max-height, 120px);
+  padding: 16px;
+  margin: 0;
   transition: all var(--transition-fast);
   color: var(--color-dark);
-  overflow-y: hidden;
-  height: auto;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .chat-input textarea:focus {
   outline: none;
+  border: none;
+  background: #f5f5f5;
+}
+
+/* На мобильных устройствах поле ввода меньше */
+@media (max-width: 1024px) {
+  .chat-input textarea {
+    border-radius: 20px;
+    padding: 12px 16px;
+    min-height: var(--chat-input-min-height, 40px);
+    max-height: var(--chat-input-max-height, 120px);
+    overflow-y: hidden;
+    resize: none;
+  }
 }
 
 .input-area {
   display: flex;
-  align-items: flex-end;
-  gap: var(--spacing-sm);
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  flex-direction: column;
 }
 
 .chat-icons {
   display: flex;
-  gap: 6px;
-  flex-wrap: nowrap;
+  gap: 8px;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
+  flex-shrink: 0;
+  margin: 0;
+  margin-top: 0;
+  width: 100%;
+  padding: var(--spacing-sm) 0;
+  border-top: none;
 }
 
 .chat-icon-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: transparent;
-  border: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 8px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  color: var(--color-grey);
-  padding: 0;
+  color: var(--color-dark, #333);
+  transition: all 0.2s ease;
   position: relative;
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
-.chat-icon-btn:hover {
+.chat-icon-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.chat-icon-btn:hover:not(:disabled) {
   color: var(--color-primary);
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: #ffffff;
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chat-icon-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .chat-icon-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  background: #f5f5f5;
+  border-color: #e0e0e0;
 }
 
 .chat-icon-btn.send-button {
-  background-color: var(--color-primary);
+  background-color: var(--color-primary, #4CAF50);
   color: white;
-  width: 36px;
-  height: 36px;
+  border-color: var(--color-primary, #4CAF50);
+  font-weight: 600;
+  width: 40px;
+  height: 40px;
 }
 
 .chat-icon-btn.send-button:hover:not(:disabled) {
-  background-color: var(--color-primary-dark);
+  background-color: var(--color-primary-dark, #45a049);
+  border-color: var(--color-primary-dark, #45a049);
   color: white;
-  transform: scale(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+}
+
+.chat-icon-btn.send-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(76, 175, 80, 0.2);
 }
 
 .chat-icon-btn.send-button:disabled {
   background-color: #ccc;
+  border-color: #ccc;
   opacity: 0.7;
 }
 
@@ -666,11 +881,12 @@ async function handleAiReply() {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: auto;
   padding-top: 8px;
   border-top: 1px solid var(--color-grey-light);
-  max-height: 100px;
+  max-height: 200px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .preview-item {
@@ -725,11 +941,12 @@ async function handleAiReply() {
   }
   
   .chat-messages {
-    padding: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-md) 8px;
   }
   
   .chat-input {
     padding: var(--spacing-xs) var(--spacing-sm);
+    height: auto;
   }
   
   .chat-icon-btn {
@@ -753,7 +970,7 @@ async function handleAiReply() {
     border-top: 1px solid #eee !important;
   }
   .chat-messages {
-    padding: var(--spacing-md) !important;
+    padding: var(--spacing-md) var(--spacing-md) 8px !important;
     overflow-y: auto !important;
   }
 }
@@ -768,7 +985,7 @@ async function handleAiReply() {
     border-top: 1px solid #eee !important;
   }
   .chat-messages {
-    padding: var(--spacing-md) !important;
+    padding: var(--spacing-md) var(--spacing-md) 8px !important;
     overflow-y: auto !important;
   }
   .chat-container {

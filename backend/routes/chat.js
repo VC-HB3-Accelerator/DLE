@@ -24,14 +24,8 @@ const aiAssistantSettingsService = require('../services/aiAssistantSettingsServi
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botManager = require('../services/botManager');
 const universalMediaProcessor = require('../services/UniversalMediaProcessor');
-
-// Маппинг названий документов на типы согласий
-const DOCUMENT_CONSENT_MAP = {
-  'Политика конфиденциальности': 'privacy_policy',
-  'Права субъектов персональных данных и отзыв согласия': 'personal_data',
-  'Согласие на использование файлов cookie': 'cookies',
-  'Согласие на обработку персональных данных': 'personal_data_processing',
-};
+const consentService = require('../services/consentService');
+const { DOCUMENT_CONSENT_MAP } = consentService;
 
 // Настройка multer для обработки файлов в памяти
 const storage = multer.memoryStorage();
