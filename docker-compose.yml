@@ -190,7 +190,6 @@ services:
     command: yarn run dev -- --host 0.0.0.0
 
   frontend-nginx:
-    profiles: ["production"]  # Запускается только в production режиме
     build:
       context: ./frontend
       dockerfile: nginx.Dockerfile
