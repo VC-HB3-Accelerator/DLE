@@ -118,7 +118,7 @@ async function getConsentDocuments(missingConsents = []) {
       title: doc.title,
       summary: doc.summary,
       consentType: DOCUMENT_CONSENT_MAP[doc.title],
-      url: `/public/page/${doc.id}`
+      url: `/content/published/${doc.id}`
     }));
   } catch (error) {
     logger.error('[ConsentService] Ошибка получения документов:', error);

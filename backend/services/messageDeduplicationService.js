@@ -12,6 +12,7 @@
 
 const crypto = require('crypto');
 const logger = require('../utils/logger');
+const aiConfigService = require('./aiConfigService');
 
 /**
  * Сервис дедупликации сообщений
@@ -21,8 +22,22 @@ const logger = require('../utils/logger');
 // Хранилище хешей обработанных сообщений (в памяти)
 const processedMessages = new Map();
 
-// Время жизни записи о сообщении (5 минут)
-const MESSAGE_TTL = 5 * 60 * 1000;
+// Время жизни записи о сообщении (загружается из aiConfigService)
+let MESSAGE_TTL = null;
+
+// Инициализация настроек (асинхронная загрузка)
+async function loadSettings() {
+  try {
+    const dedupConfig = await aiConfigService.getDeduplicationConfig();
+    MESSAGE_TTL = dedupConfig.ttl || 5 * 60 * 1000; // Дефолт 5 минут
+  } catch (error) {
+    logger.warn('[MessageDeduplication] Ошибка загрузки настроек, используем дефолт:', error.message);
+    MESSAGE_TTL = 5 * 60 * 1000; // Дефолт 5 минут
+  }
+}
+
+// Инициализируем настройки при загрузке модуля
+loadSettings().catch(err => logger.warn('[MessageDeduplication] Ошибка инициализации:', err.message));
 
 /**
  * Создать хеш сообщения
@@ -48,7 +63,12 @@ function createMessageHash(messageData) {
  * @param {Object} messageData - Данные сообщения
  * @returns {boolean} true если сообщение уже обрабатывалось
  */
-function isDuplicate(messageData) {
+async function isDuplicate(messageData) {
+  // Загружаем актуальные настройки, если они не загружены
+  if (MESSAGE_TTL === null) {
+    await loadSettings();
+  }
+  
   const hash = createMessageHash(messageData);
   
   if (processedMessages.has(hash)) {
@@ -72,7 +92,12 @@ function isDuplicate(messageData) {
  * Пометить сообщение как обработанное
  * @param {Object} messageData - Данные сообщения
  */
-function markAsProcessed(messageData) {
+async function markAsProcessed(messageData) {
+  // Загружаем актуальные настройки, если они не загружены
+  if (MESSAGE_TTL === null) {
+    await loadSettings();
+  }
+  
   const hash = createMessageHash(messageData);
   
   processedMessages.set(hash, {
@@ -91,11 +116,14 @@ function markAsProcessed(messageData) {
  * Очистить старые записи из хранилища
  */
 function cleanupOldEntries() {
+  // Если настройки не загружены, используем дефолт
+  const ttl = MESSAGE_TTL || 5 * 60 * 1000;
+  
   const now = Date.now();
   let cleanedCount = 0;
   
   for (const [hash, entry] of processedMessages.entries()) {
-    if (now - entry.timestamp > MESSAGE_TTL) {
+    if (now - entry.timestamp > ttl) {
       processedMessages.delete(hash);
       cleanedCount++;
     }
@@ -113,7 +141,7 @@ function cleanupOldEntries() {
 function getStats() {
   return {
     totalTracked: processedMessages.size,
-    ttl: MESSAGE_TTL
+    ttl: MESSAGE_TTL || 5 * 60 * 1000
   };
 }
 

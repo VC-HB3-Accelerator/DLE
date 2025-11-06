@@ -236,16 +236,16 @@ class EncryptedDataService {
           console.log(`🔐 Будем шифровать ${key} -> ${key}_encrypted`);
         } else if (unencryptedColumn) {
           // Если есть незашифрованная колонка, сохраняем как есть
-          // Проверяем, что значение не пустое перед сохранением (кроме role и sender_type)
+          // Проверяем, что значение не пустое перед сохранением (кроме role, sender_type и user_id)
           if ((value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) && 
-              key !== 'role' && key !== 'sender_type') {
-            // Пропускаем пустые значения, кроме role и sender_type
+              key !== 'role' && key !== 'sender_type' && key !== 'user_id') {
+            // Пропускаем пустые значения, кроме role, sender_type и user_id
             // console.log(`⚠️ Пропускаем пустое незашифрованное поле ${key}`);
             continue;
           }
           filteredData[key] = value; // Добавляем в отфильтрованные данные
           unencryptedData[key] = `$${paramIndex++}`;
-          // console.log(`✅ Добавили незашифрованное поле ${key} в filteredData и unencryptedData`);
+          console.log(`✅ Добавили незашифрованное поле ${key} в filteredData и unencryptedData`);
         } else {
           // Если колонка не найдена, пропускаем
           // console.warn(`⚠️ Колонка ${key} не найдена в таблице ${tableName}`);
@@ -253,6 +253,11 @@ class EncryptedDataService {
       }
 
       const allData = { ...unencryptedData, ...encryptedData };
+      
+      console.log(`🔍 allData:`, JSON.stringify(allData, null, 2));
+      console.log(`🔍 filteredData:`, JSON.stringify(filteredData, null, 2));
+      console.log(`🔍 unencryptedData:`, JSON.stringify(unencryptedData, null, 2));
+      console.log(`🔍 encryptedData:`, JSON.stringify(encryptedData, null, 2));
       
       // Проверяем, есть ли данные для сохранения
       if (Object.keys(allData).length === 0) {
@@ -310,28 +315,35 @@ class EncryptedDataService {
         // Проходим по колонкам в порядке allData и добавляем соответствующие значения
         for (const key of Object.keys(allData)) {
           const placeholder = allData[key].toString();
+          console.log(`🔍 Обрабатываем ключ: ${key}, placeholder: ${placeholder}`);
           // Извлекаем все номера параметров из плейсхолдера (может быть $1 в encrypt_text)
           const paramMatches = placeholder.match(/\$(\d+)/g);
+          console.log(`🔍 paramMatches для ${key}:`, paramMatches);
           if (paramMatches) {
             // Для зашифрованных колонок нас интересует второй параметр ($3, $4 и т.д.)
             // Для незашифрованных - первый параметр ($2, $3 и т.д.)
             if (encryptedData[key]) {
-              // Это зашифрованная колонка - берем второй параметр (первый это $1 - ключ шифрования)
+              // Это зашифрованная колонка - берем первый параметр (это значение для шифрования)
               const originalKey = key.replace('_encrypted', '');
+              console.log(`🔍 Это зашифрованная колонка, originalKey: ${originalKey}, filteredData[originalKey]:`, filteredData[originalKey]);
               if (filteredData[originalKey] !== undefined && paramMatches.length > 0) {
-                // Последний параметр это значение для шифрования
-                const valueParam = paramMatches[paramMatches.length - 1];
+                // Первый параметр это значение для шифрования
+                const valueParam = paramMatches[0];
                 const paramNum = parseInt(valueParam.substring(1));
+                console.log(`🔍 Устанавливаем paramMap[${paramNum}] =`, filteredData[originalKey]);
                 paramMap.set(paramNum, filteredData[originalKey]);
               }
             } else if (unencryptedData[key]) {
               // Это незашифрованная колонка - берем параметр из плейсхолдера
               const valueParam = paramMatches[0];
               const paramNum = parseInt(valueParam.substring(1));
+              console.log(`🔍 Это незашифрованная колонка, устанавливаем paramMap[${paramNum}] =`, filteredData[key]);
               paramMap.set(paramNum, filteredData[key]);
             }
           }
         }
+        
+        console.log(`🔍 paramMap после цикла:`, Array.from(paramMap.entries()));
         
         // Создаем массив параметров в правильном порядке (от $1 до максимального номера)
         const maxParamNum = Math.max(...Array.from(paramMap.keys()));

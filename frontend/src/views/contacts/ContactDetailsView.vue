@@ -169,9 +169,11 @@ import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { PERMISSIONS } from './permissions.js';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
+import websocketServiceModule from '@/services/websocketService';
 const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts, hasPermission } = usePermissions();
 const { address, userId: currentUserId } = useAuthContext();
 const { markContactAsRead } = useContactsAndMessagesWebSocket();
+const { websocketService } = websocketServiceModule;
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
@@ -219,6 +221,13 @@ const tagsTableId = ref(null);
 // WebSocket для тегов
 const { onTagsUpdate } = useTagsWebSocket();
 let unsubscribeFromTags = null;
+
+// Обработчик обновления контактов через WebSocket
+const handleContactsUpdate = async () => {
+  console.log('[ContactDetailsView] Получено обновление контакта, перезагружаем данные');
+  await reloadContact();
+  await loadUserTags();
+};
 
 // Функция маскировки персональных данных для читателей
 function maskPersonalData(data) {
@@ -725,6 +734,9 @@ onMounted(async () => {
     await loadAllTags();
     await loadUserTags();
   });
+  
+  // Подписываемся на обновления контактов (для обновления имени)
+  websocketService.on('contacts-updated', handleContactsUpdate);
 });
 
 onUnmounted(() => {
@@ -732,6 +744,7 @@ onUnmounted(() => {
   if (unsubscribeFromTags) {
     unsubscribeFromTags();
   }
+  websocketService.off('contacts-updated', handleContactsUpdate);
 });
 watch(userId, async () => {
   await reloadContact();

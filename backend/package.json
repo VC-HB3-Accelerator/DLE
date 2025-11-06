@@ -12,7 +12,7 @@
     "server": "nodemon server.js --signal SIGUSR2",
     "migrate": "node scripts/run-migrations.js",
     "prod": "NODE_ENV=production node server.js",
-    "test": "mocha test/**/*.test.js",
+    "test": "mocha tests/**/*.test.js",
     "check-ollama": "node scripts/check-ollama-models.js",
     "check-ethers": "node scripts/check-ethers-v6-compatibility.js",
     "lint": "eslint .",

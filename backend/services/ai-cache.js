@@ -1,38 +1,94 @@
 /**
+ * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * All rights reserved.
+ * 
+ * This software is proprietary and confidential.
+ * Unauthorized copying, modification, or distribution is prohibited.
+ * 
+ * For licensing inquiries: info@hb3-accelerator.com
+ * Website: https://hb3-accelerator.com
+ * GitHub: https://github.com/VC-HB3-Accelerator
+ */
+
+/**
  * Кэширование AI ответов для ускорения работы
+ * Использует настройки из aiConfigService
  */
 
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 const ollamaConfig = require('./ollamaConfig');
+const aiConfigService = require('./aiConfigService');
 
 class AICache {
   constructor() {
-    const timeouts = ollamaConfig.getTimeouts();
-    
+    // Загружаем настройки из aiConfigService
     this.cache = new Map();
-    this.maxSize = timeouts.cacheMax;      // Из централизованных настроек
-    this.ttl = timeouts.cacheLLM;          // 24 часа (для LLM)
-    this.ragTtl = timeouts.cacheRAG;       // 5 минут (для RAG результатов)
+    this._loadSettings();
   }
 
-  // Генерация ключа кэша на основе запроса
-  generateKey(messages, options = {}) {
+  /**
+   * Загружает настройки кэша из aiConfigService
+   * @private
+   */
+  async _loadSettings() {
+    try {
+      const cacheConfig = await aiConfigService.getCacheConfig();
+      this.maxSize = cacheConfig.maxSize || 1000;
+      this.ttl = cacheConfig.llmTTL || 86400000; // 24 часа
+      this.ragTtl = cacheConfig.ragTTL || 300000; // 5 минут
+    } catch (error) {
+      logger.warn('[AICache] Ошибка загрузки настроек, используем дефолты:', error.message);
+      // Дефолтные значения
+      const timeouts = ollamaConfig.getTimeouts();
+      this.maxSize = timeouts.cacheMax || 1000;
+      this.ttl = timeouts.cacheLLM || 86400000;
+      this.ragTtl = timeouts.cacheRAG || 300000;
+    }
+  }
+
+  /**
+   * Получает актуальные настройки (перезагружает из БД)
+   */
+  async _getSettings() {
+    await this._loadSettings();
+    return {
+      maxSize: this.maxSize,
+      ttl: this.ttl,
+      ragTtl: this.ragTtl
+    };
+  }
+
+  /**
+   * Генерация ключа кэша на основе запроса
+   * Использует параметры LLM из настроек для генерации ключа
+   */
+  async generateKey(messages, options = {}) {
+    // Загружаем актуальные параметры LLM для ключа
+    const llmParams = await aiConfigService.getLLMParameters();
+    
     const content = JSON.stringify({
       messages: messages.map(m => ({ role: m.role, content: m.content })),
-      temperature: options.temperature || 0.3,
-      maxTokens: options.num_predict || 150
+      temperature: options.temperature || llmParams.temperature,
+      maxTokens: options.num_predict || llmParams.maxTokens
     });
     return crypto.createHash('md5').update(content).digest('hex');
   }
 
-  // ✨ НОВОЕ: Генерация ключа для RAG результатов
-  generateKeyForRAG(tableId, userQuestion, product = null) {
-    const content = JSON.stringify({ tableId, userQuestion, product });
+  /**
+   * Генерация ключа для RAG результатов
+   * Включает tagIds для учета фильтрации по тегам
+   */
+  generateKeyForRAG(tableId, userQuestion, product = null, userId = null, tagIds = null) {
+    // Сортируем tagIds для стабильности ключа (одинаковый порядок = одинаковый ключ)
+    const sortedTagIds = tagIds ? [...tagIds].sort((a, b) => a - b) : null;
+    const content = JSON.stringify({ tableId, userQuestion, product, userId, tagIds: sortedTagIds });
     return crypto.createHash('md5').update(content).digest('hex');
   }
 
-  // Получение ответа из кэша
+  /**
+   * Получение ответа из кэша (LLM)
+   */
   get(key) {
     const cached = this.cache.get(key);
     if (!cached) return null;
@@ -47,14 +103,15 @@ class AICache {
     return cached.response;
   }
 
-  // ✨ НОВОЕ: Получение с учетом типа кэша (RAG или LLM)
+  /**
+   * Получение с учетом типа кэша (RAG или LLM)
+   */
   getWithTTL(key, type = 'llm') {
     const cached = this.cache.get(key);
     if (!cached) return null;
 
-    // Выбираем TTL в зависимости от типа
     const ttl = type === 'rag' ? this.ragTtl : this.ttl;
-    
+
     // Проверяем TTL
     if (Date.now() - cached.timestamp > ttl) {
       this.cache.delete(key);
@@ -65,101 +122,110 @@ class AICache {
     return cached.response;
   }
 
-  // Сохранение ответа в кэш
-  set(key, response) {
-    // Очищаем старые записи если кэш переполнен
+  /**
+   * Сохранение в кэш
+   */
+  set(key, value, type = 'llm') {
+    // Проверяем размер кэша
     if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value;
+      // Удаляем самую старую запись
+      const oldestKey = Array.from(this.cache.keys())[0];
       this.cache.delete(oldestKey);
+      logger.warn(`[AICache] Кэш переполнен, удалена старая запись: ${oldestKey.substring(0, 8)}...`);
     }
 
     this.cache.set(key, {
-      response,
-      timestamp: Date.now()
-    });
-
-    logger.info(`[AICache] Cached response for key: ${key.substring(0, 8)}...`);
-  }
-
-  // ✨ НОВОЕ: Сохранение с указанием типа (rag или llm)
-  setWithType(key, response, type = 'llm') {
-    // Очищаем старые записи если кэш переполнен
-    if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
-    }
-
-    this.cache.set(key, {
-      response,
+      response: value,
       timestamp: Date.now(),
-      type: type  // Сохраняем тип для статистики
+      type
     });
 
-    logger.info(`[AICache] Cached ${type} response for key: ${key.substring(0, 8)}...`);
+    logger.debug(`[AICache] Сохранено в кэш (${type}): ${key.substring(0, 8)}...`);
   }
 
-  // Очистка кэша
+  /**
+   * Сохранение с указанием типа
+   */
+  setWithType(key, value, type = 'llm') {
+    this.set(key, value, type);
+  }
+
+  /**
+   * Очистка кэша
+   */
   clear() {
+    const size = this.cache.size;
     this.cache.clear();
-    logger.info('[AICache] Cache cleared');
+    logger.info(`[AICache] Кэш очищен. Удалено записей: ${size}`);
+    return size;
   }
 
-  // Очистка старых записей по времени
-  cleanup(maxAge = 3600000) { // По умолчанию 1 час
-    const now = Date.now();
-    let deletedCount = 0;
-    
-    for (const [key, value] of this.cache.entries()) {
-      if (now - value.timestamp > maxAge) {
-        this.cache.delete(key);
-        deletedCount++;
-      }
-    }
-    
-    if (deletedCount > 0) {
-      logger.info(`[AICache] Cleaned up ${deletedCount} old entries`);
-    }
-  }
-
-  // Статистика кэша
+  /**
+   * Получение статистики
+   */
   getStats() {
-    return {
+    const stats = {
       size: this.cache.size,
       maxSize: this.maxSize,
-      hitRate: this.calculateHitRate()
+      ttl: this.ttl,
+      ragTtl: this.ragTtl
     };
-  }
 
-  calculateHitRate() {
-    // Простая реализация - в реальности нужно отслеживать hits/misses
-    if (this.maxSize === 0) return 0;
-    return this.cache.size / this.maxSize;
-  }
-
-  // ✨ НОВОЕ: Статистика по типу кэша
-  getStatsByType() {
-    const stats = { rag: 0, llm: 0, other: 0 };
+    // Подсчитываем по типам
+    let llmCount = 0;
+    let ragCount = 0;
     for (const [key, value] of this.cache.entries()) {
-      const type = value.type || 'other';
-      stats[type] = (stats[type] || 0) + 1;
+      if (value.type === 'rag') {
+        ragCount++;
+      } else {
+        llmCount++;
+      }
     }
+
+    stats.llmCount = llmCount;
+    stats.ragCount = ragCount;
+
     return stats;
   }
 
-  // ✨ НОВОЕ: Инвалидация по префиксу (для очистки RAG кэша при обновлении таблиц)
-  invalidateByPrefix(prefix) {
-    let deletedCount = 0;
+  /**
+   * Получение статистики по типам
+   */
+  getStatsByType() {
+    const stats = {
+      llm: { count: 0, size: 0 },
+      rag: { count: 0, size: 0 }
+    };
+
     for (const [key, value] of this.cache.entries()) {
+      const type = value.type || 'llm';
+      stats[type].count++;
+      stats[type].size += JSON.stringify(value.response).length;
+    }
+
+    return stats;
+  }
+
+  /**
+   * Инвалидация кэша по префиксу
+   */
+  invalidateByPrefix(prefix) {
+    let count = 0;
+    for (const key of this.cache.keys()) {
       if (key.startsWith(prefix)) {
         this.cache.delete(key);
-        deletedCount++;
+        count++;
       }
     }
-    if (deletedCount > 0) {
-      logger.info(`[AICache] Инвалидировано ${deletedCount} записей с префиксом: ${prefix}`);
+    if (count > 0) {
+      logger.info(`[AICache] Инвалидировано записей с префиксом ${prefix}: ${count}`);
     }
-    return deletedCount;
+    return count;
   }
 }
 
-module.exports = new AICache(); 
+// Экспортируем singleton экземпляр
+const aiCache = new AICache();
+
+module.exports = aiCache;
+

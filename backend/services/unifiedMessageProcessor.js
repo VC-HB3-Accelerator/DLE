@@ -150,7 +150,7 @@ async function processMessage(messageData) {
     const messageType = determineMessageType(recipientId, userId, isAdmin);
     
     // 5. Определяем нужно ли генерировать AI ответ
-    const shouldGenerateAi = shouldGenerateAiReply(messageType, recipientId, userId);
+    let shouldGenerateAi = shouldGenerateAiReply(messageType, recipientId, userId);
 
     logger.info('[UnifiedMessageProcessor] Генерация AI:', { shouldGenerateAi, userRole, isAdmin });
 
@@ -227,27 +227,37 @@ async function processMessage(messageData) {
         
         // Автоматически подписываем согласие
         if (documentIds.length > 0 && consentTypes.length > 0) {
-          const consentRoutes = require('../routes/consent');
-          // Вызываем логику подписания напрямую через сервис или API
           try {
+            // Используем проверку существования вместо ON CONFLICT (т.к. может не быть уникального ограничения)
+            for (let i = 0; i < documentIds.length; i++) {
+              const docId = documentIds[i];
+              const docTitle = consentDocuments.find(d => d.id === docId)?.title || '';
+              const consentType = consentTypes[i];
+              
+              // Проверяем, есть ли уже согласие
+              const existing = await db.getQuery()(
+                `SELECT id FROM consent_logs 
+                 WHERE user_id = $1 AND consent_type = $2 AND document_id = $3 AND status = 'granted'`,
+                [userId, consentType, docId]
+              );
+              
+              if (existing.rows.length > 0) {
+                // Обновляем существующее
+                await db.getQuery()(
+                  `UPDATE consent_logs 
+                   SET signed_at = NOW(), revoked_at = NULL, updated_at = NOW() 
+                   WHERE id = $1`,
+                  [existing.rows[0].id]
+                );
+              } else {
+                // Создаем новое
             await db.getQuery()(
-              `INSERT INTO consent_logs (user_id, wallet_address, document_id, document_title, consent_type, status, signed_at, channel, ip_address, created_at, updated_at)
-               SELECT $1, $2, unnest($3::int[]), unnest($4::text[]), unnest($5::text[]), 'granted', NOW(), 'web', NULL, NOW(), NOW()
-               ON CONFLICT (user_id, consent_type, document_id) 
-               DO UPDATE SET 
-                 status = 'granted',
-                 signed_at = NOW(),
-                 revoked_at = NULL,
-                 updated_at = NOW()
-               WHERE consent_logs.user_id = $1 AND consent_logs.consent_type = EXCLUDED.consent_type`,
-              [
-                userId,
-                walletIdentity?.provider_id || null,
-                documentIds,
-                consentDocuments.map(doc => doc.title),
-                consentTypes
-              ]
+                  `INSERT INTO consent_logs (user_id, wallet_address, document_id, document_title, consent_type, status, signed_at, channel, created_at, updated_at)
+                   VALUES ($1, $2, $3, $4, $5, 'granted', NOW(), 'web', NOW(), NOW())`,
+                  [userId, walletIdentity?.provider_id || null, docId, docTitle, consentType]
             );
+              }
+            }
             logger.info(`[UnifiedMessageProcessor] Согласия автоматически подписаны для пользователя ${userId}`);
           } catch (consentError) {
             logger.error(`[UnifiedMessageProcessor] Ошибка автоматического подписания согласий:`, consentError);
@@ -330,6 +340,9 @@ async function processMessage(messageData) {
 
     // 8. Генерируем AI ответ (если нужно)
     let aiResponse = null;
+    // Инициализируем finalAiResponse для использования в результатах (должен быть доступен везде)
+    let finalAiResponse = null;
+    let aiResponseDisabled = false;
 
     if (shouldGenerateAi) {
       // Загружаем историю беседы
@@ -377,7 +390,7 @@ async function processMessage(messageData) {
         });
 
         // Формируем финальный ответ ИИ с системным сообщением, если нужно
-        let finalAiResponse = aiResponse.response;
+        finalAiResponse = aiResponse.response;
         if (consentSystemMessage && consentSystemMessage.consentRequired) {
           // Добавляем системное сообщение к ответу ИИ
           finalAiResponse = `${aiResponse.response}\n\n---\n\n${consentSystemMessage.content}`;
@@ -433,6 +446,9 @@ async function processMessage(messageData) {
         );
 
         logger.info('[UnifiedMessageProcessor] Ответ AI сохранен:', aiMessageRows[0].id);
+      } else if (aiResponse && aiResponse.disabled) {
+        aiResponseDisabled = true;
+        logger.info('[UnifiedMessageProcessor] AI ассистент отключен для текущего канала — ответ не генерируется.');
       } else {
         logger.warn('[UnifiedMessageProcessor] AI не вернул ответ:', aiResponse?.reason);
       }
@@ -456,10 +472,11 @@ async function processMessage(messageData) {
       userMessageId,
       conversationId,
       aiResponse: aiResponse && aiResponse.success ? {
-        response: finalAiResponse || aiResponse.response,
+        response: finalAiResponse || (aiResponse?.response || ''),
         ragData: aiResponse.ragData
       } : null,
-      noAiResponse: !shouldGenerateAi
+      noAiResponse: !shouldGenerateAi || aiResponseDisabled,
+      assistantDisabled: aiResponseDisabled
     };
 
     // Если есть информация о согласиях, добавляем её в результат

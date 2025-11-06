@@ -145,32 +145,8 @@ router.post('/', upload.single('file'), async (req, res) => {
   const { rows } = await db.getQuery()(sql, values);
   const created = rows[0];
 
-  // Индексация в vector-search (только для HTML, если есть текст)
-  try {
-    if (created && (created.format === 'html' || pageData.format === 'html')) {
-      const text = stripHtml(created.content || pageData.content || '');
-      if (text && text.length > 0) {
-        const url = created.visibility === 'public' && created.status === 'published'
-          ? `/public/page/${created.id}`
-          : `/content/page/${created.id}`;
-        await vectorSearchClient.upsert('legal_docs', [{
-          row_id: created.id,
-          text,
-          metadata: {
-            doc_id: created.id,
-            title: created.title,
-            url,
-            visibility: created.visibility || pageData.visibility,
-            required_permission: created.required_permission || pageData.required_permission,
-            format: created.format || pageData.format,
-            updated_at: created.updated_at || null
-          }
-        }]);
-      }
-    }
-  } catch (e) {
-    console.error('[pages] vector upsert error:', e.message);
-  }
+  // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
+  // Автоматическая индексация при создании отключена
 
   res.json(created);
 });
@@ -280,6 +256,58 @@ router.post('/:id/reindex', async (req, res) => {
     const url = page.visibility === 'public' && page.status === 'published'
       ? `/public/page/${page.id}`
       : `/content/page/${page.id}`;
+    
+    // Удаляем старые чанки документа перед реиндексацией
+    // Удаляем возможные чанки (doc_id_chunk_0, doc_id_chunk_1, ...) и сам документ (doc_id)
+    const oldRowIds = [String(page.id)]; // Удаляем основной документ
+    // Также удаляем возможные чанки (до 100 чанков на документ)
+    for (let i = 0; i < 100; i++) {
+      oldRowIds.push(`${page.id}_chunk_${i}`);
+    }
+    
+    try {
+      await vectorSearchClient.remove('legal_docs', oldRowIds);
+      console.log(`[pages] Удалены старые чанки документа ${page.id} перед реиндексацией`);
+    } catch (removeError) {
+      console.warn(`[pages] Ошибка удаления старых чанков (продолжаем индексацию):`, removeError.message);
+      // Продолжаем индексацию даже если удаление не удалось
+    }
+    
+    // Используем Semantic Chunking для разбивки документа
+    const semanticChunkingService = require('../services/semanticChunkingService');
+    const docLength = text.length;
+    const useLLM = docLength <= 8000;
+
+    const chunks = await semanticChunkingService.chunkDocument(text, {
+      maxChunkSize: 1500,
+      overlap: 200,
+      useLLM
+    });
+
+    // Индексируем каждый чанк отдельно
+    const rowsToUpsert = chunks.map((chunk, index) => ({
+      row_id: `${page.id}_chunk_${index}`,
+      text: chunk.text,
+      metadata: {
+        doc_id: page.id,
+        chunk_index: index,
+        section: chunk.metadata?.section || 'Документ',
+        parent_doc_id: page.id,
+        title: page.title,
+        url: `${url}#chunk_${index}`,
+        visibility: page.visibility,
+        required_permission: page.required_permission,
+        format: page.format,
+        updated_at: page.updated_at || null,
+        isComplete: chunk.metadata?.isComplete || false
+      }
+    }));
+
+    if (chunks.length > 1) {
+      console.log(`[pages] Документ ${page.id} разбит на ${chunks.length} чанков при реиндексации`);
+      await vectorSearchClient.upsert('legal_docs', rowsToUpsert);
+    } else {
+      // Если чанк один, индексируем как раньше
     await vectorSearchClient.upsert('legal_docs', [{
       row_id: page.id,
       text,
@@ -293,7 +321,9 @@ router.post('/:id/reindex', async (req, res) => {
         updated_at: page.updated_at || null
       }
     }]);
-    res.json({ success: true });
+    }
+
+    res.json({ success: true, chunksCount: chunks.length });
   } catch (e) {
     console.error('[pages] manual reindex error:', e.message);
     res.status(500).json({ error: 'Ошибка индексации' });
@@ -346,32 +376,8 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   if (!rows.length) return res.status(404).json({ error: 'Page not found' });
   const updated = rows[0];
 
-  // Индексация для HTML
-  try {
-    if (updated && (updated.format === 'html')) {
-      const text = stripHtml(updated.content || '');
-      if (text) {
-        const url = updated.visibility === 'public' && updated.status === 'published'
-          ? `/public/page/${updated.id}`
-          : `/content/page/${updated.id}`;
-        await vectorSearchClient.upsert('legal_docs', [{
-          row_id: updated.id,
-          text,
-          metadata: {
-            doc_id: updated.id,
-            title: updated.title,
-            url,
-            visibility: updated.visibility,
-            required_permission: updated.required_permission,
-            format: updated.format,
-            updated_at: updated.updated_at || null
-          }
-        }]);
-      }
-    }
-  } catch (e) {
-    console.error('[pages] vector upsert (update) error:', e.message);
-  }
+  // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
+  // Автоматическая индексация при обновлении отключена
 
   res.json(updated);
 });
@@ -406,7 +412,14 @@ router.delete('/:id', async (req, res) => {
   const deleted = rows[0];
   try {
     if (deleted && deleted.format === 'html') {
-      await vectorSearchClient.remove('legal_docs', [deleted.id]);
+      // Удаляем документ и все его чанки
+      const rowIdsToDelete = [String(deleted.id)]; // Основной документ
+      // Удаляем возможные чанки (до 100 чанков на документ)
+      for (let i = 0; i < 100; i++) {
+        rowIdsToDelete.push(`${deleted.id}_chunk_${i}`);
+      }
+      await vectorSearchClient.remove('legal_docs', rowIdsToDelete);
+      console.log(`[pages] Удалены документ ${deleted.id} и все его чанки из векторного поиска`);
     }
   } catch (e) {
     console.error('[pages] vector remove error:', e.message);

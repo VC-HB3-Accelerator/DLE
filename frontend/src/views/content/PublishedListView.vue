@@ -43,10 +43,27 @@
                 <span class="page-status"><i class="fas fa-file"></i>{{ p.format || 'html' }}</span>
               </div>
               <div v-if="canManageLegalDocs && address" class="page-actions">
-                <button class="action-btn primary" title="Индексировать" @click.stop="reindex(p.id)"><i class="fas fa-sync"></i><span>Индекс</span></button>
+                <button
+                  class="action-btn primary"
+                  title="Индексировать"
+                  :disabled="reindexStatus[p.id]?.state === 'loading'"
+                  @click.stop="reindex(p.id)"
+                >
+                  <i :class="['fas', reindexStatus[p.id]?.state === 'loading' ? 'fa-spinner fa-spin' : 'fa-sync']"></i>
+                  <span>Индекс</span>
+                </button>
                 <button class="action-btn primary" title="Редактировать" @click.stop="goEdit(p.id)"><i class="fas fa-edit"></i><span>Ред.</span></button>
                 <button class="action-btn danger" title="Удалить" @click.stop="doDelete(p.id)"><i class="fas fa-trash"></i><span>Удалить</span></button>
               </div>
+              <transition name="fade">
+                <div
+                  v-if="reindexStatus[p.id]"
+                  class="reindex-status"
+                  :class="reindexStatus[p.id].state"
+                >
+                  {{ reindexStatus[p.id].message }}
+                </div>
+              </transition>
             </div>
           </div>
         </div>
@@ -60,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
@@ -79,19 +96,48 @@ const props = defineProps({
 const router = useRouter();
 const search = ref('');
 const pages = ref([]);
+const reindexStatus = ref({});
 const { address } = useAuthContext();
 const { hasPermission } = usePermissions();
 const canManageLegalDocs = computed(() => hasPermission(SHARED_PERMISSIONS.MANAGE_LEGAL_DOCS));
 
+const reindexTimers = new Map();
+
 function goBack() { router.push({ name: 'content-list' }); }
 function openPublic(id) { router.push({ name: 'public-page-view', params: { id } }); }
 function goEdit(id) { router.push({ name: 'content-create', query: { edit: id } }); }
+function updateReindexStatus(id, state, message) {
+  reindexStatus.value = {
+    ...reindexStatus.value,
+    [id]: { state, message }
+  };
+}
+
+function scheduleReindexCleanup(id, delay = 4000) {
+  if (reindexTimers.has(id)) {
+    clearTimeout(reindexTimers.get(id));
+  }
+  const timer = setTimeout(() => {
+    const next = { ...reindexStatus.value };
+    delete next[id];
+    reindexStatus.value = next;
+    reindexTimers.delete(id);
+  }, delay);
+  reindexTimers.set(id, timer);
+}
 async function reindex(id) {
   try {
+    if (reindexStatus.value[id]?.state === 'loading') {
+      return;
+    }
+    updateReindexStatus(id, 'loading', 'Индексация запущена...');
     await api.post(`/pages/${id}/reindex`);
-    alert('Индексация выполнена');
+    updateReindexStatus(id, 'success', 'Индексация выполняется. Проверьте логи.');
+    scheduleReindexCleanup(id);
   } catch (e) {
-    alert('Ошибка индексации: ' + (e?.response?.data?.error || e.message));
+    const errorMessage = e?.response?.data?.error || e.message;
+    updateReindexStatus(id, 'error', `Ошибка индексации: ${errorMessage}`);
+    scheduleReindexCleanup(id, 6000);
   }
 }
 async function doDelete(id) {
@@ -118,6 +164,11 @@ onMounted(async () => {
   } catch (e) {
     pages.value = [];
   }
+});
+
+onBeforeUnmount(() => {
+  reindexTimers.forEach(timer => clearTimeout(timer));
+  reindexTimers.clear();
 });
 </script>
 
@@ -151,6 +202,13 @@ onMounted(async () => {
 .action-btn.primary:hover { background: var(--color-primary-dark); }
 .action-btn.danger { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 .action-btn.danger:hover { background: #fee2e2; }
+.action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.reindex-status { margin-top: 10px; font-size: 0.9rem; font-weight: 500; }
+.reindex-status.loading { color: #2563eb; }
+.reindex-status.success { color: #16a34a; }
+.reindex-status.error { color: #dc2626; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 .empty-state { text-align:center; padding: 60px 20px; }
 .empty-icon { font-size: 3rem; color: var(--color-grey-dark); margin-bottom: 10px; }
 </style>

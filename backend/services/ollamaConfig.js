@@ -12,57 +12,67 @@
 
 /**
  * Конфигурационный сервис для Ollama и AI инфраструктуры
- * Централизует все настройки, URL и таймауты для:
- * - Ollama API
- * - Vector Search
- * - AI Cache
- * - AI Queue
+ * Обёртка над aiConfigService для обратной совместимости
  * 
- * ВАЖНО: Настройки берутся из таблицы ai_providers_settings (через aiProviderSettingsService)
+ * ВАЖНО: Все настройки теперь берутся из ai_config через aiConfigService
  */
 
 const logger = require('../utils/logger');
+const aiConfigService = require('./aiConfigService');
 
-// Кэш для настроек из БД
-let settingsCache = null;
+// Кэш для синхронных методов (для обратной совместимости)
+let syncCache = null;
+let syncCacheTimestamp = 0;
+const SYNC_CACHE_TTL = 60000; // 1 минута
 
 /**
- * Загружает настройки Ollama из базы данных
- * @returns {Promise<Object>} Настройки Ollama провайдера
+ * Обновляет синхронный кэш из aiConfigService
+ * @private
  */
-async function loadSettingsFromDb() {
+async function _updateSyncCache() {
   try {
-    const aiProviderSettingsService = require('./aiProviderSettingsService');
-    const settings = await aiProviderSettingsService.getProviderSettings('ollama');
-    
-    if (settings) {
-      settingsCache = settings;
-      logger.info(`[ollamaConfig] Loaded settings from DB: model=${settings.selected_model}, base_url=${settings.base_url}`);
-    }
-    
-    return settings;
+    const ollamaConfig = await aiConfigService.getOllamaConfig();
+    syncCache = {
+      baseUrl: ollamaConfig.baseUrl,
+      defaultModel: ollamaConfig.llmModel,
+      embeddingModel: ollamaConfig.embeddingModel
+    };
+    syncCacheTimestamp = Date.now();
   } catch (error) {
-    logger.error('[ollamaConfig] Ошибка загрузки настроек Ollama из БД:', error.message);
-    return null;
+    logger.warn('[ollamaConfig] Failed to update sync cache:', error.message);
+    // Используем дефолты
+    syncCache = {
+      baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
+      defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+      embeddingModel: process.env.OLLAMA_EMBED_MODEL || 'mxbai-embed-large:latest'
+    };
   }
 }
 
 /**
- * Внутренняя функция: определяет base URL из доступных источников
- * Приоритет: кэш из БД > переменная окружения > Docker дефолт
- * @returns {string} Базовый URL Ollama
+ * Получает значение из синхронного кэша или обновляет его
+ * @private
  */
-function _getBaseUrlFromSources() {
-  // Приоритет 1: кэш из БД
-  if (settingsCache && settingsCache.base_url) {
-    return settingsCache.base_url;
+function _getFromSyncCache(key) {
+  const now = Date.now();
+  if (!syncCache || (now - syncCacheTimestamp) > SYNC_CACHE_TTL) {
+    // Обновляем кэш асинхронно (не блокируя)
+    _updateSyncCache().catch(err => logger.warn('[ollamaConfig] Sync cache update failed:', err.message));
   }
-  // Приоритет 2: переменная окружения
-  if (process.env.OLLAMA_BASE_URL) {
-    return process.env.OLLAMA_BASE_URL;
+  
+  // Если кэш есть - используем его
+  if (syncCache && syncCache[key]) {
+    return syncCache[key];
   }
-  // Приоритет 3: Docker дефолт
-  return 'http://ollama:11434';
+  
+  // Иначе используем дефолты
+  const defaults = {
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
+    defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+    embeddingModel: process.env.OLLAMA_EMBED_MODEL || 'mxbai-embed-large:latest'
+  };
+  
+  return defaults[key] || defaults.baseUrl;
 }
 
 /**
@@ -70,7 +80,7 @@ function _getBaseUrlFromSources() {
  * @returns {string} Базовый URL Ollama
  */
 function getBaseUrl() {
-  return _getBaseUrlFromSources();
+  return _getFromSyncCache('baseUrl');
 }
 
 /**
@@ -78,15 +88,8 @@ function getBaseUrl() {
  * @returns {Promise<string>} Базовый URL Ollama
  */
 async function getBaseUrlAsync() {
-  try {
-    if (!settingsCache) {
-      await loadSettingsFromDb();
-    }
-  } catch (error) {
-    logger.warn('[ollamaConfig] Failed to load base_url from DB, using default');
-  }
-  
-  return _getBaseUrlFromSources();
+  const config = await aiConfigService.getOllamaConfig();
+  return config.baseUrl;
 }
 
 /**
@@ -104,12 +107,7 @@ function getApiUrl(endpoint) {
  * @returns {string} Название модели
  */
 function getDefaultModel() {
-  // Приоритет: кэш из БД > дефолт
-  if (settingsCache && settingsCache.selected_model) {
-    return settingsCache.selected_model;
-  }
-  // Дефолтное значение если БД недоступна
-  return 'qwen2.5:7b';
+  return _getFromSyncCache('defaultModel');
 }
 
 /**
@@ -117,19 +115,8 @@ function getDefaultModel() {
  * @returns {Promise<string>} Название модели из БД
  */
 async function getDefaultModelAsync() {
-  try {
-    if (!settingsCache) {
-      await loadSettingsFromDb();
-    }
-    
-    if (settingsCache && settingsCache.selected_model) {
-      logger.info(`[ollamaConfig] Using model from DB: ${settingsCache.selected_model}`);
-      return settingsCache.selected_model;
-    }
-  } catch (error) {
-    logger.warn('[ollamaConfig] Failed to load model from DB, using default');
-  }
-  return 'qwen2.5:7b';
+  const config = await aiConfigService.getOllamaConfig();
+  return config.llmModel;
 }
 
 /**
@@ -137,59 +124,116 @@ async function getDefaultModelAsync() {
  * @returns {Promise<string>} Название embedding модели из БД
  */
 async function getEmbeddingModel() {
+  const config = await aiConfigService.getOllamaConfig();
+  return config.embeddingModel;
+}
+
+// Кэш для таймаутов (синхронный доступ)
+let timeoutsCache = null;
+let timeoutsCacheTimestamp = 0;
+
+/**
+ * Обновляет кэш таймаутов из aiConfigService
+ * @private
+ */
+async function _updateTimeoutsCache() {
   try {
-    if (!settingsCache) {
-      await loadSettingsFromDb();
-    }
+    const timeouts = await aiConfigService.getTimeouts();
+    const cacheConfig = await aiConfigService.getCacheConfig();
+    const queueConfig = await aiConfigService.getQueueConfig();
     
-    if (settingsCache && settingsCache.embedding_model) {
-      logger.info(`[ollamaConfig] Using embedding model from DB: ${settingsCache.embedding_model}`);
-      return settingsCache.embedding_model;
-    }
+    timeoutsCache = {
+      // Ollama API - таймауты запросов
+      ollamaChat: timeouts.ollamaChat,
+      ollamaEmbedding: timeouts.ollamaEmbedding,
+      ollamaHealth: timeouts.ollamaHealth,
+      ollamaTags: timeouts.ollamaTags,
+      
+      // Vector Search - таймауты запросов
+      vectorSearch: timeouts.vectorSearch,
+      vectorUpsert: timeouts.vectorUpsert,
+      vectorHealth: timeouts.vectorHealth,
+      
+      // AI Cache - TTL (Time To Live) для кэширования
+      cacheLLM: cacheConfig.llmTTL,
+      cacheRAG: cacheConfig.ragTTL,
+      cacheMax: cacheConfig.maxSize,
+      
+      // AI Queue - параметры очереди
+      queueTimeout: queueConfig.timeout,
+      queueMaxSize: queueConfig.maxSize,
+      queueInterval: queueConfig.interval,
+      
+      // Default для совместимости
+      default: timeouts.ollamaChat
+    };
+    timeoutsCacheTimestamp = Date.now();
   } catch (error) {
-    logger.warn('[ollamaConfig] Failed to load embedding model from DB, using default');
+    logger.warn('[ollamaConfig] Failed to update timeouts cache:', error.message);
+    // Используем дефолты
+    timeoutsCache = {
+      ollamaChat: 600000,
+      ollamaEmbedding: 90000,
+      ollamaHealth: 5000,
+      ollamaTags: 10000,
+      vectorSearch: 90000,
+      vectorUpsert: 600000,
+      vectorHealth: 5000,
+      cacheLLM: 86400000,
+      cacheRAG: 300000,
+      cacheMax: 1000,
+      queueTimeout: 180000,
+      queueMaxSize: 100,
+      queueInterval: 100,
+      default: 180000
+    };
   }
-  return 'mxbai-embed-large:latest';
 }
 
 /**
  * Централизованные таймауты для Ollama и AI сервисов
+ * Синхронная версия с кэшированием (для обратной совместимости)
  * @returns {Object} Объект с различными таймаутами
  */
 function getTimeouts() {
+  const now = Date.now();
+  if (!timeoutsCache || (now - timeoutsCacheTimestamp) > SYNC_CACHE_TTL) {
+    // Обновляем кэш асинхронно (не блокируя)
+    _updateTimeoutsCache().catch(err => logger.warn('[ollamaConfig] Timeouts cache update failed:', err.message));
+  }
+  
+  // Если кэш есть - используем его
+  if (timeoutsCache) {
+    return timeoutsCache;
+  }
+  
+  // Иначе используем дефолты
   return {
-    // Ollama API - таймауты запросов
-    ollamaChat: 180000,        // 180 сек (3 мин) - генерация ответов LLM (увеличено для сложных запросов)
-    ollamaEmbedding: 90000,    // 90 сек (1.5 мин) - генерация embeddings (увеличено)
-    ollamaHealth: 5000,        // 5 сек - health check
-    ollamaTags: 10000,         // 10 сек - список моделей
-    
-    // Vector Search - таймауты запросов
-    vectorSearch: 90000,       // 90 сек - поиск по векторам (увеличено для больших баз)
-    vectorUpsert: 90000,       // 90 сек - индексация данных (увеличено)
-    vectorHealth: 5000,        // 5 сек - health check
-    
-    // AI Cache - TTL (Time To Live) для кэширования
-    cacheLLM: 24 * 60 * 60 * 1000,   // 24 часа - LLM ответы
-    cacheRAG: 5 * 60 * 1000,         // 5 минут - RAG результаты
-    cacheMax: 1000,                  // Максимум записей в кэше
-    
-    // AI Queue - параметры очереди
-    queueTimeout: 180000,      // 180 сек - таймаут задачи в очереди (увеличено)
-    queueMaxSize: 100,         // Максимум задач в очереди
-    queueInterval: 100,        // 100 мс - интервал проверки очереди
-    
-    // Default для совместимости
-    default: 180000            // 180 сек (увеличено с 120)
+    ollamaChat: 600000,
+    ollamaEmbedding: 90000,
+    ollamaHealth: 5000,
+    ollamaTags: 10000,
+    vectorSearch: 90000,
+    vectorUpsert: 600000,
+    vectorHealth: 5000,
+    cacheLLM: 86400000,
+    cacheRAG: 300000,
+    cacheMax: 1000,
+    queueTimeout: 180000,
+    queueMaxSize: 100,
+    queueInterval: 100,
+    default: 180000
   };
 }
 
 /**
  * Получает timeout для запросов к Ollama (обратная совместимость)
+ * Синхронная версия (для обратной совместимости)
  * @returns {number} Timeout в миллисекундах
  */
 function getTimeout() {
-  return getTimeouts().ollamaChat; // 120 секунд (2 минуты) - для генерации длинных ответов
+  const timeouts = getTimeouts();
+  return timeouts.ollamaChat;
 }
 
 /**
@@ -197,36 +241,13 @@ function getTimeout() {
  * @returns {Object} Объект с конфигурацией
  */
 function getConfig() {
-  return {
-    baseUrl: getBaseUrl(),
-    defaultModel: getDefaultModel(),
-    timeout: getTimeout(),
-    apiUrl: {
-      tags: getApiUrl('tags'),
-      generate: getApiUrl('generate'),
-      chat: getApiUrl('chat'),
-      models: getApiUrl('models'),
-      show: getApiUrl('show'),
-      pull: getApiUrl('pull'),
-      push: getApiUrl('push')
-    }
-  };
-}
-
-/**
- * Получает все конфигурационные параметры Ollama (асинхронная версия)
- * @returns {Promise<Object>} Объект с конфигурацией
- */
-async function getConfigAsync() {
-  const baseUrl = await getBaseUrlAsync();
-  const defaultModel = await getDefaultModelAsync();
-  const embeddingModel = await getEmbeddingModel();
+  const baseUrl = getBaseUrl();
+  const defaultModel = getDefaultModel();
   
   return {
     baseUrl,
     defaultModel,
-    embeddingModel,
-    timeout: getTimeout(),
+    timeout: null, // Теперь асинхронный
     apiUrl: {
       tags: `${baseUrl}/api/tags`,
       generate: `${baseUrl}/api/generate`,
@@ -240,10 +261,59 @@ async function getConfigAsync() {
 }
 
 /**
+ * Получает все конфигурационные параметры Ollama (асинхронная версия)
+ * @returns {Promise<Object>} Объект с конфигурацией
+ */
+async function getConfigAsync() {
+  const ollamaConfig = await aiConfigService.getOllamaConfig();
+  const timeout = await getTimeout();
+  
+  return {
+    baseUrl: ollamaConfig.baseUrl,
+    defaultModel: ollamaConfig.llmModel,
+    embeddingModel: ollamaConfig.embeddingModel,
+    timeout,
+    apiUrl: {
+      tags: `${ollamaConfig.baseUrl}/api/tags`,
+      generate: `${ollamaConfig.baseUrl}/api/generate`,
+      chat: `${ollamaConfig.baseUrl}/api/chat`,
+      models: `${ollamaConfig.baseUrl}/api/models`,
+      show: `${ollamaConfig.baseUrl}/api/show`,
+      pull: `${ollamaConfig.baseUrl}/api/pull`,
+      push: `${ollamaConfig.baseUrl}/api/push`
+    }
+  };
+}
+
+/**
+ * Загружает настройки Ollama из базы данных (для обратной совместимости)
+ * @returns {Promise<Object>} Настройки Ollama провайдера
+ */
+async function loadSettingsFromDb() {
+  try {
+    const config = await aiConfigService.getOllamaConfig();
+    // Обновляем синхронный кэш
+    await _updateSyncCache();
+    return {
+      base_url: config.baseUrl,
+      selected_model: config.llmModel,
+      embedding_model: config.embeddingModel
+    };
+  } catch (error) {
+    logger.error('[ollamaConfig] Ошибка загрузки настроек Ollama из БД:', error.message);
+    return null;
+  }
+}
+
+/**
  * Очищает кэш настроек (для перезагрузки)
  */
 function clearCache() {
-  settingsCache = null;
+  syncCache = null;
+  syncCacheTimestamp = 0;
+  timeoutsCache = null;
+  timeoutsCacheTimestamp = 0;
+  aiConfigService.invalidateCache();
   logger.info('[ollamaConfig] Settings cache cleared');
 }
 
@@ -253,7 +323,7 @@ function clearCache() {
  */
 async function checkHealth() {
   try {
-    const baseUrl = getBaseUrl();
+    const baseUrl = await getBaseUrlAsync();
     const response = await fetch(`${baseUrl}/api/tags`);
     
     if (!response.ok) {
@@ -265,10 +335,12 @@ async function checkHealth() {
     }
 
     const data = await response.json();
+    const defaultModel = await getDefaultModelAsync();
+    
     return { 
       status: 'ok', 
       baseUrl,
-      model: getDefaultModel(),
+      model: defaultModel,
       availableModels: data.models?.length || 0
     };
   } catch (error) {
@@ -280,6 +352,14 @@ async function checkHealth() {
   }
 }
 
+// Инициализация синхронного кэша при загрузке модуля
+_updateSyncCache().catch(err => {
+  logger.warn('[ollamaConfig] Initial sync cache update failed:', err.message);
+});
+_updateTimeoutsCache().catch(err => {
+  logger.warn('[ollamaConfig] Initial timeouts cache update failed:', err.message);
+});
+
 module.exports = {
   getBaseUrl,
   getBaseUrlAsync,
@@ -287,11 +367,12 @@ module.exports = {
   getDefaultModel,
   getDefaultModelAsync,
   getEmbeddingModel,
-  getTimeout,        // Обратная совместимость (возвращает ollamaChat timeout)
-  getTimeouts,       // ✨ НОВОЕ: Централизованные таймауты для всех сервисов
+  getTimeout,        // Синхронная версия (для обратной совместимости)
+  getTimeouts,       // Синхронная версия с кэшированием (для обратной совместимости)
   getConfig,
   getConfigAsync,
   loadSettingsFromDb,
   clearCache,
   checkHealth
 };
+

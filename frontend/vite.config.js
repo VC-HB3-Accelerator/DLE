@@ -66,13 +66,21 @@ export default defineConfig({
         rewrite: (path) => path,
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
+            // Игнорируем ошибки ECONNREFUSED при старте сервера - это нормально
+            if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED')) {
+              // Не логируем как ошибку - это нормальное поведение при рестарте сервера
+              // Фронтенд автоматически переподключится
+              return;
+            }
             console.log('WebSocket proxy error:', err.message);
           });
           proxy.on('proxyReqWs', (proxyReq, req, socket) => {
-            console.log('WebSocket proxy request to:', req.url);
+            // Убираем избыточное логирование - это происходит слишком часто
+            // console.log('WebSocket proxy request to:', req.url);
           });
           proxy.on('proxyResWs', (proxyRes, req, socket) => {
-            console.log('WebSocket proxy response:', proxyRes.statusCode);
+            // Убираем избыточное логирование
+            // console.log('WebSocket proxy response:', proxyRes.statusCode);
           });
         }
       },

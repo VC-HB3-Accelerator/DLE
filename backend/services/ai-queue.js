@@ -15,6 +15,8 @@ const logger = require('../utils/logger');
 const axios = require('axios');
 const ollamaConfig = require('./ollamaConfig');
 const aiCache = require('./ai-cache');
+const aiConfigService = require('./aiConfigService');
+const { buildOllamaRequest } = require('../utils/ollamaRequestBuilder');
 
 class AIQueue extends EventEmitter {
   constructor() {
@@ -237,25 +239,56 @@ class AIQueue extends EventEmitter {
         return;
       }
 
-      // 2. Вызываем Ollama API
+      // 2. Загружаем параметры LLM и qwen из настроек
+      const llmParameters = task.request.llmParameters || await aiConfigService.getLLMParameters();
+      const qwenParameters = task.request.qwenParameters || await aiConfigService.getQwenSpecificParameters();
+      const ollamaConfig_data = await ollamaConfig.getConfigAsync();
+
+      // 3. Формируем тело запроса (используем утилиту)
+      const requestBody = buildOllamaRequest({
+        messages: task.request.messages,
+        model: task.request.model,
+        llmParameters: llmParameters,
+        qwenParameters: qwenParameters,
+        defaultModel: ollamaConfig_data.defaultModel,
+        tools: task.request.tools || null,
+        tool_choice: task.request.tool_choice || null,
+        stream: false
+      });
+
+      // 4. Вызываем Ollama API
       const ollamaUrl = ollamaConfig.getBaseUrl();
       const timeouts = ollamaConfig.getTimeouts();
 
-      const response = await axios.post(`${ollamaUrl}/api/chat`, {
-        model: task.request.model || ollamaConfig.getDefaultModel(),
-        messages: task.request.messages,
-        stream: false
-      }, {
+      logger.info(`[AIQueue] Отправка запроса в Ollama с параметрами:`, {
+        model: requestBody.model,
+        temperature: requestBody.temperature,
+        num_predict: requestBody.num_predict,
+        format: requestBody.format || 'не задан',
+        hasTools: !!requestBody.tools
+      });
+
+      const response = await axios.post(`${ollamaUrl}/api/chat`, requestBody, {
         timeout: timeouts.ollamaChat
       });
 
-      const result = response.data.message.content;
+      // Обработка function calls (если есть)
+      // ВАЖНО: Function calling в очереди не поддерживается, т.к. нужен userId
+      // Если ИИ запросил функции - возвращаем ответ без их выполнения
+      let result;
+      if (response.data.message.tool_calls && response.data.message.tool_calls.length > 0) {
+        logger.warn(`[AIQueue] ИИ запросил выполнение ${response.data.message.tool_calls.length} функций, но function calling в очереди не поддерживается`);
+        result = response.data.message.content || 'Функции не выполнены (не поддерживается в очереди)';
+      } else {
+        result = response.data.message.content;
+      }
+      
       const responseTime = Date.now() - startTime;
 
-      // 3. Сохраняем в кэш
+      // 4. Сохраняем в кэш
       aiCache.set(cacheKey, result);
 
-      // 4. Обновляем статус
+      // 5. Обновляем статус
       this.updateRequestStatus(task.id, 'completed', result, null, responseTime);
       this.emit(`task_${task.id}_completed`, { response: result, fromCache: false });
 
@@ -273,4 +306,5 @@ class AIQueue extends EventEmitter {
   }
 }
 
-module.exports = AIQueue; 
+module.exports = AIQueue;
+

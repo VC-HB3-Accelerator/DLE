@@ -28,10 +28,6 @@ async function getSettings() {
       return null;
     }
 
-    // Получаем ключ шифрования через унифицированную утилиту
-    const encryptionUtils = require('../utils/encryptionUtils');
-    const encryptionKey = encryptionUtils.getEncryptionKey();
-
     // Обрабатываем selected_rag_tables
     if (setting.selected_rag_tables) {
       try {
@@ -64,13 +60,37 @@ async function getSettings() {
       }
     }
 
+    const defaultChannelState = { web: true, telegram: true, email: true };
+    let enabledChannels = setting.enabled_channels;
+    if (typeof enabledChannels === 'string') {
+      try {
+        enabledChannels = JSON.parse(enabledChannels);
+      } catch (parseError) {
+        logger.error('[aiAssistantSettingsService] Error parsing enabled_channels:', parseError);
+        enabledChannels = null;
+      }
+    }
+    if (!enabledChannels || typeof enabledChannels !== 'object') {
+      enabledChannels = { ...defaultChannelState };
+    } else {
+      enabledChannels = {
+        ...defaultChannelState,
+        ...Object.keys(enabledChannels).reduce((acc, key) => {
+          acc[key] = Boolean(enabledChannels[key]);
+          return acc;
+        }, {})
+      };
+    }
+    setting.enabled_channels = enabledChannels;
+
     logger.info(`[aiAssistantSettingsService] Final settings result:`, {
       id: setting.id,
       selected_rag_tables: setting.selected_rag_tables,
       rules_id: setting.rules_id,
       hasSupportEmail: setting.hasSupportEmail,
       hasTelegramBot: setting.hasTelegramBot,
-      timestamp: setting.timestamp
+      timestamp: setting.timestamp,
+      enabled_channels: setting.enabled_channels
     });
 
     return setting;
@@ -80,12 +100,37 @@ async function getSettings() {
   }
 }
 
-async function upsertSettings({ system_prompt, selected_rag_tables, model, embedding_model, rules, updated_by, telegram_settings_id, email_settings_id, system_message }) {
+async function upsertSettings({
+  system_prompt,
+  selected_rag_tables,
+  model,
+  embedding_model,
+  rules,
+  updated_by,
+  telegram_settings_id,
+  email_settings_id,
+  system_message,
+  enabled_channels
+}) {
+  const defaultChannelState = { web: true, telegram: true, email: true };
+  let channelsPayload = enabled_channels;
+  if (!channelsPayload || typeof channelsPayload !== 'object') {
+    channelsPayload = { ...defaultChannelState };
+  } else {
+    channelsPayload = {
+      ...defaultChannelState,
+      ...Object.keys(channelsPayload).reduce((acc, key) => {
+        acc[key] = Boolean(channelsPayload[key]);
+        return acc;
+      }, {})
+    };
+  }
+
   const data = {
     id: 1,
     system_prompt,
     selected_rag_tables,
-    languages: ['ru'], // Устанавливаем русский язык по умолчанию
+    languages: ['ru'],
     model,
     embedding_model,
     rules,
@@ -93,17 +138,15 @@ async function upsertSettings({ system_prompt, selected_rag_tables, model, embed
     updated_by,
     telegram_settings_id,
     email_settings_id,
-    system_message
+    system_message,
+    enabled_channels: channelsPayload
   };
 
-  // Проверяем, существует ли запись
   const existing = await encryptedDb.getData(TABLE, { id: 1 }, 1);
-  
+
   if (existing.length > 0) {
-    // Обновляем существующую запись
     return await encryptedDb.saveData(TABLE, data, { id: 1 });
   } else {
-    // Создаем новую запись
     return await encryptedDb.saveData(TABLE, data);
   }
 }

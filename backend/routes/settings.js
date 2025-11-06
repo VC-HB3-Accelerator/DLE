@@ -482,6 +482,35 @@ router.put('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
   }
 });
 
+// ============================================
+// AI CONFIG (централизованные настройки)
+// ============================================
+
+// Получить все настройки AI Config
+router.get('/ai-config', requireAdmin, async (req, res, next) => {
+  try {
+    const aiConfigService = require('../services/aiConfigService');
+    const config = await aiConfigService.getConfig();
+    res.json({ success: true, config });
+  } catch (error) {
+    logger.error('Ошибка при получении AI Config:', error);
+    next(error);
+  }
+});
+
+// Обновить настройки AI Config
+router.put('/ai-config', requireAdmin, async (req, res, next) => {
+  try {
+    const aiConfigService = require('../services/aiConfigService');
+    const userId = req.session.userId || null;
+    const updated = await aiConfigService.updateConfig(req.body, userId);
+    res.json({ success: true, config: updated });
+  } catch (error) {
+    logger.error('Ошибка при обновлении AI Config:', error);
+    next(error);
+  }
+});
+
 // Удалить набор правил
 router.delete('/ai-assistant-rules/:id', requireAdmin, async (req, res, next) => {
   try {

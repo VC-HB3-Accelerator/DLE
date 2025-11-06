@@ -13,11 +13,36 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const ollamaConfig = require('./ollamaConfig');
+const aiConfigService = require('./aiConfigService');
 
-const VECTOR_SEARCH_URL = process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
-const TIMEOUTS = ollamaConfig.getTimeouts();
+const MIN_VECTOR_UPSERT_TIMEOUT = 360000; // 6 минут — с запасом для больших документов
+
+// Загружаем настройки из aiConfigService (с fallback на ENV)
+let VECTOR_SEARCH_URL = null;
+let TIMEOUTS = null;
+
+// Инициализация настроек (асинхронная загрузка)
+async function loadSettings() {
+  try {
+    const vectorConfig = await aiConfigService.getVectorSearchConfig();
+    VECTOR_SEARCH_URL = vectorConfig.url || process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
+    TIMEOUTS = ollamaConfig.getTimeouts();
+  } catch (error) {
+    logger.warn('[VectorSearchClient] Ошибка загрузки настроек, используем дефолты:', error.message);
+    VECTOR_SEARCH_URL = process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001';
+    TIMEOUTS = ollamaConfig.getTimeouts();
+  }
+}
+
+// Инициализируем настройки при загрузке модуля
+loadSettings().catch(err => logger.warn('[VectorSearchClient] Ошибка инициализации:', err.message));
 
 async function upsert(tableId, rows) {
+  // Загружаем актуальные настройки
+  if (!VECTOR_SEARCH_URL || !TIMEOUTS) {
+    await loadSettings();
+  }
+  
   logger.info(`[VectorSearch] upsert: tableId=${tableId}, rows=${rows.length}`);
   try {
     const res = await axios.post(`${VECTOR_SEARCH_URL}/upsert`, {
@@ -28,7 +53,7 @@ async function upsert(tableId, rows) {
         metadata: r.metadata || {}
       }))
     }, {
-      timeout: TIMEOUTS.vectorUpsert // Централизованный таймаут для индексации
+      timeout: Math.max(TIMEOUTS.vectorUpsert || 0, MIN_VECTOR_UPSERT_TIMEOUT)
     });
     logger.info(`[VectorSearch] upsert result:`, res.data);
     return res.data;
@@ -39,6 +64,11 @@ async function upsert(tableId, rows) {
 }
 
 async function search(tableId, query, topK = 3) {
+  // Загружаем актуальные настройки
+  if (!VECTOR_SEARCH_URL || !TIMEOUTS) {
+    await loadSettings();
+  }
+  
   logger.info(`[VectorSearch] search: tableId=${tableId}, query="${query}", topK=${topK}`);
   try {
     const res = await axios.post(`${VECTOR_SEARCH_URL}/search`, {
@@ -91,6 +121,11 @@ async function rebuild(tableId, rows) {
 }
 
 async function health() {
+  // Загружаем актуальные настройки
+  if (!VECTOR_SEARCH_URL || !TIMEOUTS) {
+    await loadSettings();
+  }
+  
   logger.info(`[VectorSearch] health check`);
   try {
     const res = await axios.get(`${VECTOR_SEARCH_URL}/health`, { timeout: TIMEOUTS.vectorHealth });

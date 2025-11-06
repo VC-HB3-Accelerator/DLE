@@ -424,6 +424,16 @@ class UniversalGuestService {
         }
       });
 
+      if (aiResponse && aiResponse.disabled) {
+        logger.info(`[UniversalGuestService] AI ассистент отключен для канала ${channel}. Ответ не формируется.`);
+        return {
+          success: true,
+          identifier,
+          aiResponse: null,
+          assistantDisabled: true
+        };
+      }
+
       if (!aiResponse || !aiResponse.success) {
         logger.warn(`[UniversalGuestService] AI не вернул ответ для ${identifier}`);
         return {

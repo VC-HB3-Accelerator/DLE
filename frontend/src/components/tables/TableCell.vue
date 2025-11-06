@@ -132,7 +132,7 @@ import { usePermissions } from '@/composables/usePermissions';
 
 const props = defineProps(['rowId', 'column', 'cellValues']);
 const emit = defineEmits(['update']);
-const { canEditDataData } = usePermissions();
+const { canEditData } = usePermissions();
 
 const localValue = ref('');
 const editing = ref(false);
