@@ -241,7 +241,7 @@ services:
       - 9.9.9.9        # Quad9 (безопасность + блокировка вредоносных доменов)
       - 8.8.8.8        # Google (надежность, fallback)
     volumes:
-      - ~/.ssh:/root/.ssh:rw
+      - ~/.ssh:/home/webssh/.ssh:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro  # Только чтение для безопасности
       - /tmp:/tmp  # для временных файлов
       - ./ssl:/app/ssl  # для доступа к ключу шифрования

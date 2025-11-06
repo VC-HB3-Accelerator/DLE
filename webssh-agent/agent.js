@@ -3,6 +3,7 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const fs = require('fs-extra');
 const path = require('path');
+const os = require('os');
 const http = require('http');
 const WebSocket = require('ws');
 
@@ -14,6 +15,8 @@ const { exportDockerImages, transferDockerImages, importDockerImages, cleanupLoc
 const { createAllUsers } = require('./utils/userUtils');
 const { cleanupVdsServer, setupRootSshKeys, disablePasswordAuth, setupFirewall } = require('./utils/cleanupUtils');
 const { createSshKeys } = require('./utils/localUtils');
+
+const PUBLIC_KEY_PATH = path.join(os.homedir(), '.ssh', 'id_rsa.pub');
 
 const app = express();
 const server = http.createServer(app);
@@ -321,7 +324,7 @@ app.post('/vds/setup', logRequest, async (req, res) => {
     sendWebSocketLog('success', '✅ SSH ключи созданы', 'ssh_keys', 20);
     
     // Читаем созданный публичный ключ с хоста
-    const publicKeyContent = await fs.readFile('/root/.ssh/id_rsa.pub', 'utf8');
+    const publicKeyContent = await fs.readFile(PUBLIC_KEY_PATH, 'utf8');
     const publicKeyLine = publicKeyContent.trim();
     
     // 2. Настройка SSH ключей для root

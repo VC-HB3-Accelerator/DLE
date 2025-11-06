@@ -1,26 +1,26 @@
 const { exec } = require('child_process');
+const fs = require('fs-extra');
+const os = require('os');
+const path = require('path');
 const log = require('./logger');
 
-/**
- * Исправление прав доступа к SSH конфигурации
- */
-const fixSshPermissions = async () => {
-  return new Promise((resolve) => {
-    // Исправляем владельца и права доступа к SSH конфигу
-    exec('chown root:root /root/.ssh/config 2>/dev/null || true && chmod 600 /root/.ssh/config 2>/dev/null || true', (error) => {
-      if (error) {
-        log.warn('Не удалось исправить права доступа к SSH конфигу: ' + error.message);
-      } else {
-        log.info('Права доступа к SSH конфигу исправлены');
-      }
-      resolve();
-    });
-  });
+const sshDir = path.join(os.homedir(), '.ssh');
+const privateKeyPath = path.join(sshDir, 'id_rsa');
+const publicKeyPath = `${privateKeyPath}.pub`;
+const sshConfigPath = path.join(sshDir, 'config');
+
+const ensureSshPermissions = async () => {
+  try {
+    await fs.ensureDir(sshDir);
+    await fs.chmod(sshDir, 0o700).catch(() => {});
+    await fs.chmod(privateKeyPath, 0o600).catch(() => {});
+    await fs.chmod(publicKeyPath, 0o644).catch(() => {});
+    await fs.chmod(sshConfigPath, 0o600).catch(() => {});
+  } catch (error) {
+    log.warn('Не удалось скорректировать права доступа к SSH директории: ' + error.message);
+  }
 };
 
-/**
- * Выполнение SSH команд с поддержкой ключей и пароля
- */
 const execSshCommand = async (command, options = {}) => {
   const {
     sshHost,
@@ -29,26 +29,28 @@ const execSshCommand = async (command, options = {}) => {
     sshConnectPassword,
     vdsIp
   } = options;
-  
-  // Исправляем права доступа к SSH конфигу перед выполнением команды
-  await fixSshPermissions();
-  
-  // Сначала пробуем подключиться с SSH ключами (без BatchMode для возможности fallback на пароль)
-  let sshCommand = `ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${command.replace(/"/g, '\\"')}"`;
-  
+
+  await ensureSshPermissions();
+
+  const privateKeyExists = await fs.pathExists(privateKeyPath);
+  const escapedCommand = command.replace(/"/g, '\\"');
+
+  let sshCommand = `ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${escapedCommand}"`;
+
+  if (privateKeyExists) {
+    sshCommand = `ssh -i "${privateKeyPath}" -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${escapedCommand}"`;
+  }
+
   log.info(`🔍 Выполняем SSH команду: ${sshCommand}`);
-  
+
   return new Promise((resolve) => {
     exec(sshCommand, (error, stdout, stderr) => {
       log.info(`📤 SSH результат - код: ${error ? error.code : 0}, stdout: "${stdout}", stderr: "${stderr}"`);
-      
+
       if (error && error.code === 255 && sshConnectPassword) {
-        // Если подключение с ключами не удалось, пробуем с паролем
         log.info('SSH ключи не сработали, пробуем с паролем...');
-        const passwordCommand = `sshpass -p "${sshConnectPassword}" ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${command.replace(/"/g, '\\"')}"`;
-        
-        log.info(`🔍 Выполняем SSH команду с паролем: ${passwordCommand}`);
-        
+        const passwordCommand = `sshpass -p "${sshConnectPassword}" ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${escapedCommand}"`;
+
         exec(passwordCommand, (passwordError, passwordStdout, passwordStderr) => {
           log.info(`📤 SSH с паролем результат - код: ${passwordError ? passwordError.code : 0}, stdout: "${passwordStdout}", stderr: "${passwordStderr}"`);
           resolve({
@@ -68,9 +70,6 @@ const execSshCommand = async (command, options = {}) => {
   });
 };
 
-/**
- * Выполнение SCP команд с поддержкой ключей и пароля
- */
 const execScpCommand = async (sourcePath, targetPath, options = {}) => {
   const {
     sshHost,
@@ -79,19 +78,23 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
     sshConnectPassword,
     vdsIp
   } = options;
-  
-  // Исправляем права доступа к SSH конфигу перед выполнением команды
-  await fixSshPermissions();
-  
-  const scpCommand = `scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
-  
+
+  await ensureSshPermissions();
+
+  const privateKeyExists = await fs.pathExists(privateKeyPath);
+
+  let scpCommand = `scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
+
+  if (privateKeyExists) {
+    scpCommand = `scp -i "${privateKeyPath}" -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
+  }
+
   return new Promise((resolve) => {
     exec(scpCommand, (error, stdout, stderr) => {
       if (error && error.code === 255 && sshConnectPassword) {
-        // Если SCP с ключами не удался, пробуем с паролем
         log.info('SCP с ключами не сработал, пробуем с паролем...');
         const passwordScpCommand = `sshpass -p "${sshConnectPassword}" scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
-        
+
         exec(passwordScpCommand, (passwordError, passwordStdout, passwordStderr) => {
           if (passwordError) {
             log.error('❌ Ошибка SCP: ' + passwordError.message);
@@ -123,5 +126,5 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
 module.exports = {
   execSshCommand,
   execScpCommand,
-  fixSshPermissions
+  fixSshPermissions: ensureSshPermissions
 };
