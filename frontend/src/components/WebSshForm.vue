@@ -146,6 +146,19 @@ import { useWebSshLogs } from '../composables/useWebSshLogs';
 
 const webSshService = useWebSshService();
 
+const encodeDomainForRequest = (domain) => {
+  if (!domain) return null;
+
+  try {
+    const normalized = domain.trim().toLowerCase();
+    const url = new URL(`http://${normalized}`);
+    return url.hostname;
+  } catch (error) {
+    console.warn('[WebSSH] Некорректное доменное имя:', domain, error.message);
+    return null;
+  }
+};
+
 // Используем композабл для real-time логов
 const {
   logs,
@@ -196,8 +209,19 @@ const checkDomainDNS = async () => {
 
   try {
     domainStatus.value = { type: 'loading', message: 'Проверка DNS...' };
-    
-    const response = await fetch(`http://localhost:8000/api/dns-check/${form.domain}`);
+
+    const asciiDomain = encodeDomainForRequest(form.domain);
+
+    if (!asciiDomain) {
+      domainStatus.value = {
+        type: 'error',
+        message: '❌ Некорректное доменное имя'
+      };
+      addLog('error', `DNS ошибка: Некорректное доменное имя (${form.domain})`);
+      return;
+    }
+
+    const response = await fetch(`/api/dns-check/${encodeURIComponent(asciiDomain)}`);
     const data = await response.json();
     
     if (data.success) {

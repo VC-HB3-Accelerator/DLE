@@ -13,6 +13,7 @@
 const express = require('express');
 const router = express.Router();
 const { promisify } = require('util');
+const { domainToASCII } = require('url');
 const dns = require('dns');
 const resolve4 = promisify(dns.resolve4);
 
@@ -30,10 +31,21 @@ router.get('/dns-check/:domain', async (req, res) => {
       });
     }
 
-    console.log(`Checking DNS for domain: ${domain}`);
+    const normalizedDomain = domain.trim().toLowerCase();
+    const asciiDomain = domainToASCII(normalizedDomain);
+
+    if (!asciiDomain) {
+      return res.status(400).json({
+        success: false,
+        domain,
+        message: `Некорректное доменное имя: ${domain}`
+      });
+    }
+
+    console.log(`Checking DNS for domain: ${domain} (ASCII: ${asciiDomain})`);
     
     // Используем встроенный DNS resolver Node.js
-    const addresses = await resolve4(domain);
+    const addresses = await resolve4(asciiDomain);
     
     if (addresses && addresses.length > 0) {
       const ip = addresses[0];

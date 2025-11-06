@@ -16,6 +16,20 @@
  */
 
 const LOCAL_AGENT_URL = 'http://localhost:3000';
+const API_BASE_PATH = '/api';
+
+const normalizeDomainToAscii = (domain) => {
+  if (!domain) return null;
+
+  try {
+    const normalized = domain.trim().toLowerCase();
+    const url = new URL(`http://${normalized}`);
+    return url.hostname;
+  } catch (error) {
+    console.warn('[WebSshService] Некорректное доменное имя:', domain, error.message);
+    return null;
+  }
+};
 
 // Функция для генерации nginx конфигурации
 function getNginxConfig(domain, serverPort) {
@@ -274,7 +288,12 @@ EOF
       console.log(`Получение IP адреса для домена ${domain}...`);
       
       // Используем backend API для проверки DNS
-      const response = await fetch(`http://localhost:8000/api/dns-check/${domain}`);
+      const asciiDomain = normalizeDomainToAscii(domain);
+      if (!asciiDomain) {
+        return { success: false, error: 'Некорректное доменное имя' };
+      }
+
+      const response = await fetch(`${API_BASE_PATH}/dns-check/${encodeURIComponent(asciiDomain)}`);
       const data = await response.json();
       
       if (data.success) {

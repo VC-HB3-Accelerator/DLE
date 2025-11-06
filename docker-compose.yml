@@ -150,6 +150,7 @@ services:
       - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # FRONTEND_URL настраивается в коде, не через env
       - VECTOR_SEARCH_URL=http://vector-search:8001
+      - LOG_LEVEL=${LOG_LEVEL:-warn}
       # Factory адреса теперь хранятся в базе данных
     # Убираем порты для продакшна - доступ только через nginx
     # ports:

@@ -14,6 +14,7 @@ const WebSocket = require('ws');
 const tokenBalanceService = require('./services/tokenBalanceService');
 const deploymentTracker = require('./utils/deploymentTracker');
 const deploymentWebSocketService = require('./services/deploymentWebSocketService');
+const logger = require('./utils/logger');
 
 let wss = null;
 // Храним клиентов по userId для персонализированных уведомлений
@@ -29,7 +30,7 @@ const TAGS_UPDATE_DEBOUNCE = 100; // 100ms
 
 function initWSS(server) {
   wss = new WebSocket.Server({ server, path: '/ws' });
-  console.log('🔌 [WebSocket] Сервер инициализирован на пути /ws');
+  logger.info('🔌 [WebSocket] Сервер инициализирован на пути /ws');
   
   // Инициализируем deploymentWebSocketService с WebSocket сервером после создания wss
   deploymentWebSocketService.initialize(server, wss);
@@ -40,15 +41,15 @@ function initWSS(server) {
   });
   
   // Дополнительная инициализация deploymentWebSocketService после создания wss
-  console.log('[wsHub] Инициализируем deploymentWebSocketService с wss:', !!wss);
+  logger.debug('[wsHub] Инициализируем deploymentWebSocketService с wss:', !!wss);
   deploymentWebSocketService.setWebSocketServer(wss);
-  console.log('[wsHub] deploymentWebSocketService инициализирован');
+  logger.debug('[wsHub] deploymentWebSocketService инициализирован');
   
   wss.on('connection', (ws, req) => {
-    console.log('🔌 [WebSocket] Новое подключение');
-    console.log('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
-    console.log('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
-    console.log('🔌 [WebSocket] Origin:', req.headers.origin);
+    logger.debug('🔌 [WebSocket] Новое подключение');
+    logger.debug('🔌 [WebSocket] IP клиента:', req.socket.remoteAddress);
+    logger.debug('🔌 [WebSocket] User-Agent:', req.headers['user-agent']);
+    logger.debug('🔌 [WebSocket] Origin:', req.headers.origin);
     
     // Добавляем клиента в общий список
     if (!wsClients.has('anonymous')) {
@@ -77,7 +78,7 @@ function initWSS(server) {
 
         if (data.type === 'ollama_ready') {
           // Уведомление о готовности Ollama - запускаем инициализацию ботов
-          console.log('🚀 [WebSocket] Получено уведомление о готовности Ollama!');
+          logger.debug('🚀 [WebSocket] Получено уведомление о готовности Ollama!');
           handleOllamaReady();
         }
         
@@ -105,11 +106,11 @@ function initWSS(server) {
             data.type === 'deployment_update') {
           // Эти сообщения обрабатываются в deploymentWebSocketService
           // Просто логируем для отладки
-          console.log(`[WebSocket] Получено сообщение деплоя: ${data.type}`);
-          console.log(`[WebSocket] Данные:`, JSON.stringify(data, null, 2));
+          logger.debug(`[WebSocket] Получено сообщение деплоя: ${data.type}`);
+          logger.debug('[WebSocket] Данные:', JSON.stringify(data, null, 2));
         }
       } catch (error) {
-        // console.error('❌ [WebSocket] Ошибка парсинга сообщения:', error);
+        logger.debug('❌ [WebSocket] Ошибка парсинга сообщения:', error);
       }
     });
     
@@ -128,7 +129,7 @@ function initWSS(server) {
     });
     
     ws.on('error', (error) => {
-      // console.error('❌ [WebSocket] Ошибка соединения:', error.message);
+      logger.debug('❌ [WebSocket] Ошибка соединения:', error.message);
     });
   });
   
@@ -503,14 +504,14 @@ function broadcastTokenBalanceChanged(userId, tokenAddress, newBalance, network)
 function broadcastDeploymentUpdate(data) {
   if (!wss) return;
   
-  console.log(`📡 [WebSocket] broadcastDeploymentUpdate вызвана с данными:`, JSON.stringify(data, null, 2));
+  logger.debug('📡 [WebSocket] broadcastDeploymentUpdate вызвана с данными:', JSON.stringify(data, null, 2));
   
   const message = JSON.stringify({
     type: 'deployment_update',
     data: data
   });
   
-  console.log(`📡 [WebSocket] Отправляем сообщение:`, message);
+  logger.debug('📡 [WebSocket] Отправляем сообщение:', message);
   
   // Отправляем всем подключенным клиентам
   wss.clients.forEach(client => {
@@ -518,12 +519,12 @@ function broadcastDeploymentUpdate(data) {
       try {
         client.send(message);
       } catch (error) {
-        console.error('[WebSocket] Ошибка при отправке deployment update:', error);
+        logger.error('[WebSocket] Ошибка при отправке deployment update:', error);
       }
     }
   });
   
-  console.log(`📡 [WebSocket] Отправлено deployment update: deployment_update`);
+  logger.debug('📡 [WebSocket] Отправлено deployment update: deployment_update');
 }
 
 // broadcastModulesUpdate удалена - используем deploymentWebSocketService.broadcastToDLE
@@ -554,13 +555,13 @@ module.exports = {
 // Обработчик запроса балансов токенов
 async function handleTokenBalancesRequest(ws, address, userId) {
   try {
-    console.log(`[WebSocket] Запрос балансов для адреса: ${address}`);
+    logger.debug(`[WebSocket] Запрос балансов для адреса: ${address}`);
 
     // Получаем балансы через отдельный сервис без зависимостей от wsHub
     const balances = await tokenBalanceService.getUserTokenBalances(address);
     
-    console.log(`[WebSocket] Получены балансы для ${address}:`, balances);
-    console.log(`[WebSocket] Количество токенов:`, balances?.length || 0);
+    logger.debug(`[WebSocket] Получены балансы для ${address}:`, balances);
+    logger.debug('[WebSocket] Количество токенов:', balances?.length || 0);
     
     // Отправляем ответ клиенту
     const response = {
@@ -572,10 +573,10 @@ async function handleTokenBalancesRequest(ws, address, userId) {
       }
     };
     
-    console.log(`[WebSocket] Отправляем ответ:`, JSON.stringify(response, null, 2));
+    logger.debug('[WebSocket] Отправляем ответ:', JSON.stringify(response, null, 2));
     ws.send(JSON.stringify(response));
   } catch (error) {
-    console.error('[WebSocket] Ошибка при получении балансов:', error);
+    logger.error('[WebSocket] Ошибка при получении балансов:', error);
     
     // Определяем тип ошибки для лучшей диагностики
     let errorType = 'Неизвестная ошибка';
@@ -602,7 +603,7 @@ async function handleTokenBalancesRequest(ws, address, userId) {
       }
     };
     
-    console.log('[WebSocket] Отправляем ошибку клиенту:', JSON.stringify(errorResponse, null, 2));
+    logger.debug('[WebSocket] Отправляем ошибку клиенту:', JSON.stringify(errorResponse, null, 2));
     ws.send(JSON.stringify(errorResponse));
   }
 }
@@ -612,11 +613,11 @@ async function handleTokenBalancesRequest(ws, address, userId) {
  */
 async function handleOllamaReady() {
   try {
-    console.log('✅ [WebSocket] Ollama готов к работе');
+    logger.debug('✅ [WebSocket] Ollama готов к работе');
     // Уведомляем всех подключенных клиентов о готовности системы
     broadcastSystemReady();
   } catch (error) {
-    console.error('❌ [WebSocket] Ошибка обработки Ollama ready:', error);
+    logger.error('❌ [WebSocket] Ошибка обработки Ollama ready:', error);
   }
 }
 
@@ -642,5 +643,5 @@ function broadcastSystemReady() {
     });
   });
   
-  console.log('📢 [WebSocket] Уведомление о готовности системы отправлено всем клиентам');
+  logger.debug('📢 [WebSocket] Уведомление о готовности системы отправлено всем клиентам');
 } 
