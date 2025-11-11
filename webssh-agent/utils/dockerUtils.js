@@ -29,6 +29,10 @@ const execDockerCommand = async (command) => {
   return execAsync(command);
 };
 
+const execLocalCommand = async (command, options = {}) => {
+  return execAsync(command, { maxBuffer: options.maxBuffer || 1024 * 1024 * 50 });
+};
+
 /**
  * Экспорт Docker образов и данных с локальной машины
  */
@@ -89,9 +93,8 @@ const exportDockerImages = async (sendWebSocketLog) => {
     const tarFiles = images.map(img => img.file).join(' ');
     const dataFiles = 'postgres_data.tar.gz ollama_data.tar.gz vector_search_data.tar.gz';
     
-    // Безопасное создание архива через CLI
     const archiveCommand = `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles}`;
-    await execDockerCommand(archiveCommand);
+    await execLocalCommand(archiveCommand);
     
     sendWebSocketLog('success', '✅ Архив создан успешно', 'export_data', 80);
   } catch (error) {
@@ -110,7 +113,7 @@ const exportVolumeData = async (volumeName, outputFile, sendWebSocketLog, progre
   try {
     // Безопасный экспорт через CLI с временным контейнером
     const exportCommand = `docker run --rm -v ${volumeName}:/data:ro -v /tmp:/backup alpine tar czf /backup/${outputFile} -C /data .`;
-    await execDockerCommand(exportCommand);
+    await execLocalCommand(exportCommand);
     
     sendWebSocketLog('success', `✅ Экспорт ${outputFile} завершен`, 'export_data', progress);
   } catch (error) {
@@ -216,8 +219,8 @@ docker images | grep -E "digital_legal_entitydle|postgres"
 echo "📋 Доступные volumes:"
 docker volume ls | grep dapp_`;
 
-  await execSshCommand(`echo '${importScript}' | sudo tee /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
-  await execSshCommand(`sudo chmod +x /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
+  await execSshCommand(`echo '${importScript}' | tee /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
+  await execSshCommand(`chmod +x /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
   
   // Импортируем образы и данные
   log.info('Импорт Docker образов и данных...');
@@ -238,9 +241,7 @@ docker volume ls | grep dapp_`;
 const cleanupLocalFiles = async () => {
   log.info('Очистка временных файлов на хосте...');
   try {
-    await fs.remove('/tmp/dapp-*.tar');
-    await fs.remove('/tmp/*_data.tar.gz');
-    await fs.remove('/tmp/docker-images-and-data.tar.gz');
+    await execLocalCommand("rm -f /tmp/dapp-*.tar /tmp/*_data.tar.gz /tmp/docker-images-and-data.tar.gz");
     log.success('Временные файлы очищены');
   } catch (error) {
     log.error('Ошибка очистки файлов: ' + error.message);

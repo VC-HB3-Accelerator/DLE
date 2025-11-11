@@ -14,13 +14,25 @@ RUN apt-get update && apt-get install -y \
     gzip \
     zip \
     unzip \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем Docker CLI
 RUN curl -fsSL https://get.docker.com | sh
 
 # Создаем пользователя для безопасности
-RUN useradd -m -s /bin/bash webssh
+ARG WEBSSH_UID=1000
+ARG WEBSSH_GID=1000
+RUN if getent group ${WEBSSH_GID} >/dev/null; then \
+      groupmod -n webssh "$(getent group ${WEBSSH_GID} | cut -d: -f1)"; \
+    else \
+      groupadd -g ${WEBSSH_GID} webssh; \
+    fi && \
+    if getent passwd ${WEBSSH_UID} >/dev/null; then \
+      usermod -l webssh -d /home/webssh -m "$(getent passwd ${WEBSSH_UID} | cut -d: -f1)"; \
+    else \
+      useradd -m -u ${WEBSSH_UID} -g webssh -s /bin/bash webssh; \
+    fi
 
 # Создаем рабочую директорию
 WORKDIR /app
@@ -44,11 +56,10 @@ RUN mkdir -p /home/webssh/.ssh && \
 # Добавляем пользователя в группу docker
 RUN usermod -aG docker webssh
 
-# Переключаемся на пользователя
-USER webssh
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
-# Открываем порт
 EXPOSE 3000
 
-# Команда запуска
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["yarn", "start"]

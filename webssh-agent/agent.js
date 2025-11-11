@@ -241,8 +241,8 @@ app.post('/vds/transfer-encryption-key', logRequest, async (req, res) => {
       
       // 4. Устанавливаем правильные права доступа к ключу на VDS
       log.info('🔒 Настройка прав доступа к ключу шифрования...');
-      await execSshCommand(`sudo chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
-      await execSshCommand(`sudo chmod 600 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      await execSshCommand(`chmod 600 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
       
       // 5. Проверяем, что ключ успешно передан
       const verifyResult = await execSshCommand(`ls -la /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
@@ -344,13 +344,13 @@ app.post('/vds/setup', logRequest, async (req, res) => {
     sendWebSocketLog('info', '🐳 Установка Docker...', 'docker', 50);
     log.info('Установка Docker...');
     await execSshCommand('curl -fsSL https://get.docker.com -o get-docker.sh', options);
-    await execSshCommand('sudo sh get-docker.sh', options);
-    await execSshCommand(`sudo usermod -aG docker ${dockerUser}`, options);
+    await execSshCommand('sh get-docker.sh', options);
+    await execSshCommand(`usermod -aG docker ${dockerUser}`, options);
     sendWebSocketLog('success', '✅ Docker установлен', 'docker', 55);
     
     // 6. Установка Docker Compose
-    await execSshCommand('sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose', options);
-    await execSshCommand('sudo chmod +x /usr/local/bin/docker-compose', options);
+    await execSshCommand('curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose', options);
+    await execSshCommand('chmod +x /usr/local/bin/docker-compose', options);
     
     // 7. Отключение парольной аутентификации
     await disablePasswordAuth(options);
@@ -360,7 +360,7 @@ app.post('/vds/setup', logRequest, async (req, res) => {
     
     // 8.1. Установка fail2ban для защиты от SSH атак
     log.info('Установка fail2ban для защиты от SSH атак...');
-    await execSshCommand('sudo apt-get install -y fail2ban', options);
+    await execSshCommand('apt-get install -y fail2ban', options);
     
     // Создание конфигурации fail2ban для SSH с увеличенными лимитами
     const fail2banConfig = `[sshd]
@@ -379,15 +379,15 @@ findtime = 3600
         maxretry = 3
         bantime = 3600`;
     
-    await execSshCommand(`echo '${fail2banConfig}' | sudo tee /etc/fail2ban/jail.local`, options);
-    await execSshCommand('sudo systemctl enable fail2ban', options);
-    await execSshCommand('sudo systemctl start fail2ban', options);
+    await execSshCommand(`echo '${fail2banConfig}' | tee /etc/fail2ban/jail.local`, options);
+    await execSshCommand('systemctl enable fail2ban', options);
+    await execSshCommand('systemctl start fail2ban', options);
     log.success('fail2ban настроен для защиты от SSH атак');
     
     // 9. Создание директории для ключей шифрования
-    await execSshCommand(`sudo mkdir -p /home/${dockerUser}/dapp/ssl/keys`, options);
-    await execSshCommand(`sudo chmod 700 /home/${dockerUser}/dapp/ssl/keys`, options);
-    await execSshCommand(`sudo chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys`, options);
+    await execSshCommand(`mkdir -p /home/${dockerUser}/dapp/ssl/keys`, options);
+    await execSshCommand(`chmod 700 /home/${dockerUser}/dapp/ssl/keys`, options);
+    await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys`, options);
     log.success('Директория для ключа шифрования подготовлена');
     
     // 10. Проверка и удаление системного nginx для избежания конфликтов портов
@@ -398,12 +398,12 @@ findtime = 3600
       log.info('⚠️ Обнаружен системный nginx - удаляем для освобождения портов 80/443...');
       
       // Остановка и удаление системного nginx
-      await execSshCommand('sudo systemctl stop nginx || true', options);
-      await execSshCommand('sudo systemctl disable nginx || true', options);
-      await execSshCommand('sudo systemctl mask nginx || true', options);
-      await execSshCommand('sudo pkill -f nginx || true', options);
-      await execSshCommand('sudo apt-get purge -y nginx nginx-common nginx-full || true', options);
-      await execSshCommand('sudo apt-get autoremove -y || true', options);
+      await execSshCommand('systemctl stop nginx || true', options);
+      await execSshCommand('systemctl disable nginx || true', options);
+      await execSshCommand('systemctl mask nginx || true', options);
+      await execSshCommand('pkill -f nginx || true', options);
+      await execSshCommand('apt-get purge -y nginx nginx-common nginx-full || true', options);
+      await execSshCommand('apt-get autoremove -y || true', options);
       
       log.success('✅ Системный nginx полностью удален, порты 80/443 освобождены для Docker nginx');
     } else {
@@ -412,11 +412,11 @@ findtime = 3600
     
     // 11. Создание временных SSL сертификатов для запуска frontend-nginx
     log.info('🔒 Создание временных SSL сертификатов...');
-    await execSshCommand(`sudo mkdir -p /etc/letsencrypt/live/${domain}`, options);
-    await execSshCommand(`sudo mkdir -p /var/www/certbot`, options);
+    await execSshCommand(`mkdir -p /etc/letsencrypt/live/${domain}`, options);
+    await execSshCommand(`mkdir -p /var/www/certbot`, options);
     
     // Создаем временный самоподписанный сертификат
-    const tempCertCommand = `sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/letsencrypt/live/${domain}/privkey.pem -out /etc/letsencrypt/live/${domain}/fullchain.pem -subj '/C=US/ST=State/L=City/O=Organization/CN=${domain}'`;
+    const tempCertCommand = `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/letsencrypt/live/${domain}/privkey.pem -out /etc/letsencrypt/live/${domain}/fullchain.pem -subj '/C=US/ST=State/L=City/O=Organization/CN=${domain}'`;
     await execSshCommand(tempCertCommand, options);
     log.success('Временный SSL сертификат создан');
     
@@ -475,21 +475,21 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     
     // 16. Запуск приложения
     log.info('Запуск приложения...');
-    await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml up -d`, options);
+    await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d`, options);
     
     // 16.1. 🆕 Настройка CORS заголовков в nginx для API
     log.info('🔧 Настройка CORS заголовков в nginx для API...');
-    await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec frontend-nginx sed -i '/add_header X-XSS-Protection/a\\            add_header Access-Control-Allow-Origin \"https://${domain}\" always;\\            add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\\            add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-Requested-With\" always;\\            add_header Access-Control-Allow-Credentials \"true\" always;' /etc/nginx/nginx.conf`, options);
+    await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec frontend-nginx sed -i '/add_header X-XSS-Protection/a\\            add_header Access-Control-Allow-Origin \"https://${domain}\" always;\\            add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\\            add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-Requested-With\" always;\\            add_header Access-Control-Allow-Credentials \"true\" always;' /etc/nginx/nginx.conf`, options);
     
     // Перезапускаем nginx с новой конфигурацией
-    await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml restart frontend-nginx`, options);
+    await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart frontend-nginx`, options);
     log.success('✅ CORS заголовки настроены в nginx для API');
     
     // 16.0. 🆕 Получение реального SSL сертификата через Let's Encrypt (опционально)
     log.info('Получение реального SSL сертификата через Let\'s Encrypt...');
     
     // Получаем SSL сертификат через certbot
-    const certbotResult = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml run --rm certbot`, options);
+    const certbotResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot`, options);
     
     if (certbotResult.code === 0) {
       log.success('Реальный SSL сертификат успешно получен');
@@ -512,9 +512,9 @@ else
     echo "$(date): Ошибка обновления SSL сертификатов" >> /var/log/ssl-renewal.log
 fi
 `;
-    await execSshCommand(`echo '${renewScript}' | sudo tee /home/${dockerUser}/dapp/renew-ssl.sh`, options);
-    await execSshCommand(`sudo chmod +x /home/${dockerUser}/dapp/renew-ssl.sh`, options);
-    await execSshCommand(`echo "0 12 * * * /home/${dockerUser}/dapp/renew-ssl.sh" | sudo crontab -`, options);
+    await execSshCommand(`echo '${renewScript}' | tee /home/${dockerUser}/dapp/renew-ssl.sh`, options);
+    await execSshCommand(`chmod +x /home/${dockerUser}/dapp/renew-ssl.sh`, options);
+    await execSshCommand(`echo "0 12 * * * /home/${dockerUser}/dapp/renew-ssl.sh" | crontab -`, options);
     log.success('Автоматическое обновление SSL сертификатов через Docker настроено (ежедневно в 12:00)');
     
     // 16.1. 🆕 Ожидание готовности базы данных с повторными попытками
@@ -524,7 +524,7 @@ fi
     const maxAttempts = 30;
     
     while (!dbReady && attempts < maxAttempts) {
-      const dbCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec -T postgres pg_isready -U dapp_user -d dapp_db`, options);
+      const dbCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T postgres pg_isready -U dapp_user -d dapp_db`, options);
       if (dbCheckResult.code === 0) {
         dbReady = true;
         log.success('База данных готова к работе');
@@ -541,13 +541,13 @@ fi
     
     // 16.2. 🆕 Проверка целостности переданной базы данных
     log.info('Проверка целостности переданной базы данных...');
-    const tableCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec -T postgres psql -U dapp_user -d dapp_db -c "\\dt"`, options);
+    const tableCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T postgres psql -U dapp_user -d dapp_db -c "\\dt"`, options);
     
     if (tableCheckResult.code === 0 && tableCheckResult.stdout.includes('email_settings')) {
       log.success('База данных содержит все необходимые таблицы (email_settings найдена)');
       
       // Дополнительная проверка количества таблиц
-      const tableCountResult = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec -T postgres psql -U dapp_user -d dapp_db -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"`, options);
+      const tableCountResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T postgres psql -U dapp_user -d dapp_db -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"`, options);
       if (tableCountResult.code === 0) {
         log.info(`Количество таблиц в базе данных: ${tableCountResult.stdout.trim()}`);
       }
@@ -558,13 +558,13 @@ fi
     
     // 16.3. 🆕 Улучшенная проверка ключа шифрования в контейнере backend
     log.info('Проверка ключа шифрования в backend контейнере...');
-    const keyCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec -T backend ls -la /app/ssl/keys/`, options);
+    const keyCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T backend ls -la /app/ssl/keys/`, options);
     
     if (keyCheckResult.code === 0 && keyCheckResult.stdout.includes('full_db_encryption.key')) {
       log.success('Ключ шифрования найден в backend контейнере');
       
       // Дополнительная проверка содержимого ключа
-      const keyContentResult = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec -T backend head -c 50 /app/ssl/keys/full_db_encryption.key`, options);
+      const keyContentResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T backend head -c 50 /app/ssl/keys/full_db_encryption.key`, options);
       if (keyContentResult.code === 0) {
         log.info('Ключ шифрования доступен для чтения в контейнере');
       }
@@ -574,10 +574,10 @@ fi
       log.info('Попытка повторного монтирования ключа...');
       
       // Перезапуск backend контейнера с правильным монтированием
-      await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml restart backend`, options);
+      await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart backend`, options);
       await new Promise(resolve => setTimeout(resolve, 5000));
       
-      const retryKeyCheck = await execSshCommand(`cd /home/${dockerUser}/dapp && sudo docker compose -f docker-compose.prod.yml exec -T backend ls -la /app/ssl/keys/`, options);
+      const retryKeyCheck = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T backend ls -la /app/ssl/keys/`, options);
       if (retryKeyCheck.code === 0 && retryKeyCheck.stdout.includes('full_db_encryption.key')) {
         log.success('Ключ шифрования найден после перезапуска backend контейнера');
       } else {
@@ -587,7 +587,7 @@ fi
     
     // 17. Проверка статуса контейнеров
     log.info('Проверка статуса контейнеров...');
-    const containersResult = await execSshCommand('sudo docker ps --format "table {{.Names}}\\t{{.Status}}"', options);
+    const containersResult = await execSshCommand('docker ps --format "table {{.Names}}\\t{{.Status}}"', options);
     log.info('Статус контейнеров:\\n' + containersResult.stdout);
     
     log.success('VDS настроена и приложение запущено');

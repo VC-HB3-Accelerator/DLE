@@ -230,10 +230,12 @@ services:
 
   # WebSSH Agent для настройки VDS
   webssh-agent:
-    profiles: ["dev"]  # Только для разработки
     build:
       context: ./webssh-agent
       dockerfile: Dockerfile
+      args:
+        WEBSSH_UID: ${LOCAL_UID:-1000}
+        WEBSSH_GID: ${LOCAL_GID:-1000}
     container_name: dapp-webssh-agent
     restart: unless-stopped
     dns:
@@ -242,7 +244,7 @@ services:
       - 8.8.8.8        # Google (надежность, fallback)
     volumes:
       - ~/.ssh:/home/webssh/.ssh:rw
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Только чтение для безопасности
+      - /var/run/docker.sock:/var/run/docker.sock:rw
       - /tmp:/tmp  # для временных файлов
       - ./ssl:/app/ssl  # для доступа к ключу шифрования
     security_opt:

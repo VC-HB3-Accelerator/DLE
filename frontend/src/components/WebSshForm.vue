@@ -304,21 +304,25 @@ const validateForm = () => {
     addLog('error', 'Заполните все обязательные поля');
     return false;
   }
-  // Валидация домена
-  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-  if (!domainRegex.test(form.domain)) {
+  const asciiDomain = encodeDomainForRequest(form.domain);
+  if (!asciiDomain) {
+    addLog('error', 'Введите корректный домен (например: example.com)');
+    return false;
+  }
+  const domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
+  if (!domainRegex.test(asciiDomain)) {
     addLog('error', 'Введите корректный домен (например: example.com)');
     return false;
   }
 
-  // Валидация email
+  form.domain = asciiDomain;
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(form.email)) {
     addLog('error', 'Введите корректный email адрес');
     return false;
   }
-  
-  // Валидация логинов
+
   if (form.ubuntuUser.length < 3 || form.ubuntuUser.length > 32) {
     addLog('error', 'Логин Ubuntu должен быть от 3 до 32 символов');
     return false;
@@ -327,7 +331,7 @@ const validateForm = () => {
     addLog('error', 'Логин Ubuntu должен начинаться с буквы и содержать только строчные буквы, цифры, _ и -');
     return false;
   }
-  
+
   if (form.dockerUser.length < 3 || form.dockerUser.length > 32) {
     addLog('error', 'Логин Docker должен быть от 3 до 32 символов');
     return false;
@@ -336,12 +340,7 @@ const validateForm = () => {
     addLog('error', 'Логин Docker должен начинаться с буквы и содержать только строчные буквы, цифры, _ и -');
     return false;
   }
-  
-  // Валидация паролей убрана - доступ только через SSH ключи
-  
 
-  // Валидация ключа шифрования убрана - будет генерироваться автоматически
-  
   return true;
 };
 const resetForm = () => {
