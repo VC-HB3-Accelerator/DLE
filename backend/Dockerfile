@@ -30,7 +30,10 @@ RUN apt-get update && apt-get install -y \
 # Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
 
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn config set npmRegistryServer https://registry.npmjs.org \
+    && yarn config set registry https://registry.npmjs.org \
+    && yarn config set network-timeout 600000 \
+    && yarn install --frozen-lockfile
 
 COPY . .
 

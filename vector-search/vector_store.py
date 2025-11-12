@@ -35,6 +35,28 @@ class VectorStore:
             pickle.dump(meta, f)
         self.index_cache[table_id] = (index, meta)
 
+    def _clear(self, table_id):
+        idx_path = self._index_path(table_id)
+        meta_path = self._meta_path(table_id)
+        for path in (idx_path, meta_path):
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as exc:
+                    print(f"[WARN] Failed to remove {path}: {exc}")
+        self.index_cache.pop(table_id, None)
+
+    def _ensure_index_dimension(self, table_id, index, dim):
+        if index is None:
+            return index
+
+        if index.d == dim:
+            return index
+
+        print(f"[WARN] Dimension mismatch for table {table_id}: index.d={index.d}, expected={dim}. Resetting index.")
+        self._clear(table_id)
+        return None
+
     def upsert(self, table_id, rows: List[Dict]):
         print(f"[DEBUG] VectorStore.upsert called: table_id={table_id}, rows_count={len(rows)}")
         # rows: [{row_id, embedding, metadata}]
@@ -47,7 +69,14 @@ class VectorStore:
             index = faiss.IndexFlatL2(dim)
             meta = []
         else:
-            print(f"[DEBUG] Using existing index")
+            dim = len(rows[0]['embedding'])
+            index = self._ensure_index_dimension(table_id, index, dim)
+            if index is None:
+                print(f"[DEBUG] Re-creating index after dimension mismatch: dim={dim}")
+                index = faiss.IndexFlatL2(dim)
+                meta = []
+            else:
+                print(f"[DEBUG] Using existing index")
             
         # Удаляем дубликаты row_id
         existing_ids = {m['row_id'] for m in meta}
@@ -77,6 +106,12 @@ class VectorStore:
             
         query = np.array([query_embedding]).astype('float32')
         print(f"[DEBUG] Query shape: {query.shape}")
+
+        dim = query.shape[1]
+        index = self._ensure_index_dimension(table_id, index, dim)
+        if index is None:
+            print(f"[DEBUG] Index reset due to dimension mismatch, returning empty results")
+            return []
         
         D, I = index.search(query, top_k)
         print(f"[DEBUG] FAISS search results - D: {D}, I: {I}")

@@ -26,14 +26,28 @@ const PORT = process.env.PORT || 3000;
 const wss = new WebSocket.Server({ 
   server,
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:8000', 'http://127.0.0.1:5173', 'http://127.0.0.1:8000'],
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:8000',
+      'http://localhost:9000',
+      'https://localhost:9443',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:8000'
+    ],
     credentials: true
   }
 });
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:8000', 'http://127.0.0.1:5173', 'http://127.0.0.1:8000'],
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:8000',
+    'http://localhost:9000',
+    'https://localhost:9443',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:8000'
+  ],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));

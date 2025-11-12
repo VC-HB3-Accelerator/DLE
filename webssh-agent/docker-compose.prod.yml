@@ -96,11 +96,15 @@ services:
       - LOG_LEVEL=INFO
     # 🆕 Улучшенный health check с fallback
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || curl -f http://localhost:8001/ || wget -q --spider http://localhost:8001/health || exit 1"]
-      interval: 30s
-      timeout: 15s
-      retries: 15
-      start_period: 180s
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import sys, urllib.request;
+          sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5).getcode() == 200 else 1)"
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   backend:
     image: digital_legal_entitydle-backend:latest
@@ -188,7 +192,17 @@ services:
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt
       - /var/www/certbot:/var/www/certbot
-    command: certonly --webroot --webroot-path=/var/www/certbot --email ${EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
+    command: >-
+      certonly
+      --webroot
+      --webroot-path=/var/www/certbot
+      --email ${EMAIL}
+      --agree-tos
+      --no-eff-email
+      --non-interactive
+      --keep-until-expiring
+      --expand
+      -d ${DOMAIN}
     depends_on:
       - frontend-nginx
 
@@ -217,7 +231,7 @@ services:
       - backend
       - frontend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health", "||", "curl", "-f", "https://localhost:443/health", "||", "exit", "1"]
+      test: ["CMD-SHELL", "curl -k -f https://127.0.0.1/health || curl -f http://127.0.0.1/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
