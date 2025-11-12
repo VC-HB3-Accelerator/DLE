@@ -70,6 +70,12 @@
                 <p>Внутренние документы, видимые только по ролям</p>
                 <button class="details-btn" @click="goToInternal">Подробнее</button>
               </div>
+
+              <div class="management-block">
+                <h3>Системные сообщения</h3>
+                <p>Управляйте уведомлениями, отображаемыми в чате и интерфейсе DLE</p>
+                <button class="details-btn" @click="goToSystemMessages">Подробнее</button>
+              </div>
             </div>
           </div>
         </div>
@@ -138,6 +144,10 @@ function goToInternal() {
 
 function goToContentSettings() {
   router.push({ name: 'content-settings' });
+}
+
+function goToSystemMessages() {
+  router.push({ name: 'content-system-messages-table' });
 }
 
 async function deletePage(id) {

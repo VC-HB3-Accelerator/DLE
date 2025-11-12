@@ -54,7 +54,7 @@ router.post('/read-dle-info', async (req, res) => {
       if (!rpcUrl) {
         return res.status(500).json({ success: false, error: `RPC URL для сети ${targetChainId} не найден` });
       }
-      provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+      provider = new ethers.JsonRpcProvider(rpcUrl);
       const code = await provider.getCode(dleAddress);
       if (!code || code === '0x') {
         return res.status(400).json({ success: false, error: `По адресу ${dleAddress} нет контракта в сети ${targetChainId}` });

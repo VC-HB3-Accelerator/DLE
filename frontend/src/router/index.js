@@ -219,6 +219,11 @@ const routes = [
     component: () => import('../views/content/ContentSettingsView.vue'),
   },
   {
+    path: '/content/system-messages/table',
+    name: 'content-system-messages-table',
+    component: () => import('../views/content/system-messages/SystemMessagesTableView.vue'),
+  },
+  {
     path: '/content/page/:id',
     name: 'page-view',
     component: () => import('../views/content/PageView.vue'),

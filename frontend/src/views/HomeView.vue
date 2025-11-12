@@ -22,7 +22,7 @@
       <!-- Заголовок -->
       <div class="management-header">
         <div class="header-content">
-          <h1>ИИ Ассистент</h1>
+          <h1>Сообщения</h1>
         </div>
       </div>
 

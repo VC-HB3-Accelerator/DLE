@@ -198,7 +198,7 @@ const setAsFooterDle = async () => {
 
   try {
     // Устанавливаем адрес, данные будут загружены из блокчейна
-    await setFooterDle(address);
+    await setFooterDle(address, dleInfo.value?.currentChainId ?? null);
     
     alert(`✅ DLE "${dleInfo.value.name} (${dleInfo.value.symbol})" теперь отображается в футере приложения`);
   } catch (error) {
@@ -220,7 +220,7 @@ const removeFromFooter = async () => {
   }
 
   try {
-    clearFooterDle();
+    await clearFooterDle();
     alert('✅ DLE удален из футера приложения');
   } catch (error) {
     console.error('Ошибка при удалении DLE из футера:', error);
@@ -266,7 +266,8 @@ const loadDLEInfo = async () => {
         name: dleData.name,           // Название DLE из блокчейна
         symbol: dleData.symbol,       // Символ DLE из блокчейна
         address: dleData.dleAddress || address,  // Адрес из API или из URL
-        logoURI: dleData.logoURI || '' // URL логотипа
+        logoURI: dleData.logoURI || '', // URL логотипа
+        currentChainId: Number(dleData.currentChainId) || null
       };
     } else {
       console.error('Ошибка загрузки DLE:', response.data.error);

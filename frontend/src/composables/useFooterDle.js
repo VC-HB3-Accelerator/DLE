@@ -12,45 +12,23 @@
 
 import { ref, provide, inject } from 'vue';
 import api from '../api/axios';
-import { getFromStorage, setToStorage } from '../utils/storage';
 
 // === SINGLETON STATE ===
 const footerDle = ref(null);
 const isLoading = ref(false);
 const selectedDleAddress = ref(null);
 
-// Загрузка адреса выбранного DLE из localStorage при инициализации
-function loadSavedDleAddress() {
-  try {
-    const savedAddress = getFromStorage('footerDleAddress', null);
-    if (savedAddress) {
-      selectedDleAddress.value = savedAddress;
-      // Загружаем актуальные данные из блокчейна
-      loadDleFromBlockchain(savedAddress).then((loadedDle) => {
-        if (loadedDle) {
-          footerDle.value = loadedDle;
-        }
-      });
-    }
-  } catch (error) {
-    console.warn('[useFooterDle] Ошибка при загрузке адреса из localStorage:', error);
-  }
-}
-
-// Инициализация при загрузке модуля
-loadSavedDleAddress();
-
-// === API ===
-
 /**
  * Загружает данные DLE из блокчейна по адресу
  */
-async function loadDleFromBlockchain(dleAddress) {
+async function loadDleFromBlockchain(dleAddress, chainId = null) {
   try {
-    isLoading.value = true;
-    const response = await api.post('/blockchain/read-dle-info', {
-      dleAddress: dleAddress
-    });
+    const payload = { dleAddress };
+    if (chainId !== undefined && chainId !== null) {
+      payload.chainId = chainId;
+    }
+
+    const response = await api.post('/blockchain/read-dle-info', payload);
     
     if (response.data.success) {
       const blockchainData = response.data.data;
@@ -58,78 +36,101 @@ async function loadDleFromBlockchain(dleAddress) {
         address: dleAddress,
         name: blockchainData.name || '',
         symbol: blockchainData.symbol || '',
-        logoURI: blockchainData.logoURI || ''
+        logoURI: blockchainData.logoURI || '',
+        chainId: blockchainData.currentChainId ?? chainId ?? null
       };
     }
     return null;
   } catch (error) {
     console.error('[useFooterDle] Ошибка при загрузке DLE из блокчейна:', error);
     return null;
+  }
+}
+
+/**
+ * Загружает текущее значение футера из backend
+ */
+async function fetchFooterSelection() {
+  try {
+    isLoading.value = true;
+    const response = await api.get('/settings/footer-dle');
+    const selection = response.data?.data || null;
+
+    if (selection && selection.address) {
+      selectedDleAddress.value = selection.address;
+      const loadedDle = await loadDleFromBlockchain(selection.address, selection.chainId ?? null);
+
+      if (loadedDle) {
+        footerDle.value = loadedDle;
+      } else {
+        footerDle.value = {
+          address: selection.address,
+          name: '',
+          symbol: '',
+          logoURI: '',
+          chainId: selection.chainId ?? null
+        };
+      }
+    } else {
+      selectedDleAddress.value = null;
+      footerDle.value = null;
+    }
+  } catch (error) {
+    console.error('[useFooterDle] Ошибка при получении footer DLE с backend:', error);
   } finally {
     isLoading.value = false;
   }
 }
 
 /**
- * Устанавливает выбранный DLE для отображения в футере
- * Сохраняет только адрес, данные всегда загружаются из блокчейна
+ * Устанавливает выбранный DLE для отображения в футере через backend
  * @param {string} dleAddress - Адрес DLE
  */
-async function setFooterDle(dleAddress) {
+async function setFooterDle(dleAddress, chainId = null) {
   if (!dleAddress) {
-    footerDle.value = null;
-    selectedDleAddress.value = null;
-    // Удаляем из localStorage
-    try {
-      setToStorage('footerDleAddress', null);
-    } catch (error) {
-      console.warn('[useFooterDle] Ошибка при удалении из localStorage:', error);
-    }
-    return;
+    return clearFooterDle();
   }
 
-  // Сохраняем только адрес
-  selectedDleAddress.value = dleAddress;
-  setToStorage('footerDleAddress', dleAddress);
-
-  // Всегда загружаем актуальные данные из блокчейна
-  const loadedDle = await loadDleFromBlockchain(dleAddress);
-  if (loadedDle) {
-    footerDle.value = loadedDle;
-  } else {
-    // Если не удалось загрузить, очищаем состояние
-    footerDle.value = null;
+  try {
+    isLoading.value = true;
+    await api.post('/settings/footer-dle', {
+      dleAddress,
+      chainId: chainId ?? null
+    });
+    await fetchFooterSelection();
+  } catch (error) {
+    console.error('[useFooterDle] Ошибка при сохранении footer DLE:', error);
+    throw error;
+  } finally {
+    isLoading.value = false;
   }
 }
 
 /**
- * Обновляет данные выбранного DLE из блокчейна
- * Используется для периодического обновления или при необходимости
+ * Обновляет данные выбранного DLE, синхронизируя их с backend и блокчейном
  */
 async function refreshFooterDle() {
-  if (!selectedDleAddress.value) {
-    return;
-  }
-
-  const loadedDle = await loadDleFromBlockchain(selectedDleAddress.value);
-  if (loadedDle) {
-    footerDle.value = loadedDle;
-  }
+  await fetchFooterSelection();
 }
 
 /**
  * Очищает выбранный DLE
  */
-function clearFooterDle() {
-  footerDle.value = null;
-  selectedDleAddress.value = null;
-  // Удаляем адрес из localStorage
+async function clearFooterDle() {
   try {
-    setToStorage('footerDleAddress', null);
+    isLoading.value = true;
+    await api.delete('/settings/footer-dle');
+    await fetchFooterSelection();
   } catch (error) {
-    console.warn('[useFooterDle] Ошибка при очистке localStorage:', error);
+    console.error('[useFooterDle] Ошибка при очистке footer DLE:', error);
+    throw error;
+  } finally {
+    isLoading.value = false;
   }
 }
+
+// Первичная загрузка при инициализации
+fetchFooterSelection();
 
 // === SINGLETON API ===
 const footerDleApi = {

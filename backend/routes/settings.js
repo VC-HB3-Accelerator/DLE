@@ -52,10 +52,69 @@ const aiAssistantSettingsService = require('../services/aiAssistantSettingsServi
 const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botsSettings = require('../services/botsSettings');
 const dbSettingsService = require('../services/dbSettingsService');
+const footerDleService = require('../services/footerDleService');
 const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
 
 // Логируем версию ethers для отладки
 logger.info(`Ethers version: ${ethers.version || 'unknown'}`);
+
+// === FOOTER DLE SELECTION ===================================================
+
+router.get('/footer-dle', async (req, res) => {
+  try {
+    const selection = await footerDleService.getFooterSelection();
+    res.json({ success: true, data: selection });
+  } catch (error) {
+    logger.error('[Settings] Ошибка при получении footer DLE:', error);
+    res.status(500).json({ success: false, error: 'Не удалось получить выбранный DLE для футера' });
+  }
+});
+
+router.post('/footer-dle', requireAdmin, async (req, res) => {
+  try {
+    const { dleAddress, chainId } = req.body || {};
+
+    if (!dleAddress) {
+      return res.status(400).json({ success: false, error: 'Необходимо указать адрес DLE' });
+    }
+
+    if (!ethers.isAddress(dleAddress)) {
+      return res.status(400).json({ success: false, error: 'Указан некорректный адрес DLE' });
+    }
+
+    let normalizedChainId = null;
+    if (chainId !== undefined && chainId !== null && chainId !== '') {
+      const parsed = Number(chainId);
+      if (!Number.isFinite(parsed)) {
+        return res.status(400).json({ success: false, error: 'Некорректный chainId' });
+      }
+      normalizedChainId = parsed;
+    }
+
+    const updatedBy = req.session?.address || req.session?.userId || null;
+    const selection = await footerDleService.setFooterSelection({
+      address: ethers.getAddress(dleAddress),
+      chainId: normalizedChainId,
+      updatedBy,
+    });
+
+    res.json({ success: true, data: selection });
+  } catch (error) {
+    logger.error('[Settings] Ошибка при сохранении footer DLE:', error);
+    res.status(500).json({ success: false, error: 'Не удалось сохранить выбранный DLE для футера' });
+  }
+});
+
+router.delete('/footer-dle', requireAdmin, async (req, res) => {
+  try {
+    const updatedBy = req.session?.address || req.session?.userId || null;
+    const selection = await footerDleService.clearFooterSelection(updatedBy);
+    res.json({ success: true, data: selection });
+  } catch (error) {
+    logger.error('[Settings] Ошибка при очистке footer DLE:', error);
+    res.status(500).json({ success: false, error: 'Не удалось очистить выбранный DLE для футера' });
+  }
+});
 
 // Получение RPC настроек
 router.get('/rpc', async (req, res, next) => {
