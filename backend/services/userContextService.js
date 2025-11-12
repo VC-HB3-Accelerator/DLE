@@ -40,7 +40,7 @@ async function getUserTags(userId) {
     }
 
     // Гостевые пользователи не имеют тегов
-    if (typeof userId === 'string' && userId.startsWith('guest_')) {
+    if (isGuestId(userId)) {
       return [];
     }
 
@@ -164,7 +164,7 @@ async function getUserContext(userId) {
     }
 
     // Гостевые пользователи
-    if (typeof userId === 'string' && userId.startsWith('guest_')) {
+    if (isGuestId(userId)) {
       return {
         id: userId,
         name: null,
@@ -228,6 +228,26 @@ async function getUserContext(userId) {
 }
 
 /**
+ * Проверяет, является ли идентификатор гостевым (строковым)
+ * @param {unknown} userId
+ * @returns {boolean}
+ */
+function isGuestId(userId) {
+  if (typeof userId !== 'string') {
+    return false;
+  }
+
+  const normalized = userId.trim();
+  return (
+    normalized.startsWith('guest_') ||
+    normalized.startsWith('web:guest_') ||
+    normalized.startsWith('telegram:guest_') ||
+    normalized.startsWith('email:guest_') ||
+    normalized.includes(':guest_')
+  );
+}
+
+/**
  * Инвалидация кэша для пользователя
  * @param {number} userId - ID пользователя
  */
@@ -270,6 +290,7 @@ module.exports = {
   getUserContext,
   invalidateUserCache,
   clearCache,
-  getCacheStats
+  getCacheStats,
+  isGuestId
 };
 

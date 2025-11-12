@@ -112,7 +112,7 @@ class AIAssistant {
       let userNameForProfile = null;
       let shouldAskForName = false;
       let profileAnalysis = null;
-      if (userId && (typeof userId !== 'string' || !userId.toString().startsWith('guest_'))) {
+      if (userId && !userContextService.isGuestId(userId)) {
         try {
           profileAnalysis = await profileAnalysisService.analyzeUserMessage(userId, userQuestion);
           const tagsDisplay = profileAnalysis.currentTagNames && profileAnalysis.currentTagNames.length > 0 
@@ -266,7 +266,7 @@ class AIAssistant {
       // 5. Генерируем LLM ответ
       const { generateLLMResponse } = require('./ragService');
       // Получаем актуальную информацию о пользователе для LLM
-      if (!userNameForProfile && userId && (typeof userId !== 'string' || !userId.toString().startsWith('guest_'))) {
+      if (!userNameForProfile && userId && !userContextService.isGuestId(userId)) {
         try {
           const userContext = await userContextService.getUserContext(userId);
           if (userContext) {

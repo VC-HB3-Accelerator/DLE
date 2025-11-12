@@ -115,6 +115,7 @@ const app = express();
 // Указываем хост явно
 app.set('host', '0.0.0.0');
 app.set('port', process.env.PORT || 8000);
+app.set('trust proxy', true);
 
 // Настройка CORS
 const corsOrigins = process.env.NODE_ENV === 'production' 

@@ -426,7 +426,7 @@ async function analyzeUserMessage(userId, message) {
     logger.info(`[ProfileAnalysis] Сообщение пользователя ${userId}: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
 
     const DEFAULT_TAG_NAME = 'Без лицензии';
-    const isGuest = typeof userId === 'string' && userId.startsWith('guest_');
+    const isGuest = userContextService.isGuestId(userId);
 
     let currentContext = null;
     let currentName = null;
