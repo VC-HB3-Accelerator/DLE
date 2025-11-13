@@ -17,7 +17,8 @@
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup-template.sh | bash
 ```
 
-# 4. Запуск приложения
+###  Запуск приложения
+```bash
 docker-compose up -d
 ```
 
