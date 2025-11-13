@@ -8,13 +8,19 @@ echo "🔧 Настройка nginx с параметрами:"
 echo "   DOMAIN: $DOMAIN"
 echo "   BACKEND_CONTAINER: $BACKEND_CONTAINER"
 
-# Выбор конфигурации в зависимости от домена
+# Выбор конфигурации
+SSL_CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+SSL_KEY_PATH="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+
 if echo "$DOMAIN" | grep -qE '^localhost(:[0-9]+)?$|^production\.local$'; then
     echo "   Режим: ЛОКАЛЬНАЯ РАЗРАБОТКА (без SSL)"
     TEMPLATE_FILE="/etc/nginx/nginx-local.conf.template"
-else
-    echo "   Режим: ПРОДАКШН (с SSL)"
+elif [ -f "$SSL_CERT_PATH" ] && [ -f "$SSL_KEY_PATH" ]; then
+    echo "   Режим: ПРОДАКШН (SSL сертификаты найдены)"
     TEMPLATE_FILE="/etc/nginx/nginx-ssl.conf.template"
+else
+    echo "   Режим: ПРОДАКШН (ожидаем выпуск SSL, работаем по HTTP)"
+    TEMPLATE_FILE="/etc/nginx/nginx-local.conf.template"
 fi
 
 # Обработка переменных окружения для nginx конфигурации

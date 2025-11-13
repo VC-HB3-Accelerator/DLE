@@ -216,21 +216,21 @@ app.post('/vds/transfer-encryption-key', logRequest, async (req, res) => {
       sshConnectPassword
     };
     
-    // 1. Проверяем, что директория для ключа существует на VDS
-    log.info('🔍 Проверка директории для ключа шифрования...');
-    const dirCheckResult = await execSshCommand(`ls -la /home/${dockerUser}/dapp/ssl/keys/`, options);
-    
-    if (dirCheckResult.code !== 0) {
-      log.error('❌ Директория для ключа шифрования не найдена на VDS');
+    // 1. Убеждаемся, что директория для ключа существует на VDS
+    log.info('🔍 Подготовка директории для ключа шифрования на VDS...');
+    const ensureDirResult = await execSshCommand(`mkdir -p /home/${dockerUser}/dapp/ssl/keys`, options);
+    if (ensureDirResult.code !== 0) {
+      log.error('❌ Не удалось подготовить директорию для ключа шифрования на VDS');
       return res.status(500).json({
         success: false,
-        message: 'Директория для ключа шифрования не найдена на VDS. Сначала выполните настройку VDS.'
+        message: 'Не удалось подготовить директорию для ключа шифрования на VDS'
       });
     }
     
     // 2. Читаем ключ шифрования с локальной машины
     log.info('📖 Чтение ключа шифрования с локальной машины...');
-    const encryptionKeyPath = '/home/alex/Digital_Legal_Entity(DLE)/ssl/keys/full_db_encryption.key';
+    const encryptionKeyPath = process.env.ENCRYPTION_KEY_PATH 
+      || path.resolve(__dirname, '..', 'ssl', 'keys', 'full_db_encryption.key');
     
     try {
       const encryptionKeyContent = await fs.readFile(encryptionKeyPath, 'utf8');
@@ -442,12 +442,10 @@ findtime = 3600
     log.info('Nginx конфигурация встроена в Docker образ frontend-nginx');
     log.info('Конфигурация будет применена автоматически при запуске контейнера');
     
-    // Проверяем наличие необходимых переменных окружения для nginx
     if (!domain || !email) {
       log.error('Критическая ошибка: отсутствуют обязательные переменные DOMAIN или EMAIL для nginx');
       throw new Error('Необходимы переменные DOMAIN и EMAIL для настройки nginx');
     }
-    
     log.success(`Nginx будет настроен для домена: ${domain} с email: ${email}`);
     
     // 14. 🆕 Создание полного .env файла со всеми переменными окружения
@@ -502,6 +500,32 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     // 16.0. 🆕 Получение реального SSL сертификата через Let's Encrypt (опционально)
     log.info('Получение реального SSL сертификата через Let\'s Encrypt...');
     
+    // Убеждаемся, что challenge доступен по HTTP
+    log.info('Проверяем доступность HTTP challenge для Let\'s Encrypt...');
+    await execSshCommand('mkdir -p /var/www/certbot/.well-known/acme-challenge', options);
+    const challengeToken = `agent-challenge-${Date.now()}`;
+    await execSshCommand(`echo 'challenge-ok' > /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
+    let tempHttpContainerStarted = false;
+    let challengeCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken}`, options);
+    
+    if (challengeCheck.code !== 0) {
+      log.warn('HTTP challenge недоступен. Запускаю временный nginx на 80 порту...');
+      await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml stop frontend-nginx || true`, options);
+      await execSshCommand('docker rm -f dle-certbot-http 2>/dev/null || true', options);
+      const tempNginxStart = await execSshCommand('docker run -d --name dle-certbot-http -p 80:80 -v /var/www/certbot:/usr/share/nginx/html:ro nginx:alpine', options);
+      if (tempNginxStart.code === 0) {
+        tempHttpContainerStarted = true;
+        await execSshCommand('sleep 3', options);
+        challengeCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken}`, options);
+      } else {
+        log.warn('Не удалось запустить временный nginx для challenge: ' + tempNginxStart.stderr);
+      }
+    } else {
+      log.success('HTTP challenge доступен через frontend-nginx');
+    }
+    
+    await execSshCommand(`rm -f /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
+    
     // Получаем SSL сертификат через certbot
     const certbotResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot`, options);
     
@@ -510,6 +534,12 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     } else {
       log.warn('Предупреждение при получении реального SSL сертификата: ' + certbotResult.stderr);
       log.info('Будет использоваться временный самоподписанный сертификат');
+    }
+    
+    if (tempHttpContainerStarted) {
+      log.info('Останавливаю временный HTTP контейнер для challenge');
+      await execSshCommand('docker rm -f dle-certbot-http || true', options);
+      await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d frontend-nginx`, options);
     }
     
     // Настройка автоматического обновления SSL сертификатов

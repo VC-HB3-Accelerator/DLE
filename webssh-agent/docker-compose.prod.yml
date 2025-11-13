@@ -224,7 +224,7 @@ services:
       - WS_BACKEND_CONTAINER=dapp-backend
     volumes:
       # SSL сертификаты Let's Encrypt (автоматически обновляются)
-      - /etc/letsencrypt:/etc/ssl/certs:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       # Webroot для certbot
       - /var/www/certbot:/var/www/certbot
     depends_on:
