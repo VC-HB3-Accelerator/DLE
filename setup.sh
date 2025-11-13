@@ -24,6 +24,27 @@ print_red() {
   echo -e "\e[31m$1\e[0m"
 }
 
+ARCHIVE_VERSION="v1.0.0"
+ARCHIVE_BASE_URL="https://github.com/VC-HB3-Accelerator/DLE/releases/download/${ARCHIVE_VERSION}"
+ARCHIVE_PARTS=(
+  "dle-template.tar.gz.part-aa"
+  "dle-template.tar.gz.part-ab"
+  "dle-template.tar.gz.part-ac"
+  "dle-template.tar.gz.part-ad"
+  "dle-template.tar.gz.part-ae"
+)
+
+# Проверка curl
+check_curl() {
+  print_blue "🔍 Проверка наличия curl..."
+  if ! command -v curl &> /dev/null; then
+    print_red "❌ Утилита curl не найдена!"
+    print_yellow "Установите curl: https://curl.se/download.html"
+    exit 1
+  fi
+  print_green "✅ curl установлен"
+}
+
 # Проверка Docker
 check_docker() {
   print_blue "🔍 Проверка Docker..."
@@ -72,6 +93,57 @@ download_repo() {
   git clone https://github.com/VC-HB3-Accelerator/DLE.git
   cd DLE
   print_green "✅ Репозиторий скачан"
+}
+
+# Загрузка частей архива docker-data
+download_archive_parts() {
+  print_blue "📥 Загрузка docker-data из релиза..."
+
+  local tmp_dir
+  tmp_dir=$(mktemp -d)
+
+  print_blue "Используем временную директорию: $tmp_dir"
+
+  for part in "${ARCHIVE_PARTS[@]}"; do
+    local url="${ARCHIVE_BASE_URL}/${part}"
+    print_blue "⇣ Загрузка ${part}..."
+    if ! curl -fL --retry 3 --continue-at - --output "${tmp_dir}/${part}" "${url}"; then
+      print_red "❌ Не удалось скачать ${part}"
+      print_yellow "Проверьте подключение к сети или доступность релиза ${ARCHIVE_VERSION}"
+      rm -rf "${tmp_dir}"
+      exit 1
+    fi
+  done
+
+  print_blue "🧩 Сборка архива dle-template.tar.gz..."
+  cat "${tmp_dir}"/dle-template.tar.gz.part-* > "${tmp_dir}/dle-template.tar.gz"
+
+  print_blue "🧹 Очистка предыдущих данных docker-data..."
+  rm -rf docker-data
+
+  print_blue "📦 Распаковка docker-data..."
+  if tar -xzf "${tmp_dir}/dle-template.tar.gz" -C .; then
+    print_green "✅ docker-data успешно распакован"
+  else
+    print_red "❌ Ошибка распаковки docker-data"
+    rm -rf "${tmp_dir}"
+    exit 1
+  fi
+
+  rm -rf "${tmp_dir}"
+}
+
+# Проверка наличия docker-data, загрузка при необходимости
+ensure_docker_data() {
+  print_blue "🔍 Проверка наличия docker-data..."
+  if [ -d "docker-data/images" ] && [ -d "docker-data/volumes" ]; then
+    print_green "✅ Папка docker-data найдена локально"
+    return
+  fi
+
+  print_yellow "⚠️  Папка docker-data отсутствует. Будет выполнена загрузка частей архива."
+  check_curl
+  download_archive_parts
 }
 
 # Проверка файлов образов
@@ -220,6 +292,7 @@ main() {
   
   # Скачивание
   download_repo
+  ensure_docker_data
   
   # Проверка файлов
   check_images
