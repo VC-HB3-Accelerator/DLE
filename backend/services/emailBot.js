@@ -33,6 +33,7 @@ class EmailBot {
     this.status = 'inactive';
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
+    this.periodicCheckInterval = null;
   }
 
   /**
@@ -154,7 +155,9 @@ class EmailBot {
         authTimeout: 60000,
         greetingTimeout: 30000,
         socketTimeout: 60000,
-        debug: false
+        debug: (info) => {
+          logger.debug(`[EmailBot IMAP] ${info}`);
+        }
       });
 
       // Настраиваем обработчики событий
@@ -177,6 +180,8 @@ class EmailBot {
       logger.info('[EmailBot] IMAP соединение установлено');
       this.reconnectAttempts = 0;
       this.checkEmails();
+      // Запускаем периодическую проверку новых писем каждые 5 минут
+      this.startPeriodicCheck();
     });
     
     this.imap.once('end', () => {
@@ -200,6 +205,9 @@ class EmailBot {
    * Очистка IMAP соединения
    */
   cleanupImap() {
+    // Останавливаем периодическую проверку
+    this.stopPeriodicCheck();
+    
     if (this.imap) {
       try {
         this.imap.removeAllListeners('error');
@@ -245,21 +253,65 @@ class EmailBot {
   }
 
   /**
+   * Запуск периодической проверки новых писем
+   */
+  startPeriodicCheck() {
+    // Останавливаем предыдущий интервал, если он есть
+    this.stopPeriodicCheck();
+    
+    // Проверяем новые письма каждые 5 минут
+    this.periodicCheckInterval = setInterval(() => {
+      if (this.imap && this.imap.state === 'authenticated') {
+        logger.info('[EmailBot] Периодическая проверка новых писем...');
+        this.checkEmails();
+      } else {
+        logger.warn('[EmailBot] IMAP соединение не активно, пропускаем периодическую проверку');
+      }
+    }, 5 * 60 * 1000); // 5 минут
+    
+    logger.info('[EmailBot] Периодическая проверка новых писем запущена (каждые 5 минут)');
+  }
+
+  /**
+   * Остановка периодической проверки
+   */
+  stopPeriodicCheck() {
+    if (this.periodicCheckInterval) {
+      clearInterval(this.periodicCheckInterval);
+      this.periodicCheckInterval = null;
+      logger.info('[EmailBot] Периодическая проверка остановлена');
+    }
+  }
+
+  /**
    * Проверка входящих писем
    */
   checkEmails() {
     try {
+      logger.info('[EmailBot] Проверка входящих писем...');
       this.imap.openBox('INBOX', false, (err, box) => {
         if (err) {
           logger.error('[EmailBot] Ошибка открытия INBOX:', err);
           return;
         }
 
-        this.imap.search(['ALL'], (err, results) => {
-          if (err || !results || results.length === 0) {
-            this.imap.end();
+        logger.info(`[EmailBot] INBOX открыт. Всего сообщений: ${box.messages.total}`);
+        
+        // Ищем только непрочитанные сообщения (UNSEEN)
+        this.imap.search(['UNSEEN'], (err, results) => {
+          if (err) {
+            logger.error('[EmailBot] Ошибка поиска писем:', err);
+            // Не закрываем соединение при ошибке поиска, оставляем его открытым для keepalive
             return;
           }
+          
+          if (!results || results.length === 0) {
+            logger.info('[EmailBot] Новых непрочитанных писем нет');
+            // Не закрываем соединение, оставляем его открытым для keepalive
+            return;
+          }
+
+          logger.info(`[EmailBot] Найдено ${results.length} непрочитанных писем`);
 
           const f = this.imap.fetch(results, { 
             bodies: '',
@@ -284,9 +336,11 @@ class EmailBot {
             msg.on('body', (stream, info) => {
               simpleParser(stream, async (err, parsed) => {
                 if (err) {
+                  logger.error(`[EmailBot] Ошибка парсинга письма ${seqno}:`, err);
                   processedCount++;
                   if (processedCount >= totalMessages) {
-                    this.imap.end();
+                    logger.info('[EmailBot] Обработка всех писем завершена');
+                    // Не закрываем соединение, оставляем его открытым для keepalive
                   }
                   return;
                 }
@@ -295,29 +349,44 @@ class EmailBot {
                   messageId = parsed.messageId;
                 }
                 
+                const fromEmail = parsed.from?.value?.[0]?.address;
+                logger.info(`[EmailBot] Обработка письма ${seqno} от ${fromEmail || 'неизвестного отправителя'}`);
+                
                 const messageData = await this.extractMessageData(parsed, messageId, uid);
                 if (messageData && this.messageProcessor) {
-                  // Обрабатываем сообщение через унифицированный процессор
-                  // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
-                  const result = await this.messageProcessor(messageData);
-                  
-                  // Если есть ответ ИИ с информацией о согласиях, отправляем email
-                  if (result && result.success && result.aiResponse) {
-                    const fromEmail = parsed.from?.value?.[0]?.address;
-                    if (fromEmail) {
-                      // Ответ ИИ уже содержит системное сообщение о согласиях (если нужно)
-                      await this.sendEmail(
-                        fromEmail,
-                        'Ответ на ваше сообщение',
-                        result.aiResponse.response
-                      );
+                  try {
+                    // Обрабатываем сообщение через унифицированный процессор
+                    // Системное сообщение о согласиях будет добавлено к ответу ИИ внутри процессора
+                    const result = await this.messageProcessor(messageData);
+                    logger.info(`[EmailBot] Письмо ${seqno} обработано успешно`);
+                    
+                    // Если есть ответ ИИ с информацией о согласиях, отправляем email
+                    if (result && result.success && result.aiResponse) {
+                      if (fromEmail) {
+                        logger.info(`[EmailBot] Отправка ответа ИИ на ${fromEmail}`);
+                        // Ответ ИИ уже содержит системное сообщение о согласиях (если нужно)
+                        await this.sendEmail(
+                          fromEmail,
+                          'Ответ на ваше сообщение',
+                          result.aiResponse.response
+                        );
+                      }
                     }
+                  } catch (processError) {
+                    logger.error(`[EmailBot] Ошибка обработки письма ${seqno}:`, processError);
+                  }
+                } else {
+                  if (!messageData) {
+                    logger.warn(`[EmailBot] Письмо ${seqno} отфильтровано (системное или некорректное)`);
+                  } else if (!this.messageProcessor) {
+                    logger.warn('[EmailBot] messageProcessor не установлен, письмо не обработано');
                   }
                 }
                 
                 processedCount++;
                 if (processedCount >= totalMessages) {
-                  this.imap.end();
+                  logger.info('[EmailBot] Обработка всех писем завершена');
+                  // Не закрываем соединение, оставляем его открытым для keepalive
                 }
               });
             });
@@ -325,7 +394,7 @@ class EmailBot {
           
           f.once('error', (err) => {
             logger.error('[EmailBot] Ошибка получения писем:', err);
-            this.imap.end();
+            // Не закрываем соединение при ошибке fetch, оставляем его открытым для keepalive
           });
         });
       });

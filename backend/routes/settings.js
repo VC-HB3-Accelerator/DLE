@@ -622,12 +622,25 @@ router.put('/email-settings', requireAdmin, async (req, res, next) => {
       is_active 
     } = req.body;
     
-    // Валидация обязательных полей
-    if (!imap_host || !imap_port || !imap_user || !imap_password || 
-        !smtp_host || !smtp_port || !smtp_user || !smtp_password || !from_email) {
+    // Загрузка текущих настроек (нужна для сохранения старых паролей)
+    const currentSettings = await botsSettings.getBotSettings('email');
+
+    // Валидация обязательных полей (пароли могут быть опущены, если уже сохранены)
+    if (!imap_host || !imap_port || !imap_user || 
+        !smtp_host || !smtp_port || !smtp_user || !from_email) {
       return res.status(400).json({ 
         success: false, 
         error: 'Все поля обязательны для заполнения' 
+      });
+    }
+
+    const finalImapPassword = imap_password || currentSettings?.imap_password;
+    const finalSmtpPassword = smtp_password || currentSettings?.smtp_password;
+
+    if (!finalImapPassword || !finalSmtpPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Необходимо указать IMAP и SMTP пароли'
       });
     }
     
@@ -635,11 +648,11 @@ router.put('/email-settings', requireAdmin, async (req, res, next) => {
       imap_host,
       imap_port: parseInt(imap_port),
       imap_user,
-      imap_password,
+      imap_password: finalImapPassword,
       smtp_host,
       smtp_port: parseInt(smtp_port),
       smtp_user,
-      smtp_password,
+      smtp_password: finalSmtpPassword,
       from_email,
       is_active: is_active !== undefined ? is_active : true,
       updated_at: new Date()

@@ -239,20 +239,33 @@ router.get('/', requireAuth, async (req, res, next) => {
           decrypt_text(identifier_encrypted, $1) as guest_identifier,
           channel,
           created_at,
-          user_id
+          user_id,
+          metadata
         FROM unified_guest_messages
         WHERE user_id IS NULL
       ),
-      guest_groups AS (
-        SELECT 
-          MIN(id) as guest_id,
+      first_messages AS (
+        SELECT DISTINCT ON (guest_identifier, channel)
+          id as guest_id,
           guest_identifier,
           channel,
-          MIN(created_at) as created_at,
-          MAX(created_at) as last_message_at,
-          COUNT(*) as message_count
+          metadata,
+          created_at
         FROM decrypted_guests
-        GROUP BY guest_identifier, channel
+        ORDER BY guest_identifier, channel, id ASC
+      ),
+      guest_groups AS (
+        SELECT 
+          fm.guest_id,
+          fm.guest_identifier,
+          fm.channel,
+          fm.metadata,
+          fm.created_at,
+          MAX(dg.created_at) as last_message_at,
+          COUNT(*) as message_count
+        FROM first_messages fm
+        JOIN decrypted_guests dg ON dg.guest_identifier = fm.guest_identifier AND dg.channel = fm.channel
+        GROUP BY fm.guest_id, fm.guest_identifier, fm.channel, fm.metadata, fm.created_at
       )
       SELECT 
         ROW_NUMBER() OVER (ORDER BY guest_id ASC) as guest_number,
@@ -261,7 +274,8 @@ router.get('/', requireAuth, async (req, res, next) => {
         channel,
         created_at,
         last_message_at,
-        message_count
+        message_count,
+        metadata
       FROM guest_groups
       ORDER BY guest_id ASC`,
       [encryptionKey]
@@ -276,9 +290,21 @@ router.get('/', requireAuth, async (req, res, next) => {
       const icon = channelMap[g.channel] || '👤';
       const rawId = g.guest_identifier.replace(`${g.channel}:`, '');
       
-      // Формируем имя в зависимости от канала
+      // Проверяем, есть ли кастомное имя в metadata
+      let metadata = g.metadata || {};
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          metadata = {};
+        }
+      }
+      
+      // Формируем имя: сначала проверяем кастомное имя, затем генерируем автоматически
       let displayName;
-      if (g.channel === 'email') {
+      if (metadata.custom_name) {
+        displayName = metadata.custom_name;
+      } else if (g.channel === 'email') {
         displayName = `${icon} ${rawId}`;
       } else if (g.channel === 'telegram') {
         displayName = `${icon} Telegram (${rawId})`;
@@ -456,13 +482,120 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
   try {
     const userId = req.params.id;
     const { first_name, last_name, name, preferred_language, language, is_blocked } = req.body;
-    const fields = [];
-    const values = [];
-    let idx = 1;
     
     // Получаем ключ шифрования один раз
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Обработка гостевых контактов (guest_123)
+    if (userId.startsWith('guest_')) {
+      const guestId = parseInt(userId.replace('guest_', ''));
+      
+      if (isNaN(guestId)) {
+        return res.status(400).json({ success: false, error: 'Invalid guest ID format' });
+      }
+      
+      // Проверяем, существует ли гость и получаем его идентификатор
+      const guestResult = await db.getQuery()(
+        `WITH decrypted_guest AS (
+          SELECT 
+            id,
+            decrypt_text(identifier_encrypted, $2) as guest_identifier,
+            channel,
+            metadata
+          FROM unified_guest_messages
+          WHERE user_id IS NULL
+        )
+        SELECT 
+          id as first_message_id,
+          guest_identifier,
+          channel,
+          metadata
+        FROM decrypted_guest
+        WHERE id = $1
+        LIMIT 1`,
+        [guestId, encryptionKey]
+      );
+      
+      if (guestResult.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Guest contact not found' });
+      }
+      
+      const guest = guestResult.rows[0];
+      const firstMessageId = guest.first_message_id;
+      let metadata = guest.metadata || {};
+      
+      // Если metadata - строка, парсим её
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          metadata = {};
+        }
+      }
+      
+      // Обработка имени гостя
+      let hasUpdates = false;
+      if (name !== undefined) {
+        const nameParts = name.trim().split(' ');
+        metadata.custom_name = name.trim();
+        metadata.custom_first_name = nameParts[0] || '';
+        metadata.custom_last_name = nameParts.slice(1).join(' ') || '';
+        hasUpdates = true;
+      } else {
+        if (first_name !== undefined) {
+          metadata.custom_first_name = first_name;
+          // Обновляем полное имя, если есть
+          if (metadata.custom_last_name) {
+            metadata.custom_name = `${first_name} ${metadata.custom_last_name}`.trim();
+          } else {
+            metadata.custom_name = first_name;
+          }
+          hasUpdates = true;
+        }
+        if (last_name !== undefined) {
+          metadata.custom_last_name = last_name;
+          // Обновляем полное имя, если есть
+          if (metadata.custom_first_name) {
+            metadata.custom_name = `${metadata.custom_first_name} ${last_name}`.trim();
+          } else {
+            metadata.custom_name = last_name;
+          }
+          hasUpdates = true;
+        }
+      }
+      
+      // Если имя пустое, удаляем кастомное имя
+      if (name === '' || (first_name === '' && last_name === '')) {
+        delete metadata.custom_name;
+        delete metadata.custom_first_name;
+        delete metadata.custom_last_name;
+        hasUpdates = true;
+      }
+      
+      if (!hasUpdates) {
+        return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
+      }
+      
+      // Обновляем metadata первого сообщения гостя
+      await db.getQuery()(
+        `UPDATE unified_guest_messages 
+         SET metadata = $1 
+         WHERE id = $2`,
+        [JSON.stringify(metadata), firstMessageId]
+      );
+      
+      broadcastContactsUpdate();
+      return res.json({ 
+        success: true, 
+        message: 'Имя гостя обновлено'
+      });
+    }
+    
+    // Обработка обычных пользователей
+    const fields = [];
+    const values = [];
+    let idx = 1;
     
     // Обработка поля name - разбиваем на first_name и last_name
     if (name !== undefined) {
@@ -504,8 +637,15 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
       }
     }
     if (!fields.length) return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
+    
+    // Проверяем, что userId - это число
+    const userIdNum = Number(userId);
+    if (isNaN(userIdNum)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID format' });
+    }
+    
     const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`;
-    values.push(userId);
+    values.push(userIdNum);
     await db.query(sql, values);
     broadcastContactsUpdate();
     res.json({ success: true, message: 'Пользователь обновлен' });
@@ -652,20 +792,22 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
             decrypt_text(identifier_encrypted, $2) as guest_identifier,
             channel,
             created_at,
-            user_id
+            user_id,
+            metadata
           FROM unified_guest_messages
           WHERE user_id IS NULL
         )
         SELECT 
-          MIN(id) as guest_id,
+          id as guest_id,
           guest_identifier,
           channel,
-          MIN(created_at) as created_at,
-          MAX(created_at) as last_message_at,
-          COUNT(*) as message_count
+          created_at,
+          (SELECT MAX(created_at) FROM decrypted_guest dg2 WHERE dg2.guest_identifier = decrypted_guest.guest_identifier AND dg2.channel = decrypted_guest.channel) as last_message_at,
+          (SELECT COUNT(*) FROM decrypted_guest dg2 WHERE dg2.guest_identifier = decrypted_guest.guest_identifier AND dg2.channel = decrypted_guest.channel) as message_count,
+          metadata
         FROM decrypted_guest
-        GROUP BY guest_identifier, channel
-        HAVING MIN(id) = $1`,
+        WHERE id = $1
+        LIMIT 1`,
         [guestId, encryptionKey]
       );
 
@@ -682,9 +824,21 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
       };
       const icon = channelMap[guest.channel] || '👤';
       
-      // Формируем имя в зависимости от канала
+      // Проверяем, есть ли кастомное имя в metadata
+      let metadata = guest.metadata || {};
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          metadata = {};
+        }
+      }
+      
+      // Формируем имя: сначала проверяем кастомное имя, затем генерируем автоматически
       let displayName;
-      if (guest.channel === 'email') {
+      if (metadata.custom_name) {
+        displayName = metadata.custom_name;
+      } else if (guest.channel === 'email') {
         displayName = `${icon} ${rawId}`;
       } else if (guest.channel === 'telegram') {
         displayName = `${icon} Telegram (${rawId})`;

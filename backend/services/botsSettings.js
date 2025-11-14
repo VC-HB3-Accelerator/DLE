@@ -70,16 +70,24 @@ async function saveBotSettings(botType, settings) {
         throw new Error(`Unknown bot type: ${botType}`);
     }
 
-    // Простое сохранение - детали зависят от структуры таблицы
-    const { rows } = await db.getQuery()(
-      `INSERT INTO ${tableName} (settings, updated_at) 
-       VALUES ($1, NOW()) 
-       ON CONFLICT (id) DO UPDATE SET settings = $1, updated_at = NOW()
-       RETURNING *`,
-      [JSON.stringify(settings)]
-    );
+    const dataToSave = {
+      ...settings,
+      updated_at: new Date()
+    };
 
-    return rows[0];
+    // Проверяем, существуют ли записи в таблице
+    const existing = await encryptedDb.getData(tableName, {}, 1);
+
+    if (existing.length > 0) {
+      // Обновляем первую запись (ожидаем, что таблица хранит единственную конфигурацию)
+      return await encryptedDb.saveData(tableName, dataToSave, { id: existing[0].id });
+    }
+
+    // Если записей нет, создаем новую
+    return await encryptedDb.saveData(tableName, {
+      ...dataToSave,
+      created_at: new Date()
+    });
     
   } catch (error) {
     logger.error(`[BotsSettings] Ошибка сохранения настроек ${botType}:`, error);

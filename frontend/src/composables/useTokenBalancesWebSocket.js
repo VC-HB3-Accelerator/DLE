@@ -29,14 +29,33 @@ export function useTokenBalancesWebSocket() {
     console.log('[useTokenBalancesWebSocket] Запрашиваем балансы для:', address, 'userId:', userId);
     isLoadingTokens.value = true;
     
-    const message = {
-      type: 'request_token_balances',
-      address: address,
-      userId: userId
+    const sendMessage = () => {
+      const message = {
+        type: 'request_token_balances',
+        address: address,
+        userId: userId
+      };
+      console.log('[useTokenBalancesWebSocket] Отправляем WebSocket сообщение:', message);
+      wsClient.ws.send(JSON.stringify(message));
     };
     
-    console.log('[useTokenBalancesWebSocket] Отправляем WebSocket сообщение:', message);
-    wsClient.ws.send(JSON.stringify(message));
+    if (!wsClient.ws || wsClient.ws.readyState === WebSocket.CLOSED) {
+      console.log('[useTokenBalancesWebSocket] WS закрыт, переподключаемся');
+      wsClient.connect();
+    }
+    
+    if (wsClient.ws.readyState === WebSocket.OPEN) {
+      sendMessage();
+    } else if (wsClient.ws.readyState === WebSocket.CONNECTING) {
+      console.log('[useTokenBalancesWebSocket] WS в CONNECTING, откладываем отправку');
+      const onConnected = () => {
+        wsClient.off('connected', onConnected);
+        sendMessage();
+      };
+      wsClient.on('connected', onConnected);
+    } else {
+      console.warn('[useTokenBalancesWebSocket] WS не готов (state:', wsClient.ws.readyState, '), сообщение не отправлено');
+    }
   };
   
   // Обработчик ответа с балансами

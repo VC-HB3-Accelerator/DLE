@@ -320,6 +320,101 @@ class UniversalGuestService {
   }
 
   /**
+   * Извлечь имя гостя из текста сообщения через ИИ и сохранить в metadata
+   * @param {string} identifier - Идентификатор гостя
+   * @param {string} content - Текст сообщения
+   * @param {string} channel - Канал
+   * @returns {Promise<void>}
+   */
+  async extractAndSaveGuestName(identifier, content, channel) {
+    try {
+      if (!content || !content.trim()) {
+        return; // Нет текста для анализа
+      }
+
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+
+      // Находим первое сообщение гостя
+      const firstMessageResult = await db.getQuery()(
+        `WITH decrypted_guest AS (
+          SELECT 
+            id,
+            decrypt_text(identifier_encrypted, $2) as guest_identifier,
+            channel,
+            metadata
+          FROM unified_guest_messages
+          WHERE user_id IS NULL
+        )
+        SELECT 
+          MIN(id) as first_message_id,
+          MIN(metadata) as metadata
+        FROM decrypted_guest
+        WHERE guest_identifier = $1 AND channel = $3
+        GROUP BY guest_identifier, channel`,
+        [identifier, encryptionKey, channel]
+      );
+
+      if (firstMessageResult.rows.length === 0) {
+        return; // Гость не найден
+      }
+
+      const firstMessage = firstMessageResult.rows[0];
+      let metadata = firstMessage.metadata || {};
+
+      // Если metadata - строка, парсим её
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          metadata = {};
+        }
+      }
+
+      // Если уже есть кастомное имя, не извлекаем заново
+      if (metadata.custom_name) {
+        logger.info(`[UniversalGuestService] У гостя ${identifier} уже есть кастомное имя: ${metadata.custom_name}`);
+        return;
+      }
+
+      // Используем существующий сервис для извлечения имени
+      const profileAnalysisService = require('./profileAnalysisService');
+      const nameResult = await profileAnalysisService.extractName(content);
+
+      // Проверяем результат извлечения имени
+      if (!nameResult || !nameResult.name || !nameResult.should_update_name) {
+        logger.info(`[UniversalGuestService] Имя не найдено в сообщении гостя ${identifier} (confidence: ${nameResult?.confidence || 0})`);
+        return;
+      }
+
+      const extractedName = nameResult.name;
+
+      // Разбиваем имя на части
+      const nameParts = extractedName.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      // Сохраняем имя в metadata
+      metadata.custom_name = extractedName;
+      metadata.custom_first_name = firstName;
+      metadata.custom_last_name = lastName;
+
+      // Обновляем metadata первого сообщения гостя
+      await db.getQuery()(
+        `UPDATE unified_guest_messages 
+         SET metadata = $1 
+         WHERE id = $2`,
+        [JSON.stringify(metadata), firstMessage.first_message_id]
+      );
+
+      logger.info(`[UniversalGuestService] Имя гостя ${identifier} извлечено и сохранено: ${extractedName}`);
+
+    } catch (error) {
+      logger.error('[UniversalGuestService] Ошибка извлечения имени гостя:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Обработать сообщение гостя (сохранить + получить AI ответ)
    * @param {Object} messageData
    * @returns {Promise<Object>}
@@ -397,6 +492,12 @@ class UniversalGuestService {
       // 1. Сохраняем сообщение гостя
       const saveResult = await this.saveMessage(messageData);
       const processedContent = saveResult.processedContent;
+
+      // 1.5. Извлекаем имя из текста сообщения через ИИ (если это первое сообщение гостя)
+      await this.extractAndSaveGuestName(identifier, content, channel).catch(error => {
+        // Не критично, если не удалось извлечь имя - просто логируем
+        logger.warn(`[UniversalGuestService] Ошибка извлечения имени гостя:`, error);
+      });
 
       // 2. Загружаем историю для контекста (заново, так как могли добавиться сообщения)
       const conversationHistory = await this.getHistory(identifier);

@@ -13,8 +13,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const logger = require('../utils/logger');
 const { broadcastMessagesUpdate } = require('../wsHub');
 const botManager = require('../services/botManager');
+const universalGuestService = require('../services/UniversalGuestService');
 const { isUserBlocked } = require('../utils/userUtils');
 const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
@@ -35,11 +37,166 @@ router.get('/public', requireAuth, async (req, res) => {
   const encryptionUtils = require('../utils/encryptionUtils');
   const encryptionKey = encryptionUtils.getEncryptionKey();
 
+  const parseMetadata = (rawMetadata) => {
+    if (!rawMetadata) {
+      return {};
+    }
+
+    if (typeof rawMetadata === 'object') {
+      return rawMetadata;
+    }
+
+    try {
+      return JSON.parse(rawMetadata);
+    } catch (error) {
+      logger.warn('[messages/public] Не удалось распарсить metadata гостевого сообщения:', error?.message);
+      return {};
+    }
+  };
+
   try {
     // Публичные сообщения видны на главной странице пользователя
     const targetUserId = userId || currentUserId;
-    
-    
+    const isGuestContact = typeof targetUserId === 'string' && targetUserId.startsWith('guest_');
+
+    if (isGuestContact) {
+      const guestId = parseInt(targetUserId.replace('guest_', ''), 10);
+
+      if (Number.isNaN(guestId)) {
+        return res.status(400).json({ error: 'Invalid guest ID format' });
+      }
+
+      const guestIdentifierResult = await db.getQuery()(
+        `WITH decrypted_guest AS (
+           SELECT 
+             id,
+             decrypt_text(identifier_encrypted, $2) AS guest_identifier,
+             channel
+           FROM unified_guest_messages
+           WHERE user_id IS NULL
+         )
+         SELECT guest_identifier, channel
+         FROM decrypted_guest
+         GROUP BY guest_identifier, channel
+         HAVING MIN(id) = $1
+         LIMIT 1`,
+        [guestId, encryptionKey]
+      );
+
+      if (guestIdentifierResult.rows.length === 0) {
+        return res.json({
+          success: true,
+          messages: [],
+          total: 0,
+          limit,
+          offset,
+          hasMore: false
+        });
+      }
+
+      const guestIdentifier = guestIdentifierResult.rows[0].guest_identifier;
+      const guestChannel = guestIdentifierResult.rows[0].channel;
+
+      if (countOnly) {
+        const countResult = await db.getQuery()(
+          `SELECT COUNT(*) 
+             FROM unified_guest_messages 
+             WHERE decrypt_text(identifier_encrypted, $2) = $1`,
+          [guestIdentifier, encryptionKey]
+        );
+        const totalCount = parseInt(countResult.rows[0].count, 10);
+        return res.json({ success: true, count: totalCount, total: totalCount });
+      }
+
+      const messagesResult = await db.getQuery()(
+        `SELECT 
+           id,
+           decrypt_text(content_encrypted, $3) AS content,
+           is_ai,
+           metadata,
+           channel,
+           created_at,
+           decrypt_text(attachment_filename_encrypted, $3) AS attachment_filename,
+           decrypt_text(attachment_mimetype_encrypted, $3) AS attachment_mimetype,
+           attachment_size
+         FROM unified_guest_messages
+         WHERE decrypt_text(identifier_encrypted, $3) = $1
+         ORDER BY created_at DESC
+         LIMIT $2 OFFSET $4`,
+        [guestIdentifier, limit, encryptionKey, offset]
+      );
+
+      const countResult = await db.getQuery()(
+        `SELECT COUNT(*) 
+           FROM unified_guest_messages 
+           WHERE decrypt_text(identifier_encrypted, $2) = $1`,
+        [guestIdentifier, encryptionKey]
+      );
+      const totalCount = parseInt(countResult.rows[0].count, 10);
+
+      const mappedMessages = messagesResult.rows.map((row) => {
+        const metadata = parseMetadata(row.metadata);
+        const baseMessage = {
+          id: row.id,
+          user_id: targetUserId,
+          sender_id: row.is_ai ? null : targetUserId,
+          sender_type: row.is_ai ? 'assistant' : 'user',
+          content: row.content,
+          channel: row.channel || guestChannel,
+          role: row.is_ai ? 'assistant' : 'user',
+          direction: row.is_ai ? 'out' : 'in',
+          created_at: row.created_at,
+          message_type: 'public',
+          is_ai: row.is_ai,
+          metadata,
+          last_read_at: null
+        };
+
+        if (row.attachment_filename || row.attachment_mimetype || row.attachment_size) {
+          baseMessage.attachments = [
+            {
+              filename: row.attachment_filename,
+              mimetype: row.attachment_mimetype,
+              size: row.attachment_size
+            }
+          ];
+        }
+
+        if (metadata.consentRequired !== undefined) {
+          baseMessage.consentRequired = metadata.consentRequired;
+        }
+        if (metadata.consentDocuments) {
+          baseMessage.consentDocuments = metadata.consentDocuments;
+        }
+        if (metadata.autoConsentOnReply !== undefined) {
+          baseMessage.autoConsentOnReply = metadata.autoConsentOnReply;
+        }
+        if (metadata.telegramBotUrl) {
+          baseMessage.telegramBotUrl = metadata.telegramBotUrl;
+        }
+        if (metadata.supportEmail) {
+          baseMessage.supportEmail = metadata.supportEmail;
+        }
+
+        return baseMessage;
+      });
+
+      const orderedMessages = mappedMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      return res.json({
+        success: true,
+        messages: orderedMessages,
+        total: totalCount,
+        limit,
+        offset,
+        hasMore: offset + limit < totalCount,
+        guest: {
+          identifier: guestIdentifier,
+          channel: guestChannel
+        }
+      });
+    }
+
     // Если нужен только подсчет
     if (countOnly) {
       const countResult = await db.getQuery()(
@@ -348,81 +505,177 @@ router.post('/send', requireAuth, async (req, res) => {
   if (!['public', 'private'].includes(messageType)) {
     return res.status(400).json({ error: 'messageType должен быть "public" или "private"' });
   }
-  
-  // Определяем recipientId в зависимости от типа сообщения
-  let recipientIdNum;
-  if (messageType === 'private') {
-    // Приватные сообщения всегда идут к редактору (ID = 1)
-    recipientIdNum = 1;
-  } else {
-    // Конвертируем recipientId в число для публичных сообщений
-    recipientIdNum = parseInt(recipientId);
-    if (isNaN(recipientIdNum)) {
-      return res.status(400).json({ error: 'recipientId должен быть числом' });
-    }
-  }
-  
+
+  const senderId = req.user.id;
+  const senderRole = req.user.role || req.user.userAccessLevel?.level || 'user';
+  const isGuestRecipient = typeof recipientId === 'string' && recipientId.startsWith('guest_');
+
   try {
-    const senderId = req.user.id;
-    const senderRole = req.user.role || req.user.userAccessLevel?.level || 'user';
-    
+    if (isGuestRecipient) {
+      if (!hasPermission(senderRole, PERMISSIONS.SEND_TO_USERS)) {
+        return res.status(403).json({ error: 'Недостаточно прав для отправки сообщений гостям' });
+      }
+
+      if (messageType !== 'public') {
+        return res.status(400).json({ error: 'Гостям можно отправлять только публичные сообщения' });
+      }
+
+      const guestInternalId = parseInt(recipientId.replace('guest_', ''), 10);
+      if (Number.isNaN(guestInternalId)) {
+        return res.status(400).json({ error: 'Некорректный формат гостевого идентификатора' });
+      }
+
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+
+      const guestIdentifierResult = await db.getQuery()(
+        `WITH decrypted_guest AS (
+           SELECT 
+             id,
+             decrypt_text(identifier_encrypted, $2) AS guest_identifier,
+             channel
+           FROM unified_guest_messages
+           WHERE user_id IS NULL
+         )
+         SELECT guest_identifier, channel
+         FROM decrypted_guest
+         GROUP BY guest_identifier, channel
+         HAVING MIN(id) = $1
+         LIMIT 1`,
+        [guestInternalId, encryptionKey]
+      );
+
+      if (guestIdentifierResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Гостевой контакт не найден' });
+      }
+
+      const guestIdentifier = guestIdentifierResult.rows[0].guest_identifier;
+      const guestChannel = guestIdentifierResult.rows[0].channel;
+      const deliveryMeta = {
+        sentBy: 'admin_panel',
+        senderId,
+        senderRole,
+        originalRecipientId: recipientId,
+        messageType
+      };
+
+      let deliveryStatus = { success: true };
+
+      try {
+        if (guestChannel === 'telegram') {
+          const telegramBot = botManager.getBot('telegram');
+          if (telegramBot && telegramBot.isInitialized) {
+            await telegramBot.getBot().telegram.sendMessage(guestIdentifier, content);
+          } else {
+            logger.warn('[messages/send] Telegram Bot не инициализирован, сообщение сохранено только в истории');
+            deliveryStatus = { success: false, error: 'Telegram bot inactive' };
+          }
+        } else if (guestChannel === 'email') {
+          const emailBot = botManager.getBot('email');
+          if (emailBot && emailBot.isInitialized) {
+            await emailBot.sendEmail(guestIdentifier, 'Ответ от администратора', content);
+          } else {
+            logger.warn('[messages/send] Email Bot не инициализирован, сообщение сохранено только в истории');
+            deliveryStatus = { success: false, error: 'Email bot inactive' };
+          }
+        } else {
+          logger.info(`[messages/send] Гость ${guestIdentifier} имеет канал ${guestChannel}, внешняя доставка не требуется`);
+        }
+      } catch (deliveryError) {
+        logger.error('[messages/send] Ошибка отправки гостю через внешний канал:', deliveryError);
+        deliveryStatus = { success: false, error: deliveryError.message };
+      }
+
+      const saveResult = await universalGuestService.saveAiResponse({
+        identifier: guestIdentifier,
+        channel: guestChannel,
+        content,
+        metadata: deliveryMeta
+      });
+
+      broadcastMessagesUpdate();
+
+      return res.json({
+        success: true,
+        message: {
+          id: saveResult.messageId,
+          user_id: recipientId,
+          sender_id: null,
+          sender_type: 'assistant',
+          content,
+          channel: guestChannel,
+          role: 'assistant',
+          direction: 'out',
+          created_at: saveResult.created_at,
+          message_type: 'public',
+          metadata: deliveryMeta
+        },
+        delivery: deliveryStatus
+      });
+    }
+
+    // Работа с зарегистрированными пользователями
+    let recipientIdNum;
+    if (messageType === 'private') {
+      recipientIdNum = 1;
+    } else {
+      recipientIdNum = parseInt(recipientId, 10);
+      if (Number.isNaN(recipientIdNum)) {
+        return res.status(400).json({ error: 'recipientId должен быть числом' });
+      }
+    }
+
     console.log('[DEBUG] /messages/send: senderId:', senderId, 'senderRole:', senderRole);
-    
-    // Получаем информацию о получателе
+
     const recipientResult = await db.getQuery()(
       'SELECT id, role FROM users WHERE id = $1',
       [recipientIdNum]
     );
-    
+
     if (recipientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Получатель не найден' });
     }
-    
+
     const recipientRole = recipientResult.rows[0].role;
     console.log('[DEBUG] /messages/send: recipientId:', recipientIdNum, 'recipientRole:', recipientRole);
-    
-    // Используем централизованную проверку прав
+
     const { canSendMessage } = require('/app/shared/permissions');
     const permissionCheck = canSendMessage(senderRole, recipientRole, senderId, recipientIdNum);
-    
+
     console.log('[DEBUG] /messages/send: canSend:', permissionCheck.canSend, 'senderRole:', senderRole, 'recipientRole:', recipientRole, 'error:', permissionCheck.errorMessage);
-    
+
     if (!permissionCheck.canSend) {
-      return res.status(403).json({ 
-        error: permissionCheck.errorMessage || 'Недостаточно прав для отправки сообщения этому получателю' 
+      return res.status(403).json({
+        error: permissionCheck.errorMessage || 'Недостаточно прав для отправки сообщения этому получателю'
       });
     }
-    
-    // ✨ Используем unifiedMessageProcessor для унификации
+
     const unifiedMessageProcessor = require('../services/unifiedMessageProcessor');
     const identityService = require('../services/identity-service');
-    
-    // Получаем wallet идентификатор отправителя
+
     const walletIdentity = await identityService.findIdentity(senderId, 'wallet');
     if (!walletIdentity) {
       return res.status(403).json({
         error: 'Требуется подключение кошелька'
       });
     }
-    
+
     const identifier = `wallet:${walletIdentity.provider_id}`;
-    
-    // Обрабатываем через unifiedMessageProcessor
+
     const result = await unifiedMessageProcessor.processMessage({
-      identifier: identifier,
-      content: content,
+      identifier,
+      content,
       channel: 'web',
       attachments: [],
-      conversationId: null, // unifiedMessageProcessor сам найдет/создаст беседу
+      conversationId: null,
       recipientId: recipientIdNum,
       userId: senderId,
       metadata: {
-        messageType: messageType,
-        markAsRead: markAsRead
+        messageType,
+        markAsRead
       }
     });
-    
-    // Если нужно отметить как прочитанное
+
     if (markAsRead) {
       try {
         const lastReadAt = new Date().toISOString();
@@ -434,10 +687,9 @@ router.post('/send', requireAuth, async (req, res) => {
         );
       } catch (markError) {
         console.warn('[WARNING] /send mark-read error:', markError);
-        // Не прерываем выполнение, если mark-read не удался
       }
     }
-    
+
     res.json({ success: true, message: result });
   } catch (e) {
     console.error('[ERROR] /send:', e);
