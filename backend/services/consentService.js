@@ -12,6 +12,7 @@
 
 const db = require('../db');
 const logger = require('../utils/logger');
+const encryptedDb = require('./encryptedDatabaseService');
 
 // Маппинг названий документов на типы согласий
 const DOCUMENT_CONSENT_MAP = {
@@ -19,6 +20,61 @@ const DOCUMENT_CONSENT_MAP = {
   'Согласие на использование файлов cookie': 'cookies',
   'Согласие на обработку персональных данных': 'personal_data_processing'
 };
+
+// Кэш для домена
+let cachedDomain = null;
+let domainCacheTime = 0;
+const DOMAIN_CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+/**
+ * Сбросить кэш домена (вызывается при сохранении нового домена)
+ */
+function clearDomainCache() {
+  cachedDomain = null;
+  domainCacheTime = 0;
+}
+
+/**
+ * Получить домен из настроек VDS
+ * @returns {Promise<string>} - Базовый URL (https://domain.com)
+ */
+async function getBaseUrl() {
+  try {
+    // Проверяем кэш
+    const now = Date.now();
+    if (cachedDomain && (now - domainCacheTime) < DOMAIN_CACHE_TTL) {
+      return cachedDomain;
+    }
+    
+    // Проверяем process.env
+    if (process.env.BASE_URL) {
+      cachedDomain = process.env.BASE_URL;
+      domainCacheTime = now;
+      return cachedDomain;
+    }
+    
+    // Загружаем из БД
+    const settings = await encryptedDb.getData('vds_settings', {}, 1);
+    
+    if (settings.length > 0 && settings[0].domain) {
+      const domain = settings[0].domain;
+      cachedDomain = `https://${domain}`;
+      domainCacheTime = now;
+      // Обновляем process.env для текущего процесса
+      process.env.BASE_URL = cachedDomain;
+      return cachedDomain;
+    }
+    
+    // Возвращаем дефолтное значение
+    const defaultUrl = 'http://localhost:9000';
+    cachedDomain = defaultUrl;
+    domainCacheTime = now;
+    return defaultUrl;
+  } catch (error) {
+    logger.error('[ConsentService] Ошибка получения домена:', error);
+    return process.env.BASE_URL || 'http://localhost:9000';
+  }
+}
 
 /**
  * Проверить согласия пользователя или гостя
@@ -224,11 +280,16 @@ function formatConsentMessage({ channel = 'web', missingConsents = [], consentDo
  * @param {number|null} params.userId - ID пользователя
  * @param {string|null} params.walletAddress - Адрес кошелька или guest_ID
  * @param {string} params.channel - Канал (web/telegram/email)
- * @param {string} params.baseUrl - Базовый URL сайта
+ * @param {string} params.baseUrl - Базовый URL сайта (опционально, если не указан - загружается из БД)
  * @returns {Promise<Object|null>} - Системное сообщение или null, если согласия есть
  */
-async function getConsentSystemMessage({ userId = null, walletAddress = null, channel = 'web', baseUrl = 'http://localhost:9000' }) {
+async function getConsentSystemMessage({ userId = null, walletAddress = null, channel = 'web', baseUrl = null }) {
   try {
+    // Если baseUrl не указан, загружаем из БД
+    if (!baseUrl) {
+      baseUrl = await getBaseUrl();
+    }
+    
     // Проверяем согласия
     const consentCheck = await checkConsents({ userId, walletAddress });
     
@@ -257,6 +318,8 @@ module.exports = {
   getConsentDocuments,
   formatConsentMessage,
   getConsentSystemMessage,
+  getBaseUrl,
+  clearDomainCache,
   DOCUMENT_CONSENT_MAP
 };
 

@@ -151,7 +151,7 @@ const handleSubmit = async () => {
       // Перенаправляем на страницу VDS Mock через 3 секунды
       addLog('info', 'Перенаправление на страницу управления VDS через 3 секунды...');
       setTimeout(() => {
-        router.push({ name: 'vds-mock' });
+        router.push({ name: 'vds-management' });
       }, 3000);
     } else {
       addLog('error', result.message || 'Ошибка при настройке VDS');

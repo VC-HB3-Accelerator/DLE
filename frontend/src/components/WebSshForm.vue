@@ -141,9 +141,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useWebSshService } from '../services/webSshService';
 import { useWebSshLogs } from '../composables/useWebSshLogs';
+import axios from 'axios';
 
+const router = useRouter();
 const webSshService = useWebSshService();
 
 const encodeDomainForRequest = (domain) => {
@@ -265,10 +268,33 @@ const handleSubmit = async () => {
         domain: form.domain 
       }));
       
+      // Сохраняем ВСЕ настройки на сервере
+      try {
+        await axios.post('/api/vds/settings', {
+          domain: form.domain,
+          email: form.email,
+          ubuntuUser: form.ubuntuUser,
+          dockerUser: form.dockerUser,
+          sshHost: form.sshHost,
+          sshPort: form.sshPort,
+          sshUser: form.sshUser,
+          sshPassword: form.sshPassword
+        });
+        addLog('info', 'Настройки VDS сохранены на сервере');
+      } catch (error) {
+        addLog('error', `Ошибка сохранения настроек на сервере: ${error.message}`);
+      }
+      
       // Отправляем событие об изменении статуса VDS
       window.dispatchEvent(new CustomEvent('vds-status-changed', {
         detail: { isConfigured: true }
       }));
+      
+      // Перенаправляем на страницу управления VDS через 3 секунды
+      addLog('info', 'Перенаправление на страницу управления VDS через 3 секунды...');
+      setTimeout(() => {
+        router.push({ name: 'vds-management' });
+      }, 3000);
     } else {
       addLog('error', result.message || 'Ошибка при настройке VDS');
     }

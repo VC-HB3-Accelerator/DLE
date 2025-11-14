@@ -22,11 +22,31 @@ const errorHandler = require('./middleware/errorHandler');
 // const { version } = require('./package.json'); // Закомментировано, так как не используется
 const db = require('./db'); // Добавляем импорт db
 const aiAssistant = require('./services/ai-assistant'); // Добавляем импорт aiAssistant
+const encryptedDb = require('./services/encryptedDatabaseService'); // Добавляем импорт encryptedDb
 
 // Инициализация AI Assistant из БД
 aiAssistant.initPromise.catch(error => {
   logger.error('[app.js] AI Assistant не инициализирован:', error.message);
 });
+
+// Загрузка домена из БД при старте backend
+async function loadDomainFromDB() {
+  try {
+    const settings = await encryptedDb.getData('vds_settings', {}, 1);
+    if (settings.length > 0 && settings[0].domain) {
+      const domain = settings[0].domain;
+      process.env.BASE_URL = `https://${domain}`;
+      logger.info(`[app.js] Домен загружен из БД: ${process.env.BASE_URL}`);
+    } else {
+      logger.info('[app.js] Домен не найден в БД, используется значение по умолчанию');
+    }
+  } catch (error) {
+    logger.error('[app.js] Ошибка загрузки домена из БД:', error);
+  }
+}
+
+// Загружаем домен при старте
+loadDomainFromDB();
 
 const deploymentWebSocketService = require('./services/deploymentWebSocketService'); // WebSocket для деплоя
 const fs = require('fs');
@@ -109,13 +129,16 @@ const compileRoutes = require('./routes/compile'); // Компиляция ко�
 const { router: dleHistoryRoutes } = require('./routes/dleHistory'); // Расширенная история
 const systemRoutes = require('./routes/system'); // Добавляем импорт маршрутов системного мониторинга
 const consentRoutes = require('./routes/consent'); // Добавляем импорт маршрутов согласий
+const vdsRoutes = require('./routes/vds'); // Добавляем импорт маршрутов VDS управления
 
 const app = express();
 
 // Указываем хост явно
 app.set('host', '0.0.0.0');
 app.set('port', process.env.PORT || 8000);
-app.set('trust proxy', true);
+// Настраиваем trust proxy: в продакшне доверяем nginx (1 прокси), в dev - не доверяем
+const isProduction = process.env.NODE_ENV === 'production';
+app.set('trust proxy', isProduction ? 1 : false);
 
 // Настройка CORS
 const corsOrigins = process.env.NODE_ENV === 'production' 
@@ -181,8 +204,7 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Определяем режим работы
-const isProduction = process.env.NODE_ENV === 'production';
+// Режим работы уже определен выше (при настройке trust proxy)
 
 // Rate limiting
 const limiter = rateLimit({
@@ -194,7 +216,8 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  trustProxy: true, // Доверяем nginx proxy
+  // Настраиваем trust proxy правильно: 1 означает доверять одному прокси (nginx)
+  trustProxy: isProduction ? 1 : false, // В продакшне доверяем nginx, в dev - нет
 });
 
 // Применяем rate limiting ко всем запросам (временно отключено для тестирования)
@@ -210,7 +233,8 @@ const strictLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  trustProxy: true, // Доверяем nginx proxy
+  // Настраиваем trust proxy правильно: 1 означает доверять одному прокси (nginx)
+  trustProxy: isProduction ? 1 : false, // В продакшне доверяем nginx, в dev - нет
 });
 
 // Мягкий rate limiting для RPC настроек (часто запрашиваемых данных)
@@ -223,7 +247,8 @@ const rpcSettingsLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  trustProxy: true,
+  // Настраиваем trust proxy правильно: 1 означает доверять одному прокси (nginx)
+  trustProxy: isProduction ? 1 : false, // В продакшне доверяем nginx, в dev - нет
 });
 
 // Статическая раздача загруженных файлов (для dev и prod)
@@ -287,6 +312,7 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/pages', pagesRoutes); // Подключаем роутер страниц
 app.use('/api/consent', consentRoutes); // Добавляем маршрут согласий
 app.use('/api/system', systemRoutes); // Добавляем маршрут системного мониторинга
+app.use('/api/vds', vdsRoutes); // Добавляем маршрут VDS управления
 app.use('/api/uploads', uploadsRoutes); // Загрузка файлов (логотипы)
 app.use('/api/ens', ensRoutes); // ENS utilities
 app.use('/api', sshRoutes); // SSH роуты

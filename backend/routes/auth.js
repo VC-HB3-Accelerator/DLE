@@ -172,9 +172,47 @@ router.post('/verify', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid nonce' });
     }
 
-    // Создаем SIWE сообщение для проверки подписи
-    const origin = req.get('origin') || 'http://localhost:5173';
-    const domain = new URL(origin).host; // Извлекаем домен из origin
+    // Получаем базовый URL из БД (домен VDS) или используем текущий хост из запроса
+    const consentService = require('../services/consentService');
+    const baseUrl = await consentService.getBaseUrl();
+    
+    // Если домена нет в БД, используем текущий хост из запроса (более надежно, чем origin)
+    let baseUrlForResources;
+    if (baseUrl !== 'http://localhost:9000') {
+      // Домен есть в БД - используем его
+      baseUrlForResources = baseUrl;
+    } else {
+      // Домена нет в БД - используем текущий хост из запроса
+      const protocol = req.protocol || 'http';
+      let host = req.get('host') || 'localhost:9000';
+      // Убеждаемся, что порт присутствует для localhost
+      if (host === 'localhost' || host.startsWith('localhost:')) {
+        if (!host.includes(':')) {
+          // Если порта нет, добавляем стандартный порт для протокола
+          const defaultPort = protocol === 'https' ? '443' : '9000';
+          host = `${host}:${defaultPort}`;
+        }
+      }
+      baseUrlForResources = `${protocol}://${host}`;
+    }
+    
+    // Извлекаем домен и origin из baseUrlForResources для SIWE сообщения
+    const baseUrlObj = new URL(baseUrlForResources);
+    // Используем host (включает порт, если он нестандартный) или hostname + port
+    let domain = baseUrlObj.host; // Домен для SIWE (например, "localhost:9000" или "example.com")
+    // Если порт стандартный (80 для http, 443 для https), он может не быть в host
+    // В этом случае добавляем порт явно для localhost или если порт указан в URL
+    if (!domain.includes(':')) {
+      if (baseUrlObj.port) {
+        // Порт есть в URL, но не в host (стандартный порт)
+        domain = `${baseUrlObj.hostname}:${baseUrlObj.port}`;
+      } else if (baseUrlObj.hostname === 'localhost' || baseUrlObj.hostname === '127.0.0.1') {
+        // Для localhost добавляем порт явно
+        const defaultPort = baseUrlObj.protocol === 'https:' ? '443' : '9000';
+        domain = `${baseUrlObj.hostname}:${defaultPort}`;
+      }
+    }
+    const origin = baseUrlForResources; // URI для SIWE (полный URL)
     
     // Получаем список документов для подписания и добавляем их в resources
     const documentTitles = Object.keys(DOCUMENT_CONSENT_MAP);
@@ -183,7 +221,7 @@ router.post('/verify', async (req, res) => {
       `SELECT to_regclass($1) as exists`, [tableName]
     );
     
-    let resources = [`${origin}/api/auth/verify`];
+    let resources = [`${baseUrlForResources}/api/auth/verify`];
     if (tableExistsRes.rows[0].exists) {
       const { rows: documents } = await db.getQuery()(`
         SELECT id FROM ${tableName} 
@@ -192,9 +230,9 @@ router.post('/verify', async (req, res) => {
           AND title = ANY($1)
       `, [documentTitles]);
       
-      // Добавляем ссылки на документы в resources
+      // Добавляем ссылки на документы в resources (используем домен из БД)
       documents.forEach(doc => {
-        resources.push(`${origin}/content/published/${doc.id}`);
+        resources.push(`${baseUrlForResources}/content/published/${doc.id}`);
       });
     }
     

@@ -565,8 +565,7 @@ class UniversalGuestService {
         const consentSystemMessage = await consentService.getConsentSystemMessage({
           userId: null,
           walletAddress,
-          channel: channel === 'web' ? 'web' : channel,
-          baseUrl: process.env.BASE_URL || 'http://localhost:9000'
+          channel: channel === 'web' ? 'web' : channel
         });
 
         if (consentSystemMessage && consentSystemMessage.consentRequired) {

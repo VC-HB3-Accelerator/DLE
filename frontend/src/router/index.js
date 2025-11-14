@@ -296,9 +296,10 @@ const routes = [
     component: () => import('../views/smartcontracts/SettingsView.vue')
   },
   {
-    path: '/vds-mock',
-    name: 'vds-mock',
-    component: () => import('../views/VdsMockView.vue')
+    path: '/vds',
+    name: 'vds-management',
+    component: () => import('../views/VdsManagementView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS }
   },
   {
     path: '/connect-wallet',

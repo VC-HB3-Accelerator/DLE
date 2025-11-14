@@ -262,7 +262,7 @@ function goToManagement() {
 }
 
 function goToWeb3App() {
-  router.push({ name: 'vds-mock' });
+  router.push({ name: 'vds-management' });
 }
 
 function goToAcceleratorRegistration() {
