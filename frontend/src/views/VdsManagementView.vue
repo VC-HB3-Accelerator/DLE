@@ -652,8 +652,11 @@ const loadStats = async () => {
   try {
     const response = await axios.get('/vds/stats');
     if (response.data.success) {
+      console.log('[VDS] Получена статистика:', response.data.stats);
       stats.value = response.data.stats;
       updateCharts();
+    } else {
+      console.warn('[VDS] Статистика не успешна:', response.data);
     }
   } catch (error) {
     console.error('Ошибка загрузки статистики:', error);
@@ -1218,9 +1221,11 @@ const updateCharts = () => {
   const now = new Date().toLocaleTimeString();
   
   // CPU
-  if (cpuChartInstance && stats.value.cpu?.usage !== undefined) {
+  if (cpuChartInstance && stats.value.cpu?.usage !== undefined && stats.value.cpu?.usage !== null) {
+    const cpuValue = parseFloat(stats.value.cpu.usage) || 0;
+    console.log('[VDS] Обновление графика CPU:', cpuValue);
     chartData.cpu.labels.push(now);
-    chartData.cpu.data.push(stats.value.cpu.usage);
+    chartData.cpu.data.push(cpuValue);
     if (chartData.cpu.labels.length > 20) {
       chartData.cpu.labels.shift();
       chartData.cpu.data.shift();
@@ -1228,12 +1233,20 @@ const updateCharts = () => {
     cpuChartInstance.data.labels = chartData.cpu.labels;
     cpuChartInstance.data.datasets[0].data = chartData.cpu.data;
     cpuChartInstance.update('none');
+  } else {
+    console.warn('[VDS] CPU график не обновлен:', { 
+      hasInstance: !!cpuChartInstance, 
+      usage: stats.value.cpu?.usage,
+      statsValue: stats.value
+    });
   }
   
   // RAM
-  if (ramChartInstance && stats.value.ram?.usage !== undefined) {
+  if (ramChartInstance && stats.value.ram?.usage !== undefined && stats.value.ram?.usage !== null) {
+    const ramValue = parseFloat(stats.value.ram.usage) || 0;
+    console.log('[VDS] Обновление графика RAM:', ramValue);
     chartData.ram.labels.push(now);
-    chartData.ram.data.push(stats.value.ram.usage);
+    chartData.ram.data.push(ramValue);
     if (chartData.ram.labels.length > 20) {
       chartData.ram.labels.shift();
       chartData.ram.data.shift();
@@ -1241,12 +1254,19 @@ const updateCharts = () => {
     ramChartInstance.data.labels = chartData.ram.labels;
     ramChartInstance.data.datasets[0].data = chartData.ram.data;
     ramChartInstance.update('none');
+  } else {
+    console.warn('[VDS] RAM график не обновлен:', { 
+      hasInstance: !!ramChartInstance, 
+      usage: stats.value.ram?.usage 
+    });
   }
   
   // Traffic (в MB)
-  if (trafficChartInstance && stats.value.traffic?.total !== undefined) {
+  if (trafficChartInstance && stats.value.traffic?.total !== undefined && stats.value.traffic?.total !== null) {
+    const trafficValue = parseFloat(stats.value.traffic.total) || 0;
+    console.log('[VDS] Обновление графика Traffic:', trafficValue);
     chartData.traffic.labels.push(now);
-    chartData.traffic.data.push(stats.value.traffic.total);
+    chartData.traffic.data.push(trafficValue);
     if (chartData.traffic.labels.length > 20) {
       chartData.traffic.labels.shift();
       chartData.traffic.data.shift();
@@ -1254,6 +1274,11 @@ const updateCharts = () => {
     trafficChartInstance.data.labels = chartData.traffic.labels;
     trafficChartInstance.data.datasets[0].data = chartData.traffic.data;
     trafficChartInstance.update('none');
+  } else {
+    console.warn('[VDS] Traffic график не обновлен:', { 
+      hasInstance: !!trafficChartInstance, 
+      total: stats.value.traffic?.total 
+    });
   }
 };
 

@@ -7,16 +7,114 @@ const log = require('./logger');
 const cleanupVdsServer = async (options) => {
   log.info('Очистка VDS сервера...');
   
-  // Остановка и удаление существующих Docker контейнеров
-  log.info('Остановка существующих Docker контейнеров...');
-  await execSshCommand('docker ps -aq | xargs -r docker stop 2>/dev/null || true', options);
-  await execSshCommand('docker ps -aq | xargs -r docker rm 2>/dev/null || true', options);
+  // Проверяем наличие Docker перед попыткой очистки
+  log.info('🔍 Проверка наличия Docker...');
+  const dockerCheck = await execSshCommand('command -v docker >/dev/null 2>&1 && echo "docker installed" || echo "docker not installed"', options);
   
-  // Удаление Docker образов и очистка системы
-  log.info('Очистка Docker образов и системы...');
-  await execSshCommand('docker system prune -af || true', options);
-  await execSshCommand('docker volume prune -f || true', options);
-  await execSshCommand('docker network prune -f || true', options);
+  // Если ошибка SSH подключения (код 255), пропускаем очистку Docker
+  if (dockerCheck.code === 255) {
+    log.warn('⚠️ Ошибка SSH подключения при проверке Docker, пропускаем очистку Docker');
+    log.info('Продолжаем настройку сервера...');
+  } else {
+    const hasDocker = dockerCheck.stdout.trim().includes('docker installed');
+    
+    if (hasDocker) {
+      log.info('Docker обнаружен, выполняем полную очистку...');
+      
+      // 1. Остановка всех Docker контейнеров (включая запущенные)
+      log.info('🛑 Остановка всех Docker контейнеров...');
+      const stopResult = await execSshCommand('docker ps -aq | xargs -r docker stop 2>/dev/null || true', options);
+      if (stopResult.code !== 0 && stopResult.code !== 255) {
+        log.warn(`Предупреждение при остановке контейнеров: ${stopResult.stderr}`);
+      }
+      
+      // 2. Удаление всех контейнеров (включая остановленные)
+      log.info('🗑️ Удаление всех Docker контейнеров...');
+      // Удаляем все контейнеры (запущенные и остановленные)
+      const rmResult = await execSshCommand('docker container ls -aq | xargs -r docker rm -f 2>/dev/null || true', options);
+      if (rmResult.code !== 0 && rmResult.code !== 255) {
+        log.warn(`Предупреждение при удалении контейнеров: ${rmResult.stderr}`);
+      }
+      // Дополнительная проверка и удаление любых оставшихся контейнеров
+      await execSshCommand('docker ps -aq 2>/dev/null | xargs -r docker rm -f 2>/dev/null || true', options);
+      
+      // 3. Удаление всех volumes (включая именованные)
+      log.info('🗑️ Удаление всех Docker volumes...');
+      // Сначала получаем список всех volumes
+      const allVolumesList = await execSshCommand('docker volume ls -q 2>/dev/null || true', options);
+      if (allVolumesList.stdout.trim()) {
+        const volumes = allVolumesList.stdout.trim().split('\n').filter(v => v);
+        log.info(`Найдено ${volumes.length} volumes для удаления`);
+        for (const volume of volumes) {
+          // Принудительно удаляем каждый volume
+          await execSshCommand(`docker volume rm -f "${volume}" 2>/dev/null || true`, options);
+        }
+        log.info(`Удалено ${volumes.length} volumes`);
+      }
+      
+      // 4. Дополнительная очистка неиспользуемых volumes (на случай если что-то осталось)
+      log.info('🧹 Финальная очистка volumes...');
+      const volumePruneResult = await execSshCommand('docker volume prune -f 2>/dev/null || true', options);
+      if (volumePruneResult.code !== 0 && volumePruneResult.code !== 255) {
+        log.warn(`Предупреждение при финальной очистке volumes: ${volumePruneResult.stderr}`);
+      }
+      
+      // 5. Удаление всех Docker образов приложения
+      log.info('🗑️ Удаление старых Docker образов приложения...');
+      const imagesList = await execSshCommand('docker images -q | xargs -r docker rmi -f 2>/dev/null || true', options);
+      // Удаляем все образы, связанные с приложением
+      await execSshCommand('docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "digital_legal_entity|dapp-" | xargs -r docker rmi -f 2>/dev/null || true', options);
+      
+      // 6. Полная очистка Docker системы (все образы, кэш, сети)
+      log.info('🧹 Полная очистка Docker системы...');
+      const pruneResult = await execSshCommand('docker system prune -af --volumes 2>/dev/null || true', options);
+      if (pruneResult.code !== 0 && pruneResult.code !== 255) {
+        log.warn(`Предупреждение при очистке Docker: ${pruneResult.stderr}`);
+      }
+      
+      // 7. Удаление всех Docker сетей
+      log.info('🗑️ Удаление всех Docker сетей...');
+      const networkPruneResult = await execSshCommand('docker network prune -f 2>/dev/null || true', options);
+      if (networkPruneResult.code !== 0 && networkPruneResult.code !== 255) {
+        log.warn(`Предупреждение при очистке сетей: ${networkPruneResult.stderr}`);
+      }
+      
+      log.success('✅ Docker полностью очищен');
+    } else {
+      log.info('ℹ️ Docker не установлен, пропускаем очистку Docker');
+    }
+  }
+  
+  // Удаление старых директорий приложения
+  log.info('🗑️ Удаление старых директорий приложения...');
+  await execSshCommand('find /home -maxdepth 3 -type d -name "dapp" -exec rm -rf {} + 2>/dev/null || true', options);
+  await execSshCommand('find /home -maxdepth 3 -type d -name "digital_legal_entity" -exec rm -rf {} + 2>/dev/null || true', options);
+  
+  // Удаление старых docker-compose файлов
+  log.info('🗑️ Удаление старых конфигурационных файлов...');
+  await execSshCommand('find /home -name "docker-compose*.yml" -type f -delete 2>/dev/null || true', options);
+  await execSshCommand('find /home -name ".env" -path "*/dapp/*" -type f -delete 2>/dev/null || true', options);
+  await execSshCommand('find /home -name "import-images-and-data.sh" -type f -delete 2>/dev/null || true', options);
+  await execSshCommand('find /home -name "renew-ssl.sh" -type f -delete 2>/dev/null || true', options);
+  
+  // Очистка старых cron задач, связанных с приложением
+  log.info('🗑️ Очистка старых cron задач приложения...');
+  const crontabBackup = await execSshCommand('crontab -l 2>/dev/null || echo ""', options);
+  if (crontabBackup.stdout.trim()) {
+    const cleanedCrontab = crontabBackup.stdout
+      .split('\n')
+      .filter(line => !line.includes('renew-ssl.sh') && !line.includes('dapp') && !line.includes('digital_legal_entity'))
+      .join('\n');
+    if (cleanedCrontab.trim()) {
+      await execSshCommand(`echo '${cleanedCrontab.replace(/'/g, "'\\''")}' | crontab -`, options);
+    } else {
+      await execSshCommand('crontab -r 2>/dev/null || true', options);
+    }
+  }
+  
+  // Очистка старых SSL сертификатов (опционально, можно оставить для повторного использования)
+  log.info('🧹 Проверка старых SSL сертификатов...');
+  await execSshCommand('rm -rf /var/www/certbot/.well-known 2>/dev/null || true', options);
   
   // 🆕 Умная проверка и удаление системного nginx для избежания конфликтов портов
   log.info('🔍 Проверка наличия системного nginx...');

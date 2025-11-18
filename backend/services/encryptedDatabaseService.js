@@ -113,7 +113,7 @@ class EncryptedDataService {
             
             if (encryptedColumn) {
               // Для зашифрованных колонок используем прямое сравнение с зашифрованным значением
-              return `${key}_encrypted = encrypt_text($${paramIndex++}, ${hasEncryptedFields ? '$1' : 'NULL'})`;
+              return `${key}_encrypted = encrypt_text($${paramIndex++}, ${hasEncryptedFields ? '($1)::text' : 'NULL'})`;
             } else {
               // Для незашифрованных колонок используем обычное сравнение
               // Заключаем зарезервированные слова в кавычки
@@ -198,7 +198,7 @@ class EncryptedDataService {
 
       // Проверяем, есть ли зашифрованные поля в таблице
       const hasEncryptedFields = columns.some(col => col.column_name.endsWith('_encrypted'));
-      let paramIndex = hasEncryptedFields ? 2 : 1; // Начинаем с 2, если есть зашифрованные поля, иначе с 1
+      let paramIndex = 1; // Начинаем с 1, encryptionKey будет последним (как в работающих примерах)
       
       for (const [key, value] of Object.entries(data)) {
         // Проверяем, есть ли зашифрованная версия колонки
@@ -228,10 +228,12 @@ class EncryptedDataService {
           
           filteredData[key] = valueToEncrypt; // Добавляем в отфильтрованные данные
           console.log(`✅ Добавили зашифрованное поле ${key} = "${valueToEncrypt}" в filteredData`);
+          // В INSERT запросах encryptionKey идет последним параметром (как в работающих примерах)
+          // Используем плейсхолдер, который будет заменен на реальный номер после подсчета всех параметров
           if (encryptedColumn.data_type === 'jsonb') {
-            encryptedData[`${key}_encrypted`] = `encrypt_json($${currentParamIndex}, ${hasEncryptedFields ? '$1::text' : 'NULL'})`;
+            encryptedData[`${key}_encrypted`] = `encrypt_json($${currentParamIndex}, ${hasEncryptedFields ? '$ENCRYPTION_KEY_PARAM' : 'NULL'})`;
           } else {
-            encryptedData[`${key}_encrypted`] = `encrypt_text($${currentParamIndex}, ${hasEncryptedFields ? '$1::text' : 'NULL'})`;
+            encryptedData[`${key}_encrypted`] = `encrypt_text($${currentParamIndex}, ${hasEncryptedFields ? '$ENCRYPTION_KEY_PARAM' : 'NULL'})`;
           }
           console.log(`🔐 Будем шифровать ${key} -> ${key}_encrypted`);
         } else if (unencryptedColumn) {
@@ -274,92 +276,196 @@ class EncryptedDataService {
       };
       
       if (whereConditions) {
-        // UPDATE
-        const setClause = Object.keys(allData)
-          .map((key, index) => `${quoteReservedWord(key)} = ${allData[key]}`)
-          .join(', ');
-        const whereClause = Object.keys(whereConditions)
-          .map((key, index) => {
-            // Для WHERE условий используем зашифрованные имена колонок
-            const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
-            if (encryptedColumn) {
-              // Для зашифрованных колонок используем encrypt_text для сравнения
-              return `${quoteReservedWord(`${key}_encrypted`)} = encrypt_text($${paramIndex + index}, ${hasEncryptedFields ? '$1' : 'NULL'})`;
-            } else {
-              // Для незашифрованных колонок используем обычное сравнение
-              return `${quoteReservedWord(key)} = $${paramIndex + index}`;
+        // UPDATE - используем тот же подход, что и в работающих примерах (auth.js, tables.js)
+        // Как в auth.js: 'UPDATE nonces SET nonce_encrypted = encrypt_text($1, $2)'
+        // Параметры: [nonce, encryptionKey] - encryptionKey идет последним
+        const updateParams = [];
+        let paramIndex = 1;
+        let encryptionKeyParamIndex = null;
+        
+        // Сначала собираем все значения для SET и WHERE, чтобы узнать общее количество параметров
+        const setParts = [];
+        // Итерируемся по filteredData, чтобы использовать только реальные значения
+        for (const key of Object.keys(filteredData)) {
+          // Пропускаем ключи, которые используются только в WHERE
+          if (whereConditions && whereConditions.hasOwnProperty(key)) {
+            continue;
+          }
+          
+          // Проверяем, зашифрованное ли это поле
+          // encryptedData содержит ключи с _encrypted (например, domain_encrypted)
+          // filteredData содержит оригинальные ключи (например, domain)
+          const encryptedKey = `${key}_encrypted`;
+          if (encryptedData[encryptedKey]) {
+            // Зашифрованное поле - key уже оригинальный (без _encrypted)
+            const dataParamIndex = paramIndex++;
+            updateParams.push(filteredData[key]);
+            setParts.push({ key: encryptedKey, dataParamIndex, encrypted: true });
+          } else if (unencryptedData.hasOwnProperty(key)) {
+            // Незашифрованное поле - проверяем, что оно есть в unencryptedData
+            const dataParamIndex = paramIndex++;
+            setParts.push({ key, dataParamIndex, encrypted: false });
+            updateParams.push(filteredData[key]);
+          }
+        }
+        
+        // Проверяем, есть ли зашифрованные поля в SET или WHERE
+        const hasEncryptedInSet = setParts.some(part => part.encrypted);
+        
+        // Формируем WHERE часть
+        const whereParts = [];
+        let hasEncryptedInWhere = false;
+        for (const [key, value] of Object.entries(whereConditions)) {
+          const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
+          if (encryptedColumn) {
+            // Для зашифрованных колонок используем encrypt_text для сравнения
+            const dataParamIndex = paramIndex++;
+            whereParts.push({ key, dataParamIndex, encrypted: true });
+            updateParams.push(value);
+            hasEncryptedInWhere = true;
+          } else {
+            // Для незашифрованных колонок используем обычное сравнение
+            const dataParamIndex = paramIndex++;
+            whereParts.push({ key, dataParamIndex, encrypted: false });
+            updateParams.push(value);
+          }
+        }
+        
+        // Определяем номер параметра для encryptionKey (последний, после всех данных)
+        // encryptionKey нужен, если есть зашифрованные поля в SET или WHERE
+        // ВАЖНО: encryptionKey используется один раз для всех зашифрованных полей
+        if (hasEncryptedInSet || hasEncryptedInWhere) {
+          encryptionKeyParamIndex = paramIndex; // paramIndex уже увеличен после последнего параметра данных
+        }
+        
+        // Формируем SET clause с правильными номерами параметров
+        const setClause = setParts.map(part => {
+          if (part.encrypted) {
+            if (!encryptionKeyParamIndex) {
+              throw new Error('encryptionKeyParamIndex должен быть определен для зашифрованных полей');
             }
-          })
-          .join(' AND ');
-
+            return `${quoteReservedWord(part.key)} = encrypt_text($${part.dataParamIndex}, $${encryptionKeyParamIndex})`;
+          } else {
+            return `${quoteReservedWord(part.key)} = $${part.dataParamIndex}`;
+          }
+        }).join(', ');
+        
+        // Формируем WHERE clause с правильными номерами параметров
+        const whereClause = whereParts.map(part => {
+          if (part.encrypted) {
+            if (!encryptionKeyParamIndex) {
+              throw new Error('encryptionKeyParamIndex должен быть определен для зашифрованных полей в WHERE');
+            }
+            // part.key уже без _encrypted, нужно добавить _encrypted для имени колонки
+            return `${quoteReservedWord(`${part.key}_encrypted`)} = encrypt_text($${part.dataParamIndex}, $${encryptionKeyParamIndex})`;
+          } else {
+            return `${quoteReservedWord(part.key)} = $${part.dataParamIndex}`;
+          }
+        }).join(' AND ');
+        
         const query = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause} RETURNING *`;
-        const allParams = hasEncryptedFields ? [this.encryptionKey, ...Object.values(filteredData), ...Object.values(whereConditions)] : [...Object.values(filteredData), ...Object.values(whereConditions)];
-
+        
+        // Собираем параметры: сначала все значения для SET и WHERE, затем encryptionKey (если есть)
+        const allParams = encryptionKeyParamIndex 
+          ? [...updateParams, this.encryptionKey]
+          : updateParams;
+        
+        // Подсчитываем количество плейсхолдеров в запросе
+        const placeholderCount = (query.match(/\$\d+/g) || []).length;
+        const maxPlaceholder = Math.max(...(query.match(/\$\d+/g) || ['$0']).map(m => parseInt(m.replace('$', ''))));
+        
+        console.log(`🔍 UPDATE запрос: ${query}`);
+        console.log(`🔍 setParts (${setParts.length}):`, JSON.stringify(setParts, null, 2));
+        console.log(`🔍 whereParts (${whereParts.length}):`, JSON.stringify(whereParts, null, 2));
+        console.log(`🔍 encryptionKeyParamIndex:`, encryptionKeyParamIndex);
+        console.log(`🔍 updateParams.length:`, updateParams.length);
+        console.log(`🔍 Параметры (${allParams.length}):`, allParams.map((p, i) => {
+          const val = typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p;
+          return `$${i+1}=${val}`;
+        }));
+        console.log(`🔍 Проверка: плейсхолдеров в запросе=${placeholderCount}, максимальный номер=${maxPlaceholder}, параметров=${allParams.length}`);
+        
+        if (maxPlaceholder !== allParams.length) {
+          const errorMsg = `Несоответствие параметров: в запросе используется $${maxPlaceholder}, но передано ${allParams.length} параметров. setParts=${setParts.length}, whereParts=${whereParts.length}, hasEncryptionKey=${!!encryptionKeyParamIndex}`;
+          console.error(`❌ ${errorMsg}`);
+          throw new Error(errorMsg);
+        }
 
         const { rows } = await db.getQuery()(query, allParams);
         return rows[0];
       } else {
-        // INSERT
-        const columns = Object.keys(allData).map(key => quoteReservedWord(key));
-        const placeholders = Object.keys(allData).map(key => allData[key]).join(', ');
-
-        const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) RETURNING *`;
+        // INSERT - используем тот же подход, что и в работающих примерах (tables.js, users.js)
+        // Как в tables.js: 'INSERT INTO user_cell_values VALUES ($1, $2, encrypt_text($3, $4))'
+        // Параметры: [row_id, column_id, value, encryptionKey] - encryptionKey идет последним
+        const insertParams = [];
+        let insertParamIndex = 1;
+        let encryptionKeyParamIndex = null;
         
-        // Собираем параметры в правильном порядке по номерам из плейсхолдеров
-        const paramMap = new Map(); // номер параметра -> значение
+        // Формируем VALUES часть с правильными плейсхолдерами
+        const valuesParts = [];
+        const columns = [];
         
-        if (hasEncryptedFields) {
-          paramMap.set(1, this.encryptionKey); // $1 - ключ шифрования
-        }
+        // Сначала обрабатываем все поля из filteredData
+        // Проверяем, есть ли зашифрованные поля
+        const hasEncryptedFieldsInInsert = Object.keys(encryptedData).length > 0;
         
-        // Проходим по колонкам в порядке allData и добавляем соответствующие значения
-        for (const key of Object.keys(allData)) {
-          const placeholder = allData[key].toString();
-          console.log(`🔍 Обрабатываем ключ: ${key}, placeholder: ${placeholder}`);
-          // Извлекаем все номера параметров из плейсхолдера (может быть $1 в encrypt_text)
-          const paramMatches = placeholder.match(/\$(\d+)/g);
-          console.log(`🔍 paramMatches для ${key}:`, paramMatches);
-          if (paramMatches) {
-            // Для зашифрованных колонок нас интересует второй параметр ($3, $4 и т.д.)
-            // Для незашифрованных - первый параметр ($2, $3 и т.д.)
-            if (encryptedData[key]) {
-              // Это зашифрованная колонка - берем первый параметр (это значение для шифрования)
-              const originalKey = key.replace('_encrypted', '');
-              console.log(`🔍 Это зашифрованная колонка, originalKey: ${originalKey}, filteredData[originalKey]:`, filteredData[originalKey]);
-              if (filteredData[originalKey] !== undefined && paramMatches.length > 0) {
-                // Первый параметр это значение для шифрования
-                const valueParam = paramMatches[0];
-                const paramNum = parseInt(valueParam.substring(1));
-                console.log(`🔍 Устанавливаем paramMap[${paramNum}] =`, filteredData[originalKey]);
-                paramMap.set(paramNum, filteredData[originalKey]);
-              }
-            } else if (unencryptedData[key]) {
-              // Это незашифрованная колонка - берем параметр из плейсхолдера
-              const valueParam = paramMatches[0];
-              const paramNum = parseInt(valueParam.substring(1));
-              console.log(`🔍 Это незашифрованная колонка, устанавливаем paramMap[${paramNum}] =`, filteredData[key]);
-              paramMap.set(paramNum, filteredData[key]);
-            }
+        for (const key of Object.keys(filteredData)) {
+          const encryptedKey = `${key}_encrypted`;
+          if (encryptedData[encryptedKey]) {
+            // Зашифрованное поле
+            const dataParamIndex = insertParamIndex++;
+            insertParams.push(filteredData[key]);
+            columns.push(quoteReservedWord(encryptedKey));
+            // Используем плейсхолдер, который заменим позже
+            valuesParts.push(`encrypt_text($${dataParamIndex}, $ENCRYPTION_KEY)`);
+          } else if (unencryptedData.hasOwnProperty(key)) {
+            // Незашифрованное поле
+            const dataParamIndex = insertParamIndex++;
+            insertParams.push(filteredData[key]);
+            columns.push(quoteReservedWord(key));
+            valuesParts.push(`$${dataParamIndex}`);
           }
         }
         
-        console.log(`🔍 paramMap после цикла:`, Array.from(paramMap.entries()));
+        // Определяем номер параметра для encryptionKey (последний)
+        if (hasEncryptedFieldsInInsert) {
+          encryptionKeyParamIndex = insertParamIndex;
+        }
         
-        // Создаем массив параметров в правильном порядке (от $1 до максимального номера)
-        const maxParamNum = Math.max(...Array.from(paramMap.keys()));
-        const params = [];
-        for (let i = 1; i <= maxParamNum; i++) {
-          if (!paramMap.has(i)) {
-            throw new Error(`Отсутствует параметр $${i} для запроса`);
-          }
-          params.push(paramMap.get(i));
+        // Заменяем плейсхолдер ENCRYPTION_KEY на реальный номер
+        const placeholdersFinal = valuesParts.map(ph => 
+          ph.replace(/\$ENCRYPTION_KEY/g, encryptionKeyParamIndex ? `$${encryptionKeyParamIndex}` : 'NULL')
+        ).join(', ');
+        
+        const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholdersFinal}) RETURNING *`;
+        
+        // Собираем параметры: сначала все значения из insertParams, затем encryptionKey (если есть)
+        const allParams = encryptionKeyParamIndex 
+          ? [...insertParams, this.encryptionKey]
+          : insertParams;
+        
+        // Подсчитываем количество плейсхолдеров в запросе
+        const placeholderCount = (query.match(/\$\d+/g) || []).length;
+        const maxPlaceholder = Math.max(...(query.match(/\$\d+/g) || ['$0']).map(m => parseInt(m.replace('$', ''))));
+        
+        console.log(`🔍 INSERT запрос: ${query}`);
+        console.log(`🔍 columns (${columns.length}):`, columns);
+        console.log(`🔍 valuesParts (${valuesParts.length}):`, valuesParts);
+        console.log(`🔍 insertParams.length:`, insertParams.length);
+        console.log(`🔍 encryptionKeyParamIndex:`, encryptionKeyParamIndex);
+        console.log(`🔍 Параметры (${allParams.length}):`, allParams.map((p, i) => {
+          const val = typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p;
+          return `$${i+1}=${val}`;
+        }));
+        console.log(`🔍 Проверка: плейсхолдеров в запросе=${placeholderCount}, максимальный номер=${maxPlaceholder}, параметров=${allParams.length}`);
+        
+        if (maxPlaceholder !== allParams.length) {
+          const errorMsg = `Несоответствие параметров: в запросе используется $${maxPlaceholder}, но передано ${allParams.length} параметров. columns=${columns.length}, valuesParts=${valuesParts.length}, hasEncryptionKey=${!!encryptionKeyParamIndex}`;
+          console.error(`❌ ${errorMsg}`);
+          throw new Error(errorMsg);
         }
 
-        console.log(`🔍 Выполняем INSERT запрос:`, query);
-        console.log(`🔍 Параметры:`, params);
-        console.log(`🔍 Ключ шифрования:`, this.encryptionKey ? 'установлен' : 'не установлен');
-
-        const { rows } = await db.getQuery()(query, params);
+        const { rows } = await db.getQuery()(query, allParams);
         return rows[0];
       }
     } catch (error) {
@@ -408,7 +514,7 @@ class EncryptedDataService {
             if (encryptedColumn) {
               // Для зашифрованных колонок используем прямое сравнение с зашифрованным значением
               // Ключ шифрования всегда первый параметр ($1), затем значения
-              return `${key}_encrypted = encrypt_text($${index + 2}, $1)`;
+              return `${key}_encrypted = encrypt_text($${index + 2}, ($1)::text)`;
             } else {
               // Для незашифрованных колонок используем обычное сравнение
               const columnName = quoteReservedWord(key);

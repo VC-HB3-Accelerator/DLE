@@ -35,10 +35,22 @@ const execSshCommand = async (command, options = {}) => {
   const privateKeyExists = await fs.pathExists(privateKeyPath);
   const escapedCommand = command.replace(/"/g, '\\"');
 
-  let sshCommand = `ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${escapedCommand}"`;
+  // Удаляем пробелы и проверяем, что значения не пустые
+  const user = String(sshConnectUser || 'root').trim();
+  const host = String((sshHost || vdsIp || '')).trim();
+  
+  if (!host) {
+    throw new Error('Не указан хост для SSH подключения (sshHost или vdsIp)');
+  }
+  
+  if (!user) {
+    throw new Error('Не указан пользователь для SSH подключения (sshConnectUser)');
+  }
+
+  let sshCommand = `ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${user}@${host} "${escapedCommand}"`;
 
   if (privateKeyExists) {
-    sshCommand = `ssh -i "${privateKeyPath}" -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${escapedCommand}"`;
+    sshCommand = `ssh -i "${privateKeyPath}" -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${user}@${host} "${escapedCommand}"`;
   }
 
   log.info(`🔍 Выполняем SSH команду: ${sshCommand}`);
@@ -49,7 +61,7 @@ const execSshCommand = async (command, options = {}) => {
 
       if (error && error.code === 255 && sshConnectPassword) {
         log.info('SSH ключи не сработали, пробуем с паролем...');
-        const passwordCommand = `sshpass -p "${sshConnectPassword}" ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sshConnectUser}@${sshHost || vdsIp} "${escapedCommand}"`;
+        const passwordCommand = `sshpass -p "${String(sshConnectPassword || '').trim()}" ssh -p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${user}@${host} "${escapedCommand}"`;
 
         exec(passwordCommand, (passwordError, passwordStdout, passwordStderr) => {
           log.info(`📤 SSH с паролем результат - код: ${passwordError ? passwordError.code : 0}, stdout: "${passwordStdout}", stderr: "${passwordStderr}"`);
@@ -83,17 +95,29 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
 
   const privateKeyExists = await fs.pathExists(privateKeyPath);
 
-  let scpCommand = `scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
+  // Удаляем пробелы и проверяем, что значения не пустые
+  const user = String(sshConnectUser || 'root').trim();
+  const host = String((sshHost || vdsIp || '')).trim();
+  
+  if (!host) {
+    throw new Error('Не указан хост для SCP подключения (sshHost или vdsIp)');
+  }
+  
+  if (!user) {
+    throw new Error('Не указан пользователь для SCP подключения (sshConnectUser)');
+  }
+
+  let scpCommand = `scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
 
   if (privateKeyExists) {
-    scpCommand = `scp -i "${privateKeyPath}" -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
+    scpCommand = `scp -i "${privateKeyPath}" -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
   }
 
   return new Promise((resolve) => {
     exec(scpCommand, (error, stdout, stderr) => {
       if (error && error.code === 255 && sshConnectPassword) {
         log.info('SCP с ключами не сработал, пробуем с паролем...');
-        const passwordScpCommand = `sshpass -p "${sshConnectPassword}" scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${sourcePath} ${sshConnectUser}@${sshHost || vdsIp}:${targetPath}`;
+        const passwordScpCommand = `sshpass -p "${String(sshConnectPassword || '').trim()}" scp -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
 
         exec(passwordScpCommand, (passwordError, passwordStdout, passwordStderr) => {
           if (passwordError) {

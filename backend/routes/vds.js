@@ -24,6 +24,40 @@ const encryptedDb = require('../services/encryptedDatabaseService');
 const execAsync = promisify(exec);
 
 /**
+ * Сохранить настройки VDS в базу данных
+ * @param {Object} settings - Объект с настройками для сохранения
+ * @returns {Promise<Object>} - Сохраненная запись
+ */
+async function saveVdsSettingsToDb(settings) {
+  // Проверяем существующие настройки
+  const existing = await encryptedDb.getData('vds_settings', {}, 1);
+  
+  if (existing.length > 0) {
+    // UPDATE существующей записи
+    return await encryptedDb.saveData('vds_settings', settings, { id: existing[0].id });
+  } else {
+    // INSERT новой записи
+    return await encryptedDb.saveData('vds_settings', {
+      ...settings,
+      created_at: new Date()
+    });
+  }
+}
+
+/**
+ * Обновить домен в process.env и сбросить кэш
+ * @param {string} domain - Домен для установки
+ */
+function updateDomainCache(domain) {
+  // Обновляем process.env.BASE_URL для текущего процесса
+  process.env.BASE_URL = `https://${domain}`;
+  
+  // Сбрасываем кэш домена в consentService
+  const consentService = require('../services/consentService');
+  consentService.clearDomainCache();
+}
+
+/**
  * Получить настройки VDS
  */
 router.get('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
@@ -31,42 +65,58 @@ router.get('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTIN
     const encryptionUtils = require('../utils/encryptionUtils');
     const encryptionKey = encryptionUtils.getEncryptionKey();
     
-    const { rows } = await db.getQuery()(
-      `SELECT 
-        id, 
-        decrypt_text(domain_encrypted, $1) as domain,
-        decrypt_text(email_encrypted, $1) as email,
-        decrypt_text(ubuntu_user_encrypted, $1) as ubuntu_user,
-        decrypt_text(docker_user_encrypted, $1) as docker_user,
-        decrypt_text(ssh_host_encrypted, $1) as ssh_host,
-        ssh_port,
-        decrypt_text(ssh_user_encrypted, $1) as ssh_user,
-        decrypt_text(ssh_password_encrypted, $1) as ssh_password,
-        created_at, 
-        updated_at 
-      FROM vds_settings 
-      ORDER BY id DESC 
-      LIMIT 1`,
-      [encryptionKey]
-    );
-    
-    if (rows.length === 0) {
-      return res.json({ success: true, settings: null });
-    }
-    
-    res.json({ 
-      success: true, 
-      settings: {
-        domain: rows[0].domain,
-        email: rows[0].email,
-        ubuntuUser: rows[0].ubuntu_user,
-        dockerUser: rows[0].docker_user,
-        sshHost: rows[0].ssh_host,
-        sshPort: rows[0].ssh_port,
-        sshUser: rows[0].ssh_user
-        // sshPassword не возвращаем по соображениям безопасности
+    try {
+      const { rows } = await db.getQuery()(
+        `SELECT 
+          id, 
+          decrypt_text(domain_encrypted, $1) as domain,
+          decrypt_text(email_encrypted, $1) as email,
+          decrypt_text(ubuntu_user_encrypted, $1) as ubuntu_user,
+          decrypt_text(docker_user_encrypted, $1) as docker_user,
+          decrypt_text(ssh_host_encrypted, $1) as ssh_host,
+          ssh_port,
+          decrypt_text(ssh_user_encrypted, $1) as ssh_user,
+          decrypt_text(ssh_password_encrypted, $1) as ssh_password,
+          created_at, 
+          updated_at 
+        FROM vds_settings 
+        ORDER BY id DESC 
+        LIMIT 1`,
+        [encryptionKey]
+      );
+      
+      if (rows.length === 0) {
+        return res.json({ success: true, settings: null });
       }
-    });
+      
+      res.json({ 
+        success: true, 
+        settings: {
+          domain: rows[0].domain,
+          email: rows[0].email,
+          ubuntuUser: rows[0].ubuntu_user,
+          dockerUser: rows[0].docker_user,
+          sshHost: rows[0].ssh_host,
+          sshPort: rows[0].ssh_port,
+          sshUser: rows[0].ssh_user
+          // sshPassword не возвращаем по соображениям безопасности
+        }
+      });
+    } catch (decryptError) {
+      // Если ошибка расшифровки (некорректные данные в БД), очищаем их и возвращаем null
+      if (decryptError.message && decryptError.message.includes('decoding base64')) {
+        logger.warn('[VDS] Ошибка расшифровки настроек (некорректные данные в БД). Очищаем некорректные данные из таблицы vds_settings.');
+        try {
+          // Автоматически очищаем некорректные данные из БД
+          await db.getQuery()('DELETE FROM vds_settings');
+          logger.info('[VDS] Некорректные настройки VDS удалены из таблицы vds_settings. Создайте новые настройки через интерфейс.');
+        } catch (deleteError) {
+          logger.error('[VDS] Ошибка при удалении некорректных настроек:', deleteError);
+        }
+        return res.json({ success: true, settings: null });
+      }
+      throw decryptError; // Пробрасываем другие ошибки
+    }
   } catch (error) {
     logger.error('[VDS] Ошибка получения настроек:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -92,27 +142,14 @@ router.post('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTI
     // Если передан только домен (для обратной совместимости)
     if (domain && !email && !sshHost) {
       const normalizedDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
-      const existing = await encryptedDb.getData('vds_settings', {}, 1);
       
       const settings = {
         domain_encrypted: normalizedDomain, // encryptedDb автоматически зашифрует
         updated_at: new Date()
       };
       
-      if (existing.length > 0) {
-        await encryptedDb.saveData('vds_settings', settings, { id: existing[0].id });
-      } else {
-        await encryptedDb.saveData('vds_settings', {
-          ...settings,
-          created_at: new Date()
-        });
-      }
-      
-      process.env.BASE_URL = `https://${normalizedDomain}`;
-      
-      // Сбрасываем кэш домена в consentService
-      const consentService = require('../services/consentService');
-      consentService.clearDomainCache();
+      await saveVdsSettingsToDb(settings);
+      updateDomainCache(normalizedDomain);
       
       logger.info(`[VDS] Домен сохранен: ${normalizedDomain}`);
       return res.json({ success: true, domain: normalizedDomain });
@@ -129,11 +166,8 @@ router.post('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTI
     // Нормализуем домен
     const normalizedDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
     
-    // Проверяем существующие настройки
+    // Проверяем существующие настройки (для валидации пароля)
     const existing = await encryptedDb.getData('vds_settings', {}, 1);
-    
-    const encryptionUtils = require('../utils/encryptionUtils');
-    const encryptionKey = encryptionUtils.getEncryptionKey();
     
     // Подготавливаем данные для сохранения с правильными именами полей для шифрования
     const settings = {
@@ -159,21 +193,8 @@ router.post('/settings', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTI
     }
     // Если пароль не указан (undefined/null/пустая строка) и настройки уже есть - не обновляем пароль
     
-    if (existing.length > 0) {
-      await encryptedDb.saveData('vds_settings', settings, { id: existing[0].id });
-    } else {
-      await encryptedDb.saveData('vds_settings', {
-        ...settings,
-        created_at: new Date()
-      });
-    }
-    
-    // Обновляем process.env.BASE_URL для текущего процесса
-    process.env.BASE_URL = `https://${normalizedDomain}`;
-    
-    // Сбрасываем кэш домена в consentService
-    const consentService = require('../services/consentService');
-    consentService.clearDomainCache();
+    await saveVdsSettingsToDb(settings);
+    updateDomainCache(normalizedDomain);
     
     logger.info(`[VDS] Настройки сохранены: ${normalizedDomain}`);
     res.json({ success: true, settings });
@@ -196,20 +217,147 @@ async function checkDockerAvailable() {
 }
 
 /**
+ * Получить настройки VDS из базы данных
+ */
+async function getVdsSettings() {
+  try {
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    const { rows } = await db.getQuery()(
+      `SELECT 
+        decrypt_text(domain_encrypted, $1) as domain,
+        decrypt_text(email_encrypted, $1) as email,
+        decrypt_text(ubuntu_user_encrypted, $1) as ubuntu_user,
+        decrypt_text(docker_user_encrypted, $1) as docker_user,
+        decrypt_text(ssh_host_encrypted, $1) as ssh_host,
+        ssh_port,
+        decrypt_text(ssh_user_encrypted, $1) as ssh_user,
+        decrypt_text(ssh_password_encrypted, $1) as ssh_password
+      FROM vds_settings 
+      ORDER BY id DESC 
+      LIMIT 1`,
+      [encryptionKey]
+    );
+    
+    if (rows.length > 0 && rows[0].ssh_host && rows[0].ssh_user) {
+      return {
+        domain: rows[0].domain,
+        email: rows[0].email,
+        ubuntuUser: rows[0].ubuntu_user,
+        dockerUser: rows[0].docker_user,
+        sshHost: rows[0].ssh_host,
+        sshPort: rows[0].ssh_port || 22,
+        sshUser: rows[0].ssh_user,
+        sshPassword: rows[0].ssh_password
+      };
+    }
+  } catch (decryptError) {
+    // Если ошибка расшифровки (некорректные данные в БД), очищаем их и возвращаем null
+    if (decryptError.message && decryptError.message.includes('decoding base64')) {
+      logger.warn('[VDS] Ошибка расшифровки настроек (некорректные данные в БД). Очищаем некорректные данные из таблицы vds_settings.');
+      try {
+        // Автоматически очищаем некорректные данные из БД
+        await db.getQuery()('DELETE FROM vds_settings');
+        logger.info('[VDS] Некорректные настройки VDS удалены из таблицы vds_settings. Создайте новые настройки через интерфейс.');
+      } catch (deleteError) {
+        logger.error('[VDS] Ошибка при удалении некорректных настроек:', deleteError);
+      }
+      return null;
+    }
+    // Для других ошибок просто логируем
+    logger.warn('[VDS] Не удалось получить настройки VDS из базы данных:', decryptError.message);
+  }
+  return null;
+}
+
+/**
+ * Выполнить команду Docker (локально или через SSH на VDS)
+ */
+async function execDockerCommand(command) {
+  const vdsSettings = await getVdsSettings();
+  
+  if (vdsSettings && vdsSettings.sshHost && vdsSettings.sshUser) {
+    // Выполняем через SSH на VDS
+    return await execSshCommandOnVds(command, vdsSettings);
+  } else {
+    // Выполняем локально
+    try {
+      const { stdout, stderr } = await execAsync(command);
+      return { code: 0, stdout, stderr };
+    } catch (error) {
+      return { code: error.code || 1, stdout: error.stdout || '', stderr: error.stderr || error.message };
+    }
+  }
+}
+
+/**
+ * Выполнить SSH команду на VDS
+ */
+async function execSshCommandOnVds(command, settings) {
+  const { sshHost, sshPort = 22, sshUser, sshPassword } = settings;
+  
+  // Экранируем команду для SSH
+  // Экранируем двойные кавычки и знаки доллара для правильной передачи через SSH
+  const escapedCommand = command
+    .replace(/\\/g, '\\\\')  // Сначала экранируем обратные слеши
+    .replace(/\$/g, '\\$')   // Экранируем знаки доллара
+    .replace(/"/g, '\\"');   // Экранируем двойные кавычки
+  
+  // Базовые опции SSH
+  const sshOptions = `-p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR`;
+  
+  // Строим SSH команду
+  let sshCommand;
+  if (sshPassword && sshPassword.trim()) {
+    // Используем sshpass для подключения с паролем (если пароль указан)
+    sshCommand = `sshpass -p "${sshPassword.replace(/"/g, '\\"')}" ssh ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
+  } else {
+    // Используем SSH ключи (по умолчанию из ~/.ssh/id_rsa или ~/.ssh/id_ed25519)
+    // SSH автоматически найдет ключ в ~/.ssh/
+    sshCommand = `ssh ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
+  }
+  
+  try {
+    const { stdout, stderr } = await execAsync(sshCommand);
+    return { code: 0, stdout, stderr };
+  } catch (error) {
+    return { code: error.code || 1, stdout: error.stdout || '', stderr: error.stderr || error.message };
+  }
+}
+
+/**
  * Получить список контейнеров
  */
 router.get('/containers', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const dockerAvailable = await checkDockerAvailable();
-    if (!dockerAvailable) {
-      return res.json({ success: true, containers: [], message: 'Docker недоступен (работает локально, не на VDS)' });
+    const vdsSettings = await getVdsSettings();
+    
+    // Проверяем, есть ли настройки VDS или локальный Docker доступен
+    if (!vdsSettings && !(await checkDockerAvailable())) {
+      return res.json({ 
+        success: true, 
+        containers: [], 
+        message: 'VDS не настроена и Docker недоступен локально' 
+      });
     }
     
-    const { stdout } = await execAsync('docker ps -a --format "{{.Names}}|{{.Status}}|{{.Image}}"');
-    const containers = stdout.trim().split('\n').filter(line => line.trim()).map(line => {
-      const [name, status, image] = line.split('|');
-      return { name, status, image };
-    });
+    const result = await execDockerCommand('docker ps -a --format "{{.Names}}|{{.Status}}|{{.Image}}"');
+    
+    if (result.code !== 0) {
+      logger.error(`[VDS] Ошибка выполнения Docker команды: ${result.stderr}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: `Не удалось получить список контейнеров: ${result.stderr}` 
+      });
+    }
+    
+    const containers = result.stdout.trim().split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        const [name, status, image] = line.split('|');
+        return { name, status, image };
+      });
     
     res.json({ success: true, containers });
   } catch (error) {
@@ -229,7 +377,12 @@ router.post('/containers/:name/restart', requireAuth, requirePermission(PERMISSI
       return res.status(400).json({ success: false, error: 'Имя контейнера обязательно' });
     }
     
-    await execAsync(`docker restart ${name}`);
+    const result = await execDockerCommand(`docker restart ${name}`);
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось перезапустить контейнер' });
+    }
+    
     logger.info(`[VDS] Контейнер ${name} перезапущен`);
     res.json({ success: true, message: `Контейнер ${name} перезапущен` });
   } catch (error) {
@@ -243,14 +396,24 @@ router.post('/containers/:name/restart', requireAuth, requirePermission(PERMISSI
  */
 router.post('/containers/restart-all', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
-    const { stdout } = await execAsync('docker ps -q');
-    const containerIds = stdout.trim().split('\n').filter(id => id.trim());
+    const result = await execDockerCommand('docker ps -q');
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось получить список контейнеров' });
+    }
+    
+    const containerIds = result.stdout.trim().split('\n').filter(id => id.trim());
     
     if (containerIds.length === 0) {
       return res.json({ success: true, message: 'Нет запущенных контейнеров', restarted: 0 });
     }
     
-    await execAsync(`docker restart ${containerIds.join(' ')}`);
+    const restartResult = await execDockerCommand(`docker restart ${containerIds.join(' ')}`);
+    
+    if (restartResult.code !== 0) {
+      return res.status(500).json({ success: false, error: restartResult.stderr || 'Не удалось перезапустить контейнеры' });
+    }
+    
     logger.info(`[VDS] Перезапущено контейнеров: ${containerIds.length}`);
     res.json({ success: true, message: `Перезапущено контейнеров: ${containerIds.length}`, restarted: containerIds.length });
   } catch (error) {
@@ -271,24 +434,28 @@ router.post('/containers/:name/rebuild', requireAuth, requirePermission(PERMISSI
     }
     
     // Получаем информацию о контейнере
-    const { stdout: inspectOutput } = await execAsync(`docker inspect ${name} --format '{{.Config.Image}}'`);
-    const imageName = inspectOutput.trim();
+    const inspectResult = await execDockerCommand(`docker inspect ${name} --format '{{.Config.Image}}'`);
+    if (inspectResult.code !== 0) {
+      return res.status(404).json({ success: false, error: 'Контейнер не найден' });
+    }
     
+    const imageName = inspectResult.stdout.trim();
     if (!imageName) {
       return res.status(404).json({ success: false, error: 'Контейнер не найден' });
     }
     
     // Останавливаем контейнер
-    await execAsync(`docker stop ${name}`).catch(() => {});
+    await execDockerCommand(`docker stop ${name}`);
     
     // Удаляем контейнер
-    await execAsync(`docker rm ${name}`).catch(() => {});
+    await execDockerCommand(`docker rm ${name}`);
     
     // Пересобираем образ (если есть Dockerfile)
     // Для простоты просто пересоздаем контейнер из образа
-    await execAsync(`docker run -d --name ${name} ${imageName}`).catch(() => {
-      throw new Error('Не удалось пересоздать контейнер. Возможно, нужны дополнительные параметры запуска.');
-    });
+    const runResult = await execDockerCommand(`docker run -d --name ${name} ${imageName}`);
+    if (runResult.code !== 0) {
+      return res.status(500).json({ success: false, error: 'Не удалось пересоздать контейнер. Возможно, нужны дополнительные параметры запуска.' });
+    }
     
     logger.info(`[VDS] Контейнер ${name} пересобран`);
     res.json({ success: true, message: `Контейнер ${name} пересобран` });
@@ -305,64 +472,146 @@ router.get('/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)
   try {
     const { period = '1h' } = req.query; // 1h, 6h, 24h, 7d
     
-    // Получаем текущую статистику CPU и RAM
+    // Получаем текущую статистику CPU и RAM с VDS сервера
     let cpuUsage = 0;
     let ramUsage = 0;
+    let ramTotal = 0;
+    let ramUsed = 0;
     let totalTraffic = 0;
     let rxBytes = 0;
     let txBytes = 0;
-    
-    try {
-      const { stdout: cpuRam } = await execAsync('top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk \'{print 100 - $1}\'');
-      cpuUsage = parseFloat(cpuRam.trim()) || 0;
-    } catch (error) {
-      logger.warn('[VDS] Не удалось получить статистику CPU:', error.message);
-    }
-    
-    try {
-      const { stdout: memInfo } = await execAsync('free -m | awk \'NR==2{printf "%.2f", $3*100/$2}\'');
-      ramUsage = parseFloat(memInfo.trim()) || 0;
-    } catch (error) {
-      logger.warn('[VDS] Не удалось получить статистику RAM:', error.message);
-    }
-    
-    try {
-      // Используем /host/proc если доступно, иначе /proc
-      const procPath = require('fs').existsSync('/host/proc') ? '/host/proc' : '/proc';
-      const { stdout: networkStats } = await execAsync(`cat ${procPath}/net/dev | awk 'NR>2 {rx+=$2; tx+=$10} END {print rx, tx}'`);
-      [rxBytes, txBytes] = networkStats.trim().split(' ').map(Number);
-      totalTraffic = (rxBytes + txBytes) / 1024 / 1024; // MB
-    } catch (error) {
-      logger.warn('[VDS] Не удалось получить статистику трафика:', error.message);
-    }
+    let cpuCores = 0;
     
     // Получаем статистику по контейнерам (если Docker доступен)
     let containers = [];
-    const dockerAvailable = await checkDockerAvailable();
-    if (dockerAvailable) {
+    const vdsSettings = await getVdsSettings();
+    
+    // Если есть настройки VDS, выполняем команды на VDS сервере
+    if (vdsSettings) {
       try {
-        const { stdout: containerStats } = await execAsync('docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}"');
-        containers = containerStats.trim().split('\n').filter(line => line.trim()).map(line => {
-          const [name, cpu, mem, net] = line.split('|');
-          return { name, cpu, mem, net };
-        });
+        // CPU usage - используем упрощенную команду через /proc/stat
+        // $ будет экранирован в execSshCommandOnVds
+        const procCpuResult = await execDockerCommand('head -n1 /proc/stat | awk \'{idle=$5+$6; total=$2+$3+$4+$5+$6+$7+$8+$9; if(total>0) print (100*(total-idle)/total); else print 0}\'');
+        if (procCpuResult.code === 0 && procCpuResult.stdout && procCpuResult.stdout.trim()) {
+          const parsed = parseFloat(procCpuResult.stdout.trim());
+          if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+            cpuUsage = parsed;
+            logger.info(`[VDS] CPU usage получен через /proc/stat: ${cpuUsage}%`);
+          } else {
+            throw new Error(`Invalid CPU value: ${parsed}`);
+          }
+        } else {
+          throw new Error(`Command failed: code=${procCpuResult.code}, stderr=${procCpuResult.stderr}`);
+        }
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить CPU через /proc/stat, пробуем top:', error.message);
+        try {
+          // Fallback: через top - упрощенная команда (idle обычно предпоследнее значение)
+          const cpuResult = await execDockerCommand('top -bn1 | grep "%Cpu(s)" | awk \'{print 100-$(NF-2)}\' | sed \'s/%//\'');
+          if (cpuResult.code === 0 && cpuResult.stdout && cpuResult.stdout.trim()) {
+            cpuUsage = parseFloat(cpuResult.stdout.trim()) || 0;
+            logger.info(`[VDS] CPU usage получен через top: ${cpuUsage}%`);
+          }
+        } catch (topError) {
+          logger.warn('[VDS] Не удалось получить CPU usage:', topError.message);
+        }
+      }
+      
+      try {
+        // RAM usage и total - $ будет экранирован в execSshCommandOnVds
+        const memResult = await execDockerCommand('free -m | awk \'NR==2{usage=$3*100/$2; printf "%.2f %d %d", usage, $2, $3}\'');
+        if (memResult.code === 0 && memResult.stdout && memResult.stdout.trim()) {
+          const parts = memResult.stdout.trim().split(' ');
+          if (parts.length >= 3) {
+            ramUsage = parseFloat(parts[0]) || 0;
+            ramTotal = parseInt(parts[1]) || 0;
+            ramUsed = parseInt(parts[2]) || 0;
+            logger.info(`[VDS] RAM получена с VDS: usage=${ramUsage}%, total=${ramTotal}MB, used=${ramUsed}MB (raw: ${memResult.stdout.trim()})`);
+          } else {
+            logger.warn('[VDS] Неверный формат RAM данных:', memResult.stdout);
+          }
+        } else {
+          logger.warn('[VDS] Не удалось получить RAM, code:', memResult.code, 'stdout:', memResult.stdout, 'stderr:', memResult.stderr);
+        }
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить статистику RAM:', error.message);
+      }
+      
+      try {
+        // CPU cores
+        const coresResult = await execDockerCommand('nproc');
+        if (coresResult.code === 0 && coresResult.stdout) {
+          cpuCores = parseInt(coresResult.stdout.trim()) || 0;
+        }
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить количество ядер CPU:', error.message);
+      }
+      
+      try {
+        // Network traffic
+        const networkResult = await execDockerCommand('cat /proc/net/dev | awk \'NR>2 {rx+=$2; tx+=$10} END {print rx, tx}\'');
+        if (networkResult.code === 0 && networkResult.stdout) {
+          [rxBytes, txBytes] = networkResult.stdout.trim().split(' ').map(Number);
+          totalTraffic = (rxBytes + txBytes) / 1024 / 1024; // MB
+        }
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить статистику трафика:', error.message);
+      }
+      
+      try {
+        // Docker containers stats
+        const result = await execDockerCommand('docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}"');
+        if (result.code === 0 && result.stdout) {
+          containers = result.stdout.trim().split('\n').filter(line => line.trim()).map(line => {
+            const [name, cpu, mem, net] = line.split('|');
+            return { name, cpu, mem, net };
+          });
+        }
       } catch (error) {
         logger.warn('[VDS] Не удалось получить статистику контейнеров:', error.message);
-        // Продолжаем без статистики контейнеров
       }
+    } else {
+      // Fallback: локальное выполнение (если VDS не настроена)
+      try {
+        const { stdout: cpuRam } = await execAsync('top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk \'{print 100 - $1}\'');
+        cpuUsage = parseFloat(cpuRam.trim()) || 0;
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить статистику CPU:', error.message);
+      }
+      
+      try {
+        const { stdout: memInfo } = await execAsync('free -m | awk \'NR==2{printf "%.2f %d %d", $3*100/$2, $2, $3}\'');
+        const [usage, total, used] = memInfo.trim().split(' ').map(Number);
+        ramUsage = usage || 0;
+        ramTotal = total || 0;
+        ramUsed = used || 0;
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить статистику RAM:', error.message);
+      }
+      
+      try {
+        const procPath = require('fs').existsSync('/host/proc') ? '/host/proc' : '/proc';
+        const { stdout: networkStats } = await execAsync(`cat ${procPath}/net/dev | awk 'NR>2 {rx+=$2; tx+=$10} END {print rx, tx}'`);
+        [rxBytes, txBytes] = networkStats.trim().split(' ').map(Number);
+        totalTraffic = (rxBytes + txBytes) / 1024 / 1024; // MB
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить статистику трафика:', error.message);
+      }
+      
+      cpuCores = require('os').cpus().length;
     }
     
-    res.json({
+    const responseData = {
       success: true,
       stats: {
         cpu: {
           usage: cpuUsage,
-          cores: require('os').cpus().length
+          cores: cpuCores || require('os').cpus().length
         },
         ram: {
           usage: ramUsage,
-          total: Math.round(require('os').totalmem() / 1024 / 1024), // MB
-          used: Math.round(require('os').totalmem() / 1024 / 1024 * ramUsage / 100) // MB
+          total: ramTotal || Math.round(require('os').totalmem() / 1024 / 1024), // MB
+          used: ramUsed || Math.round((ramTotal || require('os').totalmem() / 1024 / 1024) * ramUsage / 100) // MB
         },
         traffic: {
           total: totalTraffic, // MB
@@ -372,7 +621,11 @@ router.get('/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)
         containers
       },
       timestamp: new Date().toISOString()
-    });
+    };
+    
+    logger.info(`[VDS] Статистика отправлена: CPU=${cpuUsage}%, RAM=${ramUsage}% (${ramUsed}/${ramTotal}MB), Traffic=${totalTraffic}MB`);
+    
+    res.json(responseData);
   } catch (error) {
     logger.error('[VDS] Ошибка получения статистики:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -385,7 +638,12 @@ router.get('/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)
 router.post('/containers/:name/stop', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { name } = req.params;
-    await execAsync(`docker stop ${name}`);
+    const result = await execDockerCommand(`docker stop ${name}`);
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось остановить контейнер' });
+    }
+    
     logger.info(`[VDS] Контейнер ${name} остановлен`);
     res.json({ success: true, message: `Контейнер ${name} остановлен` });
   } catch (error) {
@@ -400,7 +658,12 @@ router.post('/containers/:name/stop', requireAuth, requirePermission(PERMISSIONS
 router.post('/containers/:name/start', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { name } = req.params;
-    await execAsync(`docker start ${name}`);
+    const result = await execDockerCommand(`docker start ${name}`);
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось запустить контейнер' });
+    }
+    
     logger.info(`[VDS] Контейнер ${name} запущен`);
     res.json({ success: true, message: `Контейнер ${name} запущен` });
   } catch (error) {
@@ -415,8 +678,13 @@ router.post('/containers/:name/start', requireAuth, requirePermission(PERMISSION
 router.delete('/containers/:name', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { name } = req.params;
-    await execAsync(`docker stop ${name}`).catch(() => {});
-    await execAsync(`docker rm ${name}`);
+    await execDockerCommand(`docker stop ${name}`);
+    const result = await execDockerCommand(`docker rm ${name}`);
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось удалить контейнер' });
+    }
+    
     logger.info(`[VDS] Контейнер ${name} удален`);
     res.json({ success: true, message: `Контейнер ${name} удален` });
   } catch (error) {
@@ -432,8 +700,13 @@ router.get('/containers/:name/logs', requireAuth, requirePermission(PERMISSIONS.
   try {
     const { name } = req.params;
     const { tail = 100 } = req.query;
-    const { stdout } = await execAsync(`docker logs --tail ${tail} ${name}`);
-    res.json({ success: true, logs: stdout });
+    const result = await execDockerCommand(`docker logs --tail ${tail} ${name}`);
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось получить логи контейнера' });
+    }
+    
+    res.json({ success: true, logs: result.stdout });
   } catch (error) {
     logger.error(`[VDS] Ошибка получения логов контейнера ${req.params.name}:`, error);
     res.status(500).json({ success: false, error: error.message });
@@ -446,8 +719,13 @@ router.get('/containers/:name/logs', requireAuth, requirePermission(PERMISSIONS.
 router.get('/containers/:name/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   try {
     const { name } = req.params;
-    const { stdout } = await execAsync(`docker stats --no-stream --format "{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}" ${name}`);
-    const [cpu, mem, net, block] = stdout.trim().split('|');
+    const result = await execDockerCommand(`docker stats --no-stream --format "{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}" ${name}`);
+    
+    if (result.code !== 0) {
+      return res.status(500).json({ success: false, error: result.stderr || 'Не удалось получить статистику контейнера' });
+    }
+    
+    const [cpu, mem, net, block] = result.stdout.trim().split('|');
     res.json({ success: true, stats: { cpu, mem, net, block } });
   } catch (error) {
     logger.error(`[VDS] Ошибка получения статистики контейнера ${req.params.name}:`, error);
@@ -790,6 +1068,106 @@ router.post('/backup/send', requireAuth, requirePermission(PERMISSIONS.MANAGE_SE
     res.json({ success: true, message: 'Бэкап отправлен', output: stdout });
   } catch (error) {
     logger.error('[VDS] Ошибка отправки бэкапа:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Проверить и обновить SSL сертификат
+ */
+router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  try {
+    const vdsSettings = await getVdsSettings();
+    
+    if (!vdsSettings) {
+      return res.status(400).json({ success: false, error: 'VDS не настроена' });
+    }
+    
+    // Проверяем, используется ли Docker certbot
+    const dockerUser = vdsSettings.dockerUser || 'docker';
+    const domain = vdsSettings.domain || vdsSettings.sshHost;
+    
+    // Проверяем статус сертификата через Docker certbot
+    const checkResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`);
+    
+    if (checkResult.code !== 0) {
+      logger.warn('[VDS] Ошибка проверки сертификатов:', checkResult.stderr);
+    }
+    
+    // Пытаемся обновить сертификат через Docker certbot
+    logger.info('[VDS] Обновление SSL сертификата...');
+    const renewResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot renew --force-renewal --non-interactive 2>&1 || certbot renew --force-renewal --non-interactive 2>&1`);
+    
+    if (renewResult.code === 0) {
+      // Перезапускаем nginx для применения нового сертификата
+      const reloadResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || systemctl reload nginx 2>&1`);
+      
+      logger.info('[VDS] SSL сертификат обновлен');
+      res.json({ 
+        success: true, 
+        message: 'SSL сертификат обновлен',
+        output: renewResult.stdout,
+        reloadOutput: reloadResult.stdout
+      });
+    } else {
+      logger.error('[VDS] Ошибка обновления SSL сертификата:', renewResult.stderr);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Не удалось обновить SSL сертификат',
+        details: renewResult.stderr
+      });
+    }
+  } catch (error) {
+    logger.error('[VDS] Ошибка обновления SSL сертификата:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Получить статус SSL сертификата
+ */
+router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
+  try {
+    const vdsSettings = await getVdsSettings();
+    
+    if (!vdsSettings) {
+      return res.status(400).json({ success: false, error: 'VDS не настроена' });
+    }
+    
+    const dockerUser = vdsSettings.dockerUser || 'docker';
+    const domain = vdsSettings.domain || vdsSettings.sshHost;
+    
+    // Проверяем статус сертификата через Docker certbot
+    const checkResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`);
+    
+    // Проверяем срок действия сертификата
+    let certInfo = null;
+    
+    if (domain) {
+      const certPath = `/etc/letsencrypt/live/${domain}/cert.pem`;
+      const certCheckResult = await execDockerCommand(`openssl x509 -in ${certPath} -noout -dates -subject 2>&1 || echo "Certificate not found"`);
+      
+      if (certCheckResult.code === 0 && !certCheckResult.stdout.includes('not found')) {
+        certInfo = {
+          exists: true,
+          details: certCheckResult.stdout
+        };
+      } else {
+        certInfo = {
+          exists: false,
+          error: certCheckResult.stdout
+        };
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      certificates: checkResult.stdout,
+      domain: domain,
+      certInfo: certInfo
+    });
+  } catch (error) {
+    logger.error('[VDS] Ошибка проверки SSL сертификата:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -172,29 +172,29 @@ router.post('/verify', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid nonce' });
     }
 
-    // Получаем базовый URL из БД (домен VDS) или используем текущий хост из запроса
-    const consentService = require('../services/consentService');
-    const baseUrl = await consentService.getBaseUrl();
-    
-    // Если домена нет в БД, используем текущий хост из запроса (более надежно, чем origin)
-    let baseUrlForResources;
-    if (baseUrl !== 'http://localhost:9000') {
-      // Домен есть в БД - используем его
-      baseUrlForResources = baseUrl;
-    } else {
-      // Домена нет в БД - используем текущий хост из запроса
-      const protocol = req.protocol || 'http';
-      let host = req.get('host') || 'localhost:9000';
-      // Убеждаемся, что порт присутствует для localhost
-      if (host === 'localhost' || host.startsWith('localhost:')) {
-        if (!host.includes(':')) {
-          // Если порта нет, добавляем стандартный порт для протокола
-          const defaultPort = protocol === 'https' ? '443' : '9000';
-          host = `${host}:${defaultPort}`;
-        }
+    // ВАЖНО: Для SIWE сообщения ВСЕГДА используем хост из запроса, чтобы он совпадал с фронтендом
+    // Фронтенд использует window.location.host и window.location.origin, поэтому бэкенд должен использовать то же самое
+    // Это означает, что даже если в БД есть домен (например, 185.221.214.140), для SIWE будет использоваться
+    // хост из текущего запроса (например, localhost:9000), если запрос приходит с localhost
+    const protocol = req.protocol || 'http';
+    let host = req.get('host') || 'localhost:9000';
+
+    logger.info(`[verify] Request protocol: ${protocol}, host header: ${req.get('host')}, original host: ${host}`);
+
+    // Убеждаемся, что порт присутствует для localhost
+    if (host === 'localhost' || host.startsWith('localhost:')) {
+      if (!host.includes(':')) {
+        // Если порта нет, добавляем стандартный порт для протокола
+        const defaultPort = protocol === 'https' ? '443' : '9000';
+        host = `${host}:${defaultPort}`;
+        logger.info(`[verify] Added default port to localhost: ${host}`);
       }
-      baseUrlForResources = `${protocol}://${host}`;
     }
+
+    // Формируем domain и origin для SIWE сообщения из текущего запроса
+    // domain - это host (например, "localhost:9000" или "example.com:443")
+    // ВАЖНО: domain и origin для SIWE НИКОГДА не берутся из БД, только из запроса!
+    const baseUrlForResources = `${protocol}://${host}`;
     
     // Извлекаем домен и origin из baseUrlForResources для SIWE сообщения
     const baseUrlObj = new URL(baseUrlForResources);

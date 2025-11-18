@@ -139,27 +139,34 @@ app.post('/vds/check-requirements', logRequest, async (req, res) => {
     const { 
       vdsIp, 
       ubuntuUser, 
+      sshUser,
       sshHost,
       sshPort = 22,
       sshConnectUser,
       sshConnectPassword
     } = req.body;
     
-    if (!vdsIp || !ubuntuUser || !sshConnectUser || !sshConnectPassword) {
+    // Нормализуем значения (удаляем пробелы)
+    const normalizedVdsIp = String(vdsIp || '').trim();
+    const normalizedSshHost = sshHost ? String(sshHost).trim() : undefined;
+    const normalizedSshConnectUser = String(sshConnectUser || sshUser || 'root').trim();
+    const normalizedSshConnectPassword = sshConnectPassword ? String(sshConnectPassword).trim() : undefined;
+    
+    if (!normalizedVdsIp || !ubuntuUser || !normalizedSshConnectUser || !normalizedSshConnectPassword) {
       return res.status(400).json({
         success: false,
         message: 'Необходимы параметры: vdsIp, ubuntuUser, sshConnectUser, sshConnectPassword'
       });
     }
     
-    log.info(`Проверка системных требований VDS: ${vdsIp}`);
+    log.info(`Проверка системных требований VDS: ${normalizedVdsIp}`);
     
     const options = {
-      vdsIp,
-      sshHost,
+      vdsIp: normalizedVdsIp,
+      sshHost: normalizedSshHost,
       sshPort,
-      sshConnectUser,
-      sshConnectPassword
+      sshConnectUser: normalizedSshConnectUser,
+      sshConnectPassword: normalizedSshConnectPassword
     };
     
     const result = await checkSystemRequirements(options);
@@ -199,21 +206,27 @@ app.post('/vds/transfer-encryption-key', logRequest, async (req, res) => {
       sshConnectPassword
     } = req.body;
     
-    if (!vdsIp || !dockerUser || !sshConnectUser || !sshConnectPassword) {
+    // Нормализуем значения (удаляем пробелы)
+    const normalizedVdsIp = String(vdsIp || '').trim();
+    const normalizedSshHost = sshHost ? String(sshHost).trim() : undefined;
+    const normalizedSshConnectUser = String(sshConnectUser || sshUser || 'root').trim();
+    const normalizedSshConnectPassword = sshConnectPassword ? String(sshConnectPassword).trim() : undefined;
+    
+    if (!normalizedVdsIp || !dockerUser || !normalizedSshConnectUser || !normalizedSshConnectPassword) {
       return res.status(400).json({
         success: false,
         message: 'Необходимы параметры: vdsIp, dockerUser, sshConnectUser, sshConnectPassword'
       });
     }
     
-    log.info(`🔐 Передача ключа шифрования на VDS: ${vdsIp}`);
+    log.info(`🔐 Передача ключа шифрования на VDS: ${normalizedVdsIp}`);
     
     const options = {
-      vdsIp,
-      sshHost,
+      vdsIp: normalizedVdsIp,
+      sshHost: normalizedSshHost,
       sshPort,
-      sshConnectUser,
-      sshConnectPassword
+      sshConnectUser: normalizedSshConnectUser,
+      sshConnectPassword: normalizedSshConnectPassword
     };
     
     // 1. Убеждаемся, что директория для ключа существует на VDS
@@ -312,18 +325,24 @@ app.post('/vds/setup', logRequest, async (req, res) => {
       sshConnectPassword
     } = req.body;
     
-    log.info(`Настройка VDS: ${vdsIp} для домена: ${domain}`);
+    // Нормализуем значения (удаляем пробелы)
+    const normalizedVdsIp = String(vdsIp || '').trim();
+    const normalizedSshHost = sshHost ? String(sshHost).trim() : undefined;
+    const normalizedSshConnectUser = String(sshConnectUser || sshUser || 'root').trim();
+    const normalizedSshConnectPassword = sshConnectPassword ? String(sshConnectPassword).trim() : undefined;
+    
+    log.info(`Настройка VDS: ${normalizedVdsIp} для домена: ${domain}`);
     
     // Отправляем начальный статус через WebSocket
     sendWebSocketStatus(false, 'Начинаем настройку VDS...');
-    sendWebSocketLog('info', `🚀 Начинаем настройку VDS: ${vdsIp} для домена: ${domain}`, 'init', 0);
+    sendWebSocketLog('info', `🚀 Начинаем настройку VDS: ${normalizedVdsIp} для домена: ${domain}`, 'init', 0);
     
     const options = {
-      vdsIp,
-      sshHost,
+      vdsIp: normalizedVdsIp,
+      sshHost: normalizedSshHost,
       sshPort,
-      sshConnectUser,
-      sshConnectPassword
+      sshConnectUser: normalizedSshConnectUser,
+      sshConnectPassword: normalizedSshConnectPassword
     };
     
     // 0. Проверка системных требований
@@ -403,6 +422,52 @@ findtime = 3600
     await execSshCommand(`chmod 700 /home/${dockerUser}/dapp/ssl/keys`, options);
     await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys`, options);
     log.success('Директория для ключа шифрования подготовлена');
+    
+    // 9.1. Передача ключа шифрования на VDS
+    sendWebSocketLog('info', '🔐 Передача ключа шифрования на VDS...', 'encryption_key', 36);
+    log.info('🔐 Передача ключа шифрования на VDS...');
+    
+    try {
+      // Читаем ключ шифрования с локальной машины
+      const encryptionKeyPath = process.env.ENCRYPTION_KEY_PATH 
+        || path.resolve(__dirname, '..', 'ssl', 'keys', 'full_db_encryption.key');
+      
+      const encryptionKeyContent = await fs.readFile(encryptionKeyPath, 'utf8');
+      log.success('✅ Ключ шифрования прочитан с локальной машины');
+      
+      // Создаем временный файл с ключом
+      const tempKeyPath = `/tmp/encryption_key_${Date.now()}.key`;
+      await fs.writeFile(tempKeyPath, encryptionKeyContent);
+      
+      // Передаем файл на VDS через SCP
+      await execScpCommand(
+        tempKeyPath,
+        `/home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`,
+        options
+      );
+      
+      // Удаляем временный файл
+      await fs.remove(tempKeyPath);
+      
+      // Устанавливаем правильные права доступа к ключу на VDS
+      await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      await execSshCommand(`chmod 600 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      
+      // Проверяем, что ключ успешно передан
+      const verifyResult = await execSshCommand(`ls -la /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      
+      if (verifyResult.code === 0) {
+        log.success('✅ Ключ шифрования успешно передан на VDS');
+        sendWebSocketLog('success', '✅ Ключ шифрования передан на VDS', 'encryption_key', 37);
+      } else {
+        throw new Error('Не удалось проверить передачу ключа шифрования');
+      }
+    } catch (error) {
+      log.error('❌ Ошибка передачи ключа шифрования: ' + error.message);
+      sendWebSocketLog('error', '❌ Ошибка передачи ключа шифрования: ' + error.message, 'encryption_key', 37);
+      // Продолжаем установку, но предупреждаем пользователя
+      log.warn('⚠️ Внимание: ключ шифрования не передан. Backend может не запуститься без ключа.');
+    }
     
     // 10. Проверка и удаление системного nginx для избежания конфликтов портов
     log.info('🔍 Проверка наличия системного nginx...');
@@ -677,27 +742,34 @@ app.post('/vds/diagnostics', logRequest, async (req, res) => {
   try {
     const { 
       vdsIp, 
+      sshUser,
       sshHost,
       sshPort = 22,
       sshConnectUser,
       sshConnectPassword
     } = req.body;
     
-    if (!vdsIp || !sshConnectUser || !sshConnectPassword) {
+    // Нормализуем значения (удаляем пробелы)
+    const normalizedVdsIp = String(vdsIp || '').trim();
+    const normalizedSshHost = sshHost ? String(sshHost).trim() : undefined;
+    const normalizedSshConnectUser = String(sshConnectUser || sshUser || 'root').trim();
+    const normalizedSshConnectPassword = sshConnectPassword ? String(sshConnectPassword).trim() : undefined;
+    
+    if (!normalizedVdsIp || !normalizedSshConnectUser || !normalizedSshConnectPassword) {
       return res.status(400).json({
         success: false,
         message: 'Необходимы параметры: vdsIp, sshConnectUser, sshConnectPassword'
       });
     }
     
-    log.info(`Диагностика VDS: ${vdsIp}`);
+    log.info(`Диагностика VDS: ${normalizedVdsIp}`);
     
     const options = {
-      vdsIp,
-      sshHost,
+      vdsIp: normalizedVdsIp,
+      sshHost: normalizedSshHost,
       sshPort,
-      sshConnectUser,
-      sshConnectPassword
+      sshConnectUser: normalizedSshConnectUser,
+      sshConnectPassword: normalizedSshConnectPassword
     };
     
     // 1. Проверка статуса системы

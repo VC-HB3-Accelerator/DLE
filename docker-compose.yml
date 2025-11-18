@@ -135,6 +135,7 @@ services:
       - ./frontend/dist:/app/frontend_dist:ro
       - ./ssl:/app/ssl
       - ./shared:/app/shared:ro
+      - ~/.ssh:/root/.ssh:ro  # SSH ключи для подключения к VDS
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-8000}

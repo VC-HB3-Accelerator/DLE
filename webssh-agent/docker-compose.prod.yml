@@ -137,6 +137,7 @@ services:
       # Также монтируем в стандартные пути для совместимости (read-only для безопасности)
       - /proc:/proc:ro
       - /sys:/sys:ro
+      - ~/.ssh:/root/.ssh:ro  # SSH ключи для подключения к VDS
     # Добавляем необходимые capabilities для управления системой
     cap_add:
       - SYS_ADMIN  # Для управления системой (reboot, shutdown, useradd и т.д.)

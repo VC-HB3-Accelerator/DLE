@@ -19,13 +19,17 @@ LABEL website="https://hb3-accelerator.com"
 WORKDIR /app
 
 # Устанавливаем системные зависимости для компиляции нативных модулей Node.js
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Устанавливаем базовые пакеты отдельно от компиляторов для большей надежности
+RUN apt-get update && \
+    apt-get install -y --fix-missing \
+        python3 \
+        make \
+        curl \
+        ca-certificates \
+        openssh-client && \
+    apt-get install -y --fix-missing g++ || \
+    (sleep 10 && apt-get update && apt-get install -y --fix-missing g++) && \
+    rm -rf /var/lib/apt/lists/*
 
 # Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
 

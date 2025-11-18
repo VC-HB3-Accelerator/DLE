@@ -69,21 +69,26 @@ const exportDockerImages = async (sendWebSocketLog) => {
     }
   }
   
-  // Экспортируем данные из volumes
+  // Экспортируем данные из volumes (динамически определяем все volumes приложения)
   log.info('Экспорт данных из Docker volumes...');
   sendWebSocketLog('info', '📦 Экспорт данных из Docker volumes...', 'export_data', 70);
   
-  // PostgreSQL данные
-  sendWebSocketLog('info', '📦 Экспорт данных PostgreSQL...', 'export_data', 72);
-  await exportVolumeData('digital_legal_entitydle_postgres_data', 'postgres_data.tar.gz', sendWebSocketLog, 72);
+  // Получаем список всех volumes приложения (без node_modules)
+  const volumesList = await execLocalCommand('docker volume ls -q | grep -E "digital_legal_entitydle_|dapp_" | grep -v node_modules || true');
+  const volumes = volumesList.stdout.trim().split('\n').filter(v => v && v.endsWith('_data'));
   
-  // Ollama данные
-  sendWebSocketLog('info', '📦 Экспорт данных Ollama...', 'export_data', 75);
-  await exportVolumeData('digital_legal_entitydle_ollama_data', 'ollama_data.tar.gz', sendWebSocketLog, 75);
+  let progress = 72;
+  const progressStep = Math.floor(8 / Math.max(volumes.length, 1));
   
-  // Vector Search данные
-  sendWebSocketLog('info', '📦 Экспорт данных Vector Search...', 'export_data', 78);
-  await exportVolumeData('digital_legal_entitydle_vector_search_data', 'vector_search_data.tar.gz', sendWebSocketLog, 78);
+  for (const volumeName of volumes) {
+    // Извлекаем имя файла из имени volume (например, digital_legal_entitydle_postgres_data -> postgres_data.tar.gz)
+    const volumeBaseName = volumeName.replace(/^(digital_legal_entitydle_|dapp_)/, '').replace(/_data$/, '_data');
+    const outputFile = `${volumeBaseName}.tar.gz`;
+    
+    sendWebSocketLog('info', `📦 Экспорт данных: ${volumeName}`, 'export_data', progress);
+    await exportVolumeData(volumeName, outputFile, sendWebSocketLog, progress);
+    progress += progressStep;
+  }
   
   // Создаем архив с ВСЕМИ образами и данными приложения
   log.info('Создание архива Docker образов и данных на хосте...');
@@ -91,9 +96,11 @@ const exportDockerImages = async (sendWebSocketLog) => {
   
   try {
     const tarFiles = images.map(img => img.file).join(' ');
-    const dataFiles = 'postgres_data.tar.gz ollama_data.tar.gz vector_search_data.tar.gz';
+    // Динамически собираем список файлов данных из экспортированных volumes
+    const dataFilesList = await execLocalCommand('ls /tmp/*_data.tar.gz 2>/dev/null | xargs -r basename -a || echo ""');
+    const dataFiles = dataFilesList.stdout.trim().split('\n').filter(f => f).join(' ');
     
-    const archiveCommand = `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles}`;
+    const archiveCommand = `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles || ''}`.trim();
     await execLocalCommand(archiveCommand);
     
     sendWebSocketLog('success', '✅ Архив создан успешно', 'export_data', 80);
@@ -170,45 +177,33 @@ echo "📦 Распаковка архива..."
 tar -xzf ./docker-images-and-data.tar.gz -C ./temp-import
 
 # Импортируем ВСЕ образы приложения
-echo "📦 Импорт образа postgres..."
-docker load -i ./temp-import/dapp-postgres.tar
+echo "📦 Импорт образов..."
+for image_file in ./temp-import/dapp-*.tar; do
+    if [ -f "$image_file" ]; then
+        echo "📦 Импорт образа: $(basename $image_file)"
+        docker load -i "$image_file"
+    fi
+done
 
-echo "📦 Импорт образа ollama..."
-docker load -i ./temp-import/dapp-ollama.tar
-
-echo "📦 Импорт образа vector-search..."
-docker load -i ./temp-import/dapp-vector-search.tar
-
-echo "📦 Импорт образа backend..."
-docker load -i ./temp-import/dapp-backend.tar
-
-echo "📦 Импорт образа frontend..."
-docker load -i ./temp-import/dapp-frontend.tar
-
-echo "📦 Импорт образа frontend-nginx..."
-docker load -i ./temp-import/dapp-frontend-nginx.tar
-
-echo "📦 Импорт образа webssh-agent..."
-docker load -i ./temp-import/dapp-webssh-agent.tar
-
-# 🆕 Импортируем данные в volumes с правильными именами для соответствия docker-compose
-echo "📦 Импорт данных PostgreSQL..."
-# Удаляем старый volume если существует
-docker volume rm dapp_postgres_data 2>/dev/null || true
-docker volume create dapp_postgres_data
-docker run --rm -v dapp_postgres_data:/data -v ./temp-import:/backup alpine tar xzf /backup/postgres_data.tar.gz -C /data
-
-echo "📦 Импорт данных Ollama..."
-# Удаляем старый volume если существует
-docker volume rm dapp_ollama_data 2>/dev/null || true
-docker volume create dapp_ollama_data
-docker run --rm -v dapp_ollama_data:/data -v ./temp-import:/backup alpine tar xzf /backup/ollama_data.tar.gz -C /data
-
-echo "📦 Импорт данных Vector Search..."
-# Удаляем старый volume если существует
-docker volume rm dapp_vector_search_data 2>/dev/null || true
-docker volume create dapp_vector_search_data
-docker run --rm -v dapp_vector_search_data:/data -v ./temp-import:/backup alpine tar xzf /backup/vector_search_data.tar.gz -C /data
+# 🆕 Динамически определяем volumes для импорта из имен файлов в архиве
+echo "📦 Импорт данных в volumes..."
+for data_file in ./temp-import/*_data.tar.gz; do
+    if [ -f "$data_file" ]; then
+        # Извлекаем имя volume из имени файла (например, postgres_data.tar.gz -> postgres_data)
+        volume_name=$(basename "$data_file" .tar.gz)
+        
+        # Используем префикс dapp_ для соответствия docker-compose.prod.yml
+        full_volume_name="dapp_${volume_name}"
+        
+        echo "📦 Импорт данных: $full_volume_name"
+        # Удаляем старый volume если существует
+        docker volume rm -f "$full_volume_name" 2>/dev/null || true
+        # Создаем новый volume
+        docker volume create "$full_volume_name"
+        # Импортируем данные
+        docker run --rm -v "$full_volume_name:/data" -v ./temp-import:/backup alpine tar xzf "/backup/$(basename $data_file)" -C /data
+    fi
+done
 
 # Очищаем временные файлы
 rm -rf ./temp-import
