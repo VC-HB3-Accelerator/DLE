@@ -1,5 +1,7 @@
 # 🚀 Digital Legal Entity (DLE) - Шаблон приложения
 
+**🌐 Language / Язык:** [🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md)
+
 ## Описание
 Полный шаблон приложения Digital Legal Entity
 
@@ -7,8 +9,8 @@
 - Docker и Docker Compose
 
 ## 📚 Документация
-- [Общие материалы и инструкции](docs/README.md)
-- [Юридические документы](legal/README.md)
+- [Общие материалы и инструкции](docs/README.md) | [English](docs-en/README.md)
+- [Юридические документы](legal/README.md) | [English](legal-en/README.md)
 
 ## 🚀 Быстрый запуск
 
