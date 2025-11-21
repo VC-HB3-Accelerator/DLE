@@ -11,6 +11,7 @@
 ## 📚 Документация
 - [Общие материалы и инструкции](docs/README.md) | [English](docs-en/README.md)
 - [Юридические документы](legal/README.md) | [English](legal-en/README.md)
+- [Коммерческое предложение для предпринимателей](docs/commercial-proposal-entrepreneurs.md) | [English](docs-en/commercial-proposal-entrepreneurs.md)
 
 ## 🚀 Быстрый запуск
 

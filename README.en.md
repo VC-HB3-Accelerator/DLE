@@ -11,6 +11,7 @@ Complete Digital Legal Entity application template
 ## 📚 Documentation
 - [General materials and instructions](docs-en/README.md) | [Русский](docs/README.md)
 - [Legal documents](legal-en/README.md) | [Русский](legal/README.md)
+- [Commercial proposal for entrepreneurs](docs-en/commercial-proposal-entrepreneurs.md) | [Русский](docs/commercial-proposal-entrepreneurs.md)
 
 ## 🚀 Quick Start
 

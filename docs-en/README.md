@@ -19,6 +19,7 @@ This section contains materials about the DLE product: overview, business cases,
 | [FAQ.md](./FAQ.md) | Answers to frequently asked questions about licensing, installation, and features. |
 | [system-messages-management.md](./system-messages-management.md) | Technical specification for system message management. |
 | [tables-system.md](./tables-system.md) | Description of the electronic tables system, architecture, and integrations. |
+| [commercial-proposal-entrepreneurs.md](./commercial-proposal-entrepreneurs.md) | Ready-to-use commercial proposal for entrepreneurs outside CIS. |
 
 ---
 

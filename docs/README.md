@@ -19,6 +19,7 @@
 | [FAQ.md](./FAQ.md) | Ответы на частые вопросы по лицензированию, установке и функциям. |
 | [system-messages-management.md](./system-messages-management.md) | Техническое задание по управлению системными сообщениями. |
 | [tables-system.md](./tables-system.md) | Описание системы электронных таблиц, архитектуры и интеграций. |
+| [commercial-proposal-entrepreneurs.md](./commercial-proposal-entrepreneurs.md) | Готовое коммерческое предложение для предпринимателей из СНГ. |
 
 ---
 
