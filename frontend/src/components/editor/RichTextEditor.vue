@@ -220,8 +220,17 @@ function handleVideoClick() {
           
           console.log('[RichTextEditor] Вставляем видео по URL:', fullUrl, 'в позицию:', range.index);
           
-          // Вставляем видео
-          quill.insertEmbed(range.index, 'video', fullUrl);
+          // Проверяем, является ли это локальный файл из нашей системы
+          const isLocalFile = fullUrl.includes('/api/uploads/media/') && fullUrl.includes('/file');
+          
+          if (isLocalFile) {
+            // Для локальных файлов вставляем тег <video> напрямую (best practice)
+            const videoHtml = `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${fullUrl}"></video>`;
+            quill.clipboard.dangerouslyPasteHTML(range.index, videoHtml);
+          } else {
+            // Для внешних URL (YouTube, Vimeo) используем iframe через Quill
+            quill.insertEmbed(range.index, 'video', fullUrl);
+          }
           
           // Перемещаем курсор после видео
           quill.setSelection(range.index + 1, 0);
@@ -254,7 +263,19 @@ function handleVideoClick() {
         const length = quill.getLength();
         range = { index: length - 1, length: 0 };
       }
-      quill.insertEmbed(range.index, 'video', url);
+      
+      // Проверяем, является ли это локальный файл из нашей системы
+      const isLocalFile = url.includes('/api/uploads/media/') && url.includes('/file');
+      
+      if (isLocalFile) {
+        // Для локальных файлов вставляем тег <video> напрямую (best practice)
+        const videoHtml = `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
+        quill.clipboard.dangerouslyPasteHTML(range.index, videoHtml);
+      } else {
+        // Для внешних URL (YouTube, Vimeo) используем iframe через Quill
+        quill.insertEmbed(range.index, 'video', url);
+      }
+      
       quill.setSelection(range.index + 1, 0);
       
       // Принудительно обновляем modelValue

@@ -71,8 +71,7 @@
 
     <!-- Основной контент -->
     <article v-if="page" class="page-article">
-      <div v-if="page.format === 'html'" class="content-text" v-html="formatContent"></div>
-      <div v-else-if="page.format === 'pdf' && page.file_path" class="file-preview">
+      <div v-if="page.format === 'pdf' && page.file_path" class="file-preview">
         <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
         <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
       </div>
@@ -80,6 +79,7 @@
         <img :src="page.file_path" alt="Документ" class="image-preview" />
         <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать изображение</a>
       </div>
+      <div v-else-if="page.content" class="content-text" v-html="formatContent"></div>
       <div v-else class="empty-content">
         <i class="fas fa-file-alt"></i>
         <p>Контент не добавлен</p>
@@ -262,15 +262,38 @@ const formatContent = computed(() => {
     }
   }
   
+  // Конфигурация DOMPurify для разрешения медиа-контента
+  const sanitizeConfig = {
+    ADD_TAGS: ['video', 'source', 'img', 'iframe'],
+    ADD_ATTR: [
+      'controls', 'autoplay', 'loop', 'muted', 'poster', 'preload', 'playsinline',
+      'src', 'alt', 'title', 'width', 'height', 'style', 'class', 'loading',
+      'frameborder', 'allowfullscreen', 'allow'
+    ],
+    ALLOW_DATA_ATTR: true
+  };
+  
+  // Проверяем, является ли контент HTML (содержит HTML теги)
+  const isHtml = /<[a-z][\s\S]*>/i.test(content);
+  
   // Проверяем, является ли контент markdown
-  const isMarkdown = /^#{1,6}\s|^\*\s|^\-\s|^\d+\.\s|```|\[.+\]\(.+\)|!\[.+\]\(.+\)/m.test(content);
+  const isMarkdown = !isHtml && /^#{1,6}\s|^\*\s|^\-\s|^\d+\.\s|```|\[.+\]\(.+\)|!\[.+\]\(.+\)/m.test(content);
   
   if (isMarkdown) {
     const rawHtml = marked.parse(content);
-    // Разрешаем теги video и их атрибуты для корректного отображения видео
-    let sanitizedHtml = DOMPurify.sanitize(rawHtml, {
-      ADD_TAGS: ['video', 'source'],
-      ADD_ATTR: ['controls', 'autoplay', 'loop', 'muted', 'poster', 'preload', 'playsinline']
+    // Разрешаем теги video, source, img и их атрибуты для корректного отображения медиа
+    let sanitizedHtml = DOMPurify.sanitize(rawHtml, sanitizeConfig);
+    
+    // Преобразуем iframe с видео-файлами в тег video для корректного воспроизведения
+    // Quill вставляет видео как iframe, но для локальных файлов нужен тег video
+    sanitizedHtml = sanitizedHtml.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
+      // Проверяем, является ли это видео-файл из нашей системы (по URL)
+      if (url.includes('/api/uploads/media/') && url.includes('/file')) {
+        // Преобразуем в тег video для локальных видео-файлов
+        return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
+      }
+      // Оставляем iframe для внешних видео (YouTube, Vimeo и т.д.)
+      return match;
     });
     
     // Еще раз удаляем заголовки h1 из HTML после парсинга markdown
@@ -286,6 +309,33 @@ const formatContent = computed(() => {
     sanitizedHtml = sanitizedHtml.replace(/^\s*(<br\s*\/?>|<p>\s*<\/p>)\s*/i, '');
     sanitizedHtml = sanitizedHtml.trim();
     
+    return sanitizedHtml;
+  } else if (isHtml) {
+    // Если контент уже в HTML формате, санитизируем его с сохранением медиа
+    let sanitizedHtml = DOMPurify.sanitize(content, sanitizeConfig);
+    
+    // Преобразуем iframe с видео-файлами в тег video для корректного воспроизведения
+    // Quill вставляет видео как iframe, но для локальных файлов нужен тег video
+    sanitizedHtml = sanitizedHtml.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
+      // Проверяем, является ли это видео-файл из нашей системы (по URL)
+      if (url.includes('/api/uploads/media/') && url.includes('/file')) {
+        // Преобразуем в тег video для локальных видео-файлов
+        return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
+      }
+      // Оставляем iframe для внешних видео (YouTube, Vimeo и т.д.)
+      return match;
+    });
+    
+    // Удаляем заголовки h1 из HTML, если они совпадают с title
+    sanitizedHtml = sanitizedHtml.replace(/<h1[^>]*>([^<]*)<\/h1>/gi, (match, headerText) => {
+      const text = headerText.trim();
+      if (text.toLowerCase() === title.toLowerCase()) {
+        return ''; // Удаляем заголовок
+      }
+      return match; // Оставляем заголовок
+    });
+    
+    sanitizedHtml = sanitizedHtml.trim();
     return sanitizedHtml;
   } else {
     // Для обычного текста также удаляем первую строку, если она совпадает с заголовком
@@ -651,6 +701,30 @@ onMounted(() => {
 }
 
 .content-text :deep(video:focus) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Стили для iframe в контенте (для видео) */
+.content-text :deep(iframe) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+  border: none;
+}
+
+.content-text :deep(iframe.ql-video) {
+  min-height: 400px;
+  aspect-ratio: 16 / 9;
+}
+
+.content-text :deep(iframe:focus) {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
