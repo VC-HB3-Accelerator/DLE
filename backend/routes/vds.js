@@ -295,7 +295,7 @@ async function execDockerCommand(command) {
  * Выполнить SSH команду на VDS
  */
 async function execSshCommandOnVds(command, settings) {
-  const { sshHost, sshPort = 22, sshUser, sshPassword } = settings;
+  const { sshHost, sshPort = 22, sshUser } = settings;
   
   // Экранируем команду для SSH
   // Экранируем двойные кавычки и знаки доллара для правильной передачи через SSH
@@ -304,19 +304,12 @@ async function execSshCommandOnVds(command, settings) {
     .replace(/\$/g, '\\$')   // Экранируем знаки доллара
     .replace(/"/g, '\\"');   // Экранируем двойные кавычки
   
-  // Базовые опции SSH
-  const sshOptions = `-p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR`;
+  // Базовые опции SSH - используем только SSH ключи, пароли не поддерживаются
+  const sshOptions = `-p ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o PasswordAuthentication=no`;
   
-  // Строим SSH команду
-  let sshCommand;
-  if (sshPassword && sshPassword.trim()) {
-    // Используем sshpass для подключения с паролем (если пароль указан)
-    sshCommand = `sshpass -p "${sshPassword.replace(/"/g, '\\"')}" ssh ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
-  } else {
-    // Используем SSH ключи (по умолчанию из ~/.ssh/id_rsa или ~/.ssh/id_ed25519)
-    // SSH автоматически найдет ключ в ~/.ssh/
-    sshCommand = `ssh ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
-  }
+  // Строим SSH команду - всегда используем SSH ключи
+  // SSH автоматически найдет ключ в ~/.ssh/id_rsa или ~/.ssh/id_ed25519
+  const sshCommand = `ssh ${sshOptions} ${sshUser}@${sshHost} "${escapedCommand}"`;
   
   try {
     const { stdout, stderr } = await execAsync(sshCommand);
@@ -1096,11 +1089,58 @@ router.post('/ssl/renew', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     
     // Пытаемся обновить сертификат через Docker certbot
     logger.info('[VDS] Обновление SSL сертификата...');
-    const renewResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot renew --force-renewal --non-interactive 2>&1 || certbot renew --force-renewal --non-interactive 2>&1`);
+    // Сначала пробуем renew --force-renewal для обновления существующего сертификата
+    // Это не создает новый сертификат и не попадает под лимит Let's Encrypt
+    let renewResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot renew --force-renewal --non-interactive 2>&1 || certbot renew --force-renewal --non-interactive 2>&1`);
+    
+    // Если renew не сработал (сертификат не найден или другая ошибка), создаем новый
+    if (renewResult.code !== 0 || renewResult.stdout.includes('No renewals were attempted') || renewResult.stdout.includes('No certs found')) {
+      logger.info('[VDS] Renew не сработал, создаем новый сертификат...');
+      // Удаляем только сертификаты с суффиксами, основной оставляем
+      const certListResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`);
+      if (certListResult.stdout) {
+        const lines = certListResult.stdout.split('\n');
+        const certNames = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes('Certificate Name:')) {
+            const certName = lines[i].split('Certificate Name:')[1]?.trim();
+            // Удаляем только сертификаты с суффиксами (например, hb3-accelerator.com-0001, hb3-accelerator.com-0002)
+            if (certName && certName !== domain && certName.startsWith(domain + '-')) {
+              certNames.push(certName);
+            }
+          }
+        }
+        // Удаляем только сертификаты с суффиксами
+        for (const certName of certNames) {
+          logger.info(`[VDS] Удаление старого сертификата с суффиксом: ${certName}`);
+          await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${certName} --non-interactive 2>&1 || true`);
+        }
+      }
+      // Создаем новый сертификат только если его нет
+      const email = vdsSettings.email || 'admin@example.com';
+      renewResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${email} --agree-tos --no-eff-email --non-interactive -d ${domain} 2>&1 || certbot certonly --webroot --webroot-path=/var/www/certbot --email ${email} --agree-tos --no-eff-email --non-interactive -d ${domain} 2>&1`);
+    }
     
     if (renewResult.code === 0) {
       // Перезапускаем nginx для применения нового сертификата
       const reloadResult = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 || systemctl reload nginx 2>&1`);
+      
+      // Очищаем старые сертификаты с суффиксами, чтобы они не накапливались
+      logger.info('[VDS] Очистка старых сертификатов с суффиксами...');
+      const certListAfter = await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot certificates 2>&1 || certbot certificates 2>&1`);
+      if (certListAfter.stdout) {
+        const lines = certListAfter.stdout.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes('Certificate Name:')) {
+            const certName = lines[i].split('Certificate Name:')[1]?.trim();
+            // Удаляем сертификаты с суффиксами (например, hb3-accelerator.com-0001, hb3-accelerator.com-0002)
+            if (certName && certName !== domain && certName.startsWith(domain + '-')) {
+              logger.info(`[VDS] Удаление старого сертификата с суффиксом: ${certName}`);
+              await execDockerCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot delete --cert-name ${certName} --non-interactive 2>&1 || true`);
+            }
+          }
+        }
+      }
       
       logger.info('[VDS] SSL сертификат обновлен');
       res.json({ 
@@ -1143,26 +1183,97 @@ router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
     // Проверяем срок действия сертификата
     let certInfo = null;
     
-    if (domain) {
-      const certPath = `/etc/letsencrypt/live/${domain}/cert.pem`;
-      const certCheckResult = await execDockerCommand(`openssl x509 -in ${certPath} -noout -dates -subject 2>&1 || echo "Certificate not found"`);
+    if (domain && checkResult.stdout) {
+      // Парсим вывод certbot certificates для поиска сертификата по домену
+      // Ищем строку с "Domains:" содержащую наш домен, затем ищем "Certificate Path:"
+      const certLines = checkResult.stdout.split('\n');
+      let certPath = null;
+      let certName = null;
       
-      if (certCheckResult.code === 0 && !certCheckResult.stdout.includes('not found')) {
-        certInfo = {
-          exists: true,
-          details: certCheckResult.stdout
-        };
+      for (let i = 0; i < certLines.length; i++) {
+        const line = certLines[i];
+        // Ищем сертификат по домену
+        if (line.includes('Domains:') && line.includes(domain)) {
+          // Нашли сертификат для нашего домена, ищем путь в следующих строках
+          for (let j = i + 1; j < Math.min(i + 10, certLines.length); j++) {
+            if (certLines[j].includes('Certificate Path:')) {
+              certPath = certLines[j].split('Certificate Path:')[1]?.trim();
+              // Заменяем fullchain.pem на cert.pem для проверки
+              certPath = certPath.replace('/fullchain.pem', '/cert.pem');
+              break;
+            }
+            if (certLines[j].includes('Certificate Name:')) {
+              certName = certLines[j].split('Certificate Name:')[1]?.trim();
+            }
+          }
+          break;
+        }
+      }
+      
+      // Если нашли путь, проверяем сертификат
+      if (certPath) {
+        const certCheckResult = await execDockerCommand(`openssl x509 -in ${certPath} -noout -dates -subject -issuer 2>&1 || echo "Certificate not found"`);
+        
+        if (certCheckResult.code === 0 && !certCheckResult.stdout.includes('not found') && !certCheckResult.stdout.includes('No such file')) {
+          certInfo = {
+            exists: true,
+            details: certCheckResult.stdout,
+            certName: certName,
+            certPath: certPath
+          };
+        } else {
+          certInfo = {
+            exists: false,
+            error: certCheckResult.stdout || 'Сертификат не найден'
+          };
+        }
       } else {
         certInfo = {
           exists: false,
-          error: certCheckResult.stdout
+          error: 'Сертификат не найден для домена ' + domain + ' в выводе certbot certificates'
         };
+      }
+    }
+    
+    // Парсим все сертификаты из вывода certbot certificates
+    const allCertificates = [];
+    if (checkResult.stdout) {
+      const lines = checkResult.stdout.split('\n');
+      let currentCert = null;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('Certificate Name:')) {
+          if (currentCert) {
+            allCertificates.push(currentCert);
+          }
+          currentCert = {
+            name: line.split('Certificate Name:')[1]?.trim(),
+            domains: [],
+            expiryDate: null,
+            certPath: null,
+            keyPath: null
+          };
+        } else if (currentCert) {
+          if (line.includes('Domains:')) {
+            currentCert.domains = line.split('Domains:')[1]?.trim().split(/\s+/);
+          } else if (line.includes('Expiry Date:')) {
+            currentCert.expiryDate = line.split('Expiry Date:')[1]?.trim();
+          } else if (line.includes('Certificate Path:')) {
+            currentCert.certPath = line.split('Certificate Path:')[1]?.trim();
+          } else if (line.includes('Private Key Path:')) {
+            currentCert.keyPath = line.split('Private Key Path:')[1]?.trim();
+          }
+        }
+      }
+      if (currentCert) {
+        allCertificates.push(currentCert);
       }
     }
     
     res.json({ 
       success: true, 
       certificates: checkResult.stdout,
+      allCertificates: allCertificates,
       domain: domain,
       certInfo: certInfo
     });
