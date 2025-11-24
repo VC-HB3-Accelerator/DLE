@@ -27,9 +27,32 @@ const universalMediaProcessor = require('../services/UniversalMediaProcessor');
 const consentService = require('../services/consentService');
 const { DOCUMENT_CONSENT_MAP } = consentService;
 
-// Настройка multer для обработки файлов в памяти
+// Настройка multer для обработки файлов в памяти с лимитами для чата
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+
+// Multer с лимитами для чата:
+// - Изображения: до 100 МБ
+// - Видео, аудио и другие файлы: до 300 МБ
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 300 * 1024 * 1024, // Максимальный лимит (300 МБ для видео, аудио и файлов)
+    files: 10 // Максимальное количество файлов за раз
+  },
+  fileFilter: (req, file, cb) => {
+    const isImage = /^image\/(png|jpg|jpeg|gif|webp|svg)$/i.test(file.mimetype || '');
+    const isVideo = /^video\/(mp4|webm|ogg|mov|avi)$/i.test(file.mimetype || '');
+    const isAudio = /^audio\/(mp3|wav|ogg|m4a|aac|flac|wma)$/i.test(file.mimetype || '');
+    
+    // Разрешаем изображения, видео, аудио и другие файлы
+    if (isImage || isVideo || isAudio) {
+      cb(null, true);
+    } else {
+      // Разрешаем и другие файлы (документы и т.д.)
+      cb(null, true);
+    }
+  }
+});
 
 // Функция processGuestMessages заменена на UniversalGuestService.migrateToUser()
 
@@ -79,6 +102,20 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       
       for (const file of files) {
         try {
+          // Проверяем размер файла перед обработкой
+          const isImage = /^image\//i.test(file.mimetype || '');
+          const isVideo = /^video\//i.test(file.mimetype || '');
+          const isAudio = /^audio\//i.test(file.mimetype || '');
+          
+          // Лимиты: изображения - 100 МБ, видео/аудио/файлы - 300 МБ
+          const maxSize = isImage ? 100 * 1024 * 1024 : 300 * 1024 * 1024;
+          
+          if (file.size > maxSize) {
+            const maxSizeMB = Math.round(maxSize / (1024 * 1024));
+            const fileType = isImage ? 'изображений' : (isVideo ? 'видео' : (isAudio ? 'аудио' : 'файлов'));
+            throw new Error(`Размер файла "${file.originalname}" (${Math.round(file.size / (1024 * 1024))} МБ) превышает максимально допустимый размер (${maxSizeMB} МБ) для ${fileType}`);
+          }
+          
           const processedFile = await universalMediaProcessor.processFile(
             file.buffer,
             file.originalname,
@@ -264,13 +301,33 @@ router.post('/message', requireAuth, upload.array('attachments'), async (req, re
     // Создаем identifier для пользователя
     const identifier = `wallet:${walletIdentity.provider_id}`;
 
-    // Обработка вложений
-    const attachments = files.map(file => ({
-      filename: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      data: file.buffer
-    }));
+    // Обработка вложений с проверкой размера
+    const attachments = [];
+    for (const file of files) {
+      // Проверяем размер файла перед обработкой
+      const isImage = /^image\//i.test(file.mimetype || '');
+      const isVideo = /^video\//i.test(file.mimetype || '');
+      const isAudio = /^audio\//i.test(file.mimetype || '');
+      
+      // Лимиты: изображения - 100 МБ, видео/аудио/файлы - 300 МБ
+      const maxSize = isImage ? 100 * 1024 * 1024 : 300 * 1024 * 1024;
+      
+      if (file.size > maxSize) {
+        const maxSizeMB = Math.round(maxSize / (1024 * 1024));
+        const fileType = isImage ? 'изображений' : (isVideo ? 'видео' : (isAudio ? 'аудио' : 'файлов'));
+        return res.status(400).json({
+          success: false,
+          error: `Размер файла "${file.originalname}" (${Math.round(file.size / (1024 * 1024))} МБ) превышает максимально допустимый размер (${maxSizeMB} МБ) для ${fileType}`
+        });
+      }
+      
+      attachments.push({
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        data: file.buffer
+      });
+    }
 
     const messageData = {
       identifier: identifier,

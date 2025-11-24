@@ -380,30 +380,10 @@ async function processMessage(messageData) {
       });
 
       if (aiResponse && aiResponse.success && aiResponse.response) {
-        // Проверяем согласия и добавляем системное сообщение к ответу ИИ
-        const walletIdentity = await identityService.findIdentity(userId, 'wallet');
-        const consentSystemMessage = await consentService.getConsentSystemMessage({
-          userId,
-          walletAddress: walletIdentity?.provider_id || null,
-          channel: channel === 'web' ? 'web' : channel
-        });
-
-        // Формируем финальный ответ ИИ с системным сообщением, если нужно
+        // Формируем финальный ответ ИИ
         finalAiResponse = aiResponse.response;
-        if (consentSystemMessage && consentSystemMessage.consentRequired) {
-          // Добавляем системное сообщение к ответу ИИ
-          finalAiResponse = `${aiResponse.response}\n\n---\n\n${consentSystemMessage.content}`;
-          
-          // Сохраняем информацию о согласиях в метаданные ответа
-          aiResponse.consentInfo = {
-            consentRequired: true,
-            missingConsents: consentSystemMessage.missingConsents,
-            consentDocuments: consentSystemMessage.consentDocuments,
-            autoConsentOnReply: consentSystemMessage.autoConsentOnReply
-          };
-        }
 
-        // Сохраняем ответ AI с добавленным системным сообщением
+        // Сохраняем ответ AI
         const { rows: aiMessageRows } = await db.getQuery()(
           `INSERT INTO messages (
             conversation_id,
@@ -477,14 +457,6 @@ async function processMessage(messageData) {
       noAiResponse: !shouldGenerateAi || aiResponseDisabled,
       assistantDisabled: aiResponseDisabled
     };
-
-    // Если есть информация о согласиях, добавляем её в результат
-    if (aiResponse && aiResponse.success && aiResponse.consentInfo) {
-      result.consentRequired = aiResponse.consentInfo.consentRequired;
-      result.missingConsents = aiResponse.consentInfo.missingConsents;
-      result.consentDocuments = aiResponse.consentInfo.consentDocuments;
-      result.autoConsentOnReply = aiResponse.consentInfo.autoConsentOnReply;
-    }
 
     return result;
 

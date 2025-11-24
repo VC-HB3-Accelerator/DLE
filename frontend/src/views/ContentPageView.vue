@@ -93,6 +93,29 @@
                 class="form-textarea"
               />
             </div>
+            <div class="form-group">
+              <label for="category">Раздел</label>
+              <div class="category-select-wrapper">
+                <select 
+                  v-model="form.category" 
+                  id="category" 
+                  class="form-select"
+                >
+                  <option value="">— Без раздела —</option>
+                  <option v-for="cat in categories" :key="cat" :value="cat">
+                    {{ cat }}
+                  </option>
+                </select>
+                <button 
+                  type="button" 
+                  class="btn btn-outline btn-add-section"
+                  @click="handleAddSection"
+                >
+                  <i class="fas fa-plus"></i>
+                  Добавить раздел
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Контент -->
@@ -100,13 +123,9 @@
             <h2>Содержание</h2>
             <div class="form-group" v-if="form.format === 'html'">
               <label for="content">Основной контент *</label>
-              <textarea 
-                v-model="form.content" 
-                id="content" 
-                required 
-                rows="10" 
+              <RichTextEditor
+                v-model="form.content"
                 placeholder="Введите основной контент страницы"
-                class="form-textarea"
               />
               <div class="content-stats">
                 <span>Слов: {{ wordCount }}</span>
@@ -177,6 +196,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
+import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import pagesService from '../services/pagesService';
 import { PERMISSIONS } from './permissions.js';
 import { useAuthContext } from '../composables/useAuth';
@@ -234,8 +254,12 @@ const form = ref({
   status: 'published',
   visibility: 'public',
   requiredPermission: '',
-  format: 'html'
+  format: 'html',
+  category: ''
 });
+
+// Список категорий
+const categories = ref([]);
 
 const isSubmitting = ref(false);
 const fileBlob = ref(null);
@@ -266,6 +290,67 @@ function onFileChange(e) {
   }
 }
 
+// Загрузка категорий
+async function loadCategories() {
+  try {
+    const cats = await pagesService.getCategories();
+    categories.value = cats || [];
+  } catch (error) {
+    console.error('Ошибка загрузки категорий:', error);
+    categories.value = [];
+  }
+}
+
+// Обработка добавления нового раздела
+async function handleAddSection() {
+  const newCategory = prompt('Введите название нового раздела:');
+  if (!newCategory || !newCategory.trim()) {
+    return;
+  }
+  
+  const trimmedCategory = newCategory.trim();
+  const normalizedCategory = trimmedCategory.toLowerCase();
+  
+  // Проверяем, не существует ли уже такая категория
+  if (categories.value.includes(normalizedCategory)) {
+    alert('Раздел с таким названием уже существует');
+    form.value.category = normalizedCategory;
+    return;
+  }
+  
+  try {
+    // Создаем категорию через API
+    const createdCategory = await pagesService.createCategory(
+      normalizedCategory,
+      trimmedCategory, // display_name
+      null, // description
+      0 // order_index
+    );
+    
+    console.log('[ContentPageView] Категория создана:', createdCategory);
+    
+    // Обновляем список категорий
+    await loadCategories();
+    
+    // Устанавливаем созданную категорию в форму
+    form.value.category = normalizedCategory;
+    
+    alert(`Раздел "${trimmedCategory}" успешно создан`);
+  } catch (error) {
+    console.error('[ContentPageView] Ошибка создания раздела:', error);
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    
+    // Если категория уже существует на сервере, просто добавляем её в список
+    if (errorMessage.includes('уже существует') || error.response?.status === 409) {
+      await loadCategories();
+      form.value.category = normalizedCategory;
+      alert('Раздел с таким названием уже существует');
+    } else {
+      alert('Ошибка создания раздела: ' + errorMessage);
+    }
+  }
+}
+
 // Загрузка данных для редактирования
 async function loadPageForEdit() {
   if (!isEditMode.value || !editId.value) return;
@@ -283,6 +368,7 @@ async function loadPageForEdit() {
       form.value.visibility = page.visibility || 'public';
       form.value.requiredPermission = page.required_permission || '';
       form.value.format = page.format || 'html';
+      form.value.category = page.category || '';
     }
   } catch (error) {
     console.error('Ошибка загрузки страницы для редактирования:', error);
@@ -333,7 +419,8 @@ async function handleSubmit() {
             : null,
           format: form.value.format,
           mime_type: 'text/html',
-          storage_type: 'embedded'
+          storage_type: 'embedded',
+          category: form.value.category || null
         };
         page = await pagesService.updatePage(editId.value, pageData);
       } else {
@@ -370,7 +457,8 @@ async function handleSubmit() {
             : null,
           format: form.value.format,
           mime_type: 'text/html',
-          storage_type: 'embedded'
+          storage_type: 'embedded',
+          category: form.value.category || null
         };
         page = await pagesService.createPage(pageData);
       } else {
@@ -406,15 +494,18 @@ async function handleSubmit() {
 }
 
 // Загрузка данных при монтировании
-onMounted(() => {
+onMounted(async () => {
   // Проверяем права доступа
   if (!canManageLegalDocs.value || !address.value) {
     router.push({ name: 'content-list' });
     return;
   }
   
+  // Загружаем категории
+  await loadCategories();
+  
   if (isEditMode.value) {
-    loadPageForEdit();
+    await loadPageForEdit();
   }
 });
 </script>
@@ -542,6 +633,21 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 0.9rem;
   color: var(--color-grey-dark);
+}
+
+.category-select-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.category-select-wrapper .form-select {
+  flex: 1;
+}
+
+.btn-add-section {
+  white-space: nowrap;
+  padding: 12px 16px;
 }
 
 .checkbox-label {

@@ -68,7 +68,8 @@ const ensureDirectoriesExist = () => {
     path.join(__dirname, 'contracts-data/dles'),
     path.join(__dirname, 'temp'),
     path.join(__dirname, 'uploads'),
-    path.join(__dirname, 'uploads/logos')
+    path.join(__dirname, 'uploads/logos'),
+    path.join(__dirname, 'uploads/content')
   ];
   
   for (const dir of directories) {
@@ -201,8 +202,9 @@ app.use((req, res, next) => {
 });
 
 // Настройка парсеров
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Убираем ограничение по размеру (база данных масштабируется)
+app.use(express.json({ limit: '50mb' })); // Увеличен лимит для JSON (для больших данных)
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Увеличен лимит для URL-encoded
 
 // Режим работы уже определен выше (при настройке trust proxy)
 

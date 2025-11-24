@@ -28,8 +28,16 @@ export default {
     return res.data;
   },
   async updatePage(id, data) {
-    const res = await api.patch(`/pages/${id}`, data);
-    return res.data;
+    console.log('[pagesService] updatePage:', { id, data });
+    try {
+      const res = await api.patch(`/pages/${id}`, data);
+      console.log('[pagesService] updatePage успешно:', res.data);
+      return res.data;
+    } catch (error) {
+      console.error('[pagesService] updatePage ошибка:', error);
+      console.error('[pagesService] updatePage ошибка response:', error.response?.data);
+      throw error;
+    }
   },
   async deletePage(id) {
     const res = await api.delete(`/pages/${id}`);
@@ -37,8 +45,28 @@ export default {
   },
   
   // Публичные методы (доступны всем пользователям)
-  async getPublicPages() {
-    const res = await api.get('/pages/public/all');
+  async getPublicPages(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.category) queryParams.append('category', params.category);
+    if (params.parent_id !== undefined) queryParams.append('parent_id', params.parent_id);
+    if (params.search) queryParams.append('search', params.search);
+    
+    const url = `/pages/public/all${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const res = await api.get(url);
+    console.log('[pagesService] getPublicPages response:', {
+      status: res.status,
+      dataLength: Array.isArray(res.data) ? res.data.length : 'not array',
+      dataType: typeof res.data,
+      firstItem: Array.isArray(res.data) && res.data.length > 0 ? res.data[0] : null
+    });
+    return res.data;
+  },
+  async getPublicPagesStructure() {
+    const res = await api.get('/pages/public/structure');
+    return res.data;
+  },
+  async getPublicPageNavigation(id) {
+    const res = await api.get(`/pages/public/${id}/navigation`);
     return res.data;
   },
   async getInternalPages() {
@@ -47,6 +75,23 @@ export default {
   },
   async getPublicPage(id) {
     const res = await api.get(`/pages/public/${id}`);
+    return res.data;
+  },
+  async getCategories() {
+    const res = await api.get('/pages/categories');
+    return res.data;
+  },
+  async createCategory(name, display_name, description, order_index) {
+    const res = await api.post('/pages/categories', {
+      name,
+      display_name,
+      description,
+      order_index
+    });
+    return res.data;
+  },
+  async deleteCategory(name) {
+    const res = await api.delete(`/pages/categories/${encodeURIComponent(name)}`);
     return res.data;
   },
 }; 

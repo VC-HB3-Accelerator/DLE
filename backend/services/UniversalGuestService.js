@@ -543,45 +543,8 @@ class UniversalGuestService {
         };
       }
 
-      // Проверяем согласия для добавления системного сообщения к ответу ИИ
-      const consentService = require('./consentService');
-      const [provider, providerId] = identifier?.split(':') || [];
-      let walletAddress = null;
-      
-      if (provider === 'web' && providerId?.startsWith('guest_')) {
-        walletAddress = providerId; // Для веб-гостей используем guest_ID
-      }
-      
-      const consentCheck = await consentService.checkConsents({
-        userId: null,
-        walletAddress
-      });
-
-      // Формируем финальный ответ ИИ с системным сообщением, если нужно
+      // 4. Сохраняем AI ответ
       let finalAiResponse = aiResponse.response;
-      let consentInfo = null;
-
-      if (consentCheck.needsConsent) {
-        const consentSystemMessage = await consentService.getConsentSystemMessage({
-          userId: null,
-          walletAddress,
-          channel: channel === 'web' ? 'web' : channel
-        });
-
-        if (consentSystemMessage && consentSystemMessage.consentRequired) {
-          // Добавляем системное сообщение к ответу ИИ
-          finalAiResponse = `${aiResponse.response}\n\n---\n\n${consentSystemMessage.content}`;
-          
-          consentInfo = {
-            consentRequired: true,
-            missingConsents: consentSystemMessage.missingConsents,
-            consentDocuments: consentSystemMessage.consentDocuments,
-            autoConsentOnReply: consentSystemMessage.autoConsentOnReply
-          };
-        }
-      }
-
-      // 4. Сохраняем AI ответ с добавленным системным сообщением
       await this.saveAiResponse({
         identifier,
         content: finalAiResponse,
@@ -599,14 +562,6 @@ class UniversalGuestService {
           ragData: aiResponse.ragData
         }
       };
-
-      // Добавляем информацию о согласиях, если они нужны
-      if (consentInfo) {
-        result.consentRequired = consentInfo.consentRequired;
-        result.missingConsents = consentInfo.missingConsents;
-        result.consentDocuments = consentInfo.consentDocuments;
-        result.autoConsentOnReply = consentInfo.autoConsentOnReply;
-      }
 
       return result;
 

@@ -132,7 +132,19 @@ router.post('/', upload.single('file'), async (req, res) => {
     storage_type: req.file ? 'file' : (bodyRaw.storage_type || 'embedded'),
     file_path: req.file ? path.join('/uploads', 'legal', path.basename(req.file.path)) : (bodyRaw.file_path || null),
     size_bytes: req.file ? req.file.size : (bodyRaw.size_bytes || null),
-    checksum: bodyRaw.checksum || null
+    checksum: bodyRaw.checksum || null,
+    // Нормализуем категорию: приводим к нижнему регистру для консистентности
+    category: (bodyRaw.category && String(bodyRaw.category).trim()) ? String(bodyRaw.category).trim().toLowerCase() : null,
+    // Обрабатываем parent_id: может быть null или числом
+    parent_id: (bodyRaw.parent_id && bodyRaw.parent_id !== 'null' && bodyRaw.parent_id !== '') 
+      ? (() => { const parsed = parseInt(bodyRaw.parent_id); return isNaN(parsed) ? null : parsed; })()
+      : null,
+    // Обрабатываем order_index: должно быть числом
+    order_index: (bodyRaw.order_index && bodyRaw.order_index !== 'null' && bodyRaw.order_index !== '') 
+      ? (() => { const parsed = parseInt(bodyRaw.order_index); return isNaN(parsed) ? 0 : parsed; })()
+      : 0,
+    nav_path: bodyRaw.nav_path || null,
+    is_index_page: bodyRaw.is_index_page === true || bodyRaw.is_index_page === 'true'
   };
 
   // Формируем SQL для вставки данных (только непустые поля)
@@ -188,6 +200,159 @@ router.get('/', async (req, res) => {
   
   res.json(rows);
 });
+
+// ========== РОУТЫ ДЛЯ КАТЕГОРИЙ (должны быть ПЕРЕД параметрическими роутами типа /:id) ==========
+
+// Создать категорию
+router.post('/categories', async (req, res) => {
+  if (!req.session || !req.session.authenticated) {
+    return res.status(401).json({ error: 'Требуется аутентификация' });
+  }
+  if (!req.session.address) {
+    return res.status(403).json({ error: 'Требуется подключение кошелька' });
+  }
+  
+  const authService = require('../services/auth-service');
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
+    return res.status(403).json({ error: 'Only admin can create categories' });
+  }
+  
+  try {
+    const { name, display_name, description, order_index } = req.body;
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Название категории обязательно' });
+    }
+    
+    const normalizedName = name.trim().toLowerCase();
+    const displayName = display_name || name.trim();
+    
+    // Проверяем, не существует ли уже категория с таким названием
+    const existsRes = await db.getQuery()(
+      `SELECT id FROM document_categories WHERE name = $1`,
+      [normalizedName]
+    );
+    
+    if (existsRes.rows.length > 0) {
+      return res.status(409).json({ error: 'Категория с таким названием уже существует' });
+    }
+    
+    // Создаем категорию
+    const { rows } = await db.getQuery()(
+      `INSERT INTO document_categories (name, display_name, description, order_index, author_address)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [normalizedName, displayName, description || null, order_index || 0, req.session.address]
+    );
+    
+    console.log(`[pages] POST /categories: создана категория "${normalizedName}"`);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('[pages] Ошибка создания категории:', error);
+    // Если таблица не существует, возвращаем успех (для обратной совместимости)
+    if (error.message.includes('does not exist') || error.message.includes('relation')) {
+      console.warn('[pages] Таблица document_categories не существует, пропускаем создание');
+      res.json({ name: req.body.name.trim().toLowerCase(), display_name: req.body.name.trim() });
+    } else {
+      res.status(500).json({ error: 'Ошибка создания категории: ' + error.message });
+    }
+  }
+});
+
+// Удалить категорию
+router.delete('/categories/:name', async (req, res) => {
+  if (!req.session || !req.session.authenticated) {
+    return res.status(401).json({ error: 'Требуется аутентификация' });
+  }
+  if (!req.session.address) {
+    return res.status(403).json({ error: 'Требуется подключение кошелька' });
+  }
+  
+  const authService = require('../services/auth-service');
+  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+  if (!userAccessLevel.hasAccess) {
+    return res.status(403).json({ error: 'Only admin can delete categories' });
+  }
+  
+  try {
+    const categoryName = decodeURIComponent(req.params.name).toLowerCase();
+    
+    if (categoryName === 'uncategorized') {
+      return res.status(400).json({ error: 'Нельзя удалить категорию "Без категории"' });
+    }
+    
+    // Удаляем категорию
+    const { rows } = await db.getQuery()(
+      `DELETE FROM document_categories WHERE name = $1 RETURNING *`,
+      [categoryName]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    
+    console.log(`[pages] DELETE /categories/:name: удалена категория "${categoryName}"`);
+    res.json({ success: true, deleted: rows[0] });
+  } catch (error) {
+    console.error('[pages] Ошибка удаления категории:', error);
+    // Если таблица не существует, возвращаем успех (для обратной совместимости)
+    if (error.message.includes('does not exist') || error.message.includes('relation')) {
+      console.warn('[pages] Таблица document_categories не существует, пропускаем удаление');
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Ошибка удаления категории: ' + error.message });
+    }
+  }
+});
+
+// Получить список всех категорий (для выпадающего списка)
+router.get('/categories', async (req, res) => {
+  try {
+    // Сначала пытаемся получить категории из таблицы document_categories
+    try {
+      const categoriesRes = await db.getQuery()(
+        `SELECT name, display_name FROM document_categories ORDER BY order_index, created_at`
+      );
+      if (categoriesRes.rows.length > 0) {
+        const categories = categoriesRes.rows.map(row => row.name);
+        return res.json(categories);
+      }
+    } catch (err) {
+      console.warn('[pages] Таблица document_categories не существует, используем старый метод');
+    }
+    
+    // Fallback: получаем категории из документов
+    const tableName = `admin_pages_simple`;
+    
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    if (!existsRes.rows[0].exists) {
+      return res.json([]);
+    }
+    
+    // Получаем уникальные категории из опубликованных публичных страниц
+    const { rows } = await db.getQuery()(`
+      SELECT DISTINCT category
+      FROM ${tableName}
+      WHERE visibility = 'public' 
+        AND status = 'published'
+        AND category IS NOT NULL
+        AND category != ''
+      ORDER BY category ASC
+    `);
+    
+    const categories = rows.map(row => row.category).filter(Boolean);
+    res.json(categories);
+  } catch (error) {
+    console.error('Ошибка получения категорий:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// ========== КОНЕЦ РОУТОВ ДЛЯ КАТЕГОРИЙ ==========
 
 // Получить одну страницу по id (только для админа)
 router.get('/:id', async (req, res) => {
@@ -354,10 +519,45 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   
   const incoming = req.body || {};
   const updateData = {};
+  
+  console.log(`[pages] PATCH /:id (${req.params.id}): получены данные для обновления:`, incoming);
+  
   for (const [k, v] of Object.entries(incoming)) {
     if (FIELDS_TO_EXCLUDE.includes(k)) continue;
-    updateData[k] = typeof v === 'object' ? JSON.stringify(v) : v;
+    
+    // Нормализуем категорию: приводим к нижнему регистру для консистентности
+    if (k === 'category') {
+      updateData[k] = (v && String(v).trim()) ? String(v).trim().toLowerCase() : null;
+    }
+    // Обрабатываем parent_id: может быть null или числом
+    else if (k === 'parent_id') {
+      if (v === null || v === 'null' || v === '' || v === undefined) {
+        updateData[k] = null;
+      } else {
+        const parsed = parseInt(v);
+        updateData[k] = isNaN(parsed) ? null : parsed;
+      }
+    }
+    // Обрабатываем order_index: должно быть числом
+    else if (k === 'order_index') {
+      if (v === null || v === 'null' || v === '' || v === undefined) {
+        updateData[k] = 0;
+      } else {
+        const parsed = parseInt(v);
+        updateData[k] = isNaN(parsed) ? 0 : parsed;
+      }
+    }
+    // Обрабатываем is_index_page: должно быть boolean
+    else if (k === 'is_index_page') {
+      updateData[k] = v === true || v === 'true' || v === 1 || v === '1';
+    }
+    // Остальные поля
+    else {
+      updateData[k] = typeof v === 'object' ? JSON.stringify(v) : v;
+    }
   }
+  
+  console.log(`[pages] PATCH /:id (${req.params.id}): обработанные данные для обновления:`, updateData);
   if (req.file) {
     updateData.format = req.file.mimetype?.startsWith('image/') ? 'image' : 'pdf';
     updateData.mime_type = req.file.mimetype || null;
@@ -372,9 +572,21 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   values.push(req.params.id);
 
   const sql = `UPDATE ${tableName} SET ${setClause}, updated_at = NOW() WHERE id = $${entries.length + 1} RETURNING *`;
+  console.log(`[pages] PATCH /:id (${req.params.id}): SQL запрос:`, sql);
+  console.log(`[pages] PATCH /:id (${req.params.id}): значения:`, values);
+  
   const { rows } = await db.getQuery()(sql, values);
   if (!rows.length) return res.status(404).json({ error: 'Page not found' });
   const updated = rows[0];
+  
+  console.log(`[pages] PATCH /:id (${req.params.id}): страница успешно обновлена:`, {
+    id: updated.id,
+    title: updated.title,
+    category: updated.category,
+    parent_id: updated.parent_id,
+    order_index: updated.order_index,
+    is_index_page: updated.is_index_page
+  });
 
   // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
   // Автоматическая индексация при обновлении отключена
@@ -442,16 +654,331 @@ router.get('/public/all', async (req, res) => {
       return res.json([]);
     }
     
-    // Получаем все опубликованные страницы всех админов
+    // Поддержка фильтрации по категории и родителю
+    const { category, parent_id, search } = req.query;
+    let whereClause = `WHERE visibility = 'public' AND status = 'published'`;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (category) {
+      whereClause += ` AND category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+    
+    if (parent_id !== undefined) {
+      if (parent_id === null || parent_id === 'null' || parent_id === '') {
+        whereClause += ` AND parent_id IS NULL`;
+      } else {
+        const parsed = parseInt(parent_id);
+        if (!isNaN(parsed)) {
+          whereClause += ` AND parent_id = $${paramIndex}`;
+          params.push(parsed);
+          paramIndex++;
+        }
+      }
+    }
+    
+    if (search) {
+      whereClause += ` AND (title ILIKE $${paramIndex} OR summary ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    
+    // Сортировка: сначала по категории, затем по order_index, затем по created_at
     const { rows } = await db.getQuery()(`
       SELECT * FROM ${tableName} 
-      WHERE status = 'published' 
-      ORDER BY created_at DESC
-    `);
+      ${whereClause}
+      ORDER BY 
+        COALESCE(category, '') ASC,
+        COALESCE(order_index, 0) ASC,
+        created_at DESC
+    `, params);
+    
+    console.log(`[pages] GET /public/all: найдено ${rows.length} публичных документов`);
+    if (rows.length > 0) {
+      console.log(`[pages] Примеры документов:`, rows.slice(0, 3).map(r => ({ id: r.id, title: r.title, category: r.category })));
+    }
     
     res.json(rows);
   } catch (error) {
     console.error('Ошибка получения публичных страниц:', error);
+    // Возвращаем пустой массив вместо объекта с ошибкой, чтобы фронтенд не ломался
+    console.error('[pages] GET /public/all: ошибка, возвращаем пустой массив');
+    res.status(500).json([]);
+  }
+});
+
+// Получить иерархическую структуру всех публичных страниц
+router.get('/public/structure', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    if (!existsRes.rows[0].exists) {
+      return res.json({ categories: [] });
+    }
+    
+    // Получаем все опубликованные публичные страницы
+    const { rows } = await db.getQuery()(`
+      SELECT 
+        id,
+        title,
+        summary,
+        category,
+        parent_id,
+        order_index,
+        nav_path,
+        is_index_page,
+        created_at
+      FROM ${tableName} 
+      WHERE visibility = 'public' AND status = 'published'
+      ORDER BY 
+        COALESCE(category, '') ASC,
+        COALESCE(order_index, 0) ASC,
+        created_at ASC
+    `);
+    
+    // Группируем по категориям и строим иерархию
+    const categories = {};
+    const pagesById = {};
+    
+    console.log(`[pages] GET /public/structure: найдено ${rows.length} страниц`);
+    
+    rows.forEach(page => {
+      pagesById[page.id] = {
+        ...page,
+        children: []
+      };
+      
+      // Нормализуем категорию: приводим к нижнему регистру для консистентности
+      const cat = (page.category && String(page.category).trim()) 
+        ? String(page.category).trim().toLowerCase() 
+        : 'uncategorized';
+      if (!categories[cat]) {
+        categories[cat] = {
+          name: cat,
+          pages: []
+        };
+      }
+    });
+    
+    // Строим иерархию
+    rows.forEach(page => {
+      const pageObj = pagesById[page.id];
+      if (page.parent_id && pagesById[page.parent_id]) {
+        // Дочерний документ - добавляем в children родителя
+        pagesById[page.parent_id].children.push(pageObj);
+      } else {
+        // Родительский документ (без parent_id) - добавляем в категорию
+        // Нормализуем категорию: приводим к нижнему регистру для консистентности
+        const cat = (page.category && String(page.category).trim()) 
+          ? String(page.category).trim().toLowerCase() 
+          : 'uncategorized';
+        // Убеждаемся, что категория существует (на случай, если она была создана только в первом цикле)
+        if (!categories[cat]) {
+          categories[cat] = {
+            name: cat,
+            pages: []
+          };
+        }
+        categories[cat].pages.push(pageObj);
+      }
+    });
+    
+    // Сортируем children внутри каждого родительского документа
+    Object.values(categories).forEach(cat => {
+      cat.pages.forEach(page => {
+        if (page.children && Array.isArray(page.children) && page.children.length > 0) {
+          page.children.sort((a, b) => {
+            if (a.order_index !== b.order_index) {
+              return (a.order_index || 0) - (b.order_index || 0);
+            }
+            return new Date(a.created_at) - new Date(b.created_at);
+          });
+        }
+      });
+    });
+    
+    // Загружаем все категории из таблицы document_categories (включая пустые)
+    try {
+      const categoriesRes = await db.getQuery()(
+        `SELECT name, display_name, description, order_index 
+         FROM document_categories 
+         ORDER BY order_index, created_at`
+      );
+      categoriesRes.rows.forEach(cat => {
+        const normalizedName = cat.name.toLowerCase();
+        if (!categories[normalizedName]) {
+          // Добавляем пустую категорию, если её нет в списке из документов
+          categories[normalizedName] = {
+            name: normalizedName,
+            pages: []
+          };
+        }
+        // Обновляем отображаемое название
+        if (cat.display_name) {
+          categories[normalizedName].display_name = cat.display_name;
+        }
+      });
+    } catch (err) {
+      console.warn('[pages] Ошибка загрузки категорий из document_categories (таблица может не существовать):', err.message);
+    }
+    
+    console.log(`[pages] GET /public/structure: создано ${Object.keys(categories).length} категорий:`, Object.keys(categories));
+    
+    // Сортируем страницы в категориях: сначала родительские (с детьми), потом остальные
+    Object.values(categories).forEach(cat => {
+      cat.pages.sort((a, b) => {
+        // Сначала документы с детьми (родительские)
+        const aHasChildren = a.children && Array.isArray(a.children) && a.children.length > 0;
+        const bHasChildren = b.children && Array.isArray(b.children) && b.children.length > 0;
+        
+        // Если a имеет детей, а b нет - a идет первым (отрицательное значение = a перед b)
+        if (aHasChildren && !bHasChildren) return -1;
+        // Если b имеет детей, а a нет - b идет первым (положительное значение = b перед a)
+        if (!aHasChildren && bHasChildren) return 1;
+        
+        // Если оба с детьми или оба без детей, сортируем по order_index и created_at
+        if (a.order_index !== b.order_index) {
+          return (a.order_index || 0) - (b.order_index || 0);
+        }
+        return new Date(a.created_at) - new Date(b.created_at);
+      });
+      
+      // Логируем результат сортировки для отладки
+      console.log(`[pages] Категория "${cat.name}": порядок документов:`, 
+        cat.pages.map(p => ({
+          id: p.id,
+          title: p.title,
+          hasChildren: p.children && Array.isArray(p.children) && p.children.length > 0,
+          childrenCount: p.children ? p.children.length : 0
+        }))
+      );
+    });
+    
+    const result = {
+      categories: Object.values(categories),
+      totalPages: rows.length
+    };
+    
+    // Логируем результат для отладки
+    console.log(`[pages] GET /public/structure: возвращаем ${result.categories.length} категорий`);
+    result.categories.forEach(cat => {
+      console.log(`  - ${cat.name}: ${cat.pages.length} страниц`);
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка получения структуры страниц:', error);
+    // Возвращаем пустую структуру вместо объекта с ошибкой, чтобы фронтенд не ломался
+    console.error('[pages] GET /public/structure: ошибка, возвращаем пустую структуру');
+    res.status(500).json({ categories: [], totalPages: 0 });
+  }
+});
+
+// Получить навигацию для конкретного документа
+router.get('/public/:id/navigation', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    const pageId = parseInt(req.params.id);
+    
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    if (!existsRes.rows[0].exists) {
+      return res.status(404).json({ error: 'Страница не найдена' });
+    }
+    
+    // Получаем текущую страницу
+    const { rows: currentPage } = await db.getQuery()(`
+      SELECT * FROM ${tableName} 
+      WHERE id = $1 AND visibility = 'public' AND status = 'published'
+    `, [pageId]);
+    
+    if (currentPage.length === 0) {
+      return res.status(404).json({ error: 'Страница не найдена' });
+    }
+    
+    const page = currentPage[0];
+    const category = page.category || null;
+    const parentId = page.parent_id || null;
+    
+    // Получаем все страницы той же категории/родителя для навигации
+    let whereClause = `WHERE visibility = 'public' AND status = 'published'`;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (parentId) {
+      whereClause += ` AND parent_id = $${paramIndex}`;
+      params.push(parentId);
+      paramIndex++;
+    } else if (category) {
+      whereClause += ` AND category = $${paramIndex} AND (parent_id IS NULL OR parent_id = 0)`;
+      params.push(category);
+      paramIndex++;
+    } else {
+      whereClause += ` AND (category IS NULL OR category = '') AND (parent_id IS NULL OR parent_id = 0)`;
+    }
+    
+    const { rows: siblings } = await db.getQuery()(`
+      SELECT id, title, nav_path, order_index
+      FROM ${tableName} 
+      ${whereClause}
+      ORDER BY COALESCE(order_index, 0) ASC, created_at ASC
+    `, params);
+    
+    // Находим текущую страницу в списке
+    const currentIndex = siblings.findIndex(p => p.id === pageId);
+    const prevPage = currentIndex > 0 ? siblings[currentIndex - 1] : null;
+    const nextPage = currentIndex < siblings.length - 1 ? siblings[currentIndex + 1] : null;
+    
+    // Получаем родительскую страницу
+    let parentPage = null;
+    if (parentId) {
+      const { rows: parent } = await db.getQuery()(`
+        SELECT id, title, nav_path FROM ${tableName} 
+        WHERE id = $1 AND visibility = 'public' AND status = 'published'
+      `, [parentId]);
+      if (parent.length > 0) {
+        parentPage = parent[0];
+      }
+    }
+    
+    // Формируем breadcrumbs
+    const breadcrumbs = [];
+    if (category) {
+      breadcrumbs.push({ name: category, path: null });
+    }
+    if (parentPage) {
+      breadcrumbs.push({ name: parentPage.title, path: `/content/published/${parentPage.id}` });
+    }
+    breadcrumbs.push({ name: page.title, path: null });
+    
+    res.json({
+      previous: prevPage ? {
+        id: prevPage.id,
+        title: prevPage.title,
+        path: `/content/published/${prevPage.id}`
+      } : null,
+      next: nextPage ? {
+        id: nextPage.id,
+        title: nextPage.title,
+        path: `/content/published/${nextPage.id}`
+      } : null,
+      parent: parentPage ? {
+        id: parentPage.id,
+        title: parentPage.title,
+        path: `/content/published/${parentPage.id}`
+      } : null,
+      breadcrumbs
+    });
+  } catch (error) {
+    console.error('Ошибка получения навигации:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });
