@@ -240,42 +240,111 @@ app.post('/vds/transfer-encryption-key', logRequest, async (req, res) => {
       });
     }
     
-    // 2. Читаем ключ шифрования с локальной машины
-    log.info('📖 Чтение ключа шифрования с локальной машины...');
-    const encryptionKeyPath = process.env.ENCRYPTION_KEY_PATH 
-      || path.resolve(__dirname, '..', 'ssl', 'keys', 'full_db_encryption.key');
+    // 2. Определяем путь к ключу шифрования
+    let encryptionKeyPath = process.env.ENCRYPTION_KEY_PATH;
+    
+    if (!encryptionKeyPath) {
+      // Пробуем несколько возможных путей
+      const possiblePaths = [
+        path.resolve(__dirname, '..', 'ssl', 'keys', 'full_db_encryption.key'),
+        path.resolve(__dirname, 'ssl', 'keys', 'full_db_encryption.key'),
+        '/app/ssl/keys/full_db_encryption.key',
+        path.join(process.cwd(), 'ssl', 'keys', 'full_db_encryption.key')
+      ];
+      
+      log.info(`🔍 Поиск ключа шифрования в возможных путях...`);
+      for (const possiblePath of possiblePaths) {
+        if (await fs.pathExists(possiblePath)) {
+          encryptionKeyPath = possiblePath;
+          log.info(`✅ Ключ найден по пути: ${encryptionKeyPath}`);
+          break;
+        }
+      }
+    }
+    
+    if (!encryptionKeyPath) {
+      log.error('❌ Путь к ключу шифрования не указан и не найден в стандартных местах');
+      return res.status(500).json({
+        success: false,
+        message: 'Путь к ключу шифрования не указан и не найден в стандартных местах'
+      });
+    }
+    
+    // Проверяем существование файла
+    const keyExists = await fs.pathExists(encryptionKeyPath);
+    if (!keyExists) {
+      log.error(`❌ Файл ключа шифрования не найден: ${encryptionKeyPath}`);
+      return res.status(500).json({
+        success: false,
+        message: `Файл ключа шифрования не найден: ${encryptionKeyPath}`
+      });
+    }
+    
+    log.info(`📖 Чтение ключа шифрования из: ${encryptionKeyPath}`);
     
     try {
       const encryptionKeyContent = await fs.readFile(encryptionKeyPath, 'utf8');
-      log.success('✅ Ключ шифрования прочитан с локальной машины');
+      
+      if (!encryptionKeyContent || encryptionKeyContent.trim().length === 0) {
+        throw new Error('Ключ шифрования пуст или не может быть прочитан');
+      }
+      
+      log.success(`✅ Ключ шифрования прочитан с локальной машины (длина: ${encryptionKeyContent.length} символов)`);
       
       // 3. Передаем ключ на VDS через SSH
       log.info('📤 Передача ключа шифрования на VDS...');
       
       // Создаем временный файл с ключом
-      const tempKeyPath = `/tmp/encryption_key_${Date.now()}.key`;
-      await fs.writeFile(tempKeyPath, encryptionKeyContent);
+      const tempKeyPath = `/tmp/encryption_key_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.key`;
+      log.info(`📝 Создание временного файла: ${tempKeyPath}`);
+      await fs.writeFile(tempKeyPath, encryptionKeyContent, { mode: 0o600 });
       
       // Передаем файл на VDS через SCP в правильную директорию
-      await execScpCommand(
+      log.info(`📤 Передача ключа на VDS через SCP...`);
+      const scpResult = await execScpCommand(
         tempKeyPath,
         `/home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`,
         options
       );
       
+      // Проверяем результат SCP
+      if (scpResult.code !== 0) {
+        throw new Error(`SCP команда завершилась с ошибкой (код: ${scpResult.code}): ${scpResult.stderr || scpResult.stdout}`);
+      }
+      
+      log.success('✅ Файл ключа успешно передан на VDS через SCP');
+      
       // Удаляем временный файл
-      await fs.remove(tempKeyPath);
+      try {
+        await fs.remove(tempKeyPath);
+        log.info(`🗑️ Временный файл удален: ${tempKeyPath}`);
+      } catch (removeError) {
+        log.warn(`⚠️ Не удалось удалить временный файл ${tempKeyPath}: ${removeError.message}`);
+      }
       
       // 4. Устанавливаем правильные права доступа к ключу на VDS
       log.info('🔒 Настройка прав доступа к ключу шифрования...');
-      await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
-      await execSshCommand(`chmod 600 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      const chownResult = await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      if (chownResult.code !== 0) {
+        log.warn(`⚠️ Не удалось изменить владельца ключа: ${chownResult.stderr}`);
+      }
+      
+      // 🆕 Используем права 644 вместо 600, чтобы контейнеры могли читать ключ
+      // Ключ должен быть читаемым для всех процессов в контейнерах
+      const chmodResult = await execSshCommand(`chmod 644 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      if (chmodResult.code !== 0) {
+        log.warn(`⚠️ Не удалось изменить права доступа к ключу: ${chmodResult.stderr}`);
+      } else {
+        log.success('✅ Права доступа к ключу установлены (644 - читаемый для всех)');
+      }
       
       // 5. Проверяем, что ключ успешно передан
+      log.info('🔍 Проверка передачи ключа...');
       const verifyResult = await execSshCommand(`ls -la /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
       
       if (verifyResult.code === 0) {
         log.success('✅ Ключ шифрования успешно передан и проверен на VDS');
+        log.info(`📋 Информация о ключе на VDS: ${verifyResult.stdout.trim()}`);
         
         res.json({
           success: true,
@@ -289,14 +358,15 @@ app.post('/vds/transfer-encryption-key', logRequest, async (req, res) => {
           ]
         });
       } else {
-        throw new Error('Не удалось проверить передачу ключа шифрования');
+        throw new Error(`Не удалось проверить передачу ключа шифрования: ${verifyResult.stderr || verifyResult.stdout}`);
       }
       
     } catch (error) {
-      log.error('❌ Ошибка чтения ключа шифрования: ' + error.message);
+      log.error('❌ Ошибка передачи ключа шифрования: ' + error.message);
+      log.error('📋 Детали ошибки:', error.stack);
       return res.status(500).json({
         success: false,
-        message: 'Ошибка чтения ключа шифрования: ' + error.message
+        message: `Ошибка передачи ключа шифрования: ${error.message}`
       });
     }
     
@@ -428,43 +498,108 @@ findtime = 3600
     log.info('🔐 Передача ключа шифрования на VDS...');
     
     try {
-      // Читаем ключ шифрования с локальной машины
-      const encryptionKeyPath = process.env.ENCRYPTION_KEY_PATH 
-        || path.resolve(__dirname, '..', 'ssl', 'keys', 'full_db_encryption.key');
+      // Определяем путь к ключу шифрования
+      let encryptionKeyPath = process.env.ENCRYPTION_KEY_PATH;
       
+      if (!encryptionKeyPath) {
+        // Пробуем несколько возможных путей
+        const possiblePaths = [
+          path.resolve(__dirname, '..', 'ssl', 'keys', 'full_db_encryption.key'),
+          path.resolve(__dirname, 'ssl', 'keys', 'full_db_encryption.key'),
+          '/app/ssl/keys/full_db_encryption.key',
+          path.join(process.cwd(), 'ssl', 'keys', 'full_db_encryption.key')
+        ];
+        
+        log.info(`🔍 Поиск ключа шифрования в возможных путях...`);
+        for (const possiblePath of possiblePaths) {
+          if (await fs.pathExists(possiblePath)) {
+            encryptionKeyPath = possiblePath;
+            log.info(`✅ Ключ найден по пути: ${encryptionKeyPath}`);
+            break;
+          }
+        }
+      }
+      
+      if (!encryptionKeyPath) {
+        throw new Error('Путь к ключу шифрования не указан и не найден в стандартных местах');
+      }
+      
+      // Проверяем существование файла
+      const keyExists = await fs.pathExists(encryptionKeyPath);
+      if (!keyExists) {
+        throw new Error(`Файл ключа шифрования не найден: ${encryptionKeyPath}`);
+      }
+      
+      log.info(`📖 Чтение ключа шифрования из: ${encryptionKeyPath}`);
+      
+      // Читаем ключ шифрования с локальной машины
       const encryptionKeyContent = await fs.readFile(encryptionKeyPath, 'utf8');
-      log.success('✅ Ключ шифрования прочитан с локальной машины');
+      
+      if (!encryptionKeyContent || encryptionKeyContent.trim().length === 0) {
+        throw new Error('Ключ шифрования пуст или не может быть прочитан');
+      }
+      
+      log.success(`✅ Ключ шифрования прочитан с локальной машины (длина: ${encryptionKeyContent.length} символов)`);
       
       // Создаем временный файл с ключом
-      const tempKeyPath = `/tmp/encryption_key_${Date.now()}.key`;
-      await fs.writeFile(tempKeyPath, encryptionKeyContent);
+      const tempKeyPath = `/tmp/encryption_key_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.key`;
+      log.info(`📝 Создание временного файла: ${tempKeyPath}`);
+      await fs.writeFile(tempKeyPath, encryptionKeyContent, { mode: 0o600 });
       
       // Передаем файл на VDS через SCP
-      await execScpCommand(
+      log.info(`📤 Передача ключа на VDS через SCP...`);
+      const scpResult = await execScpCommand(
         tempKeyPath,
         `/home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`,
         options
       );
       
+      // Проверяем результат SCP
+      if (scpResult.code !== 0) {
+        throw new Error(`SCP команда завершилась с ошибкой (код: ${scpResult.code}): ${scpResult.stderr || scpResult.stdout}`);
+      }
+      
+      log.success('✅ Файл ключа успешно передан на VDS через SCP');
+      
       // Удаляем временный файл
-      await fs.remove(tempKeyPath);
+      try {
+        await fs.remove(tempKeyPath);
+        log.info(`🗑️ Временный файл удален: ${tempKeyPath}`);
+      } catch (removeError) {
+        log.warn(`⚠️ Не удалось удалить временный файл ${tempKeyPath}: ${removeError.message}`);
+      }
       
       // Устанавливаем правильные права доступа к ключу на VDS
-      await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
-      await execSshCommand(`chmod 600 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      log.info('🔒 Настройка прав доступа к ключу шифрования на VDS...');
+      const chownResult = await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      if (chownResult.code !== 0) {
+        log.warn(`⚠️ Не удалось изменить владельца ключа: ${chownResult.stderr}`);
+      }
+      
+      // 🆕 Используем права 644 вместо 600, чтобы контейнеры могли читать ключ
+      // Ключ должен быть читаемым для всех процессов в контейнерах
+      const chmodResult = await execSshCommand(`chmod 644 /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
+      if (chmodResult.code !== 0) {
+        log.warn(`⚠️ Не удалось изменить права доступа к ключу: ${chmodResult.stderr}`);
+      } else {
+        log.success('✅ Права доступа к ключу установлены (644 - читаемый для всех)');
+      }
       
       // Проверяем, что ключ успешно передан
+      log.info('🔍 Проверка передачи ключа...');
       const verifyResult = await execSshCommand(`ls -la /home/${dockerUser}/dapp/ssl/keys/full_db_encryption.key`, options);
       
       if (verifyResult.code === 0) {
         log.success('✅ Ключ шифрования успешно передан на VDS');
+        log.info(`📋 Информация о ключе на VDS: ${verifyResult.stdout.trim()}`);
         sendWebSocketLog('success', '✅ Ключ шифрования передан на VDS', 'encryption_key', 37);
       } else {
-        throw new Error('Не удалось проверить передачу ключа шифрования');
+        throw new Error(`Не удалось проверить передачу ключа шифрования: ${verifyResult.stderr || verifyResult.stdout}`);
       }
     } catch (error) {
       log.error('❌ Ошибка передачи ключа шифрования: ' + error.message);
-      sendWebSocketLog('error', '❌ Ошибка передачи ключа шифрования: ' + error.message, 'encryption_key', 37);
+      log.error('📋 Детали ошибки:', error.stack);
+      sendWebSocketLog('error', `❌ Ошибка передачи ключа шифрования: ${error.message}`, 'encryption_key', 37);
       // Продолжаем установку, но предупреждаем пользователя
       log.warn('⚠️ Внимание: ключ шифрования не передан. Backend может не запуститься без ключа.');
     }
@@ -562,69 +697,143 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart frontend-nginx`, options);
     log.success('✅ CORS заголовки настроены в nginx для API');
     
-    // 16.0. 🆕 Получение реального SSL сертификата через Let's Encrypt (опционально)
-    log.info('Получение реального SSL сертификата через Let\'s Encrypt...');
+    // 16.0. 🆕 Получение реального SSL сертификата через Let's Encrypt
+    log.info('🔒 Получение реального SSL сертификата через Let\'s Encrypt...');
+    sendWebSocketLog('info', '🔒 Получение SSL сертификата...', 'ssl_cert', 75);
     
-    // Убеждаемся, что challenge доступен по HTTP
-    log.info('Проверяем доступность HTTP challenge для Let\'s Encrypt...');
-    await execSshCommand('mkdir -p /var/www/certbot/.well-known/acme-challenge', options);
-    const challengeToken = `agent-challenge-${Date.now()}`;
-    await execSshCommand(`echo 'challenge-ok' > /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
-    let tempHttpContainerStarted = false;
-    let challengeCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken}`, options);
-    
-    if (challengeCheck.code !== 0) {
-      log.warn('HTTP challenge недоступен. Запускаю временный nginx на 80 порту...');
-      await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml stop frontend-nginx || true`, options);
-      await execSshCommand('docker rm -f dle-certbot-http 2>/dev/null || true', options);
-      const tempNginxStart = await execSshCommand('docker run -d --name dle-certbot-http -p 80:80 -v /var/www/certbot:/usr/share/nginx/html:ro nginx:alpine', options);
-      if (tempNginxStart.code === 0) {
-        tempHttpContainerStarted = true;
-        await execSshCommand('sleep 3', options);
-        challengeCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken}`, options);
-      } else {
-        log.warn('Не удалось запустить временный nginx для challenge: ' + tempNginxStart.stderr);
+    try {
+      // Убеждаемся, что директории для certbot существуют
+      log.info('📁 Подготовка директорий для certbot...');
+      await execSshCommand('mkdir -p /var/www/certbot/.well-known/acme-challenge', options);
+      await execSshCommand('chmod -R 755 /var/www/certbot', options);
+      
+      // Проверяем, запущен ли frontend-nginx
+      log.info('🔍 Проверка статуса frontend-nginx...');
+      const nginxStatus = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml ps frontend-nginx --format json 2>/dev/null || echo 'not running'`, options);
+      
+      let tempHttpContainerStarted = false;
+      let nginxRunning = false;
+      
+      // Проверяем, доступен ли порт 80
+      const port80Check = await execSshCommand('netstat -tuln | grep ":80 " || ss -tuln | grep ":80 " || echo "port 80 not listening"', options);
+      
+      if (port80Check.stdout.includes(':80 ') || port80Check.stdout.includes('LISTEN')) {
+        log.info('✅ Порт 80 уже занят, проверяем доступность challenge...');
+        const challengeToken = `test-${Date.now()}`;
+        await execSshCommand(`echo 'test' > /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
+        const challengeCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken} 2>&1 || curl -fsS http://localhost/.well-known/acme-challenge/${challengeToken} 2>&1`, options);
+        await execSshCommand(`rm -f /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
+        
+        if (challengeCheck.code === 0) {
+          log.success('✅ HTTP challenge доступен через существующий веб-сервер');
+          nginxRunning = true;
+        } else {
+          log.warn('⚠️ HTTP challenge недоступен через существующий сервер');
+        }
       }
-    } else {
-      log.success('HTTP challenge доступен через frontend-nginx');
-    }
-    
-    await execSshCommand(`rm -f /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
-    
-    // Получаем SSL сертификат через certbot
-    const certbotResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm certbot`, options);
-    
-    if (certbotResult.code === 0) {
-      log.success('Реальный SSL сертификат успешно получен');
-    } else {
-      log.warn('Предупреждение при получении реального SSL сертификата: ' + certbotResult.stderr);
-      log.info('Будет использоваться временный самоподписанный сертификат');
-    }
-    
-    if (tempHttpContainerStarted) {
-      log.info('Останавливаю временный HTTP контейнер для challenge');
-      await execSshCommand('docker rm -f dle-certbot-http || true', options);
-      await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d frontend-nginx`, options);
+      
+      // Если порт 80 не занят или challenge недоступен, запускаем временный nginx
+      if (!nginxRunning) {
+        log.info('🚀 Запуск временного nginx для HTTP challenge...');
+        await execSshCommand('docker rm -f dle-certbot-http 2>/dev/null || true', options);
+        
+        // Останавливаем frontend-nginx если он запущен (чтобы освободить порт 80)
+        await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml stop frontend-nginx 2>/dev/null || true`, options);
+        
+        // Запускаем временный nginx для challenge
+        const tempNginxStart = await execSshCommand('docker run -d --name dle-certbot-http --network dapp_network -p 80:80 -v /var/www/certbot:/usr/share/nginx/html:ro nginx:alpine 2>&1', options);
+        
+        if (tempNginxStart.code === 0) {
+          tempHttpContainerStarted = true;
+          log.success('✅ Временный nginx запущен для HTTP challenge');
+          await execSshCommand('sleep 5', options); // Даем время nginx запуститься
+          
+          // Проверяем доступность challenge
+          const challengeToken = `verify-${Date.now()}`;
+          await execSshCommand(`echo 'verify' > /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
+          const verifyCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken} 2>&1 || curl -fsS http://localhost/.well-known/acme-challenge/${challengeToken} 2>&1`, options);
+          await execSshCommand(`rm -f /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
+          
+          if (verifyCheck.code === 0) {
+            log.success('✅ HTTP challenge доступен через временный nginx');
+          } else {
+            log.warn(`⚠️ HTTP challenge недоступен: ${verifyCheck.stderr || verifyCheck.stdout}`);
+          }
+        } else {
+          log.error(`❌ Не удалось запустить временный nginx: ${tempNginxStart.stderr || tempNginxStart.stdout}`);
+          throw new Error('Не удалось запустить временный nginx для HTTP challenge');
+        }
+      }
+      
+      // Получаем SSL сертификат через certbot
+      log.info('📜 Получение SSL сертификата через certbot...');
+      const certbotResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm --no-deps certbot 2>&1`, options);
+      
+      if (certbotResult.code === 0) {
+        log.success('✅ Реальный SSL сертификат успешно получен от Let\'s Encrypt');
+        sendWebSocketLog('success', '✅ SSL сертификат получен', 'ssl_cert', 80);
+        
+        // Проверяем наличие сертификата
+        const certCheck = await execSshCommand(`ls -la /etc/letsencrypt/live/${domain}/fullchain.pem /etc/letsencrypt/live/${domain}/privkey.pem 2>&1`, options);
+        if (certCheck.code === 0) {
+          log.info(`📋 Сертификаты найдены:\n${certCheck.stdout}`);
+        }
+      } else {
+        const errorMsg = certbotResult.stderr || certbotResult.stdout || 'Неизвестная ошибка';
+        log.warn(`⚠️ Предупреждение при получении SSL сертификата: ${errorMsg}`);
+        log.info('ℹ️ Будет использоваться временный самоподписанный сертификат');
+        sendWebSocketLog('warning', `⚠️ SSL сертификат не получен: ${errorMsg.substring(0, 100)}`, 'ssl_cert', 80);
+      }
+      
+      // Останавливаем временный nginx если он был запущен
+      if (tempHttpContainerStarted) {
+        log.info('🛑 Остановка временного nginx контейнера...');
+        await execSshCommand('docker rm -f dle-certbot-http 2>/dev/null || true', options);
+        
+        // Перезапускаем frontend-nginx если он был остановлен
+        log.info('🔄 Перезапуск frontend-nginx...');
+        await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d frontend-nginx 2>&1`, options);
+      }
+      
+    } catch (error) {
+      log.error(`❌ Ошибка при получении SSL сертификата: ${error.message}`);
+      log.error('📋 Детали ошибки:', error.stack);
+      sendWebSocketLog('error', `❌ Ошибка получения SSL сертификата: ${error.message}`, 'ssl_cert', 80);
+      log.warn('⚠️ Продолжаем с временным самоподписанным сертификатом');
     }
     
     // Настройка автоматического обновления SSL сертификатов
-    log.info('Настройка автоматического обновления SSL сертификатов...');
+    log.info('⚙️ Настройка автоматического обновления SSL сертификатов...');
     const renewScript = `#!/bin/bash
 # Автоматическое обновление SSL сертификатов через Docker certbot
 cd /home/${dockerUser}/dapp
 echo "$(date): Проверка обновления SSL сертификатов..." >> /var/log/ssl-renewal.log
-docker compose -f docker-compose.prod.yml run --rm certbot renew 2>&1 | tee -a /var/log/ssl-renewal.log
+
+# Обновляем сертификаты через certbot (--no-deps чтобы не ждать зависимости)
+docker compose -f docker-compose.prod.yml run --rm --no-deps certbot renew --non-interactive 2>&1 | tee -a /var/log/ssl-renewal.log
+
 if [ $? -eq 0 ]; then
     echo "$(date): SSL сертификаты обновлены, перезапуск nginx..." >> /var/log/ssl-renewal.log
-    docker compose -f docker-compose.prod.yml restart frontend-nginx
+    docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 | tee -a /var/log/ssl-renewal.log
 else
     echo "$(date): Ошибка обновления SSL сертификатов" >> /var/log/ssl-renewal.log
 fi
 `;
-    await execSshCommand(`echo '${renewScript}' | tee /home/${dockerUser}/dapp/renew-ssl.sh`, options);
+    await execSshCommand(`cat > /home/${dockerUser}/dapp/renew-ssl.sh << 'RENEW_EOF'
+${renewScript}
+RENEW_EOF
+`, options);
     await execSshCommand(`chmod +x /home/${dockerUser}/dapp/renew-ssl.sh`, options);
-    await execSshCommand(`echo "0 12 * * * /home/${dockerUser}/dapp/renew-ssl.sh" | crontab -`, options);
-    log.success('Автоматическое обновление SSL сертификатов через Docker настроено (ежедневно в 12:00)');
+    
+    // Устанавливаем cron задачу (если crontab доступен)
+    const cronCheck = await execSshCommand('which crontab 2>/dev/null || echo "crontab not found"', options);
+    if (cronCheck.stdout.includes('crontab')) {
+      await execSshCommand(`(crontab -l 2>/dev/null | grep -v renew-ssl.sh; echo "0 12 * * * /home/${dockerUser}/dapp/renew-ssl.sh") | crontab -`, options);
+      log.success('✅ Автоматическое обновление SSL сертификатов настроено (ежедневно в 12:00)');
+    } else {
+      log.warn('⚠️ crontab не найден, автоматическое обновление не настроено');
+      log.info('💡 Для ручного обновления выполните: /home/${dockerUser}/dapp/renew-ssl.sh');
+    }
     
     // 16.1. 🆕 Ожидание готовности базы данных с повторными попытками
     log.info('Ожидание готовности базы данных...');

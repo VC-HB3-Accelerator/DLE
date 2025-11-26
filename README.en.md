@@ -16,8 +16,21 @@ Complete Digital Legal Entity application template
 ## 🚀 Quick Start
 
 ### Automatic installation (recommended)
+
+**For Linux/macOS/WSL:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup-template.sh | bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
+```
+
+**For Windows PowerShell:**
+```powershell
+# Use WSL or Git Bash
+wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash"
+```
+
+**Alternative for Windows (Git Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
 ```
 
 The script automatically downloads the latest artifacts from the release and deploys `docker-data`.

@@ -113,6 +113,8 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
     scpCommand = `scp -i "${privateKeyPath}" -P ${sshPort} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${sourcePath} ${user}@${host}:${targetPath}`;
   }
 
+  log.info(`🔍 Выполняем SCP команду: scp ${sourcePath} -> ${user}@${host}:${targetPath}`);
+  
   return new Promise((resolve) => {
     exec(scpCommand, (error, stdout, stderr) => {
       if (error && error.code === 255 && sshConnectPassword) {
@@ -121,9 +123,11 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
 
         exec(passwordScpCommand, (passwordError, passwordStdout, passwordStderr) => {
           if (passwordError) {
-            log.error('❌ Ошибка SCP: ' + passwordError.message);
+            log.error(`❌ Ошибка SCP с паролем (код: ${passwordError.code}): ${passwordError.message}`);
+            log.error(`📋 stderr: ${passwordStderr}`);
+            log.error(`📋 stdout: ${passwordStdout}`);
           } else {
-            log.success('✅ SCP успешно выполнен');
+            log.success('✅ SCP успешно выполнен с паролем');
           }
           resolve({
             code: passwordError ? passwordError.code : 0,
@@ -133,9 +137,14 @@ const execScpCommand = async (sourcePath, targetPath, options = {}) => {
         });
       } else {
         if (error) {
-          log.error('❌ Ошибка SCP: ' + error.message);
+          log.error(`❌ Ошибка SCP (код: ${error.code}): ${error.message}`);
+          log.error(`📋 stderr: ${stderr}`);
+          log.error(`📋 stdout: ${stdout}`);
         } else {
           log.success('✅ SCP успешно выполнен');
+          if (stdout) {
+            log.info(`📋 SCP stdout: ${stdout}`);
+          }
         }
         resolve({
           code: error ? error.code : 0,

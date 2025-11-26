@@ -16,8 +16,21 @@
 ## 🚀 Быстрый запуск
 
 ### Автоматическая установка (рекомендуется)
+
+**Для Linux/macOS/WSL:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup-template.sh | bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
+```
+
+**Для Windows PowerShell:**
+```powershell
+# Используйте WSL или Git Bash
+wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash"
+```
+
+**Альтернатива для Windows (Git Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
 ```
 
 Скрипт автоматически скачивает последние артефакты из релиза и разворачивает `docker-data`.
