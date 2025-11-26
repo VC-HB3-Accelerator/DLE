@@ -1125,6 +1125,75 @@ const sendBackup = async () => {
   }
 };
 
+// SSL Сертификаты
+const loadSslStatus = async () => {
+  if (!isEditor.value) {
+    alert('Только пользователи с ролью "Редактор" могут проверять SSL сертификаты');
+    return;
+  }
+  isLoadingSsl.value = true;
+  try {
+    const response = await axios.get('/vds/ssl/status');
+    if (response.data.success) {
+      sslStatus.value = response.data;
+    } else {
+      alert('Ошибка получения статуса SSL сертификата');
+    }
+  } catch (error) {
+    console.error('Ошибка получения статуса SSL:', error);
+    alert(error.response?.data?.error || 'Ошибка получения статуса SSL сертификата');
+  } finally {
+    isLoadingSsl.value = false;
+  }
+};
+
+const renewSslCertificate = async () => {
+  if (!isEditor.value) {
+    alert('Только пользователи с ролью "Редактор" могут получать SSL сертификаты');
+    return;
+  }
+  if (!confirm('Получить/обновить SSL сертификат от Let\'s Encrypt? Это может занять некоторое время.')) return;
+  isLoading.value = true;
+  try {
+    const response = await axios.post('/vds/ssl/renew');
+    if (response.data.success) {
+      alert('SSL сертификат успешно получен/обновлен');
+      await loadSslStatus();
+    } else {
+      alert('Ошибка получения SSL сертификата: ' + (response.data.error || 'Неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка получения SSL сертификата:', error);
+    alert(error.response?.data?.error || 'Ошибка получения SSL сертификата');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const isCertExpiringSoon = (expiryDate) => {
+  if (!expiryDate) return false;
+  const expiry = new Date(expiryDate);
+  const now = new Date();
+  const daysUntilExpiry = (expiry - now) / (1000 * 60 * 60 * 24);
+  return daysUntilExpiry < 30; // Истекает в течение 30 дней
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'Не указан';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    return dateString;
+  }
+};
+
 // Форматирование байтов
 const formatBytes = (bytes) => {
   if (!bytes || bytes === 0) return '0 B';
@@ -1292,6 +1361,7 @@ onMounted(async () => {
   // Загружаем пользователей только для редакторов
   if (isEditor.value) {
     await loadUsers();
+    await loadSslStatus();
   }
   
   // Обновляем статистику каждые 5 секунд
@@ -1982,6 +2052,101 @@ onUnmounted(() => {
 }
 
 .backup-btn.send:hover:not(:disabled) {
+  background: #138496;
+}
+
+/* Стили для SSL сертификатов */
+.ssl-section {
+  margin-bottom: 30px;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.ssl-status {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid #e9ecef;
+}
+
+.ssl-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ssl-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.ssl-info-item:last-child {
+  border-bottom: none;
+}
+
+.ssl-info-item label {
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 150px;
+}
+
+.ssl-info-item span {
+  color: var(--color-dark, #333);
+  text-align: right;
+}
+
+.ssl-info-item span.expiring-soon {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.ssl-info-item span.self-signed {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.ssl-no-cert {
+  text-align: center;
+  padding: 20px;
+  color: #856404;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: var(--radius-sm, 8px);
+}
+
+.ssl-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.ssl-btn {
+  padding: 12px 20px;
+  font-size: 0.95rem;
+}
+
+.ssl-btn.renew {
+  background: #28a745;
+  color: white;
+}
+
+.ssl-btn.renew:hover:not(:disabled) {
+  background: #218838;
+}
+
+.ssl-btn.status {
+  background: #17a2b8;
+  color: white;
+}
+
+.ssl-btn.status:hover:not(:disabled) {
   background: #138496;
 }
 

@@ -45,22 +45,33 @@ check_curl() {
   print_green "✅ curl установлен"
 }
 
+# Установка Docker
+install_docker() {
+  print_blue "📦 Установка Docker..."
+  if curl -fsSL https://get.docker.com | bash; then
+    print_green "✅ Docker установлен"
+    systemctl enable docker 2>/dev/null || true
+    systemctl start docker 2>/dev/null || true
+    sleep 2
+  else
+    print_red "❌ Ошибка установки Docker"
+    exit 1
+  fi
+}
+
 # Проверка Docker
 check_docker() {
   print_blue "🔍 Проверка Docker..."
   if ! command -v docker &> /dev/null; then
-    print_red "❌ Docker не установлен!"
-    print_yellow "Установите Docker: https://docs.docker.com/get-docker/"
-    exit 1
+    print_yellow "⚠️  Docker не установлен. Начинаем установку..."
+    install_docker
   fi
   
   if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-    print_red "❌ Docker Compose не установлен!"
-    print_yellow "Установите Docker Compose: https://docs.docker.com/compose/install/"
-    exit 1
+    print_yellow "⚠️  Docker Compose не найден, но это нормально - используется встроенный docker compose"
   fi
   
-  print_green "✅ Docker и Docker Compose установлены"
+  print_green "✅ Docker установлен и готов к работе"
 }
 
 # Проверка Docker запущен

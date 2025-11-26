@@ -187,10 +187,22 @@ done
 
 # 🆕 Динамически определяем volumes для импорта из имен файлов в архиве
 echo "📦 Импорт данных в volumes..."
+# Включаем nullglob для безопасной обработки пустых glob-паттернов
+shopt -s nullglob
+# Инициализируем переменные
+volume_name=""
+full_volume_name=""
 for data_file in ./temp-import/*_data.tar.gz; do
     if [ -f "$data_file" ]; then
         # Извлекаем имя volume из имени файла (например, postgres_data.tar.gz -> postgres_data)
-        volume_name=$(basename "$data_file" .tar.gz)
+        volume_name=$(basename "$data_file" .tar.gz 2>/dev/null || echo "")
+        
+        # Проверяем, что volume_name не пустой и не содержит только пробелы
+        if [ -z "${volume_name:-}" ] || [ -z "$(echo "${volume_name}" | tr -d '[:space:]')" ]; then
+            echo "⚠️ Предупреждение: не удалось извлечь имя volume из файла: $data_file"
+            volume_name=""
+            continue
+        fi
         
         # Используем префикс dapp_ для соответствия docker-compose.prod.yml
         full_volume_name="dapp_${volume_name}"
@@ -199,11 +211,19 @@ for data_file in ./temp-import/*_data.tar.gz; do
         # Удаляем старый volume если существует
         docker volume rm -f "$full_volume_name" 2>/dev/null || true
         # Создаем новый volume
-        docker volume create "$full_volume_name"
+        if ! docker volume create "$full_volume_name"; then
+            echo "❌ Ошибка создания volume: $full_volume_name"
+            continue
+        fi
         # Импортируем данные
-        docker run --rm -v "$full_volume_name:/data" -v ./temp-import:/backup alpine tar xzf "/backup/$(basename $data_file)" -C /data
+        if ! docker run --rm -v "$full_volume_name:/data" -v "$(pwd)/temp-import:/backup" alpine tar xzf "/backup/$(basename "$data_file")" -C /data; then
+            echo "❌ Ошибка импорта данных в volume: $full_volume_name"
+            continue
+        fi
+        echo "✅ Данные успешно импортированы в volume: $full_volume_name"
     fi
 done
+shopt -u nullglob
 
 # Очищаем временные файлы
 rm -rf ./temp-import
@@ -214,8 +234,17 @@ docker images | grep -E "digital_legal_entitydle|postgres"
 echo "📋 Доступные volumes:"
 docker volume ls | grep dapp_`;
 
-  await execSshCommand(`echo '${importScript}' | tee /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
-  await execSshCommand(`chmod +x /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
+  // Записываем скрипт в файл локально и передаем через SCP для избежания проблем с экранированием
+  const tempScriptPath = `/tmp/import-images-and-data-${Date.now()}.sh`;
+  await fs.writeFile(tempScriptPath, importScript, { mode: 0o755 });
+  
+  try {
+    await execScpCommand(tempScriptPath, `/home/${dockerUser}/dapp/import-images-and-data.sh`, options);
+    await execSshCommand(`chmod +x /home/${dockerUser}/dapp/import-images-and-data.sh`, options);
+  } finally {
+    // Удаляем временный файл
+    await fs.remove(tempScriptPath).catch(() => {});
+  }
   
   // Импортируем образы и данные
   log.info('Импорт Docker образов и данных...');
