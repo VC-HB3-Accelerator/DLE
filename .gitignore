@@ -212,4 +212,7 @@ scripts/export-template-for-release.sh
 docker-data/
 dle-template.tar.gz
 dle-template.tar.gz.part-*
-dle-template.tar.gz.join.sh 
+dle-template.tar.gz.join.sh
+
+# Guide files
+pages-guide.md 
