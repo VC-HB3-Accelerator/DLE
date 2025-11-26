@@ -24,8 +24,11 @@ print_red() {
   echo -e "\e[31m$1\e[0m"
 }
 
+# Версия релиза для установки (обновляется при выходе нового релиза)
 ARCHIVE_VERSION="v1.0.1"
 ARCHIVE_BASE_URL="https://github.com/VC-HB3-Accelerator/DLE/releases/download/${ARCHIVE_VERSION}"
+
+# Список частей архива (стандартные части для релиза v1.0.1+)
 ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-aa"
   "dle-template.tar.gz.part-ab"
@@ -107,13 +110,14 @@ download_repo() {
 
 # Загрузка частей архива docker-data
 download_archive_parts() {
-  print_blue "📥 Загрузка docker-data из релиза..."
+  print_blue "📥 Загрузка docker-data из релиза ${ARCHIVE_VERSION}..."
 
   local tmp_dir
   tmp_dir=$(mktemp -d)
 
   print_blue "Используем временную директорию: $tmp_dir"
 
+  # Загружаем части архива
   for part in "${ARCHIVE_PARTS[@]}"; do
     local url="${ARCHIVE_BASE_URL}/${part}"
     print_blue "⇣ Загрузка ${part}..."
@@ -146,12 +150,21 @@ download_archive_parts() {
 # Проверка наличия docker-data, загрузка при необходимости
 ensure_docker_data() {
   print_blue "🔍 Проверка наличия docker-data..."
+  
+  # Проверяем наличие директорий
   if [ -d "docker-data/images" ] && [ -d "docker-data/volumes" ]; then
-    print_green "✅ Папка docker-data найдена локально"
-    return
+    # Проверяем наличие правильных файлов образов для новой версии v1.0.1
+    if [ -f "docker-data/images/frontend-nginx.tar" ]; then
+      print_green "✅ Папка docker-data найдена локально (версия v1.0.1+)"
+      return
+    else
+      print_yellow "⚠️  Найдена старая версия docker-data (нет frontend-nginx.tar)"
+      print_blue "🗑️  Удаление старой версии и загрузка релиза ${ARCHIVE_VERSION}..."
+      rm -rf docker-data
+    fi
   fi
 
-  print_yellow "⚠️  Папка docker-data отсутствует. Будет выполнена загрузка частей архива."
+  print_blue "📥 Загрузка docker-data из релиза ${ARCHIVE_VERSION}..."
   check_curl
   download_archive_parts
 }
@@ -223,7 +236,13 @@ import_images() {
 create_volumes() {
   print_blue "💾 Создание томов..."
   
-  local volumes=("digital_legal_entitydle_postgres_data" "digital_legal_entitydle_ollama_data" "digital_legal_entitydle_vector_search_data" "digital_legal_entitydle_backend_node_modules" "digital_legal_entitydle_frontend_node_modules")
+  # Обязательные тома для релиза v1.0.1
+  local volumes=(
+    "digital_legal_entitydle_postgres_data"
+    "digital_legal_entitydle_ollama_data"
+    "digital_legal_entitydle_vector_search_data"
+    "digital_legal_entitydle_backend_node_modules"
+  )
   
   for volume in "${volumes[@]}"; do
     if docker volume ls | grep -q "$volume"; then
@@ -233,6 +252,17 @@ create_volumes() {
       print_green "✅ Том $volume создан"
     fi
   done
+  
+  # Опциональный том frontend_node_modules (только если есть в архиве)
+  if [ -f "docker-data/volumes/frontend_node_modules.tar.gz" ]; then
+    local volume="digital_legal_entitydle_frontend_node_modules"
+    if docker volume ls | grep -q "$volume"; then
+      print_yellow "⚠️  Том $volume уже существует"
+    else
+      docker volume create "$volume"
+      print_green "✅ Том $volume создан (опциональный)"
+    fi
+  fi
 }
 
 # Импорт томов
