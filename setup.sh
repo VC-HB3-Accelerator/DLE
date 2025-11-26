@@ -87,6 +87,30 @@ check_docker_running() {
   print_green "✅ Docker запущен"
 }
 
+# Определение IP адреса сервера
+get_server_ip() {
+  # Сначала пытаемся получить внешний IP
+  local external_ip
+  external_ip=$(curl -s --max-time 3 ifconfig.me 2>/dev/null || curl -s --max-time 3 ifconfig.co 2>/dev/null || echo "")
+  
+  if [ -n "$external_ip" ] && [[ "$external_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "$external_ip"
+    return
+  fi
+  
+  # Если не получилось, пробуем получить локальный IP
+  local local_ip
+  local_ip=$(hostname -I 2>/dev/null | awk '{print $1}' || ip route get 1 2>/dev/null | awk '{print $7; exit}' || echo "")
+  
+  if [ -n "$local_ip" ] && [[ "$local_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "$local_ip"
+    return
+  fi
+  
+  # Если ничего не получилось, используем localhost
+  echo "localhost"
+}
+
 # Скачивание репозитория
 download_repo() {
   print_blue "📥 Скачивание репозитория..."
@@ -331,7 +355,6 @@ start_application() {
   
   if docker-compose up -d; then
     print_green "✅ Приложение запущено"
-    print_blue "🌐 Доступ к приложению: http://localhost:5173"
   else
     print_red "❌ Ошибка запуска приложения"
     print_yellow "Проверьте логи: docker-compose logs"
@@ -346,7 +369,6 @@ check_status() {
   
   if docker-compose ps | grep -q "Up"; then
     print_green "✅ Контейнеры запущены"
-    print_blue "🌐 Приложение доступно по адресу: http://localhost:5173"
   else
     print_yellow "⚠️  Некоторые контейнеры могут быть не готовы"
     print_blue "Проверьте статус: docker-compose ps"
@@ -383,9 +405,18 @@ main() {
   start_application
   check_status
   
+  # Определяем IP адрес сервера
+  SERVER_IP=$(get_server_ip)
+  
   print_green "🎉 Установка завершена!"
   print_blue "=================================================="
-  print_blue "🌐 Приложение доступно: http://localhost:5173"
+  print_blue "🌐 Приложение доступно по адресам:"
+  print_blue "   HTTP:  http://${SERVER_IP}:9000"
+  print_blue "   HTTPS: https://${SERVER_IP}:9443"
+  if [ "$SERVER_IP" != "localhost" ]; then
+    print_blue "   Локально: http://localhost:9000"
+  fi
+  print_blue ""
   print_blue "🔧 Управление:"
   print_blue "   Запуск:   docker-compose up -d"
   print_blue "   Остановка: docker-compose down"
