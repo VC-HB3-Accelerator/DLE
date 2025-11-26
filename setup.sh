@@ -193,6 +193,11 @@ check_volumes() {
     fi
   done
   
+  # frontend_node_modules опционален (только для dev)
+  if [ -f "docker-data/volumes/frontend_node_modules.tar.gz" ]; then
+    print_blue "ℹ️  frontend_node_modules.tar.gz найден (для dev режима)"
+  fi
+  
   print_green "✅ Все файлы томов найдены"
 }
 
@@ -218,7 +223,7 @@ import_images() {
 create_volumes() {
   print_blue "💾 Создание томов..."
   
-  local volumes=("digital_legal_entitydle_postgres_data" "digital_legal_entitydle_ollama_data" "digital_legal_entitydle_vector_search_data" "digital_legal_entitydle_backend_node_modules")
+  local volumes=("digital_legal_entitydle_postgres_data" "digital_legal_entitydle_ollama_data" "digital_legal_entitydle_vector_search_data" "digital_legal_entitydle_backend_node_modules" "digital_legal_entitydle_frontend_node_modules")
   
   for volume in "${volumes[@]}"; do
     if docker volume ls | grep -q "$volume"; then
@@ -254,10 +259,14 @@ import_volumes() {
   docker run --rm -v digital_legal_entitydle_backend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/backend_node_modules.tar.gz -C /target
   print_green "✅ backend_node_modules импортирован"
   
-  # Frontend node_modules
-  print_blue "Импорт frontend_node_modules..."
-  docker run --rm -v digital_legal_entitydle_frontend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/frontend_node_modules.tar.gz -C /target
-  print_green "✅ frontend_node_modules импортирован"
+  # Frontend node_modules (опционально, только для dev режима)
+  if [ -f "docker-data/volumes/frontend_node_modules.tar.gz" ]; then
+    print_blue "Импорт frontend_node_modules..."
+    docker run --rm -v digital_legal_entitydle_frontend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/frontend_node_modules.tar.gz -C /target
+    print_green "✅ frontend_node_modules импортирован"
+  else
+    print_yellow "⚠️  frontend_node_modules.tar.gz не найден (не требуется для production)"
+  fi
   
   print_green "✅ Все тома импортированы"
 }
