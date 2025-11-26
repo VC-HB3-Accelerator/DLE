@@ -1320,6 +1320,24 @@ const fetchOkvedCodes = async (level, parentCode, optionsRef, loadingRef) => {
       );
     }
     
+    // Сортировка кодов ОКВЭД по коду (правильная числовая сортировка для каждой части)
+    filteredCodes.sort((a, b) => {
+      // Разбиваем коды на части для правильной сортировки
+      const partsA = a.code.split('.').map(p => parseInt(p, 10));
+      const partsB = b.code.split('.').map(p => parseInt(p, 10));
+      
+      // Сравниваем части по порядку численно
+      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const partA = partsA[i] !== undefined ? partsA[i] : 0;
+        const partB = partsB[i] !== undefined ? partsB[i] : 0;
+        
+        if (partA !== partB) {
+          return partA - partB;
+        }
+      }
+      return 0;
+    });
+    
     optionsRef.value = filteredCodes.map(code => ({
       value: code.code,
       text: `${code.code} - ${code.title}`

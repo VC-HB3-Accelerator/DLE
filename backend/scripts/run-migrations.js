@@ -91,7 +91,7 @@ async function runMigrations() {
         }
 
         // Извлекаем только UP SQL
-        const sqlToExecute = fileContent.substring(upSqlStartIndex, upSqlEndIndex).trim();
+        let sqlToExecute = fileContent.substring(upSqlStartIndex, upSqlEndIndex).trim();
 
         if (!sqlToExecute) {
           logger.warn(`Migration file ${file} has no executable UP SQL content. Skipping.`);
@@ -99,6 +99,38 @@ async function runMigrations() {
         }
 
         logger.info(`Executing UP migration from ${file}...`);
+        
+        // Выделяем CREATE EXTENSION команды, которые должны выполняться вне транзакции
+        const extensionRegex = /CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+\w+;?/gi;
+        const extensionCommands = [];
+        sqlToExecute = sqlToExecute.replace(extensionRegex, (match) => {
+          extensionCommands.push(match.replace(/;?\s*$/, ''));
+          return ''; // Удаляем из основного SQL
+        });
+
+        // Выполняем CREATE EXTENSION команды вне транзакции
+        for (const extCmd of extensionCommands) {
+          try {
+            await pool.query(extCmd);
+            logger.info(`Extension command executed: ${extCmd}`);
+          } catch (error) {
+            // Игнорируем ошибку, если расширение уже установлено
+            if (!error.message.includes('already exists')) {
+              logger.warn(`Warning executing extension command: ${error.message}`);
+            }
+          }
+        }
+
+        // Очищаем оставшийся SQL от пустых строк
+        sqlToExecute = sqlToExecute.trim();
+
+        // Если после удаления CREATE EXTENSION остался только пустой SQL, пропускаем транзакцию
+        if (!sqlToExecute) {
+          await pool.query('INSERT INTO migrations (name) VALUES ($1)', [file]);
+          logger.info(`Migration ${file} executed successfully (extension only)`);
+          continue;
+        }
+
         await pool.query('BEGIN');
         try {
           // Создаем функцию для получения ключа шифрования

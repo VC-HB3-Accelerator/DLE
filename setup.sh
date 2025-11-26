@@ -24,14 +24,13 @@ print_red() {
   echo -e "\e[31m$1\e[0m"
 }
 
-ARCHIVE_VERSION="v1.0.0"
+ARCHIVE_VERSION="v1.0.1"
 ARCHIVE_BASE_URL="https://github.com/VC-HB3-Accelerator/DLE/releases/download/${ARCHIVE_VERSION}"
 ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-aa"
   "dle-template.tar.gz.part-ab"
   "dle-template.tar.gz.part-ac"
   "dle-template.tar.gz.part-ad"
-  "dle-template.tar.gz.part-ae"
 )
 
 # Проверка curl
@@ -263,6 +262,30 @@ import_volumes() {
   print_green "✅ Все тома импортированы"
 }
 
+# Копирование ключа шифрования из архива
+copy_encryption_key() {
+  print_blue "🔐 Копирование ключа шифрования..."
+  
+  # Проверяем наличие ключа в архиве
+  if [ -f "docker-data/ssl/keys/full_db_encryption.key" ]; then
+    # Создаем директорию для ключа
+    mkdir -p ssl/keys
+    
+    # Копируем ключ
+    cp docker-data/ssl/keys/full_db_encryption.key ssl/keys/full_db_encryption.key
+    chmod 600 ssl/keys/full_db_encryption.key
+    
+    print_green "✅ Ключ шифрования скопирован из архива"
+    print_yellow "⚠️  Примечание: Это дефолтный ключ, замените его на свой!"
+  else
+    print_yellow "⚠️  Ключ шифрования не найден в архиве"
+    print_blue "Создайте новый ключ или он будет создан автоматически"
+    
+    # Создаем директорию для ключа на всякий случай
+    mkdir -p ssl/keys
+  fi
+}
+
 # Запуск приложения
 start_application() {
   print_blue "🚀 Запуск приложения..."
@@ -313,6 +336,9 @@ main() {
   import_images
   create_volumes
   import_volumes
+  
+  # Копирование ключа шифрования
+  copy_encryption_key
   
   # Запуск
   start_application

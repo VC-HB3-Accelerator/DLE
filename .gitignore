@@ -202,4 +202,14 @@ backend/test_*.js
 
 # Environment specific files
 backend/.env.local
-backend/.env.production 
+backend/.env.production
+
+# Server management scripts - may contain sensitive information
+scripts/clean-server.sh
+scripts/export-template-for-release.sh
+
+# Docker data and release archives - не коммитить в Git!
+docker-data/
+dle-template.tar.gz
+dle-template.tar.gz.part-*
+dle-template.tar.gz.join.sh 
