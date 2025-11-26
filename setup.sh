@@ -165,7 +165,7 @@ check_images() {
     exit 1
   fi
   
-  local images=("backend.tar" "frontend.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
+  local images=("backend.tar" "frontend-nginx.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
   for image in "${images[@]}"; do
     if [ ! -f "docker-data/images/$image" ]; then
       print_red "❌ Файл образа $image не найден!"
@@ -185,7 +185,7 @@ check_volumes() {
     exit 1
   fi
   
-  local volumes=("postgres_data.tar.gz" "ollama_data.tar.gz" "vector_search_data.tar.gz" "backend_node_modules.tar.gz" "frontend_node_modules.tar.gz")
+  local volumes=("postgres_data.tar.gz" "ollama_data.tar.gz" "vector_search_data.tar.gz" "backend_node_modules.tar.gz")
   for volume in "${volumes[@]}"; do
     if [ ! -f "docker-data/volumes/$volume" ]; then
       print_red "❌ Файл тома $volume не найден!"
@@ -200,7 +200,7 @@ check_volumes() {
 import_images() {
   print_blue "📦 Импорт образов..."
   
-  local images=("backend.tar" "frontend.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
+  local images=("backend.tar" "frontend-nginx.tar" "vector-search.tar" "ollama.tar" "webssh-agent.tar")
   for image in "${images[@]}"; do
     print_blue "Импорт $image..."
     if docker load -i "docker-data/images/$image"; then
@@ -218,7 +218,7 @@ import_images() {
 create_volumes() {
   print_blue "💾 Создание томов..."
   
-  local volumes=("digital_legal_entitydle_postgres_data" "digital_legal_entitydle_ollama_data" "digital_legal_entitydle_vector_search_data" "digital_legal_entitydle_backend_node_modules" "digital_legal_entitydle_frontend_node_modules")
+  local volumes=("digital_legal_entitydle_postgres_data" "digital_legal_entitydle_ollama_data" "digital_legal_entitydle_vector_search_data" "digital_legal_entitydle_backend_node_modules")
   
   for volume in "${volumes[@]}"; do
     if docker volume ls | grep -q "$volume"; then
