@@ -153,6 +153,40 @@ export const connectWallet = async () => {
 
     // console.log('Got signature:', signature);
 
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что адрес не изменился после подписи
+    const finalAccounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!finalAccounts || finalAccounts.length === 0) {
+      return {
+        success: false,
+        error: 'Кошелек отключен. Пожалуйста, подключите кошелек и попробуйте снова.',
+      };
+    }
+    
+    const finalAddress = ethers.getAddress ? ethers.getAddress(finalAccounts[0]) : ethers.utils.getAddress(finalAccounts[0]);
+    
+    // Проверяем, что адрес совпадает с тем, который использовался для подписи
+    if (ethers.getAddress(finalAddress) !== ethers.getAddress(currentAddress)) {
+      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес кошелька изменился после подписи!');
+      console.error('  Адрес при подписи:', currentAddress);
+      console.error('  Текущий адрес:', finalAddress);
+      return {
+        success: false,
+        error: 'Адрес кошелька изменился после подписи. Пожалуйста, попробуйте снова.',
+      };
+    }
+    
+    // Проверяем, что адрес в сообщении совпадает с адресом, который подписывает
+    const messageAddress = message.address;
+    if (ethers.getAddress(messageAddress) !== ethers.getAddress(currentAddress)) {
+      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес в сообщении не совпадает с адресом подписи!');
+      console.error('  Адрес в сообщении:', messageAddress);
+      console.error('  Адрес подписи:', currentAddress);
+      return {
+        success: false,
+        error: 'Несоответствие адресов в сообщении и подписи. Пожалуйста, попробуйте снова.',
+      };
+    }
+
     // Отправляем верификацию на сервер
     // console.log('Sending verification request...');
     const requestData = {

@@ -60,18 +60,31 @@ class AuthService {
       // Логируем для отладки
       logger.info(`[verifySignature] SIWE verification result: ${success}`);
       if (data) {
-        logger.info(`[verifySignature] Verified address: ${data.address}`);
-        logger.info(`[verifySignature] Expected address: ${normalizedAddress}`);
-        logger.info(`[verifySignature] Addresses match: ${ethers.getAddress(data.address) === normalizedAddress}`);
+        logger.info(`[verifySignature] Verified address from signature: ${data.address}`);
+        logger.info(`[verifySignature] Address in message: ${message.address}`);
+        logger.info(`[verifySignature] Expected address (from request): ${normalizedAddress}`);
+        logger.info(`[verifySignature] Signature address matches message address: ${ethers.getAddress(data.address) === ethers.getAddress(message.address)}`);
+        logger.info(`[verifySignature] Signature address matches request address: ${ethers.getAddress(data.address) === normalizedAddress}`);
       }
       logger.info(`[verifySignature] Signature: ${signature}`);
 
       if (!success) {
+        logger.error(`[verifySignature] SIWE verification failed. Success: ${success}, Data: ${JSON.stringify(data)}`);
         return false;
       }
 
-      // Сравниваем нормализованные адреса
-      return data && ethers.getAddress(data.address) === normalizedAddress;
+      // КРИТИЧЕСКАЯ ПРОВЕРКА: Адрес из подписи должен совпадать с адресом в сообщении
+      if (data && message.address && ethers.getAddress(data.address) !== ethers.getAddress(message.address)) {
+        logger.error(`[verifySignature] КРИТИЧЕСКАЯ ОШИБКА: Адрес из подписи (${data.address}) не совпадает с адресом в сообщении (${message.address})!`);
+        return false;
+      }
+
+      // Сравниваем нормализованные адреса: адрес из подписи должен совпадать с адресом из запроса
+      const addressesMatch = data && ethers.getAddress(data.address) === normalizedAddress;
+      if (!addressesMatch) {
+        logger.error(`[verifySignature] Адрес из подписи (${data.address}) не совпадает с адресом из запроса (${normalizedAddress})!`);
+      }
+      return addressesMatch;
     } catch (error) {
       logger.error('Error in SIWE signature verification:', error);
       return false;
