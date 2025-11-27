@@ -213,6 +213,27 @@ check_images() {
   print_green "✅ Все файлы образов найдены"
 }
 
+# Определение имени проекта Docker Compose
+# Docker Compose использует имя директории (в нижнем регистре, с заменой дефисов на подчеркивания) как префикс
+get_compose_project_name() {
+  # Используем переменную окружения COMPOSE_PROJECT_NAME, если установлена
+  if [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
+    echo "${COMPOSE_PROJECT_NAME}"
+    return
+  fi
+  
+  # Определяем из имени текущей директории
+  local dir_name
+  dir_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr '-' '_' | sed 's/[^a-z0-9_]//g')
+  
+  # Если директория называется "dle", используем "dle"
+  if [ "$dir_name" = "dle" ]; then
+    echo "dle"
+  else
+    echo "$dir_name"
+  fi
+}
+
 # Проверка файлов томов
 check_volumes() {
   print_blue "🔍 Проверка файлов томов..."
@@ -260,12 +281,17 @@ import_images() {
 create_volumes() {
   print_blue "💾 Создание томов..."
   
+  # Определяем имя проекта динамически
+  local project_name
+  project_name=$(get_compose_project_name)
+  print_blue "📋 Используется имя проекта: $project_name"
+  
   # Обязательные тома для релиза v1.0.1
   local volumes=(
-    "digital_legal_entitydle_postgres_data"
-    "digital_legal_entitydle_ollama_data"
-    "digital_legal_entitydle_vector_search_data"
-    "digital_legal_entitydle_backend_node_modules"
+    "${project_name}_postgres_data"
+    "${project_name}_ollama_data"
+    "${project_name}_vector_search_data"
+    "${project_name}_backend_node_modules"
   )
   
   for volume in "${volumes[@]}"; do
@@ -279,7 +305,7 @@ create_volumes() {
   
   # Опциональный том frontend_node_modules (только если есть в архиве)
   if [ -f "docker-data/volumes/frontend_node_modules.tar.gz" ]; then
-    local volume="digital_legal_entitydle_frontend_node_modules"
+    local volume="${project_name}_frontend_node_modules"
     if docker volume ls | grep -q "$volume"; then
       print_yellow "⚠️  Том $volume уже существует"
     else
@@ -293,30 +319,35 @@ create_volumes() {
 import_volumes() {
   print_blue "📥 Импорт данных в тома..."
   
+  # Определяем имя проекта динамически
+  local project_name
+  project_name=$(get_compose_project_name)
+  print_blue "📋 Используется имя проекта: $project_name"
+  
   # PostgreSQL
   print_blue "Импорт postgres_data..."
-  docker run --rm -v digital_legal_entitydle_postgres_data:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/postgres_data.tar.gz -C /target
+  docker run --rm -v "${project_name}_postgres_data:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/postgres_data.tar.gz -C /target
   print_green "✅ postgres_data импортирован"
   
   # Ollama
   print_blue "Импорт ollama_data..."
-  docker run --rm -v digital_legal_entitydle_ollama_data:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/ollama_data.tar.gz -C /target
+  docker run --rm -v "${project_name}_ollama_data:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/ollama_data.tar.gz -C /target
   print_green "✅ ollama_data импортирован"
   
   # Vector Search
   print_blue "Импорт vector_search_data..."
-  docker run --rm -v digital_legal_entitydle_vector_search_data:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/vector_search_data.tar.gz -C /target
+  docker run --rm -v "${project_name}_vector_search_data:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/vector_search_data.tar.gz -C /target
   print_green "✅ vector_search_data импортирован"
   
   # Backend node_modules
   print_blue "Импорт backend_node_modules..."
-  docker run --rm -v digital_legal_entitydle_backend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/backend_node_modules.tar.gz -C /target
+  docker run --rm -v "${project_name}_backend_node_modules:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/backend_node_modules.tar.gz -C /target
   print_green "✅ backend_node_modules импортирован"
   
   # Frontend node_modules (опционально, только для dev режима)
   if [ -f "docker-data/volumes/frontend_node_modules.tar.gz" ]; then
     print_blue "Импорт frontend_node_modules..."
-    docker run --rm -v digital_legal_entitydle_frontend_node_modules:/target -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/frontend_node_modules.tar.gz -C /target
+    docker run --rm -v "${project_name}_frontend_node_modules:/target" -v "$(pwd)/docker-data/volumes:/backup" alpine tar xzf /backup/frontend_node_modules.tar.gz -C /target
     print_green "✅ frontend_node_modules импортирован"
   else
     print_yellow "⚠️  frontend_node_modules.tar.gz не найден (не требуется для production)"
