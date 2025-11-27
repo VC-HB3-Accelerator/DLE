@@ -108,10 +108,26 @@ export const connectWallet = async () => {
     // Создаем копию resources и сортируем (не мутируем исходный массив)
     const sortedResources = [...resources].sort();
     
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Получаем актуальный адрес ПЕРЕД созданием сообщения
+    const accountsBeforeMessage = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!accountsBeforeMessage || accountsBeforeMessage.length === 0) {
+      return {
+        success: false,
+        error: 'Кошелек отключен. Пожалуйста, подключите кошелек и попробуйте снова.',
+      };
+    }
+    
+    const addressForMessage = ethers.getAddress ? ethers.getAddress(accountsBeforeMessage[0]) : ethers.utils.getAddress(accountsBeforeMessage[0]);
+    
+    // Проверяем, что адрес не изменился
+    if (ethers.getAddress(addressForMessage) !== ethers.getAddress(currentAddress)) {
+      console.warn('⚠️ [Frontend] Адрес изменился перед созданием сообщения! Используем актуальный адрес:', addressForMessage);
+    }
+    
     // Создаем SIWE сообщение с документами в resources, используя АКТУАЛЬНЫЙ адрес
     const message = new SiweMessage({
       domain,
-      address: currentAddress, // Используем актуальный адрес из кошелька
+      address: addressForMessage, // Используем актуальный адрес из кошелька ПЕРЕД созданием сообщения
       statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
       uri: origin,
       version: '1',
@@ -121,8 +137,30 @@ export const connectWallet = async () => {
       resources: sortedResources,
     });
     
-    // Получаем строку сообщения для подписи (после возможного обновления адреса)
+    // Получаем строку сообщения для подписи
     const messageToSign = message.prepareMessage();
+    
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Получаем актуальный адрес ПЕРЕД подписанием
+    const accountsBeforeSign = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!accountsBeforeSign || accountsBeforeSign.length === 0) {
+      return {
+        success: false,
+        error: 'Кошелек отключен перед подписанием. Пожалуйста, подключите кошелек и попробуйте снова.',
+      };
+    }
+    
+    const addressForSign = ethers.getAddress ? ethers.getAddress(accountsBeforeSign[0]) : ethers.utils.getAddress(accountsBeforeSign[0]);
+    
+    // Проверяем, что адрес для подписи совпадает с адресом в сообщении
+    if (ethers.getAddress(addressForSign) !== ethers.getAddress(addressForMessage)) {
+      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес для подписи не совпадает с адресом в сообщении!');
+      console.error('  Адрес в сообщении:', addressForMessage);
+      console.error('  Адрес для подписи:', addressForSign);
+      return {
+        success: false,
+        error: 'Адрес кошелька изменился перед подписанием. Пожалуйста, попробуйте снова.',
+      };
+    }
     
     // Логируем для отладки
     console.log('🔐 [Frontend] Domain:', domain);
@@ -138,10 +176,10 @@ export const connectWallet = async () => {
     // personal_sign подписывает сообщение С префиксом "\x19Ethereum Signed Message:\n"
     // ethers.verifyMessage() также добавляет этот префикс, поэтому они совместимы
     // Параметры: [message, address] - MetaMask принимает строку напрямую
-    // ВАЖНО: Используем currentAddress, чтобы подпись была от актуального кошелька
+    // ВАЖНО: Используем addressForSign, чтобы подпись была от актуального кошелька
     const signature = await window.ethereum.request({
       method: 'personal_sign',
-      params: [messageToSign, currentAddress.toLowerCase()],
+      params: [messageToSign, addressForSign.toLowerCase()],
     });
 
     if (!signature) {
@@ -165,9 +203,9 @@ export const connectWallet = async () => {
     const finalAddress = ethers.getAddress ? ethers.getAddress(finalAccounts[0]) : ethers.utils.getAddress(finalAccounts[0]);
     
     // Проверяем, что адрес совпадает с тем, который использовался для подписи
-    if (ethers.getAddress(finalAddress) !== ethers.getAddress(currentAddress)) {
+    if (ethers.getAddress(finalAddress) !== ethers.getAddress(addressForSign)) {
       console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес кошелька изменился после подписи!');
-      console.error('  Адрес при подписи:', currentAddress);
+      console.error('  Адрес при подписи:', addressForSign);
       console.error('  Текущий адрес:', finalAddress);
       return {
         success: false,
@@ -177,10 +215,10 @@ export const connectWallet = async () => {
     
     // Проверяем, что адрес в сообщении совпадает с адресом, который подписывает
     const messageAddress = message.address;
-    if (ethers.getAddress(messageAddress) !== ethers.getAddress(currentAddress)) {
+    if (ethers.getAddress(messageAddress) !== ethers.getAddress(addressForSign)) {
       console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес в сообщении не совпадает с адресом подписи!');
       console.error('  Адрес в сообщении:', messageAddress);
-      console.error('  Адрес подписи:', currentAddress);
+      console.error('  Адрес подписи:', addressForSign);
       return {
         success: false,
         error: 'Несоответствие адресов в сообщении и подписи. Пожалуйста, попробуйте снова.',
@@ -190,7 +228,7 @@ export const connectWallet = async () => {
     // Отправляем верификацию на сервер
     // console.log('Sending verification request...');
     const requestData = {
-      address: currentAddress, // Используем актуальный адрес из кошелька
+      address: addressForSign, // Используем адрес, который подписал сообщение
       signature,
       nonce,
       issuedAt: issuedAt, // Используем тот же issuedAt, что и в сообщении
