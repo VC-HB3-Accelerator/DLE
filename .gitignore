@@ -215,4 +215,9 @@ dle-template.tar.gz.part-*
 dle-template.tar.gz.join.sh
 
 # Guide files
-pages-guide.md 
+pages-guide.md
+
+# Problem documentation (internal)
+SIWE_PROBLEM.md
+REBUILD_COMMANDS.md
+SIWE_ISSUE_DESCRIPTION.md 

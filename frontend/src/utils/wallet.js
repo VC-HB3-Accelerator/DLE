@@ -10,30 +10,85 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
-import axios from 'axios';
+// ВАЖНО: используем общий axios-инстанс с baseURL `/api`,
+// чтобы все запросы шли через один и тот же API-слой
+import api from '../api/axios';
 import { ethers } from 'ethers';
 import { SiweMessage } from 'siwe';
 
+/**
+ * Нормализует Ethereum адрес
+ */
+const normalizeAddress = (address) => {
+  return ethers.getAddress ? ethers.getAddress(address) : ethers.utils.getAddress(address);
+};
+
+/**
+ * Получает актуальный адрес из кошелька
+ * ВАЖНО: используем ethereum.selectedAddress, т.к. некоторые кошельки
+ * могут подписывать сообщением активным аккаунтом, игнорируя список eth_accounts.
+ * Если selectedAddress недоступен, падаем обратно на eth_accounts.
+ */
+const getCurrentAddress = async () => {
+  if (!window.ethereum) {
+    return null;
+  }
+
+  let rawAddress = null;
+
+  // 1. Пробуем взять текущий активный аккаунт
+  if (window.ethereum.selectedAddress) {
+    rawAddress = window.ethereum.selectedAddress;
+  } else {
+    // 2. Фоллбек на eth_accounts
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!accounts || accounts.length === 0) {
+      return null;
+    }
+    rawAddress = accounts[0];
+  }
+
+  return normalizeAddress(rawAddress);
+};
+
+/**
+ * Формирует domain для SIWE сообщения (должен совпадать с бэкендом)
+ */
+const getDomain = () => {
+  let domain = window.location.host;
+  // Если порта нет, добавляем его для localhost или IP адресов
+  if (!domain.includes(':')) {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      domain = `${window.location.hostname}:${window.location.port || '9000'}`;
+    } else if (/^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname)) {
+      domain = `${window.location.hostname}:${window.location.port || '9000'}`;
+    }
+  }
+  return domain;
+};
+
+/**
+ * Формирует origin для SIWE сообщения (должен совпадать с бэкендом)
+ * window.location.origin может не включать порт, поэтому формируем явно
+ */
+const getOrigin = () => {
+  const protocol = window.location.protocol; // Уже содержит ':' (например, 'http:')
+  const domain = getDomain(); // Используем domain, который уже содержит порт
+  return `${protocol}//${domain}`; // Двойной слеш после протокола (http:// или https://)
+};
+
 export const connectWallet = async () => {
   try {
-    // console.log('Starting wallet connection...');
-
-    // Проверяем наличие MetaMask или другого Ethereum провайдера
+    // Проверяем наличие MetaMask
     if (!window.ethereum) {
-      // console.error('No Ethereum provider (like MetaMask) detected!');
       return {
         success: false,
-        error:
-          'Не найден кошелек MetaMask или другой Ethereum провайдер. Пожалуйста, установите расширение MetaMask.',
+        error: 'Не найден кошелек MetaMask или другой Ethereum провайдер. Пожалуйста, установите расширение MetaMask.',
       };
     }
 
-    // console.log('MetaMask detected, requesting accounts...');
-
     // Запрашиваем доступ к аккаунтам
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    // console.log('Got accounts:', accounts);
-
     if (!accounts || accounts.length === 0) {
       return {
         success: false,
@@ -41,36 +96,43 @@ export const connectWallet = async () => {
       };
     }
 
-    // Берем первый аккаунт в списке
-    const address = accounts[0];
-    // Нормализуем адрес (используем getAddress для совместимости)
-    // Проверяем версию ethers - если v6, используем ethers.getAddress, иначе ethers.utils.getAddress
-    const normalizedAddress = ethers.getAddress ? ethers.getAddress(address) : ethers.utils.getAddress(address);
-    // console.log('Normalized address:', normalizedAddress);
-
-    // ВАЖНО: Получаем актуальный адрес ПЕРЕД запросом nonce, чтобы избежать проблем с переключением кошелька
-    const currentAccounts = await window.ethereum.request({ method: 'eth_accounts' });
-    if (!currentAccounts || currentAccounts.length === 0) {
+    // КРИТИЧЕСКИ ВАЖНО: Получаем актуальный адрес ОДИН РАЗ и используем его везде
+    // Это гарантирует, что весь процесс (nonce, сообщение, подпись) использует один и тот же адрес
+    const walletAddress = await getCurrentAddress();
+    if (!walletAddress) {
       return {
         success: false,
         error: 'Кошелек не подключен. Пожалуйста, подключите кошелек и попробуйте снова.',
       };
     }
-    
-    // Используем актуальный адрес из кошелька
-    const currentAddress = ethers.getAddress ? ethers.getAddress(currentAccounts[0]) : ethers.utils.getAddress(currentAccounts[0]);
-    
-    // Проверяем, что адрес совпадает с изначальным
-    if (ethers.getAddress(currentAddress) !== ethers.getAddress(normalizedAddress)) {
-      console.warn('⚠️ [Frontend] Адрес кошелька изменился с момента подключения! Используем актуальный адрес:', currentAddress);
+
+    // Формируем domain и origin (должны совпадать с бэкендом)
+    const domain = getDomain();
+    const origin = getOrigin();
+
+    // Получаем список документов для подписания
+    // ВАЖНО: Пути должны точно совпадать с бэкендом для успешной верификации SIWE
+    let resources = [`${origin}/api/auth/verify`];
+    // Добавляем общую ссылку на страницу опубликованных документов
+    resources.push(`${origin}/content/published`);
+    try {
+      const docsResponse = await api.get('/consent/documents');
+      if (docsResponse.data && docsResponse.data.length > 0) {
+        docsResponse.data.forEach(doc => {
+          // Используем тот же путь, что и на бэкенде: /content/published/${doc.id}
+          resources.push(`${origin}/content/published/${doc.id}`);
+        });
+      }
+    } catch (error) {
+      console.warn('Не удалось получить список документов для подписания:', error);
     }
+    const issuedAt = new Date().toISOString();
+    const sortedResources = [...resources].sort();
 
-    // Запрашиваем nonce с сервера для АКТУАЛЬНОГО адреса
-    // console.log('Requesting nonce...');
-    const nonceResponse = await axios.get(`/auth/nonce?address=${currentAddress}`);
+    // Запрашиваем nonce для адреса кошелька
+    // ВАЖНО: Бэкенд сохраняет nonce для address.toLowerCase(), поэтому отправляем адрес в нижнем регистре
+    const nonceResponse = await api.get(`/auth/nonce?address=${walletAddress.toLowerCase()}`);
     const nonce = nonceResponse.data.nonce;
-    // console.log('Got nonce:', nonce);
-
     if (!nonce) {
       return {
         success: false,
@@ -78,108 +140,87 @@ export const connectWallet = async () => {
       };
     }
 
-    // Для SIWE используем personal_sign напрямую через window.ethereum
-    // Не используем ethers signer, так как он добавляет префикс, который нарушает SIWE формат
-
-    // Получаем список документов для подписания
-    let resources = [`${window.location.origin}/api/auth/verify`];
-    try {
-      const docsResponse = await axios.get('/consent/documents');
-      if (docsResponse.data && docsResponse.data.length > 0) {
-        docsResponse.data.forEach(doc => {
-          resources.push(`${window.location.origin}/public/page/${doc.id}`);
-        });
-      }
-    } catch (error) {
-      // Если не удалось получить документы, продолжаем без них
-      console.warn('Не удалось получить список документов для подписания:', error);
-    }
-
-    // Создаем сообщение для подписи
-    // Важно: domain должен быть hostname без протокола и порта (если порт стандартный)
-    const domain = window.location.hostname === 'localhost' ? 
-      `localhost:${window.location.port}` : 
-      window.location.hostname;
-    const origin = window.location.origin;
-    
-    // Создаем issuedAt один раз, чтобы использовать одинаковый в сообщении и запросе
-    const issuedAt = new Date().toISOString();
-
-    // Создаем копию resources и сортируем (не мутируем исходный массив)
-    const sortedResources = [...resources].sort();
-    
-    // КРИТИЧЕСКАЯ ПРОВЕРКА: Получаем актуальный адрес ПЕРЕД созданием сообщения
-    const accountsBeforeMessage = await window.ethereum.request({ method: 'eth_accounts' });
-    if (!accountsBeforeMessage || accountsBeforeMessage.length === 0) {
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что адрес не изменился перед подписанием
+    // personal_sign всегда использует текущий активный аккаунт, поэтому адрес в сообщении
+    // должен совпадать с адресом, который будет подписывать
+    const addressBeforeSign = await getCurrentAddress();
+    if (!addressBeforeSign) {
       return {
         success: false,
-        error: 'Кошелек отключен. Пожалуйста, подключите кошелек и попробуйте снова.',
+        error: 'Не удалось получить адрес кошелька. Пожалуйста, попробуйте снова.',
       };
     }
-    
-    const addressForMessage = ethers.getAddress ? ethers.getAddress(accountsBeforeMessage[0]) : ethers.utils.getAddress(accountsBeforeMessage[0]);
+
+    // Нормализуем адрес для использования в сообщении
+    // ВАЖНО: SiweMessage может нормализовать адрес, поэтому нормализуем его заранее
+    const normalizedAddressForMessage = normalizeAddress(addressBeforeSign);
     
     // Проверяем, что адрес не изменился
-    if (ethers.getAddress(addressForMessage) !== ethers.getAddress(currentAddress)) {
-      console.warn('⚠️ [Frontend] Адрес изменился перед созданием сообщения! Используем актуальный адрес:', addressForMessage);
+    const normalizedWalletAddress = normalizeAddress(walletAddress);
+    if (normalizedAddressForMessage !== normalizedWalletAddress) {
+      console.error('❌ [Frontend] Адрес изменился перед подписанием!');
+      console.error('  Ожидался (нормализован):', normalizedWalletAddress);
+      console.error('  Получен (нормализован):', normalizedAddressForMessage);
+      return {
+        success: false,
+        error: 'Адрес кошелька изменился. Пожалуйста, попробуйте снова.',
+      };
     }
-    
-    // Создаем SIWE сообщение с документами в resources, используя АКТУАЛЬНЫЙ адрес
+
+    // Создаем SIWE сообщение с нормализованным адресом
+    // ВАЖНО: адрес в сообщении должен совпадать с адресом, который подписывает
     const message = new SiweMessage({
       domain,
-      address: addressForMessage, // Используем актуальный адрес из кошелька ПЕРЕД созданием сообщения
+      address: normalizedAddressForMessage, // Используем нормализованный адрес
       statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
       uri: origin,
       version: '1',
-      chainId: 1, // Ethereum mainnet
+      chainId: 1,
       nonce: nonce,
       issuedAt: issuedAt,
       resources: sortedResources,
     });
-    
-    // Получаем строку сообщения для подписи
+
     const messageToSign = message.prepareMessage();
+
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что адрес в сообщении совпадает с адресом, который будет подписывать
+    // SiweMessage может нормализовать адрес, поэтому проверяем после создания сообщения
+    const messageAddress = message.address;
+    const normalizedMessageAddress = normalizeAddress(messageAddress);
+    const normalizedSignAddress = normalizeAddress(addressBeforeSign);
     
-    // КРИТИЧЕСКАЯ ПРОВЕРКА: Получаем актуальный адрес ПЕРЕД подписанием
-    const accountsBeforeSign = await window.ethereum.request({ method: 'eth_accounts' });
-    if (!accountsBeforeSign || accountsBeforeSign.length === 0) {
+    if (normalizedMessageAddress !== normalizedSignAddress) {
+      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес в сообщении не совпадает с адресом для подписи!');
+      console.error('  Адрес в сообщении (исходный):', messageAddress);
+      console.error('  Адрес в сообщении (нормализован):', normalizedMessageAddress);
+      console.error('  Адрес для подписи (исходный):', addressBeforeSign);
+      console.error('  Адрес для подписи (нормализован):', normalizedSignAddress);
       return {
         success: false,
-        error: 'Кошелек отключен перед подписанием. Пожалуйста, подключите кошелек и попробуйте снова.',
+        error: 'Несоответствие адресов в сообщении и подписи. Пожалуйста, попробуйте снова.',
       };
     }
-    
-    const addressForSign = ethers.getAddress ? ethers.getAddress(accountsBeforeSign[0]) : ethers.utils.getAddress(accountsBeforeSign[0]);
-    
-    // Проверяем, что адрес для подписи совпадает с адресом в сообщении
-    if (ethers.getAddress(addressForSign) !== ethers.getAddress(addressForMessage)) {
-      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес для подписи не совпадает с адресом в сообщении!');
-      console.error('  Адрес в сообщении:', addressForMessage);
-      console.error('  Адрес для подписи:', addressForSign);
-      return {
-        success: false,
-        error: 'Адрес кошелька изменился перед подписанием. Пожалуйста, попробуйте снова.',
-      };
-    }
-    
+
     // Логируем для отладки
     console.log('🔐 [Frontend] Domain:', domain);
     console.log('🔐 [Frontend] Origin:', origin);
-    console.log('🔐 [Frontend] Address:', currentAddress);
+    console.log('🔐 [Frontend] Address in message (original):', messageAddress);
+    console.log('🔐 [Frontend] Address in message (normalized):', normalizedMessageAddress);
+    console.log('🔐 [Frontend] Address for sign (original):', addressBeforeSign);
+    console.log('🔐 [Frontend] Address for sign (normalized):', normalizedSignAddress);
+    console.log('🔐 [Frontend] Addresses match (normalized):', normalizedMessageAddress === normalizedSignAddress);
     console.log('🔐 [Frontend] Nonce:', nonce);
     console.log('🔐 [Frontend] IssuedAt:', issuedAt);
     console.log('🔐 [Frontend] Resources:', JSON.stringify(sortedResources));
     console.log('🔐 [Frontend] SIWE message to sign:', messageToSign);
-    console.log('🔐 [Frontend] Message length:', messageToSign.length);
 
-    // Запрашиваем подпись через personal_sign (правильный способ для SIWE)
-    // personal_sign подписывает сообщение С префиксом "\x19Ethereum Signed Message:\n"
-    // ethers.verifyMessage() также добавляет этот префикс, поэтому они совместимы
-    // Параметры: [message, address] - MetaMask принимает строку напрямую
-    // ВАЖНО: Используем addressForSign, чтобы подпись была от актуального кошелька
+    // Запрашиваем подпись
+    // ВАЖНО: personal_sign может игнорировать второй параметр (адрес) и использовать текущий активный аккаунт
+    // Поэтому мы должны убедиться, что адрес в сообщении совпадает с адресом, который будет подписывать
+    // Используем нормализованный адрес для подписи
     const signature = await window.ethereum.request({
       method: 'personal_sign',
-      params: [messageToSign, addressForSign.toLowerCase()],
+      params: [messageToSign, normalizedMessageAddress.toLowerCase()], // Используем нормализованный адрес из сообщения
     });
 
     if (!signature) {
@@ -189,80 +230,38 @@ export const connectWallet = async () => {
       };
     }
 
-    // console.log('Got signature:', signature);
-
-    // КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что адрес не изменился после подписи
-    const finalAccounts = await window.ethereum.request({ method: 'eth_accounts' });
-    if (!finalAccounts || finalAccounts.length === 0) {
-      return {
-        success: false,
-        error: 'Кошелек отключен. Пожалуйста, подключите кошелек и попробуйте снова.',
-      };
-    }
-    
-    const finalAddress = ethers.getAddress ? ethers.getAddress(finalAccounts[0]) : ethers.utils.getAddress(finalAccounts[0]);
-    
-    // Проверяем, что адрес совпадает с тем, который использовался для подписи
-    if (ethers.getAddress(finalAddress) !== ethers.getAddress(addressForSign)) {
-      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес кошелька изменился после подписи!');
-      console.error('  Адрес при подписи:', addressForSign);
-      console.error('  Текущий адрес:', finalAddress);
-      return {
-        success: false,
-        error: 'Адрес кошелька изменился после подписи. Пожалуйста, попробуйте снова.',
-      };
-    }
-    
-    // Проверяем, что адрес в сообщении совпадает с адресом, который подписывает
-    const messageAddress = message.address;
-    if (ethers.getAddress(messageAddress) !== ethers.getAddress(addressForSign)) {
-      console.error('❌ [Frontend] КРИТИЧЕСКАЯ ОШИБКА: Адрес в сообщении не совпадает с адресом подписи!');
-      console.error('  Адрес в сообщении:', messageAddress);
-      console.error('  Адрес подписи:', addressForSign);
-      return {
-        success: false,
-        error: 'Несоответствие адресов в сообщении и подписи. Пожалуйста, попробуйте снова.',
-      };
-    }
-
     // Отправляем верификацию на сервер
-    // console.log('Sending verification request...');
+    // Используем нормализованный адрес из сообщения (должен совпадать с адресом, который подписал)
     const requestData = {
-      address: addressForSign, // Используем адрес, который подписал сообщение
+      address: normalizedMessageAddress, // Нормализованный адрес из сообщения (должен совпадать с адресом подписи)
       signature,
       nonce,
-      issuedAt: issuedAt, // Используем тот же issuedAt, что и в сообщении
+      issuedAt: issuedAt,
     };
-    // console.log('Request data:', requestData);
     
-    const verifyResponse = await axios.post('/auth/verify', requestData, {
+    const verifyResponse = await api.post('/auth/verify', requestData, {
       withCredentials: true,
     });
 
-    // Обновляем интерфейс для отображения подключенного состояния
+    // Обновляем интерфейс
     document.body.classList.add('wallet-connected');
 
-    // Обновляем отображение адреса кошелька в UI
     const authDisplayEl = document.getElementById('auth-display');
     if (authDisplayEl) {
-      const shortAddress = `${normalizedAddress.substring(0, 6)}...${normalizedAddress.substring(normalizedAddress.length - 4)}`;
+      const shortAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
       authDisplayEl.innerHTML = `Кошелек: <strong>${shortAddress}</strong>`;
       authDisplayEl.style.display = 'inline-block';
     }
 
-    // Скрываем кнопки авторизации и показываем кнопку выхода
     const authButtonsEl = document.getElementById('auth-buttons');
     const logoutButtonEl = document.getElementById('logout-button');
-
     if (authButtonsEl) authButtonsEl.style.display = 'none';
     if (logoutButtonEl) logoutButtonEl.style.display = 'inline-block';
-
-    // console.log('Verification response:', verifyResponse.data);
 
     if (verifyResponse.data.success) {
       return {
         success: true,
-        address: normalizedAddress,
+        address: walletAddress,
         userId: verifyResponse.data.userId,
       };
     } else {
@@ -272,9 +271,6 @@ export const connectWallet = async () => {
       };
     }
   } catch (error) {
-    // console.error('Error connecting wallet:', error);
-
-    // Формируем понятное сообщение об ошибке
     let errorMessage = 'Произошла ошибка при подключении кошелька.';
 
     if (error.message && error.message.includes('MetaMask extension not found')) {

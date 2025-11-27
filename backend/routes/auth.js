@@ -46,6 +46,16 @@ router.get('/nonce', async (req, res) => {
       return res.status(400).json({ error: 'Address is required' });
     }
 
+    // Нормализуем адрес: сначала через ethers.getAddress (EIP-55 checksum), потом toLowerCase для хранения
+    // Это гарантирует, что адрес валиден и всегда сохраняется в нижнем регистре
+    let normalizedAddress;
+    try {
+      normalizedAddress = ethers.getAddress(address).toLowerCase();
+    } catch (error) {
+      logger.error(`[nonce] Invalid address format: ${address}`, error);
+      return res.status(400).json({ error: 'Invalid address format' });
+    }
+
     // Очищаем истекшие nonce перед генерацией нового
     try {
       await db.getQuery()(
@@ -70,33 +80,34 @@ router.get('/nonce', async (req, res) => {
     
     try {
       // Проверяем, существует ли уже nonce для этого адреса
+      // Используем normalizedAddress (уже в нижнем регистре)
       const existingNonces = await db.getQuery()(
         'SELECT id FROM nonces WHERE identity_value_encrypted = encrypt_text($1, $2)',
-        [address.toLowerCase(), encryptionKey]
+        [normalizedAddress, encryptionKey]
       );
 
       if (existingNonces.rows.length > 0) {
         // Обновляем существующий nonce
-        logger.info(`[nonce] Updating existing nonce for address: ${address.toLowerCase()}`);
+        logger.info(`[nonce] Updating existing nonce for address: ${normalizedAddress}`);
         await db.getQuery()(
           'UPDATE nonces SET nonce_encrypted = encrypt_text($1, $2), expires_at = $3 WHERE id = $4',
           [nonce, encryptionKey, new Date(Date.now() + 15 * 60 * 1000), existingNonces.rows[0].id]
         );
       } else {
         // Создаем новый nonce
-        logger.info(`[nonce] Creating new nonce for address: ${address.toLowerCase()}`);
+        logger.info(`[nonce] Creating new nonce for address: ${normalizedAddress}`);
         await db.getQuery()(
           'INSERT INTO nonces (identity_value_encrypted, nonce_encrypted, expires_at) VALUES (encrypt_text($1, $2), encrypt_text($3, $2), $4)',
-          [address.toLowerCase(), encryptionKey, nonce, new Date(Date.now() + 15 * 60 * 1000)]
+          [normalizedAddress, encryptionKey, nonce, new Date(Date.now() + 15 * 60 * 1000)]
         );
       }
     } catch (dbError) {
       console.error('Database error:', dbError);
       // Fallback: просто возвращаем nonce без сохранения в БД
-      logger.warn(`Nonce ${nonce} generated for address ${address} but not saved to DB due to error`);
+      logger.warn(`Nonce ${nonce} generated for address ${normalizedAddress} but not saved to DB due to error`);
     }
 
-    logger.info(`Nonce ${nonce} сохранен для адреса ${address}`);
+    logger.info(`Nonce ${nonce} сохранен для адреса ${normalizedAddress}`);
 
     res.json({ nonce });
   } catch (error) {
@@ -136,6 +147,8 @@ router.post('/verify', async (req, res) => {
     const encryptionKey = encryptionUtils.getEncryptionKey();
 
     // Проверяем nonce в базе данных с проверкой времени истечения
+    // ВАЖНО: nonce привязан к адресу, поэтому проверяем для того адреса, который пришел в запросе
+    logger.info(`[verify] Checking nonce for address: ${normalizedAddressLower} (normalized from: ${address})`);
     const nonceResult = await db.getQuery()(
       'SELECT nonce_encrypted, expires_at FROM nonces WHERE identity_value_encrypted = encrypt_text($1, $2)',
       [normalizedAddressLower, encryptionKey]
@@ -143,7 +156,8 @@ router.post('/verify', async (req, res) => {
     
     if (nonceResult.rows.length === 0) {
       logger.error(`[verify] Nonce not found for address: ${normalizedAddressLower}`);
-      return res.status(401).json({ success: false, error: 'Nonce not found' });
+      logger.error(`[verify] This may happen if user switched wallet between nonce request and signature`);
+      return res.status(401).json({ success: false, error: 'Nonce not found. Please request a new nonce.' });
     }
 
     // Проверяем, не истек ли срок действия nonce
@@ -173,46 +187,32 @@ router.post('/verify', async (req, res) => {
     }
 
     // ВАЖНО: Для SIWE сообщения ВСЕГДА используем хост из запроса, чтобы он совпадал с фронтендом
-    // Фронтенд использует window.location.host и window.location.origin, поэтому бэкенд должен использовать то же самое
-    // Это означает, что даже если в БД есть домен (например, 185.221.214.140), для SIWE будет использоваться
-    // хост из текущего запроса (например, localhost:9000), если запрос приходит с localhost
+    // Фронтенд использует window.location.host, поэтому бэкенд должен использовать req.get('host')
+    // Логика формирования domain должна точно соответствовать фронтенду
     const protocol = req.protocol || 'http';
     let host = req.get('host') || 'localhost:9000';
 
-    logger.info(`[verify] Request protocol: ${protocol}, host header: ${req.get('host')}, original host: ${host}`);
+    logger.info(`[verify] Request protocol: ${protocol}, host header: ${req.get('host')}`);
 
-    // Убеждаемся, что порт присутствует для localhost
-    if (host === 'localhost' || host.startsWith('localhost:')) {
-      if (!host.includes(':')) {
-        // Если порта нет, добавляем стандартный порт для протокола
-        const defaultPort = protocol === 'https' ? '443' : '9000';
-        host = `${host}:${defaultPort}`;
-        logger.info(`[verify] Added default port to localhost: ${host}`);
-      }
-    }
-
-    // Формируем domain и origin для SIWE сообщения из текущего запроса
-    // domain - это host (например, "localhost:9000" или "example.com:443")
-    // ВАЖНО: domain и origin для SIWE НИКОГДА не берутся из БД, только из запроса!
-    const baseUrlForResources = `${protocol}://${host}`;
-    
-    // Извлекаем домен и origin из baseUrlForResources для SIWE сообщения
-    const baseUrlObj = new URL(baseUrlForResources);
-    // Используем host (включает порт, если он нестандартный) или hostname + port
-    let domain = baseUrlObj.host; // Домен для SIWE (например, "localhost:9000" или "example.com")
-    // Если порт стандартный (80 для http, 443 для https), он может не быть в host
-    // В этом случае добавляем порт явно для localhost или если порт указан в URL
+    // Формируем domain для SIWE (должен совпадать с фронтендом)
+    // Используем ту же логику, что и на фронтенде: window.location.host + добавление порта для localhost/IP
+    let domain = host;
     if (!domain.includes(':')) {
-      if (baseUrlObj.port) {
-        // Порт есть в URL, но не в host (стандартный порт)
-        domain = `${baseUrlObj.hostname}:${baseUrlObj.port}`;
-      } else if (baseUrlObj.hostname === 'localhost' || baseUrlObj.hostname === '127.0.0.1') {
-        // Для localhost добавляем порт явно
-        const defaultPort = baseUrlObj.protocol === 'https:' ? '443' : '9000';
-        domain = `${baseUrlObj.hostname}:${defaultPort}`;
+      // Извлекаем hostname из host (если порта нет, host = hostname)
+      const hostname = host;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        domain = `${hostname}:9000`;
+      } else if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        // IP адрес - добавляем порт
+        domain = `${hostname}:9000`;
       }
     }
-    const origin = baseUrlForResources; // URI для SIWE (полный URL)
+
+    // Формируем origin и baseUrl для resources
+    // ВАЖНО: origin должен совпадать с origin на фронтенде (getOrigin()),
+    // поэтому используем именно domain (с портом), а не host из заголовка
+    const origin = `${protocol}://${domain}`;
+    const baseUrlForResources = origin;
     
     // Получаем список документов для подписания и добавляем их в resources
     const documentTitles = Object.keys(DOCUMENT_CONSENT_MAP);
@@ -222,6 +222,8 @@ router.post('/verify', async (req, res) => {
     );
     
     let resources = [`${baseUrlForResources}/api/auth/verify`];
+    // Добавляем общую ссылку на страницу опубликованных документов
+    resources.push(`${baseUrlForResources}/content/published`);
     if (tableExistsRes.rows[0].exists) {
       const { rows: documents } = await db.getQuery()(`
         SELECT id FROM ${tableName} 
@@ -236,13 +238,16 @@ router.post('/verify', async (req, res) => {
       });
     }
     
-    // Сортируем resources для консистентности (должно совпадать с фронтендом)
+    // Сортируем resources для консистентности
     resources = resources.sort();
     
     // Используем issuedAt из запроса, если он есть, иначе создаем новый
     const messageIssuedAt = issuedAt || new Date().toISOString();
     
     const { SiweMessage } = require('siwe');
+    
+    // Реконструируем SIWE-сообщение на бэкенде, НО уже с теми же полями,
+    // что и на фронтенде: domain, origin (uri), resources
     const message = new SiweMessage({
       domain,
       address: normalizedAddress,
@@ -254,20 +259,21 @@ router.post('/verify', async (req, res) => {
       issuedAt: messageIssuedAt,
       resources: resources,
     });
-
+    const messageToVerify = message;
+    
     const messageToSign = message.prepareMessage();
     
     logger.info(`[verify] SIWE message for verification: ${messageToSign}`);
-    logger.info(`[verify] Resources: ${JSON.stringify(resources)}`);
-    logger.info(`[verify] IssuedAt: ${messageIssuedAt}`);
-    logger.info(`[verify] Domain: ${domain}, Origin: ${origin}`);
-    logger.info(`[verify] Normalized address: ${normalizedAddress}`);
+    logger.info(`[verify] Resources (backend expectation): ${JSON.stringify(resources)}`);
+    logger.info(`[verify] IssuedAt (backend): ${messageIssuedAt}`);
+    logger.info(`[verify] Domain (backend): ${domain}, Origin (backend): ${origin}`);
+    logger.info(`[verify] Normalized address from request: ${normalizedAddress}`);
     logger.info(`[verify] Request headers origin: ${req.get('origin')}`);
     logger.info(`[verify] Request headers host: ${req.get('host')}`);
     logger.info(`[verify] Request headers referer: ${req.get('referer')}`);
 
-    // Проверяем подпись через SiweMessage.verify() (передаем объект сообщения, а не строку)
-    const isValid = await authService.verifySignature(message, signature, normalizedAddress);
+    // Проверяем подпись через SiweMessage.verify()
+    const isValid = await authService.verifySignature(messageToVerify, signature, normalizedAddress);
     if (!isValid) {
       logger.error(`[verify] Invalid signature for address: ${normalizedAddress}`);
       return res.status(401).json({ success: false, error: 'Invalid signature' });

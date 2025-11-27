@@ -10,149 +10,19 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
-import { ethers } from 'ethers';
-import axios from '../api/axios';
-import { SiweMessage } from 'siwe';
+// ВАЖНО:
+// Здесь мы больше не дублируем SIWE-логику.
+// Вся единая и отлаженная реализация находится в `src/utils/wallet.js` (connectWallet),
+// а этот сервис просто проксирует вызов, чтобы компоненты могли по-прежнему
+// использовать знакомый API `connectWithWallet`.
 
+import { connectWallet } from '../utils/wallet';
+
+/**
+ * Обёртка над `connectWallet` для совместимости со старыми импортами.
+ * Возвращает объект формата:
+ * { success: boolean, address?: string, userId?: number, error?: string }
+ */
 export async function connectWithWallet() {
-  // console.log('Starting wallet connection...');
-
-  try {
-    // Проверяем наличие MetaMask
-    if (!window.ethereum) {
-      throw new Error('MetaMask not detected. Please install MetaMask.');
-    }
-
-    // console.log('MetaMask detected, requesting accounts...');
-
-    // Запрашиваем доступ к аккаунтам
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-    // console.log('Got accounts:', accounts);
-
-    if (!accounts || accounts.length === 0) {
-      throw new Error('No accounts found. Please unlock MetaMask.');
-    }
-
-    // Берем первый аккаунт
-    const address = ethers.getAddress(accounts[0]);
-    // console.log('Normalized address:', address);
-
-    // Запрашиваем nonce с сервера
-    // console.log('Requesting nonce...');
-    const nonceResponse = await axios.get(`/auth/nonce?address=${address}`);
-    const nonce = nonceResponse.data.nonce;
-    // console.log('Got nonce:', nonce);
-    
-    if (!nonce) {
-      throw new Error('Не удалось получить nonce с сервера');
-    }
-
-    // Получаем список документов для подписания
-    let resources = [`${window.location.origin}/api/auth/verify`];
-    try {
-      const docsResponse = await axios.get('/consent/documents');
-      if (docsResponse.data && docsResponse.data.length > 0) {
-        docsResponse.data.forEach(doc => {
-          resources.push(`${window.location.origin}/content/published/${doc.id}`);
-        });
-      }
-    } catch (error) {
-      // Если не удалось получить документы, продолжаем без них
-      console.warn('Не удалось получить список документов для подписания:', error);
-    }
-
-    // Создаем сообщение для подписи
-    const domain = window.location.host;
-    const origin = window.location.origin;
-    const statement = 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.';
-
-    const issuedAt = new Date().toISOString();
-    
-    // Создаем копию resources и сортируем (не мутируем исходный массив)
-    const sortedResources = [...resources].sort();
-    
-    const siweMessage = new SiweMessage({
-      domain,
-      address,
-      statement,
-      uri: origin,
-      version: '1',
-      chainId: 1,
-      nonce,
-      issuedAt,
-      resources: sortedResources,
-    });
-
-    const message = siweMessage.prepareMessage();
-    // console.log('SIWE message:', message);
-    // console.log('SIWE message details:', {
-    //   domain,
-    //   address,
-    //   statement,
-    //   uri: origin,
-    //   version: '1',
-    //   chainId: 1,
-    //   nonce,
-    //   issuedAt,
-    //   resources: [`${origin}/auth/verify`],
-    // });
-
-    // Запрашиваем подпись
-    // console.log('Requesting signature...');
-    const signature = await window.ethereum.request({
-      method: 'personal_sign',
-      params: [message, address.toLowerCase()],
-    });
-
-    // console.log('Got signature:', signature);
-
-    // Отправляем подпись на сервер для верификации
-    // console.log('Sending verification request...');
-    const verificationResponse = await axios.post('/auth/verify', {
-      signature,
-      address,
-      nonce,
-      issuedAt,
-    });
-
-    // console.log('Verification response:', verificationResponse.data);
-
-    // Обновляем состояние аутентификации
-    if (verificationResponse.data.success) {
-      // Обновляем состояние аутентификации в localStorage
-      localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('userId', verificationResponse.data.userId);
-      localStorage.setItem('address', verificationResponse.data.address);
-    }
-
-    return verificationResponse.data;
-  } catch (error) {
-    // console.error('Error connecting wallet:', error);
-    
-    // Улучшенная обработка ошибок MetaMask
-    let errorMessage = 'Произошла ошибка при подключении кошелька.';
-    
-    if (error.message && error.message.includes('MetaMask extension not found')) {
-      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
-    } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
-      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
-    } else if (error.code === 4001) {
-      errorMessage = 'Вы отклонили запрос на подключение в MetaMask.';
-    } else if (error.message && error.message.includes('No accounts found')) {
-      errorMessage = 'Аккаунты не найдены. Пожалуйста, разблокируйте MetaMask и попробуйте снова.';
-    } else if (error.message && error.message.includes('MetaMask not detected')) {
-      errorMessage = 'MetaMask не обнаружен. Пожалуйста, установите расширение MetaMask.';
-    } else if (error.response && error.response.data && error.response.data.error) {
-      errorMessage = error.response.data.error;
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    // Возвращаем объект с ошибкой вместо выброса исключения
-    return {
-      success: false,
-      error: errorMessage
-    };
-  }
+  return await connectWallet();
 }
