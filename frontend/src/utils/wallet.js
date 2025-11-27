@@ -48,9 +48,26 @@ export const connectWallet = async () => {
     const normalizedAddress = ethers.getAddress ? ethers.getAddress(address) : ethers.utils.getAddress(address);
     // console.log('Normalized address:', normalizedAddress);
 
-    // Запрашиваем nonce с сервера
+    // ВАЖНО: Получаем актуальный адрес ПЕРЕД запросом nonce, чтобы избежать проблем с переключением кошелька
+    const currentAccounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (!currentAccounts || currentAccounts.length === 0) {
+      return {
+        success: false,
+        error: 'Кошелек не подключен. Пожалуйста, подключите кошелек и попробуйте снова.',
+      };
+    }
+    
+    // Используем актуальный адрес из кошелька
+    const currentAddress = ethers.getAddress ? ethers.getAddress(currentAccounts[0]) : ethers.utils.getAddress(currentAccounts[0]);
+    
+    // Проверяем, что адрес совпадает с изначальным
+    if (ethers.getAddress(currentAddress) !== ethers.getAddress(normalizedAddress)) {
+      console.warn('⚠️ [Frontend] Адрес кошелька изменился с момента подключения! Используем актуальный адрес:', currentAddress);
+    }
+
+    // Запрашиваем nonce с сервера для АКТУАЛЬНОГО адреса
     // console.log('Requesting nonce...');
-    const nonceResponse = await axios.get(`/auth/nonce?address=${normalizedAddress}`);
+    const nonceResponse = await axios.get(`/auth/nonce?address=${currentAddress}`);
     const nonce = nonceResponse.data.nonce;
     // console.log('Got nonce:', nonce);
 
@@ -91,10 +108,10 @@ export const connectWallet = async () => {
     // Создаем копию resources и сортируем (не мутируем исходный массив)
     const sortedResources = [...resources].sort();
     
-    // Создаем SIWE сообщение с документами в resources
+    // Создаем SIWE сообщение с документами в resources, используя АКТУАЛЬНЫЙ адрес
     const message = new SiweMessage({
       domain,
-      address: normalizedAddress,
+      address: currentAddress, // Используем актуальный адрес из кошелька
       statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
       uri: origin,
       version: '1',
@@ -103,14 +120,14 @@ export const connectWallet = async () => {
       issuedAt: issuedAt,
       resources: sortedResources,
     });
-
-    // Получаем строку сообщения для подписи
+    
+    // Получаем строку сообщения для подписи (после возможного обновления адреса)
     const messageToSign = message.prepareMessage();
     
     // Логируем для отладки
     console.log('🔐 [Frontend] Domain:', domain);
     console.log('🔐 [Frontend] Origin:', origin);
-    console.log('🔐 [Frontend] Address:', normalizedAddress);
+    console.log('🔐 [Frontend] Address:', currentAddress);
     console.log('🔐 [Frontend] Nonce:', nonce);
     console.log('🔐 [Frontend] IssuedAt:', issuedAt);
     console.log('🔐 [Frontend] Resources:', JSON.stringify(sortedResources));
@@ -121,9 +138,10 @@ export const connectWallet = async () => {
     // personal_sign подписывает сообщение С префиксом "\x19Ethereum Signed Message:\n"
     // ethers.verifyMessage() также добавляет этот префикс, поэтому они совместимы
     // Параметры: [message, address] - MetaMask принимает строку напрямую
+    // ВАЖНО: Используем currentAddress, чтобы подпись была от актуального кошелька
     const signature = await window.ethereum.request({
       method: 'personal_sign',
-      params: [messageToSign, normalizedAddress.toLowerCase()],
+      params: [messageToSign, currentAddress.toLowerCase()],
     });
 
     if (!signature) {
@@ -138,7 +156,7 @@ export const connectWallet = async () => {
     // Отправляем верификацию на сервер
     // console.log('Sending verification request...');
     const requestData = {
-      address: normalizedAddress,
+      address: currentAddress, // Используем актуальный адрес из кошелька
       signature,
       nonce,
       issuedAt: issuedAt, // Используем тот же issuedAt, что и в сообщении
