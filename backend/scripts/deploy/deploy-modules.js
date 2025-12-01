@@ -74,32 +74,16 @@ const MODULE_CONFIGS = {
   // }
 };
 
-// Функция для определения имени сети Hardhat по chainId
+// Функция для определения имени сети Hardhat по chainId (динамически, без хардкода)
+// В hardhat.config.js сети объявляются как chain_<chainId>
 function getNetworkNameForHardhat(chainId) {
-  const networkMapping = {
-    11155111: 'sepolia',
-    17000: 'holesky', 
-    421614: 'arbitrumSepolia',
-    84532: 'baseSepolia',
-    1: 'mainnet',
-    42161: 'arbitrumOne',
-    8453: 'base',
-    137: 'polygon',
-    56: 'bsc'
-  };
-  
-  const hardhatNetworkName = networkMapping[chainId];
-  if (!hardhatNetworkName) {
-    logger.warn(`⚠️ Сеть ${chainId} не поддерживается в Hardhat`);
-    return null;
-  }
-  
-  logger.info(`✅ Сеть ${chainId} поддерживается: ${hardhatNetworkName}`);
+  const hardhatNetworkName = `chain_${Number(chainId)}`;
+  logger.info(`✅ Сеть ${chainId} будет использовать Hardhat network: ${hardhatNetworkName}`);
   return hardhatNetworkName;
 }
 
 // Функция для автоматической верификации модуля
-async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, constructorArgs, apiKey) {
+async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, constructorArgs, apiKey, params = {}) {
   try {
     if (!apiKey) {
       logger.warn(`⚠️ API ключ Etherscan не предоставлен, пропускаем верификацию модуля ${moduleType}`);
@@ -143,10 +127,17 @@ async function verifyModuleAfterDeploy(chainId, contractAddress, moduleType, con
       const command = `npx hardhat verify --network ${networkName} --constructor-args ${tempArgsFile} ${contractAddress}`;
       logger.info(`🔧 Выполняем команду: ${command}`);
       
-      // Устанавливаем переменные окружения для Hardhat
+      // Устанавливаем переменные окружения для Hardhat (в том числе сети и RPC из deploy params)
       const envVars = {
         ...process.env,
-        ETHERSCAN_API_KEY: apiKey
+        ETHERSCAN_API_KEY: apiKey || params.etherscanApiKey || '',
+        SUPPORTED_CHAIN_IDS: JSON.stringify(
+          params.supportedChainIds || params.supported_chain_ids || [chainId]
+        ),
+        RPC_URLS: JSON.stringify(
+          // params.rpcUrls / params.rpc_urls могут быть либо массивом, либо объектом { [chainId]: url }
+          params.rpcUrls || params.rpc_urls || {}
+        )
       };
       
       const { stdout, stderr } = await execAsync(command, {
@@ -428,9 +419,9 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
   });
   
   const net = network;
-  const chainId = Number(net.chainId);
+  const numericChainId = Number(net.chainId);
 
-  logger.info(`[MODULES_DBG] chainId=${chainId} deploying modules: ${modulesToDeploy.join(', ')}`);
+  logger.info(`[MODULES_DBG] chainId=${numericChainId} deploying modules: ${modulesToDeploy.join(', ')}`);
   
   const results = {};
   
@@ -443,14 +434,14 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
     logger.info(`[MODULES_DBG] Деплой модуля ${moduleType} в сети ${net.name || net.chainId}`);
     
     if (!MODULE_CONFIGS[moduleType]) {
-      logger.error(`[MODULES_DBG] chainId=${chainId} Unknown module type: ${moduleType}`);
+      logger.error(`[MODULES_DBG] chainId=${numericChainId} Unknown module type: ${moduleType}`);
       results[moduleType] = { success: false, error: `Unknown module type: ${moduleType}` };
       logger.error(`[MODULES_DBG] Неизвестный тип модуля: ${moduleType}`);
       continue;
     }
     
     if (!moduleInit) {
-      logger.error(`[MODULES_DBG] chainId=${chainId} No init code for module: ${moduleType}`);
+      logger.error(`[MODULES_DBG] chainId=${numericChainId} No init code for module: ${moduleType}`);
       results[moduleType] = { success: false, error: `No init code for module: ${moduleType}` };
       logger.error(`[MODULES_DBG] Отсутствует код инициализации для модуля: ${moduleType}`);
       continue;
@@ -469,7 +460,7 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
           
           // Получаем аргументы конструктора для модуля
           const moduleConfig = MODULE_CONFIGS[moduleType];
-          const constructorArgs = moduleConfig.constructorArgs(dleAddress, chainId, wallet.address);
+          const constructorArgs = moduleConfig.constructorArgs(dleAddress, numericChainId, wallet.address);
           
           // Ждем 30 секунд перед верификацией, чтобы транзакция получила подтверждения
           logger.info(`[MODULES_DBG] Ждем 30 секунд перед верификацией модуля ${moduleType}...`);
@@ -477,7 +468,7 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
           
           // Проверяем, что контракт действительно задеплоен
           try {
-            const { provider } = await createRPCConnection(rpcUrl, pk, { maxRetries: 3, timeout: 30000 });
+            const { provider } = await createRPCConnection(numericChainId, pk, { maxRetries: 3, timeout: 30000 });
             const code = await provider.getCode(result.address);
             if (!code || code === '0x') {
               logger.warn(`[MODULES_DBG] Контракт ${moduleType} не найден по адресу ${result.address}, пропускаем верификацию`);
@@ -489,11 +480,12 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
           }
           
           const verificationResult = await verifyModuleAfterDeploy(
-            chainId,
+            numericChainId,
             result.address,
             moduleType,
             constructorArgs,
-            params.etherscanApiKey
+            params.etherscanApiKey,
+            params
           );
           
           if (verificationResult.success) {
@@ -542,16 +534,9 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
 async function deployAllModulesInAllNetworks(networks, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces) {
   const results = [];
   
-  for (let i = 0; i < connections.length; i++) {
-    const connection = connections[i];
-    const rpcUrl = connection.rpcUrl;
-    logger.info(`[MODULES_DBG] deploying modules to network ${i + 1}/${connections.length}: ${rpcUrl}`);
-    
-    const result = await deployAllModulesInNetwork(rpcUrl, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces);
-    results.push(result);
-  }
-  
-  return results;
+  // Функция больше не используется (логика деплоя реализована через connections в main)
+  // Оставлена для совместимости.
+  return [];
 }
 
 async function main() {
@@ -849,38 +834,22 @@ async function main() {
     };
     
     // Собираем информацию о всех сетях для этого модуля
-    for (let i = 0; i < networks.length; i++) {
-      const rpcUrl = networks[i];
+    for (let i = 0; i < deployResults.length; i++) {
       const deployResult = deployResults[i];
-      const verificationResult = deployResult.verification || 'unknown';
+      const rpcUrl = deployResult.rpcUrl;
       const moduleResult = deployResult.modules?.[moduleType];
-      const verification = verificationResult?.modules?.[moduleType] || 'unknown';
-      
-      try {
-        const { provider, network } = await createRPCConnection(rpcUrl, pk, {
-          maxRetries: 3,
-          timeout: 30000
-        });
-        
-        moduleInfo.networks.push({
-          chainId: Number(network.chainId),
-          rpcUrl: rpcUrl,
-          address: moduleResult?.success ? moduleResult.address : null,
-          verification: verification,
-          success: moduleResult?.success || false,
-          error: moduleResult?.error || null
-        });
-      } catch (error) {
-        logger.error(`[MODULES_DBG] Ошибка получения chainId для модуля ${moduleType} в сети ${i + 1}:`, error.message);
-        moduleInfo.networks.push({
-          chainId: null,
-          rpcUrl: rpcUrl,
-          address: null,
-          verification: 'error',
-          success: false,
-          error: error.message
-        });
-      }
+
+      // Верификационный статус уже хранится в deployResult.modules[moduleType].verification
+      const verification = moduleResult?.verification || 'unknown';
+
+      moduleInfo.networks.push({
+        chainId: deployResult.chainId ?? null,
+        rpcUrl: rpcUrl,
+        address: moduleResult?.success ? moduleResult.address : null,
+        verification: verification,
+        success: moduleResult?.success || false,
+        error: moduleResult?.error || null
+      });
     }
     
     // Сохраняем файл модуля

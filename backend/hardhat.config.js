@@ -26,41 +26,45 @@ function getNetworks() {
   // Получаем RPC URLs из переменных окружения
   const rpcUrlsEnv = process.env.RPC_URLS;
   const rpcUrls = rpcUrlsEnv ? JSON.parse(rpcUrlsEnv) : {};
-  
-  // console.log удален - может мешать flatten
-  
-  // Базовые сети - УБРАНО, используем только базу данных
-  const baseNetworks = {}; // Пустой объект - никаких хардкод цепочек
-  
-  // Если есть supported_chain_ids, фильтруем только нужные сети
-  if (supportedChainIds.length > 0) {
-    const networks = {};
-    const supportedChainIdsNumbers = supportedChainIds.map(id => Number(id));
-    
-    for (const [networkName, networkConfig] of Object.entries(baseNetworks)) {
-      if (supportedChainIdsNumbers.includes(networkConfig.chainId)) {
-        // Используем RPC URL из переменных окружения если есть
-        const customRpcUrl = rpcUrls[networkConfig.chainId] || rpcUrls[networkConfig.chainId.toString()];
-        if (customRpcUrl) {
-          networkConfig.url = customRpcUrl;
-          // console.log удален - может мешать flatten
-        }
-        networks[networkName] = networkConfig;
-      }
-    }
-    
-    // console.log удален - может мешать flatten
-    return networks;
-  } else {
-    // Если нет supported_chain_ids, используем все базовые сети
-    // console.log удален - может мешать flatten
-    return baseNetworks;
+
+  // Если нет supported_chain_ids, ничего не настраиваем (используются только локальные сети Hardhat)
+  if (!supportedChainIds || supportedChainIds.length === 0) {
+    return {};
   }
+
+  const networks = {};
+  const supportedChainIdsNumbers = supportedChainIds.map((id) => Number(id));
+
+  // RPC_URLS может быть либо объектом { [chainId]: url }, либо массивом URL-ов.
+  const isRpcArray = Array.isArray(rpcUrls);
+
+  supportedChainIdsNumbers.forEach((chainId, index) => {
+    let url;
+    if (isRpcArray) {
+      url = rpcUrls[index];
+    } else {
+      url = rpcUrls[chainId] || rpcUrls[chainId.toString()];
+    }
+
+    if (!url) {
+      // Если для chainId нет URL — пропускаем сеть
+      return;
+    }
+
+    const networkName = `chain_${chainId}`;
+    networks[networkName] = {
+      chainId,
+      url
+      // accounts не указываем: для verify достаточно RPC + ETHERSCAN_API_KEY
+    };
+  });
+
+  return networks;
 }
 
-// Функция для получения базовых сетей (fallback) - УБРАНО, используем только базу данных
+// Функция для получения базовых сетей (fallback) — оставлена для совместимости
 function getBaseNetworks() {
-  return {}; // Пустой объект - никаких хардкод цепочек
+  return {};
 }
 
 

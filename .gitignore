@@ -98,9 +98,6 @@ typings/
 *.swp
 *.swo
 
-# Backup files
-*.bak
-
 # OS
 .DS_Store
 Thumbs.db
@@ -125,12 +122,6 @@ frontend/uploads/
 # Database migrations (may contain sensitive data)
 backend/db/migrations/
 
-# Keys and certificates
-*.key
-*.pem
-*.crt
-*.p12
-
 # SSH Keys - КРИТИЧЕСКИ ВАЖНО!
 id_rsa
 id_ed25519
@@ -138,13 +129,15 @@ id_ed25519
 ssh_host_*
 ssh_config
 
-# SSL Keys and certificates - КРИТИЧЕСКИ ВАЖНО!
-ssl/keys/
-ssl/certs/
+# Keys and certificates - КРИТИЧЕСКИ ВАЖНО!
 *.key
 *.pem
 *.crt
 *.p12
+
+# SSL Keys and certificates - КРИТИЧЕСКИ ВАЖНО!
+ssl/keys/
+ssl/certs/
 
 # Database encryption keys - КРИТИЧЕСКИ ВАЖНО!
 **/full_db_encryption.key
@@ -207,17 +200,10 @@ backend/.env.production
 # Server management scripts - may contain sensitive information
 scripts/clean-server.sh
 scripts/export-template-for-release.sh
+scripts/replace-release-assets.sh
 
 # Docker data and release archives - не коммитить в Git!
 docker-data/
 dle-template.tar.gz
 dle-template.tar.gz.part-*
 dle-template.tar.gz.join.sh
-
-# Guide files
-pages-guide.md
-
-# Problem documentation (internal)
-SIWE_PROBLEM.md
-REBUILD_COMMANDS.md
-SIWE_ISSUE_DESCRIPTION.md 

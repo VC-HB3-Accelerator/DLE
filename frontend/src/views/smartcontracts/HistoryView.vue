@@ -325,7 +325,7 @@ async function loadDleData() {
     console.log('[HistoryView] Загрузка данных DLE:', dleAddress.value);
     
     // Читаем данные из блокчейна
-    const response = await api.post('/dle-core/read-dle-info', {
+    const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress.value
     });
     

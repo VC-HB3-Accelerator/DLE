@@ -1,12 +1,12 @@
-// Sources flattened with hardhat v2.26.1 https://hardhat.org
+// Sources flattened with hardhat v2.26.3 https://hardhat.org
 
 // SPDX-License-Identifier: MIT AND PROPRIETARY
 
-// File @openzeppelin/contracts/governance/utils/IVotes.sol@v5.2.0
+// File @openzeppelin/contracts/governance/utils/IVotes.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (governance/utils/IVotes.sol)
-pragma solidity ^0.8.20;
+// OpenZeppelin Contracts (last updated v5.4.0) (governance/utils/IVotes.sol)
+pragma solidity >=0.8.4;
 
 /**
  * @dev Common interface for {ERC20Votes}, {ERC721Votes}, and other {Votes}-enabled contracts.
@@ -65,12 +65,12 @@ interface IVotes {
 }
 
 
-// File @openzeppelin/contracts/interfaces/IERC6372.sol@v5.2.0
+// File @openzeppelin/contracts/interfaces/IERC6372.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (interfaces/IERC6372.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC6372.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity >=0.4.16;
 
 interface IERC6372 {
     /**
@@ -86,18 +86,18 @@ interface IERC6372 {
 }
 
 
-// File @openzeppelin/contracts/interfaces/IERC5805.sol@v5.2.0
+// File @openzeppelin/contracts/interfaces/IERC5805.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (interfaces/IERC5805.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC5805.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity >=0.8.4;
 
 
 interface IERC5805 is IERC6372, IVotes {}
 
 
-// File @openzeppelin/contracts/utils/Context.sol@v5.2.0
+// File @openzeppelin/contracts/utils/Context.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)
@@ -129,7 +129,7 @@ abstract contract Context {
 }
 
 
-// File @openzeppelin/contracts/utils/cryptography/ECDSA.sol@v5.2.0
+// File @openzeppelin/contracts/utils/cryptography/ECDSA.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/cryptography/ECDSA.sol)
@@ -313,12 +313,12 @@ library ECDSA {
 }
 
 
-// File @openzeppelin/contracts/interfaces/IERC5267.sol@v5.2.0
+// File @openzeppelin/contracts/interfaces/IERC5267.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (interfaces/IERC5267.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC5267.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity >=0.4.16;
 
 interface IERC5267 {
     /**
@@ -345,7 +345,7 @@ interface IERC5267 {
 }
 
 
-// File @openzeppelin/contracts/utils/math/SafeCast.sol@v5.2.0
+// File @openzeppelin/contracts/utils/math/SafeCast.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/math/SafeCast.sol)
@@ -1511,7 +1511,7 @@ library SafeCast {
 }
 
 
-// File @openzeppelin/contracts/utils/Panic.sol@v5.2.0
+// File @openzeppelin/contracts/utils/Panic.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/Panic.sol)
@@ -1572,10 +1572,10 @@ library Panic {
 }
 
 
-// File @openzeppelin/contracts/utils/math/Math.sol@v5.2.0
+// File @openzeppelin/contracts/utils/math/Math.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (utils/math/Math.sol)
+// OpenZeppelin Contracts (last updated v5.3.0) (utils/math/Math.sol)
 
 pragma solidity ^0.8.20;
 
@@ -1592,38 +1592,68 @@ library Math {
     }
 
     /**
-     * @dev Returns the addition of two unsigned integers, with an success flag (no overflow).
+     * @dev Return the 512-bit addition of two uint256.
+     *
+     * The result is stored in two 256 variables such that sum = high * 2²⁵⁶ + low.
+     */
+    function add512(uint256 a, uint256 b) internal pure returns (uint256 high, uint256 low) {
+        assembly ("memory-safe") {
+            low := add(a, b)
+            high := lt(low, a)
+        }
+    }
+
+    /**
+     * @dev Return the 512-bit multiplication of two uint256.
+     *
+     * The result is stored in two 256 variables such that product = high * 2²⁵⁶ + low.
+     */
+    function mul512(uint256 a, uint256 b) internal pure returns (uint256 high, uint256 low) {
+        // 512-bit multiply [high low] = x * y. Compute the product mod 2²⁵⁶ and mod 2²⁵⁶ - 1, then use
+        // the Chinese Remainder Theorem to reconstruct the 512 bit result. The result is stored in two 256
+        // variables such that product = high * 2²⁵⁶ + low.
+        assembly ("memory-safe") {
+            let mm := mulmod(a, b, not(0))
+            low := mul(a, b)
+            high := sub(sub(mm, low), lt(mm, low))
+        }
+    }
+
+    /**
+     * @dev Returns the addition of two unsigned integers, with a success flag (no overflow).
      */
     function tryAdd(uint256 a, uint256 b) internal pure returns (bool success, uint256 result) {
         unchecked {
             uint256 c = a + b;
-            if (c < a) return (false, 0);
-            return (true, c);
+            success = c >= a;
+            result = c * SafeCast.toUint(success);
         }
     }
 
     /**
-     * @dev Returns the subtraction of two unsigned integers, with an success flag (no overflow).
+     * @dev Returns the subtraction of two unsigned integers, with a success flag (no overflow).
      */
     function trySub(uint256 a, uint256 b) internal pure returns (bool success, uint256 result) {
         unchecked {
-            if (b > a) return (false, 0);
-            return (true, a - b);
+            uint256 c = a - b;
+            success = c <= a;
+            result = c * SafeCast.toUint(success);
         }
     }
 
     /**
-     * @dev Returns the multiplication of two unsigned integers, with an success flag (no overflow).
+     * @dev Returns the multiplication of two unsigned integers, with a success flag (no overflow).
      */
     function tryMul(uint256 a, uint256 b) internal pure returns (bool success, uint256 result) {
         unchecked {
-            // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
-            // benefit is lost if 'b' is also tested.
-            // See: https://github.com/OpenZeppelin/openzeppelin-contracts/pull/522
-            if (a == 0) return (true, 0);
             uint256 c = a * b;
-            if (c / a != b) return (false, 0);
-            return (true, c);
+            assembly ("memory-safe") {
+                // Only true when the multiplication doesn't overflow
+                // (c / a == b) || (a == 0)
+                success := or(eq(div(c, a), b), iszero(a))
+            }
+            // equivalent to: success ? c : 0
+            result = c * SafeCast.toUint(success);
         }
     }
 
@@ -1632,8 +1662,11 @@ library Math {
      */
     function tryDiv(uint256 a, uint256 b) internal pure returns (bool success, uint256 result) {
         unchecked {
-            if (b == 0) return (false, 0);
-            return (true, a / b);
+            success = b > 0;
+            assembly ("memory-safe") {
+                // The `DIV` opcode returns zero when the denominator is 0.
+                result := div(a, b)
+            }
         }
     }
 
@@ -1642,9 +1675,36 @@ library Math {
      */
     function tryMod(uint256 a, uint256 b) internal pure returns (bool success, uint256 result) {
         unchecked {
-            if (b == 0) return (false, 0);
-            return (true, a % b);
+            success = b > 0;
+            assembly ("memory-safe") {
+                // The `MOD` opcode returns zero when the denominator is 0.
+                result := mod(a, b)
+            }
         }
+    }
+
+    /**
+     * @dev Unsigned saturating addition, bounds to `2²⁵⁶ - 1` instead of overflowing.
+     */
+    function saturatingAdd(uint256 a, uint256 b) internal pure returns (uint256) {
+        (bool success, uint256 result) = tryAdd(a, b);
+        return ternary(success, result, type(uint256).max);
+    }
+
+    /**
+     * @dev Unsigned saturating subtraction, bounds to zero instead of overflowing.
+     */
+    function saturatingSub(uint256 a, uint256 b) internal pure returns (uint256) {
+        (, uint256 result) = trySub(a, b);
+        return result;
+    }
+
+    /**
+     * @dev Unsigned saturating multiplication, bounds to `2²⁵⁶ - 1` instead of overflowing.
+     */
+    function saturatingMul(uint256 a, uint256 b) internal pure returns (uint256) {
+        (bool success, uint256 result) = tryMul(a, b);
+        return ternary(success, result, type(uint256).max);
     }
 
     /**
@@ -1717,26 +1777,18 @@ library Math {
      */
     function mulDiv(uint256 x, uint256 y, uint256 denominator) internal pure returns (uint256 result) {
         unchecked {
-            // 512-bit multiply [prod1 prod0] = x * y. Compute the product mod 2²⁵⁶ and mod 2²⁵⁶ - 1, then use
-            // the Chinese Remainder Theorem to reconstruct the 512 bit result. The result is stored in two 256
-            // variables such that product = prod1 * 2²⁵⁶ + prod0.
-            uint256 prod0 = x * y; // Least significant 256 bits of the product
-            uint256 prod1; // Most significant 256 bits of the product
-            assembly {
-                let mm := mulmod(x, y, not(0))
-                prod1 := sub(sub(mm, prod0), lt(mm, prod0))
-            }
+            (uint256 high, uint256 low) = mul512(x, y);
 
             // Handle non-overflow cases, 256 by 256 division.
-            if (prod1 == 0) {
+            if (high == 0) {
                 // Solidity will revert if denominator == 0, unlike the div opcode on its own.
                 // The surrounding unchecked block does not change this fact.
                 // See https://docs.soliditylang.org/en/latest/control-structures.html#checked-or-unchecked-arithmetic.
-                return prod0 / denominator;
+                return low / denominator;
             }
 
             // Make sure the result is less than 2²⁵⁶. Also prevents denominator == 0.
-            if (denominator <= prod1) {
+            if (denominator <= high) {
                 Panic.panic(ternary(denominator == 0, Panic.DIVISION_BY_ZERO, Panic.UNDER_OVERFLOW));
             }
 
@@ -1744,34 +1796,34 @@ library Math {
             // 512 by 256 division.
             ///////////////////////////////////////////////
 
-            // Make division exact by subtracting the remainder from [prod1 prod0].
+            // Make division exact by subtracting the remainder from [high low].
             uint256 remainder;
-            assembly {
+            assembly ("memory-safe") {
                 // Compute remainder using mulmod.
                 remainder := mulmod(x, y, denominator)
 
                 // Subtract 256 bit number from 512 bit number.
-                prod1 := sub(prod1, gt(remainder, prod0))
-                prod0 := sub(prod0, remainder)
+                high := sub(high, gt(remainder, low))
+                low := sub(low, remainder)
             }
 
             // Factor powers of two out of denominator and compute largest power of two divisor of denominator.
             // Always >= 1. See https://cs.stackexchange.com/q/138556/92363.
 
             uint256 twos = denominator & (0 - denominator);
-            assembly {
+            assembly ("memory-safe") {
                 // Divide denominator by twos.
                 denominator := div(denominator, twos)
 
-                // Divide [prod1 prod0] by twos.
-                prod0 := div(prod0, twos)
+                // Divide [high low] by twos.
+                low := div(low, twos)
 
                 // Flip twos such that it is 2²⁵⁶ / twos. If twos is zero, then it becomes one.
                 twos := add(div(sub(0, twos), twos), 1)
             }
 
-            // Shift in bits from prod1 into prod0.
-            prod0 |= prod1 * twos;
+            // Shift in bits from high into low.
+            low |= high * twos;
 
             // Invert denominator mod 2²⁵⁶. Now that denominator is an odd number, it has an inverse modulo 2²⁵⁶ such
             // that denominator * inv ≡ 1 mod 2²⁵⁶. Compute the inverse by starting with a seed that is correct for
@@ -1789,9 +1841,9 @@ library Math {
 
             // Because the division is now exact we can divide by multiplying with the modular inverse of denominator.
             // This will give us the correct result modulo 2²⁵⁶. Since the preconditions guarantee that the outcome is
-            // less than 2²⁵⁶, this is the final result. We don't need to compute the high bits of the result and prod1
+            // less than 2²⁵⁶, this is the final result. We don't need to compute the high bits of the result and high
             // is no longer required.
-            result = prod0 * inverse;
+            result = low * inverse;
             return result;
         }
     }
@@ -1801,6 +1853,26 @@ library Math {
      */
     function mulDiv(uint256 x, uint256 y, uint256 denominator, Rounding rounding) internal pure returns (uint256) {
         return mulDiv(x, y, denominator) + SafeCast.toUint(unsignedRoundsUp(rounding) && mulmod(x, y, denominator) > 0);
+    }
+
+    /**
+     * @dev Calculates floor(x * y >> n) with full precision. Throws if result overflows a uint256.
+     */
+    function mulShr(uint256 x, uint256 y, uint8 n) internal pure returns (uint256 result) {
+        unchecked {
+            (uint256 high, uint256 low) = mul512(x, y);
+            if (high >= 1 << n) {
+                Panic.panic(Panic.UNDER_OVERFLOW);
+            }
+            return (high << (256 - n)) | (low >> n);
+        }
+    }
+
+    /**
+     * @dev Calculates x * y >> n with full precision, following the selected rounding direction.
+     */
+    function mulShr(uint256 x, uint256 y, uint8 n, Rounding rounding) internal pure returns (uint256) {
+        return mulShr(x, y, n) + SafeCast.toUint(unsignedRoundsUp(rounding) && mulmod(x, y, 1 << n) > 0);
     }
 
     /**
@@ -2111,41 +2183,45 @@ library Math {
      * @dev Return the log in base 2 of a positive value rounded towards zero.
      * Returns 0 if given 0.
      */
-    function log2(uint256 value) internal pure returns (uint256) {
-        uint256 result = 0;
-        uint256 exp;
-        unchecked {
-            exp = 128 * SafeCast.toUint(value > (1 << 128) - 1);
-            value >>= exp;
-            result += exp;
+    function log2(uint256 x) internal pure returns (uint256 r) {
+        // If value has upper 128 bits set, log2 result is at least 128
+        r = SafeCast.toUint(x > 0xffffffffffffffffffffffffffffffff) << 7;
+        // If upper 64 bits of 128-bit half set, add 64 to result
+        r |= SafeCast.toUint((x >> r) > 0xffffffffffffffff) << 6;
+        // If upper 32 bits of 64-bit half set, add 32 to result
+        r |= SafeCast.toUint((x >> r) > 0xffffffff) << 5;
+        // If upper 16 bits of 32-bit half set, add 16 to result
+        r |= SafeCast.toUint((x >> r) > 0xffff) << 4;
+        // If upper 8 bits of 16-bit half set, add 8 to result
+        r |= SafeCast.toUint((x >> r) > 0xff) << 3;
+        // If upper 4 bits of 8-bit half set, add 4 to result
+        r |= SafeCast.toUint((x >> r) > 0xf) << 2;
 
-            exp = 64 * SafeCast.toUint(value > (1 << 64) - 1);
-            value >>= exp;
-            result += exp;
-
-            exp = 32 * SafeCast.toUint(value > (1 << 32) - 1);
-            value >>= exp;
-            result += exp;
-
-            exp = 16 * SafeCast.toUint(value > (1 << 16) - 1);
-            value >>= exp;
-            result += exp;
-
-            exp = 8 * SafeCast.toUint(value > (1 << 8) - 1);
-            value >>= exp;
-            result += exp;
-
-            exp = 4 * SafeCast.toUint(value > (1 << 4) - 1);
-            value >>= exp;
-            result += exp;
-
-            exp = 2 * SafeCast.toUint(value > (1 << 2) - 1);
-            value >>= exp;
-            result += exp;
-
-            result += SafeCast.toUint(value > 1);
+        // Shifts value right by the current result and use it as an index into this lookup table:
+        //
+        // | x (4 bits) |  index  | table[index] = MSB position |
+        // |------------|---------|-----------------------------|
+        // |    0000    |    0    |        table[0] = 0         |
+        // |    0001    |    1    |        table[1] = 0         |
+        // |    0010    |    2    |        table[2] = 1         |
+        // |    0011    |    3    |        table[3] = 1         |
+        // |    0100    |    4    |        table[4] = 2         |
+        // |    0101    |    5    |        table[5] = 2         |
+        // |    0110    |    6    |        table[6] = 2         |
+        // |    0111    |    7    |        table[7] = 2         |
+        // |    1000    |    8    |        table[8] = 3         |
+        // |    1001    |    9    |        table[9] = 3         |
+        // |    1010    |   10    |        table[10] = 3        |
+        // |    1011    |   11    |        table[11] = 3        |
+        // |    1100    |   12    |        table[12] = 3        |
+        // |    1101    |   13    |        table[13] = 3        |
+        // |    1110    |   14    |        table[14] = 3        |
+        // |    1111    |   15    |        table[15] = 3        |
+        //
+        // The lookup table is represented as a 32-byte value with the MSB positions for 0-15 in the last 16 bytes.
+        assembly ("memory-safe") {
+            r := or(r, byte(shr(r, x), 0x0000010102020202030303030303030300000000000000000000000000000000))
         }
-        return result;
     }
 
     /**
@@ -2214,29 +2290,17 @@ library Math {
      *
      * Adding one to the result gives the number of pairs of hex symbols needed to represent `value` as a hex string.
      */
-    function log256(uint256 value) internal pure returns (uint256) {
-        uint256 result = 0;
-        uint256 isGt;
-        unchecked {
-            isGt = SafeCast.toUint(value > (1 << 128) - 1);
-            value >>= isGt * 128;
-            result += isGt * 16;
-
-            isGt = SafeCast.toUint(value > (1 << 64) - 1);
-            value >>= isGt * 64;
-            result += isGt * 8;
-
-            isGt = SafeCast.toUint(value > (1 << 32) - 1);
-            value >>= isGt * 32;
-            result += isGt * 4;
-
-            isGt = SafeCast.toUint(value > (1 << 16) - 1);
-            value >>= isGt * 16;
-            result += isGt * 2;
-
-            result += SafeCast.toUint(value > (1 << 8) - 1);
-        }
-        return result;
+    function log256(uint256 x) internal pure returns (uint256 r) {
+        // If value has upper 128 bits set, log2 result is at least 128
+        r = SafeCast.toUint(x > 0xffffffffffffffffffffffffffffffff) << 7;
+        // If upper 64 bits of 128-bit half set, add 64 to result
+        r |= SafeCast.toUint((x >> r) > 0xffffffffffffffff) << 6;
+        // If upper 32 bits of 64-bit half set, add 32 to result
+        r |= SafeCast.toUint((x >> r) > 0xffffffff) << 5;
+        // If upper 16 bits of 32-bit half set, add 16 to result
+        r |= SafeCast.toUint((x >> r) > 0xffff) << 4;
+        // Add 1 if upper 8 bits of 16-bit half set, and divide accumulated result by 8
+        return (r >> 3) | SafeCast.toUint((x >> r) > 0xff);
     }
 
     /**
@@ -2259,7 +2323,7 @@ library Math {
 }
 
 
-// File @openzeppelin/contracts/utils/math/SignedMath.sol@v5.2.0
+// File @openzeppelin/contracts/utils/math/SignedMath.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/math/SignedMath.sol)
@@ -2329,10 +2393,10 @@ library SignedMath {
 }
 
 
-// File @openzeppelin/contracts/utils/Strings.sol@v5.2.0
+// File @openzeppelin/contracts/utils/Strings.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.2.0) (utils/Strings.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (utils/Strings.sol)
 
 pragma solidity ^0.8.20;
 
@@ -2346,6 +2410,14 @@ library Strings {
 
     bytes16 private constant HEX_DIGITS = "0123456789abcdef";
     uint8 private constant ADDRESS_LENGTH = 20;
+    uint256 private constant SPECIAL_CHARS_LOOKUP =
+        (1 << 0x08) | // backspace
+            (1 << 0x09) | // tab
+            (1 << 0x0a) | // newline
+            (1 << 0x0c) | // form feed
+            (1 << 0x0d) | // carriage return
+            (1 << 0x22) | // double quote
+            (1 << 0x5c); // backslash
 
     /**
      * @dev The `value` string doesn't fit in the specified `length`.
@@ -2371,7 +2443,7 @@ library Strings {
             string memory buffer = new string(length);
             uint256 ptr;
             assembly ("memory-safe") {
-                ptr := add(buffer, add(32, length))
+                ptr := add(add(buffer, 0x20), length)
             }
             while (true) {
                 ptr--;
@@ -2470,7 +2542,7 @@ library Strings {
     }
 
     /**
-     * @dev Variant of {parseUint} that parses a substring of `input` located between position `begin` (included) and
+     * @dev Variant of {parseUint-string} that parses a substring of `input` located between position `begin` (included) and
      * `end` (excluded).
      *
      * Requirements:
@@ -2508,7 +2580,7 @@ library Strings {
     }
 
     /**
-     * @dev Implementation of {tryParseUint} that does not check bounds. Caller should make sure that
+     * @dev Implementation of {tryParseUint-string-uint256-uint256} that does not check bounds. Caller should make sure that
      * `begin <= end <= input.length`. Other inputs would result in undefined behavior.
      */
     function _tryParseUintUncheckedBounds(
@@ -2581,7 +2653,7 @@ library Strings {
     }
 
     /**
-     * @dev Implementation of {tryParseInt} that does not check bounds. Caller should make sure that
+     * @dev Implementation of {tryParseInt-string-uint256-uint256} that does not check bounds. Caller should make sure that
      * `begin <= end <= input.length`. Other inputs would result in undefined behavior.
      */
     function _tryParseIntUncheckedBounds(
@@ -2618,7 +2690,7 @@ library Strings {
     }
 
     /**
-     * @dev Variant of {parseHexUint} that parses a substring of `input` located between position `begin` (included) and
+     * @dev Variant of {parseHexUint-string} that parses a substring of `input` located between position `begin` (included) and
      * `end` (excluded).
      *
      * Requirements:
@@ -2656,7 +2728,7 @@ library Strings {
     }
 
     /**
-     * @dev Implementation of {tryParseHexUint} that does not check bounds. Caller should make sure that
+     * @dev Implementation of {tryParseHexUint-string-uint256-uint256} that does not check bounds. Caller should make sure that
      * `begin <= end <= input.length`. Other inputs would result in undefined behavior.
      */
     function _tryParseHexUintUncheckedBounds(
@@ -2677,7 +2749,7 @@ library Strings {
             result *= 16;
             unchecked {
                 // Multiplying by 16 is equivalent to a shift of 4 bits (with additional overflow check).
-                // This guaratees that adding a value < 16 will not cause an overflow, hence the unchecked.
+                // This guarantees that adding a value < 16 will not cause an overflow, hence the unchecked.
                 result += chr;
             }
         }
@@ -2695,7 +2767,7 @@ library Strings {
     }
 
     /**
-     * @dev Variant of {parseAddress} that parses a substring of `input` located between position `begin` (included) and
+     * @dev Variant of {parseAddress-string} that parses a substring of `input` located between position `begin` (included) and
      * `end` (excluded).
      *
      * Requirements:
@@ -2709,7 +2781,7 @@ library Strings {
 
     /**
      * @dev Variant of {parseAddress-string} that returns false if the parsing fails because the input is not a properly
-     * formatted address. See {parseAddress} requirements.
+     * formatted address. See {parseAddress-string} requirements.
      */
     function tryParseAddress(string memory input) internal pure returns (bool success, address value) {
         return tryParseAddress(input, 0, bytes(input).length);
@@ -2717,7 +2789,7 @@ library Strings {
 
     /**
      * @dev Variant of {parseAddress-string-uint256-uint256} that returns false if the parsing fails because input is not a properly
-     * formatted address. See {parseAddress} requirements.
+     * formatted address. See {parseAddress-string-uint256-uint256} requirements.
      */
     function tryParseAddress(
         string memory input,
@@ -2758,6 +2830,47 @@ library Strings {
     }
 
     /**
+     * @dev Escape special characters in JSON strings. This can be useful to prevent JSON injection in NFT metadata.
+     *
+     * WARNING: This function should only be used in double quoted JSON strings. Single quotes are not escaped.
+     *
+     * NOTE: This function escapes all unicode characters, and not just the ones in ranges defined in section 2.5 of
+     * RFC-4627 (U+0000 to U+001F, U+0022 and U+005C). ECMAScript's `JSON.parse` does recover escaped unicode
+     * characters that are not in this range, but other tooling may provide different results.
+     */
+    function escapeJSON(string memory input) internal pure returns (string memory) {
+        bytes memory buffer = bytes(input);
+        bytes memory output = new bytes(2 * buffer.length); // worst case scenario
+        uint256 outputLength = 0;
+
+        for (uint256 i; i < buffer.length; ++i) {
+            bytes1 char = bytes1(_unsafeReadBytesOffset(buffer, i));
+            if (((SPECIAL_CHARS_LOOKUP & (1 << uint8(char))) != 0)) {
+                output[outputLength++] = "\\";
+                if (char == 0x08) output[outputLength++] = "b";
+                else if (char == 0x09) output[outputLength++] = "t";
+                else if (char == 0x0a) output[outputLength++] = "n";
+                else if (char == 0x0c) output[outputLength++] = "f";
+                else if (char == 0x0d) output[outputLength++] = "r";
+                else if (char == 0x5c) output[outputLength++] = "\\";
+                else if (char == 0x22) {
+                    // solhint-disable-next-line quotes
+                    output[outputLength++] = '"';
+                }
+            } else {
+                output[outputLength++] = char;
+            }
+        }
+        // write the actual length and deallocate unused memory
+        assembly ("memory-safe") {
+            mstore(output, outputLength)
+            mstore(0x40, add(output, shl(5, shr(5, add(outputLength, 63)))))
+        }
+
+        return string(output);
+    }
+
+    /**
      * @dev Reads a bytes32 from a bytes array without bounds checking.
      *
      * NOTE: making this function internal would mean it could be used with memory unsafe offset, and marking the
@@ -2766,16 +2879,16 @@ library Strings {
     function _unsafeReadBytesOffset(bytes memory buffer, uint256 offset) private pure returns (bytes32 value) {
         // This is not memory safe in the general case, but all calls to this private function are within bounds.
         assembly ("memory-safe") {
-            value := mload(add(buffer, add(0x20, offset)))
+            value := mload(add(add(buffer, 0x20), offset))
         }
     }
 }
 
 
-// File @openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol@v5.2.0
+// File @openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (utils/cryptography/MessageHashUtils.sol)
+// OpenZeppelin Contracts (last updated v5.3.0) (utils/cryptography/MessageHashUtils.sol)
 
 pragma solidity ^0.8.20;
 
@@ -2793,7 +2906,7 @@ library MessageHashUtils {
      *
      * The digest is calculated by prefixing a bytes32 `messageHash` with
      * `"\x19Ethereum Signed Message:\n32"` and hashing the result. It corresponds with the
-     * hash signed when using the https://eth.wiki/json-rpc/API#eth_sign[`eth_sign`] JSON-RPC method.
+     * hash signed when using the https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign[`eth_sign`] JSON-RPC method.
      *
      * NOTE: The `messageHash` parameter is intended to be the result of hashing a raw message with
      * keccak256, although any bytes32 value can be safely used because the final digest will
@@ -2815,7 +2928,7 @@ library MessageHashUtils {
      *
      * The digest is calculated by prefixing an arbitrary `message` with
      * `"\x19Ethereum Signed Message:\n" + len(message)` and hashing the result. It corresponds with the
-     * hash signed when using the https://eth.wiki/json-rpc/API#eth_sign[`eth_sign`] JSON-RPC method.
+     * hash signed when using the https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign[`eth_sign`] JSON-RPC method.
      *
      * See {ECDSA-recover}.
      */
@@ -2835,6 +2948,21 @@ library MessageHashUtils {
      */
     function toDataWithIntendedValidatorHash(address validator, bytes memory data) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(hex"19_00", validator, data));
+    }
+
+    /**
+     * @dev Variant of {toDataWithIntendedValidatorHash-address-bytes} optimized for cases where `data` is a bytes32.
+     */
+    function toDataWithIntendedValidatorHash(
+        address validator,
+        bytes32 messageHash
+    ) internal pure returns (bytes32 digest) {
+        assembly ("memory-safe") {
+            mstore(0x00, hex"19_00")
+            mstore(0x02, shl(96, validator))
+            mstore(0x16, messageHash)
+            digest := keccak256(0x00, 0x36)
+        }
     }
 
     /**
@@ -2858,7 +2986,7 @@ library MessageHashUtils {
 }
 
 
-// File @openzeppelin/contracts/utils/StorageSlot.sol@v5.2.0
+// File @openzeppelin/contracts/utils/StorageSlot.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/StorageSlot.sol)
@@ -3005,10 +3133,10 @@ library StorageSlot {
 }
 
 
-// File @openzeppelin/contracts/utils/ShortStrings.sol@v5.2.0
+// File @openzeppelin/contracts/utils/ShortStrings.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (utils/ShortStrings.sol)
+// OpenZeppelin Contracts (last updated v5.3.0) (utils/ShortStrings.sol)
 
 pragma solidity ^0.8.20;
 
@@ -3102,7 +3230,7 @@ library ShortStrings {
     }
 
     /**
-     * @dev Decode a string that was encoded to `ShortString` or written to storage using {setWithFallback}.
+     * @dev Decode a string that was encoded to `ShortString` or written to storage using {toShortStringWithFallback}.
      */
     function toStringWithFallback(ShortString value, string storage store) internal pure returns (string memory) {
         if (ShortString.unwrap(value) != FALLBACK_SENTINEL) {
@@ -3114,7 +3242,7 @@ library ShortStrings {
 
     /**
      * @dev Return the length of a string that was encoded to `ShortString` or written to storage using
-     * {setWithFallback}.
+     * {toShortStringWithFallback}.
      *
      * WARNING: This will return the "byte length" of the string. This may not reflect the actual length in terms of
      * actual characters as the UTF-8 encoding of a single character can span over multiple bytes.
@@ -3129,10 +3257,10 @@ library ShortStrings {
 }
 
 
-// File @openzeppelin/contracts/utils/cryptography/EIP712.sol@v5.2.0
+// File @openzeppelin/contracts/utils/cryptography/EIP712.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (utils/cryptography/EIP712.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (utils/cryptography/EIP712.sol)
 
 pragma solidity ^0.8.20;
 
@@ -3179,7 +3307,9 @@ abstract contract EIP712 is IERC5267 {
 
     ShortString private immutable _name;
     ShortString private immutable _version;
+    // slither-disable-next-line constable-states
     string private _nameFallback;
+    // slither-disable-next-line constable-states
     string private _versionFallback;
 
     /**
@@ -3239,9 +3369,7 @@ abstract contract EIP712 is IERC5267 {
         return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(), structHash);
     }
 
-    /**
-     * @dev See {IERC-5267}.
-     */
+    /// @inheritdoc IERC5267
     function eip712Domain()
         public
         view
@@ -3291,7 +3419,7 @@ abstract contract EIP712 is IERC5267 {
 }
 
 
-// File @openzeppelin/contracts/utils/Nonces.sol@v5.2.0
+// File @openzeppelin/contracts/utils/Nonces.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (utils/Nonces.sol)
@@ -3341,10 +3469,10 @@ abstract contract Nonces {
 }
 
 
-// File @openzeppelin/contracts/utils/structs/Checkpoints.sol@v5.2.0
+// File @openzeppelin/contracts/utils/structs/Checkpoints.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (utils/structs/Checkpoints.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (utils/structs/Checkpoints.sol)
 // This file was procedurally generated from scripts/generate/templates/Checkpoints.js.
 
 pragma solidity ^0.8.20;
@@ -3411,7 +3539,7 @@ library Checkpoints {
      * @dev Returns the value in the last (most recent) checkpoint with key lower or equal than the search key, or zero
      * if there is none.
      *
-     * NOTE: This is a variant of {upperLookup} that is optimised to find "recent" checkpoint (checkpoints with high
+     * NOTE: This is a variant of {upperLookup} that is optimized to find "recent" checkpoint (checkpoints with high
      * keys).
      */
     function upperLookupRecent(Trace224 storage self, uint32 key) internal view returns (uint224) {
@@ -3457,7 +3585,7 @@ library Checkpoints {
     }
 
     /**
-     * @dev Returns the number of checkpoint.
+     * @dev Returns the number of checkpoints.
      */
     function length(Trace224 storage self) internal view returns (uint256) {
         return self._checkpoints.length;
@@ -3614,7 +3742,7 @@ library Checkpoints {
      * @dev Returns the value in the last (most recent) checkpoint with key lower or equal than the search key, or zero
      * if there is none.
      *
-     * NOTE: This is a variant of {upperLookup} that is optimised to find "recent" checkpoint (checkpoints with high
+     * NOTE: This is a variant of {upperLookup} that is optimized to find "recent" checkpoint (checkpoints with high
      * keys).
      */
     function upperLookupRecent(Trace208 storage self, uint48 key) internal view returns (uint208) {
@@ -3660,7 +3788,7 @@ library Checkpoints {
     }
 
     /**
-     * @dev Returns the number of checkpoint.
+     * @dev Returns the number of checkpoints.
      */
     function length(Trace208 storage self) internal view returns (uint256) {
         return self._checkpoints.length;
@@ -3817,7 +3945,7 @@ library Checkpoints {
      * @dev Returns the value in the last (most recent) checkpoint with key lower or equal than the search key, or zero
      * if there is none.
      *
-     * NOTE: This is a variant of {upperLookup} that is optimised to find "recent" checkpoint (checkpoints with high
+     * NOTE: This is a variant of {upperLookup} that is optimized to find "recent" checkpoint (checkpoints with high
      * keys).
      */
     function upperLookupRecent(Trace160 storage self, uint96 key) internal view returns (uint160) {
@@ -3863,7 +3991,7 @@ library Checkpoints {
     }
 
     /**
-     * @dev Returns the number of checkpoint.
+     * @dev Returns the number of checkpoints.
      */
     function length(Trace160 storage self) internal view returns (uint256) {
         return self._checkpoints.length;
@@ -3973,7 +4101,7 @@ library Checkpoints {
 }
 
 
-// File @openzeppelin/contracts/utils/types/Time.sol@v5.2.0
+// File @openzeppelin/contracts/utils/types/Time.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/types/Time.sol)
@@ -4108,7 +4236,7 @@ library Time {
 }
 
 
-// File @openzeppelin/contracts/governance/utils/Votes.sol@v5.2.0
+// File @openzeppelin/contracts/governance/utils/Votes.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.2.0) (governance/utils/Votes.sol)
@@ -4362,11 +4490,11 @@ abstract contract Votes is Context, EIP712, Nonces, IERC5805 {
 }
 
 
-// File @openzeppelin/contracts/interfaces/draft-IERC6093.sol@v5.2.0
+// File @openzeppelin/contracts/interfaces/draft-IERC6093.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (interfaces/draft-IERC6093.sol)
-pragma solidity ^0.8.20;
+// OpenZeppelin Contracts (last updated v5.4.0) (interfaces/draft-IERC6093.sol)
+pragma solidity >=0.8.4;
 
 /**
  * @dev Standard ERC-20 Errors
@@ -4527,12 +4655,12 @@ interface IERC1155Errors {
 }
 
 
-// File @openzeppelin/contracts/token/ERC20/IERC20.sol@v5.2.0
+// File @openzeppelin/contracts/token/ERC20/IERC20.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/IERC20.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/IERC20.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity >=0.4.16;
 
 /**
  * @dev Interface of the ERC-20 standard as defined in the ERC.
@@ -4610,12 +4738,12 @@ interface IERC20 {
 }
 
 
-// File @openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol@v5.2.0
+// File @openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/IERC20Metadata.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/extensions/IERC20Metadata.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity >=0.6.2;
 
 /**
  * @dev Interface for the optional metadata functions from the ERC-20 standard.
@@ -4638,10 +4766,10 @@ interface IERC20Metadata is IERC20 {
 }
 
 
-// File @openzeppelin/contracts/token/ERC20/ERC20.sol@v5.2.0
+// File @openzeppelin/contracts/token/ERC20/ERC20.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.2.0) (token/ERC20/ERC20.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/ERC20.sol)
 
 pragma solidity ^0.8.20;
 
@@ -4679,8 +4807,7 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     /**
      * @dev Sets the values for {name} and {symbol}.
      *
-     * All two of these values are immutable: they can only be set once during
-     * construction.
+     * Both values are immutable: they can only be set once during construction.
      */
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
@@ -4719,16 +4846,12 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         return 18;
     }
 
-    /**
-     * @dev See {IERC20-totalSupply}.
-     */
+    /// @inheritdoc IERC20
     function totalSupply() public view virtual returns (uint256) {
         return _totalSupply;
     }
 
-    /**
-     * @dev See {IERC20-balanceOf}.
-     */
+    /// @inheritdoc IERC20
     function balanceOf(address account) public view virtual returns (uint256) {
         return _balances[account];
     }
@@ -4747,9 +4870,7 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
         return true;
     }
 
-    /**
-     * @dev See {IERC20-allowance}.
-     */
+    /// @inheritdoc IERC20
     function allowance(address owner, address spender) public view virtual returns (uint256) {
         return _allowances[owner][spender];
     }
@@ -4881,7 +5002,7 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     }
 
     /**
-     * @dev Sets `value` as the allowance of `spender` over the `owner` s tokens.
+     * @dev Sets `value` as the allowance of `spender` over the `owner`'s tokens.
      *
      * This internal function is equivalent to `approve`, and can be used to
      * e.g. set automatic allowances for certain subsystems, etc.
@@ -4931,7 +5052,7 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     }
 
     /**
-     * @dev Updates `owner` s allowance for `spender` based on spent `value`.
+     * @dev Updates `owner`'s allowance for `spender` based on spent `value`.
      *
      * Does not update the allowance value in case of infinite allowance.
      * Revert if not enough allowance is available.
@@ -4952,12 +5073,12 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
 }
 
 
-// File @openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol@v5.2.0
+// File @openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/IERC20Permit.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/extensions/IERC20Permit.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity >=0.4.16;
 
 /**
  * @dev Interface of the ERC-20 Permit extension allowing approvals to be made via signatures, as defined in
@@ -5046,10 +5167,10 @@ interface IERC20Permit {
 }
 
 
-// File @openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol@v5.2.0
+// File @openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/ERC20Permit.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/extensions/ERC20Permit.sol)
 
 pragma solidity ^0.8.20;
 
@@ -5086,9 +5207,7 @@ abstract contract ERC20Permit is ERC20, IERC20Permit, EIP712, Nonces {
      */
     constructor(string memory name) EIP712(name, "1") {}
 
-    /**
-     * @inheritdoc IERC20Permit
-     */
+    /// @inheritdoc IERC20Permit
     function permit(
         address owner,
         address spender,
@@ -5114,16 +5233,12 @@ abstract contract ERC20Permit is ERC20, IERC20Permit, EIP712, Nonces {
         _approve(owner, spender, value);
     }
 
-    /**
-     * @inheritdoc IERC20Permit
-     */
+    /// @inheritdoc IERC20Permit
     function nonces(address owner) public view virtual override(IERC20Permit, Nonces) returns (uint256) {
         return super.nonces(owner);
     }
 
-    /**
-     * @inheritdoc IERC20Permit
-     */
+    /// @inheritdoc IERC20Permit
     // solhint-disable-next-line func-name-mixedcase
     function DOMAIN_SEPARATOR() external view virtual returns (bytes32) {
         return _domainSeparatorV4();
@@ -5131,7 +5246,7 @@ abstract contract ERC20Permit is ERC20, IERC20Permit, EIP712, Nonces {
 }
 
 
-// File @openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol@v5.2.0
+// File @openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (token/ERC20/extensions/ERC20Votes.sol)
@@ -5216,7 +5331,7 @@ abstract contract ERC20Votes is ERC20, Votes {
 }
 
 
-// File @openzeppelin/contracts/utils/ReentrancyGuard.sol@v5.2.0
+// File @openzeppelin/contracts/utils/ReentrancyGuard.sol@v5.4.0
 
 // Original license: SPDX_License_Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/ReentrancyGuard.sol)

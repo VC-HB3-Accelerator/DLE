@@ -309,7 +309,7 @@ async function loadDleData() {
   isLoadingDle.value = true;
   try {
     // Загружаем данные DLE из блокчейна
-    const response = await api.post('/dle-core/read-dle-info', {
+    const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress.value
     });
     

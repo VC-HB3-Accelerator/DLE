@@ -54,26 +54,6 @@ console.log('[MULTI_DBG] main:', typeof main);
 
 // Функция для получения имени сети для Hardhat из deploy_params
 function getNetworkNameForHardhat(chainId, params) {
-  // Создаем маппинг chainId -> Hardhat network name
-  const networkMapping = {
-    11155111: 'sepolia',
-    17000: 'holesky', 
-    421614: 'arbitrumSepolia',
-    84532: 'baseSepolia',
-    1: 'mainnet',
-    42161: 'arbitrumOne',
-    8453: 'base',
-    137: 'polygon',
-    56: 'bsc'
-  };
-  
-  // Проверяем, поддерживается ли сеть в Hardhat
-  const hardhatNetworkName = networkMapping[chainId];
-  if (!hardhatNetworkName) {
-    logger.warn(`⚠️ Сеть ${chainId} не поддерживается в Hardhat`);
-    return null;
-  }
-  
   // Проверяем, есть ли эта сеть в supported_chain_ids из deploy_params
   const supportedChainIds = params.supported_chain_ids || params.supportedChainIds || [];
   if (supportedChainIds.length > 0) {
@@ -88,7 +68,10 @@ function getNetworkNameForHardhat(chainId, params) {
     logger.info(`ℹ️ Список поддерживаемых сетей пуст, разрешаем верификацию для ${chainId}`);
   }
   
-  logger.info(`✅ Сеть ${chainId} поддерживается: ${hardhatNetworkName}`);
+  // Динамически формируем имя сети для Hardhat без хардкода:
+  // в конфиге Hardhat сеть будет объявлена как chain_<chainId>
+  const hardhatNetworkName = `chain_${chainId}`;
+  logger.info(`✅ Сеть ${chainId} будет использовать Hardhat network: ${hardhatNetworkName}`);
   logger.info(`🔍 Детали сети: chainId=${chainId}, hardhatName=${hardhatNetworkName}, supportedChains=[${supportedChainIds.join(', ')}]`);
   return hardhatNetworkName;
 }
@@ -824,11 +807,16 @@ async function main() {
   }));
   
   // ВЫВОДИМ РЕЗУЛЬТАТ С ИНТЕГРИРОВАННОЙ ВЕРИФИКАЦИЕЙ!
-  console.log('[MULTI_DBG] 🎯 ДОШЛИ ДО ВЫВОДА РЕЗУЛЬТАТА!');
-  console.log('[MULTI_DBG] 📊 finalResults:', JSON.stringify(finalResults, null, 2));
-  console.log('[MULTI_DBG] 🎯 ВЫВОДИМ MULTICHAIN_DEPLOY_RESULT!');
-  console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify(finalResults));
-  console.log('[MULTI_DBG] ✅ MULTICHAIN_DEPLOY_RESULT ВЫВЕДЕН!');
+  // Важно: используем process.stdout.write, чтобы обойти маскирование адресов (logger/console)
+  logger.info('[MULTI_DBG] 🎯 ДОШЛИ ДО ВЫВОДА РЕЗУЛЬТАТА!');
+  logger.info('[MULTI_DBG] 📊 finalResults:', finalResults);
+  logger.info('[MULTI_DBG] 🎯 ВЫВОДИМ MULTICHAIN_DEPLOY_RESULT!');
+
+  const rawResult = JSON.stringify(finalResults);
+  // Эту строку парсят unifiedDeploymentService и dleV2Service по шаблону /MULTICHAIN_DEPLOY_RESULT\\s+(.+)/
+  process.stdout.write(`MULTICHAIN_DEPLOY_RESULT ${rawResult}\n`);
+
+  logger.info('[MULTI_DBG] ✅ MULTICHAIN_DEPLOY_RESULT ВЫВЕДЕН!');
   logger.info('[MULTI_DBG] DLE deployment completed successfully with integrated verification!');
 }
 
@@ -845,7 +833,9 @@ main().catch((e) => {
     stack: e.stack
   };
   
-  console.log('MULTICHAIN_DEPLOY_RESULT', JSON.stringify([errorResult]));
+  // Даже в случае ошибки выводим сырой результат без маскирования
+  const rawError = JSON.stringify([errorResult]);
+  process.stdout.write(`MULTICHAIN_DEPLOY_RESULT ${rawError}\n`);
   process.exit(1); 
 });
 
