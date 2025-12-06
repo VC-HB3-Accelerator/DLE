@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}🔄 Синхронизация кода с VDS...${NC}"
 
 # Параметры VDS (из настроек)
-VDS_HOST="185.221.214.140"
+VDS_HOST="185.26.121.127"
 VDS_USER="root"
 VDS_PORT="22"
 VDS_PATH="/home/docker/dapp"

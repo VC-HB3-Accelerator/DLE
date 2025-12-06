@@ -75,6 +75,10 @@
               <label>Docker Пользователь:</label>
               <div class="setting-value">{{ settings.dockerUser || 'Не задан' }}</div>
             </div>
+            <div class="setting-item">
+              <label>Путь к docker-compose:</label>
+              <div class="setting-value">{{ settings.dappPath || '/root/dapp' }}</div>
+            </div>
           </div>
         </div>
         
@@ -106,7 +110,7 @@
                   placeholder="admin@example.com" 
                   required 
                 />
-                <small class="form-help">Email для получения SSL сертификата от Let's Encrypt</small>
+                <small class="form-help">Email для получения SSL сертификата</small>
               </div>
               <div class="form-group">
                 <label for="ubuntuUser">Логин Ubuntu *</label>
@@ -129,6 +133,17 @@
                   required 
                 />
                 <small class="form-help">Пользователь для Docker (будет создан автоматически)</small>
+              </div>
+              <div class="form-group">
+                <label for="dappPath">Путь к docker-compose *</label>
+                <input 
+                  id="dappPath" 
+                  v-model="formSettings.dappPath" 
+                  type="text" 
+                  placeholder="/home/docker/dapp" 
+                  required 
+                />
+                <small class="form-help">Путь к директории с docker-compose.prod.yml на VDS сервере (обычно /home/docker/dapp или /home/ubuntu/dapp)</small>
               </div>
             </div>
 
@@ -377,6 +392,62 @@
         </div>
       </div>
 
+      <!-- SSL сертификаты -->
+      <div class="ssl-section">
+        <div class="section-header">
+          <h2>SSL сертификат</h2>
+        </div>
+
+        <div v-if="!isEditor" class="access-denied-message">
+          <p>⚠️ Управление SSL доступно только пользователям с ролью "Редактор"</p>
+        </div>
+
+        <div v-else>
+          <div class="ssl-status">
+            <div v-if="isLoadingSsl">
+              Загрузка статуса SSL...
+            </div>
+            <div v-else>
+              <div v-if="sslStatus && sslStatus.success && sslStatus.allCertificates && sslStatus.allCertificates.length">
+                <div class="ssl-info">
+                  <div
+                    v-for="cert in sslStatus.allCertificates"
+                    :key="cert.name"
+                    class="ssl-info-item"
+                  >
+                    <label>{{ cert.name }}</label>
+                    <span :class="{ 'expiring-soon': isCertExpiringSoon(cert.expiryDate) }">
+                      {{ cert.expiryDate || 'Без данных' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="ssl-no-cert">
+                SSL сертификат не найден для текущего домена.
+              </div>
+            </div>
+          </div>
+
+          <div class="ssl-actions-grid">
+            <button
+              class="action-btn ssl-btn status"
+              :disabled="isLoadingSsl || isLoading"
+              @click="checkSslStatus"
+            >
+              🔍 Проверить статус SSL
+            </button>
+            <button
+              v-if="isEditor"
+              class="action-btn ssl-btn renew"
+              :disabled="isLoading"
+              @click="renewSslCertificate"
+            >
+              🔐 Получить / обновить SSL
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Модальные окна -->
       <!-- Модальное окно создания пользователя -->
       <div v-if="showCreateUserModal && isEditor" class="modal-overlay" @click="showCreateUserModal = false">
@@ -450,6 +521,7 @@
           </div>
         </div>
       </div>
+
     </div>
   </BaseLayout>
 </template>
@@ -493,6 +565,8 @@ const showSendBackupModal = ref(false);
 const showLogsModal = ref(false);
 const logsTitle = ref('');
 const logsContent = ref('');
+const sslStatus = ref(null);
+const isLoadingSsl = ref(false);
 
 const newUser = reactive({
   username: '',
@@ -514,6 +588,7 @@ const formSettings = reactive({
   email: '',
   ubuntuUser: 'ubuntu',
   dockerUser: 'docker',
+  dappPath: '/home/docker/dapp',
   sshHost: '',
   sshPort: 22,
   sshUser: 'root',
@@ -540,6 +615,7 @@ let statsInterval = null;
 // Загрузка настроек
 const loadSettings = async () => {
   try {
+    // axios.defaults.baseURL = '/api', поэтому используем относительный путь
     const response = await axios.get('/vds/settings');
     if (response.data.success) {
       if (response.data.settings) {
@@ -553,6 +629,7 @@ const loadSettings = async () => {
           email: response.data.settings.email || '',
           ubuntuUser: response.data.settings.ubuntuUser || 'ubuntu',
           dockerUser: response.data.settings.dockerUser || 'docker',
+          dappPath: response.data.settings.dappPath || `/home/${response.data.settings.dockerUser || 'docker'}/dapp`,
           sshHost: response.data.settings.sshHost || '',
           sshPort: response.data.settings.sshPort || 22,
           sshUser: response.data.settings.sshUser || 'root',
@@ -621,11 +698,13 @@ const saveSettings = async () => {
   
   isSaving.value = true;
   try {
+    // axios.defaults.baseURL = '/api', поэтому используем относительный путь
     const response = await axios.post('/vds/settings', {
       domain: formSettings.domain,
       email: formSettings.email,
       ubuntuUser: formSettings.ubuntuUser,
       dockerUser: formSettings.dockerUser,
+      dappPath: formSettings.dappPath || '/root/dapp',
       sshHost: formSettings.sshHost,
       sshPort: formSettings.sshPort,
       sshUser: formSettings.sshUser,
@@ -667,13 +746,22 @@ const loadStats = async () => {
 const loadContainers = async () => {
   isLoading.value = true;
   try {
+    // axios.defaults.baseURL = '/api', поэтому используем относительный путь
     const response = await axios.get('/vds/containers');
     if (response.data.success) {
-      containers.value = response.data.containers;
+      containers.value = response.data.containers || [];
+    } else {
+      console.warn('[VDS] Загрузка контейнеров не успешна:', response.data);
+      containers.value = [];
+      if (response.data.message) {
+        console.info('[VDS]', response.data.message);
+      }
     }
   } catch (error) {
     console.error('Ошибка загрузки контейнеров:', error);
-    alert('Ошибка загрузки контейнеров');
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    alert(`Ошибка загрузки контейнеров: ${errorMessage}`);
+    containers.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -976,13 +1064,19 @@ const viewProcesses = async () => {
 const loadUsers = async () => {
   isLoading.value = true;
   try {
+    // axios.defaults.baseURL = '/api', поэтому используем относительный путь
     const response = await axios.get('/vds/users');
     if (response.data.success) {
       users.value = response.data.users;
+    } else {
+      console.warn('[VDS] Загрузка пользователей не успешна:', response.data);
+      users.value = [];
     }
   } catch (error) {
     console.error('Ошибка загрузки пользователей:', error);
-    alert('Ошибка загрузки пользователей');
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    alert(`Ошибка загрузки пользователей: ${errorMessage}`);
+    users.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -1128,7 +1222,7 @@ const sendBackup = async () => {
 // SSL Сертификаты
 const loadSslStatus = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут проверять SSL сертификаты');
+    // Не показываем ошибку, если пользователь не редактор - просто не загружаем статус
     return;
   }
   isLoadingSsl.value = true;
@@ -1137,11 +1231,62 @@ const loadSslStatus = async () => {
     if (response.data.success) {
       sslStatus.value = response.data;
     } else {
-      alert('Ошибка получения статуса SSL сертификата');
+      console.warn('[VDS] Получение статуса SSL не успешно:', response.data);
+      sslStatus.value = null;
+      // Не показываем alert для автоматической загрузки при монтировании компонента
+      // Alert показываем только при ручной проверке (через кнопку)
     }
   } catch (error) {
     console.error('Ошибка получения статуса SSL:', error);
-    alert(error.response?.data?.error || 'Ошибка получения статуса SSL сертификата');
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    
+    // Если VDS не настроена, это нормальная ситуация - не показываем ошибку
+    if (errorMessage.includes('VDS не настроена') || error.response?.status === 400) {
+      sslStatus.value = null;
+      return;
+    }
+    
+    // Если ошибка аутентификации (401), это нормальная ситуация - пользователь не авторизован
+    if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
+      sslStatus.value = null;
+      return;
+    }
+    
+    // Для других ошибок логируем, но не показываем alert при автоматической загрузке
+    sslStatus.value = null;
+  } finally {
+    isLoadingSsl.value = false;
+  }
+};
+
+// Ручная проверка статуса (с показом ошибок пользователю)
+const checkSslStatus = async () => {
+  if (!isEditor.value) {
+    alert('Только пользователи с ролью "Редактор" могут проверять SSL сертификаты');
+    return;
+  }
+  isLoadingSsl.value = true;
+  try {
+    const response = await axios.get('/vds/ssl/status');
+    if (response.data.success) {
+      sslStatus.value = response.data;
+      if (!response.data.allCertificates || response.data.allCertificates.length === 0) {
+        alert('SSL сертификат не найден для текущего домена');
+      }
+    } else {
+      alert('Ошибка получения статуса SSL сертификата: ' + (response.data.error || 'Неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка получения статуса SSL:', error);
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    
+    // Если ошибка аутентификации, показываем понятное сообщение
+    if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
+      alert('Требуется аутентификация. Пожалуйста, войдите в систему.');
+      return;
+    }
+    
+    alert(`Ошибка получения статуса SSL сертификата: ${errorMessage}`);
   } finally {
     isLoadingSsl.value = false;
   }
@@ -1152,10 +1297,14 @@ const renewSslCertificate = async () => {
     alert('Только пользователи с ролью "Редактор" могут получать SSL сертификаты');
     return;
   }
-  if (!confirm('Получить/обновить SSL сертификат от Let\'s Encrypt? Это может занять некоторое время.')) return;
+  if (!confirm('Получить/обновить SSL сертификат от Let\'s Encrypt? Это может занять некоторое время.')) {
+    return;
+  }
   isLoading.value = true;
   try {
-    const response = await axios.post('/vds/ssl/renew');
+    const response = await axios.post('/vds/ssl/renew', {
+      sslProvider: 'letsencrypt'
+    });
     if (response.data.success) {
       alert('SSL сертификат успешно получен/обновлен');
       await loadSslStatus();
@@ -1164,7 +1313,24 @@ const renewSslCertificate = async () => {
     }
   } catch (error) {
     console.error('Ошибка получения SSL сертификата:', error);
-    alert(error.response?.data?.error || 'Ошибка получения SSL сертификата');
+    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    const errorDetails = error.response?.data?.details || '';
+    
+    // Если ошибка аутентификации, показываем понятное сообщение
+    if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
+      alert('Требуется аутентификация. Пожалуйста, обновите страницу и войдите в систему заново.');
+      // Перенаправляем на главную страницу для повторной авторизации
+      router.push({ name: 'home' });
+      return;
+    }
+    
+    // Если ошибка лимита Let's Encrypt
+    if (error.response?.status === 429 || error.response?.data?.rateLimit || errorMessage.includes('too many certificates') || errorMessage.includes('rate limit') || errorDetails.includes('too many certificates')) {
+      alert('⚠️ Превышен лимит Let\'s Encrypt!\n\nСлишком много сертификатов было выпущено для этого домена за последние 7 дней.\n\nРекомендации:\n1. Подождите до указанной даты\n2. Используйте существующий сертификат (если он есть)\n3. Проверьте статус SSL на странице\n\nЛимит: 5 сертификатов на домен за 168 часов (7 дней)');
+      return;
+    }
+    
+    alert(`Ошибка получения SSL сертификата: ${errorMessage}`);
   } finally {
     isLoading.value = false;
   }

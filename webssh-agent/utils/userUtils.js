@@ -13,7 +13,10 @@ const createUserWithSshKeys = async (username, publicKey, options) => {
   
   // Настройка SSH ключей для пользователя
   await execSshCommand(`mkdir -p /home/${username}/.ssh`, options);
-  await execSshCommand(`echo "${publicKey}" > /home/${username}/.ssh/authorized_keys`, options);
+  // Используем printf для безопасной обработки специальных символов в ключе
+  // Экранируем обратные слеши и знаки доллара в публичном ключе
+  const escapedPublicKey = publicKey.replace(/\\/g, '\\\\').replace(/\$/g, '\\$');
+  await execSshCommand(`printf '%s\\n' "${escapedPublicKey}" > /home/${username}/.ssh/authorized_keys`, options);
   await execSshCommand(`chown -R ${username}:${username} /home/${username}/.ssh`, options);
   await execSshCommand(`chmod 700 /home/${username}/.ssh`, options);
   await execSshCommand(`chmod 600 /home/${username}/.ssh/authorized_keys`, options);

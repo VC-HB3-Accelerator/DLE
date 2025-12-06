@@ -44,6 +44,14 @@
             <span>Редактировать</span>
           </button>
           <button
+            class="page-action-btn page-index-btn"
+            @click="reindexPage"
+            title="Отправить документ в поиск"
+          >
+            <i class="fas fa-search"></i>
+            <span>Индексировать</span>
+          </button>
+          <button
             class="page-action-btn page-delete-btn"
             @click="confirmDeletePage"
             title="Удалить документ"
@@ -154,6 +162,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import pagesService from '../../services/pagesService';
+import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 
@@ -400,6 +409,18 @@ async function confirmDeletePage() {
   } catch (error) {
     console.error('[DocsContent] Ошибка удаления документа:', error);
     alert('Ошибка удаления: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+  }
+}
+
+// Ручная переиндексация документа в векторный поиск
+async function reindexPage() {
+  if (!page.value || !page.value.id) return;
+  try {
+    await api.post(`/pages/${page.value.id}/reindex`);
+    alert('Индексация выполнена');
+  } catch (error) {
+    console.error('[DocsContent] Ошибка индексации документа:', error);
+    alert('Ошибка индексации: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
   }
 }
 

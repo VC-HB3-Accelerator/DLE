@@ -27,10 +27,9 @@ const encryptionKey = encryptionUtils.getEncryptionKey();
  * Middleware для проверки аутентификации
  */
 const requireAuth = async (req, res, next) => {
-  // console.log('[DIAG][requireAuth] session:', req.session);
-  
   // Проверяем аутентификацию через сессию
   if (!req.session) {
+    logger.warn(`[requireAuth] Сессия отсутствует для ${req.method} ${req.path}`);
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
   
@@ -40,6 +39,13 @@ const requireAuth = async (req, res, next) => {
                          (req.session.address && req.session.authType === 'wallet');
   
   if (!isAuthenticated) {
+    logger.warn(`[requireAuth] Пользователь не аутентифицирован для ${req.method} ${req.path}`, {
+      hasSession: !!req.session,
+      authenticated: req.session?.authenticated,
+      userId: req.session?.userId,
+      address: req.session?.address,
+      authType: req.session?.authType
+    });
     return res.status(401).json({ error: 'Требуется аутентификация' });
   }
   

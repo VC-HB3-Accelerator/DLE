@@ -50,6 +50,9 @@ const exportDockerImages = async (sendWebSocketLog) => {
     { name: 'digital_legal_entitydle-webssh-agent:latest', file: 'dapp-webssh-agent.tar' }
   ];
   
+  // Список реально экспортированных файлов образов
+  const exportedImageFiles = [];
+  
   // Экспортируем все образы
   for (let i = 0; i < images.length; i++) {
     const image = images[i];
@@ -59,8 +62,20 @@ const exportDockerImages = async (sendWebSocketLog) => {
     try {
       const outputPath = `/tmp/${image.file}`;
       
+      // Проверяем, существует ли образ локально
+      const inspectResult = await execLocalCommand(`docker images -q ${image.name} || true`);
+      const imageId = inspectResult.stdout.trim();
+      
+      if (!imageId) {
+        const msg = `Образ ${image.name} не найден локально, пропускаем экспорт`;
+        log.warn(msg);
+        sendWebSocketLog('warning', `⚠️ ${msg}`, 'export_images', progress);
+        continue;
+      }
+      
       // Безопасный экспорт через CLI
-      await execDockerCommand(`docker save ${image.name} > ${outputPath}`);
+      await execDockerCommand(`docker save -o ${outputPath} ${image.name}`);
+      exportedImageFiles.push(image.file);
       
       sendWebSocketLog('success', `✅ Экспорт ${image.name} завершен`, 'export_images', progress);
     } catch (error) {
@@ -95,12 +110,14 @@ const exportDockerImages = async (sendWebSocketLog) => {
   sendWebSocketLog('info', '📦 Создание архива всех данных...', 'export_data', 80);
   
   try {
-    const tarFiles = images.map(img => img.file).join(' ');
+    const tarFiles = exportedImageFiles.join(' ');
     // Динамически собираем список файлов данных из экспортированных volumes
     const dataFilesList = await execLocalCommand('ls /tmp/*_data.tar.gz 2>/dev/null | xargs -r basename -a || echo ""');
     const dataFiles = dataFilesList.stdout.trim().split('\n').filter(f => f).join(' ');
     
-    const archiveCommand = `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles || ''}`.trim();
+    const archiveCommand = tarFiles
+      ? `cd /tmp && tar -czf docker-images-and-data.tar.gz ${tarFiles} ${dataFiles || ''}`.trim()
+      : `cd /tmp && tar -czf docker-images-and-data.tar.gz ${dataFiles || ''}`.trim();
     await execLocalCommand(archiveCommand);
     
     sendWebSocketLog('success', '✅ Архив создан успешно', 'export_data', 80);
@@ -160,7 +177,6 @@ const importDockerImages = async (options, sendWebSocketLog) => {
   sendWebSocketLog('info', '📥 Начинаем импорт данных на VDS...', 'import', 85);
   
   const importScript = `#!/bin/bash
-set -e
 echo "🚀 Импорт Docker образов и данных на VDS..."
 
 # Проверяем наличие архива
@@ -180,8 +196,17 @@ tar -xzf ./docker-images-and-data.tar.gz -C ./temp-import
 echo "📦 Импорт образов..."
 for image_file in ./temp-import/dapp-*.tar; do
     if [ -f "$image_file" ]; then
-        echo "📦 Импорт образа: $(basename $image_file)"
-        docker load -i "$image_file"
+        # Пропускаем пустые или поврежденные файлы образов
+        if [ ! -s "$image_file" ]; then
+            echo "⚠️ Пропуск пустого файла образа: $(basename "$image_file")"
+            continue
+        fi
+
+        echo "📦 Импорт образа: $(basename "$image_file")"
+        if ! docker load -i "$image_file"; then
+            echo "❌ Ошибка импорта образа: $(basename "$image_file"), продолжаем со следующими"
+            continue
+        fi
     fi
 done
 
@@ -198,14 +223,14 @@ for data_file in ./temp-import/*_data.tar.gz; do
         volume_name=$(basename "$data_file" .tar.gz 2>/dev/null || echo "")
         
         # Проверяем, что volume_name не пустой и не содержит только пробелы
-        if [ -z "${volume_name:-}" ] || [ -z "$(echo "${volume_name}" | tr -d '[:space:]')" ]; then
+        if [ -z "$volume_name" ] || [ -z "$(echo "$volume_name" | tr -d '[:space:]')" ]; then
             echo "⚠️ Предупреждение: не удалось извлечь имя volume из файла: $data_file"
             volume_name=""
             continue
         fi
         
         # Используем префикс dapp_ для соответствия docker-compose.prod.yml
-        full_volume_name="dapp_${volume_name}"
+        full_volume_name="dapp_$volume_name"
         
         echo "📦 Импорт данных: $full_volume_name"
         # Удаляем старый volume если существует

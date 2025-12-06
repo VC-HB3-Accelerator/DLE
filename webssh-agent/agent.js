@@ -494,7 +494,8 @@ findtime = 3600
     log.success('Директория для ключа шифрования подготовлена');
     
     // 9.1. Передача ключа шифрования на VDS
-    sendWebSocketLog('info', '🔐 Передача ключа шифрования на VDS...', 'encryption_key', 36);
+    // Прогресс после установки Docker (55%), двигаемся вперёд, а не назад
+    sendWebSocketLog('info', '🔐 Передача ключа шифрования на VDS...', 'encryption_key', 56);
     log.info('🔐 Передача ключа шифрования на VDS...');
     
     try {
@@ -592,14 +593,16 @@ findtime = 3600
       if (verifyResult.code === 0) {
         log.success('✅ Ключ шифрования успешно передан на VDS');
         log.info(`📋 Информация о ключе на VDS: ${verifyResult.stdout.trim()}`);
-        sendWebSocketLog('success', '✅ Ключ шифрования передан на VDS', 'encryption_key', 37);
+        // Делаем прогресс строго больше предыдущего шага Docker (55%)
+        sendWebSocketLog('success', '✅ Ключ шифрования передан на VDS', 'encryption_key', 57);
       } else {
         throw new Error(`Не удалось проверить передачу ключа шифрования: ${verifyResult.stderr || verifyResult.stdout}`);
       }
     } catch (error) {
       log.error('❌ Ошибка передачи ключа шифрования: ' + error.message);
       log.error('📋 Детали ошибки:', error.stack);
-      sendWebSocketLog('error', `❌ Ошибка передачи ключа шифрования: ${error.message}`, 'encryption_key', 37);
+      // Даже при ошибке не откатываем прогресс назад относительно предыдущих шагов
+      sendWebSocketLog('error', `❌ Ошибка передачи ключа шифрования: ${error.message}`, 'encryption_key', 57);
       // Продолжаем установку, но предупреждаем пользователя
       log.warn('⚠️ Внимание: ключ шифрования не передан. Backend может не запуститься без ключа.');
     }
@@ -633,6 +636,16 @@ findtime = 3600
     const tempCertCommand = `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/letsencrypt/live/${domain}/privkey.pem -out /etc/letsencrypt/live/${domain}/fullchain.pem -subj '/C=US/ST=State/L=City/O=Organization/CN=${domain}'`;
     await execSshCommand(tempCertCommand, options);
     log.success('Временный SSL сертификат создан');
+    // Сообщаем о создании временного сертификата сразу после его генерации,
+    // выставляя прогресс между шагами Docker (55%) и экспортом образов (60%),
+    // чтобы индикатор прогресса не "откатывался" назад.
+    log.info('ℹ️ Временный SSL сертификат создан. Для получения реального SSL сертификата используйте кнопку \"Получить / обновить SSL\" на странице /vds.');
+    sendWebSocketLog(
+      'info',
+      'ℹ️ Временный SSL сертификат установлен. Для получения реального SSL нажмите \"Получить / обновить SSL\" в интерфейсе VDS.',
+      'ssl_cert',
+      58
+    );
     
     // 12. Передача docker-compose.prod.yml на VDS
     log.info('Передача docker-compose.prod.yml на VDS...');
@@ -689,153 +702,24 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     log.info('Запуск приложения...');
     await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d`, options);
     
-    // 16.1. 🆕 Настройка CORS заголовков в nginx для API
+    // 16.1. Настройка CORS заголовков в nginx для API
     log.info('🔧 Настройка CORS заголовков в nginx для API...');
-    await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec frontend-nginx sed -i '/add_header X-XSS-Protection/a\\            add_header Access-Control-Allow-Origin \"https://${domain}\" always;\\            add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\\            add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-Requested-With\" always;\\            add_header Access-Control-Allow-Credentials \"true\" always;' /etc/nginx/nginx.conf`, options);
+    await execSshCommand(
+      `cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec frontend-nginx sed -i '/add_header X-XSS-Protection/a\\            add_header Access-Control-Allow-Origin \"https://${domain}\" always;\\            add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\\            add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-Requested-With\" always;\\            add_header Access-Control-Allow-Credentials \"true\" always;' /etc/nginx/nginx.conf`,
+      options
+    );
     
     // Перезапускаем nginx с новой конфигурацией
     await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart frontend-nginx`, options);
     log.success('✅ CORS заголовки настроены в nginx для API');
     
-    // 16.0. 🆕 Получение реального SSL сертификата через Let's Encrypt
-    log.info('🔒 Получение реального SSL сертификата через Let\'s Encrypt...');
-    sendWebSocketLog('info', '🔒 Получение SSL сертификата...', 'ssl_cert', 75);
+    // 16.0. Получение реального SSL сертификата перенесено в backend (/api/vds/ssl/renew).
+    // Здесь агент создает только временный самоподписанный сертификат (см. шаг 11 выше).
+    // Для получения/обновления реального сертификата используйте кнопку
+    // "Получить / обновить SSL" на странице управления VDS в интерфейсе DLE,
+    // которая вызывает /api/vds/ssl/renew на backend.
     
-    try {
-      // Убеждаемся, что директории для certbot существуют
-      log.info('📁 Подготовка директорий для certbot...');
-      await execSshCommand('mkdir -p /var/www/certbot/.well-known/acme-challenge', options);
-      await execSshCommand('chmod -R 755 /var/www/certbot', options);
-      
-      // Проверяем, запущен ли frontend-nginx
-      log.info('🔍 Проверка статуса frontend-nginx...');
-      const nginxStatus = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml ps frontend-nginx --format json 2>/dev/null || echo 'not running'`, options);
-      
-      let tempHttpContainerStarted = false;
-      let nginxRunning = false;
-      
-      // Проверяем, доступен ли порт 80
-      const port80Check = await execSshCommand('netstat -tuln | grep ":80 " || ss -tuln | grep ":80 " || echo "port 80 not listening"', options);
-      
-      if (port80Check.stdout.includes(':80 ') || port80Check.stdout.includes('LISTEN')) {
-        log.info('✅ Порт 80 уже занят, проверяем доступность challenge...');
-        const challengeToken = `test-${Date.now()}`;
-        await execSshCommand(`echo 'test' > /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
-        const challengeCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken} 2>&1 || curl -fsS http://localhost/.well-known/acme-challenge/${challengeToken} 2>&1`, options);
-        await execSshCommand(`rm -f /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
-        
-        if (challengeCheck.code === 0) {
-          log.success('✅ HTTP challenge доступен через существующий веб-сервер');
-          nginxRunning = true;
-        } else {
-          log.warn('⚠️ HTTP challenge недоступен через существующий сервер');
-        }
-      }
-      
-      // Если порт 80 не занят или challenge недоступен, запускаем временный nginx
-      if (!nginxRunning) {
-        log.info('🚀 Запуск временного nginx для HTTP challenge...');
-        await execSshCommand('docker rm -f dle-certbot-http 2>/dev/null || true', options);
-        
-        // Останавливаем frontend-nginx если он запущен (чтобы освободить порт 80)
-        await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml stop frontend-nginx 2>/dev/null || true`, options);
-        
-        // Запускаем временный nginx для challenge
-        const tempNginxStart = await execSshCommand('docker run -d --name dle-certbot-http --network dapp_network -p 80:80 -v /var/www/certbot:/usr/share/nginx/html:ro nginx:alpine 2>&1', options);
-        
-        if (tempNginxStart.code === 0) {
-          tempHttpContainerStarted = true;
-          log.success('✅ Временный nginx запущен для HTTP challenge');
-          await execSshCommand('sleep 5', options); // Даем время nginx запуститься
-          
-          // Проверяем доступность challenge
-          const challengeToken = `verify-${Date.now()}`;
-          await execSshCommand(`echo 'verify' > /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
-          const verifyCheck = await execSshCommand(`curl -fsS http://${domain}/.well-known/acme-challenge/${challengeToken} 2>&1 || curl -fsS http://localhost/.well-known/acme-challenge/${challengeToken} 2>&1`, options);
-          await execSshCommand(`rm -f /var/www/certbot/.well-known/acme-challenge/${challengeToken}`, options);
-          
-          if (verifyCheck.code === 0) {
-            log.success('✅ HTTP challenge доступен через временный nginx');
-          } else {
-            log.warn(`⚠️ HTTP challenge недоступен: ${verifyCheck.stderr || verifyCheck.stdout}`);
-          }
-        } else {
-          log.error(`❌ Не удалось запустить временный nginx: ${tempNginxStart.stderr || tempNginxStart.stdout}`);
-          throw new Error('Не удалось запустить временный nginx для HTTP challenge');
-        }
-      }
-      
-      // Получаем SSL сертификат через certbot
-      log.info('📜 Получение SSL сертификата через certbot...');
-      const certbotResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml run --rm --no-deps certbot 2>&1`, options);
-      
-      if (certbotResult.code === 0) {
-        log.success('✅ Реальный SSL сертификат успешно получен от Let\'s Encrypt');
-        sendWebSocketLog('success', '✅ SSL сертификат получен', 'ssl_cert', 80);
-        
-        // Проверяем наличие сертификата
-        const certCheck = await execSshCommand(`ls -la /etc/letsencrypt/live/${domain}/fullchain.pem /etc/letsencrypt/live/${domain}/privkey.pem 2>&1`, options);
-        if (certCheck.code === 0) {
-          log.info(`📋 Сертификаты найдены:\n${certCheck.stdout}`);
-        }
-      } else {
-        const errorMsg = certbotResult.stderr || certbotResult.stdout || 'Неизвестная ошибка';
-        log.warn(`⚠️ Предупреждение при получении SSL сертификата: ${errorMsg}`);
-        log.info('ℹ️ Будет использоваться временный самоподписанный сертификат');
-        sendWebSocketLog('warning', `⚠️ SSL сертификат не получен: ${errorMsg.substring(0, 100)}`, 'ssl_cert', 80);
-      }
-      
-      // Останавливаем временный nginx если он был запущен
-      if (tempHttpContainerStarted) {
-        log.info('🛑 Остановка временного nginx контейнера...');
-        await execSshCommand('docker rm -f dle-certbot-http 2>/dev/null || true', options);
-        
-        // Перезапускаем frontend-nginx если он был остановлен
-        log.info('🔄 Перезапуск frontend-nginx...');
-        await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d frontend-nginx 2>&1`, options);
-      }
-      
-    } catch (error) {
-      log.error(`❌ Ошибка при получении SSL сертификата: ${error.message}`);
-      log.error('📋 Детали ошибки:', error.stack);
-      sendWebSocketLog('error', `❌ Ошибка получения SSL сертификата: ${error.message}`, 'ssl_cert', 80);
-      log.warn('⚠️ Продолжаем с временным самоподписанным сертификатом');
-    }
-    
-    // Настройка автоматического обновления SSL сертификатов
-    log.info('⚙️ Настройка автоматического обновления SSL сертификатов...');
-    const renewScript = `#!/bin/bash
-# Автоматическое обновление SSL сертификатов через Docker certbot
-cd /home/${dockerUser}/dapp
-echo "$(date): Проверка обновления SSL сертификатов..." >> /var/log/ssl-renewal.log
-
-# Обновляем сертификаты через certbot (--no-deps чтобы не ждать зависимости)
-docker compose -f docker-compose.prod.yml run --rm --no-deps certbot renew --non-interactive 2>&1 | tee -a /var/log/ssl-renewal.log
-
-if [ $? -eq 0 ]; then
-    echo "$(date): SSL сертификаты обновлены, перезапуск nginx..." >> /var/log/ssl-renewal.log
-    docker compose -f docker-compose.prod.yml restart frontend-nginx 2>&1 | tee -a /var/log/ssl-renewal.log
-else
-    echo "$(date): Ошибка обновления SSL сертификатов" >> /var/log/ssl-renewal.log
-fi
-`;
-    await execSshCommand(`cat > /home/${dockerUser}/dapp/renew-ssl.sh << 'RENEW_EOF'
-${renewScript}
-RENEW_EOF
-`, options);
-    await execSshCommand(`chmod +x /home/${dockerUser}/dapp/renew-ssl.sh`, options);
-    
-    // Устанавливаем cron задачу (если crontab доступен)
-    const cronCheck = await execSshCommand('which crontab 2>/dev/null || echo "crontab not found"', options);
-    if (cronCheck.stdout.includes('crontab')) {
-      await execSshCommand(`(crontab -l 2>/dev/null | grep -v renew-ssl.sh; echo "0 12 * * * /home/${dockerUser}/dapp/renew-ssl.sh") | crontab -`, options);
-      log.success('✅ Автоматическое обновление SSL сертификатов настроено (ежедневно в 12:00)');
-    } else {
-      log.warn('⚠️ crontab не найден, автоматическое обновление не настроено');
-      log.info('💡 Для ручного обновления выполните: /home/${dockerUser}/dapp/renew-ssl.sh');
-    }
-    
-    // 16.1. 🆕 Ожидание готовности базы данных с повторными попытками
+    // 16.2. Ожидание готовности базы данных с повторными попытками
     log.info('Ожидание готовности базы данных...');
     let dbReady = false;
     let attempts = 0;

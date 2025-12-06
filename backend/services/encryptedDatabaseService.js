@@ -571,15 +571,39 @@ class EncryptedDataService {
 
   /**
    * Выполнить незашифрованный запрос (fallback)
+   * Автоматически преобразует результаты: колонки с _encrypted возвращаются без суффикса
    */
   async executeUnencryptedQuery(tableName, conditions = {}, limit = null, orderBy = null) {
-    let query = `SELECT * FROM ${tableName}`;
+    // Получаем информацию о колонках таблицы
+    const { rows: columns } = await db.getQuery()(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = $1 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `, [tableName]);
+
+    // Строим SELECT с алиасами для колонок с _encrypted
+    const selectFields = columns.map(col => {
+      if (col.column_name.endsWith('_encrypted')) {
+        const originalName = col.column_name.replace('_encrypted', '');
+        return `${col.column_name} as "${originalName}"`;
+      }
+      return col.column_name;
+    }).join(', ');
+
+    let query = `SELECT ${selectFields} FROM ${tableName}`;
     const params = [];
     let paramIndex = 1;
 
     if (Object.keys(conditions).length > 0) {
+      // Преобразуем ключи условий: если есть колонка с _encrypted, используем её
       const whereClause = Object.keys(conditions)
-        .map(key => `${key} = $${paramIndex++}`)
+        .map(key => {
+          const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
+          const columnName = encryptedColumn ? `${key}_encrypted` : key;
+          return `${columnName} = $${paramIndex++}`;
+        })
         .join(' AND ');
       query += ` WHERE ${whereClause}`;
       params.push(...Object.values(conditions));
@@ -599,29 +623,72 @@ class EncryptedDataService {
 
   /**
    * Выполнить незашифрованное сохранение (fallback)
+   * Автоматически преобразует ключи: если есть колонка с суффиксом _encrypted, использует её
    */
   async executeUnencryptedSave(tableName, data, whereConditions = null) {
+    // Получаем информацию о колонках таблицы
+    const { rows: columns } = await db.getQuery()(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = $1 
+      AND table_schema = 'public'
+      ORDER BY ordinal_position
+    `, [tableName]);
+
+    // Преобразуем ключи данных: если есть колонка с _encrypted, используем её
+    const transformedData = {};
+    for (const [key, value] of Object.entries(data)) {
+      // Пропускаем служебные поля
+      if (key === 'created_at' || key === 'updated_at') {
+        transformedData[key] = value;
+        continue;
+      }
+
+      // Проверяем, есть ли колонка с суффиксом _encrypted
+      const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
+      if (encryptedColumn) {
+        // Используем колонку с суффиксом _encrypted (но БЕЗ шифрования, так как это fallback)
+        transformedData[`${key}_encrypted`] = value;
+      } else {
+        // Используем колонку как есть
+        transformedData[key] = value;
+      }
+    }
+
+    // Преобразуем ключи в whereConditions аналогично
+    const transformedWhereConditions = whereConditions ? {} : null;
     if (whereConditions) {
+      for (const [key, value] of Object.entries(whereConditions)) {
+        const encryptedColumn = columns.find(col => col.column_name === `${key}_encrypted`);
+        if (encryptedColumn) {
+          transformedWhereConditions[`${key}_encrypted`] = value;
+        } else {
+          transformedWhereConditions[key] = value;
+        }
+      }
+    }
+
+    if (transformedWhereConditions) {
       // UPDATE
-      const setClause = Object.keys(data)
+      const setClause = Object.keys(transformedData)
         .map((key, index) => `${key} = $${index + 1}`)
         .join(', ');
-      const whereClause = Object.keys(whereConditions)
-        .map((key, index) => `${key} = $${Object.keys(data).length + index + 1}`)
+      const whereClause = Object.keys(transformedWhereConditions)
+        .map((key, index) => `${key} = $${Object.keys(transformedData).length + index + 1}`)
         .join(' AND ');
 
       const query = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause} RETURNING *`;
-      const params = [...Object.values(data), ...Object.values(whereConditions)];
+      const params = [...Object.values(transformedData), ...Object.values(transformedWhereConditions)];
 
       const { rows } = await db.getQuery()(query, params);
       return rows[0];
     } else {
       // INSERT
-      const columns = Object.keys(data);
-      const values = Object.values(data);
+      const columnsList = Object.keys(transformedData);
+      const values = Object.values(transformedData);
       const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
 
-      const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) RETURNING *`;
+      const query = `INSERT INTO ${tableName} (${columnsList.join(', ')}) VALUES (${placeholders}) RETURNING *`;
       const { rows } = await db.getQuery()(query, values);
       return rows[0];
     }

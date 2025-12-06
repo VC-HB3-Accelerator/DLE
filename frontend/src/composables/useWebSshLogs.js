@@ -74,12 +74,10 @@ export function useWebSshLogs() {
     console.log('[WebSSH Logs] Получен прогресс:', data);
     
     if (data.type === 'webssh_progress') {
-      const progressMessage = `[${data.stage}] ${data.message}`;
+      const hasPercentage = data.percentage !== undefined && data.percentage !== null;
+      const progressSuffix = hasPercentage ? ` — ${data.percentage}%` : '';
+      const progressMessage = `[${data.stage}] ${data.message}${progressSuffix}`;
       addLog('info', progressMessage);
-      
-      if (data.percentage) {
-        addLog('debug', `Прогресс: ${data.percentage}%`);
-      }
     }
   };
 

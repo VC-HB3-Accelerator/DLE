@@ -163,13 +163,26 @@ const setupRootSshKeys = async (publicKey, options) => {
   // Создание директории .ssh для root
   await execSshCommand('mkdir -p /root/.ssh', options);
   await execSshCommand('chmod 700 /root/.ssh', options);
+  // ВАЖНО: Устанавливаем правильного владельца директории (root:root)
+  // SSH не принимает ключи, если директория принадлежит другому пользователю
+  await execSshCommand('chown root:root /root/.ssh', options);
   
   // Добавление публичного ключа в authorized_keys
-  await execSshCommand(`echo "${publicKey}" >> /root/.ssh/authorized_keys`, options);
+  // Используем printf для безопасной обработки специальных символов в ключе
+  // Экранируем обратные слеши и знаки доллара в публичном ключе
+  const escapedPublicKey = publicKey.replace(/\\/g, '\\\\').replace(/\$/g, '\\$');
+  await execSshCommand(`printf '%s\\n' "${escapedPublicKey}" >> /root/.ssh/authorized_keys`, options);
   await execSshCommand('chmod 600 /root/.ssh/authorized_keys', options);
   await execSshCommand('chown root:root /root/.ssh/authorized_keys', options);
   
-  log.success('SSH ключи созданы и публичный ключ добавлен в authorized_keys');
+  // Проверяем, что ключ действительно добавлен
+  const verifyResult = await execSshCommand(`grep -Fx "${escapedPublicKey}" /root/.ssh/authorized_keys > /dev/null && echo "OK" || echo "FAIL"`, options);
+  if (verifyResult.stdout.trim() === 'OK') {
+    log.success('SSH ключи созданы и публичный ключ добавлен в authorized_keys');
+  } else {
+    log.error('Ошибка: публичный ключ не был добавлен в authorized_keys');
+    throw new Error('Не удалось добавить публичный ключ в authorized_keys');
+  }
 };
 
 /**

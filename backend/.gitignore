@@ -43,3 +43,6 @@ yarn-error.log*
 *.db
 *.sqlite
 *.sqlite3 
+
+# Конфиденциальные/служебные константы backend
+constants/

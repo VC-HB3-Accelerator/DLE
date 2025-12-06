@@ -253,53 +253,51 @@ const handleSubmit = async () => {
   if (!validateForm()) return;
   
   isLoading.value = true;
-  addLog('info', 'Запуск настройки VDS...');
+
   try {
+    // 1. Сначала всегда сохраняем настройки в БД
+    addLog('info', 'Сохранение настроек VDS на сервере...');
+    try {
+      // axios.defaults.baseURL = '/api', поэтому используем относительный путь
+      // чтобы итоговый URL был /api/vds/settings, а не /api/api/vds/settings
+      const response = await axios.post('/vds/settings', {
+        domain: form.domain,
+        email: form.email,
+        ubuntuUser: form.ubuntuUser,
+        dockerUser: form.dockerUser,
+        sshHost: form.sshHost,
+        sshPort: parseInt(form.sshPort, 10) || 22, // Преобразуем в число
+        sshUser: form.sshUser,
+        sshPassword: form.sshPassword
+      });
+      
+      if (response.data && response.data.success) {
+        addLog('success', '✅ Настройки VDS сохранены в базе данных');
+      } else {
+        addLog('error', `❌ Ошибка сохранения настроек: ${response.data?.error || 'Неизвестная ошибка'}`);
+      }
+    } catch (error) {
+      console.error('[WebSSH] Ошибка сохранения настроек:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+      addLog('error', `❌ Ошибка сохранения настроек на сервере: ${errorMessage}`);
+      // Даже если сохранение настроек упало, продолжаем попытку настройки VDS через агента
+    }
+
+    // 2. Затем запускаем настройку VDS через агента
+    addLog('info', 'Запуск настройки VDS через WebSSH Agent...');
     const result = await webSshService.setupVDS(form);
+
     if (result.success) {
       isConnected.value = true;
       connectionStatus.value = `VDS настроен: ${form.domain}`;
       addLog('success', 'VDS успешно настроена');
       addLog('info', `Ваше приложение будет доступно по адресу: https://${form.domain}`);
       
-      // Сохраняем статус VDS как настроенного
+      // Сохраняем статус VDS как настроенного локально
       localStorage.setItem('vds-config', JSON.stringify({ 
         isConfigured: true,
         domain: form.domain 
       }));
-      
-      // Сохраняем ВСЕ настройки на сервере
-      try {
-        addLog('info', 'Сохранение настроек VDS на сервере...');
-        const response = await axios.post('/api/vds/settings', {
-          domain: form.domain,
-          email: form.email,
-          ubuntuUser: form.ubuntuUser,
-          dockerUser: form.dockerUser,
-          sshHost: form.sshHost,
-          sshPort: parseInt(form.sshPort, 10) || 22, // Преобразуем в число
-          sshUser: form.sshUser,
-          sshPassword: form.sshPassword
-        });
-        
-        if (response.data && response.data.success) {
-          addLog('success', '✅ Настройки VDS успешно сохранены на сервере');
-        } else {
-          addLog('error', `❌ Ошибка сохранения настроек: ${response.data?.error || 'Неизвестная ошибка'}`);
-        }
-      } catch (error) {
-        console.error('[WebSSH] Ошибка сохранения настроек:', error);
-        const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
-        addLog('error', `❌ Ошибка сохранения настроек на сервере: ${errorMessage}`);
-        // Показываем детали ошибки в консоли для отладки
-        if (error.response) {
-          console.error('[WebSSH] Детали ошибки:', {
-            status: error.response.status,
-            statusText: error.response.statusText,
-            data: error.response.data
-          });
-        }
-      }
       
       // Отправляем событие об изменении статуса VDS
       window.dispatchEvent(new CustomEvent('vds-status-changed', {

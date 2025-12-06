@@ -64,10 +64,10 @@
     <!-- WEB SSH -->
     <div class="web3-service-block">
       <div class="service-header">
-        <h3>WEB SSH</h3>
-        <span class="service-badge webssh">Публикация через SSH-туннель</span>
+        <h3>VDS Сервер</h3>
+        <span class="service-badge webssh">Публикация на VDS сервере</span>
       </div>
-      <p>Автоматическая публикация приложения в интернете через SSH-туннель.</p>
+      <p>Автоматическая публикация приложения в интернете.</p>
       <div class="service-features">
         <span class="feature">✓ Быстрое подключение</span>
         <span class="feature">✓ Безопасно</span>

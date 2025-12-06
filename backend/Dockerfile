@@ -26,7 +26,8 @@ RUN apt-get update && \
         make \
         curl \
         ca-certificates \
-        openssh-client && \
+        openssh-client \
+        sshpass && \
     apt-get install -y --fix-missing g++ || \
     (sleep 10 && apt-get update && apt-get install -y --fix-missing g++) && \
     rm -rf /var/lib/apt/lists/*

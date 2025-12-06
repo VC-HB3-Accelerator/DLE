@@ -172,112 +172,19 @@ class WebSshService {
 
   /**
    * Автоматическая установка и запуск агента
+   * В новой архитектуре агент всегда запускается в Docker (dapp-webssh-agent),
+   * поэтому здесь просто проверяем его доступность.
    */
   async installAndStartAgent() {
-    try {
-      // Сначала проверяем, может агент уже запущен
       const status = await this.checkAgentStatus();
       if (status.running) {
         return { success: true, message: 'Агент уже запущен' };
       }
 
-      // Пытаемся запустить агент через системный вызов
-      const response = await fetch(`${LOCAL_AGENT_URL}/install`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'install_and_start'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        this.isAgentRunning = true;
-        return { success: true, message: 'Агент успешно установлен и запущен' };
-      } else {
-        // Если агент не отвечает, пытаемся скачать и установить его
-        return await this.downloadAndInstallAgent();
-      }
-    } catch (error) {
-              // console.error('Ошибка при установке агента:', error);
-      return await this.downloadAndInstallAgent();
-    }
-  }
-
-  /**
-   * Скачивание и установка агента
-   */
-  async downloadAndInstallAgent() {
-    try {
-      // Создаем скрипт для скачивания и установки агента
-      const installScript = `
-        #!/bin/bash
-        
-        # Создаем директорию для агента
-        mkdir -p ~/.webssh-agent
-        cd ~/.webssh-agent
-        
-        # Скачиваем агент (пока создаем локально)
-        cat > agent.js << 'EOF'
-${this.getAgentCode()}
-EOF
-        
-        # Скачиваем package.json
-        cat > package.json << 'EOF'
-{
-  "name": "webssh-agent",
-  "version": "1.0.0",
-  "description": "Local SSH tunnel agent",
-  "main": "agent.js",
-  "scripts": {
-    "start": "node agent.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "ssh2": "^1.14.0",
-    "node-ssh": "^13.1.0"
-  }
-}
-EOF
-        
-        # Устанавливаем зависимости
-        npm install
-        
-        # Запускаем агент в фоне
-        nohup node agent.js > agent.log 2>&1 &
-        
-        echo "Агент установлен и запущен"
-      `;
-
-      // Создаем Blob со скриптом
-      const blob = new Blob([installScript], { type: 'application/x-sh' });
-      const url = URL.createObjectURL(blob);
-      
-      // Создаем ссылку для скачивания
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'install-webssh-agent.sh';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
       return {
         success: false,
-        message: 'Скачайте и запустите скрипт install-webssh-agent.sh для установки агента',
-        requiresManualInstall: true
-      };
-    } catch (error) {
-              // console.error('Ошибка при создании установочного скрипта:', error);
-      return {
-        success: false,
-        message: 'Ошибка при подготовке установки агента',
-        error: error.message
-      };
-    }
+      message: 'WebSSH Agent не запущен. Убедитесь, что контейнер dapp-webssh-agent работает (docker compose up -d webssh-agent).'
+    };
   }
 
   /**
@@ -327,10 +234,9 @@ EOF
         config.vdsIp = dnsResult.ip;
       }
 
-      // Проверяем, что агент запущен
+      // Проверяем, что агент запущен (в Docker)
       const agentStatus = await this.checkAgentStatus();
       if (!agentStatus.running) {
-        // Пытаемся установить и запустить агент
         const installResult = await this.installAndStartAgent();
         if (!installResult.success) {
           return installResult;

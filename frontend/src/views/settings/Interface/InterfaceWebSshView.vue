@@ -21,8 +21,7 @@
   />
   <div class="webssh-settings-block">
     <button class="close-btn" @click="goBack">×</button>
-    <h2>WEB SSH: интеграция и настройки</h2>
-    <p class="desc">Автоматическая публикация приложения через SSH-туннель и NGINX.</p>
+    <h2>Настройка VDS Сервер</h2>
     <WebSshForm />
   </div>
 </template>

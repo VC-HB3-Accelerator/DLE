@@ -207,3 +207,6 @@ docker-data/
 dle-template.tar.gz
 dle-template.tar.gz.part-*
 dle-template.tar.gz.join.sh
+
+# Локальные скрипты разработки
+sync-to-vds.sh
