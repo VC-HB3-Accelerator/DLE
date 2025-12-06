@@ -36,7 +36,8 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
 The script automatically downloads the latest artifacts from the release and deploys `docker-data`.
 
 ### 📦 Releases and artifacts
-- [Release v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) (Latest) — contains the complete application template with Docker images, volumes, and encryption key. Archive is split into parts (`dle-template.tar.gz.part-*`) for easy download.
+- [Release v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) (Latest) — contains the complete application template with Docker images, volumes, and encryption key. Archive is split into parts (`dle-template.tar.gz.part-*`) for easy download.
+- [Release v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — previous version.
 - [Release v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — previous version.
 
 ### Running the application

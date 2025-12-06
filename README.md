@@ -28,15 +28,11 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
 wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash"
 ```
 
-**Альтернатива для Windows (Git Bash):**
-```bash
-curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
-```
-
 Скрипт автоматически скачивает последние артефакты из релиза и разворачивает `docker-data`.
 
 ### 📦 Релизы и артефакты
-- [Релиз v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) (Latest) — содержит полный шаблон приложения с Docker образами, томами и ключом шифрования. Архив разделен на части (`dle-template.tar.gz.part-*`) для удобства загрузки.
+- [Релиз v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) (Latest) — содержит полный шаблон приложения с Docker образами, томами и ключом шифрования. Архив разделен на части (`dle-template.tar.gz.part-*`) для удобства загрузки.
+- [Релиз v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — предыдущая версия.
 - [Релиз v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — предыдущая версия.
 
 ### Запуск приложения
