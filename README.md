@@ -21,13 +21,6 @@
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
 ```
-
-**Для Windows PowerShell:**
-```powershell
-# Используйте WSL или Git Bash
-wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash"
-```
-
 Скрипт автоматически скачивает последние артефакты из релиза и разворачивает `docker-data`.
 
 ### 📦 Релизы и артефакты
@@ -43,7 +36,7 @@ docker-compose up -d
 ### Доступ к приложению
 
 #### Продакшн (production)
-- **Frontend**: http://localhost:9000 (HTTP) или https://localhost:9443 (HTTPS)
+- **Frontend**: http://localhost:9000 (HTTP)
 
 ### Остановка
 ```bash
