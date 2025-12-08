@@ -22,17 +22,6 @@ Complete Digital Legal Entity application template
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
 ```
 
-**For Windows PowerShell:**
-```powershell
-# Use WSL or Git Bash
-wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash"
-```
-
-**Alternative for Windows (Git Bash):**
-```bash
-curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
-```
-
 The script automatically downloads the latest artifacts from the release and deploys `docker-data`.
 
 ### 📦 Releases and artifacts
@@ -48,7 +37,7 @@ docker-compose up -d
 ### Access to the application
 
 #### Production
-- **Frontend**: http://localhost:9000 (HTTP) or https://localhost:9443 (HTTPS)
+- **Frontend**: http://localhost:9000 (HTTP)
 
 ### Stopping
 ```bash
