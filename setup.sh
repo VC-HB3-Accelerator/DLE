@@ -28,12 +28,17 @@ print_red() {
 ARCHIVE_VERSION="v1.0.2"
 ARCHIVE_BASE_URL="https://github.com/VC-HB3-Accelerator/DLE/releases/download/${ARCHIVE_VERSION}"
 
-# Список частей архива (стандартные части для релиза v1.0.1+)
+# Список частей архива (стандартные части для релиза v1.0.2+)
 ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-aa"
   "dle-template.tar.gz.part-ab"
   "dle-template.tar.gz.part-ac"
   "dle-template.tar.gz.part-ad"
+  "dle-template.tar.gz.part-ae"
+  "dle-template.tar.gz.part-af"
+  "dle-template.tar.gz.part-ag"
+  "dle-template.tar.gz.part-ah"
+  "dle-template.tar.gz.part-ai"
 )
 
 # Проверка curl
