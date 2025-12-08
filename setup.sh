@@ -144,26 +144,104 @@ download_archive_parts() {
   # Загружаем части архива
   for part in "${ARCHIVE_PARTS[@]}"; do
     local url="${ARCHIVE_BASE_URL}/${part}"
+    local part_file="${tmp_dir}/${part}"
     print_blue "⇣ Загрузка ${part}..."
-    if ! curl -fL --retry 3 --continue-at - --output "${tmp_dir}/${part}" "${url}"; then
+    # Удаляем файл перед загрузкой, чтобы избежать проблем с --continue-at
+    rm -f "${part_file}"
+    if ! curl -fL --retry 3 --output "${part_file}" "${url}"; then
       print_red "❌ Не удалось скачать ${part}"
       print_yellow "Проверьте подключение к сети или доступность релиза ${ARCHIVE_VERSION}"
       rm -rf "${tmp_dir}"
       exit 1
     fi
+    
+    # Проверяем, что файл не пустой
+    if [ ! -s "${part_file}" ]; then
+      print_red "❌ Файл ${part} пустой или поврежден"
+      rm -rf "${tmp_dir}"
+      exit 1
+    fi
+    
+    local part_size
+    part_size=$(stat -c%s "${part_file}" 2>/dev/null || stat -f%z "${part_file}" 2>/dev/null || echo "0")
+    if command -v numfmt &> /dev/null; then
+      local part_size_human=$(numfmt --to=iec-i --suffix=B ${part_size} 2>/dev/null || echo "${part_size} bytes")
+      print_blue "  ✓ ${part} загружен (${part_size_human})"
+    else
+      print_blue "  ✓ ${part} загружен (${part_size} bytes)"
+    fi
   done
 
   print_blue "🧩 Сборка архива dle-template.tar.gz..."
-  cat "${tmp_dir}"/dle-template.tar.gz.part-* > "${tmp_dir}/dle-template.tar.gz"
+  # Явно указываем порядок частей из массива ARCHIVE_PARTS
+  local archive_file="${tmp_dir}/dle-template.tar.gz"
+  
+  # Очищаем целевой файл
+  rm -f "${archive_file}"
+  
+  # Вычисляем ожидаемый размер архива как сумму размеров всех частей
+  local expected_size=0
+  for part in "${ARCHIVE_PARTS[@]}"; do
+    local part_size
+    part_size=$(stat -c%s "${tmp_dir}/${part}" 2>/dev/null || stat -f%z "${tmp_dir}/${part}" 2>/dev/null || echo "0")
+    expected_size=$((expected_size + part_size))
+  done
+  
+  # Объединяем части
+  for part in "${ARCHIVE_PARTS[@]}"; do
+    local part_file="${tmp_dir}/${part}"
+    if [ ! -f "${part_file}" ]; then
+      print_red "❌ Файл части ${part} не найден"
+      rm -rf "${tmp_dir}"
+      exit 1
+    fi
+    if ! cat "${part_file}" >> "${archive_file}"; then
+      print_red "❌ Ошибка при объединении части ${part}"
+      rm -rf "${tmp_dir}"
+      exit 1
+    fi
+  done
+  
+  # Проверяем, что размер итогового архива совпадает с ожидаемым
+  local actual_size
+  actual_size=$(stat -c%s "${archive_file}" 2>/dev/null || stat -f%z "${archive_file}" 2>/dev/null || echo "0")
+  if [ "${actual_size}" -ne "${expected_size}" ]; then
+    print_red "❌ Размер итогового архива не совпадает с ожидаемым"
+    print_red "   Ожидаемый размер: ${expected_size} bytes"
+    print_red "   Фактический размер: ${actual_size} bytes"
+    rm -rf "${tmp_dir}"
+    exit 1
+  fi
+
+  # Проверяем размер итогового архива
+  local archive_size
+  archive_size=$(stat -c%s "${archive_file}" 2>/dev/null || stat -f%z "${archive_file}" 2>/dev/null || echo "0")
+  if command -v numfmt &> /dev/null; then
+    local archive_size_human=$(numfmt --to=iec-i --suffix=B ${archive_size} 2>/dev/null || echo "${archive_size} bytes")
+    print_blue "  ✓ Архив собран: ${archive_size_human}"
+  else
+    print_blue "  ✓ Архив собран: ${archive_size} bytes"
+  fi
+  
+  # Проверяем целостность gzip архива
+  print_blue "🔍 Проверка целостности архива..."
+  if ! gunzip -t "${archive_file}" 2>/dev/null; then
+    print_red "❌ Архив поврежден или неполный (gzip проверка не пройдена)"
+    print_yellow "Попробуйте запустить скрипт снова или проверьте доступность релиза ${ARCHIVE_VERSION}"
+    rm -rf "${tmp_dir}"
+    exit 1
+  fi
+  print_green "  ✓ Архив проверен и готов к распаковке"
 
   print_blue "🧹 Очистка предыдущих данных docker-data..."
   rm -rf docker-data
 
   print_blue "📦 Распаковка docker-data..."
-  if tar -xzf "${tmp_dir}/dle-template.tar.gz" -C .; then
+  if tar -xzf "${archive_file}" -C .; then
     print_green "✅ docker-data успешно распакован"
   else
     print_red "❌ Ошибка распаковки docker-data"
+    print_yellow "Архив может быть поврежден. Попробуйте запустить скрипт снова."
     rm -rf "${tmp_dir}"
     exit 1
   fi
