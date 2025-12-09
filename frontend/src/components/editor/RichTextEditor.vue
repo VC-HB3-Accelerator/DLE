@@ -22,13 +22,23 @@ import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 import api from '../../api/axios';
 
-// Импортируем и регистрируем модуль изменения размера изображений
-let ImageResize;
-try {
-  ImageResize = require('quill-image-resize-module').default || require('quill-image-resize-module');
-  Quill.register('modules/imageResize', ImageResize);
-} catch (error) {
-  console.warn('[RichTextEditor] Не удалось загрузить модуль изменения размера изображений:', error);
+// Функция для загрузки и регистрации модуля изменения размера изображений
+async function loadImageResizeModule() {
+  try {
+    // Используем динамический импорт для совместимости с Vite
+    const module = await import('quill-image-resize-module');
+    const ImageResize = module.default || module.ImageResize || module;
+    if (ImageResize && typeof ImageResize === 'function') {
+      Quill.register('modules/imageResize', ImageResize);
+      return true;
+    } else if (ImageResize && ImageResize.default && typeof ImageResize.default === 'function') {
+      Quill.register('modules/imageResize', ImageResize.default);
+      return true;
+    }
+  } catch (error) {
+    console.warn('[RichTextEditor] Не удалось загрузить модуль изменения размера изображений:', error);
+  }
+  return false;
 }
 
 const props = defineProps({
@@ -63,26 +73,36 @@ const toolbarOptions = [
   ['clean']
 ];
 
-onMounted(() => {
+onMounted(async () => {
   if (!editorContainer.value) return;
+
+  // Загружаем модуль изменения размера изображений перед инициализацией
+  const imageResizeLoaded = await loadImageResizeModule();
+
+  // Конфигурация модулей
+  const modulesConfig = {
+    toolbar: {
+      container: toolbarOptions,
+      handlers: {
+        'image': handleImageClick,
+        'video': handleVideoClick
+      }
+    }
+  };
+
+  // Добавляем imageResize только если модуль загружен
+  if (imageResizeLoaded) {
+    modulesConfig.imageResize = {
+      parchment: Quill.import('parchment'),
+      modules: ['Resize', 'DisplaySize', 'Toolbar']
+    };
+  }
 
   // Инициализация Quill
   quill = new Quill(editorContainer.value, {
     theme: 'snow',
     placeholder: props.placeholder,
-    modules: {
-      toolbar: {
-        container: toolbarOptions,
-        handlers: {
-          'image': handleImageClick,
-          'video': handleVideoClick
-        }
-      },
-      imageResize: {
-        parchment: Quill.import('parchment'),
-        modules: ['Resize', 'DisplaySize', 'Toolbar']
-      }
-    }
+    modules: modulesConfig
   });
 
   // Устанавливаем начальное значение
@@ -368,12 +388,53 @@ defineExpose({
   padding: 4px 8px;
 }
 
-:deep(.ql-snow img),
-:deep(.ql-snow video) {
+:deep(.ql-snow img) {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
   margin: 10px 0;
+}
+
+/* Стили для видео в редакторе - на всю ширину */
+:deep(.ql-snow video),
+:deep(.ql-editor video) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+}
+
+:deep(.ql-snow video.ql-video),
+:deep(.ql-editor video.ql-video) {
+  width: 100%;
+  max-width: 100%;
+  min-height: 400px;
+}
+
+/* Стили для iframe в редакторе */
+:deep(.ql-snow iframe),
+:deep(.ql-editor iframe) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+  border: none;
+}
+
+:deep(.ql-snow iframe.ql-video),
+:deep(.ql-editor iframe.ql-video) {
+  min-height: 400px;
+  aspect-ratio: 16 / 9;
 }
 
 /* Стили для изменения размера изображений */
@@ -393,14 +454,6 @@ defineExpose({
   border-radius: 2px;
   cursor: nwse-resize;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
-}
-
-:deep(.ql-snow img),
-:deep(.ql-snow video) {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  margin: 10px 0;
 }
 </style>
 

@@ -93,17 +93,39 @@ router.post('/media', auth.requireAuth, async (req, res) => {
   // Используем middleware для загрузки файла
   mediaUpload.single('media')(req, res, async (err) => {
     if (err) {
+      console.error('[uploads/media] Ошибка multer:', err);
       return res.status(400).json({ success: false, message: err.message });
     }
     
     try {
-      if (!req.file || !req.file.buffer) return res.status(400).json({ success: false, message: 'Файл не получен' });
+      if (!req.file) {
+        console.error('[uploads/media] Файл не получен в req.file');
+        return res.status(400).json({ success: false, message: 'Файл не получен' });
+      }
+      
+      if (!req.file.buffer) {
+        console.error('[uploads/media] Буфер файла отсутствует');
+        return res.status(400).json({ success: false, message: 'Буфер файла отсутствует' });
+      }
+      
+      if (!req.file.mimetype) {
+        console.error('[uploads/media] MIME тип отсутствует');
+        return res.status(400).json({ success: false, message: 'MIME тип файла не определен' });
+      }
       
       const db = require('../db');
       const mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
       
+      console.log('[uploads/media] Начало обработки файла:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        mediaType: mediaType
+      });
+      
       // Вычисляем SHA-256 хеш файла для дедупликации
       const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+      console.log('[uploads/media] Хеш файла вычислен:', fileHash.substring(0, 16) + '...');
       
       // Проверяем, не загружен ли уже такой файл
       const existingFile = await db.getQuery()(
@@ -116,10 +138,22 @@ router.post('/media', auth.requireAuth, async (req, res) => {
       
       if (existingFile.rows.length > 0) {
         // Файл уже существует - возвращаем существующую запись
+        console.log('[uploads/media] Файл уже существует, используем существующую запись:', existingFile.rows[0].id);
         mediaId = existingFile.rows[0].id;
         fileName = existingFile.rows[0].file_name;
       } else {
         // Сохраняем новый файл в базу данных
+        console.log('[uploads/media] Сохранение нового файла в БД...');
+        
+        // Нормализуем page_id: преобразуем в число или null
+        let pageId = null;
+        if (req.body.page_id) {
+          const parsedPageId = parseInt(req.body.page_id);
+          if (!isNaN(parsedPageId) && parsedPageId > 0) {
+            pageId = parsedPageId;
+          }
+        }
+        
         const { rows } = await db.getQuery()(`
           INSERT INTO content_media (
             file_data,
@@ -140,11 +174,12 @@ router.post('/media', auth.requireAuth, async (req, res) => {
           fileHash,
           mediaType,
           req.session.address,
-          req.body.page_id || null
+          pageId
         ]);
         
         mediaId = rows[0].id;
         fileName = rows[0].file_name;
+        console.log('[uploads/media] Файл успешно сохранен в БД, ID:', mediaId);
       }
       
       // URL для доступа к файлу через API
@@ -153,6 +188,7 @@ router.post('/media', auth.requireAuth, async (req, res) => {
       // Это позволяет работать с разными портами (frontend на 9000, backend на 8000)
       const fullUrl = fileUrl;
       
+      console.log('[uploads/media] Успешная загрузка, возвращаем ответ');
       return res.json({ 
         success: true, 
         data: { 
@@ -168,39 +204,212 @@ router.post('/media', auth.requireAuth, async (req, res) => {
         } 
       });
     } catch (e) {
-      console.error('Ошибка сохранения медиа в БД:', e);
-      return res.status(500).json({ success: false, message: e.message });
+      console.error('[uploads/media] Ошибка сохранения медиа в БД:', {
+        message: e.message,
+        stack: e.stack,
+        name: e.name,
+        code: e.code,
+        detail: e.detail,
+        constraint: e.constraint,
+        table: e.table,
+        column: e.column
+      });
+      return res.status(500).json({ 
+        success: false, 
+        message: e.message || 'Внутренняя ошибка сервера',
+        error: process.env.NODE_ENV === 'development' ? {
+          name: e.name,
+          code: e.code,
+          detail: e.detail,
+          constraint: e.constraint
+        } : undefined
+      });
     }
   });
 });
 
-// GET /api/uploads/media/:id/file - получить файл по ID
+// GET /api/uploads/media/:id/file - получить файл по ID с поддержкой Range requests
 router.get('/media/:id/file', async (req, res) => {
+  let client = null;
+  const mediaId = parseInt(req.params.id);
+  // Увеличиваем chunk size до 1MB для больших файлов - меньше запросов к БД
+  const chunkSize = 1048576; // 1MB chunks для оптимальной производительности стриминга
+  
   try {
     const db = require('../db');
-    const mediaId = parseInt(req.params.id);
-    
-    const { rows } = await db.getQuery()(
-      'SELECT file_data, file_name, mime_type, file_size FROM content_media WHERE id = $1',
+    const pool = db.getPool();
+    client = await pool.connect();
+
+    // Сначала получаем метаданные без file_data
+    const metaResult = await client.query(
+      'SELECT file_name, mime_type, file_size FROM content_media WHERE id = $1',
       [mediaId]
     );
-    
-    if (rows.length === 0) {
+
+    if (metaResult.rows.length === 0) {
+      client.release();
       return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
     }
-    
-    const media = rows[0];
-    
-    // Устанавливаем заголовки для правильной отдачи файла
+
+    const media = metaResult.rows[0];
+    const fileSize = parseInt(media.file_size) || 0;
+
+    // Поддержка HTTP Range requests для стриминга (как на YouTube/Vimeo)
+    const range = req.headers.range;
+    let start = 0;
+    let end = fileSize - 1;
+    let statusCode = 200;
+
+    if (range) {
+      // Парсим Range заголовок (например: "bytes=0-1023" или "bytes=1024-")
+      const parts = range.replace(/bytes=/, '').split('-');
+      start = parseInt(parts[0], 10);
+      end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      
+      // Валидация диапазона
+      if (start >= fileSize || end >= fileSize) {
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        client.release();
+        return res.status(416).end(); // Range Not Satisfiable
+      }
+      
+      statusCode = 206; // Partial Content
+    }
+
+    const contentLength = end - start + 1;
+
+    // Устанавливаем заголовки для правильной отдачи файла с поддержкой Range
     res.setHeader('Content-Type', media.mime_type);
-    res.setHeader('Content-Length', media.file_size);
-    res.setHeader('Content-Disposition', `inline; filename="${media.file_name}"`);
+    res.setHeader('Accept-Ranges', 'bytes'); // Указываем, что поддерживаем Range requests
+    res.setHeader('Content-Length', contentLength);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Кеширование на 1 год
     
-    // Отправляем бинарные данные
-    res.send(media.file_data);
+    if (range) {
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+      res.status(statusCode);
+    } else {
+      res.setHeader('Content-Disposition', `inline; filename="${media.file_name}"`);
+    }
+
+    // Используем прямой стриминг BYTEA данных частями через SQL substring
+    // Начинаем с нужной позиции (для Range requests)
+    let offset = start + 1; // PostgreSQL substring использует 1-based индексацию
+    const endOffset = end + 1;
+    
+    const streamChunk = async () => {
+      try {
+        // Проверяем, не достигли ли мы конца запрошенного диапазона
+        if (offset > endOffset) {
+          // Достигнут конец запрошенного диапазона
+          client.release();
+          res.end();
+          return;
+        }
+
+        // Вычисляем размер текущего chunk (может быть меньше chunkSize для последнего chunk)
+        const currentChunkSize = Math.min(chunkSize, endOffset - offset + 1);
+        
+        // Читаем следующий chunk данных, используя encode для получения hex-строки
+        const chunkResult = await client.query(
+          `SELECT encode(substring(file_data FROM $1 FOR $2), 'hex') as chunk_hex FROM content_media WHERE id = $3`,
+          [offset, currentChunkSize, mediaId]
+        );
+
+        if (chunkResult.rows.length === 0 || !chunkResult.rows[0] || !chunkResult.rows[0].chunk_hex) {
+          // Достигнут конец файла или данные отсутствуют
+          client.release();
+          res.end();
+          return;
+        }
+
+        const chunkHex = chunkResult.rows[0].chunk_hex;
+        
+        // Если chunk пустой, значит достигнут конец
+        if (!chunkHex || chunkHex.length === 0) {
+          client.release();
+          res.end();
+          return;
+        }
+        
+        // Преобразуем hex-строку в Buffer
+        const buffer = Buffer.from(chunkHex, 'hex');
+
+        // Отправляем chunk клиенту
+        if (!res.write(buffer)) {
+          // Буфер переполнен, ждем события 'drain'
+          res.once('drain', () => {
+            offset += currentChunkSize;
+            streamChunk();
+          });
+        } else {
+          // Продолжаем отправку следующего chunk
+          offset += currentChunkSize;
+          streamChunk();
+        }
+      } catch (chunkErr) {
+        console.error('[uploads/media/:id/file] Ошибка чтения chunk:', {
+          message: chunkErr.message,
+          stack: chunkErr.stack,
+          offset: offset,
+          endOffset: endOffset,
+          fileSize: fileSize
+        });
+        if (client) {
+          client.release();
+        }
+        if (!res.headersSent) {
+          res.status(500).json({ success: false, message: 'Ошибка чтения файла' });
+        } else {
+          res.end();
+        }
+      }
+    };
+
+    // Начинаем стриминг
+    streamChunk();
+
+    // Обработка ошибок HTTP ответа
+    res.on('error', (resErr) => {
+      console.error('[uploads/media/:id/file] Ошибка HTTP ответа:', resErr);
+      if (client) {
+        client.release();
+      }
+    });
+
+    // Обработка закрытия соединения клиентом
+    res.on('close', () => {
+      if (client) {
+        client.release();
+      }
+    });
+
   } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
+    if (client) {
+      client.release();
+    }
+    
+    console.error('[uploads/media/:id/file] Ошибка получения файла:', {
+      message: e.message,
+      stack: e.stack,
+      name: e.name,
+      code: e.code,
+      detail: e.detail,
+      constraint: e.constraint,
+      table: e.table,
+      column: e.column
+    });
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        message: e.message || 'Внутренняя ошибка сервера',
+        error: process.env.NODE_ENV === 'development' ? {
+          name: e.name,
+          code: e.code,
+          detail: e.detail,
+          constraint: e.constraint
+        } : undefined
+      });
+    }
   }
 });
 

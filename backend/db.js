@@ -10,9 +10,29 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 require('dotenv').config();
 const axios = require('axios');
+
+// Настройка парсера для BYTEA - возвращаем Buffer напрямую без конвертации в строку
+// OID для BYTEA в PostgreSQL: 17
+types.setTypeParser(17, (value) => {
+  // value уже является Buffer при использовании binary формата
+  // Но если это строка, конвертируем её в Buffer
+  if (Buffer.isBuffer(value)) {
+    return value;
+  }
+  // Если это строка (hex или base64), конвертируем
+  if (typeof value === 'string') {
+    // Проверяем, является ли это hex строка
+    if (/^[0-9a-fA-F]+$/.test(value)) {
+      return Buffer.from(value, 'hex');
+    }
+    // Иначе считаем binary строкой
+    return Buffer.from(value, 'binary');
+  }
+  return value;
+});
 
 // Убираем избыточное логирование настроек подключения
 // console.log('Настройки подключения к базе данных:');

@@ -452,6 +452,7 @@ onMounted(() => {
   margin: 0 auto;
   padding: 40px;
   min-height: 100%;
+  width: 100%;
 }
 
 .back-btn {
@@ -713,12 +714,18 @@ onMounted(() => {
   max-width: 100%;
   width: 100%;
   height: auto;
-  min-height: 300px;
+  min-height: 400px;
   border-radius: 8px;
   margin: 1.5rem 0;
   display: block;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   background: #000;
+}
+
+.content-text :deep(video.ql-video) {
+  width: 100%;
+  max-width: 100%;
+  min-height: 400px;
 }
 
 .content-text :deep(video:focus) {

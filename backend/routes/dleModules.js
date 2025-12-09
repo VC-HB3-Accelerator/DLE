@@ -14,7 +14,13 @@ const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
 const { Interface, AbiCoder } = ethers;
-const hre = require('hardhat');
+// Hardhat опционален - используется только для компиляции в dev режиме
+let hre = null;
+try {
+  hre = require('hardhat');
+} catch (e) {
+  // Hardhat не установлен в production - это нормально
+}
 const rpcProviderService = require('../services/rpcProviderService');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -2181,6 +2187,9 @@ router.post('/deploy-module-all-networks', async (req, res) => {
             console.log(`[DLE Modules] Текущий nonce для сети ${network.chainId}: ${currentNonce}`);
 
             // Получаем фабрику контракта
+            if (!hre) {
+              throw new Error('Hardhat не установлен. Установите hardhat для компиляции контрактов.');
+            }
             const ContractFactory = await hre.ethers.getContractFactory(moduleConfig.contractName);
             
             // Подготавливаем аргументы конструктора

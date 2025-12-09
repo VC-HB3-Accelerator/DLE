@@ -239,10 +239,27 @@ function getStatusText(status) {
 }
 
 function formatContent(content) {
-  // Простое форматирование контента
+  // Форматирование контента
   if (!content) return '';
   
-  // Заменяем переносы строк на <br>
+  // Если контент уже содержит HTML теги (например, из RichTextEditor), обрабатываем его
+  if (/<[a-z][\s\S]*>/i.test(content)) {
+    // Преобразуем iframe с локальными видео-файлами обратно в тег video
+    // Quill может преобразовывать video в iframe, но для локальных файлов нужен тег video
+    content = content.replace(/<iframe([^>]*?)src=["']([^"']+)["']([^>]*?)><\/iframe>/gi, (match, attrs1, url, attrs2) => {
+      // Проверяем, является ли это видео-файл из нашей системы
+      if (url.includes('/api/uploads/media/') && url.includes('/file')) {
+        // Преобразуем в тег video для локальных видео-файлов
+        return `<video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video>`;
+      }
+      // Оставляем iframe для внешних видео (YouTube, Vimeo и т.д.)
+      return match;
+    });
+    
+    return content;
+  }
+  
+  // Иначе заменяем переносы строк на <br>
   return content.replace(/\n/g, '<br>');
 }
 
@@ -349,6 +366,8 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   padding: 25px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 100%;
 }
 
 .page-content {
@@ -356,6 +375,8 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   padding: 25px;
   border: 1px solid #e9ecef;
+  width: 100%;
+  max-width: 100%;
 }
 
 .content-section {
@@ -364,6 +385,8 @@ onMounted(() => {
   padding: 25px;
   margin-bottom: 20px;
   border: 1px solid #e9ecef;
+  width: 100%;
+  max-width: 100%;
 }
 
 .content-section:last-child {
@@ -385,6 +408,64 @@ onMounted(() => {
 .main-content {
   line-height: 1.8;
   color: #333;
+}
+
+/* Стили для видео в контенте */
+.main-content :deep(video) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+}
+
+.main-content :deep(video.ql-video) {
+  width: 100%;
+  max-width: 100%;
+  min-height: 400px;
+}
+
+.main-content :deep(video:focus) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Стили для iframe в контенте (для внешних видео) */
+.main-content :deep(iframe) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+  border: none;
+}
+
+.main-content :deep(iframe.ql-video) {
+  min-height: 400px;
+  aspect-ratio: 16 / 9;
+}
+
+.main-content :deep(iframe:focus) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Стили для изображений в контенте */
+.main-content :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .file-preview { display: flex; flex-direction: column; gap: 12px; }

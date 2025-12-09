@@ -396,10 +396,16 @@
       <div class="ssl-section">
         <div class="section-header">
           <h2>SSL сертификат</h2>
+          <div v-if="isDevelopment" style="font-size: 12px; color: #666; margin-top: 5px;">
+            Debug: isEditor={{ isEditor }}, currentRole={{ currentRole }}, isLoadingSsl={{ isLoadingSsl }}
+          </div>
         </div>
 
         <div v-if="!isEditor" class="access-denied-message">
           <p>⚠️ Управление SSL доступно только пользователям с ролью "Редактор"</p>
+          <p v-if="isDevelopment" style="font-size: 12px; color: #666;">
+            Текущая роль: {{ currentRole }}
+          </p>
         </div>
 
         <div v-else>
@@ -407,7 +413,7 @@
             <div v-if="isLoadingSsl">
               Загрузка статуса SSL...
             </div>
-            <div v-else>
+              <div v-else>
               <div v-if="sslStatus && sslStatus.success && sslStatus.allCertificates && sslStatus.allCertificates.length">
                 <div class="ssl-info">
                   <div
@@ -415,15 +421,24 @@
                     :key="cert.name"
                     class="ssl-info-item"
                   >
-                    <label>{{ cert.name }}</label>
+                    <label>{{ cert.name || 'Без имени' }}</label>
                     <span :class="{ 'expiring-soon': isCertExpiringSoon(cert.expiryDate) }">
-                      {{ cert.expiryDate || 'Без данных' }}
+                      {{ cert.expiryDate ? formatDate(cert.expiryDate) : 'Без данных' }}
                     </span>
+                    <div v-if="cert.domains && cert.domains.length" class="ssl-domains">
+                      Домены: {{ cert.domains.join(', ') }}
+                    </div>
                   </div>
                 </div>
               </div>
               <div v-else class="ssl-no-cert">
-                SSL сертификат не найден для текущего домена.
+                <p>SSL сертификат не найден для текущего домена.</p>
+                <p v-if="sslStatus && sslStatus.domain" class="ssl-domain-info">
+                  Домен: {{ sslStatus.domain }}
+                </p>
+                <p v-if="sslStatus && !sslStatus.success" class="ssl-error-info">
+                  Ошибка: {{ sslStatus.error || 'Неизвестная ошибка' }}
+                </p>
               </div>
             </div>
           </div>
@@ -441,9 +456,13 @@
               class="action-btn ssl-btn renew"
               :disabled="isLoading"
               @click="renewSslCertificate"
+              :title="isLoading ? 'Выполняется...' : 'Получить или обновить SSL сертификат'"
             >
               🔐 Получить / обновить SSL
             </button>
+            <div v-if="!isEditor && isDevelopment" style="font-size: 12px; color: #f00; margin-top: 5px;">
+              Кнопка скрыта: isEditor=false, currentRole={{ currentRole }}
+            </div>
           </div>
         </div>
       </div>
@@ -549,6 +568,9 @@ const router = useRouter();
 // Проверка прав доступа
 const { currentRole, canManageSettings } = usePermissions();
 const isEditor = computed(() => currentRole.value === ROLES.EDITOR);
+
+// Отладочная информация (только для разработки)
+const isDevelopment = computed(() => import.meta.env.DEV || import.meta.env.MODE === 'development');
 
 // Состояние
 const domain = ref(null);
@@ -1223,13 +1245,21 @@ const sendBackup = async () => {
 const loadSslStatus = async () => {
   if (!isEditor.value) {
     // Не показываем ошибку, если пользователь не редактор - просто не загружаем статус
+    console.log('[VDS] Пользователь не является редактором, пропускаем загрузку SSL статуса');
     return;
   }
+  console.log('[VDS] Загрузка SSL статуса...');
   isLoadingSsl.value = true;
   try {
     const response = await axios.get('/vds/ssl/status');
+    console.log('[VDS] Ответ от /vds/ssl/status:', response.data);
     if (response.data.success) {
       sslStatus.value = response.data;
+      console.log('[VDS] SSL статус загружен:', {
+        hasCertificates: response.data.allCertificates?.length > 0,
+        certificatesCount: response.data.allCertificates?.length || 0,
+        domain: response.data.domain
+      });
     } else {
       console.warn('[VDS] Получение статуса SSL не успешно:', response.data);
       sslStatus.value = null;
@@ -1238,16 +1268,24 @@ const loadSslStatus = async () => {
     }
   } catch (error) {
     console.error('Ошибка получения статуса SSL:', error);
+    console.error('Детали ошибки:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
     
     // Если VDS не настроена, это нормальная ситуация - не показываем ошибку
     if (errorMessage.includes('VDS не настроена') || error.response?.status === 400) {
+      console.log('[VDS] VDS не настроена, это нормально');
       sslStatus.value = null;
       return;
     }
     
     // Если ошибка аутентификации (401), это нормальная ситуация - пользователь не авторизован
     if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
+      console.log('[VDS] Ошибка аутентификации, это нормально');
       sslStatus.value = null;
       return;
     }
@@ -1293,26 +1331,38 @@ const checkSslStatus = async () => {
 };
 
 const renewSslCertificate = async () => {
+  console.log('[VDS] renewSslCertificate вызвана, isEditor:', isEditor.value);
   if (!isEditor.value) {
+    console.warn('[VDS] Пользователь не является редактором, доступ запрещен');
     alert('Только пользователи с ролью "Редактор" могут получать SSL сертификаты');
     return;
   }
   if (!confirm('Получить/обновить SSL сертификат от Let\'s Encrypt? Это может занять некоторое время.')) {
+    console.log('[VDS] Пользователь отменил получение SSL сертификата');
     return;
   }
+  console.log('[VDS] Начинаем получение SSL сертификата...');
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/ssl/renew', {
       sslProvider: 'letsencrypt'
     });
+    console.log('[VDS] Ответ от /vds/ssl/renew:', response.data);
     if (response.data.success) {
       alert('SSL сертификат успешно получен/обновлен');
       await loadSslStatus();
     } else {
+      console.error('[VDS] Ошибка получения SSL сертификата:', response.data);
       alert('Ошибка получения SSL сертификата: ' + (response.data.error || 'Неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка получения SSL сертификата:', error);
+    console.error('Детали ошибки:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
     const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
     const errorDetails = error.response?.data?.details || '';
     
@@ -1519,6 +1569,7 @@ const updateCharts = () => {
 
 // Жизненный цикл
 onMounted(async () => {
+  console.log('[VDS] Компонент монтирован, isEditor:', isEditor.value, 'currentRole:', currentRole.value);
   await loadSettings();
   await loadContainers();
   await initCharts();
@@ -1526,8 +1577,11 @@ onMounted(async () => {
   
   // Загружаем пользователей только для редакторов
   if (isEditor.value) {
+    console.log('[VDS] Пользователь является редактором, загружаем пользователей и SSL статус');
     await loadUsers();
     await loadSslStatus();
+  } else {
+    console.log('[VDS] Пользователь НЕ является редактором, пропускаем загрузку пользователей и SSL');
   }
   
   // Обновляем статистику каждые 5 секунд

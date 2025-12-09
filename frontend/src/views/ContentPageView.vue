@@ -569,6 +569,7 @@ onMounted(async () => {
   border: 1px solid #e9ecef;
   max-width: 1000px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .form-section {
@@ -633,6 +634,64 @@ onMounted(async () => {
   margin-top: 8px;
   font-size: 0.9rem;
   color: var(--color-grey-dark);
+}
+
+/* Стили для видео в редакторе */
+.content-form :deep(video) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+}
+
+.content-form :deep(video.ql-video) {
+  width: 100%;
+  max-width: 100%;
+  min-height: 400px;
+}
+
+.content-form :deep(video:focus) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Стили для iframe в редакторе (для внешних видео) */
+.content-form :deep(iframe) {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #000;
+  border: none;
+}
+
+.content-form :deep(iframe.ql-video) {
+  min-height: 400px;
+  aspect-ratio: 16 / 9;
+}
+
+.content-form :deep(iframe:focus) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Стили для изображений в редакторе */
+.content-form :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .category-select-wrapper {

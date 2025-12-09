@@ -126,6 +126,7 @@ services:
       vector-search:
         condition: service_started
     volumes:
+      - ./backend:/app
       - backend_node_modules:/app/node_modules
       - ./ssl:/app/ssl:ro
       # Доступ к Docker socket для управления контейнерами на VDS
@@ -160,6 +161,8 @@ services:
       - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # 🆕 Исправленный URL для Vector Search
       - VECTOR_SEARCH_URL=http://dapp-vector-search:8001
+    # Команда запуска для production
+    command: ["yarn", "run", "start"]
     # НЕ открываем порт 8000 наружу - только nginx подключается
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]

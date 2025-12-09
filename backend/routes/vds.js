@@ -1575,16 +1575,27 @@ router.get('/ssl/status', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETT
       }
     }
     
+    logger.info(`[VDS] SSL статус проверен: найдено сертификатов: ${allCertificates.length}, домен: ${domain}`);
     res.json({ 
       success: true, 
       certificates: checkResult.stdout,
       allCertificates: allCertificates,
       domain: domain,
-      certInfo: certInfo
+      certInfo: certInfo,
+      hasCertificates: allCertificates.length > 0
     });
   } catch (error) {
     logger.error('[VDS] Ошибка проверки SSL сертификата:', error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error('[VDS] Детали ошибки:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
