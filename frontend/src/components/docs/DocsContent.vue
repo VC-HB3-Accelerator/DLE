@@ -157,7 +157,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -438,10 +438,58 @@ watch(() => props.pageId, (newId, oldId) => {
   }
 }, { immediate: true });
 
+// Обработка ошибок загрузки видео
+function setupVideoErrorHandlers() {
+  nextTick(() => {
+    const videoElements = document.querySelectorAll('.content-text video, .page-article video');
+    videoElements.forEach((video) => {
+      video.addEventListener('error', (e) => {
+        console.error('Ошибка загрузки видео:', e);
+        const error = e.target.error;
+        let errorMessage = 'Неизвестная ошибка';
+        
+        if (error) {
+          switch (error.code) {
+            case error.MEDIA_ERR_ABORTED:
+              errorMessage = 'Загрузка видео была прервана';
+              break;
+            case error.MEDIA_ERR_NETWORK:
+              errorMessage = 'Ошибка сети при загрузке видео';
+              break;
+            case error.MEDIA_ERR_DECODE:
+              errorMessage = 'Ошибка декодирования видео';
+              break;
+            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+              errorMessage = 'Формат видео не поддерживается';
+              break;
+            default:
+              errorMessage = `Ошибка загрузки видео (код: ${error.code})`;
+          }
+        }
+        
+        // Показываем сообщение об ошибке вместо видео
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'video-error';
+        errorDiv.style.cssText = 'padding: 20px; background: #fee; border: 1px solid #fcc; border-radius: 8px; margin: 1.5rem 0; color: #c33;';
+        errorDiv.textContent = `❌ ${errorMessage}`;
+        video.parentNode?.replaceChild(errorDiv, video);
+      });
+    });
+  });
+}
+
+// Отслеживание изменений контента для добавления обработчиков ошибок
+watch(() => page.value?.content, () => {
+  if (page.value?.content) {
+    setupVideoErrorHandlers();
+  }
+});
+
 onMounted(() => {
   if (props.pageId) {
     loadPage();
   }
+  setupVideoErrorHandlers();
 });
 </script>
 

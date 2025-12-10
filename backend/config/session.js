@@ -30,6 +30,16 @@ function createSessionMiddleware() {
     store: new pgSession({
       pool: db.getPool(),
       tableName: 'session',
+      // Обработка ошибок подключения к БД для сессий
+      errorLog: (err) => {
+        // Логируем только как предупреждение, не как критическую ошибку
+        // Таймауты подключения - это нормальная ситуация при перегрузке
+        if (err && err.message && err.message.includes('timeout exceeded')) {
+          console.warn('[session] Timeout подключения к БД для сессии (не критично):', err.message);
+        } else if (err) {
+          console.error('[session] Ошибка подключения к БД для сессии:', err.message);
+        }
+      },
     }),
     secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     name: 'sessionId',

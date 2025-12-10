@@ -59,14 +59,58 @@ const errorHandler = (err, req, res, next) => {
   // В режиме разработки возвращаем стек ошибки
   const devError = process.env.NODE_ENV === 'development' ? { stack: err.stack } : {};
 
+  // Проверяем, что ответ еще не был отправлен и соединение не закрыто
+  if (res.headersSent || res.destroyed) {
+    console.error('[errorHandler] Ответ уже отправлен или соединение закрыто, пропускаем обработку ошибки');
+    return;
+  }
+
+  // Для ошибок подключения к БД возвращаем понятное сообщение
+  if (err.message && err.message.includes('timeout exceeded when trying to connect')) {
+    errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+    statusCode = 503; // Service Unavailable
+  }
+
+  // Проверяем еще раз перед отправкой (может измениться состояние)
+  if (res.headersSent || res.destroyed) {
+    console.error('[errorHandler] Состояние изменилось, пропускаем отправку ответа');
+    return;
+  }
+
   // Отправляем ответ клиенту
-  res.status(statusCode).json({
-    error: {
-      code: errorCode,
+  // Используем формат, совместимый с frontend (success: false, message: string)
+  try {
+    // Финальная проверка перед отправкой - состояние могло измениться
+    if (res.headersSent || res.destroyed || res.finished || !res.writable) {
+      console.error('[errorHandler] Финальная проверка: ответ уже отправлен, соединение закрыто или завершено');
+      return;
+    }
+    
+    // Проверяем writableEnded - новый флаг в Node.js
+    if (res.writableEnded) {
+      console.error('[errorHandler] Ответ уже завершен (writableEnded)');
+      return;
+    }
+    
+    res.status(statusCode).json({
+      success: false,
       message: errorMessage,
-      ...devError,
-    },
-  });
+      error: {
+        code: errorCode,
+        message: errorMessage,
+        ...devError,
+      },
+    });
+  } catch (sendErr) {
+    // Если произошла ошибка при отправке (например, соединение закрыто), просто логируем
+    // Игнорируем ошибки, связанные с уже отправленными заголовками или закрытым соединением
+    if (sendErr.code !== 'ERR_HTTP_HEADERS_SENT' && 
+        sendErr.code !== 'ECONNRESET' && 
+        sendErr.code !== 'EPIPE' &&
+        !sendErr.message?.includes('Cannot set headers after they are sent')) {
+      console.error('[errorHandler] Ошибка при отправке ответа:', sendErr.message);
+    }
+  }
 }
 
 /**

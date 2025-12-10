@@ -15,6 +15,12 @@ class DeployParamsService {
       database: process.env.DB_NAME || 'dapp_db',
       password: process.env.DB_PASSWORD || 'dapp_password',
       port: process.env.DB_PORT || 5432,
+      max: 100, // Увеличиваем максимальное количество клиентов
+      min: 10, // Минимальное количество клиентов
+      idleTimeoutMillis: 180000, // Время жизни неактивного клиента (180 сек)
+      connectionTimeoutMillis: 180000, // Таймаут подключения (180 сек)
+      maxUses: 7500,
+      allowExitOnIdle: true,
     });
     // Используем глобальный экземпляр encryptedDb
   }

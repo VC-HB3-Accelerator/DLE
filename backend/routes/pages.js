@@ -99,68 +99,206 @@ function stripHtml(html) {
 
 // Создать страницу (только для админа)
 router.post('/', upload.single('file'), async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
+  console.log('[pages] POST /: Начало обработки запроса на создание страницы');
+  try {
+    if (!req.session || !req.session.authenticated) {
+      console.log('[pages] POST /: Ошибка аутентификации - сессия не найдена');
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    if (!req.session.address) {
+      console.log('[pages] POST /: Ошибка - адрес кошелька не найден');
+      return res.status(403).json({ error: 'Требуется подключение кошелька' });
+    }
+    
+    console.log('[pages] POST /: Проверка прав доступа для адреса:', req.session.address);
+    // Проверяем роль админа через токены в кошельке
+    const authService = require('../services/auth-service');
+    let userAccessLevel;
+    try {
+      userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+    } catch (authError) {
+      console.error('[pages] POST /: Ошибка при проверке прав доступа:', authError);
+      if (authError.message && authError.message.includes('timeout exceeded')) {
+        return res.status(503).json({ error: 'Ошибка подключения к базе данных. Попробуйте позже.' });
+      }
+      throw authError;
+    }
+    
+    if (!userAccessLevel.hasAccess) {
+      console.log('[pages] POST /: Доступ запрещен - недостаточно прав');
+      return res.status(403).json({ error: 'Only admin can create pages' });
+    }
+    
+    console.log('[pages] POST /: Права доступа подтверждены, уровень:', userAccessLevel.level);
+    
+    const authorAddress = req.session.address;
+    const tableName = `admin_pages_simple`;
+
+    // Собираем данные страницы
+    const bodyRaw = req.body || {};
+    
+    // Обрабатываем required_permission: если это пустая строка или 'null', устанавливаем null
+    let requiredPermission = null;
+    if (bodyRaw.required_permission) {
+      const perm = String(bodyRaw.required_permission).trim();
+      requiredPermission = (perm && perm !== 'null' && perm !== '') ? perm : null;
+    }
+    
+    // Обрабатываем JSON поля (seo, settings) - могут прийти как строка из FormData
+    let seoValue = null;
+    if (bodyRaw.seo) {
+      if (typeof bodyRaw.seo === 'string') {
+        try {
+          seoValue = JSON.parse(bodyRaw.seo);
+        } catch (e) {
+          seoValue = bodyRaw.seo.trim() ? bodyRaw.seo : null;
+        }
+      } else if (typeof bodyRaw.seo === 'object') {
+        seoValue = bodyRaw.seo;
+      }
+    }
+    
+    let settingsValue = null;
+    if (bodyRaw.settings) {
+      if (typeof bodyRaw.settings === 'string') {
+        try {
+          settingsValue = JSON.parse(bodyRaw.settings);
+        } catch (e) {
+          settingsValue = bodyRaw.settings.trim() ? bodyRaw.settings : null;
+        }
+      } else if (typeof bodyRaw.settings === 'object') {
+        settingsValue = bodyRaw.settings;
+      }
+    }
+    
+    const pageData = {
+      title: bodyRaw.title || '',
+      summary: bodyRaw.summary || '',
+      content: bodyRaw.content || '',
+      seo: seoValue,
+      status: bodyRaw.status || 'draft',
+      settings: settingsValue,
+      visibility: bodyRaw.visibility || 'public',
+      required_permission: requiredPermission,
+      format: bodyRaw.format || (req.file ? (req.file.mimetype?.startsWith('image/') ? 'image' : 'pdf') : 'html'),
+      mime_type: req.file ? (req.file.mimetype || null) : (bodyRaw.mime_type || (bodyRaw.format === 'html' ? 'text/html' : null)),
+      storage_type: req.file ? 'file' : (bodyRaw.storage_type || 'embedded'),
+      file_path: req.file ? path.join('/uploads', 'legal', path.basename(req.file.path)) : (bodyRaw.file_path || null),
+      size_bytes: req.file ? req.file.size : (bodyRaw.size_bytes || null),
+      checksum: bodyRaw.checksum || null,
+      // Нормализуем категорию: приводим к нижнему регистру для консистентности
+      category: (bodyRaw.category && String(bodyRaw.category).trim()) ? String(bodyRaw.category).trim().toLowerCase() : null,
+      // Обрабатываем category_id: может быть null или числом
+      category_id: (bodyRaw.category_id && bodyRaw.category_id !== 'null' && bodyRaw.category_id !== '') 
+        ? (() => { const parsed = parseInt(bodyRaw.category_id); return isNaN(parsed) ? null : parsed; })()
+        : null,
+      // Обрабатываем parent_id: может быть null или числом
+      parent_id: (bodyRaw.parent_id && bodyRaw.parent_id !== 'null' && bodyRaw.parent_id !== '') 
+        ? (() => { const parsed = parseInt(bodyRaw.parent_id); return isNaN(parsed) ? null : parsed; })()
+        : null,
+      // Обрабатываем order_index: должно быть числом
+      order_index: (bodyRaw.order_index && bodyRaw.order_index !== 'null' && bodyRaw.order_index !== '') 
+        ? (() => { const parsed = parseInt(bodyRaw.order_index); return isNaN(parsed) ? 0 : parsed; })()
+        : 0,
+      nav_path: bodyRaw.nav_path || null,
+      is_index_page: bodyRaw.is_index_page === true || bodyRaw.is_index_page === 'true'
+    };
+
+    console.log('[pages] POST /: Создание страницы, данные:', {
+      title: pageData.title,
+      visibility: pageData.visibility,
+      required_permission: pageData.required_permission,
+      status: pageData.status,
+      format: pageData.format
+    });
+
+    // Формируем SQL для вставки данных (включаем все поля, даже null)
+    // Фильтруем только undefined, null значения включаем (они допустимы в БД)
+    const dataEntries = Object.entries(pageData).filter(([k, v]) => {
+      // Исключаем только undefined, null и пустые строки для некоторых полей допустимы
+      return v !== undefined;
+    });
+    
+    const colNames = ['author_address', ...dataEntries.map(([k]) => k)].join(', ');
+    const values = [authorAddress, ...dataEntries.map(([, v]) => v)];
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+
+    const sql = `INSERT INTO ${tableName} (${colNames}) VALUES (${placeholders}) RETURNING *`;
+    
+    console.log('[pages] POST /: SQL запрос:', sql.substring(0, 300) + '...');
+    console.log('[pages] POST /: Количество параметров:', values.length);
+    console.log('[pages] POST /: Колонки:', colNames);
+    console.log('[pages] POST /: Значения (первые 5):', values.slice(0, 5).map(v => v === null ? 'NULL' : (typeof v === 'string' ? v.substring(0, 50) : v)));
+    
+    // Проверяем, что ответ еще не был отправлен перед запросом к БД
+    if (res.headersSent || res.destroyed) {
+      console.error('[pages] POST /: Ответ уже отправлен перед запросом к БД');
+      return;
+    }
+    
+    console.log('[pages] POST /: Выполнение SQL запроса к БД...');
+    let rows;
+    try {
+      const result = await db.getQuery()(sql, values);
+      rows = result.rows;
+      console.log('[pages] POST /: SQL запрос выполнен успешно, создана страница с ID:', rows[0]?.id);
+    } catch (dbError) {
+      console.error('[pages] POST /: Ошибка БД при выполнении SQL:', dbError);
+      console.error('[pages] POST /: Код ошибки БД:', dbError.code);
+      console.error('[pages] POST /: Сообщение БД:', dbError.message);
+      console.error('[pages] POST /: Детали БД:', dbError.detail);
+      throw dbError;
+    }
+    const created = rows[0];
+
+    // Проверяем еще раз перед отправкой ответа
+    if (res.headersSent || res.destroyed) {
+      console.error('[pages] POST /: Ответ уже отправлен после запроса к БД');
+      return;
+    }
+
+    // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
+    // Автоматическая индексация при создании отключена
+
+    res.json(created);
+  } catch (error) {
+    console.error('[pages] Ошибка при создании страницы:', error);
+    console.error('[pages] Стек ошибки:', error.stack);
+    console.error('[pages] Код ошибки:', error.code);
+    console.error('[pages] Сообщение ошибки:', error.message);
+    
+    // Если ответ уже отправлен, не пытаемся отправлять ошибку
+    if (res.headersSent || res.destroyed) {
+      console.error('[pages] POST /: Ответ уже отправлен в catch блоке');
+      return;
+    }
+    
+    // Определяем статус код на основе типа ошибки
+    let statusCode = 500;
+    let errorMessage = 'Ошибка при создании страницы';
+    
+    if (error.message && error.message.includes('timeout exceeded when trying to connect')) {
+      statusCode = 503; // Service Unavailable
+      errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+    } else if (error.code === '23505') { // PostgreSQL unique violation
+      statusCode = 409; // Conflict
+      errorMessage = 'Страница с такими данными уже существует';
+    } else if (error.code === '23502') { // PostgreSQL not null violation
+      statusCode = 400; // Bad Request
+      errorMessage = 'Отсутствует обязательное поле: ' + (error.column || 'неизвестно');
+    } else if (error.code === '42703') { // PostgreSQL undefined column
+      statusCode = 400; // Bad Request
+      errorMessage = 'Неверное поле в запросе: ' + (error.message || 'неизвестно');
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(statusCode).json({
+      success: false,
+      error: errorMessage,
+      message: errorMessage
+    });
   }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  // Проверяем роль админа через токены в кошельке
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can create pages' });
-  }
-  
-  const authorAddress = req.session.address;
-  const tableName = `admin_pages_simple`;
-
-  // Собираем данные страницы
-  const bodyRaw = req.body || {};
-  const pageData = {
-    title: bodyRaw.title || '',
-    summary: bodyRaw.summary || '',
-    content: bodyRaw.content || '',
-    seo: bodyRaw.seo ? (typeof bodyRaw.seo === 'string' ? bodyRaw.seo : JSON.stringify(bodyRaw.seo)) : null,
-    status: bodyRaw.status || 'draft',
-    settings: bodyRaw.settings ? (typeof bodyRaw.settings === 'string' ? bodyRaw.settings : JSON.stringify(bodyRaw.settings)) : null,
-    visibility: bodyRaw.visibility || 'public',
-    required_permission: bodyRaw.required_permission || null,
-    format: bodyRaw.format || (req.file ? (req.file.mimetype?.startsWith('image/') ? 'image' : 'pdf') : 'html'),
-    mime_type: req.file ? (req.file.mimetype || null) : (bodyRaw.mime_type || (bodyRaw.format === 'html' ? 'text/html' : null)),
-    storage_type: req.file ? 'file' : (bodyRaw.storage_type || 'embedded'),
-    file_path: req.file ? path.join('/uploads', 'legal', path.basename(req.file.path)) : (bodyRaw.file_path || null),
-    size_bytes: req.file ? req.file.size : (bodyRaw.size_bytes || null),
-    checksum: bodyRaw.checksum || null,
-    // Нормализуем категорию: приводим к нижнему регистру для консистентности
-    category: (bodyRaw.category && String(bodyRaw.category).trim()) ? String(bodyRaw.category).trim().toLowerCase() : null,
-    // Обрабатываем parent_id: может быть null или числом
-    parent_id: (bodyRaw.parent_id && bodyRaw.parent_id !== 'null' && bodyRaw.parent_id !== '') 
-      ? (() => { const parsed = parseInt(bodyRaw.parent_id); return isNaN(parsed) ? null : parsed; })()
-      : null,
-    // Обрабатываем order_index: должно быть числом
-    order_index: (bodyRaw.order_index && bodyRaw.order_index !== 'null' && bodyRaw.order_index !== '') 
-      ? (() => { const parsed = parseInt(bodyRaw.order_index); return isNaN(parsed) ? 0 : parsed; })()
-      : 0,
-    nav_path: bodyRaw.nav_path || null,
-    is_index_page: bodyRaw.is_index_page === true || bodyRaw.is_index_page === 'true'
-  };
-
-  // Формируем SQL для вставки данных (только непустые поля)
-  const dataEntries = Object.entries(pageData).filter(([, v]) => v !== undefined);
-  const colNames = ['author_address', ...dataEntries.map(([k]) => k)].join(', ');
-  const values = [authorAddress, ...dataEntries.map(([, v]) => v)];
-  const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-
-  const sql = `INSERT INTO ${tableName} (${colNames}) VALUES (${placeholders}) RETURNING *`;
-  const { rows } = await db.getQuery()(sql, values);
-  const created = rows[0];
-
-  // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
-  // Автоматическая индексация при создании отключена
-
-  res.json(created);
 });
 
 // Получить все страницы админов
@@ -354,34 +492,81 @@ router.get('/categories', async (req, res) => {
 
 // ========== КОНЕЦ РОУТОВ ДЛЯ КАТЕГОРИЙ ==========
 
-// Получить одну страницу по id (только для админа)
+// Получить одну страницу по id (с проверкой прав доступа)
 router.get('/:id', async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
+  try {
+    if (!req.session || !req.session.authenticated) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    if (!req.session.address) {
+      return res.status(403).json({ error: 'Требуется подключение кошелька' });
+    }
+    
+    const tableName = `admin_pages_simple`;
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    if (!existsRes.rows[0].exists) return res.status(404).json({ error: 'Page table not found' });
+    
+    const { rows } = await db.getQuery()(
+      `SELECT * FROM ${tableName} WHERE id = $1`, 
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Page not found' });
+    
+    const page = rows[0];
+    
+    // Проверяем доступ к странице в зависимости от её видимости
+    const authService = require('../services/auth-service');
+    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+    const role = userAccessLevel.level; // 'user' | 'readonly' | 'editor'
+    
+    // Публичные страницы доступны всем
+    if (page.visibility === 'public' && page.status === 'published') {
+      return res.json(page);
+    }
+    
+    // Внутренние страницы требуют проверки прав
+    if (page.visibility === 'internal') {
+      // Редактор видит все внутренние страницы (включая черновики)
+      if (role === 'editor') {
+        return res.json(page);
+      }
+      
+      // Обычные пользователи видят только опубликованные внутренние страницы
+      if (page.status !== 'published') {
+        return res.status(403).json({ error: 'Доступ запрещен: страница не опубликована' });
+      }
+      
+      // Если у страницы указан required_permission, проверяем права пользователя
+      if (page.required_permission) {
+        const { PERMISSIONS, hasPermission } = require('../shared/permissions');
+        // Проверяем права доступа пользователя
+        // VIEW_BASIC_DOCS доступно всем аутентифицированным пользователям (user, readonly, editor)
+        // VIEW_LEGAL_DOCS требует readonly или editor
+        // MANAGE_LEGAL_DOCS требует editor
+        if (page.required_permission === PERMISSIONS.VIEW_LEGAL_DOCS && !hasPermission(role, PERMISSIONS.VIEW_LEGAL_DOCS)) {
+          return res.status(403).json({ error: 'Доступ запрещен: требуются права читателя' });
+        }
+        if (page.required_permission === PERMISSIONS.MANAGE_LEGAL_DOCS && !hasPermission(role, PERMISSIONS.MANAGE_LEGAL_DOCS)) {
+          return res.status(403).json({ error: 'Доступ запрещен: требуются права редактора' });
+        }
+      }
+      
+      // Если required_permission не указан или права проверены, возвращаем страницу
+      return res.json(page);
+    }
+    
+    // Для всех остальных случаев (например, draft публичных страниц) требуется роль редактора
+    if (role !== 'editor') {
+      return res.status(403).json({ error: 'Доступ запрещен: требуются права редактора' });
+    }
+    
+    res.json(page);
+  } catch (error) {
+    console.error('[pages] Ошибка получения страницы:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  // Проверяем роль админа через токены в кошельке
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can view pages' });
-  }
-  
-  const tableName = `admin_pages_simple`;
-  const existsRes = await db.getQuery()(
-    `SELECT to_regclass($1) as exists`, [tableName]
-  );
-  if (!existsRes.rows[0].exists) return res.status(404).json({ error: 'Page table not found' });
-  
-  const { rows } = await db.getQuery()(
-    `SELECT * FROM ${tableName} WHERE id = $1`, 
-    [req.params.id]
-  );
-  if (!rows.length) return res.status(404).json({ error: 'Page not found' });
-  res.json(rows[0]);
 });
 
 // Ручная переиндексация документа в vector-search (только для админа)
@@ -497,19 +682,37 @@ router.post('/:id/reindex', async (req, res) => {
 
 // Редактировать страницу по id
 router.patch('/:id', upload.single('file'), async (req, res) => {
-  if (!req.session || !req.session.authenticated) {
-    return res.status(401).json({ error: 'Требуется аутентификация' });
-  }
-  if (!req.session.address) {
-    return res.status(403).json({ error: 'Требуется подключение кошелька' });
-  }
-  
-  // Проверяем роль админа через токены в кошельке
-  const authService = require('../services/auth-service');
-  const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-  if (!userAccessLevel.hasAccess) {
-    return res.status(403).json({ error: 'Only admin can edit pages' });
-  }
+  console.log('[pages] PATCH /:id: Начало обработки запроса на обновление страницы ID:', req.params.id);
+  try {
+    if (!req.session || !req.session.authenticated) {
+      console.log('[pages] PATCH /:id: Ошибка аутентификации - сессия не найдена');
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    if (!req.session.address) {
+      console.log('[pages] PATCH /:id: Ошибка - адрес кошелька не найден');
+      return res.status(403).json({ error: 'Требуется подключение кошелька' });
+    }
+    
+    console.log('[pages] PATCH /:id: Проверка прав доступа для адреса:', req.session.address);
+    // Проверяем роль админа через токены в кошельке
+    const authService = require('../services/auth-service');
+    let userAccessLevel;
+    try {
+      userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+    } catch (authError) {
+      console.error('[pages] PATCH /:id: Ошибка при проверке прав доступа:', authError);
+      if (authError.message && authError.message.includes('timeout exceeded')) {
+        return res.status(503).json({ error: 'Ошибка подключения к базе данных. Попробуйте позже.' });
+      }
+      throw authError;
+    }
+    
+    if (!userAccessLevel.hasAccess) {
+      console.log('[pages] PATCH /:id: Доступ запрещен - недостаточно прав');
+      return res.status(403).json({ error: 'Only admin can edit pages' });
+    }
+    
+    console.log('[pages] PATCH /:id: Права доступа подтверждены, уровень:', userAccessLevel.level);
   
   const tableName = `admin_pages_simple`;
   const existsRes = await db.getQuery()(
@@ -520,14 +723,40 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   const incoming = req.body || {};
   const updateData = {};
   
-  console.log(`[pages] PATCH /:id (${req.params.id}): получены данные для обновления:`, incoming);
+  console.log(`[pages] PATCH /:id (${req.params.id}): получены данные для обновления:`, JSON.stringify(incoming, null, 2));
+  console.log(`[pages] PATCH /:id (${req.params.id}): тип req.body:`, typeof req.body);
+  console.log(`[pages] PATCH /:id (${req.params.id}): ключи в req.body:`, Object.keys(incoming));
+  
+  // Обрабатываем required_permission: 
+  // Если visibility меняется на public, required_permission должен быть null
+  // Если visibility = internal и нет required_permission, устанавливаем null
+  if ('visibility' in incoming && incoming.visibility === 'public') {
+    updateData.required_permission = null;
+  } else if ('required_permission' in incoming) {
+    if (incoming.required_permission) {
+      const perm = String(incoming.required_permission).trim();
+      updateData.required_permission = (perm && perm !== 'null' && perm !== '') ? perm : null;
+    } else {
+      updateData.required_permission = null;
+    }
+  }
   
   for (const [k, v] of Object.entries(incoming)) {
     if (FIELDS_TO_EXCLUDE.includes(k)) continue;
+    if (k === 'required_permission') continue; // Уже обработано выше
     
     // Нормализуем категорию: приводим к нижнему регистру для консистентности
     if (k === 'category') {
       updateData[k] = (v && String(v).trim()) ? String(v).trim().toLowerCase() : null;
+    }
+    // Обрабатываем category_id: может быть null или числом
+    else if (k === 'category_id') {
+      if (v === null || v === 'null' || v === '' || v === undefined) {
+        updateData[k] = null;
+      } else {
+        const parsed = parseInt(v);
+        updateData[k] = isNaN(parsed) ? null : parsed;
+      }
     }
     // Обрабатываем parent_id: может быть null или числом
     else if (k === 'parent_id') {
@@ -551,9 +780,27 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
     else if (k === 'is_index_page') {
       updateData[k] = v === true || v === 'true' || v === 1 || v === '1';
     }
+    // Обрабатываем JSON поля (seo, settings) - могут прийти как строка из FormData
+    else if (k === 'seo' || k === 'settings') {
+      if (typeof v === 'string') {
+        try {
+          // Если это строка JSON, пытаемся распарсить
+          const parsed = JSON.parse(v);
+          updateData[k] = parsed;
+        } catch (e) {
+          // Если не JSON, сохраняем как строку или null
+          updateData[k] = v && v.trim() ? v : null;
+        }
+      } else if (typeof v === 'object' && v !== null) {
+        // Если это уже объект, сериализуем в JSON
+        updateData[k] = v;
+      } else {
+        updateData[k] = v || null;
+      }
+    }
     // Остальные поля
     else {
-      updateData[k] = typeof v === 'object' ? JSON.stringify(v) : v;
+      updateData[k] = typeof v === 'object' && v !== null ? JSON.stringify(v) : v;
     }
   }
   
@@ -575,8 +822,61 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   console.log(`[pages] PATCH /:id (${req.params.id}): SQL запрос:`, sql);
   console.log(`[pages] PATCH /:id (${req.params.id}): значения:`, values);
   
-  const { rows } = await db.getQuery()(sql, values);
-  if (!rows.length) return res.status(404).json({ error: 'Page not found' });
+  // Проверяем, что ответ еще не был отправлен перед запросом к БД
+  if (res.headersSent || res.destroyed) {
+    console.error('[pages] PATCH /:id: Ответ уже отправлен перед запросом к БД');
+    return;
+  }
+  
+  console.log('[pages] PATCH /:id: Выполнение SQL запроса к БД...');
+  let rows;
+  try {
+    const result = await db.getQuery()(sql, values);
+    rows = result.rows;
+  } catch (dbError) {
+    console.error('[pages] PATCH /:id: Ошибка БД при выполнении SQL:', dbError);
+    console.error('[pages] PATCH /:id: Код ошибки БД:', dbError.code);
+    console.error('[pages] PATCH /:id: Сообщение БД:', dbError.message);
+    console.error('[pages] PATCH /:id: Детали БД:', dbError.detail);
+    
+    // Если ответ уже отправлен, не пытаемся отправлять ошибку
+    if (res.headersSent || res.destroyed) {
+      console.error('[pages] PATCH /:id: Ответ уже отправлен в catch блоке БД');
+      return;
+    }
+    
+    // Определяем статус код на основе типа ошибки
+    let statusCode = 500;
+    let errorMessage = 'Ошибка при обновлении страницы';
+    
+    if (dbError.message && dbError.message.includes('timeout exceeded when trying to connect')) {
+      statusCode = 503; // Service Unavailable
+      errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+    } else if (dbError.code === '23505') { // PostgreSQL unique violation
+      statusCode = 409; // Conflict
+      errorMessage = 'Страница с такими данными уже существует';
+    } else if (dbError.code === '23502') { // PostgreSQL not null violation
+      statusCode = 400; // Bad Request
+      errorMessage = 'Отсутствует обязательное поле: ' + (dbError.column || 'неизвестно');
+    } else if (dbError.code === '42703') { // PostgreSQL undefined column
+      statusCode = 400; // Bad Request
+      errorMessage = 'Неверное поле в запросе: ' + (dbError.message || 'неизвестно');
+    } else if (dbError.message) {
+      errorMessage = dbError.message;
+    }
+    
+    return res.status(statusCode).json({
+      success: false,
+      error: errorMessage,
+      message: errorMessage
+    });
+  }
+  
+  if (!rows.length) {
+    console.error('[pages] PATCH /:id: Страница не найдена после обновления');
+    return res.status(404).json({ error: 'Page not found' });
+  }
+  
   const updated = rows[0];
   
   console.log(`[pages] PATCH /:id (${req.params.id}): страница успешно обновлена:`, {
@@ -585,13 +885,53 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
     category: updated.category,
     parent_id: updated.parent_id,
     order_index: updated.order_index,
-    is_index_page: updated.is_index_page
+    is_index_page: updated.is_index_page,
+    visibility: updated.visibility,
+    required_permission: updated.required_permission
   });
+
+  // Проверяем еще раз перед отправкой ответа
+  if (res.headersSent || res.destroyed) {
+    console.error('[pages] PATCH /:id: Ответ уже отправлен после запроса к БД');
+    return;
+  }
 
   // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
   // Автоматическая индексация при обновлении отключена
 
   res.json(updated);
+  } catch (error) {
+    console.error('[pages] PATCH /:id: Ошибка при обновлении страницы:', error);
+    console.error('[pages] PATCH /:id: Стек ошибки:', error.stack);
+    console.error('[pages] PATCH /:id: Код ошибки:', error.code);
+    console.error('[pages] PATCH /:id: Сообщение ошибки:', error.message);
+    
+    // Если ответ уже отправлен, не пытаемся отправлять ошибку
+    if (res.headersSent || res.destroyed) {
+      console.error('[pages] PATCH /:id: Ответ уже отправлен в catch блоке');
+      return;
+    }
+    
+    // Определяем статус код на основе типа ошибки
+    let statusCode = 500;
+    let errorMessage = 'Ошибка при обновлении страницы';
+    
+    if (error.message && error.message.includes('timeout exceeded when trying to connect')) {
+      statusCode = 503; // Service Unavailable
+      errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+    } else if (error.code === '23505') { // PostgreSQL unique violation
+      statusCode = 409; // Conflict
+      errorMessage = 'Страница с такими данными уже существует';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(statusCode).json({
+      success: false,
+      error: errorMessage,
+      message: errorMessage
+    });
+  }
 });
 
 // Удалить страницу по id
@@ -611,17 +951,83 @@ router.delete('/:id', async (req, res) => {
   }
   
   const tableName = `admin_pages_simple`;
+  const pageId = parseInt(req.params.id);
+  
   const existsRes = await db.getQuery()(
     `SELECT to_regclass($1) as exists`, [tableName]
   );
   if (!existsRes.rows[0].exists) return res.status(404).json({ error: 'Page table not found' });
   
+  // Сначала получаем информацию о странице перед удалением
+  const pageResult = await db.getQuery()(
+    `SELECT * FROM ${tableName} WHERE id = $1`, 
+    [pageId]
+  );
+  if (!pageResult.rows.length) return res.status(404).json({ error: 'Page not found' });
+  const pageToDelete = pageResult.rows[0];
+  
+  // Находим все медиа-файлы, связанные с этой страницей
+  try {
+    const mediaResult = await db.getQuery()(
+      `SELECT id, file_hash FROM content_media WHERE page_id = $1`,
+      [pageId]
+    );
+    
+    const deletedMediaCount = mediaResult.rows.length;
+    console.log(`[pages] Найдено ${deletedMediaCount} медиа-файлов, связанных со страницей ${pageId}`);
+    
+    // Для каждого медиа-файла проверяем, используется ли он в других местах
+    for (const media of mediaResult.rows) {
+      if (media.file_hash) {
+        // Проверяем, сколько раз используется этот файл (по file_hash)
+        const usageResult = await db.getQuery()(
+          `SELECT COUNT(*) as count FROM content_media WHERE file_hash = $1`,
+          [media.file_hash]
+        );
+        const usageCount = parseInt(usageResult.rows[0].count);
+        
+        // Если файл используется только один раз (только в этой странице), удаляем его полностью
+        if (usageCount === 1) {
+          await db.getQuery()(
+            `DELETE FROM content_media WHERE id = $1`,
+            [media.id]
+          );
+          console.log(`[pages] Удален медиа-файл ID ${media.id} (file_hash: ${media.file_hash}), использовался только в удаляемой странице`);
+        } else {
+          // Если файл используется в других местах, просто убираем связь со страницей
+          await db.getQuery()(
+            `UPDATE content_media SET page_id = NULL WHERE id = $1`,
+            [media.id]
+          );
+          console.log(`[pages] Убрана связь медиа-файла ID ${media.id} со страницей ${pageId} (файл используется в ${usageCount} местах)`);
+        }
+      } else {
+        // Если file_hash отсутствует, просто удаляем файл
+        await db.getQuery()(
+          `DELETE FROM content_media WHERE id = $1`,
+          [media.id]
+        );
+        console.log(`[pages] Удален медиа-файл ID ${media.id} (без file_hash)`);
+      }
+    }
+    
+    if (deletedMediaCount > 0) {
+      console.log(`[pages] Обработано ${deletedMediaCount} медиа-файлов при удалении страницы ${pageId}`);
+    }
+  } catch (mediaError) {
+    console.error('[pages] Ошибка при удалении медиа-файлов:', mediaError);
+    // Продолжаем удаление страницы даже если произошла ошибка с медиа-файлами
+  }
+  
+  // Удаляем страницу
   const { rows } = await db.getQuery()(
     `DELETE FROM ${tableName} WHERE id = $1 RETURNING *`, 
-    [req.params.id]
+    [pageId]
   );
   if (!rows.length) return res.status(404).json({ error: 'Page not found' });
   const deleted = rows[0];
+  
+  // Удаляем из векторного поиска
   try {
     if (deleted && deleted.format === 'html') {
       // Удаляем документ и все его чанки
@@ -636,6 +1042,7 @@ router.delete('/:id', async (req, res) => {
   } catch (e) {
     console.error('[pages] vector remove error:', e.message);
   }
+  
   res.json(deleted);
 });
 
@@ -983,7 +1390,7 @@ router.get('/public/:id/navigation', async (req, res) => {
   }
 });
 
-// Внутренние документы (доступны аутентифицированным пользователям с доступом)
+// Внутренние документы (доступны всем аутентифицированным пользователям с подключенным кошельком)
 router.get('/internal/all', async (req, res) => {
   try {
     if (!req.session || !req.session.authenticated) {
@@ -1001,16 +1408,16 @@ router.get('/internal/all', async (req, res) => {
 
     const authService = require('../services/auth-service');
     const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    if (!userAccessLevel.hasAccess) {
-      return res.status(403).json({ error: 'Only internal users can view pages' });
-    }
-
-    // READONLY/EDITOR видят внутренние опубликованные; EDITOR может видеть и черновики
-    const role = userAccessLevel.level; // 'readonly' | 'editor'
+    
+    // Все аутентифицированные пользователи с подключенным кошельком могут видеть внутренние страницы
+    // EDITOR может видеть все (включая черновики), обычные пользователи - только опубликованные
+    const role = userAccessLevel.level; // 'user' | 'readonly' | 'editor'
     let sql;
     if (role === 'editor') {
+      // Редактор видит все внутренние страницы, включая черновики
       sql = `SELECT * FROM ${tableName} WHERE visibility = 'internal' ORDER BY created_at DESC`;
     } else {
+      // Обычные пользователи видят только опубликованные внутренние страницы
       sql = `SELECT * FROM ${tableName} WHERE visibility = 'internal' AND status = 'published' ORDER BY created_at DESC`;
     }
     const { rows } = await db.getQuery()(sql);

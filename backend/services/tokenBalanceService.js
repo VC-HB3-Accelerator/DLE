@@ -25,11 +25,21 @@ async function getUserTokenBalances(address) {
   const encryptionUtils = require('../utils/encryptionUtils');
   const encryptionKey = encryptionUtils.getEncryptionKey();
 
-  // Получаем токены и RPC с расшифровкой
-  const tokensResult = await db.getQuery()(
-    'SELECT id, min_balance, readonly_threshold, editor_threshold, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
-    [encryptionKey]
-  );
+  // Получаем токены и RPC с расшифровкой (с таймаутом)
+  let tokensResult;
+  try {
+    const queryPromise = db.getQuery()(
+      'SELECT id, min_balance, readonly_threshold, editor_threshold, created_at, updated_at, decrypt_text(name_encrypted, $1) as name, decrypt_text(address_encrypted, $1) as address, decrypt_text(network_encrypted, $1) as network FROM auth_tokens',
+      [encryptionKey]
+    );
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Database query timeout')), 30000)
+    );
+    tokensResult = await Promise.race([queryPromise, timeoutPromise]);
+  } catch (error) {
+    logger.error('[tokenBalanceService] Ошибка получения токенов из БД:', error.message);
+    return []; // Возвращаем пустой массив при ошибке БД
+  }
   const tokens = tokensResult.rows;
 
   // Убрано - используем rpcService вместо прямого запроса к БД

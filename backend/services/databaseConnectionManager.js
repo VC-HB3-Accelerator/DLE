@@ -105,10 +105,10 @@ class DatabaseConnectionManager {
       user: config.db_user,
       password: config.db_password,
       ssl: false,
-      max: 10,
-      min: 0,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      max: 100, // Увеличиваем максимальное количество клиентов (было 10)
+      min: 10, // Минимальное количество клиентов для лучшей производительности (было 0)
+      idleTimeoutMillis: 180000, // Увеличиваем до 180 сек (было 30)
+      connectionTimeoutMillis: 180000, // Увеличиваем таймаут подключения до 180 сек (было 2)
       maxUses: 7500,
       allowExitOnIdle: true,
       maxLifetimeSeconds: 0

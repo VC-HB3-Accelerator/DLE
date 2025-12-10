@@ -27,10 +27,11 @@ export default {
     const res = await api.get(`/pages/${id}`);
     return res.data;
   },
-  async updatePage(id, data) {
-    console.log('[pagesService] updatePage:', { id, data });
+  async updatePage(id, data, isFormData = false) {
+    console.log('[pagesService] updatePage:', { id, isFormData });
     try {
-      const res = await api.patch(`/pages/${id}`, data);
+      const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined;
+      const res = await api.patch(`/pages/${id}`, data, config);
       console.log('[pagesService] updatePage успешно:', res.data);
       return res.data;
     } catch (error) {

@@ -29,10 +29,10 @@ const sessionService = require('../services/session-service');
 const consentService = require('../services/consentService');
 const { DOCUMENT_CONSENT_MAP } = consentService;
 
-// Создаем лимитер для попыток аутентификации
+// Создаем лимитер для попыток аутентификации (отключено - лимиты убраны)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: 20,
+  max: 1000000, // Очень большой лимит (практически без ограничений)
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много попыток аутентификации. Попробуйте позже.' },

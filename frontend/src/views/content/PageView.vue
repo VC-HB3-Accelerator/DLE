@@ -39,9 +39,13 @@
           </div>
         </div>
         <div class="header-actions">
-          <button v-if="canEditData && address" class="btn btn-outline" @click="goToEdit">
+          <button v-if="canEditPage" class="btn btn-outline" @click="goToEdit">
             <i class="fas fa-edit"></i>
             Редактировать
+          </button>
+          <button v-if="canManageLegalDocs && address" class="btn btn-danger" @click="deletePage" type="button">
+            <i class="fas fa-trash"></i>
+            Удалить
           </button>
           <button class="close-btn" @click="goBack">×</button>
         </div>
@@ -147,13 +151,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
 import api from '../../api/axios';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
+import { PERMISSIONS } from '../../composables/permissions';
 
 // Props
 const props = defineProps({
@@ -184,8 +189,30 @@ const router = useRouter();
 // Состояние
 const page = ref(null);
 const { address } = useAuthContext();
-const { canEditData } = usePermissions();
+const { canEditData, hasPermission } = usePermissions();
+const canManageLegalDocs = computed(() => {
+  try {
+    return hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS);
+  } catch (e) {
+    console.error('[PageView] Ошибка проверки прав MANAGE_LEGAL_DOCS:', e);
+    return false;
+  }
+});
 const isLoading = ref(false);
+
+// Удалять может ТОЛЬКО редактор (MANAGE_LEGAL_DOCS)
+const canDeletePage = computed(() => {
+  const hasPermission = canManageLegalDocs.value;
+  const hasAddress = !!address.value;
+  console.log('[PageView] canDeletePage проверка:', { hasPermission, hasAddress, address: address.value });
+  return hasPermission && hasAddress;
+});
+
+// Редактировать может редактор или пользователь с правом редактирования
+const canEditPage = computed(() => {
+  if (!address.value) return false;
+  return canManageLegalDocs.value || canEditData.value;
+});
 
 // Методы
 function goToEdit() {
@@ -202,14 +229,22 @@ async function reindex() {
 }
 
 async function deletePage() {
-  if (confirm('Вы уверены, что хотите удалить эту страницу? Это действие нельзя отменить.')) {
+  // Дополнительная проверка прав на стороне клиента
+  if (!canManageLegalDocs.value) {
+    alert('У вас нет прав для удаления страниц. Требуются права редактора.');
+    return;
+  }
+  
+  if (!confirm('Вы уверены, что хотите удалить эту страницу? Это действие нельзя отменить. Все связанные файлы также будут удалены.')) {
+    return;
+  }
+  
     try {
       await pagesService.deletePage(route.params.id);
       router.push({ name: 'content-list' });
     } catch (error) {
       console.error('Ошибка удаления страницы:', error);
-      alert('Ошибка при удалении страницы');
-    }
+    alert('Ошибка при удалении страницы: ' + (error?.response?.data?.error || error?.message || 'Неизвестная ошибка'));
   }
 }
 
@@ -281,9 +316,57 @@ async function loadPage() {
   }
 }
 
+// Обработка ошибок загрузки видео
+function setupVideoErrorHandlers() {
+  nextTick(() => {
+    const videoElements = document.querySelectorAll('.page-content video');
+    videoElements.forEach((video) => {
+      video.addEventListener('error', (e) => {
+        console.error('Ошибка загрузки видео:', e);
+        const error = e.target.error;
+        let errorMessage = 'Неизвестная ошибка';
+        
+        if (error) {
+          switch (error.code) {
+            case error.MEDIA_ERR_ABORTED:
+              errorMessage = 'Загрузка видео была прервана';
+              break;
+            case error.MEDIA_ERR_NETWORK:
+              errorMessage = 'Ошибка сети при загрузке видео';
+              break;
+            case error.MEDIA_ERR_DECODE:
+              errorMessage = 'Ошибка декодирования видео';
+              break;
+            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+              errorMessage = 'Формат видео не поддерживается';
+              break;
+            default:
+              errorMessage = `Ошибка загрузки видео (код: ${error.code})`;
+          }
+        }
+        
+        // Показываем сообщение об ошибке вместо видео
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'video-error';
+        errorDiv.style.cssText = 'padding: 20px; background: #fee; border: 1px solid #fcc; border-radius: 8px; margin: 1.5rem 0; color: #c33;';
+        errorDiv.textContent = `❌ ${errorMessage}`;
+        video.parentNode?.replaceChild(errorDiv, video);
+      });
+    });
+  });
+}
+
+// Отслеживание изменений контента для добавления обработчиков ошибок
+watch(() => page.value?.content, () => {
+  if (page.value?.content) {
+    setupVideoErrorHandlers();
+  }
+});
+
 // Загрузка данных
 onMounted(() => {
   loadPage();
+  setupVideoErrorHandlers();
 });
 </script>
 

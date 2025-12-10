@@ -94,7 +94,14 @@ router.post('/media', auth.requireAuth, async (req, res) => {
   mediaUpload.single('media')(req, res, async (err) => {
     if (err) {
       console.error('[uploads/media] Ошибка multer:', err);
-      return res.status(400).json({ success: false, message: err.message });
+      // Формируем понятное сообщение об ошибке
+      let errorMessage = err.message || 'Ошибка загрузки файла';
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        errorMessage = 'Файл слишком большой';
+      } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        errorMessage = 'Неожиданный файл';
+      }
+      return res.status(400).json({ success: false, message: errorMessage });
     }
     
     try {
@@ -214,45 +221,187 @@ router.post('/media', auth.requireAuth, async (req, res) => {
         table: e.table,
         column: e.column
       });
-      return res.status(500).json({ 
+      
+      // Проверяем, можно ли отправлять ответ
+      if (res.headersSent || res.destroyed) {
+        console.error('[uploads/media] Ответ уже отправлен или соединение закрыто, пропускаем отправку ошибки');
+        return;
+      }
+      
+      // Формируем понятное сообщение об ошибке
+      let errorMessage = e.message || 'Внутренняя ошибка сервера';
+      let statusCode = 500;
+      
+      // Обработка ошибок подключения к БД
+      if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
+        errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+        statusCode = 503; // Service Unavailable
+      } else if (e.detail) {
+      // Если есть детали ошибки PostgreSQL, добавляем их к сообщению
+        errorMessage += `: ${e.detail}`;
+      } else if (e.constraint) {
+        errorMessage += ` (нарушение ограничения: ${e.constraint})`;
+      }
+      
+      return res.status(statusCode).json({ 
         success: false, 
-        message: e.message || 'Внутренняя ошибка сервера',
-        error: process.env.NODE_ENV === 'development' ? {
-          name: e.name,
-          code: e.code,
-          detail: e.detail,
-          constraint: e.constraint
-        } : undefined
+        message: errorMessage
+        // Убираем объект error, чтобы фронтенд не получал [object Object]
       });
     }
   });
 });
 
+// Middleware для логирования всех запросов к медиа-файлам
+router.use('/media/:id/file', (req, res, next) => {
+  const mediaId = parseInt(req.params.id);
+  console.log(`[uploads/media/:id/file] MIDDLEWARE: Запрос к файлу ID: ${mediaId}, метод: ${req.method}, Range: ${req.headers.range || 'нет'}`);
+  next();
+});
+
 // GET /api/uploads/media/:id/file - получить файл по ID с поддержкой Range requests
 router.get('/media/:id/file', async (req, res) => {
   let client = null;
+  let clientReleased = false; // Флаг для предотвращения двойного освобождения клиента
   const mediaId = parseInt(req.params.id);
+  
+  console.log(`[uploads/media/:id/file] HANDLER: Начало обработки запроса для файла ID: ${mediaId}`);
+  
+  // Валидация mediaId
+  if (isNaN(mediaId) || mediaId <= 0) {
+    console.error(`[uploads/media/:id/file] Неверный ID файла: ${req.params.id}`);
+    if (!res.headersSent && !res.destroyed) {
+    return res.status(400).json({ success: false, message: 'Неверный ID файла' });
+    }
+    return;
+  }
+  
   // Увеличиваем chunk size до 1MB для больших файлов - меньше запросов к БД
   const chunkSize = 1048576; // 1MB chunks для оптимальной производительности стриминга
+  
+  console.log(`[uploads/media/:id/file] Запрос файла ID: ${mediaId}, Range: ${req.headers.range || 'нет'}`);
+  
+  // Функция для безопасного освобождения клиента
+  const releaseClient = () => {
+    if (client && !clientReleased) {
+      clientReleased = true;
+      try {
+        client.release();
+      } catch (releaseErr) {
+        console.error(`[uploads/media/:id/file] Ошибка освобождения клиента для файла ID ${mediaId}:`, releaseErr);
+      }
+    }
+  };
+  
+  // Обработчики событий для очистки
+  let connectionTimeoutHandle = null;
+  let responseErrorHandler = null;
+  let responseCloseHandler = null;
+  
+  // Функция для очистки всех обработчиков и таймеров
+  const cleanup = () => {
+    if (connectionTimeoutHandle) {
+      clearTimeout(connectionTimeoutHandle);
+      connectionTimeoutHandle = null;
+    }
+    if (responseErrorHandler && res.removeListener) {
+      res.removeListener('error', responseErrorHandler);
+    }
+    if (responseCloseHandler && res.removeListener) {
+      res.removeListener('close', responseCloseHandler);
+    }
+  };
   
   try {
     const db = require('../db');
     const pool = db.getPool();
-    client = await pool.connect();
-
+    
+    // Добавляем таймаут для подключения к пулу (10 секунд)
+    const connectionTimeout = new Promise((_, reject) => {
+      connectionTimeoutHandle = setTimeout(() => {
+        reject(new Error('timeout exceeded when trying to connect'));
+      }, 30000); // Увеличиваем таймаут до 30 секунд (было 10)
+    });
+    
+    try {
+      client = await Promise.race([
+        pool.connect().then(client => {
+          // Очищаем таймер при успешном подключении
+          if (connectionTimeoutHandle) {
+            clearTimeout(connectionTimeoutHandle);
+            connectionTimeoutHandle = null;
+          }
+          return client;
+        }),
+        connectionTimeout
+      ]);
+    console.log(`[uploads/media/:id/file] Клиент БД подключен для файла ID: ${mediaId}`);
+    } catch (connectErr) {
+      // Очищаем таймер при ошибке
+      if (connectionTimeoutHandle) {
+        clearTimeout(connectionTimeoutHandle);
+        connectionTimeoutHandle = null;
+      }
+      console.error(`[uploads/media/:id/file] Ошибка подключения к БД для файла ID ${mediaId}:`, {
+        message: connectErr.message,
+        stack: connectErr.stack
+      });
+      if (!res.headersSent && !res.destroyed) {
+        return res.status(503).json({ 
+          success: false, 
+          message: 'Ошибка подключения к базе данных. Попробуйте позже.' 
+        });
+      }
+      return;
+    }
+    
+    // Проверяем, не закрыто ли соединение перед запросом к БД
+    if (res.destroyed || res.headersSent) {
+      releaseClient();
+      cleanup();
+      return;
+    }
+    
     // Сначала получаем метаданные без file_data
-    const metaResult = await client.query(
+    let metaResult;
+    try {
+      metaResult = await client.query(
       'SELECT file_name, mime_type, file_size FROM content_media WHERE id = $1',
       [mediaId]
     );
-
-    if (metaResult.rows.length === 0) {
-      client.release();
-      return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
+    } catch (queryErr) {
+      console.error(`[uploads/media/:id/file] Ошибка запроса метаданных для файла ID ${mediaId}:`, {
+        message: queryErr.message,
+        stack: queryErr.stack
+      });
+      releaseClient();
+      cleanup();
+      if (!res.headersSent && !res.destroyed) {
+        return res.status(500).json({ success: false, message: 'Ошибка получения метаданных файла' });
+      }
+      return;
     }
-
+    
+    if (metaResult.rows.length === 0) {
+      console.error(`[uploads/media/:id/file] Файл не найден: ID ${mediaId}`);
+      releaseClient();
+      cleanup();
+      if (!res.headersSent && !res.destroyed) {
+      return res.status(404).json({ success: false, message: 'Медиа-файл не найден' });
+      }
+      return;
+    }
+    
     const media = metaResult.rows[0];
     const fileSize = parseInt(media.file_size) || 0;
+    console.log(`[uploads/media/:id/file] Файл найден: ID ${mediaId}, размер: ${fileSize} bytes, тип: ${media.mime_type}`);
+
+    // Проверяем, не закрыто ли соединение перед установкой заголовков
+    if (res.destroyed || res.headersSent) {
+      releaseClient();
+      cleanup();
+      return;
+    }
 
     // Поддержка HTTP Range requests для стриминга (как на YouTube/Vimeo)
     const range = req.headers.range;
@@ -267,10 +416,16 @@ router.get('/media/:id/file', async (req, res) => {
       end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       
       // Валидация диапазона
-      if (start >= fileSize || end >= fileSize) {
+      if (start >= fileSize || end >= fileSize || start < 0 || end < start) {
+        if (!res.headersSent && !res.destroyed) {
         res.setHeader('Content-Range', `bytes */${fileSize}`);
-        client.release();
-        return res.status(416).end(); // Range Not Satisfiable
+          releaseClient();
+          cleanup();
+          return res.status(416).end(); // Range Not Satisfiable
+        }
+        releaseClient();
+        cleanup();
+        return;
       }
       
       statusCode = 206; // Partial Content
@@ -279,16 +434,33 @@ router.get('/media/:id/file', async (req, res) => {
     const contentLength = end - start + 1;
 
     // Устанавливаем заголовки для правильной отдачи файла с поддержкой Range
+    // Проверяем, не закрыто ли соединение перед установкой заголовков
+    if (res.destroyed || res.headersSent) {
+      releaseClient();
+      return;
+    }
+    
     res.setHeader('Content-Type', media.mime_type);
     res.setHeader('Accept-Ranges', 'bytes'); // Указываем, что поддерживаем Range requests
     res.setHeader('Content-Length', contentLength);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Кеширование на 1 год
     
+    // Правильное кодирование имени файла для HTTP заголовков (RFC 5987)
+    // Экранируем специальные символы и используем ASCII для совместимости
+    const safeFileName = media.file_name
+      .replace(/"/g, '\\"')  // Экранируем кавычки
+      .replace(/\n/g, '')     // Убираем переносы строк
+      .replace(/\r/g, '');    // Убираем возврат каретки
+    
+    // Для кириллицы и специальных символов используем RFC 5987 формат
+    const encodedFileName = encodeURIComponent(media.file_name);
+    
     if (range) {
       res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
       res.status(statusCode);
     } else {
-      res.setHeader('Content-Disposition', `inline; filename="${media.file_name}"`);
+      // Используем оба формата: ASCII для совместимости и UTF-8 для корректного отображения
+      res.setHeader('Content-Disposition', `inline; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`);
     }
 
     // Используем прямой стриминг BYTEA данных частями через SQL substring
@@ -298,11 +470,24 @@ router.get('/media/:id/file', async (req, res) => {
     
     const streamChunk = async () => {
       try {
+        // Проверяем, не освобожден ли клиент или не закрыто ли соединение
+        if (clientReleased || !client || res.destroyed) {
+          if (!clientReleased) {
+            releaseClient();
+          }
+          if (!res.destroyed && res.headersSent) {
+            res.end();
+          }
+          return; // Клиент уже освобожден или соединение закрыто, прекращаем стриминг
+        }
+
         // Проверяем, не достигли ли мы конца запрошенного диапазона
         if (offset > endOffset) {
           // Достигнут конец запрошенного диапазона
-          client.release();
+          releaseClient();
+          if (!res.destroyed) {
           res.end();
+          }
           return;
         }
 
@@ -310,15 +495,26 @@ router.get('/media/:id/file', async (req, res) => {
         const currentChunkSize = Math.min(chunkSize, endOffset - offset + 1);
         
         // Читаем следующий chunk данных, используя encode для получения hex-строки
-        const chunkResult = await client.query(
+        let chunkResult;
+        try {
+          chunkResult = await client.query(
           `SELECT encode(substring(file_data FROM $1 FOR $2), 'hex') as chunk_hex FROM content_media WHERE id = $3`,
           [offset, currentChunkSize, mediaId]
         );
+        } catch (queryErr) {
+          // Если ошибка запроса, но соединение закрыто - просто выходим
+          if (res.destroyed || clientReleased) {
+            return;
+          }
+          throw queryErr; // Пробрасываем ошибку дальше для обработки
+        }
 
         if (chunkResult.rows.length === 0 || !chunkResult.rows[0] || !chunkResult.rows[0].chunk_hex) {
           // Достигнут конец файла или данные отсутствуют
-          client.release();
+          releaseClient();
+          if (!res.destroyed) {
           res.end();
+          }
           return;
         }
 
@@ -326,27 +522,49 @@ router.get('/media/:id/file', async (req, res) => {
         
         // Если chunk пустой, значит достигнут конец
         if (!chunkHex || chunkHex.length === 0) {
-          client.release();
+          releaseClient();
+          if (!res.destroyed) {
           res.end();
+          }
           return;
         }
         
         // Преобразуем hex-строку в Buffer
         const buffer = Buffer.from(chunkHex, 'hex');
 
+        // Проверяем, не закрыто ли соединение перед отправкой данных
+        if (res.destroyed) {
+          releaseClient();
+          return;
+        }
+
         // Отправляем chunk клиенту
         if (!res.write(buffer)) {
           // Буфер переполнен, ждем события 'drain'
           res.once('drain', () => {
-            offset += currentChunkSize;
-            streamChunk();
+            // Проверяем, не освобожден ли клиент и не закрыто ли соединение перед продолжением
+            if (!clientReleased && client && !res.destroyed) {
+              offset += currentChunkSize;
+              streamChunk();
+            } else {
+              releaseClient();
+            }
           });
         } else {
           // Продолжаем отправку следующего chunk
-          offset += currentChunkSize;
-          streamChunk();
+          if (!clientReleased && client && !res.destroyed) {
+            offset += currentChunkSize;
+            streamChunk();
+          } else {
+            releaseClient();
+          }
         }
       } catch (chunkErr) {
+        // Игнорируем ошибки, если клиент уже освобожден или соединение закрыто
+        if (clientReleased || res.destroyed) {
+          return;
+        }
+        
         console.error('[uploads/media/:id/file] Ошибка чтения chunk:', {
           message: chunkErr.message,
           stack: chunkErr.stack,
@@ -354,12 +572,12 @@ router.get('/media/:id/file', async (req, res) => {
           endOffset: endOffset,
           fileSize: fileSize
         });
-        if (client) {
-          client.release();
-        }
-        if (!res.headersSent) {
+        releaseClient();
+        // Если заголовки еще не отправлены, отправляем ошибку
+        if (!res.headersSent && !res.destroyed) {
           res.status(500).json({ success: false, message: 'Ошибка чтения файла' });
-        } else {
+        } else if (!res.destroyed) {
+          // Если заголовки уже отправлены, просто завершаем соединение
           res.end();
         }
       }
@@ -369,26 +587,29 @@ router.get('/media/:id/file', async (req, res) => {
     streamChunk();
 
     // Обработка ошибок HTTP ответа
-    res.on('error', (resErr) => {
-      console.error('[uploads/media/:id/file] Ошибка HTTP ответа:', resErr);
-      if (client) {
-        client.release();
-      }
-    });
+    responseErrorHandler = (resErr) => {
+      console.error(`[uploads/media/:id/file] Ошибка HTTP ответа для файла ID ${mediaId}:`, resErr);
+      releaseClient();
+      cleanup();
+    };
+    res.on('error', responseErrorHandler);
 
     // Обработка закрытия соединения клиентом
-    res.on('close', () => {
-      if (client) {
-        client.release();
+    responseCloseHandler = () => {
+      // Если соединение закрыто клиентом до завершения стриминга, освобождаем клиент
+      if (!clientReleased) {
+        console.log(`[uploads/media/:id/file] Соединение закрыто клиентом для файла ID ${mediaId}, освобождаем клиент БД`);
+        releaseClient();
       }
-    });
+      cleanup();
+    };
+    res.on('close', responseCloseHandler);
 
   } catch (e) {
-    if (client) {
-      client.release();
-    }
+    releaseClient();
+    cleanup();
     
-    console.error('[uploads/media/:id/file] Ошибка получения файла:', {
+    console.error(`[uploads/media/:id/file] Ошибка получения файла ID ${mediaId}:`, {
       message: e.message,
       stack: e.stack,
       name: e.name,
@@ -396,12 +617,21 @@ router.get('/media/:id/file', async (req, res) => {
       detail: e.detail,
       constraint: e.constraint,
       table: e.table,
-      column: e.column
+      column: e.column,
+      mediaId: mediaId
     });
-    if (!res.headersSent) {
-      return res.status(500).json({
+    
+    // Проверяем, можно ли отправлять ответ
+    if (!res.headersSent && !res.destroyed) {
+      // Для ошибок подключения к БД возвращаем специальный статус
+      const statusCode = e.message && e.message.includes('timeout exceeded when trying to connect') ? 503 : 500;
+      const message = e.message && e.message.includes('timeout exceeded when trying to connect') 
+        ? 'Ошибка подключения к базе данных. Попробуйте позже.'
+        : (e.message || 'Внутренняя ошибка сервера');
+        
+      return res.status(statusCode).json({
         success: false,
-        message: e.message || 'Внутренняя ошибка сервера',
+        message: message,
         error: process.env.NODE_ENV === 'development' ? {
           name: e.name,
           code: e.code,
@@ -491,7 +721,27 @@ router.get('/media', auth.requireAuth, async (req, res) => {
       offset: parseInt(offset)
     });
   } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
+    console.error('[uploads/media GET] Ошибка получения списка медиа:', {
+      message: e.message,
+      stack: e.stack
+    });
+    
+    // Проверяем, можно ли отправлять ответ
+    if (res.headersSent || res.destroyed) {
+      console.error('[uploads/media GET] Ответ уже отправлен или соединение закрыто');
+      return;
+    }
+    
+    // Обработка ошибок подключения к БД
+    let statusCode = 500;
+    let errorMessage = e.message || 'Внутренняя ошибка сервера';
+    
+    if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
+      errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+      statusCode = 503;
+    }
+    
+    return res.status(statusCode).json({ success: false, message: errorMessage });
   }
 });
 
@@ -559,7 +809,28 @@ router.patch('/media/:id', auth.requireAuth, async (req, res) => {
     
     return res.json({ success: true, data: rows[0] });
   } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
+    console.error('[uploads/media/:id PATCH] Ошибка обновления медиа:', {
+      message: e.message,
+      stack: e.stack,
+      mediaId: parseInt(req.params.id)
+    });
+    
+    // Проверяем, можно ли отправлять ответ
+    if (res.headersSent || res.destroyed) {
+      console.error('[uploads/media/:id PATCH] Ответ уже отправлен или соединение закрыто');
+      return;
+    }
+    
+    // Обработка ошибок подключения к БД
+    let statusCode = 500;
+    let errorMessage = e.message || 'Внутренняя ошибка сервера';
+    
+    if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
+      errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+      statusCode = 503;
+    }
+    
+    return res.status(statusCode).json({ success: false, message: errorMessage });
   }
 });
 
@@ -613,7 +884,28 @@ router.delete('/media/:id', auth.requireAuth, async (req, res) => {
     
     return res.json({ success: true, message: 'Медиа-файл удален' });
   } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
+    console.error('[uploads/media/:id DELETE] Ошибка удаления медиа:', {
+      message: e.message,
+      stack: e.stack,
+      mediaId: parseInt(req.params.id)
+    });
+    
+    // Проверяем, можно ли отправлять ответ
+    if (res.headersSent || res.destroyed) {
+      console.error('[uploads/media/:id DELETE] Ответ уже отправлен или соединение закрыто');
+      return;
+    }
+    
+    // Обработка ошибок подключения к БД
+    let statusCode = 500;
+    let errorMessage = e.message || 'Внутренняя ошибка сервера';
+    
+    if (e.message && e.message.includes('timeout exceeded when trying to connect')) {
+      errorMessage = 'Ошибка подключения к базе данных. Попробуйте позже.';
+      statusCode = 503;
+    }
+    
+    return res.status(statusCode).json({ success: false, message: errorMessage });
   }
 });
 

@@ -112,11 +112,12 @@ const filtered = computed(() => {
     }
     
     // Фильтр по правам доступа
+    // Если у документа нет required_permission, он доступен всем аутентифицированным пользователям
     if (!p.required_permission) {
-      return false; // Документ без прав не показываем
+      return true; // Документ без прав доступен всем
     }
     
-    // Проверяем права пользователя
+    // Проверяем права пользователя для документов с указанными правами
     if (p.required_permission === PERMISSIONS.VIEW_BASIC_DOCS) {
       return hasPermission(PERMISSIONS.VIEW_BASIC_DOCS);
     }
@@ -129,7 +130,8 @@ const filtered = computed(() => {
       return hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS);
     }
     
-    return false;
+    // Если required_permission указан, но не распознан, показываем документ
+    return true;
   });
 });
 

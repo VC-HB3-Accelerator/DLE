@@ -26,6 +26,15 @@
           <p>{{ isEditMode ? 'Редактируйте существующую страницу' : 'Создайте новую страницу для вашего DLE' }}</p>
         </div>
         <div class="header-actions">
+          <button 
+            v-if="isEditMode && canManageLegalDocs && address" 
+            class="btn btn-danger" 
+            @click="deletePage"
+            type="button"
+          >
+            <i class="fas fa-trash"></i>
+            Удалить
+          </button>
           <button class="close-btn" @click="goBack">×</button>
         </div>
       </div>
@@ -279,6 +288,24 @@ function goBack() {
   router.push({ name: 'content-list' });
 }
 
+async function deletePage() {
+  if (!isEditMode.value || !editId.value) {
+    return;
+  }
+  
+  if (!confirm('Вы уверены, что хотите удалить эту страницу? Это действие нельзя отменить. Все связанные файлы также будут удалены.')) {
+    return;
+  }
+  
+  try {
+    await pagesService.deletePage(editId.value);
+    router.push({ name: 'content-list' });
+  } catch (error) {
+    console.error('Ошибка удаления страницы:', error);
+    alert('Ошибка при удалении страницы: ' + (error?.response?.data?.error || error?.message || 'Неизвестная ошибка'));
+  }
+}
+
 function onFileChange(e) {
   const f = e.target.files && e.target.files[0];
   if (f) {
@@ -432,8 +459,14 @@ async function handleSubmit() {
         fd.append('status', form.value.status);
         fd.append('settings', JSON.stringify(form.value.settings));
         fd.append('visibility', form.value.visibility);
+        // Всегда отправляем required_permission:
+        // - Если visibility = public, отправляем пустую строку (будет установлен null на бэкенде)
+        // - Если visibility = internal, отправляем значение или пустую строку
         if (form.value.visibility === 'internal' && form.value.requiredPermission) {
           fd.append('required_permission', form.value.requiredPermission.trim());
+        } else {
+          // Явно устанавливаем пустое значение для public страниц
+          fd.append('required_permission', '');
         }
         fd.append('format', form.value.format);
         if (fileBlob.value) {
@@ -470,8 +503,14 @@ async function handleSubmit() {
         fd.append('status', form.value.status);
         fd.append('settings', JSON.stringify(form.value.settings));
         fd.append('visibility', form.value.visibility);
+        // Всегда отправляем required_permission:
+        // - Если visibility = public, отправляем пустую строку (будет установлен null на бэкенде)
+        // - Если visibility = internal, отправляем значение или пустую строку
         if (form.value.visibility === 'internal' && form.value.requiredPermission) {
           fd.append('required_permission', form.value.requiredPermission.trim());
+        } else {
+          // Явно устанавливаем пустое значение для public страниц
+          fd.append('required_permission', '');
         }
         fd.append('format', form.value.format);
         fd.append('file', fileBlob.value);

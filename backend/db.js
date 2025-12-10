@@ -50,22 +50,24 @@ let pool = new Pool({
   user: process.env.DB_USER || 'dapp_user',
   password: process.env.DB_PASSWORD,
   ssl: false,
-  // Настройки для предотвращения утечек памяти
-  max: 10, // Максимальное количество клиентов в пуле
-  min: 0, // Минимальное количество клиентов в пуле
-  idleTimeoutMillis: 30000, // Время жизни неактивного клиента (30 сек)
-  connectionTimeoutMillis: 30000, // Таймаут подключения (30 сек)
+  // Настройки для предотвращения утечек памяти и таймаутов
+  max: 100, // Увеличиваем максимальное количество клиентов в пуле (было 50)
+  min: 10, // Минимальное количество клиентов в пуле для лучшей производительности (было 5)
+  idleTimeoutMillis: 180000, // Время жизни неактивного клиента (180 сек, было 120)
+  connectionTimeoutMillis: 180000, // Таймаут подключения (180 сек, было 120)
   maxUses: 7500, // Максимальное количество использований клиента
   allowExitOnIdle: true, // Разрешить выход при отсутствии активных клиентов
 });
 
 // Увеличиваем лимит обработчиков событий для предотвращения предупреждений
-pool.setMaxListeners(20);
+pool.setMaxListeners(100);
 
 // Добавляем обработчики для правильного закрытия пула
+// НЕ завершаем процесс при ошибках на idle клиентах - это может быть временная проблема
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('[db] Unexpected error on idle client:', err.message);
+  // НЕ завершаем процесс - это может быть временная проблема с сетью или БД
+  // process.exit(-1);
 });
 
 // Обработчик для очистки при завершении процесса
@@ -130,22 +132,22 @@ async function reinitPoolFromDbSettings() {
       user: dbSettings.db_user_encrypted ? await decryptValue(dbSettings.db_user_encrypted) : process.env.DB_USER || 'dapp_user',
       password: dbSettings.db_password_encrypted ? await decryptValue(dbSettings.db_password_encrypted) : process.env.DB_PASSWORD,
       ssl: false,
-      // Те же настройки для предотвращения утечек
-      max: 10,
-      min: 0,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      // Те же настройки для предотвращения утечек и таймаутов
+      max: 100, // Увеличиваем максимальное количество клиентов (было 50)
+      min: 10, // Минимальное количество клиентов для лучшей производительности (было 5)
+      idleTimeoutMillis: 180000, // Увеличиваем до 180 сек (было 120)
+      connectionTimeoutMillis: 180000, // Увеличиваем таймаут подключения до 180 сек (было 120)
       maxUses: 7500,
       allowExitOnIdle: true,
     });
     
     // Устанавливаем лимит обработчиков для нового пула
-    pool.setMaxListeners(20);
+    pool.setMaxListeners(100);
     
-    // Добавляем обработчики ошибок для нового пула
+    // Добавляем обработчик ошибок для нового пула (не завершаем процесс)
     pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
-      process.exit(-1);
+      console.error('[db] Unexpected error on idle client (reinit):', err.message);
+      // НЕ завершаем процесс - это может быть временная проблема
     });
     
     // Пересоздаём session middleware

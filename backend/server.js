@@ -146,12 +146,29 @@ server.listen(PORT, '0.0.0.0', async () => {
 });
 
 // Обработка ошибок
-process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Rejection:', err);
+process.on('unhandledRejection', (err, promise) => {
+  logger.error('Unhandled Rejection:', {
+    error: err.message,
+    stack: err.stack,
+    promise: promise
+  });
+  // Не завершаем процесс, так как это может быть временная ошибка подключения к БД
+  // В production лучше логировать и продолжать работу
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Unhandled Rejection Details:', err);
+  }
 });
 
 process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err);
+  logger.error('Uncaught Exception:', {
+    error: err.message,
+    stack: err.stack
+  });
+  // Для критических ошибок лучше завершить процесс после логирования
+  // Но даем время на логирование
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
 
 // Запускаем мониторинг памяти в production
