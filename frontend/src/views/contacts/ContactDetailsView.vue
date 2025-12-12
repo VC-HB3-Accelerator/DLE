@@ -456,10 +456,13 @@ async function loadMessages() {
       
     } else {
       // Для других пользователей загружаем публичные сообщения между текущим пользователем и выбранным контактом
+      // И личные сообщения с ИИ целевого пользователя (для Telegram/Email пользователей)
       console.log('[ContactDetailsView] 🔍 Loading public messages between current user and contact:', contact.value.id);
       const response = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
       if (response.success && response.messages) {
         allMessages = response.messages;
+        // Сортируем по времени создания (от старых к новым)
+        allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       }
     }
     

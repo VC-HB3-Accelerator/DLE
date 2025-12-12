@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const vectorSearchClient = require('../services/vectorSearchClient');
+const logger = require('../utils/logger');
 
 const FIELDS_TO_EXCLUDE = ['image', 'tags'];
 
@@ -495,11 +496,72 @@ router.get('/categories', async (req, res) => {
 // Получить одну страницу по id (с проверкой прав доступа)
 router.get('/:id', async (req, res) => {
   try {
+    // Если пользователь не авторизован, проверяем параметры для автоматической авторизации
     if (!req.session || !req.session.authenticated) {
-      return res.status(401).json({ error: 'Требуется аутентификация' });
-    }
-    if (!req.session.address) {
-      return res.status(403).json({ error: 'Требуется подключение кошелька' });
+      const telegramId = req.query.telegramId;
+      const email = req.query.email;
+      
+      // Пытаемся автоматически авторизовать пользователя через Telegram/Email
+      if (telegramId || email) {
+        const identityService = require('../services/identity-service');
+        const authService = require('../services/auth-service');
+        
+        let user = null;
+        if (telegramId) {
+          user = await identityService.findUserByIdentity('telegram', telegramId);
+        } else if (email) {
+          user = await identityService.findUserByIdentity('email', email);
+        }
+        
+        if (user) {
+          // Автоматически создаем сессию для пользователя
+          req.session.userId = user.id;
+          req.session.authenticated = true;
+          if (telegramId) {
+            req.session.telegramId = telegramId;
+            req.session.authType = 'telegram';
+          } else if (email) {
+            req.session.email = email;
+            req.session.authType = 'email';
+          }
+          
+          // Проверяем, есть ли у пользователя связанный кошелек
+          const { getLinkedWallet } = require('../services/wallet-service');
+          const linkedWallet = await getLinkedWallet(user.id);
+          
+          if (linkedWallet) {
+            // Если есть кошелек - проверяем токены и определяем роль по балансу
+            try {
+              req.session.address = linkedWallet;
+              const userAccessLevel = await authService.getUserAccessLevel(linkedWallet);
+              req.session.userAccessLevel = userAccessLevel;
+              logger.info(`[pages/:id] Автоматическая авторизация с кошельком: ${telegramId ? 'telegram' : 'email'}, user: ${user.id}, wallet: ${linkedWallet}, role: ${userAccessLevel.level}`);
+            } catch (walletError) {
+              // Если ошибка при проверке токенов, используем роль из БД
+              logger.warn(`[pages/:id] Ошибка проверки токенов для кошелька ${linkedWallet}, используем роль из БД:`, walletError);
+              req.session.userAccessLevel = { 
+                level: user.role || 'user', 
+                tokenCount: 0, 
+                hasAccess: true 
+              };
+            }
+          } else {
+            // Если кошелька нет - используем роль из БД
+            req.session.userAccessLevel = { 
+              level: user.role || 'user', 
+              tokenCount: 0, 
+              hasAccess: true 
+            };
+            logger.info(`[pages/:id] Автоматическая авторизация без кошелька: ${telegramId ? 'telegram' : 'email'}, user: ${user.id}, role: ${user.role || 'user'}`);
+          }
+          
+          await req.session.save();
+        } else {
+          return res.status(401).json({ error: 'Требуется аутентификация' });
+        }
+      } else {
+        return res.status(401).json({ error: 'Требуется аутентификация' });
+      }
     }
     
     const tableName = `admin_pages_simple`;
@@ -517,9 +579,38 @@ router.get('/:id', async (req, res) => {
     const page = rows[0];
     
     // Проверяем доступ к странице в зависимости от её видимости
-    const authService = require('../services/auth-service');
-    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
-    const role = userAccessLevel.level; // 'user' | 'readonly' | 'editor'
+    // authService уже объявлен выше при автоматической авторизации, используем его
+    let role = 'user';
+    let userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: true };
+    
+    // Используем userAccessLevel из сессии, если он уже установлен (при автоматической авторизации)
+    if (req.session.userAccessLevel) {
+      userAccessLevel = req.session.userAccessLevel;
+      role = userAccessLevel.level;
+    } else if (req.session.address) {
+      // Для пользователей с кошельком проверяем токены
+      const authService = require('../services/auth-service');
+      userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+      role = userAccessLevel.level;
+    } else if (req.session.userId) {
+      // Для Telegram/Email пользователей без кошелька используем роль из БД
+      const roleResult = await db.getQuery()('SELECT role FROM users WHERE id = $1', [
+        req.session.userId,
+      ]);
+      
+      if (roleResult.rows.length > 0) {
+        role = roleResult.rows[0].role;
+        // Преобразуем роль в формат userAccessLevel
+        if (role === 'editor') {
+          userAccessLevel = { level: 'editor', tokenCount: 5999998, hasAccess: true };
+        } else if (role === 'readonly') {
+          userAccessLevel = { level: 'readonly', tokenCount: 100, hasAccess: true };
+        } else {
+          // Для роли 'user' даем доступ к внутренним документам
+          userAccessLevel = { level: 'user', tokenCount: 0, hasAccess: true };
+        }
+      }
+    }
     
     // Публичные страницы доступны всем
     if (page.visibility === 'public' && page.status === 'published') {
@@ -545,6 +636,9 @@ router.get('/:id', async (req, res) => {
         // VIEW_BASIC_DOCS доступно всем аутентифицированным пользователям (user, readonly, editor)
         // VIEW_LEGAL_DOCS требует readonly или editor
         // MANAGE_LEGAL_DOCS требует editor
+        if (page.required_permission === PERMISSIONS.VIEW_BASIC_DOCS && !hasPermission(role, PERMISSIONS.VIEW_BASIC_DOCS)) {
+          return res.status(403).json({ error: 'Доступ запрещен: требуется авторизация' });
+        }
         if (page.required_permission === PERMISSIONS.VIEW_LEGAL_DOCS && !hasPermission(role, PERMISSIONS.VIEW_LEGAL_DOCS)) {
           return res.status(403).json({ error: 'Доступ запрещен: требуются права читателя' });
         }

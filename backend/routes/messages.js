@@ -226,7 +226,7 @@ router.get('/public', requireAuth, async (req, res) => {
          (m.message_type = 'public' AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1)))
          OR (m.message_type = 'user_chat' AND m.user_id = $1)
        )
-       ORDER BY m.created_at DESC
+       ORDER BY m.created_at ASC
        LIMIT $3 OFFSET $4`,
       [targetUserId, encryptionKey, limit, offset, currentUserId]
     );
@@ -684,6 +684,178 @@ router.post('/send', requireAuth, async (req, res) => {
         markAsRead
       }
     });
+
+    // Отправляем сообщение через Telegram/Email, если у получателя есть эти идентификаторы
+    try {
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+      const botManager = require('../services/botManager');
+      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://xn--80aqc0am6d.xn--p1ai';
+      
+      // Получаем все идентификаторы получателя
+      const identitiesRes = await db.getQuery()(
+        'SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1',
+        [recipientIdNum, encryptionKey]
+      );
+      const identities = identitiesRes.rows;
+      
+      // Функция для добавления параметров к ссылкам на страницы контента
+      // Редактор копирует URL из адресной строки и отправляет его в чат
+      // Функция находит все ссылки на /content/page/ или /public/page/ и добавляет параметры авторизации
+      // Best practice: используем встроенный URL API для надежной обработки
+      const addAuthParamsToLinks = (text, telegramId, email) => {
+        if (!text) return text;
+        
+        const params = {};
+        if (telegramId) {
+          params.telegramId = telegramId;
+        }
+        if (email) {
+          params.email = email;
+        }
+        
+        if (Object.keys(params).length === 0) return text;
+        
+        // Вспомогательная функция для добавления параметров к URL
+        const addParamsToUrl = (urlString, baseUrl = null) => {
+          try {
+            // Парсим URL (полный или относительный)
+            const url = baseUrl ? new URL(urlString, baseUrl) : new URL(urlString);
+            
+            // Проверяем, является ли это страницей контента
+            const pathname = url.pathname;
+            if (!pathname.match(/^\/content\/page\/\d+$/) && !pathname.match(/^\/public\/page\/\d+$/)) {
+              return urlString; // Не страница контента, возвращаем как есть
+            }
+            
+            // Проверяем, не добавлены ли уже параметры авторизации
+            if (url.searchParams.has('telegramId') || url.searchParams.has('email')) {
+              return urlString; // Параметры уже есть
+            }
+            
+            // Добавляем параметры
+            Object.entries(params).forEach(([key, value]) => {
+              url.searchParams.set(key, value);
+            });
+            
+            return url.toString();
+          } catch (error) {
+            // Если URL некорректный, возвращаем как есть
+            return urlString;
+          }
+        };
+        
+        // Обрабатываем HTML-ссылки <a href="...">
+        text = text.replace(/<a\s+([^>]*?)href=["']([^"']*)["']([^>]*)>/gi, (match, beforeAttrs, url, afterAttrs) => {
+          if (!url) return match;
+          
+          const newUrl = addParamsToUrl(url, FRONTEND_URL);
+          if (newUrl === url) return match; // URL не изменился
+          
+          return `<a ${beforeAttrs || ''}href="${newUrl}"${afterAttrs || ''}>`;
+        });
+        
+        // Обрабатываем обычные текстовые ссылки (URL из адресной строки браузера)
+        // Ищем все варианты: полные URL и относительные пути
+        // Используем два отдельных паттерна для надежности
+        
+        // Паттерн для полных URL: https://domain.com/content/page/38
+        const fullUrlPattern = /https?:\/\/[^\s<>"']+?(?:\/content\/page\/\d+|\/public\/page\/\d+)[^\s<>"']*/gi;
+        
+        text = text.replace(fullUrlPattern, (match, offset) => {
+          // Проверяем, не находимся ли мы внутри HTML-тега
+          const beforeMatch = text.substring(0, offset);
+          const lastOpenTag = beforeMatch.lastIndexOf('<a');
+          const lastCloseTag = beforeMatch.lastIndexOf('</a>');
+          
+          if (lastOpenTag > lastCloseTag) {
+            // Мы внутри открытого тега <a>, пропускаем
+            return match;
+          }
+          
+          // Обрабатываем URL
+          const newUrl = addParamsToUrl(match);
+          return newUrl === match ? match : newUrl;
+        });
+        
+        // Паттерн для относительных путей: /content/page/38
+        const relativePathPattern = /\/content\/page\/\d+[^\s<>"']*|\/public\/page\/\d+[^\s<>"']*/g;
+        
+        text = text.replace(relativePathPattern, (match, offset) => {
+          // Пропускаем, если это уже полный URL (начинается с http)
+          if (offset > 0 && text.substring(Math.max(0, offset - 7), offset).match(/https?:\/\//i)) {
+            return match;
+          }
+          
+          // Проверяем, не находимся ли мы внутри HTML-тега
+          const beforeMatch = text.substring(0, offset);
+          const lastOpenTag = beforeMatch.lastIndexOf('<a');
+          const lastCloseTag = beforeMatch.lastIndexOf('</a>');
+          
+          if (lastOpenTag > lastCloseTag) {
+            // Мы внутри открытого тега <a>, пропускаем
+            return match;
+          }
+          
+          // Обрабатываем относительный путь
+          const newUrl = addParamsToUrl(match, FRONTEND_URL);
+          return newUrl === match ? match : newUrl;
+        });
+        
+        return text;
+      };
+      
+      // Отправка через Telegram
+      const telegramIdentity = identities.find(i => i.provider === 'telegram');
+      if (telegramIdentity && telegramIdentity.provider_id) {
+        try {
+          const telegramBot = botManager.getBot('telegram');
+          if (telegramBot && telegramBot.isInitialized) {
+            // Добавляем параметры к ссылкам для автоматической авторизации
+            const contentWithLinks = addAuthParamsToLinks(content, telegramIdentity.provider_id, null);
+            await telegramBot.getBot().telegram.sendMessage(telegramIdentity.provider_id, contentWithLinks);
+            logger.info(`[messages/send] Сообщение отправлено через Telegram пользователю ${recipientIdNum}`);
+          } else {
+            logger.warn('[messages/send] Telegram Bot не инициализирован, сообщение сохранено только в истории');
+          }
+        } catch (telegramError) {
+          logger.error('[messages/send] Ошибка отправки через Telegram:', telegramError);
+        }
+      }
+      
+      // Отправка через Email
+      const emailIdentity = identities.find(i => i.provider === 'email');
+      if (emailIdentity && emailIdentity.provider_id) {
+        try {
+          const emailBot = botManager.getBot('email');
+          if (emailBot && emailBot.isInitialized) {
+            // Добавляем параметры к ссылкам для автоматической авторизации
+            const contentWithLinks = addAuthParamsToLinks(content, null, emailIdentity.provider_id);
+            
+            // Проверяем, содержит ли контент HTML-теги
+            const isHtml = /<[a-z][\s\S]*>/i.test(contentWithLinks);
+            
+            if (isHtml) {
+              // Если контент содержит HTML, отправляем как HTML с текстовой версией
+              // Создаем текстовую версию (удаляем HTML-теги для простоты)
+              const textVersion = contentWithLinks.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+              await emailBot.sendEmailWithHtml(emailIdentity.provider_id, 'Новое сообщение', textVersion, contentWithLinks);
+            } else {
+              // Если контент текстовый, отправляем как текст
+              await emailBot.sendEmail(emailIdentity.provider_id, 'Новое сообщение', contentWithLinks);
+            }
+            logger.info(`[messages/send] Сообщение отправлено через Email пользователю ${recipientIdNum}`);
+          } else {
+            logger.warn('[messages/send] Email Bot не инициализирован, сообщение сохранено только в истории');
+          }
+        } catch (emailError) {
+          logger.error('[messages/send] Ошибка отправки через Email:', emailError);
+        }
+      }
+    } catch (deliveryError) {
+      // Не критично, если не удалось отправить через внешние каналы - сообщение уже сохранено в БД
+      logger.warn('[messages/send] Ошибка отправки через внешние каналы (не критично):', deliveryError);
+    }
 
     if (markAsRead) {
       try {
