@@ -358,23 +358,77 @@ class AuthService {
   }
 
   // Проверка верификации Email
-  async checkEmailVerification(code) {
+  // Принимает code и опционально email (если не передан, будет получен из verification_codes)
+  async checkEmailVerification(code, email = null) {
     try {
-      // Проверяем код через сервис верификации
-      const result = await verificationService.verifyCode(code, 'email', null);
+      // Получаем ключ шифрования
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
 
-      if (!result.success) {
+      // Если email не передан, пытаемся найти его через код
+      let emailToVerify = email;
+      if (!emailToVerify) {
+        // Ищем email в verification_codes по коду
+        const normalizedCode = code.toUpperCase();
+        const emailResult = await db.getQuery()(
+          `SELECT decrypt_text(provider_id_encrypted, $2) as email 
+           FROM verification_codes 
+           WHERE code = $1 AND provider = 'email' AND used = false
+           ORDER BY created_at DESC LIMIT 1`,
+          [normalizedCode, encryptionKey]
+        );
+        if (emailResult.rows.length > 0) {
+          emailToVerify = emailResult.rows[0].email;
+        }
+      }
+
+      if (!emailToVerify) {
+        logger.error('[checkEmailVerification] Email not found');
         return { verified: false };
       }
 
-      const userId = result.userId;
-      const email = result.providerId;
+      // Проверяем код через сервис верификации
+      const result = await verificationService.verifyCode(code, 'email', emailToVerify);
 
-      // Проверяем, существует ли пользователь с таким email
-      const userResult = await db.getQuery()('SELECT id, role, created_at, updated_at, is_blocked, blocked_at, preferred_language FROM users WHERE id = $1', [userId]);
-
-      if (userResult.rows.length === 0) {
+      if (!result.valid) {
         return { verified: false };
+      }
+
+      const email = emailToVerify.toLowerCase();
+
+      // Ищем существующего пользователя по email
+      const existingUserResult = await db.getQuery()(
+        `SELECT u.id, u.role 
+         FROM users u 
+         JOIN user_identities ui ON u.id = ui.user_id 
+         WHERE ui.provider_encrypted = encrypt_text('email', $2) 
+           AND ui.provider_id_encrypted = encrypt_text($1, $2)`,
+        [email.toLowerCase(), encryptionKey]
+      );
+
+      let userId;
+      let isNewUser = false;
+
+      if (existingUserResult.rows.length > 0) {
+        // Пользователь уже существует
+        userId = existingUserResult.rows[0].id;
+        logger.info(`[checkEmailVerification] Found existing user ${userId} for email ${email}`);
+      } else {
+        // Создаем нового пользователя с ролью user (даже без кошелька)
+        const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+          ROLES.USER,
+        ]);
+        userId = newUserResult.rows[0].id;
+        isNewUser = true;
+
+        // Добавляем email идентификатор
+        await encryptedDb.saveData('user_identities', {
+          user_id: userId,
+          provider: 'email',
+          provider_id: email.toLowerCase()
+        });
+
+        logger.info(`[checkEmailVerification] Created new user ${userId} for email ${email} with role ${ROLES.USER}`);
       }
 
       // Проверяем наличие кошелька и определяем роль
@@ -385,10 +439,20 @@ class AuthService {
         // Если есть кошелек, проверяем уровень доступа
         const userAccessLevel = await this.getUserAccessLevel(wallet);
         role = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
-        logger.info(`User ${userId} has wallet ${wallet}, role set to ${role}`);
+        
+        // Обновляем роль в БД, если она изменилась
+        if (role !== ROLES.USER) {
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+        }
+        
+        logger.info(`[checkEmailVerification] User ${userId} has wallet ${wallet}, role set to ${role}`);
       } else {
-        logger.info(`User ${userId} has no wallet, using basic user role`);
+        // Убеждаемся, что роль user установлена (даже без кошелька)
+        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
+        logger.info(`[checkEmailVerification] User ${userId} has no wallet, using basic user role`);
       }
+
+      broadcastContactsUpdate();
 
       return {
         verified: true,
@@ -409,6 +473,10 @@ class AuthService {
   async verifyTelegramAuth(telegramId, verificationCode, session) {
     try {
       logger.info(`[verifyTelegramAuth] Starting for telegramId: ${telegramId}`);
+
+      // Получаем ключ шифрования
+      const encryptionUtils = require('../utils/encryptionUtils');
+      const encryptionKey = encryptionUtils.getEncryptionKey();
 
       let userId;
       let isNewUser = false;
@@ -451,7 +519,7 @@ class AuthService {
           `[verifyTelegramAuth] Found existing user ${userId} for Telegram ID ${telegramId}`
         );
       } else {
-        // Создаем нового пользователя для нового telegramId
+        // Создаем нового пользователя для нового telegramId с ролью user (даже без кошелька)
         const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
           ROLES.USER,
         ]);
@@ -466,27 +534,49 @@ class AuthService {
         });
 
         logger.info(
-          `[verifyTelegramAuth] Created new user ${userId} for Telegram ID ${telegramId}`
+          `[verifyTelegramAuth] Created new user ${userId} for Telegram ID ${telegramId} with role ${ROLES.USER}`
         );
       }
 
-      // Если есть гостевой ID в сессии, сохраняем его для нового пользователя
-      if (session.guestId && isNewUser) {
-        // Получаем ключ шифрования через унифицированную утилиту
-        const encryptionUtils = require('../utils/encryptionUtils');
-        const encryptionKey = encryptionUtils.getEncryptionKey();
-
-        await db.getQuery()(
-          'INSERT INTO unified_guest_mapping (user_id, identifier_encrypted, channel, created_at) VALUES ($1, encrypt_text($2, $4), $3, NOW()) ON CONFLICT (identifier_encrypted, channel) DO UPDATE SET user_id = $1',
-          [userId, `web:${session.guestId}`, 'web', encryptionKey]
-        );
-        logger.info(`[verifyTelegramAuth] Saved guest ID ${session.guestId} for user ${userId}`);
+      // Если есть гостевой ID в сессии (web канал), мигрируем его тоже
+      if (session.guestId) {
+        const universalGuestService = require('./UniversalGuestService');
+        const webIdentifier = `web:${session.guestId}`;
+        try {
+          await universalGuestService.migrateToUser(webIdentifier, userId);
+          logger.info(`[verifyTelegramAuth] Migrated web guest messages for ${webIdentifier} to user ${userId}`);
+        } catch (migrateError) {
+          logger.warn(`[verifyTelegramAuth] Could not migrate web guest messages: ${migrateError.message}`);
+        }
       }
+
+      // Проверяем наличие кошелька и определяем роль
+      const wallet = await getLinkedWallet(userId);
+      let role = ROLES.USER; // Базовая роль для доступа к чату
+
+      if (wallet) {
+        // Если есть кошелек, проверяем уровень доступа
+        const userAccessLevel = await this.getUserAccessLevel(wallet);
+        role = userAccessLevel.hasAccess ? userAccessLevel.level : ROLES.USER;
+        
+        // Обновляем роль в БД, если она изменилась
+        if (role !== ROLES.USER) {
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+        }
+        
+        logger.info(`[verifyTelegramAuth] User ${userId} has wallet ${wallet}, role set to ${role}`);
+      } else {
+        // Убеждаемся, что роль user установлена (даже без кошелька)
+        await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
+        logger.info(`[verifyTelegramAuth] User ${userId} has no wallet, using basic user role`);
+      }
+
+      broadcastContactsUpdate();
 
       return {
         success: true,
         userId,
-        role: ROLES.USER,
+        role,
         telegramId,
         isNewUser,
       };
@@ -976,20 +1066,33 @@ class AuthService {
       await identityService.saveIdentity(userId, 'email', normalizedEmail, true);
       logger.info(`[handleEmailVerification] Ensured email identity ${normalizedEmail} for user ${userId}`);
 
-      // 3. Связать гостевые ID (если есть)
+      // 3. Мигрируем гостевые сообщения web канала, если есть (только для web-гостей, которые писали до авторизации)
+      const universalGuestService = require('./UniversalGuestService');
       if (session.guestId) {
-        await identityService.saveIdentity(userId, 'guest', session.guestId, true);
+        const webIdentifier = `web:${session.guestId}`;
+        try {
+          await universalGuestService.migrateToUser(webIdentifier, userId);
+          logger.info(`[handleEmailVerification] Migrated web guest messages for ${webIdentifier} to user ${userId}`);
+        } catch (migrateError) {
+          logger.warn(`[handleEmailVerification] Could not migrate web guest messages: ${migrateError.message}`);
+        }
       }
       if (session.previousGuestId && session.previousGuestId !== session.guestId) {
-        await identityService.saveIdentity(userId, 'guest', session.previousGuestId, true);
+        const webIdentifier = `web:${session.previousGuestId}`;
+        try {
+          await universalGuestService.migrateToUser(webIdentifier, userId);
+          logger.info(`[handleEmailVerification] Migrated previous web guest messages for ${webIdentifier} to user ${userId}`);
+        } catch (migrateError) {
+          logger.warn(`[handleEmailVerification] Could not migrate previous web guest messages: ${migrateError.message}`);
+        }
       }
 
       // 4. Проверить роль на основе привязанного кошелька
       try {
         const linkedWallet = await getLinkedWallet(userId);
-        if (linkedWallet && linkedWallet.provider_id) {
-          logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet.provider_id}. Checking role...`);
-          const userAccessLevel = await this.getUserAccessLevel(linkedWallet.provider_id);
+        if (linkedWallet) {
+          logger.info(`[handleEmailVerification] Found linked wallet ${linkedWallet}. Checking role...`);
+          const userAccessLevel = await this.getUserAccessLevel(linkedWallet);
           if (userAccessLevel.hasAccess) {
             userRole = userAccessLevel.level;
           } else {
@@ -1004,12 +1107,10 @@ class AuthService {
             logger.info(`[handleEmailVerification] Updated user role in DB to ${userRole}`);
           }
         } else {
-          logger.info(`[handleEmailVerification] No linked wallet found. Role remains 'user'.`);
-          // Если кошелька нет, проверяем текущую роль из базы (на случай, если она была admin ранее)
-          const currentUser = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
-          if (currentUser.rows.length > 0) {
-            userRole = currentUser.rows[0].role;
-          }
+          // Если кошелька нет, устанавливаем роль user (даже если в БД была другая роль)
+          userRole = ROLES.USER;
+          await db.getQuery()('UPDATE users SET role = $1 WHERE id = $2', [ROLES.USER, userId]);
+          logger.info(`[handleEmailVerification] No linked wallet found. Role set to 'user'.`);
         }
       } catch (roleCheckError) {
         logger.error(`[handleEmailVerification] Error checking user role:`, roleCheckError);

@@ -162,9 +162,9 @@ class EmailAuth {
       // Проверяем код через сервис верификации
       const result = await verificationService.verifyCode(code, 'email', session.pendingEmail);
 
-      if (!result.success) {
+      if (!result.valid) {
         // Используем сообщение об ошибке из сервиса верификации
-        return { verified: false, message: result.error || 'Неверный код верификации' };
+        return { verified: false, message: result.message || 'Неверный код верификации' };
       }
 
       const email = session.pendingEmail.toLowerCase();
@@ -238,14 +238,26 @@ class EmailAuth {
       await authService.identityService.saveIdentity(finalUserId, 'email', email, true);
       logger.info(`[checkEmailVerification] Added email identity ${email} for user ${finalUserId}`);
 
+      // Мигрируем гостевые сообщения web канала, если есть (только для web-гостей, которые писали до авторизации)
+      if (session.guestId) {
+        const universalGuestService = require('./UniversalGuestService');
+        const webIdentifier = `web:${session.guestId}`;
+        try {
+          await universalGuestService.migrateToUser(webIdentifier, finalUserId);
+          logger.info(`[checkEmailVerification] Migrated web guest messages for ${webIdentifier} to user ${finalUserId}`);
+        } catch (migrateError) {
+          logger.warn(`[checkEmailVerification] Could not migrate web guest messages: ${migrateError.message}`);
+        }
+      }
+
       // ----> НАЧАЛО: Проверка роли на основе привязанного кошелька
       let userRole = 'user'; // Роль по умолчанию
       try {
         const linkedWallet = await authService.getLinkedWallet(finalUserId);
-        if (linkedWallet) {
-          logger.info(`[checkEmailVerification] Found linked wallet ${linkedWallet} for user ${finalUserId}. Checking user role...`);
+        if (linkedWallet && linkedWallet.provider_id) {
+          logger.info(`[checkEmailVerification] Found linked wallet ${linkedWallet.provider_id} for user ${finalUserId}. Checking user role...`);
           const authService = require('./auth-service');
-          const userAccessLevel = await authService.getUserAccessLevel(linkedWallet);
+          const userAccessLevel = await authService.getUserAccessLevel(linkedWallet.provider_id);
           const { ROLES } = require('/app/shared/permissions');
           // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
           userRole = userAccessLevel.level;
@@ -265,14 +277,6 @@ class EmailAuth {
         // В случае ошибки оставляем роль 'user'
       }
       // ----> КОНЕЦ: Проверка роли
-
-      // Если есть гостевой ID, добавляем его тоже
-      if (session.guestId) {
-        await authService.identityService.saveIdentity(finalUserId, 'guest', session.guestId, true);
-        logger.info(
-          `[checkEmailVerification] Added guest identity ${session.guestId} for user ${finalUserId}`
-        );
-      }
 
       // Очищаем временные данные
       delete session.pendingEmail;
