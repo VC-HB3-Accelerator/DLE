@@ -200,14 +200,18 @@ router.get('/public', requireAuth, async (req, res) => {
     // Если нужен только подсчет
     if (countOnly) {
       const countResult = await db.getQuery()(
-        `SELECT COUNT(*) FROM messages WHERE message_type = 'public' 
-           AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1))`,
+        `SELECT COUNT(*) FROM messages 
+         WHERE (
+           (message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
+           OR (message_type = 'user_chat' AND user_id = $1)
+         )`,
         [targetUserId, currentUserId]
       );
       const totalCount = parseInt(countResult.rows[0].count, 10);
       return res.json({ success: true, count: totalCount, total: totalCount });
     }
     
+    // Загружаем публичные сообщения между пользователями И личные сообщения с ИИ целевого пользователя
     const result = await db.getQuery()(
       `SELECT m.id, m.user_id, m.sender_id, decrypt_text(m.sender_type_encrypted, $2) as sender_type, 
               decrypt_text(m.content_encrypted, $2) as content, 
@@ -218,8 +222,10 @@ router.get('/public', requireAuth, async (req, res) => {
               arm.last_read_at
        FROM messages m
        LEFT JOIN admin_read_messages arm ON arm.user_id = m.user_id AND arm.admin_id = $5
-       WHERE m.message_type = 'public' 
-         AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1))
+       WHERE (
+         (m.message_type = 'public' AND ((m.user_id = $1 AND m.sender_id = $5) OR (m.user_id = $5 AND m.sender_id = $1)))
+         OR (m.message_type = 'user_chat' AND m.user_id = $1)
+       )
        ORDER BY m.created_at DESC
        LIMIT $3 OFFSET $4`,
       [targetUserId, encryptionKey, limit, offset, currentUserId]
@@ -227,8 +233,11 @@ router.get('/public', requireAuth, async (req, res) => {
     
     // Получаем общее количество для пагинации
     const countResult = await db.getQuery()(
-      `SELECT COUNT(*) FROM messages WHERE message_type = 'public' 
-         AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1))`,
+      `SELECT COUNT(*) FROM messages 
+       WHERE (
+         (message_type = 'public' AND ((user_id = $1 AND sender_id = $2) OR (user_id = $2 AND sender_id = $1)))
+         OR (message_type = 'user_chat' AND user_id = $1)
+       )`,
       [targetUserId, currentUserId]
     );
     const totalCount = parseInt(countResult.rows[0].count, 10);
