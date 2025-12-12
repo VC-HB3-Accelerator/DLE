@@ -112,7 +112,37 @@ async function processMessage(messageData) {
       hasAttachments: attachments.length > 0
     });
 
-    // 1. Определяем: гость или пользователь?
+    // 1. Разбираем идентификатор
+    const [provider, providerId] = identifier.split(':');
+
+    // 2. Для telegram/email: автоматически создаем пользователя, если его нет
+    if ((provider === 'telegram' || provider === 'email') && providerId) {
+      let user = await identityService.findUserByIdentity(provider, providerId);
+      
+      if (!user) {
+        // Автоматически создаем пользователя для telegram/email при первом сообщении
+        logger.info(`[UnifiedMessageProcessor] Автоматическое создание пользователя для ${provider}:${providerId}`);
+        const { ROLES } = require('/app/shared/permissions');
+        const db = require('../db');
+        
+        // Создаем нового пользователя с ролью user
+        const newUserResult = await db.getQuery()('INSERT INTO users (role) VALUES ($1) RETURNING id', [
+          ROLES.USER,
+        ]);
+        const userId = newUserResult.rows[0].id;
+
+        // Добавляем идентификатор
+        await identityService.saveIdentity(userId, provider, providerId, true);
+
+        logger.info(`[UnifiedMessageProcessor] Создан пользователь ${userId} для ${provider}:${providerId} с ролью ${ROLES.USER}`);
+        
+        // Обновляем список контактов
+        const { broadcastContactsUpdate } = require('../wsHub');
+        broadcastContactsUpdate();
+      }
+    }
+
+    // 3. Определяем: гость или пользователь?
     const isGuestIdentifier = await checkIfGuest(identifier);
 
     if (isGuestIdentifier) {
@@ -127,8 +157,7 @@ async function processMessage(messageData) {
       });
     }
 
-    // 2. ПОЛЬЗОВАТЕЛЬ: ищем user_id
-    const [provider, providerId] = identifier.split(':');
+    // 4. ПОЛЬЗОВАТЕЛЬ: ищем user_id (теперь он точно должен быть, так как для telegram/email мы его создали)
     const user = await identityService.findUserByIdentity(provider, providerId);
 
     if (!user) {
@@ -485,22 +514,19 @@ async function checkIfGuest(identifier) {
       return true; // Это web гость
     }
 
-    // Проверяем есть ли пользователь с wallet
+    // Проверяем есть ли пользователь с этим идентификатором (telegram/email/wallet)
     const user = await identityService.findUserByIdentity(provider, providerId);
     
     if (!user) {
-      return true; // Пользователь не найден - это гость
-    }
-
-    // Проверяем есть ли у пользователя wallet
-    const walletIdentity = await identityService.findIdentity(user.id, 'wallet');
-    
-    if (!walletIdentity) {
-      // Нет кошелька - это временный пользователь, считаем гостем
+      // Пользователь не найден - это гость
+      // Исключение: для telegram/email если пользователь не найден, это может быть гость
+      // Но если он авторизован, он должен быть создан через verifyTelegramAuth/checkEmailVerification
       return true;
     }
 
-    // Есть кошелек - полноценный пользователь
+    // Если пользователь найден в БД - это пользователь (независимо от наличия кошелька)
+    // Telegram/Email пользователи получают роль user даже без кошелька
+    // Только web-гости без авторизации остаются гостами
     return false;
 
   } catch (error) {

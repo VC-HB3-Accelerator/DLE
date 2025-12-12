@@ -346,11 +346,12 @@ class UniversalGuestService {
           WHERE user_id IS NULL
         )
         SELECT 
-          MIN(id) as first_message_id,
-          MIN(metadata) as metadata
+          id as first_message_id,
+          metadata
         FROM decrypted_guest
         WHERE guest_identifier = $1 AND channel = $3
-        GROUP BY guest_identifier, channel`,
+        ORDER BY id ASC
+        LIMIT 1`,
         [identifier, encryptionKey, channel]
       );
 
@@ -515,13 +516,14 @@ class UniversalGuestService {
       const aiResponse = await aiAssistant.generateResponse({
         channel: channel,
         messageId: `guest_${identifier}_${Date.now()}`,
-        userId: identifier,
+        userId: null, // Для гостей передаем null, чтобы не использовать identifier как user_id
         userQuestion: fullMessageContent,
         conversationHistory: conversationHistory,
         metadata: { 
           isGuest: true,
           hasMedia: !!processedContent,
-          mediaSummary: processedContent?.summary
+          mediaSummary: processedContent?.summary,
+          guestIdentifier: identifier // Сохраняем identifier в metadata для логирования
         }
       });
 
