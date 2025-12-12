@@ -313,7 +313,7 @@ class TelegramBot {
 
       return {
         channel: 'telegram',
-        identifier: telegramId,
+        identifier: `telegram:${telegramId}`, // Формируем identifier с префиксом provider
         content: content,
         contentData: contentData,
         attachments: mediaFiles, // Обратная совместимость

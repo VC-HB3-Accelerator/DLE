@@ -115,6 +115,18 @@ async function processMessage(messageData) {
     // 1. Разбираем идентификатор
     const [provider, providerId] = identifier.split(':');
 
+    // Проверяем формат identifier (должен быть provider:providerId)
+    if (!providerId) {
+      logger.warn(`[UnifiedMessageProcessor] Неверный формат identifier (нет префикса): ${identifier}, обрабатываем как гостя`);
+      return await universalGuestService.processMessage({
+        identifier,
+        content,
+        channel,
+        metadata,
+        ...messageData
+      });
+    }
+
     // 2. Для telegram/email: автоматически создаем пользователя, если его нет
     if ((provider === 'telegram' || provider === 'email') && providerId) {
       let user = await identityService.findUserByIdentity(provider, providerId);
@@ -508,6 +520,11 @@ async function checkIfGuest(identifier) {
 
     // Разбираем идентификатор
     const [provider, providerId] = identifier.split(':');
+
+    // Если нет providerId (старый формат без префикса) - считаем гостем
+    if (!providerId) {
+      return true;
+    }
 
     // Проверяем что это не web:guest_*
     if (provider === 'web' && providerId.startsWith('guest_')) {

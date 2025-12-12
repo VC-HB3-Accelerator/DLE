@@ -716,11 +716,18 @@ class UniversalGuestService {
 
       // 5. Переносим согласия гостя на пользователя, если они есть
       // Согласия могут быть связаны с гостевой сессией через wallet_address = "guest_${guestId}"
+      // Только для web-гостей (формат: web:guest_xxx)
       try {
         const [channel, guestId] = identifier.split(':');
         
+        // Мигрируем согласия только для web-гостей
+        if (channel !== 'web' || !guestId?.startsWith('guest_')) {
+          logger.info(`[UniversalGuestService] Пропуск миграции согласий для ${identifier} (не web-гость)`);
+          return { migrated, skipped };
+        }
+        
         // Ищем согласия по гостевому идентификатору в формате "guest_${guestId}"
-        const guestWalletAddress = `guest_${guestId}`;
+        const guestWalletAddress = guestId; // Уже в формате "guest_xxx"
         
         const { rows: guestConsents } = await db.getQuery()(`
           SELECT id, consent_type, document_id, document_title, status, signed_at, ip_address, user_agent, channel as consent_channel

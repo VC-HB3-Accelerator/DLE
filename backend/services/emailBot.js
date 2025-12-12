@@ -497,7 +497,7 @@ class EmailBot {
 
       return {
         channel: 'email',
-        identifier: fromEmail,
+        identifier: `email:${fromEmail}`, // Формируем identifier с префиксом provider
         content: text,
         contentData: contentData,
         attachments: mediaFiles, // Обратная совместимость
