@@ -19,18 +19,16 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="history-container">
-      <!-- Заголовок -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>История DLE</h1>
-          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
-          <p v-else-if="isLoadingDle">Загрузка...</p>
-          <p v-else>Лог операций, события и транзакции DLE</p>
+      <!-- Фильтры -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ selectedDle.dleAddress }}
+        </div>
+        <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          Загрузка...
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
-
-      <!-- Фильтры -->
       <div class="filters-section">
         <h2>Фильтры</h2>
         <div class="filters-form">

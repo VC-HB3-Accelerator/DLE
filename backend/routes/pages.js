@@ -1553,4 +1553,109 @@ router.get('/public/:id', async (req, res) => {
   }
 });
 
+// Endpoint для robots.txt
+router.get('/public/robots.txt', async (req, res) => {
+  try {
+    const domain = req.get('host') || req.headers.host || 'localhost';
+    const protocol = req.protocol || 'https';
+    const baseUrl = `${protocol}://${domain}`;
+    
+    const robotsContent = `User-agent: *
+Allow: /
+Allow: /content/published
+Disallow: /api/
+Disallow: /ws
+Disallow: /admin/
+Disallow: /content/create
+Disallow: /content/edit
+
+Sitemap: ${baseUrl}/sitemap.xml
+`;
+    
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(robotsContent);
+  } catch (error) {
+    console.error('Ошибка генерации robots.txt:', error);
+    res.status(500).send('Error generating robots.txt');
+  }
+});
+
+// Endpoint для sitemap.xml
+router.get('/public/sitemap.xml', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    const domain = req.get('host') || req.headers.host || 'localhost';
+    const protocol = req.protocol || 'https';
+    const baseUrl = `${protocol}://${domain}`;
+    
+    // Проверяем, есть ли таблица
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    let pages = [];
+    if (existsRes.rows[0].exists) {
+      // Получаем все опубликованные публичные страницы
+      const { rows } = await db.getQuery()(`
+        SELECT id, title, updated_at, created_at 
+        FROM ${tableName} 
+        WHERE status = 'published' AND visibility = 'public'
+        ORDER BY created_at DESC
+      `);
+      pages = rows;
+    }
+    
+    // Генерируем XML sitemap
+    let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/content/published</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+`;
+    
+    // Добавляем страницы документов
+    for (const page of pages) {
+      const lastmod = page.updated_at || page.created_at || new Date().toISOString();
+      const pageUrl = `${baseUrl}/content/published?page=${page.id}`;
+      
+      sitemap += `  <url>
+    <loc>${escapeXml(pageUrl)}</loc>
+    <lastmod>${lastmod.split('T')[0]}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+`;
+    }
+    
+    sitemap += `</urlset>`;
+    
+    res.setHeader('Content-Type', 'application/xml');
+    res.send(sitemap);
+  } catch (error) {
+    console.error('Ошибка генерации sitemap.xml:', error);
+    res.status(500).send('Error generating sitemap.xml');
+  }
+});
+
+// Вспомогательная функция для экранирования XML
+function escapeXml(unsafe) {
+  return unsafe.replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '\'': return '&apos;';
+      case '"': return '&quot;';
+      default: return c;
+    }
+  });
+}
+
 module.exports = router; 

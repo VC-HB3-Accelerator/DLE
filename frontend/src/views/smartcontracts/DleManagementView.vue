@@ -19,11 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="dle-management">
-      <div class="management-header">
-        <h3>🏢 Управление DLE</h3>
-        <p>Добавление DLE контрактов администраторами</p>
-      </div>
-
       <!-- Форма добавления DLE -->
       <div class="add-dle-form">
         <div class="form-header">

@@ -19,13 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="public-pages-page">
-      <!-- Заголовок страницы -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>📄 Публичные страницы</h1>
-          <p>Просмотр опубликованных страниц DLE</p>
-        </div>
-      </div>
 
       <!-- Основной контент -->
       <div class="content-block">

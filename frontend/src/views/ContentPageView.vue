@@ -19,26 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="content-create-page">
-      <!-- Заголовок страницы -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>{{ isEditMode ? 'Редактирование страницы' : 'Создание страницы' }}</h1>
-          <p>{{ isEditMode ? 'Редактируйте существующую страницу' : 'Создайте новую страницу для вашего DLE' }}</p>
-        </div>
-        <div class="header-actions">
-          <button 
-            v-if="isEditMode && canManageLegalDocs && address" 
-            class="btn btn-danger" 
-            @click="deletePage"
-            type="button"
-          >
-            <i class="fas fa-trash"></i>
-            Удалить
-          </button>
-          <button class="close-btn" @click="goBack">×</button>
-        </div>
-      </div>
-
       <!-- Основной контент с тенью -->
       <div class="content-block">
         <form class="content-form" @submit.prevent="handleSubmit">

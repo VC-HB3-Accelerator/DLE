@@ -19,14 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="groups-management">
-      <div class="management-header">
-        <div class="header-content">
-          <h1>Группы</h1>
-          <p class="groups-description">
-            Создание и управление группами
-          </p>
-        </div>
-      </div>
 
       <!-- Блоки управления группами -->
       <div class="management-blocks">

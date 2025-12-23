@@ -12,13 +12,6 @@
 
 <template>
   <div class="settings-management">
-    <!-- Заголовок -->
-    <div class="management-header">
-      <div class="header-content">
-        <h1>Настройки системы</h1>
-      </div>
-    </div>
-
     <!-- Блоки настроек -->
     <div class="management-blocks">
       <!-- Столбец 1 -->

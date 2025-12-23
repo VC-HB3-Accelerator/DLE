@@ -29,11 +29,9 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="proposals-page">
-      <!-- Заголовок -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>Предложения DLE</h1>
-          <p v-if="dleAddress">Адрес DLE: {{ dleAddress }}</p>
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div v-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ dleAddress }}
         </div>
         <button @click="goBack" class="close-btn">×</button>
       </div>

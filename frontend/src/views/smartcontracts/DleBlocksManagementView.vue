@@ -19,18 +19,13 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="dle-blocks-management">
-      <!-- Заголовок -->
-      <div class="management-header">
-        <div class="header-content">
-          <h1>Управление DLE</h1>
-          <p v-if="dleAddress" class="dle-address">
-            <strong>DLE:</strong> {{ dleAddress }}
-          </p>
+      <!-- Блоки управления -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div v-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ dleAddress }}
         </div>
         <button class="close-btn" @click="router.push('/management')">×</button>
       </div>
-
-      <!-- Блоки управления -->
       <div class="management-blocks">
         <!-- Столбец 1 -->
         <div class="blocks-column">

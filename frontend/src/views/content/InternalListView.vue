@@ -16,13 +16,7 @@
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
     <div class="list-page">
-      <div class="page-header">
-        <div class="header-content">
-          <h1>Внутренние документы</h1>
-          <p>Документы, доступные только пользователям с ролями</p>
-        </div>
-        <button class="close-btn" @click="goBack">×</button>
-      </div>
+      <button class="close-btn" @click="goBack" style="margin-bottom: 20px;">×</button>
       <div class="content-block">
         <div class="section-header">
           <h2>Список документов</h2>

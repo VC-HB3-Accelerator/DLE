@@ -5,14 +5,8 @@
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
     <div class="list-page">
-      <div class="page-header">
-        <div class="header-content">
-          <h1>Шаблоны документов</h1>
-          <p>Системные шаблоны для персонализации и публикации.</p>
-        </div>
-        <div class="header-actions">
-          <button class="close-btn" @click="goBack">×</button>
-        </div>
+      <div class="header-actions" style="margin-bottom: 20px;">
+        <button class="close-btn" @click="goBack">×</button>
       </div>
 
       <div class="content-block">

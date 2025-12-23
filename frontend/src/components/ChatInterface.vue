@@ -420,6 +420,35 @@ const isResizing = ref(false);
 const resizeStartX = ref(0);
 const resizeStartWidth = ref(0);
 
+// Определяем, является ли устройство мобильным
+const isMobile = ref(false);
+
+// Функция для проверки мобильного устройства
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 1024;
+  if (isMobile.value) {
+    // На мобильных устройствах устанавливаем ширину в 100%
+    messagesWidth.value = 100;
+    inputWidth.value = 100;
+  } else {
+    // На десктопе используем стандартные значения
+    if (messagesWidth.value === 100) {
+      messagesWidth.value = 70;
+      inputWidth.value = 30;
+    }
+  }
+};
+
+// Отслеживаем изменение размера окна
+onMounted(() => {
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile);
+});
+
 const startResize = (e) => {
   isResizing.value = true;
   
@@ -535,6 +564,10 @@ const updateChatInputHeight = () => {
 };
 
 onMounted(() => {
+  // Проверяем мобильное устройство и устанавливаем ширину
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+  
   // Начальная установка высоты textarea и блока ввода
   adjustTextareaHeight();
   updateChatInputHeight();
@@ -548,6 +581,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile);
+  
   if (resizeObserver && chatInputRef.value) {
     resizeObserver.unobserve(chatInputRef.value);
   }
@@ -709,8 +744,8 @@ async function handleAiReply() {
 /* На мобильных устройствах блок ввода занимает всё пространство внизу */
 @media (max-width: 1024px) {
   .chat-input {
-    width: 100%;
-    max-width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
     height: auto;
     border-top: none;
     border-right: none;
@@ -737,6 +772,7 @@ async function handleAiReply() {
   color: var(--color-dark);
   overflow-y: auto;
   box-sizing: border-box;
+  max-width: 100%;
 }
 
 .chat-input textarea:focus {
@@ -748,12 +784,15 @@ async function handleAiReply() {
 /* На мобильных устройствах поле ввода меньше */
 @media (max-width: 1024px) {
   .chat-input textarea {
+    width: 100% !important;
+    max-width: 100% !important;
     border-radius: 20px;
     padding: 12px 16px;
     min-height: var(--chat-input-min-height, 40px);
     max-height: var(--chat-input-max-height, 120px);
     overflow-y: hidden;
     resize: none;
+    box-sizing: border-box;
   }
 }
 
@@ -942,11 +981,25 @@ async function handleAiReply() {
   
   .chat-messages {
     padding: var(--spacing-md) var(--spacing-md) 8px;
+    width: 100% !important;
   }
   
   .chat-input {
+    width: 100% !important;
+    max-width: 100% !important;
     padding: var(--spacing-xs) var(--spacing-sm);
     height: auto;
+    box-sizing: border-box;
+  }
+  
+  .input-area {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  
+  .input-area textarea {
+    width: 100% !important;
+    box-sizing: border-box;
   }
   
   .chat-icon-btn {
@@ -958,10 +1011,16 @@ async function handleAiReply() {
     width: 20px;
     height: 20px;
   }
+  
+  .resizer {
+    display: none;
+  }
 }
 
 @media (max-width: 480px) {
   .chat-input {
+    width: 100% !important;
+    max-width: 100% !important;
     position: sticky !important;
     bottom: 0 !important;
     border-radius: 0 !important;
@@ -969,14 +1028,27 @@ async function handleAiReply() {
     background: #f8f8f8 !important;
     border-top: 1px solid #eee !important;
   }
+  
   .chat-messages {
+    width: 100% !important;
     padding: var(--spacing-md) var(--spacing-md) 8px !important;
     overflow-y: auto !important;
+  }
+  
+  .input-area {
+    width: 100% !important;
+  }
+  
+  .input-area textarea {
+    width: 100% !important;
+    box-sizing: border-box;
   }
 }
 
 @media (max-width: 600px) {
   .chat-input {
+    width: 100% !important;
+    max-width: 100% !important;
     position: sticky !important;
     bottom: 0 !important;
     border-radius: 0 !important;
@@ -984,7 +1056,9 @@ async function handleAiReply() {
     background: #f8f8f8 !important;
     border-top: 1px solid #eee !important;
   }
+  
   .chat-messages {
+    width: 100% !important;
     padding: var(--spacing-md) var(--spacing-md) 8px !important;
     overflow-y: auto !important;
   }

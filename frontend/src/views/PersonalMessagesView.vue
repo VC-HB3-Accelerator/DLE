@@ -308,4 +308,65 @@ onUnmounted(() => {
   font-size: 1rem;
   text-align: center;
 }
+
+@media (max-width: 768px) {
+  .personal-messages-header {
+    padding: 0.75rem;
+    font-size: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .close-btn {
+    font-size: 1.25rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .personal-messages-list {
+    padding: 0.5rem;
+  }
+  
+  .message-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+  
+  .message-info {
+    width: 100%;
+  }
+  
+  .admin-name {
+    font-size: 1rem;
+  }
+  
+  .message-preview {
+    font-size: 0.85rem;
+  }
+  
+  .message-date {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .personal-messages-header {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .message-item {
+    padding: 0.5rem;
+  }
+  
+  .admin-name {
+    font-size: 0.95rem;
+  }
+  
+  .empty-state {
+    padding: 1.5rem 1rem;
+    font-size: 0.9rem;
+  }
+}
 </style>

@@ -19,10 +19,8 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="settings-view-container">
-      <div v-if="route.name !== 'settings-index'" class="page-header">
-        <h1>{{ pageTitle }}</h1>
+      <div v-if="route.name === 'settings-blockchain-dle-deploy' || route.name === 'settings-dle-v2-deploy'" class="page-header">
         <button 
-          v-if="route.name === 'settings-blockchain-dle-deploy' || route.name === 'settings-dle-v2-deploy'" 
           class="close-btn" 
           @click="router.push('/settings')"
         >×</button>

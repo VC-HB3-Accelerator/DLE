@@ -30,7 +30,7 @@
     <!-- Заголовок страницы -->
     <header v-if="page" class="page-header">
       <div class="page-header-top">
-        <button v-if="breadcrumbs.length > 0" class="back-btn" @click="$emit('back')" title="Вернуться к списку">
+        <button class="back-btn" @click="$emit('back')" title="Вернуться к списку">
           <i class="fas fa-arrow-left"></i>
           <span>Назад</span>
         </button>
@@ -186,6 +186,68 @@ const navigation = ref(null);
 const breadcrumbs = ref([]);
 const isLoading = ref(false);
 
+// Установка мета-тегов для SEO
+function updateMetaTags(pageData) {
+  if (!pageData) return;
+  
+  // Парсим seo, если это строка (может прийти из базы как JSON строка)
+  let seoData = pageData.seo;
+  if (typeof seoData === 'string') {
+    try {
+      seoData = JSON.parse(seoData);
+    } catch (e) {
+      console.warn('Ошибка парсинга SEO данных:', e);
+      seoData = null;
+    }
+  }
+  
+  const title = seoData?.title || pageData.title || 'Документ';
+  const description = seoData?.description || pageData.summary || '';
+  const keywords = seoData?.keywords || '';
+  const canonicalUrl = `${window.location.origin}/content/published?page=${pageData.id}`;
+  
+  // Обновляем title
+  document.title = title;
+  
+  // Обновляем или создаем meta теги
+  const updateOrCreateMeta = (name, content, attribute = 'name') => {
+    if (!content) return;
+    let meta = document.querySelector(`meta[${attribute}="${name}"]`);
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute(attribute, name);
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', content);
+  };
+  
+  // Meta description
+  updateOrCreateMeta('description', description);
+  
+  // Meta keywords
+  if (keywords) {
+    updateOrCreateMeta('keywords', keywords);
+  }
+  
+  // Canonical URL
+  let canonical = document.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.setAttribute('rel', 'canonical');
+    document.head.appendChild(canonical);
+  }
+  canonical.setAttribute('href', canonicalUrl);
+  
+  // Open Graph теги для социальных сетей
+  updateOrCreateMeta('og:title', title, 'property');
+  updateOrCreateMeta('og:description', description, 'property');
+  updateOrCreateMeta('og:type', 'article', 'property');
+  updateOrCreateMeta('og:url', canonicalUrl, 'property');
+  
+  // Robots meta
+  updateOrCreateMeta('robots', 'index, follow');
+}
+
 // Загрузка страницы
 async function loadPage() {
   if (!props.pageId) return;
@@ -193,6 +255,11 @@ async function loadPage() {
   try {
     isLoading.value = true;
     page.value = await pagesService.getPublicPage(props.pageId);
+    
+    // Устанавливаем мета-теги для SEO
+    if (page.value) {
+      updateMetaTags(page.value);
+    }
     
     // Загружаем навигацию
     try {
@@ -959,10 +1026,42 @@ onMounted(() => {
 @media (max-width: 768px) {
   .docs-content {
     padding: 20px;
+    min-height: auto;
+    width: 100%;
+    max-width: 100%;
+    display: block;
+    visibility: visible;
+    opacity: 1;
   }
 
   .page-header h1 {
     font-size: 2rem;
+  }
+
+  .page-article {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .content-text {
+    width: 100%;
+    overflow-x: auto;
+    word-wrap: break-word;
+  }
+
+  .file-preview {
+    width: 100%;
+  }
+
+  .pdf-embed {
+    width: 100%;
+    height: 60vh;
+    min-height: 400px;
+  }
+
+  .image-preview {
+    width: 100%;
+    max-width: 100%;
   }
 
   .page-navigation {

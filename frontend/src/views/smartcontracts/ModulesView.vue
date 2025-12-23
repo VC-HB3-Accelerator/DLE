@@ -19,24 +19,22 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="modules-management">
-      <!-- Заголовок -->
-      <div class="page-header">
-        <div class="header-content">
-          <div class="title-section">
-            <h1>Модули DLE</h1>
-            <div class="websocket-status" :class="{ connected: isWSConnected }" title="WebSocket соединение для обновления модулей">
-              <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
-              <span>{{ isWSConnected ? 'Подключено' : 'Отключено' }}</span>
-            </div>
+      <!-- Модальное окно деплоя -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+            {{ selectedDle.dleAddress }}
           </div>
-          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
-          <p v-else-if="isLoadingDle">Загрузка...</p>
-          <p v-else>DLE не выбран</p>
+          <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+            Загрузка...
+          </div>
+          <div class="websocket-status" :class="{ connected: isWSConnected }" title="WebSocket соединение для обновления модулей">
+            <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
+            <span>{{ isWSConnected ? 'Подключено' : 'Отключено' }}</span>
+          </div>
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
-
-      <!-- Модальное окно деплоя -->
       <div v-if="showDeploymentModal" class="modal-overlay" @click="moduleDeploymentStatus === 'error' || !isDeploying ? closeDeploymentModal() : null">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
@@ -171,11 +169,6 @@
 
       <!-- Блоки для деплоя стандартных модулей -->
       <div class="standard-modules">
-        <div class="modules-header">
-          <h3>🚀 Деплой стандартных модулей</h3>
-          <p>Быстрый деплой предустановленных модулей DLE</p>
-        </div>
-        
         <div class="modules-grid">
           <!-- TreasuryModule -->
           <div class="module-deploy-card">

@@ -377,5 +377,98 @@ h1 {
   font-size: 14px;
   font-weight: 500;
 }
+
+@media (max-width: 768px) {
+  .connect-wallet-container {
+    padding: 16px;
+  }
+  
+  .connect-wallet-card {
+    padding: 30px 24px;
+    max-width: 100%;
+  }
+  
+  .icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+  
+  h1 {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+  
+  .info-block {
+    margin: 20px 0;
+  }
+  
+  .provider-info {
+    font-size: 14px;
+  }
+  
+  .description {
+    font-size: 13px;
+  }
+  
+  .connect-button,
+  .go-chat-button {
+    padding: 12px 24px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .connect-wallet-container {
+    padding: 12px;
+  }
+  
+  .connect-wallet-card {
+    padding: 24px 16px;
+    border-radius: 12px;
+  }
+  
+  .icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+  }
+  
+  h1 {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+  
+  .provider-info {
+    font-size: 13px;
+  }
+  
+  .description {
+    font-size: 12px;
+  }
+  
+  .connect-button,
+  .go-chat-button {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+  
+  .error-message {
+    font-size: 13px;
+    padding: 10px;
+  }
+  
+  .expires-info {
+    font-size: 12px;
+  }
+  
+  .hint {
+    font-size: 13px;
+    padding: 10px;
+  }
+  
+  .stats {
+    font-size: 13px;
+    padding: 10px;
+  }
+}
 </style>
 

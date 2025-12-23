@@ -19,13 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="home-management">
-      <!-- Заголовок -->
-      <div class="management-header">
-        <div class="header-content">
-          <h1>Сообщения</h1>
-        </div>
-      </div>
-
       <!-- Чат интерфейс -->
       <div class="chat-wrapper">
         <template v-if="auth.userAccessLevel.value && auth.userAccessLevel.value.hasAccess">

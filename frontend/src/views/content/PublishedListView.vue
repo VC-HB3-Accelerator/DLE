@@ -16,16 +16,12 @@
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
     <div class="docs-page">
-      <!-- Заголовок страницы -->
       <div class="docs-header">
-        <div class="header-content">
-          <h1>Публичные документы</h1>
-        </div>
         <button class="close-btn" @click="goBack" title="Закрыть">×</button>
       </div>
 
       <!-- Основной контент: сайдбар + контент -->
-      <div class="docs-layout">
+      <div class="docs-layout" :class="{ 'has-content': currentPageId }">
         <!-- Сайдбар навигации -->
         <DocsSidebar :current-page-id="currentPageId" />
 
@@ -734,7 +730,8 @@ onBeforeUnmount(() => {
   }
 
   .docs-main {
-    overflow-y: visible;
+    overflow-y: auto;
+    min-height: 0;
   }
 }
 
@@ -954,6 +951,32 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
+  .docs-page {
+    height: auto;
+    min-height: calc(100vh - 40px);
+    overflow: visible;
+  }
+
+  .docs-layout {
+    flex: 1;
+    min-height: 0;
+    overflow: visible;
+    flex-direction: column;
+  }
+
+  /* В мобильной версии, когда выбран документ, скрываем сайдбар */
+  .docs-layout.has-content .docs-sidebar {
+    display: none;
+  }
+
+  .docs-main {
+    overflow-y: visible;
+    min-height: auto;
+    width: 100%;
+    display: block;
+    flex: 1;
+  }
+
   .docs-header {
     padding: 16px;
   }

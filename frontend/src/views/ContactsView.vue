@@ -94,4 +94,24 @@ function goBack() {
   margin-left: 7px;
 }
 
+@media (max-width: 768px) {
+  .contacts-header {
+    font-size: 1rem;
+    margin-bottom: 16px;
+    padding: 0 10px;
+  }
+  
+  .badge {
+    font-size: 0.85em;
+    padding: 2px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .contacts-header {
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+}
+
 </style> 

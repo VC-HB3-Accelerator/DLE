@@ -19,18 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="content-management-page">
-      <!-- Заголовок страницы -->
-      <div class="page-header">
-          <div class="header-content">
-          <h1>Управление контентом</h1>
-          <p v-if="canEditData && address">Создавайте и управляйте страницами вашего DLE</p>
-          <p v-else>Просмотр опубликованных страниц DLE</p>
-        </div>
-        <div class="header-actions">
-          <button class="close-btn" @click="goBack">×</button>
-        </div>
-      </div>
-
       <!-- Основной контент с тенью -->
       <div class="content-block">
         <!-- Быстрые разделы -->
@@ -248,8 +236,33 @@ async function deletePage(id) {
 .details-btn { background: var(--color-primary); color: #fff; border: none; border-radius: 8px; padding: 0.75rem 1.5rem; cursor: pointer; font-size: 1rem; font-weight: 600; transition: all 0.2s; min-width: 120px; margin-top: auto; }
 .details-btn:hover { background: var(--color-primary-dark); transform: translateY(-1px); }
 
-@media (max-width: 1024px) { .management-blocks { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px) { .management-blocks { grid-template-columns: 1fr; } }
+@media (max-width: 1024px) { 
+  .management-blocks { 
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 1.5rem;
+  } 
+}
+
+@media (max-width: 768px) { 
+  .management-blocks { 
+    grid-template-columns: 1fr; 
+    gap: 1.5rem;
+  }
+  
+  .blocks-column {
+    gap: 1.2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .management-blocks {
+    gap: 1rem;
+  }
+  
+  .blocks-column {
+    gap: 1rem;
+  }
+}
 
 .content-section {
   background: #f8f9fa;
@@ -496,6 +509,12 @@ async function deletePage(id) {
   color: white;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .close-btn {
   background: none;
   border: none;
@@ -505,6 +524,11 @@ async function deletePage(id) {
   padding: 5px;
   border-radius: var(--radius-sm);
   transition: background 0.2s;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .close-btn:hover {
@@ -513,9 +537,37 @@ async function deletePage(id) {
 }
 
 @media (max-width: 768px) {
+  .content-management-page {
+    padding: 16px;
+  }
+  
   .page-header {
     flex-direction: column;
     gap: 15px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+  }
+  
+  .header-content h1 {
+    font-size: 1.8rem;
+  }
+  
+  .header-content p {
+    font-size: 1rem;
+  }
+  
+  .header-actions {
+    align-self: flex-start;
+  }
+  
+  .close-btn {
+    font-size: 1.3rem;
+    min-width: 28px;
+    min-height: 28px;
+  }
+  
+  .content-block {
+    padding: 20px;
   }
   
   .nav-tabs {
@@ -536,9 +588,59 @@ async function deletePage(id) {
     grid-template-columns: 1fr;
   }
   
-  
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .management-block {
+    padding: 1.5rem;
+    height: auto;
+    min-height: 200px;
+  }
+  
+  .management-block h3 {
+    font-size: 1.3rem;
+  }
+  
+  .management-block p {
+    font-size: 0.9rem;
+  }
+  
+  .details-btn {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-management-page {
+    padding: 12px;
+  }
+  
+  .page-header {
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+  }
+  
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+  
+  .content-block {
+    padding: 16px;
+  }
+  
+  .management-block {
+    padding: 1.2rem;
+    min-height: 180px;
+  }
+  
+  .management-block h3 {
+    font-size: 1.2rem;
+  }
+  
+  .management-block p {
+    font-size: 0.85rem;
   }
 }
 </style> 

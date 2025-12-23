@@ -19,18 +19,19 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="settings-container">
-      <!-- Заголовок -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>Настройки DLE</h1>
-          <p v-if="dleInfo">{{ dleInfo.name }} ({{ dleInfo.symbol }}) - {{ dleInfo.address }}</p>
-          <p v-else-if="address">Загрузка...</p>
-          <p v-else>DLE не выбран</p>
+      <!-- Основной контент -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div v-if="dleInfo?.address" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ dleInfo.address }}
+        </div>
+        <div v-else-if="address" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ address }}
+        </div>
+        <div v-else-if="isLoading" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          Загрузка...
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
-
-      <!-- Основной контент -->
       <div v-if="dleInfo" class="main-content">
         <!-- Отображение в футере -->
         <div v-if="canSetFooterDle" class="footer-card">

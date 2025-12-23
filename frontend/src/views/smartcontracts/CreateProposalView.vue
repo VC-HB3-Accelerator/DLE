@@ -19,18 +19,19 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="create-proposal-page">
-      <!-- Заголовок -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>Создание предложения</h1>
-          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ selectedDle.dleAddress }}</p>
-          <p v-else-if="isLoadingDle">Загрузка...</p>
-          <p v-else>DLE не выбран</p>
+      <!-- Информация для неавторизованных пользователей -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div v-if="selectedDle?.dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ selectedDle.dleAddress }}
+        </div>
+        <div v-else-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ dleAddress }}
+        </div>
+        <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          Загрузка...
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
-
-      <!-- Информация для неавторизованных пользователей -->
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
           <i class="fas fa-info-circle"></i>

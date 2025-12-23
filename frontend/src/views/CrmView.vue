@@ -19,13 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="crm-management">
-      <!-- Заголовок -->
-      <div class="management-header">
-        <div class="header-content">
-          <h1>CRM Система</h1>
-        </div>
-      </div>
-
       <!-- Блоки CRM -->
       <div class="management-blocks">
         <!-- Столбец 1 -->

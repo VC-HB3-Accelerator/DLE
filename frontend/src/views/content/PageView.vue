@@ -19,38 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="page-view-container">
-      <!-- Заголовок страницы -->
-      <div v-if="page" class="page-header">
-        <div class="header-content">
-          <h1>📄 {{ page.title }}</h1>
-          <div class="page-meta">
-            <span class="page-status" :class="page.status">
-              <i class="fas fa-circle"></i>
-              {{ getStatusText(page.status) }}
-            </span>
-            <span class="page-date">
-              <i class="fas fa-calendar"></i>
-              Создано: {{ formatDate(page.createdAt) }}
-            </span>
-            <span v-if="page.updatedAt" class="page-date">
-              <i class="fas fa-edit"></i>
-              Обновлено: {{ formatDate(page.updatedAt) }}
-            </span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <button v-if="canEditPage" class="btn btn-outline" @click="goToEdit">
-            <i class="fas fa-edit"></i>
-            Редактировать
-          </button>
-          <button v-if="canManageLegalDocs && address" class="btn btn-danger" @click="deletePage" type="button">
-            <i class="fas fa-trash"></i>
-            Удалить
-          </button>
-          <button class="close-btn" @click="goBack">×</button>
-        </div>
-      </div>
-
       <!-- Контент страницы -->
       <div v-if="page" class="page-content-block">
         <div class="page-content">

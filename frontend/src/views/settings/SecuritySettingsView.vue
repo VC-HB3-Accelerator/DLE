@@ -14,13 +14,6 @@
   <div class="security-settings">
     <button class="close-btn" @click="goBack">×</button>
     
-    <!-- Заголовок в стиле основной страницы настроек -->
-    <div class="management-header">
-      <div class="header-content">
-        <h1>Настройки безопасности</h1>
-      </div>
-    </div>
-
     <!-- Блоки настроек в едином стиле -->
     <div class="management-blocks">
       <!-- Столбец 1 -->

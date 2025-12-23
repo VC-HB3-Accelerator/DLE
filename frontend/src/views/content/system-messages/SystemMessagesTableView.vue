@@ -11,9 +11,8 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="system-messages-page">
-      <div class="page-header">
+      <div class="page-header" v-if="canManageSystemMessages">
         <div class="header-content">
-          <h1>Системные сообщения</h1>
           <p v-if="canManageSystemMessages">
             Создавайте и управляйте уведомлениями, которые видят пользователи в чате и интерфейсе DLE
           </p>

@@ -19,12 +19,6 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="management-container">
-      <!-- Заголовок -->
-      <div class="management-header">
-        <h1>Управление DLE</h1>
-        <button class="close-btn" @click="router.push('/')">×</button>
-      </div>
-
       <!-- Деплоированные DLE -->
       <div class="deployed-dles-section">
         <div class="section-header">

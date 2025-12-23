@@ -19,9 +19,7 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="vds-management-container">
-      <!-- Заголовок -->
       <div class="vds-header">
-        <h1>Управление VDS</h1>
         <div class="status-badge" :class="{ online: isOnline }">
           <div class="status-indicator" :class="{ online: isOnline }"></div>
           <span>{{ isOnline ? 'Онлайн' : 'Офлайн' }}</span>

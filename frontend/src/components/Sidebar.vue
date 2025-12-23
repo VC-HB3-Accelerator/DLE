@@ -47,6 +47,9 @@
           <router-link to="/" class="nav-link-btn" active-class="active">
             <span>Чат</span>
           </router-link>
+          <router-link to="/content/published" class="nav-link-btn" active-class="active">
+            <span>Блог</span>
+          </router-link>
           <router-link to="/crm" class="nav-link-btn" active-class="active">
             <span>CRM</span>
           </router-link>

@@ -19,18 +19,16 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="analytics-container">
-      <!-- Заголовок -->
-      <div class="page-header">
-        <div class="header-content">
-          <h1>Аналитика DLE</h1>
-          <p v-if="selectedDle">{{ selectedDle.name }} ({{ selectedDle.symbol }}) - {{ formatAddress(dleAddress) }}</p>
-          <p v-else-if="isLoadingDle">Загрузка...</p>
-          <p v-else>Подробная аналитика и статистика DLE</p>
+      <!-- Основная информация -->
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div v-if="dleAddress" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          {{ dleAddress }}
+        </div>
+        <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
+          Загрузка...
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
-
-      <!-- Основная информация -->
       <div class="info-section">
         <h2>Основная информация</h2>
         <div class="info-grid">

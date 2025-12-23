@@ -199,4 +199,55 @@ onMounted(() => {
   padding: 1rem;
   background: #f9f9f9;
 }
+
+@media (max-width: 768px) {
+  .admin-chat-header {
+    padding: 0.75rem;
+    font-size: 1rem;
+  }
+  
+  .close-btn {
+    font-size: 1.25rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .chat-container {
+    height: calc(100vh - 100px);
+  }
+  
+  :deep(.chat-messages) {
+    padding: 0.75rem;
+  }
+  
+  :deep(.chat-input) {
+    padding: 0.75rem;
+  }
+  
+  .loading-container {
+    padding: 1.5rem;
+  }
+  
+  .loading {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-chat-header {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .chat-container {
+    height: calc(100vh - 80px);
+  }
+  
+  :deep(.chat-messages) {
+    padding: 0.5rem;
+  }
+  
+  :deep(.chat-input) {
+    padding: 0.5rem;
+  }
+}
 </style>
