@@ -53,6 +53,19 @@
                 <option value="image" disabled>Изображение (PNG/JPG) — скоро</option>
               </select>
             </div>
+            <div class="form-group" v-if="form.visibility === 'public'">
+              <label class="checkbox-label">
+                <input
+                  v-model="form.showInBlog"
+                  type="checkbox"
+                  class="form-checkbox"
+                />
+                <span>Показывать в блоге</span>
+              </label>
+              <p class="form-hint">
+                Если отмечено, страница будет отображаться на странице блога (/blog)
+              </p>
+            </div>
             <p class="form-hint">
               Для HTML-постов переменные подставляются при рендере. Реквизиты заполняются на странице настроек контента.
             </p>
@@ -182,7 +195,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import RichTextEditor from '../components/editor/RichTextEditor.vue';
@@ -244,7 +257,8 @@ const form = ref({
   visibility: 'public',
   requiredPermission: '',
   format: 'html',
-  category: ''
+  category: '',
+  showInBlog: false
 });
 
 // Список категорий
@@ -376,6 +390,7 @@ async function loadPageForEdit() {
       form.value.requiredPermission = page.required_permission || '';
       form.value.format = page.format || 'html';
       form.value.category = page.category || '';
+      form.value.showInBlog = page.show_in_blog === true || page.show_in_blog === 'true';
     }
   } catch (error) {
     console.error('Ошибка загрузки страницы для редактирования:', error);
@@ -395,7 +410,9 @@ async function handleSubmit() {
   }
 
   if (form.value.format === 'html') {
-    if (!form.value.content.trim()) {
+    // Проверяем, что контент не пустой (учитываем только видимый текст, без HTML тегов)
+    const textContent = form.value.content.replace(/<[^>]*>/g, '').trim();
+    if (!textContent) {
       alert('Заполните контент страницы!');
       return;
     }
@@ -416,7 +433,9 @@ async function handleSubmit() {
         const pageData = {
           title: form.value.title.trim(),
           summary: form.value.summary.trim(),
-          content: form.value.content.trim(),
+          // Сохраняем контент без обрезки пробелов в начале/конце, чтобы сохранить форматирование
+          // Удаляем только пробелы в самом начале и конце, но сохраняем пробелы внутри
+          content: form.value.content.replace(/^\s+/, '').replace(/\s+$/, ''),
           seo: form.value.seo,
           status: form.value.status,
           settings: form.value.settings,
@@ -427,7 +446,8 @@ async function handleSubmit() {
           format: form.value.format,
           mime_type: 'text/html',
           storage_type: 'embedded',
-          category: form.value.category || null
+          category: form.value.category || null,
+          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false
         };
         page = await pagesService.updatePage(editId.value, pageData);
       } else {
@@ -449,6 +469,11 @@ async function handleSubmit() {
           fd.append('required_permission', '');
         }
         fd.append('format', form.value.format);
+        if (form.value.visibility === 'public') {
+          fd.append('show_in_blog', form.value.showInBlog ? 'true' : 'false');
+        } else {
+          fd.append('show_in_blog', 'false');
+        }
         if (fileBlob.value) {
           fd.append('file', fileBlob.value);
         }
@@ -460,7 +485,9 @@ async function handleSubmit() {
         const pageData = {
           title: form.value.title.trim(),
           summary: form.value.summary.trim(),
-          content: form.value.content.trim(),
+          // Сохраняем контент без обрезки пробелов в начале/конце, чтобы сохранить форматирование
+          // Удаляем только пробелы в самом начале и конце, но сохраняем пробелы внутри
+          content: form.value.content.replace(/^\s+/, '').replace(/\s+$/, ''),
           seo: form.value.seo,
           status: form.value.status,
           settings: form.value.settings,
@@ -471,7 +498,8 @@ async function handleSubmit() {
           format: form.value.format,
           mime_type: 'text/html',
           storage_type: 'embedded',
-          category: form.value.category || null
+          category: form.value.category || null,
+          show_in_blog: form.value.visibility === 'public' ? form.value.showInBlog : false
         };
         page = await pagesService.createPage(pageData);
       } else {
@@ -493,6 +521,11 @@ async function handleSubmit() {
           fd.append('required_permission', '');
         }
         fd.append('format', form.value.format);
+        if (form.value.visibility === 'public') {
+          fd.append('show_in_blog', form.value.showInBlog ? 'true' : 'false');
+        } else {
+          fd.append('show_in_blog', 'false');
+        }
         fd.append('file', fileBlob.value);
         page = await pagesService.createPage(fd, true);
       }
@@ -511,6 +544,13 @@ async function handleSubmit() {
     isSubmitting.value = false;
   }
 }
+
+// Следим за изменением видимости и сбрасываем showInBlog для internal страниц
+watch(() => form.value.visibility, (newVisibility) => {
+  if (newVisibility === 'internal') {
+    form.value.showInBlog = false;
+  }
+});
 
 // Загрузка данных при монтировании
 onMounted(async () => {

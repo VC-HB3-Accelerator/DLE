@@ -30,6 +30,16 @@ const routes = [
     component: HomeView,
   },
   {
+    path: '/blog',
+    name: 'blog',
+    component: () => import('../views/BlogView.vue'),
+  },
+  {
+    path: '/blog/:slug',
+    name: 'blog-article',
+    component: () => import('../views/BlogView.vue'),
+  },
+  {
     path: '/crm',
     name: 'crm',
     component: () => import('../views/CrmView.vue'),

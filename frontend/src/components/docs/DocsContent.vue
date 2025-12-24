@@ -30,7 +30,7 @@
     <!-- Заголовок страницы -->
     <header v-if="page" class="page-header">
       <div class="page-header-top">
-        <button class="back-btn" @click="$emit('back')" title="Вернуться к списку">
+        <button v-if="!hideBackButton" class="back-btn" @click="$emit('back')" title="Вернуться к списку">
           <i class="fas fa-arrow-left"></i>
           <span>Назад</span>
         </button>
@@ -95,7 +95,7 @@
     </article>
 
     <!-- Навигация: Предыдущая/Следующая -->
-    <nav v-if="navigation" class="page-navigation">
+    <nav v-if="page && navigation" class="page-navigation">
       <div class="nav-section">
         <a
           v-if="navigation.previous"
@@ -140,18 +140,21 @@
     </nav>
 
     <!-- Загрузка -->
-    <div v-else-if="isLoading" class="loading-state">
+    <div v-if="!page && isLoading" class="loading-state">
       <div class="loading-spinner"></div>
       <p>Загрузка документа...</p>
     </div>
 
     <!-- Ошибка -->
-    <div v-else class="error-state">
+    <div v-else-if="!page && !isLoading" class="error-state">
       <div class="error-icon">
         <i class="fas fa-exclamation-triangle"></i>
       </div>
       <h3>Документ не найден</h3>
       <p>Запрашиваемый документ не существует или не опубликован</p>
+      <p v-if="route.path.startsWith('/blog')" class="error-hint">
+        <small>Проверьте консоль браузера для деталей ошибки. Убедитесь, что страница опубликована и отмечена для отображения в блоге.</small>
+      </p>
     </div>
   </div>
 </template>
@@ -168,8 +171,12 @@ import { PERMISSIONS } from '../../composables/permissions';
 
 const props = defineProps({
   pageId: {
-    type: Number,
+    type: [Number, String],
     default: null
+  },
+  hideBackButton: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -204,7 +211,24 @@ function updateMetaTags(pageData) {
   const title = seoData?.title || pageData.title || 'Документ';
   const description = seoData?.description || pageData.summary || '';
   const keywords = seoData?.keywords || '';
-  const canonicalUrl = `${window.location.origin}/content/published?page=${pageData.id}`;
+  
+  // Определяем canonical URL в зависимости от текущего маршрута и наличия slug
+  const currentPath = window.location.pathname;
+  let canonicalUrl;
+  if (currentPath.startsWith('/blog')) {
+    // Используем slug если есть, иначе fallback на query параметр
+    if (pageData.slug && typeof pageData.slug === 'string' && pageData.slug.trim() !== '') {
+      canonicalUrl = `${window.location.origin}/blog/${encodeURIComponent(pageData.slug)}`;
+    } else if (pageData.id) {
+      canonicalUrl = `${window.location.origin}/blog?page=${pageData.id}`;
+    } else {
+      canonicalUrl = `${window.location.origin}/blog`;
+    }
+  } else {
+    canonicalUrl = pageData.id 
+      ? `${window.location.origin}/content/published?page=${pageData.id}`
+      : `${window.location.origin}/content/published`;
+  }
   
   // Обновляем title
   document.title = title;
@@ -246,6 +270,56 @@ function updateMetaTags(pageData) {
   
   // Robots meta
   updateOrCreateMeta('robots', 'index, follow');
+  
+  // Добавляем JSON-LD разметку для статьи
+  addArticleJsonLd(pageData, canonicalUrl);
+}
+
+// Добавляем JSON-LD разметку для статьи
+function addArticleJsonLd(pageData, canonicalUrl) {
+  // Удаляем старую разметку, если есть
+  const oldScript = document.querySelector('script[type="application/ld+json"][data-article]');
+  if (oldScript) {
+    oldScript.remove();
+  }
+  
+  // Парсим seo данные
+  let seoData = pageData.seo;
+  if (typeof seoData === 'string') {
+    try {
+      seoData = JSON.parse(seoData);
+    } catch (e) {
+      seoData = null;
+    }
+  }
+  
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    'headline': seoData?.title || pageData.title || '',
+    'description': seoData?.description || pageData.summary || '',
+    'datePublished': pageData.created_at || '',
+    'dateModified': pageData.updated_at || pageData.created_at || '',
+    'url': canonicalUrl,
+    'author': {
+      '@type': 'Organization',
+      'name': 'Digital Legal Entity'
+    },
+    'publisher': {
+      '@type': 'Organization',
+      'name': 'Digital Legal Entity'
+    }
+  };
+  
+  if (pageData.category) {
+    articleJsonLd.articleSection = pageData.category;
+  }
+  
+  const script = document.createElement('script');
+  script.type = 'application/ld+json';
+  script.setAttribute('data-article', 'true');
+  script.textContent = JSON.stringify(articleJsonLd);
+  document.head.appendChild(script);
 }
 
 // Загрузка страницы
@@ -254,27 +328,138 @@ async function loadPage() {
   
   try {
     isLoading.value = true;
-    page.value = await pagesService.getPublicPage(props.pageId);
     
-    // Устанавливаем мета-теги для SEO
-    if (page.value) {
-      updateMetaTags(page.value);
+    // Определяем, это slug или id
+    // Проверяем, находимся ли мы на странице блога
+    const isBlogRoute = route.path.startsWith('/blog');
+    
+    // Если это строка и не чисто число, или мы на странице блога - считаем это slug
+    const isSlug = isBlogRoute || (typeof props.pageId === 'string' && !/^\d+$/.test(props.pageId));
+    
+    console.log('[DocsContent] loadPage:', { 
+      pageId: props.pageId, 
+      isBlogRoute, 
+      isSlug,
+      routePath: route.path 
+    });
+    
+    if (isSlug) {
+      // Загружаем по slug через новый endpoint блога
+      // Если pageId это число, но мы на странице блога, конвертируем в строку
+      const slug = typeof props.pageId === 'string' ? props.pageId : String(props.pageId);
+      console.log('[DocsContent] Загрузка по slug:', slug);
+      
+      try {
+        const response = await pagesService.getBlogPageBySlug(slug);
+        console.log('[DocsContent] Ответ от API:', {
+          hasData: !!response,
+          type: typeof response,
+          keys: response ? Object.keys(response) : [],
+          hasTitle: response?.title,
+          hasContent: !!response?.content,
+          id: response?.id
+        });
+        
+        if (!response) {
+          console.error('[DocsContent] API вернул пустой ответ');
+          throw new Error('Страница не найдена');
+        }
+        
+        // Устанавливаем page.value ДО любых других операций
+        page.value = response;
+        console.log('[DocsContent] page.value установлен:', {
+          hasPage: !!page.value,
+          hasTitle: !!page.value?.title,
+          hasContent: !!page.value?.content,
+          pageValue: page.value
+        });
+        
+        // Проверяем, что page.value действительно установлен
+        if (!page.value) {
+          console.error('[DocsContent] КРИТИЧЕСКАЯ ОШИБКА: page.value не установлен после присваивания!');
+        }
+      } catch (slugError) {
+        console.error('[DocsContent] Ошибка загрузки по slug:', slugError);
+        console.error('[DocsContent] Детали ошибки:', {
+          message: slugError.message,
+          response: slugError.response?.data,
+          status: slugError.response?.status
+        });
+        // Если ошибка 404, пробуем найти страницу по другому способу
+        if (slugError.response?.status === 404) {
+          console.warn('[DocsContent] Страница не найдена по slug, возможно slug не совпадает');
+        }
+        throw slugError;
+      }
+    } else {
+      // Загружаем по id (старый способ)
+      const pageId = typeof props.pageId === 'number' ? props.pageId : parseInt(props.pageId, 10);
+      console.log('[DocsContent] Загрузка по id:', pageId);
+      page.value = await pagesService.getPublicPage(pageId);
     }
     
-    // Загружаем навигацию
+    // Устанавливаем мета-теги для SEO (оборачиваем в try-catch, чтобы ошибка не блокировала отображение)
+    if (page.value) {
+      console.log('[DocsContent] Устанавливаем мета-теги для страницы:', {
+        id: page.value.id,
+        title: page.value.title,
+        hasContent: !!page.value.content
+      });
+      try {
+      updateMetaTags(page.value);
+      } catch (metaError) {
+        console.error('[DocsContent] Ошибка установки мета-тегов (не критично):', metaError);
+        // Продолжаем работу, даже если мета-теги не установились
+      }
+    } else {
+      console.error('[DocsContent] page.value пусто после загрузки!', {
+        response: 'данные не были установлены',
+        pageId: props.pageId,
+        isSlug
+      });
+    }
+    
+    // Загружаем навигацию (только для загрузки по ID, не по slug)
+    if (!isSlug && page.value && page.value.id) {
     try {
-      navigation.value = await pagesService.getPublicPageNavigation(props.pageId);
+        navigation.value = await pagesService.getPublicPageNavigation(page.value.id);
       breadcrumbs.value = navigation.value.breadcrumbs || [];
     } catch (navError) {
       console.warn('Ошибка загрузки навигации:', navError);
+        navigation.value = null;
+        breadcrumbs.value = [];
+      }
+    } else {
+      // Для статей блога навигация не нужна
       navigation.value = null;
       breadcrumbs.value = [];
     }
   } catch (error) {
-    console.error('Ошибка загрузки страницы:', error);
+    console.error('[DocsContent] Ошибка загрузки страницы:', error);
+    console.error('[DocsContent] Детали ошибки:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      pageId: props.pageId,
+      routePath: route.path,
+      stack: error.stack
+    });
+    
+    // Если это не критическая ошибка (например, 404), все равно пытаемся установить page.value
+    // если данные есть в response
+    if (error.response?.data && error.response.status !== 404) {
+      console.warn('[DocsContent] Пытаемся использовать данные из error.response.data');
+      page.value = error.response.data;
+    } else {
     page.value = null;
+    }
   } finally {
     isLoading.value = false;
+    console.log('[DocsContent] loadPage завершен:', {
+      hasPage: !!page.value,
+      isLoading: isLoading.value,
+      pageId: props.pageId
+    });
   }
 }
 
@@ -340,13 +525,18 @@ const formatContent = computed(() => {
   
   // Конфигурация DOMPurify для разрешения медиа-контента
   const sanitizeConfig = {
-    ADD_TAGS: ['video', 'source', 'img', 'iframe'],
+    ADD_TAGS: ['video', 'source', 'img', 'iframe', 'pre', 'code'],
     ADD_ATTR: [
       'controls', 'autoplay', 'loop', 'muted', 'poster', 'preload', 'playsinline',
       'src', 'alt', 'title', 'width', 'height', 'style', 'class', 'loading',
       'frameborder', 'allowfullscreen', 'allow'
     ],
-    ALLOW_DATA_ATTR: true
+    ALLOW_DATA_ATTR: true,
+    // Сохраняем пробелы в HTML
+    KEEP_CONTENT: true,
+    // Не удаляем пробелы внутри тегов
+    FORBID_TAGS: [],
+    FORBID_ATTR: []
   };
   
   // Проверяем, является ли контент HTML (содержит HTML теги)
@@ -381,9 +571,10 @@ const formatContent = computed(() => {
       return match; // Оставляем заголовок
     });
     
-    // Удаляем пустые строки и теги в начале
-    sanitizedHtml = sanitizedHtml.replace(/^\s*(<br\s*\/?>|<p>\s*<\/p>)\s*/i, '');
-    sanitizedHtml = sanitizedHtml.trim();
+    // Удаляем только пустые теги в начале, но сохраняем пробелы внутри контента
+    sanitizedHtml = sanitizedHtml.replace(/^(<br\s*\/?>|<p>\s*<\/p>)+/i, '');
+    // Обрезаем только пробелы в самом начале и конце, но не внутри
+    sanitizedHtml = sanitizedHtml.replace(/^\s+/, '').replace(/\s+$/, '');
     
     return sanitizedHtml;
   } else if (isHtml) {
@@ -411,7 +602,8 @@ const formatContent = computed(() => {
       return match; // Оставляем заголовок
     });
     
-    sanitizedHtml = sanitizedHtml.trim();
+    // Обрезаем только пробелы в самом начале и конце, но не внутри
+    sanitizedHtml = sanitizedHtml.replace(/^\s+/, '').replace(/\s+$/, '');
     return sanitizedHtml;
   } else {
     // Для обычного текста также удаляем первую строку, если она совпадает с заголовком
@@ -544,6 +736,18 @@ function setupVideoErrorHandlers() {
     });
   });
 }
+
+// Отслеживание изменений page для диагностики
+watch(() => page.value, (newPage, oldPage) => {
+  console.log('[DocsContent] page.value изменился:', {
+    wasNull: oldPage === null,
+    isNull: newPage === null,
+    hasTitle: !!newPage?.title,
+    hasContent: !!newPage?.content,
+    pageId: newPage?.id,
+    slug: newPage?.slug
+  });
+}, { deep: true });
 
 // Отслеживание изменений контента для добавления обработчиков ошибок
 watch(() => page.value?.content, () => {

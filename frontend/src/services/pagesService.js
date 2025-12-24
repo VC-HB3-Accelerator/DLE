@@ -62,6 +62,27 @@ export default {
     });
     return res.data;
   },
+  async getBlogPages(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.category) queryParams.append('category', params.category);
+    if (params.search) queryParams.append('search', params.search);
+    
+    const url = `/pages/blog/all${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const res = await api.get(url);
+    return res.data;
+  },
+  async getBlogPageBySlug(slug) {
+    console.log('[pagesService] getBlogPageBySlug:', slug);
+    const res = await api.get(`/pages/blog/${encodeURIComponent(slug)}`);
+    console.log('[pagesService] getBlogPageBySlug response:', {
+      status: res.status,
+      hasData: !!res.data,
+      dataKeys: res.data ? Object.keys(res.data) : [],
+      id: res.data?.id,
+      title: res.data?.title
+    });
+    return res.data;
+  },
   async getPublicPagesStructure() {
     const res = await api.get('/pages/public/structure');
     return res.data;

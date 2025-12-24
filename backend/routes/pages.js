@@ -18,6 +18,7 @@ const path = require('path');
 const multer = require('multer');
 const vectorSearchClient = require('../services/vectorSearchClient');
 const logger = require('../utils/logger');
+const { preRenderBlog } = require('../scripts/pre-render-blog');
 
 const FIELDS_TO_EXCLUDE = ['image', 'tags'];
 
@@ -42,7 +43,9 @@ async function ensureAdminPagesTable(fields) {
       'id SERIAL PRIMARY KEY',
       'author_address_encrypted TEXT NOT NULL', // Зашифрованный адрес автора
       'created_at TIMESTAMP DEFAULT NOW()',
-      'updated_at TIMESTAMP DEFAULT NOW()'
+      'updated_at TIMESTAMP DEFAULT NOW()',
+      'show_in_blog BOOLEAN DEFAULT FALSE', // Показывать в блоге
+      'slug TEXT UNIQUE' // URL-friendly идентификатор для SEO
     ];
     for (const field of fields) {
       columns.push(`"${field}_encrypted" TEXT`);
@@ -61,6 +64,29 @@ async function ensureAdminPagesTable(fields) {
       await db.getQuery()(
         `ALTER TABLE ${tableName} ADD COLUMN author_address_encrypted TEXT`
       );
+    }
+    
+    // Добавляем поле show_in_blog если его нет (не зашифрованное поле)
+    if (!existingCols.includes('show_in_blog')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN show_in_blog BOOLEAN DEFAULT FALSE`
+      );
+    }
+    
+    // Добавляем поле slug если его нет
+    if (!existingCols.includes('slug')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN slug TEXT`
+      );
+      // Создаем уникальный индекс для slug
+      try {
+        await db.getQuery()(
+          `CREATE UNIQUE INDEX IF NOT EXISTS ${tableName}_slug_unique ON ${tableName}(slug) WHERE slug IS NOT NULL`
+        );
+      } catch (e) {
+        // Индекс может уже существовать, игнорируем ошибку
+        console.log('[pages] Индекс для slug уже существует или ошибка создания:', e.message);
+      }
     }
     
     for (const field of fields) {
@@ -96,6 +122,87 @@ const upload = multer({ storage });
 function stripHtml(html) {
   if (!html) return '';
   return String(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Генерирует URL-friendly slug из текста
+ * @param {string} text - Исходный текст
+ * @param {number} maxLength - Максимальная длина slug (по умолчанию 100)
+ * @returns {string} - Сгенерированный slug
+ */
+function generateSlug(text, maxLength = 100) {
+  if (!text) return '';
+  
+  return text
+    .toLowerCase()
+    .trim()
+    // Транслитерация кириллицы в латиницу
+    .replace(/[а-яё]/g, (char) => {
+      const map = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+        'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+      };
+      return map[char] || char;
+    })
+    // Заменяем все не-латинские символы и цифры на дефисы
+    .replace(/[^a-z0-9]+/g, '-')
+    // Убираем дефисы в начале и конце
+    .replace(/^-+|-+$/g, '')
+    // Ограничиваем длину
+    .substring(0, maxLength)
+    .replace(/-+$/, ''); // Убираем дефис в конце после обрезки
+}
+
+/**
+ * Генерирует уникальный slug, проверяя существование в БД
+ * @param {string} title - Заголовок страницы
+ * @param {number} pageId - ID страницы (для исключения при проверке уникальности)
+ * @param {string} tableName - Имя таблицы
+ * @returns {Promise<string>} - Уникальный slug
+ */
+async function generateUniqueSlug(title, pageId, tableName) {
+  let baseSlug = generateSlug(title);
+  if (!baseSlug) {
+    // Если slug пустой, используем id
+    baseSlug = `page-${pageId || Date.now()}`;
+  }
+  
+  let slug = baseSlug;
+  let counter = 1;
+  
+  // Проверяем уникальность
+  while (true) {
+    let query = `SELECT id FROM ${tableName} WHERE slug = $1`;
+    const params = [slug];
+    
+    // Если это редактирование, исключаем текущую страницу
+    if (pageId) {
+      query += ` AND id != $2`;
+      params.push(pageId);
+    }
+    
+    const result = await db.getQuery()(query, params);
+    
+    if (result.rows.length === 0) {
+      // Slug уникален
+      return slug;
+    }
+    
+    // Slug уже существует, добавляем номер
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+    
+    // Защита от бесконечного цикла
+    if (counter > 1000) {
+      slug = `${baseSlug}-${Date.now()}`;
+      break;
+    }
+  }
+  
+  return slug;
 }
 
 // Создать страницу (только для админа)
@@ -202,7 +309,8 @@ router.post('/', upload.single('file'), async (req, res) => {
         ? (() => { const parsed = parseInt(bodyRaw.order_index); return isNaN(parsed) ? 0 : parsed; })()
         : 0,
       nav_path: bodyRaw.nav_path || null,
-      is_index_page: bodyRaw.is_index_page === true || bodyRaw.is_index_page === 'true'
+      is_index_page: bodyRaw.is_index_page === true || bodyRaw.is_index_page === 'true',
+      show_in_blog: bodyRaw.show_in_blog === true || bodyRaw.show_in_blog === 'true' || bodyRaw.show_in_blog === true
     };
 
     console.log('[pages] POST /: Создание страницы, данные:', {
@@ -212,6 +320,14 @@ router.post('/', upload.single('file'), async (req, res) => {
       status: pageData.status,
       format: pageData.format
     });
+
+    // Генерируем slug из заголовка (если не передан вручную)
+    let slug = bodyRaw.slug && bodyRaw.slug.trim() 
+      ? bodyRaw.slug.trim() 
+      : await generateUniqueSlug(pageData.title, null, tableName);
+    
+    // Добавляем slug в pageData
+    pageData.slug = slug;
 
     // Формируем SQL для вставки данных (включаем все поля, даже null)
     // Фильтруем только undefined, null значения включаем (они допустимы в БД)
@@ -260,6 +376,23 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
     // Автоматическая индексация при создании отключена
+
+    // Запускаем pre-rendering для блога, если страница публичная и для блога
+    if (created.visibility === 'public' && 
+        created.status === 'published' && 
+        created.show_in_blog && 
+        created.slug && 
+        typeof created.slug === 'string' && 
+        created.slug.trim() !== '') {
+      // Запускаем асинхронно, не блокируя ответ
+      preRenderBlog({ 
+        renderList: true, 
+        renderArticles: true,
+        specificSlug: created.slug.trim() 
+      }).catch(err => {
+        console.error('[pages] Ошибка pre-rendering при создании страницы:', err);
+      });
+    }
 
     res.json(created);
   } catch (error) {
@@ -839,6 +972,26 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
     if (FIELDS_TO_EXCLUDE.includes(k)) continue;
     if (k === 'required_permission') continue; // Уже обработано выше
     
+    // Обрабатываем show_in_blog как boolean
+    if (k === 'show_in_blog') {
+      updateData[k] = v === true || v === 'true' || v === 1 || v === '1';
+      continue;
+    }
+    
+    // Обрабатываем slug
+    if (k === 'slug') {
+      if (v && String(v).trim()) {
+        // Если slug передан, проверяем уникальность
+        const uniqueSlug = await generateUniqueSlug(v, pageId, tableName);
+        updateData[k] = uniqueSlug;
+      } else if (incoming.title) {
+        // Если slug не передан, но есть title, генерируем из title
+        const uniqueSlug = await generateUniqueSlug(incoming.title, pageId, tableName);
+        updateData[k] = uniqueSlug;
+      }
+      continue;
+    }
+    
     // Нормализуем категорию: приводим к нижнему регистру для консистентности
     if (k === 'category') {
       updateData[k] = (v && String(v).trim()) ? String(v).trim().toLowerCase() : null;
@@ -992,6 +1145,23 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
 
   // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
   // Автоматическая индексация при обновлении отключена
+
+  // Запускаем pre-rendering для блога, если страница публичная и для блога
+  if (updated.visibility === 'public' && 
+      updated.status === 'published' && 
+      updated.show_in_blog && 
+      updated.slug && 
+      typeof updated.slug === 'string' && 
+      updated.slug.trim() !== '') {
+    // Запускаем асинхронно, не блокируя ответ
+    preRenderBlog({ 
+      renderList: true, 
+      renderArticles: true,
+      specificSlug: updated.slug.trim() 
+    }).catch(err => {
+      console.error('[pages] Ошибка pre-rendering при обновлении страницы:', err);
+    });
+  }
 
   res.json(updated);
   } catch (error) {
@@ -1207,6 +1377,216 @@ router.get('/public/all', async (req, res) => {
     // Возвращаем пустой массив вместо объекта с ошибкой, чтобы фронтенд не ломался
     console.error('[pages] GET /public/all: ошибка, возвращаем пустой массив');
     res.status(500).json([]);
+  }
+});
+
+// Получить все страницы блога (только с show_in_blog = true)
+router.get('/blog/all', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    
+    // Проверяем, есть ли таблица
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    if (!existsRes.rows[0].exists) {
+      return res.json([]);
+    }
+    
+    // Поддержка фильтрации по категории и поиску
+    const { category, search } = req.query;
+    let whereClause = `WHERE visibility = 'public' AND status = 'published' AND show_in_blog = TRUE`;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (category) {
+      whereClause += ` AND category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+    
+    if (search) {
+      whereClause += ` AND (title ILIKE $${paramIndex} OR summary ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    
+    // Сортировка: сначала по дате создания (новые первыми), затем по order_index
+    const { rows } = await db.getQuery()(`
+      SELECT * FROM ${tableName} 
+      ${whereClause}
+      ORDER BY 
+        created_at DESC,
+        COALESCE(order_index, 0) ASC
+    `, params);
+    
+    console.log(`[pages] GET /blog/all: найдено ${rows.length} страниц блога`);
+    
+    // Обрабатываем результаты: генерируем slug для страниц, у которых его нет
+    const processedRows = await Promise.all(rows.map(async (row) => {
+      // Если у страницы нет slug, генерируем его из title
+      if (!row.slug || row.slug.trim() === '') {
+        try {
+          // Получаем расшифрованный title для генерации slug
+          const encryptionUtils = require('../utils/encryptionUtils');
+          const encryptionKey = encryptionUtils.getEncryptionKey();
+          
+          // Расшифровываем title (если он зашифрован)
+          let title = row.title;
+          if (row.title_encrypted) {
+            const titleResult = await db.getQuery()(
+              `SELECT decrypt_text($1, $2) as title`,
+              [row.title_encrypted, encryptionKey]
+            );
+            title = titleResult.rows[0]?.title || row.title || `page-${row.id}`;
+          }
+          
+          // Генерируем slug
+          const newSlug = await generateUniqueSlug(title, row.id, tableName);
+          
+          // Обновляем slug в БД
+          await db.getQuery()(
+            `UPDATE ${tableName} SET slug = $1 WHERE id = $2`,
+            [newSlug, row.id]
+          );
+          
+          // Обновляем slug в объекте row
+          row.slug = newSlug;
+          
+          console.log(`[pages] GET /blog/all: сгенерирован slug "${newSlug}" для страницы ${row.id}`);
+        } catch (error) {
+          console.error(`[pages] GET /blog/all: ошибка генерации slug для страницы ${row.id}:`, error);
+          // Если не удалось сгенерировать slug, используем id как fallback
+          row.slug = `page-${row.id}`;
+        }
+      }
+      
+      return row;
+    }));
+    
+    res.json(processedRows);
+  } catch (error) {
+    console.error('Ошибка получения страниц блога:', error);
+    res.status(500).json([]);
+  }
+});
+
+// Получить страницу блога по slug
+router.get('/blog/:slug', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    let slug = req.params.slug;
+    
+    // Декодируем slug (на случай если он был закодирован)
+    try {
+      slug = decodeURIComponent(slug);
+    } catch (e) {
+      // Если декодирование не удалось, используем как есть
+      console.warn('[pages] Ошибка декодирования slug:', e.message);
+    }
+    
+    // Валидация slug
+    if (!slug || typeof slug !== 'string' || slug.trim() === '') {
+      return res.status(400).json({ error: 'Невалидный slug' });
+    }
+    
+    slug = slug.trim();
+    
+    // Проверяем, есть ли таблица
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    if (!existsRes.rows[0].exists) {
+      return res.status(404).json({ error: 'Страница не найдена' });
+    }
+    
+    // Получаем страницу по slug
+    const { rows } = await db.getQuery()(
+      `SELECT * FROM ${tableName} 
+       WHERE slug = $1 
+       AND visibility = 'public' 
+       AND status = 'published' 
+       AND show_in_blog = TRUE
+       LIMIT 1`,
+      [slug]
+    );
+    
+    console.log(`[pages] GET /blog/:slug: поиск по slug "${slug}", найдено строк: ${rows.length}`);
+    
+    if (rows.length === 0) {
+      // Пробуем найти страницу без учета регистра и пробелов
+      const { rows: rowsCaseInsensitive } = await db.getQuery()(
+        `SELECT * FROM ${tableName} 
+         WHERE LOWER(TRIM(slug)) = LOWER(TRIM($1))
+         AND visibility = 'public' 
+         AND status = 'published' 
+         AND show_in_blog = TRUE
+         LIMIT 1`,
+        [slug]
+      );
+      
+      if (rowsCaseInsensitive.length > 0) {
+        console.log(`[pages] GET /blog/:slug: найдено с учетом регистра, slug в БД: "${rowsCaseInsensitive[0].slug}"`);
+        return res.json(rowsCaseInsensitive[0]);
+      }
+      
+      // Показываем все доступные slug для отладки (только в dev режиме)
+      if (process.env.NODE_ENV !== 'production') {
+        const { rows: allSlugs } = await db.getQuery()(
+          `SELECT id, slug, title FROM ${tableName} 
+           WHERE visibility = 'public' 
+           AND status = 'published' 
+           AND show_in_blog = TRUE
+           LIMIT 10`
+        );
+        console.log(`[pages] GET /blog/:slug: доступные slug:`, allSlugs.map(r => ({ id: r.id, slug: r.slug })));
+      }
+      
+      return res.status(404).json({ error: 'Страница не найдена' });
+    }
+    
+    console.log(`[pages] GET /blog/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
+    
+    // Расшифровываем зашифрованные поля
+    const page = rows[0];
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Создаем объект с расшифрованными данными
+    const decryptedPage = { ...page };
+    
+    // Расшифровываем поля, если они зашифрованы
+    const fieldsToDecrypt = ['title', 'summary', 'content', 'seo', 'settings'];
+    for (const field of fieldsToDecrypt) {
+      const encryptedField = `${field}_encrypted`;
+      if (page[encryptedField]) {
+        try {
+          const decryptResult = await db.getQuery()(
+            `SELECT decrypt_text($1, $2) as ${field}`,
+            [page[encryptedField], encryptionKey]
+          );
+          if (decryptResult.rows[0] && decryptResult.rows[0][field] !== null) {
+            decryptedPage[field] = decryptResult.rows[0][field];
+          }
+        } catch (decryptError) {
+          console.warn(`[pages] GET /blog/:slug: ошибка расшифровки поля ${field}:`, decryptError.message);
+          // Если расшифровка не удалась, оставляем оригинальное значение или null
+          if (page[field]) {
+            decryptedPage[field] = page[field];
+          }
+        }
+      } else if (page[field]) {
+        // Если поле не зашифровано, используем его как есть
+        decryptedPage[field] = page[field];
+      }
+    }
+    
+    res.json(decryptedPage);
+  } catch (error) {
+    console.error('Ошибка получения страницы блога по slug:', error);
+    res.status(500).json({ error: 'Ошибка получения страницы' });
   }
 });
 
@@ -1562,6 +1942,7 @@ router.get('/public/robots.txt', async (req, res) => {
     
     const robotsContent = `User-agent: *
 Allow: /
+Allow: /blog
 Allow: /content/published
 Disallow: /api/
 Disallow: /ws
@@ -1569,7 +1950,7 @@ Disallow: /admin/
 Disallow: /content/create
 Disallow: /content/edit
 
-Sitemap: ${baseUrl}/sitemap.xml
+Sitemap: ${baseUrl}/pages/public/sitemap.xml
 `;
     
     res.setHeader('Content-Type', 'text/plain');
@@ -1593,18 +1974,6 @@ router.get('/public/sitemap.xml', async (req, res) => {
       `SELECT to_regclass($1) as exists`, [tableName]
     );
     
-    let pages = [];
-    if (existsRes.rows[0].exists) {
-      // Получаем все опубликованные публичные страницы
-      const { rows } = await db.getQuery()(`
-        SELECT id, title, updated_at, created_at 
-        FROM ${tableName} 
-        WHERE status = 'published' AND visibility = 'public'
-        ORDER BY created_at DESC
-      `);
-      pages = rows;
-    }
-    
     // Генерируем XML sitemap
     let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -1614,14 +1983,52 @@ router.get('/public/sitemap.xml', async (req, res) => {
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>${baseUrl}/blog</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>${baseUrl}/content/published</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
 `;
     
-    // Добавляем страницы документов
-    for (const page of pages) {
+    if (existsRes.rows[0].exists) {
+      // Получаем страницы блога (с show_in_blog = true)
+      const { rows: blogPages } = await db.getQuery()(`
+        SELECT id, slug, updated_at, created_at 
+        FROM ${tableName} 
+        WHERE status = 'published' AND visibility = 'public' AND show_in_blog = TRUE
+        ORDER BY created_at DESC
+      `);
+      
+      // Добавляем страницы блога с использованием slug
+      for (const page of blogPages) {
+        const lastmod = page.updated_at || page.created_at || new Date().toISOString();
+        const pageUrl = page.slug 
+          ? `${baseUrl}/blog/${page.slug}`
+          : `${baseUrl}/blog?page=${page.id}`;
+        
+        sitemap += `  <url>
+    <loc>${escapeXml(pageUrl)}</loc>
+    <lastmod>${lastmod.split('T')[0]}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+`;
+      }
+      
+      // Получаем остальные публичные страницы (без show_in_blog)
+      const { rows: otherPages } = await db.getQuery()(`
+        SELECT id, updated_at, created_at 
+        FROM ${tableName} 
+        WHERE status = 'published' AND visibility = 'public' AND (show_in_blog IS NULL OR show_in_blog = FALSE)
+        ORDER BY created_at DESC
+      `);
+      
+      // Добавляем остальные публичные страницы
+      for (const page of otherPages) {
       const lastmod = page.updated_at || page.created_at || new Date().toISOString();
       const pageUrl = `${baseUrl}/content/published?page=${page.id}`;
       
@@ -1632,6 +2039,7 @@ router.get('/public/sitemap.xml', async (req, res) => {
     <priority>0.6</priority>
   </url>
 `;
+      }
     }
     
     sitemap += `</urlset>`;
@@ -1657,5 +2065,63 @@ function escapeXml(unsafe) {
     }
   });
 }
+
+// Endpoint для ручного запуска pre-rendering блога
+router.post('/blog/prerender', async (req, res) => {
+  try {
+    // Проверка прав доступа (только админ)
+    if (!req.session || !req.session.authenticated || !req.session.address) {
+      return res.status(401).json({ error: 'Требуется аутентификация' });
+    }
+    
+    const authService = require('../services/auth-service');
+    const userAccessLevel = await authService.getUserAccessLevel(req.session.address);
+    
+    if (!userAccessLevel.hasAccess) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+    
+    // Парсим параметры
+    let { renderList = true, renderArticles = true, specificSlug = null } = req.body;
+    
+    // Валидация параметров
+    renderList = Boolean(renderList);
+    renderArticles = Boolean(renderArticles);
+    
+    // Валидация slug
+    if (specificSlug && (typeof specificSlug !== 'string' || specificSlug.trim() === '')) {
+      return res.status(400).json({ error: 'Невалидный slug' });
+    }
+    if (specificSlug) {
+      specificSlug = specificSlug.trim();
+    }
+    
+    console.log('[pages] POST /blog/prerender: Запуск pre-rendering...', {
+      renderList,
+      renderArticles,
+      specificSlug: specificSlug || 'all'
+    });
+    
+    // Запускаем pre-rendering асинхронно
+    preRenderBlog({
+      renderList,
+      renderArticles,
+      specificSlug
+    }).then(() => {
+      console.log('[pages] POST /blog/prerender: Pre-rendering завершен успешно');
+    }).catch(err => {
+      console.error('[pages] POST /blog/prerender: Ошибка pre-rendering:', err);
+    });
+    
+    // Возвращаем ответ сразу, не дожидаясь завершения
+    res.json({ 
+      success: true, 
+      message: 'Pre-rendering запущен. Проверьте логи для деталей.' 
+    });
+  } catch (error) {
+    console.error('[pages] POST /blog/prerender: Ошибка:', error);
+    res.status(500).json({ error: 'Ошибка запуска pre-rendering' });
+  }
+});
 
 module.exports = router; 
