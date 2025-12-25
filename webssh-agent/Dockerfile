@@ -1,21 +1,29 @@
 FROM node:20-slim
 
-# Устанавливаем необходимые пакеты
-RUN apt-get update && apt-get install -y \
-    openssh-client \
-    sshpass \
-    curl \
-    wget \
-    ca-certificates \
-    python3 \
-    make \
-    g++ \
-    tar \
-    gzip \
-    zip \
-    unzip \
-    gosu \
-    && rm -rf /var/lib/apt/lists/*
+# Устанавливаем необходимые пакеты с обработкой ошибок сети
+RUN echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
+    echo 'Acquire::http::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
+    echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
+    for i in 1 2 3 4 5; do \
+        apt-get update && break || sleep 15; \
+    done && \
+    apt-get install -y --no-install-recommends \
+        openssh-client \
+        sshpass \
+        curl \
+        wget \
+        ca-certificates \
+        python3 \
+        make \
+        tar \
+        gzip \
+        zip \
+        unzip \
+        gosu \
+    && (apt-get install -y --no-install-recommends gcc-12 g++-12 g++ || \
+        (sleep 10 && apt-get update && apt-get install -y --no-install-recommends gcc-12 g++-12 g++)) && \
+    apt-get install -f -y || true && \
+    rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/80-retries
 
 # Устанавливаем Docker CLI
 RUN curl -fsSL https://get.docker.com | sh

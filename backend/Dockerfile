@@ -20,17 +20,23 @@ WORKDIR /app
 
 # Устанавливаем системные зависимости для компиляции нативных модулей Node.js
 # Устанавливаем базовые пакеты отдельно от компиляторов для большей надежности
-RUN apt-get update && \
-    apt-get install -y --fix-missing \
+RUN echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
+    echo 'Acquire::http::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
+    echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80-retries && \
+    for i in 1 2 3 4 5; do \
+        apt-get update && break || sleep 15; \
+    done && \
+    apt-get install -y --no-install-recommends \
         python3 \
         make \
         curl \
         ca-certificates \
         openssh-client \
         sshpass && \
-    apt-get install -y --fix-missing g++ || \
-    (sleep 10 && apt-get update && apt-get install -y --fix-missing g++) && \
-    rm -rf /var/lib/apt/lists/*
+    (apt-get install -y --no-install-recommends gcc-12 g++-12 g++ || \
+        (sleep 10 && apt-get update && apt-get install -y --no-install-recommends gcc-12 g++-12 g++)) && \
+    apt-get install -f -y || true && \
+    rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/80-retries
 
 # Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
 
