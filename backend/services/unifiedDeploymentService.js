@@ -175,7 +175,8 @@ class UnifiedDeploymentService {
       
       logger.info(`🚀 Запуск деплоя: ${scriptPath}`);
       
-      const child = spawn('npx', ['hardhat', 'run', scriptPath], {
+      const hardhatPath = path.join(__dirname, '..', 'node_modules', '.bin', 'hardhat');
+      const child = spawn(hardhatPath, ['run', scriptPath], {
         cwd: path.join(__dirname, '..'),
         env: {
           ...process.env,
@@ -376,6 +377,15 @@ class UnifiedDeploymentService {
    */
   async getAllDeployments() {
     return await this.deployParamsService.getAllDeployments();
+  }
+
+  /**
+   * Удаляет параметры деплоя по deploymentId
+   * @param {string} deploymentId - ID деплоя
+   * @returns {boolean} - Успешность удаления
+   */
+  async deleteDeployParams(deploymentId) {
+    return await this.deployParamsService.deleteDeployParams(deploymentId);
   }
 
   /**

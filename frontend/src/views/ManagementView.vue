@@ -21,25 +21,9 @@
     <div class="management-container">
       <!-- Деплоированные DLE -->
       <div class="deployed-dles-section">
-        <div class="section-header">
-          <div class="header-actions">
-            <button class="add-dle-btn" @click="openDleManagement()">
-              <i class="fas fa-plus"></i>
-              Добавить DLE
-            </button>
-            <button class="refresh-btn" @click="loadDeployedDles" :disabled="isLoadingDles">
-              <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingDles }"></i>
-              {{ isLoadingDles ? 'Загрузка...' : 'Обновить' }}
-            </button>
-          </div>
-        </div>
 
 
-        <div v-if="isLoadingDles" class="loading-dles">
-          <p>Загрузка деплоированных DLE...</p>
-        </div>
-
-        <div v-else-if="deployedDles.length === 0" class="no-dles">
+        <div v-if="deployedDles.length === 0" class="no-dles">
           <p>Деплоированных DLE пока нет</p>
           <p>Создайте новый DLE на странице <a href="/settings/dle-v2-deploy" class="link">Деплой DLE</a></p>
         </div>
@@ -176,7 +160,6 @@ const router = useRouter();
 
 // Состояние для DLE
 const deployedDles = ref([]);
-const isLoadingDles = ref(false);
 
 
 
@@ -228,47 +211,46 @@ const openSettings = () => {
 // Загрузка деплоированных DLE из блокчейна
 async function loadDeployedDles() {
   try {
-    isLoadingDles.value = true;
     console.log('[ManagementView] Начинаем загрузку DLE...');
-    
+
     // Сначала получаем список DLE из API
     const response = await api.get('/dle-v2');
     console.log('[ManagementView] Ответ от API /dle-v2:', response.data);
-    
+
     if (response.data.success) {
       const dlesFromApi = response.data.data || [];
       console.log('[ManagementView] DLE из API:', dlesFromApi);
-      
+
       if (dlesFromApi.length === 0) {
         console.log('[ManagementView] Нет DLE в API, показываем пустой список');
         deployedDles.value = [];
         return;
       }
-      
+
       // Для каждого DLE читаем актуальные данные из блокчейна
       const dlesWithBlockchainData = await Promise.all(
         dlesFromApi.map(async (dle) => {
           try {
             // Используем адрес из deployedNetworks если dleAddress null
             const dleAddress = dle.dleAddress || (dle.deployedNetworks && dle.deployedNetworks.length > 0 ? dle.deployedNetworks[0].address : null);
-            
+
             if (!dleAddress) {
               console.warn(`[ManagementView] Нет адреса для DLE ${dle.deployment_id || 'unknown'}`);
               return dle;
             }
-            
+
             console.log(`[ManagementView] Читаем данные из блокчейна для ${dleAddress}`);
-            
+
             // Читаем данные из блокчейна
             const blockchainResponse = await api.post('/blockchain/read-dle-info', {
               dleAddress: dleAddress
             });
-            
+
             console.log(`[ManagementView] Ответ от блокчейна для ${dleAddress}:`, blockchainResponse.data);
-            
+
             if (blockchainResponse.data.success) {
               const blockchainData = blockchainResponse.data.data;
-              
+
               // Объединяем данные из API с данными из блокчейна
               const combinedDle = {
                 ...dle,
@@ -288,7 +270,7 @@ async function loadDeployedDles() {
                 // Количество участников (держателей токенов)
                 participantCount: blockchainData.participantCount || 0
               };
-              
+
               console.log(`[ManagementView] Объединенные данные для ${dle.dleAddress}:`, combinedDle);
               return combinedDle;
             } else {
@@ -301,7 +283,7 @@ async function loadDeployedDles() {
           }
         })
       );
-      
+
       deployedDles.value = dlesWithBlockchainData;
       console.log('[ManagementView] Итоговый список DLE:', deployedDles.value);
     } else {
@@ -311,8 +293,6 @@ async function loadDeployedDles() {
   } catch (error) {
     console.error('[ManagementView] Ошибка при загрузке DLE:', error);
     deployedDles.value = [];
-  } finally {
-    isLoadingDles.value = false;
   }
 }
 
@@ -467,74 +447,6 @@ onMounted(() => {
   margin-top: 3rem;
 }
 
-.section-header {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.add-dle-btn {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.add-dle-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
-.add-dle-btn i {
-  font-size: 0.875rem;
-}
-
-.section-header h2 {
-  color: var(--color-primary);
-  margin: 0;
-}
-
-.refresh-btn {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: background-color 0.2s;
-}
-
-.refresh-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
-
-
-.refresh-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 
 .loading-dles,
 .no-dles {

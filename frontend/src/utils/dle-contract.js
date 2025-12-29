@@ -205,7 +205,6 @@ export async function createProposal(dleAddress, proposalData) {
       proposalData.description,
       proposalData.duration,
       proposalData.operation,
-      proposalData.governanceChainId,
       proposalData.targetChains || [],
       proposalData.timelockDelay || 0
     );
@@ -216,6 +215,7 @@ export async function createProposal(dleAddress, proposalData) {
     console.log('Предложение создано, tx hash:', tx.hash);
 
     return {
+      success: true,
       proposalId: receipt.logs[0]?.topics[1] || '0', // Извлекаем ID предложения из события
       txHash: tx.hash,
       blockNumber: receipt.blockNumber

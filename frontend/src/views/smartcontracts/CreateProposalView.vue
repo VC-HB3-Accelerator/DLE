@@ -161,7 +161,7 @@ import { ref, computed, onMounted, onUnmounted, defineProps, defineEmits, inject
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
-import { getDLEInfo, getSupportedChains } from '../../services/dleV2Service.js';
+import { getDLEInfo } from '../../services/dleV2Service.js';
 import { createProposal as createProposalAPI } from '../../services/proposalsService.js';
 import { getModuleOperations } from '../../services/moduleOperationsService.js';
 import api from '../../api/axios';
@@ -231,8 +231,11 @@ const isModulesWSConnected = ref(false);
 
 // Функции для открытия отдельных форм операций
 function openTransferForm() {
-  // TODO: Открыть форму для передачи токенов
-  alert('Форма передачи токенов будет реализована');
+  if (dleAddress.value) {
+    router.push(`/management/transfer-tokens?address=${dleAddress.value}`);
+  } else {
+    router.push('/management/transfer-tokens');
+  }
 }
 
 function openAddModuleForm() {
@@ -321,9 +324,15 @@ async function loadDleData() {
       console.error('Ошибка загрузки DLE:', response.data.error);
     }
     
-    // Загружаем поддерживаемые цепочки
-    const chainsResponse = await getSupportedChains(dleAddress.value);
-    availableChains.value = chainsResponse.data?.chains || [];
+    // Получаем поддерживаемые цепочки из данных DLE
+    if (selectedDle.value?.deployedNetworks) {
+      availableChains.value = selectedDle.value.deployedNetworks.map(net => ({
+        chainId: net.chainId,
+        name: getChainName(net.chainId)
+      }));
+    } else {
+      availableChains.value = [];
+    }
 
     // Загружаем операции модулей
     await loadModuleOperations();
@@ -497,6 +506,21 @@ onMounted(async () => {
 onUnmounted(() => {
   disconnectModulesWebSocket();
 });
+
+// Функция для получения названия сети по chainId
+function getChainName(chainId) {
+  const chainNames = {
+    1: 'Ethereum',
+    11155111: 'Sepolia',
+    17000: 'Holesky',
+    421614: 'Arbitrum Sepolia',
+    84532: 'Base Sepolia',
+    137: 'Polygon',
+    56: 'BSC',
+    42161: 'Arbitrum'
+  };
+  return chainNames[chainId] || `Chain ${chainId}`;
+}
 </script>
 
 <style scoped>

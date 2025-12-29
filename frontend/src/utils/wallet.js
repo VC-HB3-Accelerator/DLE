@@ -20,7 +20,7 @@ import { SiweMessage } from 'siwe';
  * Нормализует Ethereum адрес
  */
 const normalizeAddress = (address) => {
-  return ethers.getAddress ? ethers.getAddress(address) : ethers.utils.getAddress(address);
+  return ethers.getAddress(address);
 };
 
 /**

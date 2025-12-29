@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y \
 COPY package.json yarn.lock ./
 
 # Устанавливаем зависимости
-RUN yarn install --frozen-lockfile
+RUN yarn install
 
 # Копируем остальные файлы проекта
 COPY . .

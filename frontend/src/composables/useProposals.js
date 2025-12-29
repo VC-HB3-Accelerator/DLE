@@ -15,11 +15,27 @@ import { getProposals } from '@/services/proposalsService';
 import { ethers } from 'ethers';
 import { useProposalValidation } from './useProposalValidation';
 import { voteForProposal, executeProposal as executeProposalUtil, cancelProposal as cancelProposalUtil, checkTokenBalance } from '@/utils/dle-contract';
+import axios from 'axios';
 
 // Функция checkVoteStatus удалена - в контракте DLE нет публичной функции hasVoted
 // Функция checkTokenBalance перенесена в useDleContract.js
 
 // Функция sendTransactionToWallet удалена - теперь используется прямое взаимодействие с контрактом
+
+// Вспомогательная функция для получения имени цепочки
+function getChainName(chainId) {
+  const chainNames = {
+    1: 'Ethereum',
+    11155111: 'Sepolia',
+    17000: 'Holesky',
+    421614: 'Arbitrum Sepolia',
+    84532: 'Base Sepolia',
+    137: 'Polygon',
+    56: 'BSC',
+    42161: 'Arbitrum'
+  };
+  return chainNames[chainId] || `Chain ${chainId}`;
+}
 
 export function useProposals(dleAddress, isAuthenticated, userAddress) {
   const proposals = ref([]);
@@ -43,61 +59,108 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   } = useProposalValidation();
 
   const loadProposals = async () => {
-    if (!dleAddress.value) {
-      console.warn('Адрес DLE не найден');
-      return;
-    }
-    
     try {
       isLoading.value = true;
-      const response = await getProposals(dleAddress.value);
-      
-      if (response.success) {
-        const rawProposals = response.data.proposals || [];
-        
-        console.log(`[Proposals] Загружено предложений: ${rawProposals.length}`);
-        console.log(`[Proposals] Полные данные из блокчейна:`, rawProposals);
-        
-        // Детальная информация о каждом предложении
-        rawProposals.forEach((proposal, index) => {
-          console.log(`[Proposals] Предложение ${index}:`, {
-            id: proposal.id,
-            description: proposal.description,
-            state: proposal.state,
-            forVotes: proposal.forVotes,
-            againstVotes: proposal.againstVotes,
-            quorumRequired: proposal.quorumRequired,
-            quorumReached: proposal.quorumReached,
-            executed: proposal.executed,
-            canceled: proposal.canceled,
-            initiator: proposal.initiator,
-            chainId: proposal.chainId,
-            transactionHash: proposal.transactionHash
-          });
-        });
-        
-        // Применяем валидацию предложений
-        const validationResult = validateProposals(rawProposals);
-        
-        // Фильтруем только реальные предложения
-        const realProposals = filterRealProposals(validationResult.validProposals);
-        
-        // Фильтруем только активные предложения (исключаем выполненные и отмененные)
-        const activeProposals = filterActiveProposals(realProposals);
-        
-        console.log(`[Proposals] Валидных предложений: ${validationResult.validCount}`);
-        console.log(`[Proposals] Реальных предложений: ${realProposals.length}`);
-        console.log(`[Proposals] Активных предложений: ${activeProposals.length}`);
-        
-        if (validationResult.errorCount > 0) {
-          console.warn(`[Proposals] Найдено ${validationResult.errorCount} предложений с ошибками валидации`);
-        }
-        
-        proposals.value = activeProposals;
-        filterProposals();
+
+      // Получаем информацию о всех DLE в разных цепочках
+      console.log('[Proposals] Получаем информацию о всех DLE...');
+      const dleResponse = await axios.get('/api/dle-v2');
+
+      if (!dleResponse.data.success) {
+        console.error('Не удалось получить список DLE');
+        return;
       }
+
+      const allDles = dleResponse.data.data || [];
+      console.log(`[Proposals] Найдено DLE: ${allDles.length}`, allDles);
+
+      // Группируем предложения по описанию для создания мульти-чейн представлений
+      const proposalsByDescription = new Map();
+
+      // Загружаем предложения из каждой цепочки
+      for (const dle of allDles) {
+        if (!dle.networks || dle.networks.length === 0) continue;
+
+        for (const network of dle.networks) {
+          try {
+            console.log(`[Proposals] Загружаем предложения из цепочки ${network.chainId}, адрес: ${network.address}`);
+            const response = await getProposals(network.address);
+
+            if (response.success) {
+              const chainProposals = response.data.proposals || [];
+
+              // Добавляем информацию о цепочке к каждому предложению
+              chainProposals.forEach(proposal => {
+                proposal.chainId = network.chainId;
+                proposal.contractAddress = network.address;
+                proposal.networkName = getChainName(network.chainId);
+
+                // Группируем предложения по описанию
+                const key = `${proposal.description}_${proposal.initiator}`;
+                if (!proposalsByDescription.has(key)) {
+                  proposalsByDescription.set(key, {
+                    id: proposal.id,
+                    description: proposal.description,
+                    initiator: proposal.initiator,
+                    deadline: proposal.deadline,
+                    chains: new Map(),
+                    createdAt: Math.min(...chainProposals.map(p => p.createdAt || Date.now())),
+                    uniqueId: key
+                  });
+                }
+
+                // Добавляем информацию о цепочке
+                proposalsByDescription.get(key).chains.set(network.chainId, {
+                  ...proposal,
+                  chainId: network.chainId,
+                  contractAddress: network.address,
+                  networkName: getChainName(network.chainId)
+                });
+              });
+            }
+          } catch (error) {
+            console.error(`Ошибка загрузки предложений из цепочки ${network.chainId}:`, error);
+          }
+        }
+      }
+
+      // Преобразуем в массив для отображения
+      const rawProposals = Array.from(proposalsByDescription.values()).map(group => ({
+        ...group,
+        chains: Array.from(group.chains.values()),
+        // Общий статус - активен если есть хотя бы одно активное предложение
+        state: group.chains.some(c => c.state === 'active') ? 'active' : 'inactive',
+        // Общий executed - выполнен если выполнен во всех цепочках
+        executed: group.chains.every(c => c.executed),
+        // Общий canceled - отменен если отменен в любой цепочке
+        canceled: group.chains.some(c => c.canceled)
+      }));
+
+      console.log(`[Proposals] Сгруппировано предложений: ${rawProposals.length}`);
+      console.log(`[Proposals] Детали группировки:`, rawProposals);
+
+      // Применяем валидацию предложений
+      const validationResult = validateProposals(rawProposals);
+
+      // Фильтруем только реальные предложения
+      const realProposals = filterRealProposals(validationResult.validProposals);
+
+      // Фильтруем только активные предложения (исключаем выполненные и отмененные)
+      const activeProposals = filterActiveProposals(realProposals);
+
+      console.log(`[Proposals] Валидных предложений: ${validationResult.validCount}`);
+      console.log(`[Proposals] Реальных предложений: ${realProposals.length}`);
+      console.log(`[Proposals] Активных предложений: ${activeProposals.length}`);
+
+      if (validationResult.errorCount > 0) {
+        console.warn(`[Proposals] Найдено ${validationResult.errorCount} предложений с ошибками валидации`);
+      }
+
+      proposals.value = activeProposals;
+      filterProposals();
     } catch (error) {
       console.error('Ошибка загрузки предложений:', error);
+      proposals.value = [];
     } finally {
       isLoading.value = false;
     }
@@ -511,13 +574,112 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     if (proposal) {
       Object.assign(proposal, updates);
       console.log(`🔄 [UI] Обновлено состояние предложения ${proposalId}:`, updates);
-      
+
       // Принудительно обновляем фильтрацию
       filterProposals();
     }
   };
 
+  // Мульти-чейн функции
+  const voteOnMultichainProposal = async (proposal, support) => {
+    try {
+      isVoting.value = true;
+
+      console.log(`🌐 [MULTI-VOTE] Начинаем голосование в ${proposal.chains.length} цепочках:`, proposal.chains.map(c => c.networkName));
+
+      // Голосуем последовательно в каждой цепочке
+      for (const chain of proposal.chains) {
+        try {
+          console.log(`🎯 [MULTI-VOTE] Голосуем в ${chain.networkName} (${chain.contractAddress})`);
+
+          await voteForProposal(chain.contractAddress, chain.id, support);
+
+          console.log(`✅ [MULTI-VOTE] Голос отдан в ${chain.networkName}`);
+
+          // Небольшая задержка между голосованиями
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+        } catch (error) {
+          console.error(`❌ [MULTI-VOTE] Ошибка голосования в ${chain.networkName}:`, error);
+          // Продолжаем голосовать в других цепочках даже при ошибке в одной
+        }
+      }
+
+      console.log('🎉 [MULTI-VOTE] Голосование завершено во всех цепочках');
+
+      // Перезагружаем предложения
+      await loadProposals();
+
+    } catch (error) {
+      console.error('[MULTI-VOTE] Критическая ошибка:', error);
+      throw error;
+    } finally {
+      isVoting.value = false;
+    }
+  };
+
+  const executeMultichainProposal = async (proposal) => {
+    try {
+      isExecuting.value = true;
+
+      console.log(`🚀 [MULTI-EXECUTE] Начинаем исполнение в ${proposal.chains.length} цепочках`);
+
+      // Исполняем параллельно во всех цепочках
+      const executePromises = proposal.chains.map(async (chain) => {
+        try {
+          console.log(`🎯 [MULTI-EXECUTE] Исполняем в ${chain.networkName} (${chain.contractAddress})`);
+
+          await executeProposalUtil(chain.contractAddress, chain.id);
+
+          console.log(`✅ [MULTI-EXECUTE] Исполнено в ${chain.networkName}`);
+
+        } catch (error) {
+          console.error(`❌ [MULTI-EXECUTE] Ошибка исполнения в ${chain.networkName}:`, error);
+          // Продолжаем исполнение в других цепочках
+        }
+      });
+
+      await Promise.all(executePromises);
+
+      console.log('🎉 [MULTI-EXECUTE] Исполнение завершено во всех цепочках');
+
+      // Перезагружаем предложения
+      await loadProposals();
+
+    } catch (error) {
+      console.error('[MULTI-EXECUTE] Критическая ошибка:', error);
+      throw error;
+    } finally {
+      isExecuting.value = false;
+    }
+  };
+
+  const canVoteMultichain = (proposal) => {
+    // Можно голосовать если есть хотя бы одна активная цепочка
+    return proposal.chains.some(chain => canVote(chain));
+  };
+
+  const canExecuteMultichain = (proposal) => {
+    // Можно исполнить только если кворум достигнут во ВСЕХ цепочках
+    return proposal.chains.every(chain => canExecute(chain));
+  };
+
+  const getChainStatusClass = (chain) => {
+    if (chain.executed) return 'executed';
+    if (chain.state === 'active') return 'active';
+    if (chain.deadline && chain.deadline < Date.now() / 1000) return 'expired';
+    return 'inactive';
+  };
+
+  const getChainStatusText = (chain) => {
+    if (chain.executed) return 'Исполнено';
+    if (chain.state === 'active') return 'Активно';
+    if (chain.deadline && chain.deadline < Date.now() / 1000) return 'Истекло';
+    return 'Неактивно';
+  };
+
   return {
+    // ... существующие поля
     proposals,
     filteredProposals,
     isLoading,
@@ -529,15 +691,21 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     loadProposals,
     filterProposals,
     voteOnProposal,
+    voteOnMultichainProposal,
     executeProposal,
+    executeMultichainProposal,
     cancelProposal,
     getProposalStatusClass,
     getProposalStatusText,
     getQuorumPercentage,
     getRequiredQuorumPercentage,
     canVote,
+    canVoteMultichain,
     canExecute,
+    canExecuteMultichain,
     canCancel,
+    getChainStatusClass,
+    getChainStatusText,
     updateProposalState,
     // Валидация
     validationStats,

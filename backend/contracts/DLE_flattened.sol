@@ -1,4 +1,4 @@
-// Sources flattened with hardhat v2.26.3 https://hardhat.org
+// Sources flattened with hardhat v2.28.0 https://hardhat.org
 
 // SPDX-License-Identifier: MIT AND PROPRIETARY
 
@@ -5482,7 +5482,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         uint256 deadline;             // конец периода голосования (sec)
         address initiator;
         bytes operation;              // операция для исполнения
-        uint256 governanceChainId;    // сеть голосования (Single-Chain Governance)
         uint256[] targetChains;       // целевые сети для исполнения
         uint256 snapshotTimepoint;    // блок/временная точка для getPastVotes
         mapping(address => bool) hasVoted;
@@ -5529,7 +5528,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     event ProposalExecuted(uint256 proposalId, bytes operation);
     event ProposalCancelled(uint256 proposalId, string reason);
     event ProposalTargetsSet(uint256 proposalId, uint256[] targetChains);
-    event ProposalGovernanceChainSet(uint256 proposalId, uint256 governanceChainId);
     event ModuleAdded(bytes32 moduleId, address moduleAddress);
     event ModuleRemoved(bytes32 moduleId);
     event ProposalExecutionApprovedInChain(uint256 proposalId, uint256 chainId);
@@ -5537,7 +5535,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     event ChainRemoved(uint256 chainId);
     event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
-    event TokensTransferredByGovernance(address indexed recipient, uint256 amount);
+    event TokensTransferredByGovernance(address indexed sender, address indexed recipient, uint256 amount);
 
     event VotingDurationsUpdated(uint256 oldMinDuration, uint256 newMinDuration, uint256 oldMaxDuration, uint256 newMaxDuration);
     event LogoURIUpdated(string oldURI, string newURI);
@@ -5566,6 +5564,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     error ErrNoPower();
     error ErrNotReady();
     error ErrNotInitiator();
+    error ErrUnauthorized();
     error ErrLowPower();
     error ErrBadTarget();
     error ErrBadSig1271();
@@ -5655,25 +5654,22 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         emit LogoURIUpdated(old, _logoURI);
     }
 
-    // Создать предложение с выбором цепочки для кворума
+    // Создать предложение для multi-chain голосования
     function createProposal(
-        string memory _description, 
+        string memory _description,
         uint256 _duration,
         bytes memory _operation,
-        uint256 _governanceChainId,
         uint256[] memory _targetChains,
         uint256 /* _timelockDelay */
     ) external returns (uint256) {
         if (balanceOf(msg.sender) == 0) revert ErrNotHolder();
         if (_duration < minVotingDuration) revert ErrTooShort();
         if (_duration > maxVotingDuration) revert ErrTooLong();
-        if (!supportedChains[_governanceChainId]) revert ErrBadChain();
         // _timelockDelay параметр игнорируется; timelock вынесем в отдельный модуль
         return _createProposalInternal(
             _description,
             _duration,
             _operation,
-            _governanceChainId,
             _targetChains,
             msg.sender
         );
@@ -5683,7 +5679,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         string memory _description,
         uint256 _duration,
         bytes memory _operation,
-        uint256 _governanceChainId,
         uint256[] memory _targetChains,
         address _initiator
     ) internal returns (uint256) {
@@ -5698,7 +5693,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         proposal.deadline = block.timestamp + _duration;
         proposal.initiator = _initiator;
         proposal.operation = _operation;
-        proposal.governanceChainId = _governanceChainId;
 
         // Снимок голосов: используем прошлую точку времени, чтобы getPastVotes был валиден в текущем блоке
         uint256 nowClock = clock();
@@ -5712,7 +5706,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
 
         allProposalIds.push(proposalId);
         emit ProposalCreated(proposalId, _initiator, _description);
-        emit ProposalGovernanceChainSet(proposalId, _governanceChainId);
         emit ProposalTargetsSet(proposalId, _targetChains);
         return proposalId;
     }
@@ -5775,7 +5768,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         proposal.executed = true;
         
         // Исполняем операцию
-        _executeOperation(proposal.operation);
+        _executeOperation(_proposalId, proposal.operation);
         
         emit ProposalExecuted(_proposalId, proposal.operation);
     }
@@ -5855,7 +5848,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         if (votesFor < quorumRequired) revert ErrNoPower();
 
         proposal.executed = true;
-        _executeOperation(proposal.operation);
+        _executeOperation(_proposalId, proposal.operation);
         emit ProposalExecuted(_proposalId, proposal.operation);
         emit ProposalExecutionApprovedInChain(_proposalId, block.chainid);
 
@@ -5912,11 +5905,15 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
 
     /**
      * @dev Исполнить операцию
+     * @param _proposalId ID предложения
      * @param _operation Операция для исполнения
      */
-    function _executeOperation(bytes memory _operation) internal {
+    function _executeOperation(uint256 _proposalId, bytes memory _operation) internal {
         if (_operation.length < 4) revert ErrInvalidOperation();
-        
+
+        // Получаем информацию о предложении для доступа к initiator
+        Proposal storage proposal = proposals[_proposalId];
+
         // Декодируем операцию из formата abi.encodeWithSelector
         bytes4 selector;
         bytes memory data;
@@ -5950,10 +5947,12 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         } else if (selector == bytes4(keccak256("_removeSupportedChain(uint256)"))) {
             (uint256 chainIdToRemove) = abi.decode(data, (uint256));
             _removeSupportedChain(chainIdToRemove);
-        } else if (selector == bytes4(keccak256("_transferTokens(address,uint256)"))) {
-            // Операция перевода токенов через governance
-            (address recipient, uint256 amount) = abi.decode(data, (address, uint256));
-            _transferTokens(recipient, amount);
+        } else if (selector == bytes4(keccak256("_transferTokens(address,address,uint256)"))) {
+            // Операция перевода токенов через governance от инициатора
+            (address sender, address recipient, uint256 amount) = abi.decode(data, (address, address, uint256));
+            // Проверяем, что sender совпадает с инициатором предложения
+            if (sender != proposal.initiator) revert ErrUnauthorized();
+            _transferTokens(sender, recipient, amount);
         } else if (selector == bytes4(keccak256("_updateVotingDurations(uint256,uint256)"))) {
             // Операция обновления времени голосования
             (uint256 newMinDuration, uint256 newMaxDuration) = abi.decode(data, (uint256, uint256));
@@ -6034,15 +6033,15 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
      * @param _recipient Адрес получателя
      * @param _amount Количество токенов для перевода
      */
-    function _transferTokens(address _recipient, uint256 _amount) internal {
+    function _transferTokens(address _sender, address _recipient, uint256 _amount) internal {
         if (_recipient == address(0)) revert ErrZeroAddress();
         if (_amount == 0) revert ErrZeroAmount();
-        require(balanceOf(address(this)) >= _amount, "Insufficient DLE balance");
-        
-        // Переводим токены от имени DLE (address(this))
-        _transfer(address(this), _recipient, _amount);
-        
-        emit TokensTransferredByGovernance(_recipient, _amount);
+        require(balanceOf(_sender) >= _amount, "Insufficient token balance");
+
+        // Переводим токены от отправителя к получателю
+        _transfer(_sender, _recipient, _amount);
+
+        emit TokensTransferredByGovernance(_sender, _recipient, _amount);
     }
 
     /**
@@ -6115,7 +6114,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             _description,
             _duration,
             operation,
-            _chainId,
             targets,
             msg.sender
         );
@@ -6155,7 +6153,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             _description,
             _duration,
             operation,
-            _chainId,
             targets,
             msg.sender
         );
@@ -6382,13 +6379,12 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         bool canceled,
         uint256 deadline,
         address initiator,
-        uint256 governanceChainId,
         uint256 snapshotTimepoint,
         uint256[] memory targetChains
     ) {
         Proposal storage p = proposals[_proposalId];
         require(p.id == _proposalId, "Proposal does not exist");
-        
+
         return (
             p.id,
             p.description,
@@ -6398,7 +6394,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             p.canceled,
             p.deadline,
             p.initiator,
-            p.governanceChainId,
             p.snapshotTimepoint,
             p.targetChains
         );

@@ -1,21 +1,9 @@
 /**
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
- * All rights reserved.
- * 
- * This software is proprietary and confidential.
- * Unauthorized copying, modification, or distribution is prohibited.
- * 
- * For licensing inquiries: info@hb3-accelerator.com
- * Website: https://hb3-accelerator.com
- * GitHub: https://github.com/VC-HB3-Accelerator
- */
-
-/**
  * ABI для DLE смарт-контракта
  * АВТОМАТИЧЕСКИ СГЕНЕРИРОВАНО - НЕ РЕДАКТИРОВАТЬ ВРУЧНУЮ
  * Для обновления запустите: node backend/scripts/generate-abi.js
  * 
- * Последнее обновление: 2025-09-29T18:16:32.027Z
+ * Последнее обновление: 2025-12-29T12:09:15.558Z
  */
 
 export const DLE_ABI = [
@@ -31,7 +19,7 @@ export const DLE_ABI = [
   "function checkpoints(address account, uint32 pos) returns (tuple)",
   "function clock() returns (uint48)",
   "function createAddModuleProposal(string _description, uint256 _duration, bytes32 _moduleId, address _moduleAddress, uint256 _chainId) returns (uint256)",
-  "function createProposal(string _description, uint256 _duration, bytes _operation, uint256 _governanceChainId, uint256[] _targetChains, uint256 ) returns (uint256)",
+  "function createProposal(string _description, uint256 _duration, bytes _operation, uint256[] _targetChains, uint256 ) returns (uint256)",
   "function createRemoveModuleProposal(string _description, uint256 _duration, bytes32 _moduleId, uint256 _chainId) returns (uint256)",
   "function decimals() returns (uint8)",
   "function delegate(address delegatee)",

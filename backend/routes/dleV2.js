@@ -192,6 +192,42 @@ router.get('/default-params', auth.requireAuth, async (req, res, next) => {
 });
 
 /**
+ * @route   DELETE /api/dle-v2/deployment/:deploymentId
+ * @desc    Удалить DLE v2 по deployment ID
+ * @access  Private (только для авторизованных пользователей с ролью admin)
+ */
+router.delete('/deployment/:deploymentId', auth.requireAuth, auth.requireAdmin, async (req, res, next) => {
+  try {
+    const { deploymentId } = req.params;
+    logger.info(`Получен запрос на удаление DLE v2 с deployment ID: ${deploymentId}`);
+
+    // Удаляем запись из базы данных
+    const deleted = await unifiedDeploymentService.deleteDeployParams(deploymentId);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: `DLE v2 с deployment ID ${deploymentId} не найдено`
+      });
+    }
+
+    logger.info(`DLE v2 с deployment ID ${deploymentId} успешно удалено`);
+
+    res.json({
+      success: true,
+      message: `DLE v2 с deployment ID ${deploymentId} успешно удалено`
+    });
+
+  } catch (error) {
+    logger.error('Ошибка при удалении DLE v2 по deployment ID:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Произошла ошибка при удалении DLE v2'
+    });
+  }
+});
+
+/**
  * @route   DELETE /api/dle-v2/:dleAddress
  * @desc    Удалить DLE v2 по адресу
  * @access  Private (только для авторизованных пользователей с ролью admin)

@@ -56,10 +56,14 @@ function formatABI(abi) {
   
   // Функции
   functions.forEach(func => {
-    const inputs = func.inputs.map(input => `${input.type} ${input.name}`).join(', ');
+    const inputs = func.inputs.map(input => {
+      // Если имя параметра пустое, используем только тип
+      const paramName = input.name ? ` ${input.name}` : '';
+      return `${input.type}${paramName}`;
+    }).join(', ');
     const outputs = func.outputs.map(output => output.type).join(', ');
     const returns = outputs ? ` returns (${outputs})` : '';
-    
+
     result += `  "${func.type} ${func.name}(${inputs})${returns}",\n`;
   });
   

@@ -19,8 +19,8 @@
     <RouterView v-slot="{ Component }">
       <component 
         :is="Component" 
-        :isAuthenticated="auth.isAuthenticated.value"
-        :identities="auth.identities.value"
+        :isAuthenticated="auth.isAuthenticated"
+        :identities="auth.identities"
         :tokenBalances="tokenBalances"
         :isLoadingTokens="isLoadingTokens"
         :formattedLastUpdate="formattedLastUpdate" 

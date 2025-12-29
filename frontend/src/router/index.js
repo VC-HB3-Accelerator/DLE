@@ -279,6 +279,11 @@ const routes = [
     component: () => import('../views/smartcontracts/AddModuleFormView.vue')
   },
   {
+    path: '/management/transfer-tokens',
+    name: 'management-transfer-tokens',
+    component: () => import('../views/smartcontracts/TransferTokensFormView.vue')
+  },
+  {
     path: '/management/modules',
     name: 'management-modules',
     component: () => import('../views/smartcontracts/ModulesView.vue')
