@@ -73,26 +73,6 @@ BEGIN
     INSERT INTO rpc_providers (network_id_encrypted, rpc_url_encrypted, chain_id)
     VALUES (encrypt_text('sepolia', get_encryption_key()), encrypt_text('https://1rpc.io/sepolia', get_encryption_key()), 11155111);
   END IF;
-  
-  -- Arbitrum Sepolia
-  IF NOT EXISTS (
-    SELECT 1 FROM rpc_providers 
-    WHERE decrypt_text(network_id_encrypted, get_encryption_key()) = 'arbitrum-sepolia' 
-    AND chain_id = 421614
-  ) THEN
-    INSERT INTO rpc_providers (network_id_encrypted, rpc_url_encrypted, chain_id)
-    VALUES (encrypt_text('arbitrum-sepolia', get_encryption_key()), encrypt_text('https://sepolia-rollup.arbitrum.io/rpc', get_encryption_key()), 421614);
-  END IF;
-  
-  -- Base Sepolia
-  IF NOT EXISTS (
-    SELECT 1 FROM rpc_providers 
-    WHERE decrypt_text(network_id_encrypted, get_encryption_key()) = 'base-sepolia' 
-    AND chain_id = 84532
-  ) THEN
-    INSERT INTO rpc_providers (network_id_encrypted, rpc_url_encrypted, chain_id)
-    VALUES (encrypt_text('base-sepolia', get_encryption_key()), encrypt_text('https://sepolia.base.org', get_encryption_key()), 84532);
-  END IF;
 END \$\$;"
 
 # Заполняем токены аутентификации с проверкой дубликатов
@@ -103,43 +83,13 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM auth_tokens 
     WHERE decrypt_text(network_encrypted, get_encryption_key()) = 'sepolia'
-    AND decrypt_text(address_encrypted, get_encryption_key()) = '0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386'
+    AND decrypt_text(address_encrypted, get_encryption_key()) = '0x8e96DdB110aa1C55A4b9ded8c16E66Fbdb5E63E1'
   ) THEN
     INSERT INTO auth_tokens (name_encrypted, address_encrypted, network_encrypted, min_balance, readonly_threshold, editor_threshold)
     VALUES (
       encrypt_text('DLE', get_encryption_key()), 
-      encrypt_text('0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386', get_encryption_key()), 
+      encrypt_text('0x8e96DdB110aa1C55A4b9ded8c16E66Fbdb5E63E1', get_encryption_key()), 
       encrypt_text('sepolia', get_encryption_key()), 
-      1.000000000000000000, 1, 1
-    );
-  END IF;
-  
-  -- Arbitrum Sepolia token
-  IF NOT EXISTS (
-    SELECT 1 FROM auth_tokens 
-    WHERE decrypt_text(network_encrypted, get_encryption_key()) = 'arbitrum-sepolia'
-    AND decrypt_text(address_encrypted, get_encryption_key()) = '0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386'
-  ) THEN
-    INSERT INTO auth_tokens (name_encrypted, address_encrypted, network_encrypted, min_balance, readonly_threshold, editor_threshold)
-    VALUES (
-      encrypt_text('DLE', get_encryption_key()), 
-      encrypt_text('0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386', get_encryption_key()), 
-      encrypt_text('arbitrum-sepolia', get_encryption_key()), 
-      1.000000000000000000, 1, 1
-    );
-  END IF;
-  
-  -- Base Sepolia token
-  IF NOT EXISTS (
-    SELECT 1 FROM auth_tokens 
-    WHERE decrypt_text(network_encrypted, get_encryption_key()) = 'base-sepolia'
-    AND decrypt_text(address_encrypted, get_encryption_key()) = '0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386'
-  ) THEN
-    INSERT INTO auth_tokens (name_encrypted, address_encrypted, network_encrypted, min_balance, readonly_threshold, editor_threshold)
-    VALUES (
-      encrypt_text('DLE', get_encryption_key()), 
-      encrypt_text('0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386', get_encryption_key()), 
-      encrypt_text('base-sepolia', get_encryption_key()), 
       1.000000000000000000, 1, 1
     );
   END IF;
