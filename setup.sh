@@ -25,7 +25,7 @@ print_red() {
 }
 
 # Версия релиза для установки (обновляется при выходе нового релиза)
-ARCHIVE_VERSION="v1.0.2"
+ARCHIVE_VERSION="v1.0.3"
 ARCHIVE_BASE_URL="https://github.com/VC-HB3-Accelerator/DLE/releases/download/${ARCHIVE_VERSION}"
 
 # Список частей архива (стандартные части для релиза v1.0.2+)
