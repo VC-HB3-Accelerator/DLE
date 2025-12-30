@@ -106,13 +106,123 @@
                 <span>🔗</span>
                 <span>ID: {{ proposal.uniqueId }}</span>
               </div>
-              <div class="meta-item">
+              <!-- Мульти-чейн информация -->
+              <div v-if="proposal.chains && proposal.chains.length > 1" class="meta-item multichain-info">
+                <span>🌐</span>
+                <span>Цепочки ({{ proposal.chains.length }}): {{ proposal.chains.map(c => c.networkName || `Chain ${c.chainId}`).join(', ') }}</span>
+              </div>
+              <div v-else class="meta-item">
                 <span>⛓️</span>
-                <span>Chain: {{ proposal.chainId }}</span>
+                <span>Chain: {{ proposal.chainId ? (proposal.chains?.[0]?.networkName || `Chain ${proposal.chainId}`) : 'N/A' }}</span>
               </div>
               <div class="meta-item">
                 <span>📄</span>
-                <span>Hash: {{ (proposal.transactionHash || '').substring(0, 10) }}...</span>
+                <span>Hash: {{ ((proposal.transactionHash || proposal.chains?.[0]?.transactionHash || '')).substring(0, 10) }}...</span>
+              </div>
+            </div>
+            
+            <!-- Детали по цепочкам для мульти-чейн предложений -->
+            <div v-if="proposal.chains && proposal.chains.length > 1" class="chains-details">
+              <div class="chains-header">
+                <strong>Статус по цепочкам:</strong>
+              </div>
+              <div class="chains-list">
+                <div 
+                  v-for="chain in proposal.chains" 
+                  :key="chain.chainId" 
+                  class="chain-item"
+                  :class="{ 
+                    'chain-active': Number(chain.state) === 0,
+                    'chain-executed': chain.executed,
+                    'chain-canceled': chain.canceled
+                  }"
+                >
+                  <div class="chain-main-info">
+                    <span class="chain-name">{{ chain.networkName || `Chain ${chain.chainId}` }}</span>
+                    <span class="chain-status">
+                      <span v-if="chain.executed">✅ Выполнено</span>
+                      <span v-else-if="chain.canceled">❌ Отменено</span>
+                      <span v-else-if="chain.deadline && chain.deadline < Date.now() / 1000">⏰ Истекло</span>
+                      <span v-else-if="Number(chain.state) === 5">🟡 Готово к выполнению</span>
+                      <span v-else-if="Number(chain.state) === 0">🟢 Активно</span>
+                      <span v-else>⚪ {{ chain.state }}</span>
+                    </span>
+                  </div>
+                  <div class="chain-details-info">
+                    <div class="chain-detail-item">
+                      <span class="detail-label">ID предложения:</span>
+                      <span class="detail-value">#{{ chain.id !== undefined && chain.id !== null ? chain.id : 'N/A' }}</span>
+                    </div>
+                    <div class="chain-detail-item">
+                      <span class="detail-label">Голоса:</span>
+                      <span class="detail-value">
+                        👍 {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE | 
+                        👎 {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
+                      </span>
+                    </div>
+                    <div class="chain-detail-item">
+                      <span class="detail-label">Кворум:</span>
+                      <span class="detail-value" :class="{ 'quorum-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) >= Number(chain.quorumRequired), 'quorum-not-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) < Number(chain.quorumRequired) }">
+                        {{ chain.forVotes && chain.quorumRequired ? 
+                          (Number(chain.forVotes) >= Number(chain.quorumRequired) ? '✅ Достигнут' : '❌ Не достигнут') : 
+                          'N/A' }}
+                        ({{ chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }} DLE требуется)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Для одиночных предложений тоже показываем детали -->
+            <div v-else-if="proposal.chains && proposal.chains.length === 1" class="chains-details">
+              <div class="chains-header">
+                <strong>Детали цепочки:</strong>
+              </div>
+              <div class="chains-list">
+                <div 
+                  v-for="chain in proposal.chains" 
+                  :key="chain.chainId" 
+                  class="chain-item"
+                  :class="{ 
+                    'chain-active': Number(chain.state) === 0,
+                    'chain-executed': chain.executed,
+                    'chain-canceled': chain.canceled
+                  }"
+                >
+                  <div class="chain-main-info">
+                    <span class="chain-name">{{ chain.networkName || `Chain ${chain.chainId}` }}</span>
+                    <span class="chain-status">
+                      <span v-if="chain.executed">✅ Выполнено</span>
+                      <span v-else-if="chain.canceled">❌ Отменено</span>
+                      <span v-else-if="chain.state === 5">🟡 Готово к выполнению</span>
+                      <span v-else-if="Number(chain.state) === 0">🟢 Активно</span>
+                      <span v-else>⚪ {{ chain.state }}</span>
+                    </span>
+                  </div>
+                  <div class="chain-details-info">
+                    <div class="chain-detail-item">
+                      <span class="detail-label">ID предложения:</span>
+                      <span class="detail-value">#{{ chain.id !== undefined && chain.id !== null ? chain.id : proposal.id }}</span>
+                    </div>
+                    <div class="chain-detail-item">
+                      <span class="detail-label">Голоса:</span>
+                      <span class="detail-value">
+                        👍 {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE | 
+                        👎 {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
+                      </span>
+                    </div>
+                    <div class="chain-detail-item">
+                      <span class="detail-label">Кворум:</span>
+                      <span class="detail-value" :class="{ 'quorum-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) >= Number(chain.quorumRequired), 'quorum-not-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) < Number(chain.quorumRequired) }">
+                        {{ chain.forVotes && chain.quorumRequired ? 
+                          (Number(chain.forVotes) >= Number(chain.quorumRequired) ? '✅ Достигнут' : '❌ Не достигнут') : 
+                          'N/A' }}
+                        ({{ chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }} DLE требуется)
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -132,7 +242,7 @@
             
             <div class="proposal-actions">
               <button 
-                v-if="canVote(proposal)" 
+                v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
                 @click="voteOnProposal(proposal.id, true)" 
                 class="btn btn-success"
                 :disabled="isVoting"
@@ -140,7 +250,7 @@
                 {{ isVoting ? 'Голосование...' : 'За' }}
               </button>
               <button 
-                v-if="canVote(proposal)" 
+                v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
                 @click="voteOnProposal(proposal.id, false)" 
                 class="btn btn-danger"
                 :disabled="isVoting"
@@ -148,7 +258,7 @@
                 {{ isVoting ? 'Голосование...' : 'Против' }}
               </button>
               <button 
-                v-if="canExecute(proposal)" 
+                v-if="proposal.chains && proposal.chains.length > 1 ? canExecuteMultichain(proposal) : canExecute(proposal)" 
                 @click="executeProposal(proposal.id)" 
                 class="btn btn-primary"
                 :disabled="isExecuting"
@@ -174,7 +284,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useAuth } from '@/composables/useAuth';
+import { useAuthContext } from '@/composables/useAuth';
 import { useProposals } from '@/composables/useProposals';
 import BaseLayout from '@/components/BaseLayout.vue';
 
@@ -205,7 +315,7 @@ export default {
   setup(props) {
     const router = useRouter();
     const route = useRoute();
-    const { currentAddress, address } = useAuth();
+    const { address } = useAuthContext();
 
     const dleAddress = computed(() => {
       return route.query.address;
@@ -230,7 +340,9 @@ export default {
       getQuorumPercentage,
       getRequiredQuorumPercentage,
       canVote,
+      canVoteMultichain,
       canExecute,
+      canExecuteMultichain,
       canCancel
     } = useProposals(dleAddress, computed(() => props.isAuthenticated), address);
 
@@ -278,7 +390,9 @@ export default {
       getQuorumPercentage,
       getRequiredQuorumPercentage,
       canVote,
+      canVoteMultichain,
       canExecute,
+      canExecuteMultichain,
       canCancel
     };
   }
@@ -599,6 +713,117 @@ export default {
 .btn-warning {
   background: #ffc107;
   color: #333;
+}
+
+.multichain-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.chains-details {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.chains-header {
+  margin-bottom: 10px;
+  color: #333;
+  font-size: 14px;
+}
+
+.chains-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chain-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.chain-item:last-child {
+  margin-bottom: 0;
+}
+
+.chain-item.chain-active {
+  border-left: 4px solid #28a745;
+}
+
+.chain-item.chain-executed {
+  border-left: 4px solid #007bff;
+  opacity: 0.7;
+}
+
+.chain-item.chain-canceled {
+  border-left: 4px solid #dc3545;
+  opacity: 0.7;
+}
+
+.chain-main-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chain-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.chain-status {
+  font-size: 12px;
+  color: #666;
+}
+
+.chain-details-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #e9ecef;
+}
+
+.chain-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #666;
+  margin-right: 10px;
+}
+
+.detail-value {
+  color: #333;
+  text-align: right;
+  flex: 1;
+}
+
+.detail-value.quorum-reached {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.detail-value.quorum-not-reached {
+  color: #dc3545;
 }
 
 @media (max-width: 768px) {

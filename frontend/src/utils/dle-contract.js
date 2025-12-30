@@ -17,7 +17,9 @@ import { DLE_ABI, DLE_DEACTIVATION_ABI, TOKEN_ABI } from './dle-abi';
 // Функция для переключения сети кошелька
 export async function switchToVotingNetwork(chainId) {
   try {
-    console.log(`🔄 [NETWORK] Пытаемся переключиться на сеть ${chainId}...`);
+    // Преобразуем chainId в строку для поиска в объекте networks
+    const chainIdStr = String(chainId);
+    console.log(`🔄 [NETWORK] Пытаемся переключиться на сеть ${chainId} (строка: ${chainIdStr})...`);
     
     // Конфигурации сетей
     const networks = {
@@ -51,49 +53,53 @@ export async function switchToVotingNetwork(chainId) {
       }
     };
     
-    const networkConfig = networks[chainId];
+    const networkConfig = networks[chainIdStr];
     if (!networkConfig) {
-      console.error(`❌ [NETWORK] Неизвестная сеть: ${chainId}`);
+      console.error(`❌ [NETWORK] Неизвестная сеть: ${chainId} (строка: ${chainIdStr})`);
+      console.error(`❌ [NETWORK] Доступные сети:`, Object.keys(networks));
       return false;
     }
     
     // Проверяем, подключена ли уже нужная сеть
     const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+    console.log(`🔍 [NETWORK] Текущая сеть: ${currentChainId}, нужная: ${networkConfig.chainId}`);
     if (currentChainId === networkConfig.chainId) {
-      console.log(`✅ [NETWORK] Сеть ${chainId} уже подключена`);
+      console.log(`✅ [NETWORK] Сеть ${chainIdStr} уже подключена`);
       return true;
     }
     
     // Пытаемся переключиться на нужную сеть
     try {
+      console.log(`🔄 [NETWORK] Запрашиваем переключение на сеть ${chainIdStr}...`);
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: networkConfig.chainId }]
       });
-      console.log(`✅ [NETWORK] Успешно переключились на сеть ${chainId}`);
+      console.log(`✅ [NETWORK] Успешно переключились на сеть ${chainIdStr}`);
       return true;
     } catch (switchError) {
+      console.error(`⚠️ [NETWORK] Ошибка переключения:`, switchError);
       // Если сеть не добавлена, добавляем её
       if (switchError.code === 4902) {
-        console.log(`➕ [NETWORK] Добавляем сеть ${chainId}...`);
+        console.log(`➕ [NETWORK] Добавляем сеть ${chainIdStr}...`);
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [networkConfig]
           });
-          console.log(`✅ [NETWORK] Сеть ${chainId} добавлена и подключена`);
+          console.log(`✅ [NETWORK] Сеть ${chainIdStr} добавлена и подключена`);
           return true;
         } catch (addError) {
-          console.error(`❌ [NETWORK] Ошибка добавления сети ${chainId}:`, addError);
+          console.error(`❌ [NETWORK] Ошибка добавления сети ${chainIdStr}:`, addError);
           return false;
         }
       } else {
-        console.error(`❌ [NETWORK] Ошибка переключения на сеть ${chainId}:`, switchError);
+        console.error(`❌ [NETWORK] Ошибка переключения на сеть ${chainIdStr}:`, switchError);
         return false;
       }
     }
   } catch (error) {
-    console.error(`❌ [NETWORK] Общая ошибка переключения сети:`, error);
+    console.error(`❌ [NETWORK] Общая ошибка переключения сети ${chainIdStr}:`, error);
     return false;
   }
 }
@@ -197,11 +203,11 @@ export async function createProposal(dleAddress, proposalData) {
     const signer = await provider.getSigner();
 
     // Используем общий ABI
-
     const dle = new ethers.Contract(dleAddress, DLE_ABI, signer);
 
     // Создаем предложение
-  const tx = await dle.createProposal(
+    // Правильный порядок параметров: description, duration, operation, targetChains, timelockDelay
+    const tx = await dle.createProposal(
       proposalData.description,
       proposalData.duration,
       proposalData.operation,
@@ -262,85 +268,17 @@ export async function voteForProposal(dleAddress, proposalId, support) {
       
       console.log('🔍 [VOTE DEBUG] Предложение в правильном состоянии для голосования');
       
-      // Проверяем сеть голосования
+      // Проверяем право голоса (если доступно)
       try {
         const proposal = await dle.proposals(proposalId);
-        const currentChainId = await dle.getCurrentChainId();
-        const governanceChainId = proposal.governanceChainId;
-        
-        console.log('🔍 [VOTE DEBUG] Текущая сеть контракта:', currentChainId.toString());
-        console.log('🔍 [VOTE DEBUG] Сеть голосования предложения:', governanceChainId.toString());
-        
-        if (currentChainId.toString() !== governanceChainId.toString()) {
-          console.log('🔄 [VOTE DEBUG] Неправильная сеть! Пытаемся переключиться...');
-          
-          // Пытаемся переключить сеть
-          const switched = await switchToVotingNetwork(governanceChainId.toString());
-          if (switched) {
-            console.log('✅ [VOTE DEBUG] Сеть успешно переключена, переподключаемся к контракту...');
-            
-            // Определяем правильный адрес контракта для сети голосования
-            let correctContractAddress = dleAddress;
-            
-            // Если контракт развернут в другой сети, нужно найти контракт в нужной сети
-            if (currentChainId.toString() !== governanceChainId.toString()) {
-              console.log('🔍 [VOTE DEBUG] Ищем контракт в сети голосования...');
-              
-              try {
-                // Получаем информацию о мультичейн развертывании из БД
-                const response = await fetch('/api/dle-core/get-multichain-contracts', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    originalContract: dleAddress,
-                    targetChainId: governanceChainId.toString()
-                  })
-                });
-                
-                if (response.ok) {
-                  const data = await response.json();
-                  if (data.success && data.contractAddress) {
-                    correctContractAddress = data.contractAddress;
-                    console.log('🔍 [VOTE DEBUG] Найден контракт в сети голосования:', correctContractAddress);
-                  } else {
-                    console.warn('⚠️ [VOTE DEBUG] Контракт в сети голосования не найден, используем исходный');
-                  }
-                } else {
-                  console.warn('⚠️ [VOTE DEBUG] Ошибка получения контракта из БД, используем исходный');
-                }
-              } catch (error) {
-                console.warn('⚠️ [VOTE DEBUG] Ошибка поиска контракта, используем исходный:', error.message);
-              }
-            }
-            
-            // Переподключаемся к контракту в новой сети
-            const newProvider = new ethers.BrowserProvider(window.ethereum);
-            const newSigner = await newProvider.getSigner();
-            dle = new ethers.Contract(correctContractAddress, DLE_ABI, newSigner);
-            
-            // Проверяем, что теперь все корректно
-            const newCurrentChainId = await dle.getCurrentChainId();
-            console.log('🔍 [VOTE DEBUG] Новая текущая сеть контракта:', newCurrentChainId.toString());
-            
-            if (newCurrentChainId.toString() === governanceChainId.toString()) {
-              console.log('✅ [VOTE DEBUG] Сеть для голосования теперь корректна');
-            } else {
-              throw new Error(`Не удалось переключиться на правильную сеть. Текущая: ${newCurrentChainId}, требуется: ${governanceChainId}`);
-            }
-          } else {
-            throw new Error(`Неправильная сеть! Контракт в сети ${currentChainId}, а голосование должно быть в сети ${governanceChainId}. Переключите кошелек вручную.`);
+        if (proposal.snapshotTimepoint) {
+          const votingPower = await dle.getPastVotes(signer.address, proposal.snapshotTimepoint);
+          console.log('🔍 [VOTE DEBUG] Право голоса:', votingPower.toString());
+          if (votingPower === 0n) {
+            throw new Error('У пользователя нет права голоса (votingPower = 0)');
           }
-        } else {
-          console.log('🔍 [VOTE DEBUG] Сеть для голосования корректна');
+          console.log('🔍 [VOTE DEBUG] У пользователя есть право голоса');
         }
-        
-        // Проверяем право голоса
-        const votingPower = await dle.getPastVotes(signer.address, proposal.snapshotTimepoint);
-        console.log('🔍 [VOTE DEBUG] Право голоса:', votingPower.toString());
-        if (votingPower === 0n) {
-          throw new Error('У пользователя нет права голоса (votingPower = 0)');
-        }
-        console.log('🔍 [VOTE DEBUG] У пользователя есть право голоса');
       } catch (votingPowerError) {
         console.warn('⚠️ [VOTE DEBUG] Не удалось проверить право голоса (продолжаем):', votingPowerError.message);
       }
@@ -1089,7 +1027,6 @@ export async function loadDeactivationProposals(dleAddress) {
  * @param {number} transferData.amount - Количество токенов
  * @param {string} transferData.description - Описание предложения
  * @param {number} transferData.duration - Длительность голосования в секундах
- * @param {number} transferData.governanceChainId - ID сети для голосования
  * @param {Array<number>} transferData.targetChains - Целевые сети для исполнения
  * @returns {Promise<Object>} - Результат создания предложения
  */
@@ -1109,15 +1046,19 @@ export async function createTransferTokensProposal(dleAddress, transferData) {
 
     const dle = new ethers.Contract(dleAddress, DLE_ABI, signer);
 
+    // Получаем адрес отправителя (инициатора предложения)
+    const senderAddress = await signer.getAddress();
+
     // Кодируем операцию перевода токенов
-    const transferFunctionSelector = ethers.id("_transferTokens(address,uint256)");
-    const transferDataEncoded = ethers.AbiCoder.defaultAbiCoder().encode(
-      ["address", "uint256"],
-      [transferData.recipient, ethers.parseUnits(transferData.amount.toString(), 18)]
-    );
-    
-    // Объединяем селектор и данные
-    const operation = ethers.concat([transferFunctionSelector, transferDataEncoded]);
+    // Правильная сигнатура: _transferTokens(address,address,uint256)
+    // Параметры: sender (инициатор), recipient (получатель), amount (в wei)
+    const functionSignature = '_transferTokens(address,address,uint256)';
+    const iface = new ethers.Interface([`function ${functionSignature}`]);
+    const operation = iface.encodeFunctionData('_transferTokens', [
+      senderAddress,      // адрес инициатора
+      transferData.recipient,   // адрес получателя
+      ethers.parseUnits(transferData.amount.toString(), 18) // количество в wei
+    ]);
 
     console.log('Создание предложения о переводе токенов:', {
       recipient: transferData.recipient,
@@ -1127,11 +1068,11 @@ export async function createTransferTokensProposal(dleAddress, transferData) {
     });
 
     // Создаем предложение
+    // Правильный порядок параметров: description, duration, operation, targetChains, timelockDelay
     const tx = await dle.createProposal(
       transferData.description,
       transferData.duration,
       operation,
-      transferData.governanceChainId,
       transferData.targetChains || [],
       0 // timelockDelay
     );

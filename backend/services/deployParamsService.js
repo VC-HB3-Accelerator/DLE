@@ -509,6 +509,7 @@ class DeployParamsService {
           deploymentStatus: row.deployment_status,
           deployResult: row.deploy_result,
           deployedNetworks: deployedNetworks, // Добавляем адреса всех сетей
+          networks: deployedNetworks, // Добавляем networks для фронтенда (алиас deployedNetworks)
           createdAt: row.created_at,
           updatedAt: row.updated_at
         };

@@ -48,7 +48,6 @@
                 <div class="default-logo" v-else>DLE</div>
                 <div class="dle-title">
                   <h3>{{ dle.name }} ({{ dle.symbol }})</h3>
-                  <span class="dle-version">{{ dle.version || 'v2' }}</span>
                 </div>
               </div>
             </div>
@@ -64,12 +63,12 @@
                   <li v-for="net in dle.networks" :key="net.chainId" class="network-item">
                     <span class="chain-name">{{ getChainName(net.chainId) }}:</span>
                     <a 
-                      :href="getExplorerUrl(net.chainId, net.dleAddress)" 
+                      :href="getExplorerUrl(net.chainId, net.address)" 
                       target="_blank" 
                       class="address-link"
                       @click.stop
                     >
-                      {{ shortenAddress(net.dleAddress) }}
+                      {{ shortenAddress(net.address) }}
                       <i class="fas fa-external-link-alt"></i>
                     </a>
                   </li>

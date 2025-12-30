@@ -44,7 +44,6 @@
       <div class="operations-grid">
           <!-- Основные операции DLE -->
           <div class="operation-category">
-            <h5>Основные операции DLE</h5>
             <div class="operation-blocks">
               <div class="operation-block">
                 <h6>Передача токенов</h6>
@@ -197,7 +196,7 @@ onMounted(() => {
   
   window.addEventListener('refresh-application-data', () => {
     console.log('[CreateProposalView] Refreshing DLE proposal data');
-    loadDLEInfo(); // Обновляем данные при входе в систему
+    loadDleData(); // Обновляем данные при входе в систему
   });
 });
 

@@ -11,7 +11,7 @@
  */
 
 // Сервис для работы с предложениями DLE
-import axios from 'axios';
+import api from '@/api/axios';
 
 /**
  * Получает список всех предложений
@@ -21,7 +21,7 @@ import axios from 'axios';
 export const getProposals = async (dleAddress) => {
   try {
     console.log(`🌐 [API] Запрашиваем предложения для DLE: ${dleAddress}`);
-    const response = await axios.post('/dle-proposals/get-proposals', { dleAddress });
+    const response = await api.post('/dle-proposals/get-proposals', { dleAddress });
     
     console.log(`🌐 [API] Ответ от backend:`, {
       success: response.data.success,
@@ -44,7 +44,7 @@ export const getProposals = async (dleAddress) => {
  */
 export const getProposalInfo = async (dleAddress, proposalId) => {
   try {
-    const response = await axios.post('/dle-proposals/get-proposal-info', { 
+    const response = await api.post('/dle-proposals/get-proposal-info', { 
       dleAddress, 
       proposalId 
     });
@@ -63,7 +63,7 @@ export const getProposalInfo = async (dleAddress, proposalId) => {
  */
 export const createProposal = async (dleAddress, proposalData) => {
   try {
-    const response = await axios.post('/dle-proposals/create-proposal', {
+    const response = await api.post('/dle-proposals/create-proposal', {
       dleAddress,
       ...proposalData
     });
@@ -92,7 +92,7 @@ export const voteOnProposal = async (dleAddress, proposalId, support, userAddres
     
     console.log('📤 [SERVICE] Отправляем запрос на голосование:', requestData);
     
-    const response = await axios.post('/dle-proposals/vote-proposal', requestData);
+    const response = await api.post('/dle-proposals/vote-proposal', requestData);
     
     console.log('📥 [SERVICE] Ответ от бэкенда:', response.data);
     
@@ -111,7 +111,7 @@ export const voteOnProposal = async (dleAddress, proposalId, support, userAddres
  */
 export const executeProposal = async (dleAddress, proposalId) => {
   try {
-    const response = await axios.post('/dle-proposals/execute-proposal', {
+    const response = await api.post('/dle-proposals/execute-proposal', {
       dleAddress,
       proposalId
     });
@@ -131,7 +131,7 @@ export const executeProposal = async (dleAddress, proposalId) => {
  */
 export const cancelProposal = async (dleAddress, proposalId, reason) => {
   try {
-    const response = await axios.post('/dle-proposals/cancel-proposal', {
+    const response = await api.post('/dle-proposals/cancel-proposal', {
       dleAddress,
       proposalId,
       reason
@@ -151,7 +151,7 @@ export const cancelProposal = async (dleAddress, proposalId, reason) => {
  */
 export const getProposalState = async (dleAddress, proposalId) => {
   try {
-    const response = await axios.post('/dle-proposals/get-proposal-state', {
+    const response = await api.post('/dle-proposals/get-proposal-state', {
       dleAddress,
       proposalId
     });
@@ -170,7 +170,7 @@ export const getProposalState = async (dleAddress, proposalId) => {
  */
 export const getProposalVotes = async (dleAddress, proposalId) => {
   try {
-    const response = await axios.post('/dle-proposals/get-proposal-votes', {
+    const response = await api.post('/dle-proposals/get-proposal-votes', {
       dleAddress,
       proposalId
     });
@@ -189,7 +189,7 @@ export const getProposalVotes = async (dleAddress, proposalId) => {
  */
 export const checkProposalResult = async (dleAddress, proposalId) => {
   try {
-    const response = await axios.post('/dle-proposals/check-proposal-result', {
+    const response = await api.post('/dle-proposals/check-proposal-result', {
       dleAddress,
       proposalId
     });
@@ -207,7 +207,7 @@ export const checkProposalResult = async (dleAddress, proposalId) => {
  */
 export const getProposalsCount = async (dleAddress) => {
   try {
-    const response = await axios.post('/dle-proposals/get-proposals-count', {
+    const response = await api.post('/dle-proposals/get-proposals-count', {
       dleAddress
     });
     return response.data;
@@ -226,7 +226,7 @@ export const getProposalsCount = async (dleAddress) => {
  */
 export const listProposals = async (dleAddress, offset = 0, limit = 10) => {
   try {
-    const response = await axios.post('/dle-proposals/list-proposals', {
+    const response = await api.post('/dle-proposals/list-proposals', {
       dleAddress,
       offset,
       limit
@@ -247,7 +247,7 @@ export const listProposals = async (dleAddress, offset = 0, limit = 10) => {
  */
 export const getVotingPowerAt = async (dleAddress, voter, timepoint) => {
   try {
-    const response = await axios.post('/dle-proposals/get-voting-power-at', {
+    const response = await api.post('/dle-proposals/get-voting-power-at', {
       dleAddress,
       voter,
       timepoint
@@ -267,7 +267,7 @@ export const getVotingPowerAt = async (dleAddress, voter, timepoint) => {
  */
 export const getQuorumAt = async (dleAddress, timepoint) => {
   try {
-    const response = await axios.post('/dle-proposals/get-quorum-at', {
+    const response = await api.post('/dle-proposals/get-quorum-at', {
       dleAddress,
       timepoint
     });
@@ -285,7 +285,7 @@ export const getQuorumAt = async (dleAddress, timepoint) => {
  */
 export const decodeProposalData = async (transactionHash) => {
   try {
-    const response = await axios.post('/dle-proposals/decode-proposal-data', {
+    const response = await api.post('/dle-proposals/decode-proposal-data', {
       transactionHash
     });
     return response.data;

@@ -57,7 +57,7 @@ router.post('/get-proposals', async (req, res) => {
         // Fallback к известным сетям из deploy_params или базовые
         supportedChains = candidateChainIds.length > 0 ? candidateChainIds : [11155111, 17000, 421614, 84532];
         console.log(`[DLE Proposals] Используем fallback сети:`, supportedChains);
-        return;
+        // НЕ делаем return - продолжаем искать предложения в fallback сетях
       }
       if (rpcUrl) {
         const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -99,6 +99,13 @@ router.post('/get-proposals', async (req, res) => {
 
         const provider = new ethers.JsonRpcProvider(rpcUrl);
         
+        // Проверяем, что контракт существует по этому адресу в текущей сети
+        const contractCode = await provider.getCode(dleAddress);
+        if (!contractCode || contractCode === '0x') {
+          console.log(`[DLE Proposals] Контракт по адресу ${dleAddress} не найден в сети ${chainId}, пропускаем`);
+          continue;
+        }
+        
         // ABI для чтения предложений (используем getProposalSummary для мультиконтрактов)
         const dleAbi = [
           "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
@@ -114,12 +121,46 @@ router.post('/get-proposals', async (req, res) => {
 
         // Получаем события ProposalCreated для определения количества предложений
         const currentBlock = await provider.getBlockNumber();
-        const fromBlock = Math.max(0, currentBlock - 10000); // Последние 10000 блоков
+        // RPC провайдеры ограничивают запрос до 10000 блоков, поэтому разбиваем на части
+        const maxBlockRange = 10000;
+        const searchRange = 50000; // Ищем в последних 50000 блоках
+        const fromBlock = Math.max(0, currentBlock - searchRange);
         
-        const events = await dle.queryFilter('ProposalCreated', fromBlock, currentBlock);
+        console.log(`[DLE Proposals] Проверка контракта ${dleAddress} в сети ${chainId}, диапазон блоков: ${fromBlock} - ${currentBlock}`);
+        
+        // Разбиваем запрос на части по 10000 блоков
+        let allEvents = [];
+        let searchFromBlock = fromBlock;
+        
+        while (searchFromBlock < currentBlock) {
+          const searchToBlock = Math.min(searchFromBlock + maxBlockRange - 1, currentBlock);
+          console.log(`[DLE Proposals] Запрос событий для блоков ${searchFromBlock} - ${searchToBlock}`);
+          
+          try {
+            const chunkEvents = await dle.queryFilter('ProposalCreated', searchFromBlock, searchToBlock);
+            allEvents = allEvents.concat(chunkEvents);
+            console.log(`[DLE Proposals] Найдено событий в диапазоне ${searchFromBlock}-${searchToBlock}: ${chunkEvents.length}`);
+          } catch (chunkError) {
+            console.error(`[DLE Proposals] Ошибка при запросе блоков ${searchFromBlock}-${searchToBlock}:`, chunkError.message);
+            // Продолжаем с следующим диапазоном
+          }
+          
+          searchFromBlock = searchToBlock + 1;
+          
+          // Небольшая задержка между запросами для избежания rate limiting
+          if (searchFromBlock < currentBlock) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        
+        const events = allEvents;
         
         console.log(`[DLE Proposals] Найдено событий ProposalCreated в сети ${chainId}: ${events.length}`);
         console.log(`[DLE Proposals] Диапазон блоков: ${fromBlock} - ${currentBlock}`);
+        
+        if (events.length === 0) {
+          console.log(`[DLE Proposals] Предложения не найдены в сети ${chainId} для контракта ${dleAddress}`);
+        }
         
         // Читаем информацию о каждом предложении
         for (let i = 0; i < events.length; i++) {
@@ -1299,6 +1340,135 @@ router.post('/decode-proposal-data', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Ошибка при декодировании данных предложения: ' + error.message
+    });
+  }
+});
+
+// Поиск предложения по transaction hash
+router.post('/find-proposal-by-tx', async (req, res) => {
+  try {
+    const { transactionHash, dleAddress } = req.body;
+    
+    if (!transactionHash || !dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'transactionHash и dleAddress обязательны'
+      });
+    }
+
+    console.log(`[DLE Proposals] Поиск предложения по транзакции: ${transactionHash} для DLE: ${dleAddress}`);
+
+    // Получаем поддерживаемые сети DLE
+    let supportedChains = [];
+    try {
+      const candidateChainIds = await getSupportedChainIds();
+      
+      for (const cid of candidateChainIds) {
+        try {
+          const url = await rpcProviderService.getRpcUrlByChainId(cid);
+          if (!url) continue;
+          const prov = new ethers.JsonRpcProvider(url);
+          const code = await prov.getCode(dleAddress);
+          if (code && code !== '0x') {
+            supportedChains.push(cid);
+          }
+        } catch (_) {}
+      }
+      
+      if (supportedChains.length === 0) {
+        supportedChains = [11155111, 17000, 421614, 84532];
+      }
+    } catch (error) {
+      supportedChains = [11155111, 17000, 421614, 84532];
+    }
+
+    // Ищем транзакцию во всех поддерживаемых сетях
+    for (const chainId of supportedChains) {
+      try {
+        const rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
+        if (!rpcUrl) continue;
+
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        
+        // Получаем receipt транзакции
+        const receipt = await provider.getTransactionReceipt(transactionHash);
+        if (!receipt) {
+          console.log(`[DLE Proposals] Транзакция ${transactionHash} не найдена в сети ${chainId}`);
+          continue;
+        }
+
+        console.log(`[DLE Proposals] Транзакция найдена в сети ${chainId}, блок: ${receipt.blockNumber}`);
+
+        // Ищем событие ProposalCreated в логах транзакции
+        const dleAbi = [
+          "event ProposalCreated(uint256 proposalId, address initiator, string description)"
+        ];
+        const dle = new ethers.Contract(dleAddress, dleAbi, provider);
+        
+        const iface = new ethers.Interface(dleAbi);
+        const proposalCreatedTopic = iface.getEvent('ProposalCreated').topicHash;
+
+        for (const log of receipt.logs) {
+          if (log.address.toLowerCase() !== dleAddress.toLowerCase()) continue;
+          if (log.topics[0] !== proposalCreatedTopic) continue;
+
+          try {
+            const parsedLog = iface.parseLog(log);
+            const proposalId = parsedLog.args.proposalId;
+            
+            console.log(`[DLE Proposals] ✅ Найдено предложение ID: ${proposalId} в сети ${chainId}`);
+
+            // Получаем полную информацию о предложении
+            const fullDleAbi = [
+              "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
+              "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+              "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targetChains)"
+            ];
+            const fullDle = new ethers.Contract(dleAddress, fullDleAbi, provider);
+            
+            const proposalState = await fullDle.getProposalState(proposalId);
+            const result = await fullDle.checkProposalResult(proposalId);
+            const proposalData = await fullDle.getProposalSummary(proposalId);
+
+            return res.json({
+              success: true,
+              data: {
+                proposalId: Number(proposalId),
+                chainId: chainId,
+                description: parsedLog.args.description,
+                initiator: parsedLog.args.initiator,
+                transactionHash: transactionHash,
+                blockNumber: receipt.blockNumber,
+                state: Number(proposalState),
+                isPassed: result.passed,
+                quorumReached: result.quorumReached,
+                forVotes: Number(proposalData.forVotes),
+                againstVotes: Number(proposalData.againstVotes),
+                executed: proposalData.executed,
+                canceled: proposalData.canceled,
+                deadline: Number(proposalData.deadline)
+              }
+            });
+          } catch (parseError) {
+            console.log(`[DLE Proposals] Ошибка парсинга лога:`, parseError.message);
+          }
+        }
+      } catch (error) {
+        console.log(`[DLE Proposals] Ошибка поиска в сети ${chainId}:`, error.message);
+        continue;
+      }
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: 'Предложение не найдено по данной транзакции'
+    });
+
+  } catch (error) {
+    console.error('[DLE Proposals] Ошибка при поиске предложения по транзакции:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка при поиске предложения: ' + error.message
     });
   }
 });

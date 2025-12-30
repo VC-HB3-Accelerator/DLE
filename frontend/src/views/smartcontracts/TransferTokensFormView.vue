@@ -218,7 +218,7 @@ import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import api from '@/api/axios';
 import { ethers } from 'ethers';
-import { createProposal } from '@/utils/dle-contract';
+import { createProposal, switchToVotingNetwork } from '@/utils/dle-contract';
 import { useAuthContext } from '../../composables/useAuth';
 
 // Определяем props
@@ -264,24 +264,57 @@ async function loadDleInfo() {
   try {
     isLoadingDle.value = true;
 
-    // Получаем информацию о DLE из блокчейна
-    const response = await api.post('/blockchain/read-dle-info', {
-      dleAddress: dleAddress.value
-    });
+    // Получаем информацию о DLE из API, который возвращает все развернутые сети
+    const response = await api.get('/dle-v2');
 
     if (response.data.success) {
-      dleInfo.value = response.data.data;
-      console.log('DLE Info loaded:', dleInfo.value);
+      const allDles = response.data.data || [];
+      console.log('All DLEs from API:', allDles);
+      
+      // Ищем DLE по адресу (может быть в любой из сетей)
+      let foundDle = null;
+      for (const dle of allDles) {
+        // Проверяем, есть ли этот адрес в deployedNetworks
+        const networkMatch = dle.deployedNetworks?.find(net => 
+          net.address?.toLowerCase() === dleAddress.value.toLowerCase()
+        );
+        if (networkMatch) {
+          foundDle = dle;
+          break;
+        }
+      }
 
-      // Получаем поддерживаемые цепочки из данных DLE
-      if (dleInfo.value.deployedNetworks && dleInfo.value.deployedNetworks.length > 0) {
-        supportedChains.value = dleInfo.value.deployedNetworks.map(net => ({
-          chainId: net.chainId,
-          name: getChainName(net.chainId)
-        }));
+      if (foundDle) {
+        // Используем deployedNetworks из найденного DLE
+        dleInfo.value = {
+          ...foundDle,
+          deployedNetworks: foundDle.deployedNetworks || []
+        };
+        console.log('DLE Info loaded:', dleInfo.value);
+        console.log('Deployed networks count:', dleInfo.value?.deployedNetworks?.length || 0);
+        console.log('Deployed networks:', dleInfo.value?.deployedNetworks);
+
+        // Получаем поддерживаемые цепочки из данных DLE
+        if (dleInfo.value.deployedNetworks && dleInfo.value.deployedNetworks.length > 0) {
+          supportedChains.value = dleInfo.value.deployedNetworks.map(net => ({
+            chainId: net.chainId,
+            name: getChainName(net.chainId)
+          }));
+        } else {
+          console.warn('No deployed networks found for DLE');
+          supportedChains.value = [];
+        }
       } else {
-        console.warn('No deployed networks found for DLE');
-        supportedChains.value = [];
+        console.warn('DLE not found in API response, trying blockchain read...');
+        // Fallback: получаем информацию из блокчейна (только текущая сеть)
+        const blockchainResponse = await api.post('/blockchain/read-dle-info', {
+          dleAddress: dleAddress.value
+        });
+
+        if (blockchainResponse.data.success) {
+          dleInfo.value = blockchainResponse.data.data;
+          console.log('DLE Info loaded from blockchain:', dleInfo.value);
+        }
       }
     }
 
@@ -334,17 +367,85 @@ function getChainName(chainId) {
   return chainNames[chainId] || `Chain ${chainId}`;
 }
 
-// Создание encoded call data для _transferTokens
-function encodeTransferTokensCall(sender, recipient, amount) {
-  // Правильный селектор для _transferTokens(address,address,uint256)
-  // keccak256("_transferTokens(address,address,uint256)")[:4]
-  const functionSignature = '_transferTokens(address,address,uint256)';
-  const selectorBytes = ethers.keccak256(ethers.toUtf8Bytes(functionSignature));
-  const selector = '0x' + selectorBytes.slice(2, 10);
+// Функция для проверки, является ли ошибка временной RPC ошибкой
+function isRetryableRpcError(error) {
+  if (!error) return false;
+  
+  const errorMessage = error.message?.toLowerCase() || '';
+  const errorCode = error.code;
+  
+  // Проверяем на временные RPC ошибки
+  const retryablePatterns = [
+    'internal json-rpc error',
+    'json-rpc error',
+    'rpc error',
+    'network error',
+    'timeout',
+    'connection',
+    'econnrefused',
+    'etimedout',
+    'could not coalesce error',
+    'rate limit',
+    'too many requests'
+  ];
+  
+  // Коды ошибок, которые можно повторить
+  const retryableCodes = [-32603, -32000, -32002, -32005];
+  
+  return retryablePatterns.some(pattern => errorMessage.includes(pattern)) ||
+         retryableCodes.includes(errorCode);
+}
 
-  // Кодирование параметров
+// Функция retry с экспоненциальной задержкой
+async function retryWithBackoff(fn, maxRetries = 3, initialDelay = 1000) {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // Если это не временная RPC ошибка, не повторяем
+      if (!isRetryableRpcError(error)) {
+        console.log(`❌ [RETRY] Не повторяемая ошибка:`, error.message);
+        throw error;
+      }
+      
+      // Если это последняя попытка, выбрасываем ошибку
+      if (attempt === maxRetries) {
+        console.log(`❌ [RETRY] Исчерпаны все попытки (${maxRetries})`);
+        throw error;
+      }
+      
+      // Вычисляем задержку с экспоненциальным backoff
+      const delay = initialDelay * Math.pow(2, attempt - 1);
+      console.log(`🔄 [RETRY] Попытка ${attempt}/${maxRetries} не удалась, повтор через ${delay}ms...`);
+      console.log(`🔄 [RETRY] Ошибка:`, error.message);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
+
+// Создание encoded call data для _transferTokens
+// КРИТИЧЕСКИ ВАЖНО: используйте правильную сигнатуру _transferTokens(address,address,uint256)
+// и конвертируйте amount в wei
+function encodeTransferTokensCall(sender, recipient, amount) {
+  const functionSignature = '_transferTokens(address,address,uint256)';
   const iface = new ethers.Interface([`function ${functionSignature}`]);
-  const encodedCall = iface.encodeFunctionData('_transferTokens', [sender, recipient, amount]);
+  
+  // КРИТИЧЕСКИ ВАЖНО: конвертируем amount в wei (1 токен = 10^18 wei)
+  const amountInWei = ethers.parseUnits(amount.toString(), 18);
+  
+  // Кодирование операции с тремя параметрами: sender, recipient, amountInWei
+  const encodedCall = iface.encodeFunctionData('_transferTokens', [
+    sender,        // адрес инициатора (обязательно!)
+    recipient,     // адрес получателя
+    amountInWei    // количество в wei (обязательно!)
+  ]);
 
   return encodedCall;
 }
@@ -360,13 +461,23 @@ async function submitForm() {
       throw new Error('Некорректный адрес отправителя');
     }
 
-    // Проверяем, что адрес отправителя совпадает с адресом пользователя
-    if (formData.value.sender !== currentUserAddress.value) {
+    // Проверяем, что адрес отправителя совпадает с адресом пользователя (case-insensitive)
+    if (formData.value.sender.toLowerCase() !== currentUserAddress.value?.toLowerCase()) {
       throw new Error('Адрес отправителя должен совпадать с вашим подключенным кошельком');
     }
 
     if (!isValidAddress(formData.value.recipient)) {
       throw new Error('Некорректный адрес получателя');
+    }
+
+    // Проверяем, что получатель не является zero address
+    if (formData.value.recipient.toLowerCase() === '0x0000000000000000000000000000000000000000') {
+      throw new Error('Адрес получателя не может быть нулевым адресом');
+    }
+
+    // Проверяем, что отправитель и получатель не совпадают
+    if (formData.value.sender.toLowerCase() === formData.value.recipient.toLowerCase()) {
+      throw new Error('Адрес отправителя и получателя не могут совпадать');
     }
 
     if (!formData.value.amount || formData.value.amount <= 0) {
@@ -381,23 +492,73 @@ async function submitForm() {
       throw new Error('Выберите время голосования');
     }
 
-    // Создание encoded call data для передачи токенов
-    const transferCallData = encodeTransferTokensCall(
-      formData.value.sender,
-      formData.value.recipient,
-      formData.value.amount
-    );
-
     // Получаем все поддерживаемые цепочки из DLE информации
-    const allChains = dleInfo.value?.deployedNetworks
-      ? dleInfo.value.deployedNetworks.map(net => net.chainId)
-      : [];
+    console.log('DLE Info for proposal creation:', dleInfo.value);
+    console.log('Deployed networks:', dleInfo.value?.deployedNetworks);
+
+    if (!dleInfo.value?.deployedNetworks || dleInfo.value.deployedNetworks.length === 0) {
+      throw new Error('Не найдены развернутые сети для DLE контракта');
+    }
+
+    const allChains = dleInfo.value.deployedNetworks.map(net => {
+      console.log('Network info:', { chainId: net.chainId, address: net.address, name: net.networkName });
+      return net.chainId;
+    });
 
     console.log('Creating proposals in chains:', allChains);
+    console.log('Number of chains:', allChains.length);
 
-    // Создаем предложения параллельно во всех цепочках
-    const proposalPromises = allChains.map(async (chainId) => {
+    if (allChains.length === 0) {
+      throw new Error('Не найдено ни одной цепочки для создания предложений');
+    }
+
+    // Создаем предложения последовательно во всех цепочках с переключением сети
+    console.log(`🚀 Starting to create ${allChains.length} proposals sequentially...`);
+
+    const results = [];
+    
+    for (let index = 0; index < allChains.length; index++) {
+      const chainId = allChains[index];
+      console.log(`📝 [${index + 1}/${allChains.length}] Starting proposal creation for chain ${chainId}`);
+
       try {
+        // Переключаемся на нужную сеть перед созданием предложения
+        console.log(`🔄 [${index + 1}/${allChains.length}] Switching to network ${chainId}...`);
+        const networkSwitched = await switchToVotingNetwork(chainId);
+        console.log(`🔄 [${index + 1}/${allChains.length}] Network switch result:`, networkSwitched);
+        
+        if (!networkSwitched) {
+          throw new Error(`Не удалось переключиться на сеть ${chainId}`);
+        }
+
+        // Проверяем текущую сеть после переключения
+        const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        console.log(`🔍 [${index + 1}/${allChains.length}] Current chain after switch:`, currentChainId, `Expected: 0x${chainId.toString(16)}`);
+
+        // Небольшая задержка после переключения сети
+        console.log(`⏳ [${index + 1}/${allChains.length}] Waiting 1 second after network switch...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // КРИТИЧЕСКИ ВАЖНО: Получаем адрес signer для текущей сети
+        // Это гарантирует, что sender в операции совпадает с инициатором предложения
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const senderAddress = await signer.getAddress();
+        console.log(`🔑 [${index + 1}/${allChains.length}] Sender address for chain ${chainId}:`, senderAddress);
+
+        // Проверяем, что адрес signer совпадает с адресом из формы
+        if (senderAddress.toLowerCase() !== formData.value.sender.toLowerCase()) {
+          throw new Error(`Адрес signer (${senderAddress}) не совпадает с адресом отправителя из формы (${formData.value.sender})`);
+        }
+
+        // Кодируем операцию перевода токенов для текущей сети
+        // Используем адрес signer, чтобы гарантировать совпадение с инициатором предложения
+        const transferCallData = encodeTransferTokensCall(
+          senderAddress,
+          formData.value.recipient,
+          formData.value.amount
+        );
+
         const proposalData = {
           description: formData.value.description,
           duration: parseInt(formData.value.votingDuration),
@@ -406,37 +567,67 @@ async function submitForm() {
           timelockDelay: 0
         };
 
-        console.log(`Creating proposal in chain ${chainId}:`, proposalData);
+        console.log(`📋 [${index + 1}/${allChains.length}] Proposal data for chain ${chainId}:`, proposalData);
 
         // Получаем адрес контракта для этой цепочки
         const networkInfo = dleInfo.value?.deployedNetworks?.find(net => net.chainId === chainId);
         const contractAddress = networkInfo?.address || dleAddress.value;
 
-        const result = await createProposal(contractAddress, proposalData);
+        console.log(`🔄 [${index + 1}/${allChains.length}] Calling createProposal for chain ${chainId}, contract: ${contractAddress}`);
+        
+        // Используем retry для временных RPC ошибок
+        const result = await retryWithBackoff(
+          async () => {
+            return await createProposal(contractAddress, proposalData);
+          },
+          3, // Максимум 3 попытки
+          2000 // Начальная задержка 2 секунды
+        );
+        
+        console.log(`✅ [${index + 1}/${allChains.length}] Proposal created successfully in chain ${chainId}:`, result);
 
-        return {
+        // Дополнительная задержка после подтверждения транзакции
+        // чтобы MetaMask успел обработать транзакцию перед переходом к следующей цепочке
+        // Для Base Sepolia увеличиваем задержку, так как уведомления могут приходить медленнее
+        if (result.success && result.txHash) {
+          const delay = chainId === 84532 ? 5000 : 3000; // 5 секунд для Base Sepolia, 3 для остальных
+          console.log(`⏳ [${index + 1}/${allChains.length}] Waiting ${delay/1000} seconds for MetaMask to process transaction in ${getChainName(chainId)}...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        results.push({
           chainId,
           success: result.success,
           proposalId: result.proposalId,
+          txHash: result.txHash,
           error: result.error,
           contractAddress
-        };
+        });
       } catch (error) {
-        console.error(`Error creating proposal in chain ${chainId}:`, error);
-        return {
+        console.error(`❌ [${index + 1}/${allChains.length}] Error creating proposal in chain ${chainId}:`, error);
+        console.error(`❌ [${index + 1}/${allChains.length}] Error details:`, {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        });
+        results.push({
           chainId,
           success: false,
-          error: error.message,
-          contractAddress: dleAddress.value
-        };
+          error: error.message || 'Неизвестная ошибка',
+          contractAddress: dleInfo.value?.deployedNetworks?.find(net => net.chainId === chainId)?.address || dleAddress.value
+        });
       }
-    });
+    }
 
-    const results = await Promise.all(proposalPromises);
+    console.log(`📊 Всего обработано цепочек: ${results.length} из ${allChains.length}`);
+    console.log(`📊 Результаты создания предложений:`, results);
 
     // Проверяем результаты
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
+
+    console.log(`✅ Успешно создано в ${successful.length} цепочках`);
+    console.log(`❌ Ошибок в ${failed.length} цепочках`);
 
     if (successful.length > 0) {
       proposalResult.value = {
@@ -446,6 +637,10 @@ async function submitForm() {
         successfulChains: successful,
         failedChains: failed
       };
+
+      // Автоматический переход на страницу предложений
+      console.log('🔄 Переход на страницу предложений...');
+      router.push(`/management/proposals?address=${dleAddress.value}`);
 
       // Очистка формы только при полном успехе
       if (failed.length === 0) {

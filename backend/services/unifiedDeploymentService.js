@@ -175,8 +175,8 @@ class UnifiedDeploymentService {
       
       logger.info(`🚀 Запуск деплоя: ${scriptPath}`);
       
-      const hardhatPath = path.join(__dirname, '..', 'node_modules', '.bin', 'hardhat');
-      const child = spawn(hardhatPath, ['run', scriptPath], {
+      // Используем npx для более надежного запуска hardhat в Docker
+      const child = spawn('npx', ['hardhat', 'run', scriptPath], {
         cwd: path.join(__dirname, '..'),
         env: {
           ...process.env,

@@ -574,7 +574,12 @@ const togglePreview = () => {
 
 const closeSuccessModal = () => {
   showSuccessModal.value = false;
-  goBackToProposals();
+  // Переход на страницу предложений после закрытия модалки
+  if (dleAddress.value) {
+    router.push(`/management/proposals?address=${dleAddress.value}`);
+  } else {
+    router.push('/management/proposals');
+  }
 };
 
 const openProposals = () => {

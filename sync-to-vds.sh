@@ -131,19 +131,40 @@ fi
 echo -e "${YELLOW}📦 Синхронизация docker-compose.prod.yml...${NC}"
 scp -e "ssh $SSH_OPTS" ./webssh-agent/docker-compose.prod.yml "$VDS_USER@$VDS_HOST:$VDS_PATH/docker-compose.prod.yml"
 
+# Синхронизация Dockerfile файлов (если они изменились)
+echo -e "${YELLOW}📦 Синхронизация Dockerfile файлов...${NC}"
+scp -e "ssh $SSH_OPTS" ./backend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/backend/Dockerfile" 2>/dev/null || true
+scp -e "ssh $SSH_OPTS" ./frontend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/Dockerfile" 2>/dev/null || true
+scp -e "ssh $SSH_OPTS" ./frontend/nginx.Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/nginx.Dockerfile" 2>/dev/null || true
+
 echo -e "${GREEN}✅ Синхронизация завершена!${NC}"
 
 # Спрашиваем, нужно ли пересобрать образы
 read -p "Пересобрать Docker образы на VDS? (y/n): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${YELLOW}🔨 Пересборка Docker образов на VDS...${NC}"
-    ssh $SSH_OPTS $VDS_USER@$VDS_HOST "cd $VDS_PATH && docker compose -f docker-compose.prod.yml build backend frontend frontend-nginx && docker compose -f docker-compose.prod.yml up -d --force-recreate backend frontend frontend-nginx"
-    echo -e "${GREEN}✅ Образы пересобраны и контейнеры перезапущены!${NC}"
+    echo -e "${YELLOW}🔨 Пересборка Docker образов на VDS (без кеша)...${NC}"
+    echo -e "${YELLOW}⏳ Это может занять несколько минут...${NC}"
+    
+    # Пересобираем образы БЕЗ кеша для гарантированного применения изменений
+    ssh $SSH_OPTS $VDS_USER@$VDS_HOST "cd $VDS_PATH && \
+        docker compose -f docker-compose.prod.yml build --no-cache backend frontend frontend-nginx && \
+        docker compose -f docker-compose.prod.yml up -d --force-recreate backend frontend frontend-nginx"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Образы пересобраны и контейнеры перезапущены!${NC}"
+    else
+        echo -e "${RED}❌ Ошибка при пересборке образов!${NC}"
+        echo -e "${YELLOW}💡 Попробуйте пересобрать вручную:${NC}"
+        echo -e "   ssh -p $VDS_PORT $VDS_USER@$VDS_HOST"
+        echo -e "   cd $VDS_PATH"
+        echo -e "   docker compose -f docker-compose.prod.yml build --no-cache backend frontend frontend-nginx"
+        echo -e "   docker compose -f docker-compose.prod.yml up -d --force-recreate backend frontend frontend-nginx"
+    fi
 else
     echo -e "${YELLOW}💡 Для пересборки образов выполните:${NC}"
     echo -e "   ssh -p $VDS_PORT $VDS_USER@$VDS_HOST"
     echo -e "   cd $VDS_PATH"
-    echo -e "   docker compose -f docker-compose.prod.yml build backend frontend frontend-nginx"
+    echo -e "   docker compose -f docker-compose.prod.yml build --no-cache backend frontend frontend-nginx"
     echo -e "   docker compose -f docker-compose.prod.yml up -d --force-recreate backend frontend frontend-nginx"
 fi

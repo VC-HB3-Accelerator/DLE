@@ -11,7 +11,7 @@
  */
 
 // Сервис для работы с DLE v2 - основные функции
-import axios from 'axios';
+import api from '@/api/axios';
 
 // ===== ОСНОВНЫЕ ФУНКЦИИ DLE =====
 
@@ -22,7 +22,7 @@ import axios from 'axios';
  */
 export const getAllDLEs = async () => {
   try {
-    const response = await axios.get('/dle-v2');
+    const response = await api.get('/dle-v2');
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении списка DLE:', error);
@@ -37,7 +37,7 @@ export const getAllDLEs = async () => {
  */
 export const getDLEInfo = async (dleAddress) => {
   try {
-    const response = await axios.get(`/dle-v2/${dleAddress}`);
+    const response = await api.get(`/dle-v2/${dleAddress}`);
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении информации о DLE:', error);
@@ -54,7 +54,7 @@ export const getDLEInfo = async (dleAddress) => {
  */
 export const getGovernanceParams = async (dleAddress) => {
   try {
-    const response = await axios.post('/dle-core/get-governance-params', { dleAddress });
+    const response = await api.post('/dle-core/get-governance-params', { dleAddress });
     return response.data;
   } catch (error) {
     console.error('Ошибка при получении параметров управления:', error);
@@ -71,7 +71,7 @@ export const getGovernanceParams = async (dleAddress) => {
  */
 export const getSupportedChains = async (dleAddress) => {
   try {
-    const response = await axios.post('/dle-multichain/get-supported-chains', {
+    const response = await api.post('/dle-multichain/get-supported-chains', {
       dleAddress
     });
     return response.data;

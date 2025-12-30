@@ -15,7 +15,7 @@ import { getProposals } from '@/services/proposalsService';
 import { ethers } from 'ethers';
 import { useProposalValidation } from './useProposalValidation';
 import { voteForProposal, executeProposal as executeProposalUtil, cancelProposal as cancelProposalUtil, checkTokenBalance } from '@/utils/dle-contract';
-import axios from 'axios';
+import api from '@/api/axios';
 
 // Функция checkVoteStatus удалена - в контракте DLE нет публичной функции hasVoted
 // Функция checkTokenBalance перенесена в useDleContract.js
@@ -64,7 +64,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
 
       // Получаем информацию о всех DLE в разных цепочках
       console.log('[Proposals] Получаем информацию о всех DLE...');
-      const dleResponse = await axios.get('/api/dle-v2');
+      const dleResponse = await api.get('/dle-v2');
 
       if (!dleResponse.data.success) {
         console.error('Не удалось получить список DLE');
@@ -81,13 +81,31 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       for (const dle of allDles) {
         if (!dle.networks || dle.networks.length === 0) continue;
 
+        // КРИТИЧНО: Пропускаем DLE, если ни один из его адресов не совпадает с запрошенным dleAddress
+        const hasMatchingAddress = dle.networks.some(network => 
+          network.address && network.address.toLowerCase() === (dleAddress.value || '').toLowerCase()
+        );
+        
+        if (dleAddress.value && !hasMatchingAddress) {
+          console.log(`[Proposals] Пропускаем DLE ${dle.dleAddress || 'N/A'}: адрес ${dleAddress.value} не найден в networks`);
+          continue;
+        }
+
         for (const network of dle.networks) {
           try {
             console.log(`[Proposals] Загружаем предложения из цепочки ${network.chainId}, адрес: ${network.address}`);
             const response = await getProposals(network.address);
 
+            console.log(`[Proposals] Ответ для цепочки ${network.chainId}:`, {
+              success: response.success,
+              proposalsCount: response.data?.proposals?.length || 0,
+              hasError: !!response.error
+            });
+
             if (response.success) {
-              const chainProposals = response.data.proposals || [];
+              // Бэкенд возвращает: { success: true, data: { proposals: [...], totalCount: ... } }
+              const chainProposals = (response.data?.data?.proposals || response.data?.proposals || []);
+              console.log(`[Proposals] Получено предложений для цепочки ${network.chainId}: ${chainProposals.length}`, chainProposals);
 
               // Добавляем информацию о цепочке к каждому предложению
               chainProposals.forEach(proposal => {
@@ -95,46 +113,135 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
                 proposal.contractAddress = network.address;
                 proposal.networkName = getChainName(network.chainId);
 
-                // Группируем предложения по описанию
+                // Группируем предложения по описанию и инициатору
                 const key = `${proposal.description}_${proposal.initiator}`;
+                
+                // Преобразуем время создания в число для сравнения
+                // createdAt может быть ISO строкой или числом, timestamp - число в секундах
+                const getTimestamp = (proposal) => {
+                  if (proposal.timestamp) return Number(proposal.timestamp); // timestamp в секундах
+                  if (proposal.createdAt) {
+                    if (typeof proposal.createdAt === 'string') {
+                      return Math.floor(new Date(proposal.createdAt).getTime() / 1000); // ISO строка -> секунды
+                    }
+                    return Number(proposal.createdAt);
+                  }
+                  return Math.floor(Date.now() / 1000);
+                };
+                
+                const proposalTimestamp = getTimestamp(proposal);
+                
                 if (!proposalsByDescription.has(key)) {
                   proposalsByDescription.set(key, {
-                    id: proposal.id,
+                    id: proposal.id, // ID из первой найденной сети
                     description: proposal.description,
                     initiator: proposal.initiator,
                     deadline: proposal.deadline,
                     chains: new Map(),
-                    createdAt: Math.min(...chainProposals.map(p => p.createdAt || Date.now())),
+                    createdAt: proposalTimestamp, // Время создания в секундах
                     uniqueId: key
                   });
                 }
 
                 // Добавляем информацию о цепочке
-                proposalsByDescription.get(key).chains.set(network.chainId, {
-                  ...proposal,
-                  chainId: network.chainId,
-                  contractAddress: network.address,
-                  networkName: getChainName(network.chainId)
-                });
+                const group = proposalsByDescription.get(key);
+                // Если в этой сети уже есть предложение с таким ключом, выбираем более позднее (актуальное)
+                const existingChainData = group.chains.get(network.chainId);
+                
+                // Унифицируем state - всегда число
+                const normalizedState = typeof proposal.state === 'string' 
+                  ? (proposal.state === 'active' ? 0 : NaN) 
+                  : Number(proposal.state);
+                
+                // Убеждаемся, что id есть (fallback к proposalId из события, если id отсутствует)
+                const proposalId = proposal.id !== undefined && proposal.id !== null 
+                  ? Number(proposal.id) 
+                  : (proposal.proposalId !== undefined ? Number(proposal.proposalId) : null);
+                
+                if (existingChainData) {
+                  // Если уже есть предложение в этой сети, сравниваем по времени создания
+                  const existingTime = getTimestamp(existingChainData);
+                  // Оставляем более позднее предложение (актуальное)
+                  if (proposalTimestamp > existingTime) {
+                    group.chains.set(network.chainId, {
+                      ...proposal,
+                      id: proposalId !== null ? proposalId : existingChainData.id, // Используем id с fallback
+                      chainId: network.chainId,
+                      contractAddress: network.address,
+                      networkName: getChainName(network.chainId),
+                      state: normalizedState, // Унифицированный state (число)
+                      timestamp: proposalTimestamp // Сохраняем числовой timestamp для удобства
+                    });
+                  }
+                  // Иначе оставляем существующее
+                } else {
+                  // Первое предложение в этой сети для данной группы
+                  group.chains.set(network.chainId, {
+                    ...proposal,
+                    id: proposalId !== null ? proposalId : 0, // Fallback к 0, если id отсутствует
+                    chainId: network.chainId,
+                    contractAddress: network.address,
+                    networkName: getChainName(network.chainId),
+                    state: normalizedState, // Унифицированный state (число)
+                    timestamp: proposalTimestamp // Сохраняем числовой timestamp для удобства
+                  });
+                }
+                
+                // Обновляем createdAt группы - минимальное время из всех предложений
+                // После добавления нового предложения пересчитываем минимальное время
+                const allChainTimes = Array.from(group.chains.values())
+                  .map(c => getTimestamp(c));
+                group.createdAt = Math.min(...allChainTimes, proposalTimestamp);
               });
             }
-          } catch (error) {
+            } catch (error) {
             console.error(`Ошибка загрузки предложений из цепочки ${network.chainId}:`, error);
+            console.error(`Детали ошибки для цепочки ${network.chainId}:`, {
+              chainId: network.chainId,
+              address: network.address,
+              errorMessage: error.message,
+              errorStack: error.stack
+            });
           }
         }
       }
 
       // Преобразуем в массив для отображения
-      const rawProposals = Array.from(proposalsByDescription.values()).map(group => ({
-        ...group,
-        chains: Array.from(group.chains.values()),
-        // Общий статус - активен если есть хотя бы одно активное предложение
-        state: group.chains.some(c => c.state === 'active') ? 'active' : 'inactive',
-        // Общий executed - выполнен если выполнен во всех цепочках
-        executed: group.chains.every(c => c.executed),
-        // Общий canceled - отменен если отменен в любой цепочке
-        canceled: group.chains.some(c => c.canceled)
-      }));
+      const rawProposals = Array.from(proposalsByDescription.values()).map(group => {
+        const chainsArray = Array.from(group.chains.values()).map(chain => {
+          // Унифицируем state для каждого chain - всегда число
+          const normalizedState = typeof chain.state === 'string' 
+            ? (chain.state === 'active' ? 0 : NaN) 
+            : Number(chain.state);
+          
+          // Убеждаемся, что id есть (fallback)
+          const chainId = chain.id !== undefined && chain.id !== null 
+            ? Number(chain.id) 
+            : (chain.proposalId !== undefined ? Number(chain.proposalId) : null);
+          
+          return {
+            ...chain,
+            id: chainId !== null ? chainId : 0, // Fallback к 0, если id отсутствует
+            state: isNaN(normalizedState) ? 0 : normalizedState // Всегда число, fallback к 0
+          };
+        });
+        
+        // Определяем общий state группы (число) - минимальный state из всех chains
+        const groupState = chainsArray.length > 0 
+          ? Math.min(...chainsArray.map(c => Number(c.state || 0)))
+          : 0;
+        
+        return {
+          ...group,
+          chains: chainsArray,
+          // Общий статус - число (0 = Active, 3 = Executed, 4 = Canceled, 5 = ReadyForExecution)
+          state: groupState,
+          // Общий executed - выполнен если выполнен во всех цепочках
+          executed: chainsArray.length > 0 && chainsArray.every(c => c.executed),
+          // Общий canceled - отменен если отменен в любой цепочке
+          canceled: chainsArray.some(c => c.canceled)
+        };
+      });
 
       console.log(`[Proposals] Сгруппировано предложений: ${rawProposals.length}`);
       console.log(`[Proposals] Детали группировки:`, rawProposals);
@@ -145,18 +252,20 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       // Фильтруем только реальные предложения
       const realProposals = filterRealProposals(validationResult.validProposals);
 
-      // Фильтруем только активные предложения (исключаем выполненные и отмененные)
-      const activeProposals = filterActiveProposals(realProposals);
-
       console.log(`[Proposals] Валидных предложений: ${validationResult.validCount}`);
       console.log(`[Proposals] Реальных предложений: ${realProposals.length}`);
+      
+      // Считаем активные только для статистики/логов (не выкидываем остальные из списка,
+      // иначе фильтр "Все/Выполненные/Отмененные" в UI никогда не покажет эти статусы).
+      const activeProposals = filterActiveProposals(realProposals);
       console.log(`[Proposals] Активных предложений: ${activeProposals.length}`);
 
       if (validationResult.errorCount > 0) {
         console.warn(`[Proposals] Найдено ${validationResult.errorCount} предложений с ошибками валидации`);
       }
 
-      proposals.value = activeProposals;
+      // В UI должны попадать ВСЕ реальные предложения; дальше их фильтрует statusFilter/searchQuery
+      proposals.value = realProposals;
       filterProposals();
     } catch (error) {
       console.error('Ошибка загрузки предложений:', error);
@@ -215,6 +324,12 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       const proposal = proposals.value.find(p => p.id === proposalId);
       if (!proposal) {
         throw new Error('Предложение не найдено');
+      }
+      
+      // КРИТИЧЕСКИ ВАЖНО: Если предложение мультичейн, используем voteOnMultichainProposal
+      if (proposal.chains && proposal.chains.length > 1) {
+        console.log('🌐 [VOTE] Обнаружено мультичейн предложение, используем voteOnMultichainProposal');
+        return await voteOnMultichainProposal(proposal, support);
       }
       
       console.log('📊 [DEBUG] Данные предложения:', {
@@ -339,6 +454,12 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         throw new Error('Предложение не найдено');
       }
       
+      // КРИТИЧЕСКИ ВАЖНО: Если предложение мультичейн, используем executeMultichainProposal
+      if (proposal.chains && proposal.chains.length > 1) {
+        console.log('🌐 [EXECUTE] Обнаружено мультичейн предложение, используем executeMultichainProposal');
+        return await executeMultichainProposal(proposal);
+      }
+      
       console.log('📊 [DEBUG] Данные предложения для выполнения:', {
         id: proposal.id,
         state: proposal.state,
@@ -417,7 +538,8 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         state: proposal.state,
         executed: proposal.executed,
         canceled: proposal.canceled,
-        deadline: proposal.deadline
+        deadline: proposal.deadline,
+        chains: proposal.chains?.length || 0
       });
       
       // Проверяем, что предложение можно отменить
@@ -429,14 +551,8 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         throw new Error('Предложение уже отменено. Повторная отмена невозможна.');
       }
       
-      // Проверяем, что предложение активно (Pending)
-      if (proposal.state !== 0) {
-        const statusText = getProposalStatusText(proposal.state);
-        throw new Error(`Предложение не активно (статус: ${statusText}). Отмена возможна только для активных предложений.`);
-      }
-      
       // Проверяем, что пользователь является инициатором
-      if (proposal.initiator !== userAddress.value) {
+      if (proposal.initiator?.toLowerCase() !== userAddress.value?.toLowerCase()) {
         throw new Error('Только инициатор предложения может его отменить.');
       }
       
@@ -449,16 +565,108 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         }
       }
       
-      // Отменяем предложение через готовую функцию из utils/dle-contract.js
-      const result = await cancelProposalUtil(dleAddress.value, proposalId, reason);
-      
-      console.log('✅ Предложение успешно отменено:', result.txHash);
-      alert(`Предложение успешно отменено! Хеш транзакции: ${result.txHash}`);
+      // КРИТИЧЕСКИ ВАЖНО: Мультичейн отмена - последовательно во всех активных сетях
+      if (proposal.chains && proposal.chains.length > 0) {
+        // Фильтруем только активные цепочки (можно отменить)
+        const activeChains = proposal.chains.filter(chain => 
+          canCancel(chain) && !chain.canceled && !chain.executed
+        );
+        
+        if (activeChains.length === 0) {
+          throw new Error('Не найдено ни одной активной цепочки для отмены');
+        }
+        
+        console.log(`🚀 [MULTI-CANCEL] Начинаем отмену в ${activeChains.length} цепочках последовательно...`);
+        
+        const { switchToVotingNetwork } = await import('@/utils/dle-contract');
+        const results = [];
+        
+        // КРИТИЧЕСКИ ВАЖНО: Отменяем ПОСЛЕДОВАТЕЛЬНО, а не параллельно!
+        // MetaMask может работать только с одной сетью одновременно
+        for (let index = 0; index < activeChains.length; index++) {
+          const chain = activeChains[index];
+          console.log(`📝 [${index + 1}/${activeChains.length}] Отмена в цепочке ${chain.networkName} (${chain.chainId})`);
+          
+          try {
+            // Переключаемся на нужную сеть
+            console.log(`🔄 [${index + 1}/${activeChains.length}] Переключаемся на сеть ${chain.chainId}...`);
+            const switched = await switchToVotingNetwork(chain.chainId);
+            if (!switched) {
+              throw new Error(`Не удалось переключиться на сеть ${chain.networkName} (${chain.chainId})`);
+            }
+            
+            // Задержка после переключения сети
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const contractAddress = chain.contractAddress || chain.address || dleAddress.value;
+            // Используем ID предложения из конкретной цепочки (с fallback)
+            let chainProposalId = chain.id !== undefined && chain.id !== null 
+              ? Number(chain.id) 
+              : (chain.proposalId !== undefined ? Number(chain.proposalId) : null);
+            
+            // Fallback к proposalId, если chain.id отсутствует
+            if (chainProposalId === null || isNaN(chainProposalId)) {
+              chainProposalId = proposalId !== undefined && proposalId !== null ? Number(proposalId) : null;
+            }
+            
+            if (chainProposalId === null || isNaN(chainProposalId)) {
+              throw new Error(`Неверный ID предложения для цепочки ${chain.networkName} (${chain.chainId}). chain.id=${chain.id}, proposalId=${proposalId}`);
+            }
+            
+            chainProposalId = Number(chainProposalId); // Убеждаемся, что это число
+            
+            console.log(`🔍 [${index + 1}/${activeChains.length}] Используем ID предложения: ${chainProposalId} для отмены в цепочке ${chain.chainId}`);
+            
+            // Отменяем предложение
+            console.log(`❌ [${index + 1}/${activeChains.length}] Отправляем отмену...`);
+            const result = await cancelProposalUtil(contractAddress, chainProposalId, reason);
+            
+            console.log(`✅ [${index + 1}/${activeChains.length}] Предложение успешно отменено в ${chain.networkName}:`, result.txHash);
+            
+            // Задержка после подтверждения транзакции (для Base Sepolia больше)
+            const delay = chain.chainId === 84532 ? 5000 : 3000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            results.push({
+              chainId: chain.chainId,
+              networkName: chain.networkName,
+              success: true,
+              txHash: result.txHash
+            });
+          } catch (error) {
+            console.error(`❌ [${index + 1}/${activeChains.length}] Ошибка отмены в ${chain.networkName}:`, error);
+            results.push({
+              chainId: chain.chainId,
+              networkName: chain.networkName,
+              success: false,
+              error: error.message
+            });
+            // Продолжаем отменять в других цепочках даже при ошибке
+          }
+        }
+        
+        // Подводим итоги
+        const successful = results.filter(r => r.success);
+        const failed = results.filter(r => !r.success);
+        
+        console.log(`📊 [MULTI-CANCEL] Отмена завершена: успешно в ${successful.length} из ${activeChains.length} цепочек`);
+        
+        if (successful.length > 0) {
+          alert(`Предложение отменено в ${successful.length} из ${activeChains.length} цепочек!\n${failed.length > 0 ? `Ошибки в ${failed.length} цепочках.` : ''}`);
+        } else {
+          throw new Error('Не удалось отменить предложение ни в одной цепочке');
+        }
+      } else {
+        // Одиночное предложение (без мультичейн)
+        const result = await cancelProposalUtil(dleAddress.value, proposalId, reason);
+        console.log('✅ Предложение успешно отменено:', result.txHash);
+        alert(`Предложение успешно отменено! Хеш транзакции: ${result.txHash}`);
+      }
       
       // Принудительно обновляем состояние предложения в UI
       updateProposalState(proposalId, {
         canceled: true,
-        state: 2, // Отменено
+        state: 4, // Canceled
         executed: false
       });
       
@@ -554,16 +762,32 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   };
 
   const canVote = (proposal) => {
-    return proposal.state === 0; // Pending - только активные предложения
+    // Для мультичейн предложений используем canVoteMultichain
+    if (proposal.chains && proposal.chains.length > 1) {
+      return canVoteMultichain(proposal);
+    }
+    // Унифицируем state - всегда число
+    const state = typeof proposal.state === 'string' 
+      ? (proposal.state === 'active' ? 0 : NaN) 
+      : Number(proposal.state);
+    return state === 0; // Pending - только активные предложения
   };
 
   const canExecute = (proposal) => {
-    return proposal.state === 5; // ReadyForExecution - готово к выполнению
+    // Унифицируем state - всегда число
+    const state = typeof proposal.state === 'string' 
+      ? (proposal.state === 'active' ? 0 : NaN) 
+      : Number(proposal.state);
+    return state === 5; // ReadyForExecution - готово к выполнению
   };
 
   const canCancel = (proposal) => {
+    // Унифицируем state - всегда число
+    const state = typeof proposal.state === 'string' 
+      ? (proposal.state === 'active' ? 0 : NaN) 
+      : Number(proposal.state);
     // Можно отменить только активные предложения (Pending)
-    return proposal.state === 0 && 
+    return state === 0 && 
            !proposal.executed && 
            !proposal.canceled;
   };
@@ -585,27 +809,110 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     try {
       isVoting.value = true;
 
-      console.log(`🌐 [MULTI-VOTE] Начинаем голосование в ${proposal.chains.length} цепочках:`, proposal.chains.map(c => c.networkName));
+      // Фильтруем только активные цепочки (state === 0 или 'active', не выполнены, не отменены)
+      const activeChains = proposal.chains.filter(chain => canVote(chain));
+      
+      if (activeChains.length === 0) {
+        throw new Error('Не найдено ни одной активной цепочки для голосования');
+      }
 
-      // Голосуем последовательно в каждой цепочке
-      for (const chain of proposal.chains) {
+      console.log(`🌐 [MULTI-VOTE] Начинаем голосование в ${activeChains.length} цепочках последовательно...`);
+
+      const { switchToVotingNetwork } = await import('@/utils/dle-contract');
+      const results = [];
+
+      // КРИТИЧЕСКИ ВАЖНО: Голосуем ПОСЛЕДОВАТЕЛЬНО, а не параллельно!
+      // MetaMask может работать только с одной сетью одновременно
+      for (let index = 0; index < activeChains.length; index++) {
+        const chain = activeChains[index];
+        console.log(`📝 [${index + 1}/${activeChains.length}] Голосование в цепочке ${chain.networkName} (${chain.chainId})`);
+        
         try {
-          console.log(`🎯 [MULTI-VOTE] Голосуем в ${chain.networkName} (${chain.contractAddress})`);
-
-          await voteForProposal(chain.contractAddress, chain.id, support);
-
-          console.log(`✅ [MULTI-VOTE] Голос отдан в ${chain.networkName}`);
-
-          // Небольшая задержка между голосованиями
+          // Переключаемся на нужную сеть
+          console.log(`🔄 [${index + 1}/${activeChains.length}] Переключаемся на сеть ${chain.chainId}...`);
+          const switched = await switchToVotingNetwork(chain.chainId);
+          if (!switched) {
+            throw new Error(`Не удалось переключиться на сеть ${chain.networkName} (${chain.chainId})`);
+          }
+          
+          // Задержка после переключения сети
           await new Promise(resolve => setTimeout(resolve, 1000));
-
+          
+          const contractAddress = chain.contractAddress || chain.address || dleAddress.value;
+          // Используем ID предложения из конкретной цепочки (с fallback)
+          let chainProposalId = chain.id !== undefined && chain.id !== null 
+            ? Number(chain.id) 
+            : (chain.proposalId !== undefined ? Number(chain.proposalId) : null);
+          
+          // Fallback к proposal.id, если chain.id отсутствует
+          if (chainProposalId === null || isNaN(chainProposalId)) {
+            chainProposalId = proposal.id !== undefined && proposal.id !== null ? Number(proposal.id) : null;
+          }
+          
+          if (chainProposalId === null || isNaN(chainProposalId)) {
+            throw new Error(`Неверный ID предложения для цепочки ${chain.networkName} (${chain.chainId}). chain.id=${chain.id}, proposal.id=${proposal.id}`);
+          }
+          
+          chainProposalId = Number(chainProposalId); // Убеждаемся, что это число
+          
+          console.log(`🔍 [${index + 1}/${activeChains.length}] Используем ID предложения: ${chainProposalId} для голосования в цепочке ${chain.chainId}`);
+          
+          // Проверяем баланс токенов в каждой сети (балансы могут отличаться в разных сетях)
+          console.log(`💰 [${index + 1}/${activeChains.length}] Проверяем баланс токенов в ${chain.networkName}...`);
+          try {
+            const balanceCheck = await checkTokenBalance(contractAddress, userAddress.value);
+            console.log(`💰 [${index + 1}/${activeChains.length}] Баланс токенов в ${chain.networkName}:`, balanceCheck);
+            
+            if (!balanceCheck.hasTokens) {
+              console.warn(`⚠️ [${index + 1}/${activeChains.length}] Нет токенов в ${chain.networkName}, пропускаем голосование в этой сети`);
+              results.push({
+                chainId: chain.chainId,
+                networkName: chain.networkName,
+                success: false,
+                error: `Нет токенов DLE в сети ${chain.networkName} для голосования`
+              });
+              // Продолжаем с следующей сетью
+              continue;
+            }
+          } catch (balanceError) {
+            console.warn(`⚠️ [${index + 1}/${activeChains.length}] Ошибка проверки баланса в ${chain.networkName} (продолжаем):`, balanceError.message);
+            // При ошибке проверки баланса продолжаем попытку голосования
+            // Контракт сам проверит баланс и вернет ошибку, если токенов нет
+          }
+          
+          // Голосуем
+          console.log(`🗳️ [${index + 1}/${activeChains.length}] Отправляем голосование для proposalId=${chainProposalId} в ${chain.networkName}...`);
+          const result = await voteForProposal(contractAddress, chainProposalId, support);
+          
+          console.log(`✅ [${index + 1}/${activeChains.length}] Голосование успешно в ${chain.networkName}:`, result.txHash);
+          
+          // Задержка после подтверждения транзакции (для Base Sepolia больше)
+          const delay = chain.chainId === 84532 ? 5000 : 3000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          results.push({
+            chainId: chain.chainId,
+            networkName: chain.networkName,
+            success: true,
+            txHash: result.txHash
+          });
         } catch (error) {
-          console.error(`❌ [MULTI-VOTE] Ошибка голосования в ${chain.networkName}:`, error);
-          // Продолжаем голосовать в других цепочках даже при ошибке в одной
+          console.error(`❌ [${index + 1}/${activeChains.length}] Ошибка голосования в ${chain.networkName}:`, error);
+          results.push({
+            chainId: chain.chainId,
+            networkName: chain.networkName,
+            success: false,
+            error: error.message
+          });
+          // Продолжаем голосовать в других цепочках даже при ошибке
         }
       }
 
-      console.log('🎉 [MULTI-VOTE] Голосование завершено во всех цепочках');
+      // Подводим итоги
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+      
+      console.log(`📊 [MULTI-VOTE] Голосование завершено: успешно в ${successful.length} из ${activeChains.length} цепочек`);
 
       // Перезагружаем предложения
       await loadProposals();
@@ -622,26 +929,87 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
     try {
       isExecuting.value = true;
 
-      console.log(`🚀 [MULTI-EXECUTE] Начинаем исполнение в ${proposal.chains.length} цепочках`);
+      // Фильтруем только готовые к выполнению цепочки
+      const readyChains = proposal.chains.filter(chain => canExecute(chain));
+      
+      if (readyChains.length === 0) {
+        throw new Error('Нет цепочек, готовых к выполнению');
+      }
 
-      // Исполняем параллельно во всех цепочках
-      const executePromises = proposal.chains.map(async (chain) => {
+      console.log(`🚀 [MULTI-EXECUTE] Начинаем исполнение в ${readyChains.length} цепочках последовательно...`);
+
+      const { switchToVotingNetwork } = await import('@/utils/dle-contract');
+      const results = [];
+
+      // КРИТИЧЕСКИ ВАЖНО: Исполняем ПОСЛЕДОВАТЕЛЬНО, а не параллельно!
+      // MetaMask может работать только с одной сетью одновременно
+      for (let index = 0; index < readyChains.length; index++) {
+        const chain = readyChains[index];
+        console.log(`📝 [${index + 1}/${readyChains.length}] Выполнение в цепочке ${chain.networkName} (${chain.chainId})`);
+        
         try {
-          console.log(`🎯 [MULTI-EXECUTE] Исполняем в ${chain.networkName} (${chain.contractAddress})`);
-
-          await executeProposalUtil(chain.contractAddress, chain.id);
-
-          console.log(`✅ [MULTI-EXECUTE] Исполнено в ${chain.networkName}`);
-
+          // Переключаемся на нужную сеть
+          console.log(`🔄 [${index + 1}/${readyChains.length}] Переключаемся на сеть ${chain.chainId}...`);
+          const switched = await switchToVotingNetwork(chain.chainId);
+          if (!switched) {
+            throw new Error(`Не удалось переключиться на сеть ${chain.networkName} (${chain.chainId})`);
+          }
+          
+          // Задержка после переключения сети
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const contractAddress = chain.contractAddress || chain.address || dleAddress.value;
+          // Используем ID предложения из конкретной цепочки (с fallback)
+          let chainProposalId = chain.id !== undefined && chain.id !== null 
+            ? Number(chain.id) 
+            : (chain.proposalId !== undefined ? Number(chain.proposalId) : null);
+          
+          // Fallback к proposal.id, если chain.id отсутствует
+          if (chainProposalId === null || isNaN(chainProposalId)) {
+            chainProposalId = proposal.id !== undefined && proposal.id !== null ? Number(proposal.id) : null;
+          }
+          
+          if (chainProposalId === null || isNaN(chainProposalId)) {
+            throw new Error(`Неверный ID предложения для цепочки ${chain.networkName} (${chain.chainId}). chain.id=${chain.id}, proposal.id=${proposal.id}`);
+          }
+          
+          chainProposalId = Number(chainProposalId); // Убеждаемся, что это число
+          
+          console.log(`🔍 [${index + 1}/${readyChains.length}] Используем ID предложения: ${chainProposalId} для выполнения в цепочке ${chain.chainId}`);
+          
+          // Выполняем предложение
+          console.log(`⚡ [${index + 1}/${readyChains.length}] Отправляем выполнение...`);
+          const result = await executeProposalUtil(contractAddress, chainProposalId);
+          
+          console.log(`✅ [${index + 1}/${readyChains.length}] Предложение успешно выполнено в ${chain.networkName}:`, result.txHash);
+          
+          // Задержка после подтверждения транзакции (для Base Sepolia больше)
+          const delay = chain.chainId === 84532 ? 5000 : 3000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          results.push({
+            chainId: chain.chainId,
+            networkName: chain.networkName,
+            success: true,
+            txHash: result.txHash
+          });
         } catch (error) {
-          console.error(`❌ [MULTI-EXECUTE] Ошибка исполнения в ${chain.networkName}:`, error);
-          // Продолжаем исполнение в других цепочках
+          console.error(`❌ [${index + 1}/${readyChains.length}] Ошибка выполнения в ${chain.networkName}:`, error);
+          results.push({
+            chainId: chain.chainId,
+            networkName: chain.networkName,
+            success: false,
+            error: error.message
+          });
+          // Продолжаем выполнять в других цепочках даже при ошибке
         }
-      });
+      }
 
-      await Promise.all(executePromises);
-
-      console.log('🎉 [MULTI-EXECUTE] Исполнение завершено во всех цепочках');
+      // Подводим итоги
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+      
+      console.log(`📊 [MULTI-EXECUTE] Выполнение завершено: успешно в ${successful.length} из ${readyChains.length} цепочек`);
 
       // Перезагружаем предложения
       await loadProposals();
