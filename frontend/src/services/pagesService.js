@@ -83,6 +83,17 @@ export default {
     });
     return res.data;
   },
+  async getPublishedPageBySlug(slug) {
+    console.log('[pagesService] getPublishedPageBySlug:', slug);
+    const res = await api.get(`/pages/published/${encodeURIComponent(slug)}`);
+    console.log('[pagesService] getPublishedPageBySlug response:', {
+      status: res.status,
+      hasData: !!res.data,
+      id: res.data?.id,
+      title: res.data?.title
+    });
+    return res.data;
+  },
   async getPublicPagesStructure() {
     const res = await api.get('/pages/public/structure');
     return res.data;

@@ -139,6 +139,26 @@
       </div>
     </nav>
 
+    <!-- Похожие статьи (только для блога) -->
+    <section v-if="page && isBlogPage && relatedArticles.length > 0" class="related-articles">
+      <h3 class="related-title">
+        <i class="fas fa-newspaper"></i>
+        Читайте также
+      </h3>
+      <div class="related-grid">
+        <article
+          v-for="article in relatedArticles"
+          :key="article.id"
+          class="related-card"
+          @click="openRelatedArticle(article)"
+        >
+          <h4 class="related-card-title">{{ article.title }}</h4>
+          <p v-if="article.summary" class="related-card-summary">{{ truncateSummary(article.summary) }}</p>
+          <span class="related-card-link">Читать →</span>
+        </article>
+      </div>
+    </section>
+
     <!-- Загрузка -->
     <div v-if="!page && isLoading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -177,6 +197,10 @@ const props = defineProps({
   hideBackButton: {
     type: Boolean,
     default: false
+  },
+  isPublishedRoute: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -192,6 +216,10 @@ const page = ref(null);
 const navigation = ref(null);
 const breadcrumbs = ref([]);
 const isLoading = ref(false);
+const relatedArticles = ref([]);
+
+// Определяем, это страница блога
+const isBlogPage = computed(() => route.path.startsWith('/blog'));
 
 // Установка мета-тегов для SEO
 function updateMetaTags(pageData) {
@@ -330,27 +358,31 @@ async function loadPage() {
     isLoading.value = true;
     
     // Определяем, это slug или id
-    // Проверяем, находимся ли мы на странице блога
+    // Проверяем, находимся ли мы на странице блога или published
     const isBlogRoute = route.path.startsWith('/blog');
+    const isPublishedSlugRoute = props.isPublishedRoute || route.path.startsWith('/content/published/');
     
-    // Если это строка и не чисто число, или мы на странице блога - считаем это slug
-    const isSlug = isBlogRoute || (typeof props.pageId === 'string' && !/^\d+$/.test(props.pageId));
+    // Если это строка и не чисто число, или мы на странице блога/published - считаем это slug
+    const isSlug = isBlogRoute || isPublishedSlugRoute || (typeof props.pageId === 'string' && !/^\d+$/.test(props.pageId));
     
     console.log('[DocsContent] loadPage:', { 
       pageId: props.pageId, 
       isBlogRoute, 
+      isPublishedSlugRoute,
       isSlug,
       routePath: route.path 
     });
     
     if (isSlug) {
-      // Загружаем по slug через новый endpoint блога
-      // Если pageId это число, но мы на странице блога, конвертируем в строку
+      // Загружаем по slug
       const slug = typeof props.pageId === 'string' ? props.pageId : String(props.pageId);
-      console.log('[DocsContent] Загрузка по slug:', slug);
+      console.log('[DocsContent] Загрузка по slug:', slug, 'isPublishedSlugRoute:', isPublishedSlugRoute);
       
       try {
-        const response = await pagesService.getBlogPageBySlug(slug);
+        // Используем разные endpoints для blog и published
+        const response = isPublishedSlugRoute 
+          ? await pagesService.getPublishedPageBySlug(slug)
+          : await pagesService.getBlogPageBySlug(slug);
         console.log('[DocsContent] Ответ от API:', {
           hasData: !!response,
           type: typeof response,
@@ -410,6 +442,11 @@ async function loadPage() {
       } catch (metaError) {
         console.error('[DocsContent] Ошибка установки мета-тегов (не критично):', metaError);
         // Продолжаем работу, даже если мета-теги не установились
+      }
+      
+      // Загружаем похожие статьи для блога
+      if (isBlogPage.value) {
+        loadRelatedArticles();
       }
     } else {
       console.error('[DocsContent] page.value пусто после загрузки!', {
@@ -627,6 +664,38 @@ function formatDate(date) {
     month: 'long',
     day: 'numeric'
   });
+}
+
+// Загрузка похожих статей для блога
+async function loadRelatedArticles() {
+  if (!isBlogPage.value || !page.value) return;
+  
+  try {
+    const allArticles = await pagesService.getBlogPages();
+    // Исключаем текущую статью и берём до 3 других
+    relatedArticles.value = allArticles
+      .filter(article => article.id !== page.value.id)
+      .slice(0, 3);
+  } catch (e) {
+    console.error('[DocsContent] Ошибка загрузки похожих статей:', e);
+    relatedArticles.value = [];
+  }
+}
+
+// Обрезка summary для карточек
+function truncateSummary(text, maxLength = 100) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength).trim() + '...';
+}
+
+// Открытие похожей статьи
+function openRelatedArticle(article) {
+  if (article.slug) {
+    router.push({ name: 'blog-article', params: { slug: article.slug } });
+  } else if (article.id) {
+    router.push({ name: 'blog', query: { page: article.id } });
+  }
 }
 
 function navigateTo(path) {
@@ -1278,6 +1347,80 @@ onMounted(() => {
 
   .nav-next .nav-label {
     justify-content: flex-start;
+  }
+}
+
+/* Похожие статьи */
+.related-articles {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.related-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.related-title i {
+  color: var(--primary-color, #3b82f6);
+}
+
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.related-card {
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.related-card:hover {
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.related-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.related-card-summary {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.related-card-link {
+  font-size: 0.875rem;
+  color: var(--primary-color, #3b82f6);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .related-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .related-articles {
+    margin-top: 32px;
+    padding-top: 24px;
   }
 }
 </style>

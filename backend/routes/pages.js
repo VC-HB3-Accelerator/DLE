@@ -1590,6 +1590,107 @@ router.get('/blog/:slug', async (req, res) => {
   }
 });
 
+// Получить публичную страницу по slug (для /content/published)
+router.get('/published/:slug', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    let slug = req.params.slug;
+    
+    // Декодируем slug (на случай если он был закодирован)
+    try {
+      slug = decodeURIComponent(slug);
+    } catch (e) {
+      console.warn('[pages] Ошибка декодирования slug:', e.message);
+    }
+    
+    // Валидация slug
+    if (!slug || typeof slug !== 'string' || slug.trim() === '') {
+      return res.status(400).json({ error: 'Невалидный slug' });
+    }
+    
+    slug = slug.trim();
+    
+    // Проверяем, есть ли таблица
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    
+    if (!existsRes.rows[0].exists) {
+      return res.status(404).json({ error: 'Страница не найдена' });
+    }
+    
+    // Получаем страницу по slug (без условия show_in_blog)
+    const { rows } = await db.getQuery()(
+      `SELECT * FROM ${tableName} 
+       WHERE slug = $1 
+       AND visibility = 'public' 
+       AND status = 'published'
+       LIMIT 1`,
+      [slug]
+    );
+    
+    console.log(`[pages] GET /published/:slug: поиск по slug "${slug}", найдено строк: ${rows.length}`);
+    
+    if (rows.length === 0) {
+      // Пробуем найти страницу без учета регистра
+      const { rows: rowsCaseInsensitive } = await db.getQuery()(
+        `SELECT * FROM ${tableName} 
+         WHERE LOWER(TRIM(slug)) = LOWER(TRIM($1))
+         AND visibility = 'public' 
+         AND status = 'published'
+         LIMIT 1`,
+        [slug]
+      );
+      
+      if (rowsCaseInsensitive.length > 0) {
+        console.log(`[pages] GET /published/:slug: найдено с учетом регистра, slug в БД: "${rowsCaseInsensitive[0].slug}"`);
+        return res.json(rowsCaseInsensitive[0]);
+      }
+      
+      return res.status(404).json({ error: 'Страница не найдена' });
+    }
+    
+    console.log(`[pages] GET /published/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
+    
+    // Расшифровываем зашифрованные поля
+    const page = rows[0];
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    
+    // Создаем объект с расшифрованными данными
+    const decryptedPage = { ...page };
+    
+    // Расшифровываем поля, если они зашифрованы
+    const fieldsToDecrypt = ['title', 'summary', 'content', 'seo', 'settings'];
+    for (const field of fieldsToDecrypt) {
+      const encryptedField = `${field}_encrypted`;
+      if (page[encryptedField]) {
+        try {
+          const decryptResult = await db.getQuery()(
+            `SELECT decrypt_text($1, $2) as ${field}`,
+            [page[encryptedField], encryptionKey]
+          );
+          if (decryptResult.rows[0] && decryptResult.rows[0][field] !== null) {
+            decryptedPage[field] = decryptResult.rows[0][field];
+          }
+        } catch (decryptError) {
+          console.warn(`[pages] GET /published/:slug: ошибка расшифровки поля ${field}:`, decryptError.message);
+          if (page[field]) {
+            decryptedPage[field] = page[field];
+          }
+        }
+      } else if (page[field]) {
+        decryptedPage[field] = page[field];
+      }
+    }
+    
+    res.json(decryptedPage);
+  } catch (error) {
+    console.error('Ошибка получения публичной страницы по slug:', error);
+    res.status(500).json({ error: 'Ошибка получения страницы' });
+  }
+});
+
 // Получить иерархическую структуру всех публичных страниц
 router.get('/public/structure', async (req, res) => {
   try {
@@ -1903,7 +2004,12 @@ router.get('/internal/all', async (req, res) => {
 });
 
 // Получить одну опубликованную страницу по id
-router.get('/public/:id', async (req, res) => {
+router.get('/public/:id', async (req, res, next) => {
+  // Пропускаем специальные endpoints
+  if (req.params.id === 'robots.txt' || req.params.id === 'sitemap.xml') {
+    return next();
+  }
+  
   try {
     const tableName = `admin_pages_simple`;
     
@@ -1950,7 +2056,7 @@ Disallow: /admin/
 Disallow: /content/create
 Disallow: /content/edit
 
-Sitemap: ${baseUrl}/pages/public/sitemap.xml
+Sitemap: ${baseUrl}/api/pages/public/sitemap.xml
 `;
     
     res.setHeader('Content-Type', 'text/plain');
@@ -2005,7 +2111,8 @@ router.get('/public/sitemap.xml', async (req, res) => {
       
       // Добавляем страницы блога с использованием slug
       for (const page of blogPages) {
-        const lastmod = page.updated_at || page.created_at || new Date().toISOString();
+        const dateObj = page.updated_at || page.created_at || new Date();
+        const lastmod = dateObj instanceof Date ? dateObj.toISOString() : String(dateObj);
         const pageUrl = page.slug 
           ? `${baseUrl}/blog/${page.slug}`
           : `${baseUrl}/blog?page=${page.id}`;
@@ -2021,22 +2128,25 @@ router.get('/public/sitemap.xml', async (req, res) => {
       
       // Получаем остальные публичные страницы (без show_in_blog)
       const { rows: otherPages } = await db.getQuery()(`
-        SELECT id, updated_at, created_at 
+        SELECT id, slug, updated_at, created_at 
         FROM ${tableName} 
         WHERE status = 'published' AND visibility = 'public' AND (show_in_blog IS NULL OR show_in_blog = FALSE)
         ORDER BY created_at DESC
       `);
       
-      // Добавляем остальные публичные страницы
+      // Добавляем остальные публичные страницы с использованием slug
       for (const page of otherPages) {
-      const lastmod = page.updated_at || page.created_at || new Date().toISOString();
-      const pageUrl = `${baseUrl}/content/published?page=${page.id}`;
-      
-      sitemap += `  <url>
+        const dateObj = page.updated_at || page.created_at || new Date();
+        const lastmod = dateObj instanceof Date ? dateObj.toISOString() : String(dateObj);
+        const pageUrl = page.slug 
+          ? `${baseUrl}/content/published/${page.slug}`
+          : `${baseUrl}/content/published?page=${page.id}`;
+        
+        sitemap += `  <url>
     <loc>${escapeXml(pageUrl)}</loc>
     <lastmod>${lastmod.split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.7</priority>
   </url>
 `;
       }

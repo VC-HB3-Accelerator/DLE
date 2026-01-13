@@ -214,6 +214,11 @@ const routes = [
     component: () => import('../views/content/PublishedListView.vue'),
   },
   {
+    path: '/content/published/:slug',
+    name: 'content-published-slug',
+    component: () => import('../views/content/PublishedPageView.vue'),
+  },
+  {
     path: '/content/internal',
     name: 'content-internal',
     component: () => import('../views/content/InternalListView.vue'),

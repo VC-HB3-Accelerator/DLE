@@ -213,3 +213,9 @@ sync-to-vds.sh
 
 # Database initialization helper script
 scripts/internal/db/db_init_helper.sh
+
+# Blog content (будет перенесен в блог приложения)
+blog-content/
+
+# Public docs (загружены в БД)
+public-docs/
