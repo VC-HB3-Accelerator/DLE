@@ -10,13 +10,15 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}🔄 Синхронизация кода с VDS...${NC}"
 
 # Параметры VDS (из настроек)
-VDS_HOST="185.26.121.127"
+VDS_HOST="185.221.214.140"
 VDS_USER="root"
 VDS_PORT="22"
 VDS_PATH="/home/docker/dapp"
 
 # SSH опции
 SSH_OPTS="-p $VDS_PORT -o StrictHostKeyChecking=no"
+# SCP опции (scp использует -P для порта, а не -p)
+SCP_OPTS="-P $VDS_PORT -o StrictHostKeyChecking=no"
 
 # Проверяем наличие rsync на удаленном сервере
 echo -e "${YELLOW}🔍 Проверка наличия rsync на VDS...${NC}"
@@ -94,7 +96,7 @@ sync_with_tar() {
         -C "$(dirname "$SRC_DIR")" "$DIR_NAME"
     
     # Копируем архив на VDS
-    scp -e "ssh $SSH_OPTS" "$TMP_TAR" "$VDS_USER@$VDS_HOST:/tmp/"
+    scp $SCP_OPTS "$TMP_TAR" "$VDS_USER@$VDS_HOST:/tmp/"
     
     # Распаковываем на VDS
     ssh $SSH_OPTS $VDS_USER@$VDS_HOST "mkdir -p $DST_DIR && tar -xzf /tmp/$(basename $TMP_TAR) -C $DST_DIR --strip-components=1 && rm /tmp/$(basename $TMP_TAR)"
@@ -129,13 +131,13 @@ fi
 
 # Синхронизация docker-compose.prod.yml
 echo -e "${YELLOW}📦 Синхронизация docker-compose.prod.yml...${NC}"
-scp -e "ssh $SSH_OPTS" ./webssh-agent/docker-compose.prod.yml "$VDS_USER@$VDS_HOST:$VDS_PATH/docker-compose.prod.yml"
+scp $SCP_OPTS ./webssh-agent/docker-compose.prod.yml "$VDS_USER@$VDS_HOST:$VDS_PATH/docker-compose.prod.yml"
 
 # Синхронизация Dockerfile файлов (если они изменились)
 echo -e "${YELLOW}📦 Синхронизация Dockerfile файлов...${NC}"
-scp -e "ssh $SSH_OPTS" ./backend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/backend/Dockerfile" 2>/dev/null || true
-scp -e "ssh $SSH_OPTS" ./frontend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/Dockerfile" 2>/dev/null || true
-scp -e "ssh $SSH_OPTS" ./frontend/nginx.Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/nginx.Dockerfile" 2>/dev/null || true
+scp $SCP_OPTS ./backend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/backend/Dockerfile" 2>/dev/null || true
+scp $SCP_OPTS ./frontend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/Dockerfile" 2>/dev/null || true
+scp $SCP_OPTS ./frontend/nginx.Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/nginx.Dockerfile" 2>/dev/null || true
 
 echo -e "${GREEN}✅ Синхронизация завершена!${NC}"
 

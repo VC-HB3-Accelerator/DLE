@@ -17,6 +17,7 @@
 Key Points:
 - License Type: Perpetual, rights determined by number of tokens (1 or 10).
 - Updates and Basic Maintenance: Free for 5 years from on-chain token transfer date.
+- Free Setup by Contractors: Within 5 years after license purchase (personalization, integration, AI configuration, feature customization).
 - Development Voting: 1 token = 1 vote, decisions by majority ≥51%.
 - 70% Refund possible if program conditions are met (see original).
 - Support, releases, knowledge base — through application `https://hb3-accelerator.com/`.

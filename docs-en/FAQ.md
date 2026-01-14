@@ -89,7 +89,8 @@ DLE is designed for **all types of organizations** that need transparent collect
 
 ✅ **All licenses include:**
 - Lifetime access to the application
-- All future updates free
+- All future updates free for 5 years (for token holders)
+- **Free setup by contractors within 5 years** (personalization for your business type, integration with business processes, AI assistant configuration, blockchain accounting setup, feature customization if needed)
 - Technical support through portal
 - AI assistant 24/7 without limits
 - Participation in voting for new features
@@ -104,6 +105,7 @@ DLE is designed for **all types of organizations** that need transparent collect
 - Pay once
 - Access forever
 - All updates free for 5 years for license token holders (see [legal/service-terms.md](../legal-en/service-terms.md))
+- **Free setup by contractors within 5 years** after license purchase
 - No hidden fees
 - AI works without request limits
 
@@ -142,6 +144,7 @@ DLE is designed for **all types of organizations** that need transparent collect
 - 🎓 **Online training sessions** (group and individual)
 - 📚 **Library of recordings** of all sessions
 - 📧 **Email support**
+- ✅ **Free setup by contractors within 5 years** (personalization, integration, AI configuration, feature customization)
 
 ### How does the voting system work?
 
@@ -734,6 +737,7 @@ Always end with: "How else can I help? 😊"
 
 **All license holders receive**:
 - ✅ All web application updates (free for 5 years for token holders)
+- ✅ **Free setup by contractors within 5 years** (personalization, integration, AI configuration, feature customization)
 - ✅ Access to documentation and knowledge base
 - ✅ Technical support through application
 - ✅ AI assistant 24/7
@@ -803,6 +807,7 @@ You can request refund of **70% of license cost** within **5 years** from purcha
 - 🎓 Online training sessions (all licenses)
 - 📚 Library of recordings (all licenses)
 - 📧 Email support (all licenses)
+- ✅ Free setup by contractors within 5 years (all licenses)
 
 **SLA (first response time)**:
 - 🔴 Critical: 4 hours
@@ -994,7 +999,7 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup-t
 **One-time costs**:
 - License: $1,000-10,000 USDT
 - Smart contract deployment: $100-500 (gas fees)
-- Setup: $0 (self-service)
+- Setup: $0 (free setup by contractors within 5 years included in license)
 
 **Monthly costs**:
 - Hosting: $50-200/month

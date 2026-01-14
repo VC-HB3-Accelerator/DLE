@@ -45,7 +45,12 @@ async function ensureAdminPagesTable(fields) {
       'created_at TIMESTAMP DEFAULT NOW()',
       'updated_at TIMESTAMP DEFAULT NOW()',
       'show_in_blog BOOLEAN DEFAULT FALSE', // Показывать в блоге
-      'slug TEXT UNIQUE' // URL-friendly идентификатор для SEO
+      'slug TEXT UNIQUE', // URL-friendly идентификатор для SEO
+      'category_id INTEGER', // ID категории
+      'parent_id INTEGER', // ID родительской страницы
+      'order_index INTEGER DEFAULT 0', // Порядок сортировки
+      'nav_path TEXT', // Путь навигации
+      'is_index_page BOOLEAN DEFAULT FALSE' // Является ли индексной страницей
     ];
     for (const field of fields) {
       columns.push(`"${field}_encrypted" TEXT`);
@@ -87,6 +92,41 @@ async function ensureAdminPagesTable(fields) {
         // Индекс может уже существовать, игнорируем ошибку
         console.log('[pages] Индекс для slug уже существует или ошибка создания:', e.message);
       }
+    }
+    
+    // Добавляем поле category_id если его нет
+    if (!existingCols.includes('category_id')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN category_id INTEGER`
+      );
+    }
+    
+    // Добавляем поле parent_id если его нет
+    if (!existingCols.includes('parent_id')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN parent_id INTEGER`
+      );
+    }
+    
+    // Добавляем поле order_index если его нет
+    if (!existingCols.includes('order_index')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN order_index INTEGER DEFAULT 0`
+      );
+    }
+    
+    // Добавляем поле nav_path если его нет
+    if (!existingCols.includes('nav_path')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN nav_path TEXT`
+      );
+    }
+    
+    // Добавляем поле is_index_page если его нет
+    if (!existingCols.includes('is_index_page')) {
+      await db.getQuery()(
+        `ALTER TABLE ${tableName} ADD COLUMN is_index_page BOOLEAN DEFAULT FALSE`
+      );
     }
     
     for (const field of fields) {
@@ -205,9 +245,25 @@ async function generateUniqueSlug(title, pageId, tableName) {
   return slug;
 }
 
+// Middleware для условной обработки multer (только для multipart/form-data)
+const conditionalUpload = (req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    return upload.single('file')(req, res, next);
+  }
+  // Для JSON запросов пропускаем multer
+  next();
+};
+
 // Создать страницу (только для админа)
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', conditionalUpload, async (req, res) => {
   console.log('[pages] POST /: Начало обработки запроса на создание страницы');
+  console.log('[pages] POST /: Content-Type:', req.headers['content-type']);
+  console.log('[pages] POST /: req.body тип:', typeof req.body);
+  console.log('[pages] POST /: req.body ключи:', req.body ? Object.keys(req.body) : 'req.body пуст');
+  console.log('[pages] POST /: req.body содержимое:', JSON.stringify(req.body || {}, null, 2).substring(0, 500));
+  console.log('[pages] POST /: req.file:', req.file ? { name: req.file.originalname, size: req.file.size } : 'нет файла');
+  
   try {
     if (!req.session || !req.session.authenticated) {
       console.log('[pages] POST /: Ошибка аутентификации - сессия не найдена');
@@ -244,6 +300,15 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     // Собираем данные страницы
     const bodyRaw = req.body || {};
+    
+    // Проверяем, что body не пустой
+    if (!bodyRaw || Object.keys(bodyRaw).length === 0) {
+      console.error('[pages] POST /: req.body пуст или не определен');
+      return res.status(400).json({ 
+        error: 'Отсутствуют данные страницы',
+        message: 'Тело запроса пустое. Проверьте Content-Type и формат данных.'
+      });
+    }
     
     // Обрабатываем required_permission: если это пустая строка или 'null', устанавливаем null
     let requiredPermission = null;
@@ -2056,7 +2121,7 @@ Disallow: /admin/
 Disallow: /content/create
 Disallow: /content/edit
 
-Sitemap: ${baseUrl}/api/pages/public/sitemap.xml
+Sitemap: ${baseUrl}/sitemap.xml
 `;
     
     res.setHeader('Content-Type', 'text/plain');
