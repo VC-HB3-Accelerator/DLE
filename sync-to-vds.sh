@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}🔄 Синхронизация кода с VDS...${NC}"
 
 # Параметры VDS (из настроек)
-VDS_HOST="185.221.214.140"
+VDS_HOST="185.26.121.127"
 VDS_USER="root"
 VDS_PORT="22"
 VDS_PATH="/home/docker/dapp"
@@ -138,6 +138,12 @@ echo -e "${YELLOW}📦 Синхронизация Dockerfile файлов...${NC
 scp $SCP_OPTS ./backend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/backend/Dockerfile" 2>/dev/null || true
 scp $SCP_OPTS ./frontend/Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/Dockerfile" 2>/dev/null || true
 scp $SCP_OPTS ./frontend/nginx.Dockerfile "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/nginx.Dockerfile" 2>/dev/null || true
+
+# Синхронизация nginx конфигураций (критично для SEO исправлений)
+echo -e "${YELLOW}📦 Синхронизация nginx конфигураций...${NC}"
+scp $SCP_OPTS ./frontend/nginx-simple.conf "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/nginx-simple.conf" 2>/dev/null || true
+scp $SCP_OPTS ./frontend/nginx-local.conf "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/nginx-local.conf" 2>/dev/null || true
+scp $SCP_OPTS ./frontend/docker-entrypoint.sh "$VDS_USER@$VDS_HOST:$VDS_PATH/frontend/docker-entrypoint.sh" 2>/dev/null || true
 
 echo -e "${GREEN}✅ Синхронизация завершена!${NC}"
 

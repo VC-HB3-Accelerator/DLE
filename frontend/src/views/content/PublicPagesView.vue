@@ -158,8 +158,56 @@ async function loadPages() {
   }
 }
 
+// Установка мета-тегов для SEO
+function updatePublicPagesMetaTags() {
+  const title = 'Публичные документы - HB3 Accelerator';
+  const description = 'Опубликованные документы и материалы платформы Digital Legal Entity. Публичная документация, статьи и информационные материалы.';
+  const keywords = 'публичные документы, документация, Digital Legal Entity, DLE, публикации';
+  const canonicalUrl = `${window.location.origin}/content/published`;
+  
+  // Обновляем title
+  document.title = title;
+  
+  // Обновляем или создаем meta теги
+  const updateOrCreateMeta = (name, content, attribute = 'name') => {
+    if (!content) return;
+    let meta = document.querySelector(`meta[${attribute}="${name}"]`);
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute(attribute, name);
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', content);
+  };
+  
+  // Meta description
+  updateOrCreateMeta('description', description);
+  
+  // Meta keywords
+  updateOrCreateMeta('keywords', keywords);
+  
+  // Canonical URL
+  let canonical = document.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.setAttribute('rel', 'canonical');
+    document.head.appendChild(canonical);
+  }
+  canonical.setAttribute('href', canonicalUrl);
+  
+  // Open Graph теги для социальных сетей
+  updateOrCreateMeta('og:title', title, 'property');
+  updateOrCreateMeta('og:description', description, 'property');
+  updateOrCreateMeta('og:type', 'website', 'property');
+  updateOrCreateMeta('og:url', canonicalUrl, 'property');
+  
+  // Robots meta
+  updateOrCreateMeta('robots', 'index, follow');
+}
+
 // Загрузка данных
 onMounted(() => {
+  updatePublicPagesMetaTags();
   loadPages();
 });
 </script>

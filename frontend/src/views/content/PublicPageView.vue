@@ -246,6 +246,120 @@ watch(() => page.value?.content, () => {
   }
 });
 
+// Установка мета-тегов для SEO
+function updatePageMetaTags() {
+  if (!page.value) return;
+  
+  // Парсим seo, если это строка
+  let seoData = page.value.seo;
+  if (typeof seoData === 'string') {
+    try {
+      seoData = JSON.parse(seoData);
+    } catch (e) {
+      console.warn('Ошибка парсинга SEO данных:', e);
+      seoData = null;
+    }
+  }
+  
+  const title = seoData?.title || page.value.title || 'Публичная страница';
+  const description = seoData?.description || page.value.summary || '';
+  const keywords = seoData?.keywords || '';
+  
+  // Определяем canonical URL
+  const pageUrl = page.value.slug 
+    ? `${window.location.origin}/content/published/${encodeURIComponent(page.value.slug)}`
+    : `${window.location.origin}/content/published?page=${page.value.id}`;
+  
+  // Обновляем title
+  document.title = title;
+  
+  // Обновляем или создаем meta теги
+  const updateOrCreateMeta = (name, content, attribute = 'name') => {
+    if (!content) return;
+    let meta = document.querySelector(`meta[${attribute}="${name}"]`);
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute(attribute, name);
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', content);
+  };
+  
+  // Meta description
+  updateOrCreateMeta('description', description);
+  
+  // Meta keywords
+  if (keywords) {
+    updateOrCreateMeta('keywords', keywords);
+  }
+  
+  // Canonical URL
+  let canonical = document.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.setAttribute('rel', 'canonical');
+    document.head.appendChild(canonical);
+  }
+  canonical.setAttribute('href', pageUrl);
+  
+  // Open Graph теги для социальных сетей
+  updateOrCreateMeta('og:title', title, 'property');
+  updateOrCreateMeta('og:description', description, 'property');
+  updateOrCreateMeta('og:type', 'article', 'property');
+  updateOrCreateMeta('og:url', pageUrl, 'property');
+  
+  // Robots meta
+  updateOrCreateMeta('robots', 'index, follow');
+  
+  // Добавляем JSON-LD разметку для статьи
+  addArticleJsonLd(page.value, pageUrl, seoData);
+}
+
+// Добавляем JSON-LD разметку для статьи
+function addArticleJsonLd(pageData, canonicalUrl, seoData) {
+  // Удаляем старую разметку, если есть
+  const oldScript = document.querySelector('script[type="application/ld+json"][data-public-article]');
+  if (oldScript) {
+    oldScript.remove();
+  }
+  
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    'headline': seoData?.title || pageData.title || '',
+    'description': seoData?.description || pageData.summary || '',
+    'datePublished': pageData.created_at || '',
+    'dateModified': pageData.updated_at || pageData.created_at || '',
+    'url': canonicalUrl,
+    'author': {
+      '@type': 'Organization',
+      'name': 'HB3 Accelerator'
+    },
+    'publisher': {
+      '@type': 'Organization',
+      'name': 'HB3 Accelerator',
+      'url': window.location.origin
+    }
+  };
+  
+  if (pageData.category) {
+    articleJsonLd.articleSection = pageData.category;
+  }
+  
+  const script = document.createElement('script');
+  script.type = 'application/ld+json';
+  script.setAttribute('data-public-article', 'true');
+  script.textContent = JSON.stringify(articleJsonLd);
+  document.head.appendChild(script);
+}
+
+// Отслеживаем загрузку страницы и обновляем мета-теги
+watch(() => page.value, (newPage) => {
+  if (newPage) {
+    updatePageMetaTags();
+  }
+}, { immediate: true });
+
 // Загрузка данных
 onMounted(() => {
   loadPage();
