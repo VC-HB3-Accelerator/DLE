@@ -27,6 +27,8 @@ We offer business software that includes **artificial intelligence** and **block
 
 ## 💼 WHAT YOU GET
 
+**Digital Legal Entity (DLE)** is a web application for business management, a sovereign IT infrastructure for creating businesses with tokenized assets identified by unique regulatory codes in each separate jurisdiction, and a built-in set of tools for configuring AI agents.
+
 **Ready-to-use web application for business management** — a proven solution we use to manage our own business. After purchase, you'll receive it configured for your industry.
 
 **Key Features:**

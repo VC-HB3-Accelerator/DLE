@@ -2,6 +2,12 @@
 
 **🌐 Language / Язык:** [🇷🇺 Русский](../docs/README.md) | [🇬🇧 English](README.md)
 
+## 📖 Product Definition
+
+**Digital Legal Entity (DLE)** is a web application for business management, a sovereign IT infrastructure for creating businesses with tokenized assets identified by unique regulatory codes in each separate jurisdiction, and a built-in set of tools for configuring AI agents.
+
+---
+
 This section contains materials about the DLE product: overview, business cases, technical specifications, and implementation instructions. Use the list below to quickly find the document you need.
 
 ## 📄 Available Documents

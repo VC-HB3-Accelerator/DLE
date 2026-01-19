@@ -2,8 +2,11 @@
 
 **🌐 Language / Язык:** [🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md)
 
-## Description
-Complete Digital Legal Entity application template
+## 📖 Description
+
+**Digital Legal Entity (DLE)** is a web application for business management, a sovereign IT infrastructure for creating businesses with tokenized assets identified by unique regulatory codes in each separate jurisdiction, and a built-in set of tools for configuring AI agents.
+
+Complete Digital Legal Entity application template for deployment on your own infrastructure.
 
 ## 📋 Requirements
 - Docker and Docker Compose
