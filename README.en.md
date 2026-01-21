@@ -4,7 +4,7 @@
 
 ## 📖 Description
 
-**Digital Legal Entity (DLE)** is a web application for business management, a sovereign IT infrastructure for creating businesses with tokenized assets identified by unique regulatory codes in each separate jurisdiction, and a built-in set of tools for configuring AI agents.
+**Digital Legal Entity (DLE)** is a microservices IT infrastructure with a web application for on-premises deployment on company servers. It includes AI agent configuration tools and a smart contract system supporting legal entity credentials and regulatory identifiers for financial operations. Provides business process management and automation, replaces fragmented SaaS services with monthly subscriptions, and complies with regulatory requirements for data storage and processing.
 
 Complete Digital Legal Entity application template for deployment on your own infrastructure.
 
