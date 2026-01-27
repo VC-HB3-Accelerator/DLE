@@ -2107,9 +2107,13 @@ router.get('/public/:id', async (req, res, next) => {
 // Endpoint для robots.txt
 router.get('/public/robots.txt', async (req, res) => {
   try {
-    const domain = req.get('host') || req.headers.host || 'localhost';
-    const protocol = req.protocol || 'https';
-    const baseUrl = `${protocol}://${domain}`;
+    // Используем X-Forwarded-Host если доступен (от nginx), иначе обычный Host
+    const domain = req.get('x-forwarded-host') || req.get('host') || req.headers.host || 'localhost';
+    // Убираем порт если он есть (например, localhost:8000 -> localhost)
+    const cleanDomain = domain.split(':')[0];
+    // Используем X-Forwarded-Proto если доступен (от nginx), иначе req.protocol
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const baseUrl = `${protocol}://${cleanDomain}`;
     
     const robotsContent = `User-agent: *
 Allow: /
@@ -2136,9 +2140,13 @@ Sitemap: ${baseUrl}/sitemap.xml
 router.get('/public/sitemap.xml', async (req, res) => {
   try {
     const tableName = `admin_pages_simple`;
-    const domain = req.get('host') || req.headers.host || 'localhost';
-    const protocol = req.protocol || 'https';
-    const baseUrl = `${protocol}://${domain}`;
+    // Используем X-Forwarded-Host если доступен (от nginx), иначе обычный Host
+    const domain = req.get('x-forwarded-host') || req.get('host') || req.headers.host || 'localhost';
+    // Убираем порт если он есть (например, localhost:8000 -> localhost)
+    const cleanDomain = domain.split(':')[0];
+    // Используем X-Forwarded-Proto если доступен (от nginx), иначе req.protocol
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const baseUrl = `${protocol}://${cleanDomain}`;
     
     // Проверяем, есть ли таблица
     const existsRes = await db.getQuery()(
