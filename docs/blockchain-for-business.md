@@ -1261,8 +1261,8 @@ Digital Legal Entity на блокчейне решает фундаментал
 ### Начните сейчас!
 
 1. 📖 **[Изучите FAQ](./FAQ.md)** - ответы на популярные вопросы
-2. 🚀 **[Установите DLE](./setup-instruction.md)** - пошаговая инструкция
-3. 🔗 **[Настройте блокчейн](./blockchain-integration-technical.md)** - техническая документация
+2. 🚀 **[Установите DLE](./back-docs/setup-instruction.md)** - пошаговая инструкция
+3. 🔗 **[Настройте блокчейн](./back-docs/blockchain-integration-technical.md)** - техническая документация
 4. 💬 **[Получите поддержку](https://hb3-accelerator.com/)** - мы поможем!
 
 ---
@@ -1271,8 +1271,8 @@ Digital Legal Entity на блокчейне решает фундаментал
 
 ### Документация
 - 📋 [FAQ](./FAQ.md)
-- 🔧 [Установка](./setup-instruction.md)
-- 🔗 [Техническая документация по блокчейну](./blockchain-integration-technical.md)
+- 🔧 [Установка](./back-docs/setup-instruction.md)
+- 🔗 [Техническая документация по блокчейну](./back-docs/blockchain-integration-technical.md)
 - 📝 [Условия обслуживания](./service-terms.md)
 
 

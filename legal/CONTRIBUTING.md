@@ -44,7 +44,7 @@
 ### Комментарии
 ```javascript
 /**
- * @copyright 2024-2025 Тарабанов Александр Викторович
+ * @copyright 2024-2026 Тарабанов Александр Викторович
  * @license Proprietary
  * @author [Ваше имя] <ваш-email@example.com>
  */

@@ -6,7 +6,7 @@
 
 ```javascript
 /**
- * @copyright 2024-2025 Тарабанов Александр Викторович
+ * @copyright 2024-2026 Тарабанов Александр Викторович
  * @license Proprietary
  * @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
  * @see https://github.com/VC-HB3-Accelerator
@@ -18,7 +18,7 @@
 
 ```python
 """
-@copyright 2024-2025 Тарабанов Александр Викторович
+@copyright 2024-2026 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
 @see https://github.com/VC-HB3-Accelerator
@@ -30,7 +30,7 @@
 
 ```vue
 <!--
-@copyright 2024-2025 Тарабанов Александр Викторович
+@copyright 2024-2026 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
 @see https://github.com/VC-HB3-Accelerator
@@ -42,7 +42,7 @@
 
 ```css
 /*
-@copyright 2024-2025 Тарабанов Александр Викторович
+@copyright 2024-2026 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
 @see https://github.com/VC-HB3-Accelerator
@@ -54,7 +54,7 @@
 
 ```html
 <!--
-@copyright 2024-2025 Тарабанов Александр Викторович
+@copyright 2024-2026 Тарабанов Александр Викторович
 @license Proprietary
 @author Тарабанов Александр Викторович <info@hb3-accelerator.com>
 @see https://github.com/VC-HB3-Accelerator
@@ -66,7 +66,7 @@
 
 ```json
 {
-  "_copyright": "2024-2025 Тарабанов Александр Викторович",
+  "_copyright": "2024-2026 Тарабанов Александр Викторович",
   "_license": "Proprietary",
   "_author": "Тарабанов Александр Викторович <info@hb3-accelerator.com>",
   "_website": "https://hb3-accelerator.com",
@@ -97,4 +97,4 @@
 
 ---
 
-**Все права защищены.** См. файл [LICENSE.md](LICENSE.md) для подробностей. 
+**Все права защищены.** См. файл [LICENSE](../LICENSE) для подробностей. 

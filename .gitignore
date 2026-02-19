@@ -219,3 +219,6 @@ blog-content/
 
 # Public docs (загружены в БД)
 public-docs/
+
+# Техническая документация (внутренняя)
+docs/back-docs/

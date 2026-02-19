@@ -4,13 +4,12 @@
 
 ## 📖 Определение продукта
 
-**Digital Legal Entity (DLE)** — микросервисная IT-инфраструктура с веб-приложением для локального развёртывания на серверах компании.
+**Digital Legal Entity (DLE)** — микросервисная платформа с веб-приложением для локальной установки на серверах компании.
 
 **Включает:**
 - Инструменты настройки ИИ-агентов
 - Систему смарт-контрактов с поддержкой:
-  - Реквизитов юридических лиц
-  - Идентификаторов для финансовых операций, установленных регулятором
+  - Налоговых, бухгалтерских, банковских и иных идентификаторов, установленных регулятором
 
 **Преимущества:**
 - Управление и автоматизация бизнес-процессов
@@ -26,17 +25,21 @@
 | Файл | Краткое описание |
 | --- | --- |
 | [application-description.md](./application-description.md) | Обзор назначения платформы, ключевых преимуществ и экономического эффекта. |
-| [ai-assistant.md](./ai-assistant.md) | Подробное описание возможностей AI-ассистента и cases для бизнеса. |
-| [setup-ai-assistant.md](./setup-ai-assistant.md) | Пошаговая настройка локального AI-ассистента с векторным поиском. |
-| [setup-instruction.md](./setup-instruction.md) | Основная инструкция по установке и первичной конфигурации приложения. |
+| [ai-assistant.md](./ai-assistant.md) | ИИ-агенты: архитектура, создание агентов под бизнес-процессы, примеры и экономический эффект. |
 | [blockchain-for-business.md](./blockchain-for-business.md) | Бизнес-обоснование и кейсы использования блокчейна в DLE. |
-| [blockchain-integration-technical.md](./blockchain-integration-technical.md) | Техническая архитектура блокчейн-интеграции и смарт-контрактов. |
 | [security.md](./security.md) | Модель безопасности, контроль доступа и защитные механизмы. |
 | [service-terms.md](./service-terms.md) | Подробные условия приобретения и обслуживания лицензии. |
-| [FAQ.md](./FAQ.md) | Ответы на частые вопросы по лицензированию, установке и функциям. |
-| [system-messages-management.md](./system-messages-management.md) | Техническое задание по управлению системными сообщениями. |
-| [tables-system.md](./tables-system.md) | Описание системы электронных таблиц, архитектуры и интеграций. |
-| [commercial-proposal-entrepreneurs.md](./commercial-proposal-entrepreneurs.md) | Готовое коммерческое предложение для предпринимателей из СНГ. |
+
+### 📂 Техническая документация (back-docs/)
+
+| Файл | Краткое описание |
+| --- | --- |
+| [setup-instruction.md](./back-docs/setup-instruction.md) | Основная инструкция по установке и первичной конфигурации приложения. |
+| [setup-ai-assistant.md](./back-docs/setup-ai-assistant.md) | Пошаговая настройка локального AI-ассистента с векторным поиском. |
+| [blockchain-integration-technical.md](./back-docs/blockchain-integration-technical.md) | Техническая архитектура блокчейн-интеграции и смарт-контрактов. |
+| [tables-system.md](./back-docs/tables-system.md) | Описание системы электронных таблиц, архитектуры и интеграций. |
+| [multi-agent-architecture.md](./back-docs/multi-agent-architecture.md) | Архитектура множественных ИИ-агентов. |
+| [system-messages-management.md](./back-docs/system-messages-management.md) | Техническое задание по управлению системными сообщениями. |
 
 ---
 
