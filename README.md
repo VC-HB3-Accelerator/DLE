@@ -19,11 +19,11 @@
 
 | Файл | Краткое описание |
 | --- | --- |
-| [application-description.md](./application-description.md) | Обзор назначения платформы, ключевых преимуществ и экономического эффекта. |
-| [ai-assistant.md](./ai-assistant.md) | ИИ-агенты: архитектура, создание агентов под бизнес-процессы, примеры и экономический эффект. |
-| [blockchain-for-business.md](./blockchain-for-business.md) | Бизнес-обоснование и кейсы использования блокчейна в DLE. |
-| [security.md](./security.md) | Модель безопасности, контроль доступа и защитные механизмы. |
-| [service-terms.md](./service-terms.md) | Подробные условия приобретения и обслуживания лицензии. |
+| [application-description.md](docs/application-description.md) | Обзор назначения платформы, ключевых преимуществ и экономического эффекта. |
+| [ai-assistant.md](docs/ai-assistant.md) | ИИ-агенты: архитектура, создание агентов под бизнес-процессы, примеры и экономический эффект. |
+| [blockchain-for-business.md](docs/blockchain-for-business.md) | Бизнес-обоснование и кейсы использования блокчейна в DLE. |
+| [security.md](docs/security.md) | Модель безопасности, контроль доступа и защитные механизмы. |
+| [service-terms.md](docs/service-terms.md) | Подробные условия приобретения и обслуживания лицензии. |
 
 ### Смежные материалы
 
