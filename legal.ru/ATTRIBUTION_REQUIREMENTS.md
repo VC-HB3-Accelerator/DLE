@@ -1,3 +1,5 @@
+[English](../legal.en/ATTRIBUTION_REQUIREMENTS.md) | **Русский**
+
 # Требования к атрибуции
 
 ## Обязательная атрибуция

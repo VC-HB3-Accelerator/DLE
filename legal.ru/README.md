@@ -1,3 +1,5 @@
+[English](../legal.en/README.md) | **Русский**
+
 # Юридическая документация DLE
 ## Защита интеллектуальной собственности проекта
 
@@ -28,7 +30,7 @@
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — шаблоны копирайтов
 
 **Лицензирование и условия:**
-- [Условия приобретения и обслуживания](../docs/service-terms.md) — подробные условия лицензирования
+- [Условия приобретения и обслуживания](../docs.ru/service-terms.md) — подробные условия лицензирования
 - [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) — требования к атрибуции
 - [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) — уведомления об использовании
 
@@ -39,11 +41,11 @@
 | [AUTHORS.md](AUTHORS.md) | Сведения об авторах и контактная информация |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Правила участия для контрибьюторов проекта |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Шаблоны уведомлений об авторских правах |
-| [service-terms.md](../docs/service-terms.md) | Подробные условия лицензирования и обслуживания |
+| [service-terms.md](../docs.ru/service-terms.md) | Подробные условия лицензирования и обслуживания |
 | [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Форматы и примеры обязательной атрибуции |
 | [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Инструкция и шаблон уведомления об использовании |
 
-**Полные условия обслуживания:** [docs/service-terms.md](../docs/service-terms.md)
+**Полные условия обслуживания:** [docs.ru/service-terms.md](../docs.ru/service-terms.md)
 - Лицензионная модель (Perpetual License)
 - Тарифы: Standard и Premium
 - Система голосования через смарт-контракт
@@ -58,7 +60,7 @@
 
 - **Цена:** 1 000 USDT (Standard) или 10 000 USDT (Premium)
 - **Срок:** бессрочный (без ограничения по времени)
-- **Обновления:** бесплатно в течение 5 лет для держателей лицензионных токенов (см. [docs/service-terms.md](../docs/service-terms.md))
+- **Обновления:** бесплатно в течение 5 лет для держателей лицензионных токенов (см. [docs.ru/service-terms.md](../docs.ru/service-terms.md))
 - **Голосование:** блокчейн-голосование за развитие новых функций
 
 ### Управление через смарт-контракт DLE

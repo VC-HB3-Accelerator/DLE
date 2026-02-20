@@ -1,3 +1,5 @@
+[English](../docs.en/security.md) | **Русский**
+
 # Безопасность Digital Legal Entity (DLE)
 
 ## Содержание
@@ -1299,7 +1301,7 @@ function signMessage(message) {
 
 1. [Изучите техническую документацию](./back-docs/blockchain-integration-technical.md)
 2. [Настройте безопасное окружение](./back-docs/setup-instruction.md)
-3. [Прочитайте FAQ](../public-docs/FAQ.md)
+3. [Прочитайте FAQ](../FAQ.md)
 4. [Получите поддержку](https://hb3-accelerator.com/)
 ---
 

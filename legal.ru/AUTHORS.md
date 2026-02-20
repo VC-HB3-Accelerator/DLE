@@ -1,3 +1,5 @@
+[English](../legal.en/AUTHORS.md) | **Русский**
+
 # Авторы проекта DLE (Digital Legal Entity)
 
 ## Основной разработчик

@@ -1,71 +1,90 @@
-# Digital Legal Entity (DLE) — шаблон приложения
+# Digital Legal Entity (DLE) — Application Template
 
-## Определение продукта
+## Product definition
 
-**Digital Legal Entity (DLE)** — микросервисная платформа с веб-приложением для локальной установки на серверах компании.
+**Digital Legal Entity (DLE)** is a microservices platform with a web application for on-premise deployment on company servers.
 
-**Включает:**
-- Инструменты настройки ИИ-агентов
-- Систему смарт-контрактов с поддержкой:
-  - Налоговых, бухгалтерских, банковских и иных идентификаторов, установленных регулятором
+**Includes:**
+- AI agent configuration tools
+- Smart contract system with support for:
+  - Tax, accounting, banking, and other identifiers set by the regulator
 
-**Преимущества:**
-- Управление и автоматизация бизнес-процессов
-- Замена разрозненных SaaS-сервисов с ежемесячными подписками
-- Соответствие требованиям регуляторов к хранению и обработке данных
+**Benefits:**
+- Business process management and automation
+- Replacement of fragmented SaaS services with monthly subscriptions
+- Compliance with regulator requirements for data storage and processing
 
+## Documentation (English)
 
-## Доступные документы
+| Document | Description |
+|----------|-------------|
+| [application-description.md](docs.en/application-description.md) | Platform overview, main benefits, and economic impact. |
+| [ai-assistant.md](docs.en/ai-assistant.md) | AI agents: architecture, creating agents for business processes, examples, and economics. |
+| [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Business case and use cases for blockchain in DLE. |
+| [security.md](docs.en/security.md) | Security model, access control, and safeguards. |
+| [service-terms.md](docs.en/service-terms.md) | Terms of purchase and service for the license. |
+| [FAQ.md](docs.en/FAQ.md) | Frequently asked questions. |
 
-| Файл | Краткое описание |
-| --- | --- |
-| [application-description.md](docs/application-description.md) | Обзор назначения платформы, ключевых преимуществ и экономического эффекта. |
-| [ai-assistant.md](docs/ai-assistant.md) | ИИ-агенты: архитектура, создание агентов под бизнес-процессы, примеры и экономический эффект. |
-| [blockchain-for-business.md](docs/blockchain-for-business.md) | Бизнес-обоснование и кейсы использования блокчейна в DLE. |
-| [security.md](docs/security.md) | Модель безопасности, контроль доступа и защитные механизмы. |
-| [service-terms.md](docs/service-terms.md) | Подробные условия приобретения и обслуживания лицензии. |
+### Technical and backend docs
 
-### Смежные материалы
+- [Setup guide](docs.en/back-docs/setup-instruction.md) — full application setup
+- [AI assistant setup](docs.en/back-docs/setup-ai-assistant.md) — RAG and Ollama
+- [Blockchain integration](docs.en/back-docs/blockchain-integration-technical.md) — smart contracts and multichain
+- [Tables system](docs.en/back-docs/tables-system.md) — spreadsheets and RAG
+- [Multi-agent architecture](docs.en/back-docs/multi-agent-architecture.md)
 
-- [Юридические документы](legal/README.md) — лицензия, авторские права, требования к атрибуции
+### Related
 
+- [Legal documents (EN)](legal.en/README.md) — license, copyright, attribution
+- [Юридические документы (RU)](legal.ru/README.md) — лицензия, авторские права
 
-## Полный шаблон приложения Digital Legal Entity для развертывания на собственной инфраструктуре.
+---
 
-## Требования
-- Docker и Docker Compose
+## Full Digital Legal Entity application template for on-premise deployment
 
-## Быстрый запуск
+## Requirements
 
-### Автоматическая установка (рекомендуется)
+- Docker and Docker Compose
 
-**Для Linux/macOS/WSL:**
+## Quick start
+
+### Automated install (recommended)
+
+**Linux/macOS/WSL:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash
 ```
-Скрипт автоматически скачивает последние артефакты из релиза и разворачивает `docker-data`.
+The script downloads the latest release artifacts and deploys `docker-data`.
 
-### Релизы и артефакты
-- [Релиз v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) (Latest) — содержит полный шаблон приложения с Docker образами, томами и ключом шифрования. Архив разделен на части (`dle-template.tar.gz.part-*`) для удобства загрузки.
-- [Релиз v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — предыдущая версия.
-- [Релиз v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — предыдущая версия.
-- [Релиз v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — предыдущая версия.
+### Releases and artifacts
 
-### Запуск приложения
+- [Release v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) (Latest) — full application template with Docker images, volumes, and encryption key. Archive split into parts (`dle-template.tar.gz.part-*`) for easier download.
+- [Release v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — previous version.
+- [Release v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — previous version.
+- [Release v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — previous version.
+
+### Run the application
+
 ```bash
 docker-compose up -d
 ```
 
-### Доступ к приложению
+### Access
 
-#### Продакшн (production)
-- **Frontend**: http://localhost:9000 (HTTP)
+#### Production
+- **Frontend:** http://localhost:9000 (HTTP)
 
-### Остановка
+### Stop
+
 ```bash
-docker-compose-down
+docker-compose down
 ```
 
-### Контакты
+### Contacts
+
 - **Email:** info@hb3-accelerator.com
-- **Поддержка:** https://hb3-accelerator.com/
+- **Support:** https://hb3-accelerator.com/
+
+---
+
+**Russian documentation:** [README.ru.md](README.ru.md) | [docs.ru](docs.ru/) (incl. [FAQ](docs.ru/FAQ.md))

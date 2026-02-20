@@ -1,65 +1,66 @@
-ЛИЦЕНЗИЯ ПРОПРИЕТАРНОГО ПРОГРАММНОГО ОБЕСПЕЧЕНИЯ
+**English** | [Русский](LICENSE.ru)
 
-Авторские права (c) 2024-2025 Тарабанов Александр Викторович
-Все права защищены.
+PROPRIETARY SOFTWARE LICENSE
 
-Данное программное обеспечение и связанные с ним файлы документации 
-("Программное обеспечение") являются собственностью и конфиденциальной 
-информацией Тарабанова Александра Викторовича.
+Copyright (c) 2024-2025 Alexander Viktorovich Tarabanov
+All rights reserved.
 
-УСЛОВИЯ И ПОЛОЖЕНИЯ:
+This software and associated documentation files (the "Software") are the
+property and confidential information of Alexander Viktorovich Tarabanov.
 
-1. ПРЕДОСТАВЛЕНИЕ ЛИЦЕНЗИИ
-   При соблюдении условий данной Лицензии, Тарабанов Александр Викторович 
-   предоставляет вам неисключительную, непередаваемую лицензию на использование 
-   Программного обеспечения для ваших бизнес-операций и внутренних целей.
+TERMS AND CONDITIONS:
 
-2. РАЗРЕШЕННОЕ ИСПОЛЬЗОВАНИЕ
-   Вы можете:
-   - Использовать Программное обеспечение для ваших бизнес-операций
-   - Устанавливать и запускать Программное обеспечение на ваших системах
-   - Использовать Программное обеспечение для предоставления услуг вашим клиентам
-   - Интегрировать Программное обеспечение в ваши бизнес-процессы
+1. GRANT OF LICENSE
+   Subject to the terms of this License, Alexander Viktorovich Tarabanov
+   grants you a non-exclusive, non-transferable license to use the Software
+   for your business operations and internal purposes.
 
-3. ОГРАНИЧЕНИЯ
-   Вы НЕ можете:
-   - Перепродавать, перераспределять или сублицензировать Программное обеспечение третьим лицам
-   - Дарить, передавать или предоставлять Программное обеспечение третьим лицам
-   - Модифицировать, адаптировать или создавать производные работы без явного разрешения
-   - Обратно инжинирить, декомпилировать или дизассемблировать Программное обеспечение
-   - Удалять или изменять любые уведомления об авторских правах
-   - Использовать Программное обеспечение в образовательных учреждениях без разрешения
+2. PERMITTED USE
+   You may:
+   - Use the Software for your business operations
+   - Install and run the Software on your systems
+   - Use the Software to provide services to your clients
+   - Integrate the Software into your business processes
 
-4. КОММЕРЧЕСКАЯ ПЕРЕПРОДАЖА И МОДИФИКАЦИИ
-   Коммерческая перепродажа, распространение или модификации данного Программного 
-   обеспечения требуют явного письменного разрешения от Тарабанова Александра 
-   Викторовича (info@hb3-accelerator.com).
+3. RESTRICTIONS
+   You may NOT:
+   - Resell, redistribute, or sublicense the Software to third parties
+   - Give, transfer, or provide the Software to third parties
+   - Modify, adapt, or create derivative works without express permission
+   - Reverse engineer, decompile, or disassemble the Software
+   - Remove or alter any copyright notices
+   - Use the Software in educational institutions without permission
 
-5. ОБНОВЛЕНИЯ И МОДИФИКАЦИИ
-   Любые обновления, модификации или производные работы требуют явного письменного 
-   разрешения от правообладателя.
+4. COMMERCIAL RESALE AND MODIFICATIONS
+   Commercial resale, distribution, or modification of this Software requires
+   express written permission from Alexander Viktorovich Tarabanov
+   (info@hb3-accelerator.com).
 
-6. ПРЕКРАЩЕНИЕ ДЕЙСТВИЯ
-   Данная лицензия автоматически прекращает действие при нарушении ее условий.
+5. UPDATES AND MODIFICATIONS
+   Any updates, modifications, or derivative works require express written
+   permission from the copyright holder.
 
-7. ОТКАЗ ОТ ГАРАНТИЙ
-   ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ ПРЕДОСТАВЛЯЕТСЯ "КАК ЕСТЬ", БЕЗ КАКИХ-ЛИБО ГАРАНТИЙ.
+6. TERMINATION
+   This license automatically terminates upon breach of its terms.
 
-По вопросам лицензирования: info@hb3-accelerator.com
-Веб-сайт: https://hb3-accelerator.com
+7. DISCLAIMER OF WARRANTIES
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT ANY WARRANTIES.
+
+Licensing inquiries: info@hb3-accelerator.com
+Website: https://hb3-accelerator.com
 GitHub: https://github.com/VC-HB3-Accelerator
 
-Подробная информация о лицензии: legal/README.md
+For full license details: legal.en/README.md (or legal.ru/README.md)
 
-## 🔐 ЦИФРОВАЯ ПОДПИСЬ
+## 🔐 DIGITAL SIGNATURE
 
-Данный файл подписан цифровой подписью для защиты авторских прав.
+This file is signed with a digital signature for copyright protection.
 
-**Проверка подписи:**
+**Verify signature:**
 ```bash
 gpg --verify LICENSE.asc LICENSE
 ```
 
 **GPG Key ID:** 4603583F81054FEECE7E821E026FD26F71D70B17
-**Дата подписи:** 2024-10-24
-**Автор:** Тарабанов Александр Викторович 
+**Signature date:** 2024-10-24
+**Author:** Alexander Viktorovich Tarabanov
