@@ -13,7 +13,12 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const { initDbPool, getQuery } = require('../db');
+
+// URL бэкенда для запроса статей (тот же контейнер)
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 // Конфигурация
 // В Docker используем имя контейнера, локально - localhost
@@ -41,11 +46,12 @@ function ensureDir(dir) {
 async function waitForContent(page, selector, timeout = TIMEOUT) {
   try {
     await page.waitForSelector(selector, { timeout });
-    // Дополнительная задержка для полной загрузки контента
-    // Используем setTimeout вместо устаревшего waitForTimeout
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Дополнительная задержка для полной загрузки контента и рендера (API + Vue)
+    await new Promise(resolve => setTimeout(resolve, 5000));
   } catch (error) {
     console.warn(`[pre-render] Селектор ${selector} не найден, продолжаем...`);
+    // Всё равно даём время на подгрузку (API может быть медленнее)
+    await new Promise(resolve => setTimeout(resolve, 5000));
   }
 }
 
@@ -67,16 +73,38 @@ async function renderPage(browser, url, options = {}) {
     page.setDefaultNavigationTimeout(TIMEOUT);
     page.setDefaultTimeout(TIMEOUT);
     
+    // Для статей: ждём ответ API /api/pages/blog/ перед снимком
+    let waitApiPromise = null;
+    if (options.waitForApiPattern) {
+      waitApiPromise = page.waitForResponse(
+        (response) => {
+          const ok = response.url().includes(options.waitForApiPattern) && response.status() === 200;
+          if (ok) console.log(`[pre-render] Получен ответ API: ${response.url().split('?')[0]}`);
+          return ok;
+        },
+        { timeout: TIMEOUT }
+      ).catch((err) => {
+        console.warn('[pre-render] Ожидание API истекло или ошибка:', err.message);
+        return null;
+      });
+    }
+    
     // Переходим на страницу
     console.log(`[pre-render] Загрузка: ${url}`);
     await page.goto(url, { 
-      waitUntil: 'networkidle2',
+      waitUntil: 'domcontentloaded',
       timeout: TIMEOUT 
     });
     
-    // Ждем загрузки контента
+    // Дождаться ответа API (если задано), затем дать время на рендер Vue
+    if (waitApiPromise) {
+      await waitApiPromise;
+      await new Promise(resolve => setTimeout(resolve, 6000));
+    }
+    
+    // Ждем появления контента по селектору (долгая пауза на случай медленного API)
     if (options.waitForSelector) {
-      await waitForContent(page, options.waitForSelector);
+      await waitForContent(page, options.waitForSelector, 45000);
     }
     
     // Получаем HTML
@@ -124,6 +152,84 @@ function optimizeHtml(html, url) {
   optimized = optimized.replace(/console\.(log|warn|error)\([^)]*\)/gi, '');
   
   return optimized;
+}
+
+/**
+ * Экранирует HTML для безопасной вставки в текст/атрибуты
+ */
+function escapeHtml(s) {
+  if (s == null) return '';
+  const str = String(s);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Загружает статью по slug через API бэкенда (без браузера).
+ * Используется для SSG: один источник данных, стабильный результат в Docker.
+ */
+function fetchArticleFromApi(slug) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`/api/pages/blog/${encodeURIComponent(slug)}`, BACKEND_API_URL);
+    const mod = url.protocol === 'https:' ? https : http;
+    const req = mod.request(url, { method: 'GET', timeout: 15000 }, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`API вернул ${res.statusCode}`));
+        return;
+      }
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        try {
+          const body = Buffer.concat(chunks).toString('utf8');
+          resolve(JSON.parse(body));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+    req.end();
+  });
+}
+
+/**
+ * Собирает HTML страницы статьи из данных API (SSG без Puppeteer).
+ */
+function buildArticleHtml(article, baseUrl) {
+  const canonical = `${baseUrl}/blog/${encodeURIComponent(article.slug || '')}`;
+  const title = article.title ? escapeHtml(article.title) : 'Статья';
+  const description = article.summary ? escapeHtml(article.summary) : title;
+  const content = article.content != null ? String(article.content) : '';
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <meta name="description" content="${description}">
+  <link rel="canonical" href="${canonical}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:url" content="${canonical}">
+  <meta property="og:type" content="article">
+  <meta name="robots" content="index, follow">
+</head>
+<body>
+  <article class="docs-content">
+    <header class="page-header">
+      <h1 class="page-title">${title}</h1>
+      ${article.summary ? `<p class="page-summary">${escapeHtml(article.summary)}</p>` : ''}
+    </header>
+    <div class="page-content">${content}</div>
+  </article>
+</body>
+</html>`;
 }
 
 /**
@@ -205,6 +311,19 @@ async function preRenderBlog(options = {}) {
   
   // Создаем директорию для вывода
   ensureDir(OUTPUT_DIR);
+  // Временно убираем старые .html статей, чтобы nginx отдавал SPA (index.html), а не пустой пререндер
+  try {
+    const entries = fs.readdirSync(OUTPUT_DIR);
+    for (const name of entries) {
+      if (name !== 'index.html' && name.endsWith('.html')) {
+        const p = path.join(OUTPUT_DIR, name);
+        fs.renameSync(p, p + '.bak');
+        console.log(`[pre-render] Временно переименован: ${name} -> ${name}.bak`);
+      }
+    }
+  } catch (e) {
+    console.warn('[pre-render] Не удалось переименовать старые файлы:', e.message);
+  }
   
   // Инициализируем браузер
   let browser;
@@ -252,27 +371,35 @@ async function preRenderBlog(options = {}) {
         articlesToRender = articles;
       }
       
+      const publicBaseUrl = process.env.PUBLIC_SITE_URL || (BASE_URL.startsWith('https') ? BASE_URL : 'https://hb3-accelerator.com');
       for (const article of articlesToRender) {
         try {
-          // Проверяем, что slug валидный
           if (!article.slug || typeof article.slug !== 'string' || article.slug.trim() === '') {
             console.warn(`[pre-render] Пропущена статья с невалидным slug: ${article.id}`);
             continue;
           }
-          
           const sanitizedSlug = sanitizeSlug(article.slug);
           console.log(`[pre-render] Рендеринг статьи: ${sanitizedSlug} (${article.title})`);
-          
-          const articleHtml = await renderPage(browser, `${BASE_URL}/blog/${encodeURIComponent(article.slug)}`, {
-            waitForSelector: '.docs-content, .article-view'
-          });
-          
-          // Сохраняем в файл с именем slug (используем sanitized slug для безопасности)
-          const filePath = path.join(OUTPUT_DIR, `${sanitizedSlug}.html`);
-          saveHtml(articleHtml, filePath);
+          let articleHtml = null;
+          try {
+            const data = await fetchArticleFromApi(article.slug);
+            articleHtml = buildArticleHtml(data, publicBaseUrl);
+            console.log(`[pre-render] Статья получена через API (SSG)`);
+          } catch (apiErr) {
+            console.warn(`[pre-render] API недоступен (${apiErr.message}), пробуем через браузер...`);
+            if (browser) {
+              articleHtml = await renderPage(browser, `${BASE_URL}/blog/${encodeURIComponent(article.slug)}`, {
+                waitForApiPattern: '/api/pages/blog/',
+                waitForSelector: '.docs-content .page-header, .page-header'
+              });
+            }
+          }
+          if (articleHtml) {
+            const filePath = path.join(OUTPUT_DIR, `${sanitizedSlug}.html`);
+            saveHtml(articleHtml, filePath);
+          }
         } catch (error) {
           console.error(`[pre-render] Ошибка при рендеринге статьи ${article.slug}:`, error.message);
-          // Продолжаем с другими статьями
         }
       }
     }

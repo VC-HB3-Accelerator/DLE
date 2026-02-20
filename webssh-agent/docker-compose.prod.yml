@@ -128,6 +128,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+      - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl:ro
       # Доступ к Docker socket для управления контейнерами на VDS
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -246,6 +247,8 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       # Webroot для certbot
       - /var/www/certbot:/var/www/certbot
+      # Pre-rendered blog (SEO: полный HTML для статей, без «ложной 404»)
+      - ./frontend/dist/blog:/usr/share/nginx/html/blog:ro
     depends_on:
       - backend
       - frontend

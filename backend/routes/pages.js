@@ -2118,7 +2118,9 @@ router.get('/public/robots.txt', async (req, res) => {
     const robotsContent = `User-agent: *
 Allow: /
 Allow: /blog
+Allow: /blog/
 Allow: /content/published
+Allow: /content/published/
 Disallow: /api/
 Disallow: /ws
 Disallow: /admin/
