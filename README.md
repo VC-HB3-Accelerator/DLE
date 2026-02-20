@@ -1,3 +1,7 @@
+**English** | [Русский](README.ru.md)
+
+---
+
 # Digital Legal Entity (DLE) — Application Template
 
 ## Product definition
@@ -86,5 +90,3 @@ docker-compose down
 - **Support:** https://hb3-accelerator.com/
 
 ---
-
-**Russian documentation:** [README.ru.md](README.ru.md) | [docs.ru](docs.ru/) (incl. [FAQ](docs.ru/FAQ.md))

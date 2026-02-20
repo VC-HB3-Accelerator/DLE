@@ -1,3 +1,7 @@
+[English](README.md) | **Русский**
+
+---
+
 # Digital Legal Entity (DLE) — шаблон приложения
 
 ## Определение продукта
