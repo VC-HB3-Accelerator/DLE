@@ -209,7 +209,7 @@ Digital Legal Entity addresses fundamental business problems:
 
 ### Get Started
 
-1. [Read the FAQ](../FAQ.md) — answers to common questions
+1. [Read the FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) — answers to common questions
 2. [Install DLE](./back-docs/setup-instruction.md) — step-by-step guide
 3. [Configure blockchain](./back-docs/blockchain-integration-technical.md) — technical documentation
 4. [Get support](https://hb3-accelerator.com/) — we can help!
@@ -218,7 +218,7 @@ Digital Legal Entity addresses fundamental business problems:
 
 ## Additional Resources
 
-- [FAQ](../FAQ.md)
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
 - [Installation](./back-docs/setup-instruction.md)
 - [Blockchain technical documentation](./back-docs/blockchain-integration-technical.md)
 - [Terms of Service](./service-terms.md)

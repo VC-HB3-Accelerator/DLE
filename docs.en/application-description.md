@@ -180,7 +180,7 @@ More: [Terms of Purchase and Service](./service-terms.md)
 - [Blockchain for Business](./blockchain-for-business.md) — asset tokenization, use cases
 - [Security](./security.md) — multi-layer protection, compliance
 - [Terms of Service](./service-terms.md) — licensing, support, warranties
-- [FAQ](./FAQ.md) — frequently asked questions
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) — frequently asked questions
 
 **General:**
 - [Main page](../README.md)

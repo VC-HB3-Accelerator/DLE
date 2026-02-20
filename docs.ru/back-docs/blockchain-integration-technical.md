@@ -1032,7 +1032,7 @@ function vote(uint256 _proposalId, bool _support) external {
 ### Дополнительные ресурсы
 
 - 📖 [Основной README](../../README.md)
-- 📋 [FAQ](../FAQ.md)
+- 📋 [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)
 - 🔧 [Инструкция по установке](./setup-instruction.md)
 - 📝 [Условия обслуживания](../service-terms.md)
 - ⚖️ [Юридическая документация](../../legal.ru/README.md)

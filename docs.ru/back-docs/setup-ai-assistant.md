@@ -744,7 +744,7 @@ docker-compose logs ollama
 
 - 🛡️ **[Безопасность](../security.md)** - как AI защищает ваши данные
 - 💼 **[Блокчейн для бизнеса](../blockchain-for-business.md)** - интеграция AI с блокчейном
-- 📋 **[FAQ](../FAQ.md)** - часто задаваемые вопросы
+- 📋 **[FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)** — часто задаваемые вопросы
 
 ### Поддержка
 

@@ -334,7 +334,7 @@ Licenses are sold **only through companies** with official written authorization
 - [AI Agents](./ai-assistant.md) — specialized agent system
 - [Blockchain for Business](./blockchain-for-business.md) — digital asset registration and business use cases
 - [DLE Security](./security.md) — multi-layer protection
-- [FAQ](./FAQ.md) — frequently asked questions
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) — frequently asked questions
 
 ---
 

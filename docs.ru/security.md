@@ -1301,7 +1301,7 @@ function signMessage(message) {
 
 1. [Изучите техническую документацию](./back-docs/blockchain-integration-technical.md)
 2. [Настройте безопасное окружение](./back-docs/setup-instruction.md)
-3. [Прочитайте FAQ](../FAQ.md)
+3. [Прочитайте FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)
 4. [Получите поддержку](https://hb3-accelerator.com/)
 ---
 

@@ -27,7 +27,7 @@
 | [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Business case and use cases for blockchain in DLE. |
 | [security.md](docs.en/security.md) | Security model, access control, and safeguards. |
 | [service-terms.md](docs.en/service-terms.md) | Terms of purchase and service for the license. |
-| [FAQ.md](docs.en/FAQ.md) | Frequently asked questions. |
+| [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) | Frequently asked questions. |
 
 ### Technical and backend docs
 

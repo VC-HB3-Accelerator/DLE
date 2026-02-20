@@ -189,7 +189,7 @@
 
 ### Техническая информация
 - 🔗 **[Техническая документация по блокчейну](./blockchain-integration-technical.md)** - для разработчиков
-- 📋 **[FAQ](../FAQ.md)** - часто задаваемые вопросы
+- 📋 **[FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)** — часто задаваемые вопросы
 - 📝 **[Описание приложения](../application-description.md)** - обзор функциональности
 
 ### Поддержка

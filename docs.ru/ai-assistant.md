@@ -355,7 +355,7 @@ DLE:
 - [Архитектура множественных ИИ-агентов](./back-docs/multi-agent-architecture.md) — детальная техническая спецификация
 - [Настройка AI-ассистента](./back-docs/setup-ai-assistant.md) — пошаговая инструкция по развёртыванию
 - [Система электронных таблиц](./back-docs/tables-system.md) — как устроены RAG-таблицы
-- [FAQ](./FAQ.md) — частые вопросы
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md) — частые вопросы
 
 ---
 
@@ -363,7 +363,7 @@ DLE:
 
 - **Email**: info@hb3-accelerator.com
 - **Чат**: https://hb3-accelerator.com
-- **Документация**: [FAQ](./FAQ.md)
+- **Документация**: [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)
 
 ---
 

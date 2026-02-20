@@ -183,7 +183,7 @@ DLE provides multi-layer protection: blockchain (tokens not stealable), audited 
 
 1. [Technical documentation](./back-docs/blockchain-integration-technical.md)
 2. [Secure setup](./back-docs/setup-instruction.md)
-3. [FAQ](../FAQ.md)
+3. [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
 4. [Support](https://hb3-accelerator.com/)
 
 ---

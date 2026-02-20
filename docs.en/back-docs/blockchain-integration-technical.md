@@ -151,7 +151,7 @@ Blockchain in DLE provides: governance like a JSC, full transparency, multichain
 ### Resources
 
 - [Main README](../../README.md)
-- [FAQ](../FAQ.md)
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
 - [Setup](./setup-instruction.md)
 - [Terms](../service-terms.md)
 - [Legal](../../legal.en/README.md)

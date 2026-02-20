@@ -171,7 +171,7 @@ Typical SaaS stack (CRM, chatbot, email, AI API): ~$39,000 over 5 years. DLE: $1
 - [Multi-agent architecture](./back-docs/multi-agent-architecture.md) — technical spec
 - [AI assistant setup](./back-docs/setup-ai-assistant.md) — deployment steps
 - [Tables system](./back-docs/tables-system.md) — RAG tables
-- [FAQ](./FAQ.md)
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
 
 ---
 
@@ -179,7 +179,7 @@ Typical SaaS stack (CRM, chatbot, email, AI API): ~$39,000 over 5 years. DLE: $1
 
 - **Email:** info@hb3-accelerator.com
 - **Chat:** https://hb3-accelerator.com
-- **Docs:** [FAQ](./FAQ.md)
+- **Docs:** [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
 
 ---
 

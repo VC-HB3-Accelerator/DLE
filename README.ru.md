@@ -28,12 +28,12 @@
 | [blockchain-for-business.md](docs.ru/blockchain-for-business.md) | Бизнес-обоснование и кейсы использования блокчейна в DLE. |
 | [security.md](docs.ru/security.md) | Модель безопасности, контроль доступа и защитные механизмы. |
 | [service-terms.md](docs.ru/service-terms.md) | Подробные условия приобретения и обслуживания лицензии. |
-| [FAQ.md](docs.ru/FAQ.md) | Часто задаваемые вопросы. |
+| [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md) | Часто задаваемые вопросы. |
 
 ### Смежные материалы
 
 - [Юридические документы](legal.ru/README.md) — лицензия, авторские права, требования к атрибуции
-- [Документация на английском](README.md) — [docs.en](docs.en/) (в т.ч. [FAQ](docs.en/FAQ.md))
+- [Документация на английском](README.md) — [docs.en](docs.en/) (в т.ч. [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md))
 
 
 ## Полный шаблон приложения Digital Legal Entity для развертывания на собственной инфраструктуре.
