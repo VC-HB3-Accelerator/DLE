@@ -149,6 +149,7 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # FRONTEND_URL настраивается в коде, не через env
       - VECTOR_SEARCH_URL=http://vector-search:8001
       - LOG_LEVEL=${LOG_LEVEL:-warn}

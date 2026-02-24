@@ -34,7 +34,7 @@ class AIConfigService {
     this.defaults = {
       ollama_base_url: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
       ollama_llm_model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
-      ollama_embedding_model: process.env.OLLAMA_EMBED_MODEL || 'mxbai-embed-large:latest',
+      ollama_embedding_model: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest',
       vector_search_url: process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001',
       embedding_parameters: {
         batch_size: 32,

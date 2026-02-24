@@ -44,7 +44,7 @@ async function _updateSyncCache() {
     syncCache = {
       baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
       defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
-      embeddingModel: process.env.OLLAMA_EMBED_MODEL || 'mxbai-embed-large:latest'
+      embeddingModel: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest'
     };
   }
 }
@@ -69,7 +69,7 @@ function _getFromSyncCache(key) {
   const defaults = {
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
     defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
-    embeddingModel: process.env.OLLAMA_EMBED_MODEL || 'mxbai-embed-large:latest'
+    embeddingModel: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest'
   };
   
   return defaults[key] || defaults.baseUrl;
