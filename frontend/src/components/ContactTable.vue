@@ -26,7 +26,7 @@
       <el-button v-if="canEditData" type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
-    <el-form :inline="true" class="filters-form" label-position="top">
+    <el-form v-if="isEditorRole" :inline="true" class="filters-form" label-position="top">
       <el-form-item label="Поиск">
         <el-input v-model="filterSearch" placeholder="Поиск по имени, email, telegram, кошельку" clearable @input="onAnyFilterChange" />
       </el-form-item>
@@ -204,29 +204,64 @@ const hasSelectedEditor = computed(() => {
   });
 });
 
-// Фильтрация контактов для USER - видит только editor админов и себя
+// Фильтры формы доступны только для роли editor
+const isEditorRole = computed(() => userAccessLevel.value?.level === 'editor');
+
+// Фильтрация контактов: по роли (user/readonly/editor), для editor — дополнительно по форме фильтров
 const filteredContacts = computed(() => {
-  console.log('[ContactTable] 🔍 Фильтрация контактов:');
-  console.log('[ContactTable] userAccessLevel:', userAccessLevel.value);
-  console.log('[ContactTable] userId:', userId.value);
-  console.log('[ContactTable] Все контакты:', contactsArray.value);
-  
+  let list;
   if (userAccessLevel.value?.level === 'user') {
     // USER видит только editor админов и себя
-    const filtered = contactsArray.value.filter(contact => {
-      const isEditor = contact.role === 'editor';  // Используем role вместо contact_type
+    list = contactsArray.value.filter(contact => {
+      const isEditor = contact.role === 'editor';
       const isSelf = contact.id === userId.value;
-      console.log(`[ContactTable] Контакт ${contact.id}: role=${contact.role}, contact_type=${contact.contact_type}, isEditor=${isEditor}, isSelf=${isSelf}`);
-      console.log(`[ContactTable] Полный объект контакта:`, contact);
       return isEditor || isSelf;
     });
-    console.log('[ContactTable] Отфильтрованные контакты:', filtered);
-    return filtered;
+  } else {
+    // READONLY и EDITOR видят всех
+    list = [...contactsArray.value];
   }
-  
-  // READONLY и EDITOR видят всех
-  console.log('[ContactTable] Показываем всех (не user роль)');
-  return contactsArray.value;
+
+  // Фильтры формы применяем только для роли editor
+  if (!isEditorRole.value) return list;
+
+  return list.filter(contact => {
+    if (filterSearch.value) {
+      const q = filterSearch.value.toLowerCase();
+      const name = (contact.name || '').toLowerCase();
+      const email = (contact.email || '').toLowerCase();
+      const telegram = (contact.telegram || '').toLowerCase();
+      const wallet = (contact.wallet || '').toLowerCase();
+      if (!name.includes(q) && !email.includes(q) && !telegram.includes(q) && !wallet.includes(q)) return false;
+    }
+    if (filterContactType.value && filterContactType.value !== 'all') {
+      const ct = (contact.contact_type || '').toLowerCase();
+      if (ct !== filterContactType.value) return false;
+    }
+    if (filterDateFrom.value) {
+      const created = contact.created_at ? new Date(contact.created_at) : null;
+      const from = new Date(filterDateFrom.value);
+      from.setHours(0, 0, 0, 0);
+      if (!created || created < from) return false;
+    }
+    if (filterDateTo.value) {
+      const created = contact.created_at ? new Date(contact.created_at) : null;
+      const to = new Date(filterDateTo.value);
+      to.setHours(23, 59, 59, 999);
+      if (!created || created > to) return false;
+    }
+    if (filterNewMessages.value === 'yes') {
+      if (!newMsgUserIds.value.includes(String(contact.id))) return false;
+    }
+    if (filterBlocked.value === 'blocked' && !contact.is_blocked) return false;
+    if (filterBlocked.value === 'unblocked' && contact.is_blocked) return false;
+    if (selectedTagIds.value.length > 0) {
+      const contactTagIds = contact.tag_ids || (contact.tags || []).map(t => t.id || t);
+      const hasMatch = selectedTagIds.value.some(tid => contactTagIds.includes(tid));
+      if (!hasMatch) return false;
+    }
+    return true;
+  });
 });
 
 // WebSocket для тегов - ОТКЛЮЧАЕМ из-за циклических запросов

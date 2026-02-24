@@ -62,7 +62,8 @@ services:
       - OLLAMA_NUM_GPU=0
       - OLLAMA_KEEP_ALIVE=86400
       - OLLAMA_MODEL_TIMEOUT=0
-      - OLLAMA_MAX_LOADED_MODELS=2
+      # 1 модель в RAM: при 2 моделях free≈4.1 GiB, qwen2.5:7b нужно 4.5 GiB → Load failed
+      - OLLAMA_MAX_LOADED_MODELS=1
       - OLLAMA_FLASH_ATTENTION=0
       - OLLAMA_LLM_LIBRARY=auto
     healthcheck:
@@ -108,6 +109,9 @@ services:
 
   backend:
     image: digital_legal_entitydle-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: dapp-backend
     restart: unless-stopped
     networks:
@@ -174,6 +178,9 @@ services:
 
   frontend:
     image: digital_legal_entitydle-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: dapp-frontend
     restart: unless-stopped
     networks:
@@ -229,6 +236,9 @@ services:
   # Nginx с автоматическим SSL и поддержкой WebSocket
   frontend-nginx:
     image: digital_legal_entitydle-frontend-nginx:latest
+    build:
+      context: ./frontend
+      dockerfile: nginx.Dockerfile
     container_name: dapp-frontend-nginx
     restart: unless-stopped
     networks:
