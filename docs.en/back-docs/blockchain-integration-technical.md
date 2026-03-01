@@ -160,6 +160,6 @@ Blockchain in DLE provides: governance like a JSC, full transparency, multichain
 
 ---
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
-**Last updated:** October 2025
+**Last updated:** February 2026

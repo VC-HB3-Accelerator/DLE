@@ -1,6 +1,6 @@
 /**
  * Менеджер прокси настроек для RPC провайдеров
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  */
 
 const rpcProviderService = require('../services/rpcProviderService');

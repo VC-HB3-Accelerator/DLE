@@ -338,6 +338,6 @@ Licenses are sold **only through companies** with official written authorization
 
 ---
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
 **Last updated:** February 2026

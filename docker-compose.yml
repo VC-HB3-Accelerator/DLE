@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# Copyright (c) 2024-2026 Тарабанов Александр Викторович
 # All rights reserved.
 # This software is proprietary and confidential.
 # For licensing inquiries: info@hb3-accelerator.com
@@ -230,6 +230,43 @@ services:
   #   command: node /app/ssh-key-server.js
   #   # Порт намеренно не публикуется, без healthcheck
 
+  # Gitea — самохостируемый Git-сервис для репозиториев DLE (БД в том же postgres).
+  # Перед первым запуском: ./scripts/setup-gitea-db.sh
+  gitea:
+    image: gitea/gitea:1.24
+    container_name: dapp-gitea
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 9.9.9.9
+      - 8.8.8.8
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__ROOT_URL=http://localhost:3001/
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__security__X_FRAME_OPTIONS=
+      - GITEA__service__ENABLE_PASSKEY_AUTHENTICATION=false
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=postgres:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD=${GITEA_DB_PASSWORD:-gitea}
+    volumes:
+      - gitea_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3001:3000"   # Веб-интерфейс (3000 занят webssh-agent)
+
   # WebSSH Agent для настройки VDS
   webssh-agent:
     build:
@@ -270,5 +307,6 @@ volumes:
   postgres_data:
   ollama_data:
   vector_search_data:
+  gitea_data:
   frontend_node_modules:
   backend_node_modules:

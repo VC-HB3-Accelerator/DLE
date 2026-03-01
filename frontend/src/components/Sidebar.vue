@@ -1,5 +1,5 @@
 <!--
-  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
   
   This software is proprietary and confidential.
@@ -55,6 +55,9 @@
           </router-link>
           <router-link to="/settings" class="nav-link-btn" active-class="active">
             <span>Настройки</span>
+          </router-link>
+          <router-link to="/repos" class="nav-link-btn" active-class="active">
+            <span>Репозитории</span>
           </router-link>
         </div>
         
@@ -141,7 +144,7 @@
           <div class="copyright-info">
             <p class="copyright-text">
               <strong>Тарабанов Александр Викторович</strong><br>
-              2024-2025. Все права защищены.
+              2024-2026. Все права защищены.
             </p>
             <div class="copyright-links">
               <a href="https://github.com/VC-HB3-Accelerator" target="_blank" class="copyright-link" title="GitHub">

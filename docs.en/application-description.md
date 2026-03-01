@@ -190,6 +190,6 @@ More: [Terms of Purchase and Service](./service-terms.md)
 
 **Contacts:** info@hb3-accelerator.com · https://hb3-accelerator.com · [GitHub](https://github.com/VC-HB3-Accelerator)
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
 **Last updated:** 2026-02-19

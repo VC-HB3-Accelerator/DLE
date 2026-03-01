@@ -1,5 +1,5 @@
 <!--
-  Copyright (c) 2024-2025 Alexander Viktorovich Tarabanov
+  Copyright (c) 2024-2026 Alexander Viktorovich Tarabanov
   All rights reserved.
   
   This software is proprietary and confidential.

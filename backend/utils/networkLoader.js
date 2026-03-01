@@ -1,6 +1,6 @@
 /**
  * Утилита для загрузки поддерживаемых сетей из deploy_params
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  */
 
 const DeployParamsService = require('../services/deployParamsService');

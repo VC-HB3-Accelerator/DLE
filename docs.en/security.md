@@ -188,6 +188,6 @@ DLE provides multi-layer protection: blockchain (tokens not stealable), audited 
 
 ---
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
-**Last updated:** October 2025
+**Last updated:** February 2026

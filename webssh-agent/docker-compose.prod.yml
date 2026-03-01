@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# Copyright (c) 2024-2026 Тарабанов Александр Викторович
 # All rights reserved.
 # This software is proprietary and confidential.
 # For licensing inquiries: info@hb3-accelerator.com
@@ -235,6 +235,36 @@ services:
       -d ${DOMAIN}
     # 🆕 Убрана зависимость - certbot работает независимо через временный nginx или существующий
 
+  # Gitea — репозитории (доступ через nginx: https://${DOMAIN}/gitea/, SSH на порту 2222)
+  gitea:
+    image: gitea/gitea:1.24
+    container_name: dapp-gitea
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    ports:
+      - "2223:22"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__ROOT_URL=https://${DOMAIN}/gitea/
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__SSH_LISTEN_PORT=22
+      - GITEA__server__SSH_PORT=2223
+      - GITEA__server__DOMAIN=${DOMAIN:-185.221.214.140}
+      - GITEA__security__X_FRAME_OPTIONS=
+      - GITEA__service__ENABLE_PASSKEY_AUTHENTICATION=false
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=dapp-postgres:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD=${GITEA_DB_PASSWORD:-gitea}
+    volumes:
+      - gitea_data:/data
+
   # Nginx с автоматическим SSL и поддержкой WebSocket
   frontend-nginx:
     image: digital_legal_entitydle-frontend-nginx:latest
@@ -254,6 +284,10 @@ services:
       - EMAIL=${EMAIL}
       # 🆕 Переменные для WebSocket поддержки
       - WS_BACKEND_CONTAINER=dapp-backend
+    depends_on:
+      - backend
+      - frontend
+      - gitea
     volumes:
       # SSL сертификаты Let's Encrypt (автоматически обновляются)
       - /etc/letsencrypt:/etc/letsencrypt:ro
@@ -261,9 +295,6 @@ services:
       - /var/www/certbot:/var/www/certbot
       # Pre-rendered blog (SEO: полный HTML для статей, без «ложной 404»)
       - ./frontend/dist/blog:/usr/share/nginx/html/blog:ro
-    depends_on:
-      - backend
-      - frontend
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f https://127.0.0.1/health || curl -f http://127.0.0.1/health || exit 1"]
       interval: 30s
@@ -297,4 +328,5 @@ volumes:
   postgres_data:
   ollama_data:
   vector_search_data:
+  gitea_data:
   backend_node_modules:

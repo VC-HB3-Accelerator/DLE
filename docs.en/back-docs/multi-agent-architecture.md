@@ -113,6 +113,6 @@ Specialization, flexibility, isolation, scalability (one model, many agents), cl
 
 ---
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
 **Last updated:** January 2026

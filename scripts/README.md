@@ -1,5 +1,5 @@
 <!--
-  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
   
   This software is proprietary and confidential.
@@ -18,6 +18,7 @@
 
 - `migrate-app.sh` - Основной скрипт миграции приложения
 - `update-dns.sh` - Скрипт обновления DNS записей
+- `setup-gitea-db.sh` - Создание БД и пользователя для Gitea в PostgreSQL (один раз перед первым запуском Gitea)
 - `README.md` - Эта инструкция
 
 ## Что мигрируется
@@ -215,6 +216,15 @@ docker compose logs postgres
 # Создайте базу вручную
 docker compose exec postgres createdb -U dapp_user dapp_db
 ```
+
+### Gitea (PostgreSQL)
+Перед первым запуском Gitea создайте БД и пользователя в существующем Postgres:
+```bash
+chmod +x scripts/setup-gitea-db.sh
+./scripts/setup-gitea-db.sh
+docker compose up -d gitea
+```
+Пароль по умолчанию для пользователя `gitea`: `gitea`. Свой пароль задайте в `.env`: `GITEA_DB_PASSWORD=...` (и тот же в docker-compose для сервиса gitea уже подхватывается).
 
 ## Безопасность
 

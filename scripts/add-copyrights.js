@@ -22,7 +22,7 @@ function normalizeHeaderContent(content) {
 const copyrightHeaders = {
   // JavaScript/TypeScript файлы
   js: `/**
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  * 
  * This software is proprietary and confidential.
@@ -37,7 +37,7 @@ const copyrightHeaders = {
 
   // Vue файлы
   vue: `<!--
-  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
   
   This software is proprietary and confidential.
@@ -52,7 +52,7 @@ const copyrightHeaders = {
 
   // CSS/SCSS файлы
   css: `/*
- * Copyright (c) 2024-2025 Тарабанов Александр Викторович
+ * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  * 
  * This software is proprietary and confidential.
@@ -67,7 +67,7 @@ const copyrightHeaders = {
 
   // HTML файлы
   html: `<!--
-  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
   
   This software is proprietary and confidential.
@@ -82,7 +82,7 @@ const copyrightHeaders = {
 
   // Python файлы
   py: `"""
-Copyright (c) 2024-2025 Тарабанов Александр Викторович
+Copyright (c) 2024-2026 Тарабанов Александр Викторович
 All rights reserved.
 
 This software is proprietary and confidential.
@@ -97,7 +97,7 @@ GitHub: https://github.com/VC-HB3-Accelerator
 
   // Solidity файлы
   sol: `// SPDX-License-Identifier: PROPRIETARY
-// Copyright (c) 2024-2025 Тарабанов Александр Викторович
+// Copyright (c) 2024-2026 Тарабанов Александр Викторович
 // All rights reserved.
 //
 // This software is proprietary and confidential.
@@ -112,7 +112,7 @@ GitHub: https://github.com/VC-HB3-Accelerator
 
 
   // YAML файлы
-  yml: `# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  yml: `# Copyright (c) 2024-2026 Тарабанов Александр Викторович
 # All rights reserved.
 # 
 # This software is proprietary and confidential.
@@ -126,7 +126,7 @@ GitHub: https://github.com/VC-HB3-Accelerator
 
   // Markdown файлы
   md: `<!--
-  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
   
   This software is proprietary and confidential.
@@ -141,7 +141,7 @@ GitHub: https://github.com/VC-HB3-Accelerator
 
   // Shell скрипты
   sh: `#!/bin/bash
-# Copyright (c) 2024-2025 Тарабанов Александр Викторович
+# Copyright (c) 2024-2026 Тарабанов Александр Викторович
 # All rights reserved.
 # 
 # This software is proprietary and confidential.
@@ -222,8 +222,8 @@ function getFileExtension(filePath) {
 // Проверка, есть ли уже копирайт в файле
 function hasCopyright(content) {
   const copyrightKeywords = [
-    'Copyright (c) 2024-2025 Тарабанов Александр Викторович',
-    'Copyright (c) 2024-2025 Тарабанов',
+    'Copyright (c) 2024-2026 Тарабанов Александр Викторович',
+    'Copyright (c) 2024-2026 Тарабанов',
     'Тарабанов Александр Викторович'
   ];
   

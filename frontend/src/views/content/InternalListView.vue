@@ -1,5 +1,5 @@
 <!--
-  Copyright (c) 2024-2025 Тарабанов Александр Викторович
+  Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
   
   This software is proprietary and confidential.
@@ -11,7 +11,7 @@
 -->
 
 <!--
-  Copyright (c) 2024-2025
+  Copyright (c) 2024-2026
 -->
 <template>
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">

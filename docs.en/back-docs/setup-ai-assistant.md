@@ -127,6 +127,6 @@ Save.
 
 ---
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
-Version: 1.0.0 | Date: October 25, 2025
+Version: 1.0.0 | Date: February 28, 2026

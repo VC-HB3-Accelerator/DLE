@@ -183,6 +183,6 @@ Typical SaaS stack (CRM, chatbot, email, AI API): ~$39,000 over 5 years. DLE: $1
 
 ---
 
-**© 2024-2025 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
 
 **Last updated:** February 2026
