@@ -1,4 +1,4 @@
-**English** | [Русский](../../docs.ru/back-docs/setup-ai-assistant.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/back-docs/setup-ai-assistant.md)
 
 # AI Assistant Setup with Vector Search
 

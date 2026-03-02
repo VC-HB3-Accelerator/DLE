@@ -1,4 +1,4 @@
-[English](../legal.en/CONTRIBUTING.md) | **Русский**
+[English](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.en/CONTRIBUTING.md) | **Русский**
 
 # Руководство для контрибьюторов
 

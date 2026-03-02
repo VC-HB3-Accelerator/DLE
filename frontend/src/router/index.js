@@ -45,11 +45,6 @@ const routes = [
     component: () => import('../views/CrmView.vue'),
   },
   {
-    path: '/repos',
-    name: 'repos',
-    component: () => import('../views/GiteaIframeView.vue'),
-  },
-  {
     path: '/settings',
     name: 'settings',
     component: () => import('../views/SettingsView.vue'),

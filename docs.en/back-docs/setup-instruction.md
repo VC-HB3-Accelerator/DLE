@@ -10,7 +10,7 @@
   GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
-**English** | [Русский](../../docs.ru/back-docs/setup-instruction.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/back-docs/setup-instruction.md)
 
 # Digital Legal Entity — Application Setup Guide
 

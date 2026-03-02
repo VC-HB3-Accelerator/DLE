@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/blockchain-for-business.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/blockchain-for-business.md)
 
 # Blockchain Integration for Business: Solving Real Problems
 

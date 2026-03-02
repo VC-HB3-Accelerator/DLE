@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/application-description.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/application-description.md)
 
 # Digital Legal Entity (DLE) — Platform Description
 

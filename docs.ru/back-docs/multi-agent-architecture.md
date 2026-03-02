@@ -1,4 +1,4 @@
-[English](../../docs.en/back-docs/multi-agent-architecture.md) | **Русский**
+[English](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.en/back-docs/multi-agent-architecture.md) | **Русский**
 
 # 🏗️ Архитектура множественных ИИ-агентов в DLE
 

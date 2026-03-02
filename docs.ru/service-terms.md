@@ -1,4 +1,4 @@
-[English](../docs.en/service-terms.md) | **Русский**
+[English](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.en/service-terms.md) | **Русский**
 
 # Условия приобретения и обслуживания Digital Legal Entity
 

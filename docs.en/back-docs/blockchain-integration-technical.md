@@ -1,4 +1,4 @@
-**English** | [Русский](../../docs.ru/back-docs/blockchain-integration-technical.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/back-docs/blockchain-integration-technical.md)
 
 # Digital Legal Entity (DLE) Blockchain Integration
 

@@ -56,9 +56,15 @@
           <router-link to="/settings" class="nav-link-btn" active-class="active">
             <span>Настройки</span>
           </router-link>
-          <router-link to="/repos" class="nav-link-btn" active-class="active">
+          <a
+            :href="giteaUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="nav-link-btn"
+            @click="closeSidebar"
+          >
             <span>Репозитории</span>
-          </router-link>
+          </a>
         </div>
         
         <!-- Блок информации о пользователе или формы подключения -->
@@ -160,7 +166,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { defineProps, defineEmits, ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import eventBus from '../utils/eventBus';
 import EmailConnect from './identity/EmailConnect.vue';
@@ -182,6 +188,19 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth', 'cancel-email-auth']);
 
 const { deleteIdentity } = useAuthContext();
+
+// URL страницы репозитория Docs (readme): локально — порт 3001; на продакшене — /gitea/
+const giteaUrl = computed(() => {
+  if (typeof window === 'undefined') return '#';
+  const { hostname, protocol } = window.location;
+  const path = 'VC-HB3-Accelerator/Docs#readme';
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+  if (isLocal) {
+    const port = import.meta.env.VITE_GITEA_PORT || '3001';
+    return `${protocol}//${hostname}:${port}/${path}`;
+  }
+  return `${protocol}//${hostname}/gitea/${path}`;
+});
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {

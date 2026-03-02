@@ -1,4 +1,4 @@
-**English** | [Русский](../legal.ru/USAGE_NOTIFICATION.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/USAGE_NOTIFICATION.md)
 
 # Usage Notification Requirements
 

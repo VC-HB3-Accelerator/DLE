@@ -1,4 +1,4 @@
-[English](../legal.en/AUTHORS.md) | **Русский**
+[English](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.en/AUTHORS.md) | **Русский**
 
 # Авторы проекта DLE (Digital Legal Entity)
 

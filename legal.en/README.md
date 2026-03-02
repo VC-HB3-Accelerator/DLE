@@ -1,4 +1,4 @@
-**English** | [Русский](../legal.ru/README.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/README.md)
 
 # DLE Legal Documentation
 ## Project Intellectual Property Protection

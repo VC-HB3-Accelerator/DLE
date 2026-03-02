@@ -1,4 +1,4 @@
-**English** | [Русский](../legal.ru/ATTRIBUTION_REQUIREMENTS.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/ATTRIBUTION_REQUIREMENTS.md)
 
 # Attribution Requirements
 

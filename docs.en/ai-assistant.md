@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/ai-assistant.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/ai-assistant.md)
 
 # DLE AI Agents — Building Specialized Business Agents
 

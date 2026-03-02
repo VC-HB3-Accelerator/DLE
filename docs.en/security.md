@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/security.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/security.md)
 
 # Digital Legal Entity (DLE) Security
 
