@@ -2173,6 +2173,11 @@ router.get('/public/sitemap.xml', async (req, res) => {
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>${baseUrl}/gitea</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
 `;
     
     if (existsRes.rows[0].exists) {
@@ -2229,7 +2234,7 @@ router.get('/public/sitemap.xml', async (req, res) => {
     
     sitemap += `</urlset>`;
     
-    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Type', 'application/xml; charset=UTF-8');
     res.send(sitemap);
   } catch (error) {
     console.error('Ошибка генерации sitemap.xml:', error);
