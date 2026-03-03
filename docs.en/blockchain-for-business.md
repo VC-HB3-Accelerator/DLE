@@ -6,13 +6,14 @@
 
 1. [Introduction: Why Business Needs Blockchain](#introduction-why-business-needs-blockchain)
 2. [Smart Contract as Universal Identifier](#smart-contract-as-universal-identifier)
-3. [Asset Tokenization](#asset-tokenization)
-4. [Solving Governance Problems](#solving-governance-problems)
-5. [Financial Operations Without Banks](#financial-operations-without-banks)
-6. [Transparency and Trust](#transparency-and-trust)
-7. [Automation and Cost Reduction](#automation-and-cost-reduction)
-8. [Practical Use Cases](#practical-use-cases)
-9. [Economic Impact](#economic-impact)
+3. [Examples of DLE Smart Contracts](#examples-of-dle-smart-contracts)
+4. [Asset Tokenization](#asset-tokenization)
+5. [Solving Governance Problems](#solving-governance-problems)
+6. [Financial Operations Without Banks](#financial-operations-without-banks)
+7. [Transparency and Trust](#transparency-and-trust)
+8. [Automation and Cost Reduction](#automation-and-cost-reduction)
+9. [Practical Use Cases](#practical-use-cases)
+10. [Economic Impact](#economic-impact)
 
 ---
 
@@ -53,6 +54,22 @@ In traditional business, a company has many identifiers: Tax ID/EIN, bank accoun
 - **Tax identifier:** one address in all countries; link to Tax ID/EIN/VAT stored in contract; instant verification, impossible to forge.
 - **Bank account:** address accepts USDT, USDC, ETH, any ERC20; fees 50-100x lower; transactions in 30 seconds; 24/7 operation.
 - **Communications:** contract address = message address; cryptographic signatures; omnichannel integration (blockchain, Telegram, email, web).
+
+---
+
+## Examples of DLE Smart Contracts
+
+Below are real examples of DLE contracts and interfaces on the Sepolia testnet (Ethereum).
+
+| Purpose | Description | Link |
+|---------|-------------|------|
+| **DApp for management** | Web interface for DLE management: proposals, voting, treasury, members | [DLE Management](https://xn--80aqc0am6d.xn--p1ai/management) |
+| **DLE contract — Multichain Governance abstraction** | Same contract (ERC-20) `0xdD27...29386` — single DLE identity across three Sepolia networks | [Sepolia (Ethereum)](https://sepolia.etherscan.io/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) · [Sepolia (Arbitrum)](https://sepolia.arbiscan.io/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) · [Sepolia (Base)](https://sepolia.basescan.org/address/0xdD27a91692da59d1Ee7dD1Fb342B9f1B5FF29386) |
+| **DLE contract — Governance** | Full-featured DLE: create proposals, vote, execute (Create Proposal, Vote, Execute) | [Sepolia: 0x8e96DdB110aa1C55A4b9ded8c16E66Fbdb5E63E1](https://sepolia.etherscan.io/address/0x8e96DdB110aa1C55A4b9ded8c16E66Fbdb5E63E1) |
+
+- **Management:** on the [management page](https://xn--80aqc0am6d.xn--p1ai/management) you can create proposals, vote, and execute decisions via a connected wallet.
+- **DLE contract — Multichain Governance abstraction:** contract `0xdD27...29386` is deployed on three Sepolia networks (Ethereum, Arbitrum, Base) — one address, one DLE identity across multiple blockchains.
+- **DLE contract — Governance:** contract `0x8e96...E63E1` is a verified DLE contract (Solidity); the transaction feed shows Create Proposal, Vote, Execute Proposal calls.
 
 ---
 
