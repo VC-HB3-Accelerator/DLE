@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -220,6 +220,23 @@ const relatedArticles = ref([]);
 
 // Определяем, это страница блога
 const isBlogPage = computed(() => route.path.startsWith('/blog'));
+const isPublishedPage = computed(() => route.path.startsWith('/content/published'));
+const shouldManageNoindex = computed(() => isBlogPage.value || isPublishedPage.value);
+
+function setRobotsMeta(content = 'index, follow') {
+  let robotsMeta = document.querySelector('meta[name="robots"]');
+  if (!robotsMeta) {
+    robotsMeta = document.createElement('meta');
+    robotsMeta.setAttribute('name', 'robots');
+    document.head.appendChild(robotsMeta);
+  }
+  // Не выставляем noindex вне документных маршрутов, чтобы не блокировать индексацию главной.
+  if (content.startsWith('noindex') && !shouldManageNoindex.value) {
+    robotsMeta.setAttribute('content', 'index, follow');
+    return;
+  }
+  robotsMeta.setAttribute('content', content);
+}
 
 // Установка мета-тегов для SEO
 function updateMetaTags(pageData) {
@@ -240,22 +257,21 @@ function updateMetaTags(pageData) {
   const description = seoData?.description || pageData.summary || '';
   const keywords = seoData?.keywords || '';
   
-  // Определяем canonical URL в зависимости от текущего маршрута и наличия slug
+  // Определяем canonical URL только по slug (без fallback на ?page=, чтобы исключить дубли)
   const currentPath = window.location.pathname;
   let canonicalUrl;
   if (currentPath.startsWith('/blog')) {
-    // Используем slug если есть, иначе fallback на query параметр
-    if (pageData.slug && typeof pageData.slug === 'string' && pageData.slug.trim() !== '') {
-      canonicalUrl = `${window.location.origin}/blog/${encodeURIComponent(pageData.slug)}`;
-    } else if (pageData.id) {
-      canonicalUrl = `${window.location.origin}/blog?page=${pageData.id}`;
-    } else {
-      canonicalUrl = `${window.location.origin}/blog`;
+    if (!pageData.slug || typeof pageData.slug !== 'string' || pageData.slug.trim() === '') {
+      setRobotsMeta('noindex, follow');
+      return;
     }
+    canonicalUrl = `${window.location.origin}/blog/${encodeURIComponent(pageData.slug.trim())}`;
   } else {
-    canonicalUrl = pageData.id 
-      ? `${window.location.origin}/content/published?page=${pageData.id}`
-      : `${window.location.origin}/content/published`;
+    if (!pageData.slug || typeof pageData.slug !== 'string' || pageData.slug.trim() === '') {
+      setRobotsMeta('noindex, follow');
+      return;
+    }
+    canonicalUrl = `${window.location.origin}/content/published/${encodeURIComponent(pageData.slug.trim())}`;
   }
   
   // Обновляем title
@@ -297,7 +313,7 @@ function updateMetaTags(pageData) {
   updateOrCreateMeta('og:url', canonicalUrl, 'property');
   
   // Robots meta
-  updateOrCreateMeta('robots', 'index, follow');
+  setRobotsMeta('index, follow');
   
   // Добавляем JSON-LD разметку для статьи
   addArticleJsonLd(pageData, canonicalUrl);
@@ -487,11 +503,19 @@ async function loadPage() {
     if (error.response?.data && error.response.status !== 404) {
       console.warn('[DocsContent] Пытаемся использовать данные из error.response.data');
       page.value = error.response.data;
+      if (!page.value || !page.value.id) {
+        setRobotsMeta('noindex, follow');
+      }
     } else {
-    page.value = null;
+      page.value = null;
+      // Для любого error-state показываем noindex, иначе Google получает soft-404.
+      setRobotsMeta('noindex, follow');
     }
   } finally {
     isLoading.value = false;
+    if (!page.value) {
+      setRobotsMeta('noindex, follow');
+    }
     console.log('[DocsContent] loadPage завершен:', {
       hasPage: !!page.value,
       isLoading: isLoading.value,
@@ -830,6 +854,11 @@ onMounted(() => {
     loadPage();
   }
   setupVideoErrorHandlers();
+});
+
+onUnmounted(() => {
+  // В SPA noindex может "залипать" между маршрутами, поэтому сбрасываем его при уходе со страницы документа.
+  setRobotsMeta('index, follow');
 });
 </script>
 

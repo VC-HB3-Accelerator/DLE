@@ -266,9 +266,21 @@ function updatePageMetaTags() {
   const keywords = seoData?.keywords || '';
   
   // Определяем canonical URL
-  const pageUrl = page.value.slug 
-    ? `${window.location.origin}/content/published/${encodeURIComponent(page.value.slug)}`
-    : `${window.location.origin}/content/published?page=${page.value.id}`;
+  if (!page.value.slug || typeof page.value.slug !== 'string' || page.value.slug.trim() === '') {
+    // Без slug страницу не индексируем, чтобы не плодить дубли по ?page=
+    const robotsMeta = document.querySelector('meta[name="robots"]');
+    if (robotsMeta) {
+      robotsMeta.setAttribute('content', 'noindex, follow');
+    } else {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', 'robots');
+      meta.setAttribute('content', 'noindex, follow');
+      document.head.appendChild(meta);
+    }
+    return;
+  }
+
+  const pageUrl = `${window.location.origin}/content/published/${encodeURIComponent(page.value.slug.trim())}`;
   
   // Обновляем title
   document.title = title;

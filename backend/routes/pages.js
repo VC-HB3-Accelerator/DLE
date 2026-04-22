@@ -2121,6 +2121,19 @@ Allow: /blog
 Allow: /blog/
 Allow: /content/published
 Allow: /content/published/
+
+# Разрешаем Googlebot публичные API для рендера/проверки индексации
+Allow: /api/pages/blog/all
+Allow: /api/pages/blog/
+Allow: /api/pages/published/
+Allow: /api/settings/footer-dle
+Allow: /api/pages/public/sitemap.xml
+Allow: /api/pages/public/robots.txt
+
+# Закрываем приватные и служебные API
+Disallow: /api/auth/
+Disallow: /api/admin/
+Disallow: /api/ws
 Disallow: /api/
 Disallow: /ws
 Disallow: /admin/
@@ -2155,83 +2168,49 @@ router.get('/public/sitemap.xml', async (req, res) => {
       `SELECT to_regclass($1) as exists`, [tableName]
     );
     
-    // Генерируем XML sitemap
-    let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/blog</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/content/published</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/gitea</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-`;
-    
+    // Генерируем XML sitemap (каждый <url> в одну строку — удобно для grep и без переносов внутри <loc>)
+    let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/')}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/blog')}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/content/published')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/gitea')}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+
     if (existsRes.rows[0].exists) {
-      // Получаем страницы блога (с show_in_blog = true)
       const { rows: blogPages } = await db.getQuery()(`
         SELECT id, slug, updated_at, created_at 
         FROM ${tableName} 
         WHERE status = 'published' AND visibility = 'public' AND show_in_blog = TRUE
         ORDER BY created_at DESC
       `);
-      
-      // Добавляем страницы блога с использованием slug
+
       for (const page of blogPages) {
+        if (!page.slug || typeof page.slug !== 'string' || page.slug.trim() === '') {
+          continue;
+        }
         const dateObj = page.updated_at || page.created_at || new Date();
         const lastmod = dateObj instanceof Date ? dateObj.toISOString() : String(dateObj);
-        const pageUrl = page.slug 
-          ? `${baseUrl}/blog/${page.slug}`
-          : `${baseUrl}/blog?page=${page.id}`;
-        
-        sitemap += `  <url>
-    <loc>${escapeXml(pageUrl)}</loc>
-    <lastmod>${lastmod.split('T')[0]}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-`;
+        const pageUrl = `${baseUrl}/blog/${encodeURIComponent(page.slug.trim())}`;
+        sitemap += `  <url><loc>${escapeXml(pageUrl)}</loc><lastmod>${lastmod.split('T')[0]}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>\n`;
       }
-      
-      // Получаем остальные публичные страницы (без show_in_blog)
+
       const { rows: otherPages } = await db.getQuery()(`
         SELECT id, slug, updated_at, created_at 
         FROM ${tableName} 
         WHERE status = 'published' AND visibility = 'public' AND (show_in_blog IS NULL OR show_in_blog = FALSE)
         ORDER BY created_at DESC
       `);
-      
-      // Добавляем остальные публичные страницы с использованием slug
+
       for (const page of otherPages) {
+        if (!page.slug || typeof page.slug !== 'string' || page.slug.trim() === '') {
+          continue;
+        }
         const dateObj = page.updated_at || page.created_at || new Date();
         const lastmod = dateObj instanceof Date ? dateObj.toISOString() : String(dateObj);
-        const pageUrl = page.slug 
-          ? `${baseUrl}/content/published/${page.slug}`
-          : `${baseUrl}/content/published?page=${page.id}`;
-        
-        sitemap += `  <url>
-    <loc>${escapeXml(pageUrl)}</loc>
-    <lastmod>${lastmod.split('T')[0]}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-`;
+        const pageUrl = `${baseUrl}/content/published/${encodeURIComponent(page.slug.trim())}`;
+        sitemap += `  <url><loc>${escapeXml(pageUrl)}</loc><lastmod>${lastmod.split('T')[0]}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
       }
     }
-    
+
     sitemap += `</urlset>`;
     
     res.setHeader('Content-Type', 'application/xml; charset=UTF-8');

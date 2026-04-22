@@ -243,11 +243,12 @@ function addBlogJsonLd() {
     'name': 'Блог',
     'description': 'Публикации и статьи',
     'url': `${window.location.origin}/blog`,
-      'blogPost': pages.value.slice(0, 10).map(page => {
-        const url = (page.slug && typeof page.slug === 'string' && page.slug.trim() !== '')
-          ? `${window.location.origin}/blog/${encodeURIComponent(page.slug)}`
-          : (page.id ? `${window.location.origin}/blog?page=${page.id}` : `${window.location.origin}/blog`);
-        
+      'blogPost': pages.value
+      .filter(page => page.slug && typeof page.slug === 'string' && page.slug.trim() !== '')
+      .slice(0, 10)
+      .map(page => {
+        const url = `${window.location.origin}/blog/${encodeURIComponent(page.slug.trim())}`;
+
         return {
           '@type': 'BlogPosting',
           'headline': page.title || '',

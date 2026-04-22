@@ -222,3 +222,7 @@ public-docs/
 
 # Техническая документация (внутренняя)
 docs/back-docs/
+
+# Local data and drafts
+data/
+WHITEPAPER-DLE.md

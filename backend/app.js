@@ -134,6 +134,19 @@ const vdsRoutes = require('./routes/vds'); // Добавляем импорт м
 
 const app = express();
 
+// Публичные SEO endpoints не должны зависеть от сессий/БД сессий.
+// Иначе при таймаутах session store Google/гости получают 499 и фронт падает в error-state.
+function isPublicSeoEndpoint(url = '') {
+  return (
+    url.startsWith('/api/pages/blog/') ||
+    url === '/api/pages/blog/all' ||
+    url.startsWith('/api/pages/published/') ||
+    url === '/api/settings/footer-dle' ||
+    url === '/api/pages/public/sitemap.xml' ||
+    url === '/api/pages/public/robots.txt'
+  );
+}
+
 // Указываем хост явно
 app.set('host', '0.0.0.0');
 app.set('port', process.env.PORT || 8000);
@@ -165,6 +178,11 @@ app.use(
 
 // Настройка сессии (используем геттер, чтобы всегда был актуальный middleware)
 app.use((req, res, next) => {
+  if (isPublicSeoEndpoint(req.originalUrl || req.url || '')) {
+    req.session = req.session || {};
+    return next();
+  }
+
   try {
     sessionConfig.sessionMiddleware(req, res, (err) => {
       // Обрабатываем ошибки сессий (например, таймауты подключения к БД)
@@ -209,6 +227,10 @@ app.use((req, res, next) => {
 
 // Добавим middleware для проверки сессии
 app.use(async (req, res, next) => {
+  if (isPublicSeoEndpoint(req.originalUrl || req.url || '')) {
+    return next();
+  }
+
   // console.log('Request cookies:', req.headers.cookie);
   // console.log('Session ID:', req.sessionID);
 
