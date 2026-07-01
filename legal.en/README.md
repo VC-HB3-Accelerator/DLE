@@ -11,6 +11,8 @@
 
 This section contains legal documentation for the protection of the DLE (Digital Legal Entity) project's intellectual property.
 
+**Template documents:** LICENSE, service-terms, and CONTRIBUTOR_LICENSE in the repository are **base templates**. For customers in each country, an Authorized Contributor prepares a **localized version**; the **Contributor’s lawyer** uses [templates/](templates/) to draft the **local contract**. **Baseline code** — Author; **Contributor Updates** — Contributor (Author’s right of first refusal). Royalty 1,000 / 10,000 USDT accrues per license; payment upon written request.
+
 ### Confidential Documents
 
 **Patent documents (do not publish):**
@@ -27,10 +29,12 @@ This section contains legal documentation for the protection of the DLE (Digital
 **Copyright and licenses:**
 - [AUTHORS.md](AUTHORS.md) — author information
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor guidelines
+- [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) — Authorized Contributor license (sales, royalty, modification)
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — copyright notice templates
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — third-party npm/Python dependency licenses
 
 **Licensing and terms:**
+- [templates/](templates/) — **lawyer reference briefs** (critical clauses and local contract structure)
 - [Terms of Purchase and Service](../docs.en/service-terms.md) — detailed licensing terms
 - [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) — attribution requirements
 - [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) — usage notifications
@@ -41,9 +45,13 @@ This section contains legal documentation for the protection of the DLE (Digital
 |------|----------|
 | [AUTHORS.md](AUTHORS.md) | Author information and contacts |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines for project contributors |
+| [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | License sales, 1000/10000 USDT royalty, code modification |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Copyright notice templates |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party npm and Python dependency licenses |
 | [service-terms.md](../docs.en/service-terms.md) | Detailed licensing and service terms |
+| [templates/README.md](templates/README.md) | Lawyer reference briefs (any country) |
+| [templates/contributor-author-contract.md](templates/contributor-author-contract.md) | Author ↔ Contributor: royalty, IP, Updates |
+| [templates/client-license-contract.md](templates/client-license-contract.md) | Contributor ↔ customer: token, EULA |
 | [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Required attribution formats and examples |
 | [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Usage notification instructions and template |
 
@@ -60,7 +68,9 @@ This section contains legal documentation for the protection of the DLE (Digital
 
 ### Perpetual License
 
-- **Price:** 1,000 USDT (Standard) or 10,000 USDT (Premium)
+- **Royalty to Author:** 1,000 USDT (Standard) or 10,000 USDT (Premium) — fixed per license
+- **Customer price:** set by Contributor (may be higher, e.g. 1,500 / 15,000 USDT)
+- **Sales channel:** [Authorized Contributors](CONTRIBUTOR_LICENSE.md)
 - **Term:** perpetual (no time limit)
 - **Updates:** free for 5 years for license token holders (see [docs.en/service-terms.md](../docs.en/service-terms.md))
 - **Voting:** blockchain voting for new feature development

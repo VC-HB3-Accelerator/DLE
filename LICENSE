@@ -1,56 +1,199 @@
 **English** | [Русский](LICENSE.ru)
 
 PROPRIETARY SOFTWARE LICENSE
+END USER LICENSE AGREEMENT (EULA)
 
 Copyright (c) 2024-2026 Alexander Viktorovich Tarabanov
 All rights reserved.
 
-This software and associated documentation files (the "Software") are the
-property and confidential information of Alexander Viktorovich Tarabanov.
+This software and associated documentation files (the "Software") include
+ the **initial (baseline) source code** of DLE, copyrighted by **Alexander
+ Viktorovich Tarabanov**, and **Updates** by Authorized Contributors — see
+ [CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md) (Section 4).
 
-TERMS AND CONDITIONS:
+---
 
-1. GRANT OF LICENSE
-   Subject to the terms of this License, Alexander Viktorovich Tarabanov
-   grants you a non-exclusive, non-transferable license to use the Software
-   for your business operations and internal purposes.
+## RELATIONSHIP TO OTHER DOCUMENTS
 
-2. PERMITTED USE
-   You may:
-   - Use the Software for your business operations
-   - Install and run the Software on your systems
-   - Use the Software to provide services to your clients
-   - Integrate the Software into your business processes
+This License applies to **End Users (Licensees)** who obtained the Software
+through purchase of a license token from an **Authorized Contributor** or
+directly from the Author.
 
-3. RESTRICTIONS
-   You may NOT:
-   - Resell, redistribute, or sublicense the Software to third parties
-   - Give, transfer, or provide the Software to third parties
-   - Modify, adapt, or create derivative works without express permission
-   - Reverse engineer, decompile, or disassemble the Software
-   - Remove or alter any copyright notices
-   - Use the Software in educational institutions without permission
+| Document | Audience | Purpose |
+|----------|----------|---------|
+| This LICENSE | End User | Core IP restrictions and permitted use |
+| [service-terms.md](docs.en/service-terms.md) | End User | Purchase, tokens, updates, support, liability |
+| [CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md) | Authorized Contributor | Sale, modification, royalty to Author |
 
-4. COMMERCIAL RESALE AND MODIFICATIONS
-   Commercial resale, distribution, or modification of this Software requires
-   express written permission from Alexander Viktorovich Tarabanov
-   (info@hb3-accelerator.com).
+**Hierarchy:** For paying Licensees, if this License conflicts with
+[service-terms.md](docs.en/service-terms.md) on commercial terms (pricing,
+updates, tokens, support, refunds), **service-terms.md prevails**.
+This License prevails on copyright and unauthorized use of the Software.
 
-5. UPDATES AND MODIFICATIONS
-   Any updates, modifications, or derivative works require express written
-   permission from the copyright holder.
+Sales and modification by third parties are permitted **only** for parties
+ holding an [Authorized Contributor License](legal.en/CONTRIBUTOR_LICENSE.md).
 
-6. TERMINATION
-   This license automatically terminates upon breach of its terms.
+---
 
-7. DISCLAIMER OF WARRANTIES
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT ANY WARRANTIES.
+## TEMPLATE DOCUMENTS AND COUNTRY LOCALIZATION
 
-Licensing inquiries: info@hb3-accelerator.com
-Website: https://hb3-accelerator.com
+LICENSE, service-terms, and related files in the DLE repository are **standard
+ template documents** of the copyright holder. They do not replace a mandatory
+ purchase or license agreement in a specific country.
+
+**In each country:**
+
+- An **Authorized Contributor** adapts terms to local law (taxes, currency,
+  refunds, personal data, consumer protection, language, seller details).
+- The customer enters into a contract with the **Contributor in their
+  jurisdiction** (or with the Author if direct sale is explicitly offered).
+- **Governing law and disputes** are defined in the **local contract** with
+  the Contributor, unless otherwise agreed in writing with the Author.
+
+**Unchanged in all jurisdictions** (unless a local contract explicitly grants
+ the customer additional rights):
+
+- copyright in the **initial (baseline) code** of DLE — **Alexander V. Tarabanov**
+  (or successor upon notice, see below);
+- copyright in **Contributor Updates** — the Contributor, with the **Author’s
+  right of first refusal** on disposal (CONTRIBUTOR_LICENSE § 4);
+- no resale of source code to third parties;
+- source code modification — Authorized Contributors only;
+- royalty to Author **1,000 / 10,000 USDT** per license, paid upon written
+  request (CONTRIBUTOR_LICENSE § 3).
+
+Localized service-terms may be published by Contributors on hb3-accelerator.com
+ or in the data room for the relevant country.
+
+---
+
+## SUCCESSION AND ASSIGNMENT BY THE AUTHOR
+
+The Author may **assign exclusive rights** to the **initial (baseline) source
+ code** of DLE and/or the **right to receive royalty** to a third party
+ (**successor**) in writing (see [CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md),
+ Section 8).
+
+Upon notice to Contributors and customers:
+
+- this EULA may be granted by the **successor** if exclusive code rights were
+  assigned;
+- Contributors pay royalty to the **successor** if the right to receive royalty
+  was assigned.
+
+Notice is published on hb3-accelerator.com or sent in writing.
+
+---
+
+## LICENSE ACCEPTANCE
+
+Acceptance of this License (EULA) occurs through **two linked mechanisms**:
+
+1. **Local contract with the Contributor.** The customer enters into a purchase
+   or license agreement in their jurisdiction with an **Authorized Contributor**.
+   **Mandatory appendices** to that contract are this LICENSE and
+   [service-terms.md](docs.en/service-terms.md) (or Contributor-localized versions
+   approved by the copyright holder). The local contract governs commercial terms:
+   price, payment, taxes, refunds, claims, governing law, and jurisdiction. It
+   **may not** restrict the copyright holder’s rights below this License,
+   **except** where applicable law explicitly improves the customer’s position.
+
+2. **Receipt of the license token.** Crediting a **license token** to the
+   customer’s wallet address on **Sepolia** (see service-terms) **constitutes
+   acceptance** of this License with the **copyright holder** (Author or
+   successor under “Succession and Assignment”). Date, wallet address, and token amount are recorded
+   on-chain.
+
+Both mechanisms **complement each other**: the local contract frames the sale
+ with the seller in the customer’s country; token receipt confirms the EULA with
+ the copyright holder and binds the license to the wallet.
+
+---
+
+## TERMS AND CONDITIONS
+
+### 1. GRANT OF LICENSE
+
+Subject to compliance with this License and, for paying Licensees,
+[service-terms.md](docs.en/service-terms.md), **Alexander Viktorovich Tarabanov**
+ or a **successor** identified in notice under “Succession and Assignment”
+ grants you a **non-exclusive, perpetual** license to install and use the
+Software for your business operations on your own infrastructure.
+
+The license becomes effective upon **acceptance** of this License as described
+ in the “License Acceptance” section: execution of a local contract with LICENSE
+ and service-terms as appendices **and** receipt of a **license token** on
+ **Sepolia** to the customer’s wallet.
+
+### 2. PERMITTED USE (END USER)
+
+You may:
+
+- Use the Software for your own business operations
+- Install and run the Software on systems you control
+- Use the Software to serve your own customers (not as multi-tenant SaaS)
+- Integrate the Software into your internal business processes
+- Modify **configuration** files and environment settings locally
+- Back up the Software and your data
+
+### 3. RESTRICTIONS (END USER)
+
+You may NOT:
+
+- Resell, redistribute, or sublicense the **source code** of the Software to
+  third parties
+- Publish or share the Software (source or deployable artifacts) except as
+  required for your licensed deployment
+- Modify **source code** of the Software (except configuration as in Section 2)
+- Reverse engineer, decompile, or disassemble the Software, except where
+  mandatory applicable law allows
+- Remove or alter copyright or license notices
+- Deploy the Software as **multi-tenant SaaS** for unrelated third parties
+- Use the Software in educational institutions without written permission
+
+**Note:** Modification and resale of license tokens are governed by
+service-terms (blockchain transfer). This does not grant rights to
+redistribute source code.
+
+### 4. AUTHORIZED CONTRIBUTORS
+
+Commercial distribution and code modification are permitted **only** for
+entities that have signed or accepted the
+[Contributor License Agreement](legal.en/CONTRIBUTOR_LICENSE.md) with the
+Author. All other parties remain subject to Sections 3 and 5.
+
+### 5. UPDATES
+
+Updates are provided according to [service-terms.md](docs.en/service-terms.md)
+(for token holders, typically 5 years from license transfer on-chain).
+ **After 5 years**, the right to use **existing versions** of the Software
+ remains; the obligation to provide updates, patches, and support **does not
+ apply** (service-terms § 4.3). Updates do not expand redistribution rights
+ beyond this License.
+
+### 6. TERMINATION
+
+This license terminates automatically upon material breach of its terms.
+Upon termination you must cease use and destroy copies, except backups
+required by law.
+
+### 7. DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTIES OF ANY KIND.
+
+### 8. LIMITATION OF LIABILITY
+
+For paying Licensees, liability limits in
+[service-terms.md](docs.en/service-terms.md) Section 7 apply in addition
+to this License.
+
+---
+
+Licensing inquiries: info@hb3-accelerator.com  
+Website: https://hb3-accelerator.com  
 GitHub: https://github.com/VC-HB3-Accelerator
 
-For full license details: legal.en/README.md (or legal.ru/README.md)
+Full legal index: [legal.en/README.md](legal.en/README.md)
 
 ## 🔐 DIGITAL SIGNATURE
 
