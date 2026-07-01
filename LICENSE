@@ -205,5 +205,5 @@ gpg --verify LICENSE.asc LICENSE
 ```
 
 **GPG Key ID:** 4603583F81054FEECE7E821E026FD26F71D70B17
-**Signature date:** 2024-10-24
+**Signature date:** 2026-07-01
 **Author:** Alexander Viktorovich Tarabanov

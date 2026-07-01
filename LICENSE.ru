@@ -202,9 +202,9 @@ GitHub: https://github.com/VC-HB3-Accelerator
 
 **Проверка подписи:**
 ```bash
-gpg --verify LICENSE.asc LICENSE
+gpg --verify LICENSE.ru.asc LICENSE.ru
 ```
 
 **GPG Key ID:** 4603583F81054FEECE7E821E026FD26F71D70B17
-**Дата подписи:** 2024-10-24
+**Дата подписи:** 2026-07-01
 **Автор:** Тарабанов Александр Викторович
