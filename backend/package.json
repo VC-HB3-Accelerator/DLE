@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Backend for DApp for Business",
   "main": "server.js",
-  "license": "MIT",
+  "license": "SEE LICENSE IN ../LICENSE",
   "scripts": {
     "check-deps": "node scripts/check-dependencies.js",
     "prestart": "npm run check-deps",
@@ -29,7 +29,10 @@
     "import:legal": "node scripts/import-legal-docs.js",
     "prerender:blog": "node scripts/pre-render-blog.js",
     "prerender:blog:article": "node scripts/pre-render-blog.js --no-list",
-    "test:prerender": "node scripts/test-pre-render.js"
+    "test:prerender": "node scripts/test-pre-render.js",
+    "extract:site-emails": "node scripts/extract-site-emails.js",
+    "verify:mailing-emails": "node scripts/verify-mailing-emails.js",
+    "generate:notices": "node ../scripts/generate-third-party-notices.js"
   },
   "bin": {},
   "engines": {

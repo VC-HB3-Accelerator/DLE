@@ -28,6 +28,7 @@ This section contains legal documentation for the protection of the DLE (Digital
 - [AUTHORS.md](AUTHORS.md) — author information
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor guidelines
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — copyright notice templates
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — third-party npm/Python dependency licenses
 
 **Licensing and terms:**
 - [Terms of Purchase and Service](../docs.en/service-terms.md) — detailed licensing terms
@@ -41,6 +42,7 @@ This section contains legal documentation for the protection of the DLE (Digital
 | [AUTHORS.md](AUTHORS.md) | Author information and contacts |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines for project contributors |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Copyright notice templates |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party npm and Python dependency licenses |
 | [service-terms.md](../docs.en/service-terms.md) | Detailed licensing and service terms |
 | [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Required attribution formats and examples |
 | [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Usage notification instructions and template |

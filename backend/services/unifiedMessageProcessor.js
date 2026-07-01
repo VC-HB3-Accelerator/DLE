@@ -386,17 +386,20 @@ async function processMessage(messageData) {
     let aiResponseDisabled = false;
 
     if (shouldGenerateAi) {
-      // Загружаем историю беседы
+      // Загружаем последние 20 сообщений (не первые!)
       const { rows: historyRows } = await db.getQuery()(
-        `SELECT 
-          decrypt_text(role_encrypted, $2) as role,
-          decrypt_text(content_encrypted, $2) as content,
-          created_at
-         FROM messages
-         WHERE conversation_id = $1 AND user_id = $3
-         ORDER BY created_at ASC
-         LIMIT 20`,
-        [conversationId, encryptionKey, userId]
+        `SELECT role, content, created_at FROM (
+           SELECT 
+             decrypt_text(role_encrypted, $2) as role,
+             decrypt_text(content_encrypted, $2) as content,
+             created_at
+           FROM messages
+           WHERE conversation_id = $1 AND user_id = $3 AND id != $4
+           ORDER BY created_at DESC
+           LIMIT 20
+         ) recent
+         ORDER BY created_at ASC`,
+        [conversationId, encryptionKey, userId, userMessageId]
       );
       
       const conversationHistory = historyRows.map(row => ({

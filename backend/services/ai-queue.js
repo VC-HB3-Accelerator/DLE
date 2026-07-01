@@ -171,12 +171,19 @@ class AIQueue extends EventEmitter {
     logger.info(`[AIQueue] Задача ${taskId} добавлена. Очередь: ${this.queue.length}`);
     this.emit('requestAdded', queueItem);
 
-    // Возвращаем Promise для ожидания результата
+    // Возвращаем Promise для ожидания результата.
+    // Таймаут ожидания должен покрывать не только время самого запроса к Ollama,
+    // но и время ожидания задач, которые уже стоят перед текущей задачей.
     return new Promise((resolve, reject) => {
       const timeouts = ollamaConfig.getTimeouts();
+      const tasksAhead = Math.max(this.queue.length - 1, 0);
+      const effectiveQueueTimeout = Math.max(
+        timeouts.queueTimeout || 0,
+        ((tasksAhead + 1) * (timeouts.ollamaChat || 600000)) + 60000
+      );
       const timeout = setTimeout(() => {
-        reject(new Error('Queue timeout'));
-      }, timeouts.queueTimeout); // Централизованный таймаут очереди
+        reject(new Error(`Queue timeout after ${Math.round(effectiveQueueTimeout / 1000)}s`));
+      }, effectiveQueueTimeout);
 
       this.once(`task_${taskId}_completed`, (result) => {
         clearTimeout(timeout);
@@ -227,15 +234,18 @@ class AIQueue extends EventEmitter {
       logger.info(`[AIQueue] Обработка задачи ${task.id}`);
 
       // 1. Проверяем кэш
-      const cacheKey = aiCache.generateKey(task.request.messages);
+      const cacheKey = await aiCache.generateKey(task.request.messages);
       const cached = aiCache.get(cacheKey);
       
       if (cached) {
         logger.info(`[AIQueue] Cache HIT для задачи ${task.id}`);
         const responseTime = Date.now() - startTime;
-        
-        this.updateRequestStatus(task.id, 'completed', cached, null, responseTime);
-        this.emit(`task_${task.id}_completed`, { response: cached, fromCache: true });
+        const cachedResult = task.request.returnFullResponse
+          ? { response: cached, message: { content: cached }, raw: null }
+          : cached;
+
+        this.updateRequestStatus(task.id, 'completed', cachedResult, null, responseTime);
+        this.emit(`task_${task.id}_completed`, { response: cachedResult, fromCache: true });
         return;
       }
 
@@ -268,25 +278,41 @@ class AIQueue extends EventEmitter {
         hasTools: !!requestBody.tools
       });
 
-      const response = await axios.post(`${ollamaUrl}/api/chat`, requestBody, {
-        timeout: timeouts.ollamaChat
-      });
+      const progressInterval = setInterval(() => {
+        const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+        if (elapsedSeconds >= 30) {
+          logger.info(`[AIQueue] Ollama обрабатывает задачу ${task.id} уже ${elapsedSeconds}с...`);
+        }
+      }, 30000);
 
-      // Обработка function calls (если есть)
-      // ВАЖНО: Function calling в очереди не поддерживается, т.к. нужен userId
-      // Если ИИ запросил функции - возвращаем ответ без их выполнения
-      let result;
-      if (response.data.message.tool_calls && response.data.message.tool_calls.length > 0) {
-        logger.warn(`[AIQueue] ИИ запросил выполнение ${response.data.message.tool_calls.length} функций, но function calling в очереди не поддерживается`);
-        result = response.data.message.content || 'Функции не выполнены (не поддерживается в очереди)';
-      } else {
-        result = response.data.message.content;
+      let response;
+      try {
+        response = await axios.post(`${ollamaUrl}/api/chat`, requestBody, {
+          timeout: timeouts.ollamaChat
+        });
+      } finally {
+        clearInterval(progressInterval);
       }
+
+      const result = task.request.returnFullResponse
+        ? {
+            response: response.data.message.content,
+            message: response.data.message,
+            raw: response.data
+          }
+        : response.data.message.content;
       
       const responseTime = Date.now() - startTime;
 
-      // 4. Сохраняем в кэш
-      aiCache.set(cacheKey, result);
+      // 4. Сохраняем в кэш (только текст ответа)
+      const cacheValue = typeof result === 'string' ? result : (result.response || '');
+      if (cacheValue) {
+        try {
+          aiCache.set(cacheKey, cacheValue);
+        } catch (cacheError) {
+          logger.warn(`[AIQueue] Не удалось сохранить в кэш: ${cacheError.message}`);
+        }
+      }
 
       // 5. Обновляем статус
       this.updateRequestStatus(task.id, 'completed', result, null, responseTime);

@@ -28,6 +28,10 @@ const OUTPUT_DIR = process.env.PRERENDER_OUTPUT_DIR ||
                    (process.env.NODE_ENV === 'production' 
                      ? '/app/frontend_dist/blog' 
                      : path.join(__dirname, '../../frontend/dist/blog'));
+const PUBLISHED_OUTPUT_DIR = process.env.PRERENDER_PUBLISHED_OUTPUT_DIR ||
+                   (process.env.NODE_ENV === 'production'
+                     ? '/app/frontend_dist/content/published'
+                     : path.join(__dirname, '../../frontend/dist/content/published'));
 
 // Путь к шаблону index.html фронтенда (для app-shell)
 const FRONTEND_INDEX_HTML = process.env.PRERENDER_INDEX_TEMPLATE || 
@@ -111,6 +115,65 @@ function normalizeAppShell(html) {
   const appWithBodyRegex = /<div id="app"[^>]*>[\s\S]*<\/div>\s*<\/body>/i;
   if (appWithBodyRegex.test(html)) {
     return html.replace(appWithBodyRegex, '<div id="app"></div>\n</body>');
+  }
+
+  return html;
+}
+
+/**
+ * Вставляет SEO-теги и контент в app-shell
+ */
+function applySeoToAppShell(template, seo) {
+  const {
+    canonical,
+    title,
+    description = '',
+    ogType = 'website',
+    bodyHtml = '',
+  } = seo;
+
+  if (!template || typeof template !== 'string' || !template.includes('<div id="app')) {
+    return null;
+  }
+
+  let html = normalizeAppShell(template);
+  const safeTitle = escapeHtml(title);
+  const safeDescription = escapeHtml(description);
+
+  html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`);
+
+  if (html.match(/<meta\s+name=["']description["'][^>]*>/i)) {
+    html = html.replace(
+      /<meta\s+name=["']description["'][^>]*>/i,
+      `<meta name="description" content="${safeDescription}">`
+    );
+  } else {
+    html = html.replace(/<\/head>/i, `  <meta name="description" content="${safeDescription}">\n</head>`);
+  }
+
+  html = html
+    .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:url["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:title["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:description["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:type["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '');
+
+  const ogBlock = `
+  <link rel="canonical" href="${canonical}">
+  <meta property="og:title" content="${safeTitle}">
+  <meta property="og:description" content="${safeDescription}">
+  <meta property="og:url" content="${canonical}">
+  <meta property="og:type" content="${ogType}">
+  <meta name="robots" content="index, follow">`;
+
+  html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
+
+  const appWithBodyRegex = /<div id="app"[^>]*>[\s\S]*<\/div>\s*<\/body>/i;
+  if (appWithBodyRegex.test(html)) {
+    html = html.replace(appWithBodyRegex, `<div id="app">${bodyHtml}</div>\n</body>`);
+  } else if (html.includes('<div id="app"></div>')) {
+    html = html.replace('<div id="app"></div>', `<div id="app">${bodyHtml}</div>`);
   }
 
   return html;
@@ -254,23 +317,95 @@ function escapeHtml(s) {
 }
 
 /**
- * Загружает статью по slug через API бэкенда (без браузера).
- * Используется для SSG: один источник данных, стабильный результат в Docker.
+ * Собирает HTML страницы статьи с абсолютным canonical
+ * @param {string} pathPrefix - /blog или /content/published
  */
-function fetchArticleFromApi(slug) {
+function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blog') {
+  const slug = (article.slug || '').trim();
+  const canonical = `${baseUrl}${pathPrefix}/${encodeURIComponent(slug)}`;
+  const title = article.title || 'Статья';
+  const description = article.summary || title;
+  const content = article.content != null ? String(article.content) : '';
+
+  const articleInnerHtml = `
+  <article class="docs-content">
+    <header class="page-header">
+      <h1 class="page-title">${escapeHtml(title)}</h1>
+      ${article.summary ? `<p class="page-summary">${escapeHtml(article.summary)}</p>` : ''}
+    </header>
+    <div class="page-content">${content}</div>
+  </article>
+  `;
+
+  const fromShell = applySeoToAppShell(appShellTemplate, {
+    canonical,
+    title,
+    description,
+    ogType: 'article',
+    bodyHtml: articleInnerHtml,
+  });
+
+  if (fromShell) return fromShell;
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${canonical}">
+  <meta property="og:url" content="${canonical}">
+  <meta name="robots" content="index, follow">
+</head>
+<body>${articleInnerHtml}</body>
+</html>`;
+}
+
+/**
+ * HTML для списковых страниц (/blog, /content/published)
+ */
+function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, appShellTemplate }) {
+  const canonical = `${baseUrl}${pathPrefix}`;
+  const listItems = (items || [])
+    .filter((a) => a && a.slug)
+    .map((a) => {
+      const href = `${baseUrl}${pathPrefix}/${encodeURIComponent(String(a.slug).trim())}`;
+      return `<li><a href="${href}">${escapeHtml(a.title || a.slug)}</a></li>`;
+    })
+    .join('\n');
+
+  const bodyHtml = `
+  <main class="seo-prerender-list docs-content">
+    <header class="page-header">
+      <h1 class="page-title">${escapeHtml(title)}</h1>
+      <p class="page-summary">${escapeHtml(description)}</p>
+    </header>
+    <nav aria-label="Список страниц"><ul>${listItems}</ul></nav>
+  </main>`;
+
+  return applySeoToAppShell(appShellTemplate, {
+    canonical,
+    title,
+    description,
+    ogType: 'website',
+    bodyHtml,
+  });
+}
+
+function fetchJsonFromApi(apiPath) {
   return new Promise((resolve, reject) => {
-    const url = new URL(`/api/pages/blog/${encodeURIComponent(slug)}`, BACKEND_API_URL);
+    const url = new URL(apiPath, BACKEND_API_URL);
     const mod = url.protocol === 'https:' ? https : http;
     const req = mod.request(url, { method: 'GET', timeout: 15000 }, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`API вернул ${res.statusCode}`));
-        return;
-      }
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
         try {
           const body = Buffer.concat(chunks).toString('utf8');
+          if (res.statusCode !== 200) {
+            return reject(new Error(`API ${apiPath} вернул ${res.statusCode}`));
+          }
           resolve(JSON.parse(body));
         } catch (e) {
           reject(e);
@@ -283,103 +418,11 @@ function fetchArticleFromApi(slug) {
   });
 }
 
-/**
- * Собирает HTML страницы статьи, встраивая контент в app-shell Vite (index.html),
- * чтобы и SEO, и пользователь видели нормальную оформленную страницу.
- * @param {object} article - данные статьи
- * @param {string} baseUrl - базовый URL сайта
- * @param {string|null} appShellTemplate - HTML index.html (из файла или по URL)
- */
-function buildArticleHtml(article, baseUrl, appShellTemplate) {
-  const canonical = `${baseUrl}/blog/${encodeURIComponent(article.slug || '')}`;
-  const title = article.title ? escapeHtml(article.title) : 'Статья';
-  const description = article.summary ? escapeHtml(article.summary) : title;
-  const content = article.content != null ? String(article.content) : '';
-
-  // HTML фрагмент статьи, который будет вставлен внутрь #app
-  const articleInnerHtml = `
-  <article class="docs-content">
-    <header class="page-header">
-      <h1 class="page-title">${title}</h1>
-      ${article.summary ? `<p class="page-summary">${escapeHtml(article.summary)}</p>` : ''}
-    </header>
-    <div class="page-content">${content}</div>
-  </article>
-  `;
-
-  const template = appShellTemplate;
-
-  if (template && typeof template === 'string' && template.includes('<div id="app')) {
-    let html = normalizeAppShell(template);
-
-    // Обновляем title
-    html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`);
-
-    // Обновляем/добавляем description
-    if (html.match(/<meta\s+name=["']description["'][^>]*>/i)) {
-      html = html.replace(
-        /<meta\s+name=["']description["'][^>]*>/i,
-        `<meta name="description" content="${description}">`
-      );
-    } else {
-      html = html.replace(
-        /<\/head>/i,
-        `  <meta name="description" content="${description}">\n</head>`
-      );
-    }
-
-    // Удаляем старые SEO-теги app-shell (чтобы не плодить дубли canonical/og/robots)
-    html = html
-      .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
-      .replace(/<meta\s+property=["']og:url["'][^>]*>\s*/gi, '')
-      .replace(/<meta\s+property=["']og:title["'][^>]*>\s*/gi, '')
-      .replace(/<meta\s+property=["']og:description["'][^>]*>\s*/gi, '')
-      .replace(/<meta\s+property=["']og:type["'][^>]*>\s*/gi, '')
-      .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '');
-
-    // Канонический URL и OG‑мета
-    const ogBlock = `
-  <link rel="canonical" href="${canonical}">
-  <meta property="og:title" content="${title}">
-  <meta property="og:description" content="${description}">
-  <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="article">
-  <meta name="robots" content="index, follow">`;
-
-    if (html.includes('</head>')) {
-      html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
-    }
-
-    // Вставляем контент внутрь #app, сохраняя весь app-shell (CSS + JS)
-    const appWithBodyRegex = /<div id="app"[^>]*>[\s\S]*<\/div>\s*<\/body>/i;
-    if (appWithBodyRegex.test(html)) {
-      html = html.replace(appWithBodyRegex, `<div id="app">${articleInnerHtml}</div>\n</body>`);
-    } else if (html.includes('<div id="app"></div>')) {
-      html = html.replace('<div id="app"></div>', `<div id="app">${articleInnerHtml}</div>`);
-    }
-
-    return html;
-  }
-
-  // Fallback: минимальный HTML (на случай, если index.html не найден)
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <meta name="description" content="${description}">
-  <link rel="canonical" href="${canonical}">
-  <meta property="og:title" content="${title}">
-  <meta property="og:description" content="${description}">
-  <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="article">
-  <meta name="robots" content="index, follow">
-</head>
-<body>
-  ${articleInnerHtml}
-</body>
-</html>`;
+function fetchArticleFromApi(slug, pathPrefix) {
+  const apiPath = pathPrefix === '/blog'
+    ? `/api/pages/blog/${encodeURIComponent(slug)}`
+    : `/api/pages/published/${encodeURIComponent(slug)}`;
+  return fetchJsonFromApi(apiPath);
 }
 
 /**
@@ -392,25 +435,43 @@ function sanitizeSlug(slug) {
 }
 
 /**
- * Сохраняет HTML в файл
+ * Сохраняет HTML в файл (путь должен быть внутри baseDir)
  */
-function saveHtml(html, filePath) {
+function saveHtml(html, filePath, baseDir) {
   try {
     ensureDir(path.dirname(filePath));
-    
-    // Проверяем, что путь безопасен (защита от path traversal)
+
     const resolvedPath = path.resolve(filePath);
-    const outputDirResolved = path.resolve(OUTPUT_DIR);
-    
-    if (!resolvedPath.startsWith(outputDirResolved)) {
+    const baseResolved = path.resolve(baseDir);
+
+    if (!resolvedPath.startsWith(baseResolved)) {
       throw new Error(`Небезопасный путь: ${filePath}`);
     }
-    
+
     fs.writeFileSync(resolvedPath, html, 'utf8');
     console.log(`[pre-render] Сохранено: ${resolvedPath}`);
   } catch (error) {
     console.error(`[pre-render] Ошибка сохранения файла ${filePath}:`, error.message);
     throw error;
+  }
+}
+
+/**
+ * Переименовывает старые .html в .bak перед регенерацией
+ */
+function archiveHtmlFilesInDir(dir) {
+  ensureDir(dir);
+  try {
+    const entries = fs.readdirSync(dir);
+    for (const name of entries) {
+      if (name.endsWith('.html')) {
+        const p = path.join(dir, name);
+        fs.renameSync(p, `${p}.bak`);
+        console.log(`[pre-render] Архив: ${p} -> ${p}.bak`);
+      }
+    }
+  } catch (e) {
+    console.warn(`[pre-render] Не удалось архивировать HTML в ${dir}:`, e.message);
   }
 }
 
@@ -512,105 +573,159 @@ async function getBlogArticles() {
   }
 }
 
+async function getPublishedPages() {
+  try {
+    const data = await fetchJsonFromApi('/api/pages/published/all');
+    if (!Array.isArray(data)) return [];
+    return data
+      .filter((a) => a && typeof a.slug === 'string' && a.slug.trim() !== '')
+      .map((a) => ({
+        id: a.id,
+        slug: a.slug,
+        title: a.title || a.slug,
+      }));
+  } catch (error) {
+    console.error('[pre-render] Ошибка /api/pages/published/all:', error.message || error);
+    return [];
+  }
+}
+
+async function renderArticlesToDir({
+  articles,
+  pathPrefix,
+  outputDir,
+  appShellTemplate,
+  publicBaseUrl,
+  specificSlug,
+}) {
+  let articlesToRender = articles;
+  if (specificSlug) {
+    articlesToRender = articles.filter((a) => a.slug && a.slug.trim() === specificSlug.trim());
+    if (articlesToRender.length === 0) {
+      console.warn(`[pre-render] Slug "${specificSlug}" не найден в ${pathPrefix}`);
+    }
+  }
+
+  for (const article of articlesToRender) {
+    try {
+      if (!article.slug || typeof article.slug !== 'string' || article.slug.trim() === '') {
+        continue;
+      }
+      const sanitizedSlug = sanitizeSlug(article.slug);
+      console.log(`[pre-render] ${pathPrefix}/${sanitizedSlug}`);
+      let articleHtml = null;
+      try {
+        const data = await fetchArticleFromApi(article.slug, pathPrefix);
+        articleHtml = buildArticleHtml(data, publicBaseUrl, appShellTemplate, pathPrefix);
+      } catch (apiErr) {
+        console.warn(`[pre-render] API (${pathPrefix}): ${apiErr.message}`);
+      }
+      if (articleHtml && isRenderableArticleHtml(articleHtml, article)) {
+        saveHtml(articleHtml, path.join(outputDir, `${sanitizedSlug}.html`), outputDir);
+      } else {
+        console.warn(`[pre-render] Пропуск ${sanitizedSlug}: невалидный HTML`);
+      }
+    } catch (error) {
+      console.error(`[pre-render] Ошибка ${article.slug}:`, error.message);
+    }
+  }
+}
+
 /**
- * Основная функция pre-rendering
+ * Pre-render SEO HTML (блог + published)
  */
 async function preRenderBlog(options = {}) {
-  const { 
-    renderList = true, 
-    renderArticles = true,
-    specificSlug = null 
-  } = options;
-  
-  console.log('[pre-render] Начало pre-rendering блога...');
-  console.log(`[pre-render] Base URL: ${BASE_URL}`);
-  console.log(`[pre-render] Output dir: ${OUTPUT_DIR}`);
-  
-  // Создаем директорию для вывода
-  ensureDir(OUTPUT_DIR);
-  // Удаляем старый blog/index.html, чтобы /blog всегда отдавал корневой SPA (не «Нет статей в блоге»)
-  const blogIndexPath = path.join(OUTPUT_DIR, 'index.html');
-  try {
-    if (fs.existsSync(blogIndexPath)) {
-      fs.unlinkSync(blogIndexPath);
-      console.log('[pre-render] Удалён старый blog/index.html — /blog будет отдавать SPA');
-    }
-  } catch (e) {
-    console.warn('[pre-render] Не удалось удалить blog/index.html:', e.message);
-  }
-  // Старые .html статей переименовываем в .bak перед повторной генерацией
-  try {
-    const entries = fs.readdirSync(OUTPUT_DIR);
-    for (const name of entries) {
-      if (name.endsWith('.html')) {
-        const p = path.join(OUTPUT_DIR, name);
-        fs.renameSync(p, p + '.bak');
-        console.log(`[pre-render] Переименован: ${name} -> ${name}.bak`);
-      }
-    }
-  } catch (e) {
-    console.warn('[pre-render] Не удалось переименовать старые файлы:', e.message);
-  }
-  
-  try {
-    // Список статей больше не пререндерим в index.html,
-    // чтобы /blog всегда работал как чистый SPA и не ломался при F5.
-    // Получаем список статей для индивидуального пререндеринга
-    const articles = await getBlogArticles();
-    console.log(`[pre-render] Найдено статей: ${articles.length}`);
-    
-    if (renderArticles && articles.length > 0) {
-      // Загружаем app-shell один раз: из файла или по URL (на VDS файла нет — качаем с сайта)
-      let appShellTemplate = await getAppShellTemplate();
+  const legacyList = options.renderList;
+  const legacyArticles = options.renderArticles;
 
-      // Рендерим статьи
-      let articlesToRender;
-      if (specificSlug) {
-        // Фильтруем по slug (точное совпадение)
-        articlesToRender = articles.filter(a => a.slug && a.slug.trim() === specificSlug.trim());
-        if (articlesToRender.length === 0) {
-          console.warn(`[pre-render] Статья со slug "${specificSlug}" не найдена`);
-        }
-      } else {
-        articlesToRender = articles;
-      }
-      
-      const publicBaseUrl = process.env.PUBLIC_SITE_URL || (BASE_URL.startsWith('https') ? BASE_URL : 'https://hb3-accelerator.com');
-      for (const article of articlesToRender) {
-        try {
-          if (!article.slug || typeof article.slug !== 'string' || article.slug.trim() === '') {
-            console.warn(`[pre-render] Пропущена статья с невалидным slug: ${article.id}`);
-            continue;
-          }
-          const sanitizedSlug = sanitizeSlug(article.slug);
-          console.log(`[pre-render] Рендеринг статьи: ${sanitizedSlug} (${article.title})`);
-          let articleHtml = null;
-          try {
-            const data = await fetchArticleFromApi(article.slug);
-            articleHtml = buildArticleHtml(data, publicBaseUrl, appShellTemplate);
-            console.log(`[pre-render] Статья получена через API (SSG)`);
-          } catch (apiErr) {
-            console.warn(`[pre-render] API недоступен (${apiErr.message}), пропускаем статью без browser fallback`);
-          }
-          if (articleHtml && isRenderableArticleHtml(articleHtml, article)) {
-            const filePath = path.join(OUTPUT_DIR, `${sanitizedSlug}.html`);
-            saveHtml(articleHtml, filePath);
-          } else {
-            console.warn(
-              `[pre-render] Пропущено сохранение ${sanitizedSlug}: получен невалидный HTML (error-state или пустой контент)`
-            );
-          }
-        } catch (error) {
-          console.error(`[pre-render] Ошибка при рендеринге статьи ${article.slug}:`, error.message);
-        }
-      }
-    }
-    
-    console.log('[pre-render] Pre-rendering завершен успешно!');
-  } catch (error) {
-    console.error('[pre-render] Критическая ошибка:', error);
-    throw error;
+  const renderBlogList = options.renderBlogList ?? legacyList ?? true;
+  const renderBlogArticles = options.renderBlogArticles ?? legacyArticles ?? true;
+  const renderPublishedList = options.renderPublishedList ?? legacyList ?? true;
+  const renderPublishedArticles = options.renderPublishedArticles ?? legacyArticles ?? true;
+  const specificSlug = options.specificSlug || null;
+
+  console.log('[pre-render] Старт SEO pre-render...');
+  console.log(`[pre-render] Blog dir: ${OUTPUT_DIR}`);
+  console.log(`[pre-render] Published dir: ${PUBLISHED_OUTPUT_DIR}`);
+
+  ensureDir(OUTPUT_DIR);
+  ensureDir(PUBLISHED_OUTPUT_DIR);
+
+  if (!specificSlug) {
+    archiveHtmlFilesInDir(OUTPUT_DIR);
+    archiveHtmlFilesInDir(PUBLISHED_OUTPUT_DIR);
   }
+
+  const publicBaseUrl = process.env.PUBLIC_SITE_URL ||
+    (BASE_URL.startsWith('https') ? BASE_URL.replace(/\/$/, '') : 'https://hb3-accelerator.com');
+
+  const appShellTemplate = await getAppShellTemplate();
+  if (!appShellTemplate) {
+    console.warn('[pre-render] App-shell не найден — пропуск генерации');
+    return;
+  }
+
+  const blogArticles = await getBlogArticles();
+  const publishedPages = await getPublishedPages();
+  console.log(`[pre-render] Блог: ${blogArticles.length}, Published: ${publishedPages.length}`);
+
+  if (renderBlogList) {
+    const listHtml = buildListPageHtml({
+      title: 'Блог',
+      description: 'Публикации и статьи VC HB3 Accelerator',
+      pathPrefix: '/blog',
+      items: blogArticles,
+      baseUrl: publicBaseUrl,
+      appShellTemplate,
+    });
+    if (listHtml) {
+      saveHtml(listHtml, path.join(OUTPUT_DIR, 'index.html'), OUTPUT_DIR);
+    }
+  }
+
+  if (renderPublishedList) {
+    const listHtml = buildListPageHtml({
+      title: 'Публичные документы - HB3 Accelerator',
+      description: 'Опубликованные документы и материалы платформы Digital Legal Entity.',
+      pathPrefix: '/content/published',
+      items: publishedPages,
+      baseUrl: publicBaseUrl,
+      appShellTemplate,
+    });
+    if (listHtml) {
+      saveHtml(listHtml, path.join(PUBLISHED_OUTPUT_DIR, 'index.html'), PUBLISHED_OUTPUT_DIR);
+    }
+  }
+
+  if (renderBlogArticles) {
+    const blogSource = blogArticles.length > 0
+      ? blogArticles
+      : (specificSlug ? [{ slug: specificSlug, title: specificSlug }] : []);
+    await renderArticlesToDir({
+      articles: blogSource,
+      pathPrefix: '/blog',
+      outputDir: OUTPUT_DIR,
+      appShellTemplate,
+      publicBaseUrl,
+      specificSlug,
+    });
+  }
+
+  if (renderPublishedArticles) {
+    const publishedSource = publishedPages.length > 0
+      ? publishedPages
+      : (specificSlug ? [{ slug: specificSlug, title: specificSlug }] : []);
+    await renderArticlesToDir({
+      articles: publishedSource,
+      pathPrefix: '/content/published',
+      outputDir: PUBLISHED_OUTPUT_DIR,
+      appShellTemplate,
+      publicBaseUrl,
+      specificSlug,
+    });
+  }
+
+  console.log('[pre-render] Завершено успешно');
 }
 
 // Если скрипт запущен напрямую
@@ -622,10 +737,14 @@ if (require.main === module) {
       
       // Парсим аргументы командной строки
       const args = process.argv.slice(2);
+      const noList = args.includes('--no-list');
+      const noArticles = args.includes('--no-articles');
       const options = {
-        renderList: !args.includes('--no-list'),
-        renderArticles: !args.includes('--no-articles'),
-        specificSlug: args.find(arg => arg.startsWith('--slug='))?.split('=')[1] || null
+        renderBlogList: !noList,
+        renderBlogArticles: !noArticles,
+        renderPublishedList: !noList,
+        renderPublishedArticles: !noArticles,
+        specificSlug: args.find((arg) => arg.startsWith('--slug='))?.split('=')[1] || null,
       };
       
       await preRenderBlog(options);

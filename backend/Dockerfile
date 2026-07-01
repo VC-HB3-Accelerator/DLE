@@ -57,11 +57,11 @@ RUN echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
 
 # Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
 
-COPY package.json yarn.lock ./
+COPY package.json yarn.lock THIRD_PARTY_NOTICES.md ./
 RUN yarn config set npmRegistryServer https://registry.npmjs.org \
     && yarn config set registry https://registry.npmjs.org \
     && yarn config set network-timeout 600000 \
-    && yarn install
+    && yarn install --production --frozen-lockfile
 
 COPY . .
 

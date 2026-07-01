@@ -1011,7 +1011,9 @@ function buildConversationSummary(history, options = {}) {
   const lines = [];
   let totalLength = 0;
 
-  for (const message of recentMessages) {
+  // Берём самые свежие сообщения: идём с конца, в итоге сохраняем хронологический порядок
+  for (let i = recentMessages.length - 1; i >= 0; i--) {
+    const message = recentMessages[i];
     if (!message || typeof message.content !== 'string') {
       continue;
     }
@@ -1031,11 +1033,8 @@ function buildConversationSummary(history, options = {}) {
       break;
     }
 
-    lines.push(line);
+    lines.unshift(line);
     totalLength += line.length + 1;
-    if (totalLength >= maxChars) {
-      break;
-    }
   }
 
   return lines.length > 0 ? lines.join('\n') : null;

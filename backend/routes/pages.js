@@ -442,18 +442,18 @@ router.post('/', conditionalUpload, async (req, res) => {
     // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
     // Автоматическая индексация при создании отключена
 
-    // Запускаем pre-rendering для блога, если страница публичная и для блога
-    if (created.visibility === 'public' && 
-        created.status === 'published' && 
-        created.show_in_blog && 
-        created.slug && 
-        typeof created.slug === 'string' && 
+    // Pre-render SEO HTML для публичных страниц с slug
+    if (created.visibility === 'public' &&
+        created.status === 'published' &&
+        created.slug &&
+        typeof created.slug === 'string' &&
         created.slug.trim() !== '') {
-      // Запускаем асинхронно, не блокируя ответ
-      preRenderBlog({ 
-        renderList: true, 
-        renderArticles: true,
-        specificSlug: created.slug.trim() 
+      preRenderBlog({
+        renderBlogList: !!created.show_in_blog,
+        renderBlogArticles: !!created.show_in_blog,
+        renderPublishedList: !created.show_in_blog,
+        renderPublishedArticles: !created.show_in_blog,
+        specificSlug: created.slug.trim(),
       }).catch(err => {
         console.error('[pages] Ошибка pre-rendering при создании страницы:', err);
       });
@@ -1211,18 +1211,17 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
   // Автоматическая индексация при обновлении отключена
 
-  // Запускаем pre-rendering для блога, если страница публичная и для блога
-  if (updated.visibility === 'public' && 
-      updated.status === 'published' && 
-      updated.show_in_blog && 
-      updated.slug && 
-      typeof updated.slug === 'string' && 
+  if (updated.visibility === 'public' &&
+      updated.status === 'published' &&
+      updated.slug &&
+      typeof updated.slug === 'string' &&
       updated.slug.trim() !== '') {
-    // Запускаем асинхронно, не блокируя ответ
-    preRenderBlog({ 
-      renderList: true, 
-      renderArticles: true,
-      specificSlug: updated.slug.trim() 
+    preRenderBlog({
+      renderBlogList: !!updated.show_in_blog,
+      renderBlogArticles: !!updated.show_in_blog,
+      renderPublishedList: !updated.show_in_blog,
+      renderPublishedArticles: !updated.show_in_blog,
+      specificSlug: updated.slug.trim(),
     }).catch(err => {
       console.error('[pages] Ошибка pre-rendering при обновлении страницы:', err);
     });
@@ -1652,6 +1651,31 @@ router.get('/blog/:slug', async (req, res) => {
   } catch (error) {
     console.error('Ошибка получения страницы блога по slug:', error);
     res.status(500).json({ error: 'Ошибка получения страницы' });
+  }
+});
+
+// Список публичных страниц (не блог) для SEO / pre-render
+router.get('/published/all', async (req, res) => {
+  try {
+    const tableName = `admin_pages_simple`;
+    const existsRes = await db.getQuery()(
+      `SELECT to_regclass($1) as exists`, [tableName]
+    );
+    if (!existsRes.rows[0].exists) {
+      return res.json([]);
+    }
+    const { rows } = await db.getQuery()(`
+      SELECT id, slug, title, summary, updated_at, created_at
+      FROM ${tableName}
+      WHERE status = 'published' AND visibility = 'public'
+        AND (show_in_blog IS NULL OR show_in_blog = FALSE)
+        AND slug IS NOT NULL AND TRIM(slug) <> ''
+      ORDER BY created_at DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Ошибка получения списка published:', error);
+    res.status(500).json([]);
   }
 });
 
@@ -2271,11 +2295,12 @@ router.post('/blog/prerender', async (req, res) => {
       specificSlug: specificSlug || 'all'
     });
     
-    // Запускаем pre-rendering асинхронно
     preRenderBlog({
-      renderList,
-      renderArticles,
-      specificSlug
+      renderBlogList: renderList,
+      renderBlogArticles: renderArticles,
+      renderPublishedList: renderList,
+      renderPublishedArticles: renderArticles,
+      specificSlug,
     }).then(() => {
       console.log('[pages] POST /blog/prerender: Pre-rendering завершен успешно');
     }).catch(err => {

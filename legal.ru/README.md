@@ -28,6 +28,7 @@
 - [AUTHORS.md](AUTHORS.md) — информация об авторах
 - [CONTRIBUTING.md](CONTRIBUTING.md) — правила для контрибьюторов
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — шаблоны копирайтов
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — лицензии сторонних npm/Python-пакетов
 
 **Лицензирование и условия:**
 - [Условия приобретения и обслуживания](../docs.ru/service-terms.md) — подробные условия лицензирования
@@ -41,6 +42,7 @@
 | [AUTHORS.md](AUTHORS.md) | Сведения об авторах и контактная информация |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Правила участия для контрибьюторов проекта |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Шаблоны уведомлений об авторских правах |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Лицензии сторонних npm- и Python-зависимостей |
 | [service-terms.md](../docs.ru/service-terms.md) | Подробные условия лицензирования и обслуживания |
 | [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Форматы и примеры обязательной атрибуции |
 | [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Инструкция и шаблон уведомления об использовании |

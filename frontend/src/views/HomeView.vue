@@ -107,9 +107,29 @@
 
   let unsubscribe = null;
 
+  function updateHomeSeo() {
+    const origin = window.location.origin;
+    const canonicalUrl = `${origin}/`;
+    document.title = 'VC HB3 Accelerator — венчурный фонд и платформа DLE';
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', canonicalUrl);
+    let ogUrl = document.querySelector('meta[property="og:url"]');
+    if (!ogUrl) {
+      ogUrl = document.createElement('meta');
+      ogUrl.setAttribute('property', 'og:url');
+      document.head.appendChild(ogUrl);
+    }
+    ogUrl.setAttribute('content', canonicalUrl);
+  }
+
   onMounted(() => {
-    // console.log('[HomeView] Компонент загружен (обновленная версия)');
-    
+    updateHomeSeo();
+
     // Подписка на события авторизации
     unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
     
