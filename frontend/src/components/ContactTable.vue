@@ -20,18 +20,19 @@
       </el-button>
       <el-button v-if="canSendToUsers" type="success" :disabled="!hasSelectedEditor" @click="sendPublicMessage" style="margin-right: 1em;">Публичное сообщение</el-button>
       <el-button v-if="canViewContacts" type="warning" :disabled="!hasSelectedEditor" @click="sendPrivateMessage" style="margin-right: 1em;">Приватное сообщение</el-button>
-      <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="showBroadcastModal = true" style="margin-right: 1em;">Рассылка</el-button>
+      <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="goToBroadcastPage" style="margin-right: 1em;">Рассылка</el-button>
       <el-button v-if="canDeleteMessages" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
       <el-button v-if="canDeleteData" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
       <el-button v-if="canEditData" type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
+      <span v-if="selectedIds.length" class="selection-info">Выбрано: {{ selectedIds.length }}</span>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
     <el-form v-if="isEditorRole" :inline="true" class="filters-form" label-position="top">
       <el-form-item label="Поиск">
-        <el-input v-model="filterSearch" placeholder="Поиск по имени, email, telegram, кошельку" clearable @input="onAnyFilterChange" />
+        <el-input v-model="filterSearch" placeholder="Поиск по имени, email, telegram, кошельку" clearable @input="onSearchInput" />
       </el-form-item>
       <el-form-item label="Тип контакта">
-        <el-select v-model="filterContactType" placeholder="Все" style="min-width:120px;" @change="onAnyFilterChange">
+        <el-select v-model="filterContactType" placeholder="Все" style="min-width:120px;" @change="() => applyFilters(true)">
           <el-option label="Все" value="all" />
           <el-option label="Email" value="email" />
           <el-option label="Telegram" value="telegram" />
@@ -39,19 +40,19 @@
         </el-select>
       </el-form-item>
       <el-form-item label="Дата от">
-        <el-date-picker v-model="filterDateFrom" type="date" placeholder="Дата от" clearable style="width: 100%;" @change="onAnyFilterChange" />
+        <el-date-picker v-model="filterDateFrom" type="date" placeholder="Дата от" clearable style="width: 100%;" @change="() => applyFilters(true)" />
       </el-form-item>
       <el-form-item label="Дата до">
-        <el-date-picker v-model="filterDateTo" type="date" placeholder="Дата до" clearable style="width: 100%;" @change="onAnyFilterChange" />
+        <el-date-picker v-model="filterDateTo" type="date" placeholder="Дата до" clearable style="width: 100%;" @change="() => applyFilters(true)" />
       </el-form-item>
       <el-form-item label="Только с новыми сообщениями">
-        <el-select v-model="filterNewMessages" placeholder="Нет" style="min-width:110px;" @change="onAnyFilterChange">
+        <el-select v-model="filterNewMessages" placeholder="Нет" style="min-width:110px;" @change="() => applyFilters(true)">
           <el-option label="Нет" :value="''" />
           <el-option label="Да" value="yes" />
         </el-select>
       </el-form-item>
       <el-form-item label="Блокировка">
-        <el-select v-model="filterBlocked" placeholder="Все" style="min-width:120px;" @change="onAnyFilterChange">
+        <el-select v-model="filterBlocked" placeholder="Все" style="min-width:120px;" @change="() => applyFilters(true)">
           <el-option label="Все" value="all" />
           <el-option label="Только заблокированные" value="blocked" />
           <el-option label="Только не заблокированные" value="unblocked" />
@@ -64,7 +65,7 @@
           filterable
           placeholder="Выберите теги"
           style="min-width:180px;"
-          @change="onAnyFilterChange"
+          @change="() => applyFilters(true)"
         >
           <el-option
             v-for="tag in availableTags"
@@ -92,7 +93,13 @@
           </tr>
         </thead>
       <tbody>
-        <tr v-for="contact in filteredContacts" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }" @click="goToContactDetails(contact.id)" style="cursor: pointer;">
+        <tr v-if="isLoadingContacts">
+          <td :colspan="canViewContacts ? 8 : 7" class="loading-row">Загрузка контактов...</td>
+        </tr>
+        <tr v-else-if="!pageContacts.length">
+          <td :colspan="canViewContacts ? 8 : 7" class="loading-row">Контакты не найдены</td>
+        </tr>
+        <tr v-for="contact in pageContacts" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }" @click="goToContactDetails(contact.id)" style="cursor: pointer;">
           <td v-if="canViewContacts" @click.stop><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
           <td>{{ contact.id }}</td>
           <td>
@@ -112,26 +119,30 @@
         </tr>
       </tbody>
     </table>
+    <div v-if="totalContacts > pageSize" class="contacts-pagination">
+      <el-pagination
+        v-model:current-page="currentPage"
+        :page-size="pageSize"
+        :total="totalContacts"
+        layout="total, prev, pager, next"
+        @current-change="onPageChange"
+      />
+    </div>
     <ImportContactsModal v-if="showImportModal" @close="showImportModal = false" @imported="onImported" />
-    <BroadcastModal v-if="showBroadcastModal" :user-ids="selectedIds" @close="showBroadcastModal = false" />
   </div>
 </template>
 
 <script setup>
 import { defineProps, computed, ref, onMounted, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElCheckbox, ElButton, ElMessageBox, ElMessage } from 'element-plus';
+import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElButton, ElMessageBox, ElMessage, ElPagination } from 'element-plus';
 import ImportContactsModal from './ImportContactsModal.vue';
-import BroadcastModal from './BroadcastModal.vue';
-import tablesService from '../services/tablesService';
 import messagesService from '../services/messagesService';
-import { useTagsWebSocket } from '../composables/useTagsWebSocket';
-import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
+import { getContacts } from '../services/contactsService';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import { PERMISSIONS } from './permissions.js';
-import api from '../api/axios';
-import { sendMessage, getPrivateUnreadCount } from '../services/messagesService';
+import { getPrivateUnreadCount } from '../services/messagesService';
 import { useRoles } from '@/composables/useRoles';
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
@@ -140,14 +151,20 @@ const props = defineProps({
   markMessagesAsReadForUser: { type: Function, default: null },
   markContactAsRead: { type: Function, default: null }
 });
-// Используем переданные через props данные вместо создания собственного массива
-const contactsArray = computed(() => props.contacts || []);
+
+const PAGE_SIZE = 1000;
 const newIds = computed(() => props.newContacts.map(c => c.id));
-const newMsgUserIds = computed(() => props.newMessages.map(m => String(m.user_id)));
 const router = useRouter();
 const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData, hasPermission } = usePermissions();
 const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
-const { roles, getRoleDisplayName, getRoleClass, fetchRoles, clearRoles } = useRoles();
+const { getRoleDisplayName, getRoleClass, fetchRoles } = useRoles();
+
+const pageContacts = ref([]);
+const totalContacts = ref(0);
+const currentPage = ref(1);
+const pageSize = PAGE_SIZE;
+const isLoadingContacts = ref(false);
+const selectedContactsCache = ref({});
 
 // Фильтры
 const filterSearch = ref('');
@@ -191,99 +208,86 @@ const availableTags = ref([]);
 const selectedTagIds = ref([]);
 
 const showImportModal = ref(false);
-const showBroadcastModal = ref(false);
 
 const selectedIds = ref([]);
 const selectAll = ref(false);
+let searchDebounceTimer = null;
 
-// Проверяем, есть ли среди выбранных контактов editor
+function cacheContacts(contacts) {
+  for (const contact of contacts) {
+    selectedContactsCache.value[contact.id] = contact;
+  }
+}
+
+function getContactByIdLocal(id) {
+  return selectedContactsCache.value[id] || pageContacts.value.find(c => c.id === id);
+}
+
 const hasSelectedEditor = computed(() => {
-  return selectedIds.value.some(id => {
-    const contact = contactsArray.value.find(c => c.id === id);
-    return contact?.role === 'editor';
-  });
+  return selectedIds.value.some(id => getContactByIdLocal(id)?.role === 'editor');
 });
 
-// Фильтры формы доступны только для роли editor
 const isEditorRole = computed(() => userAccessLevel.value?.level === 'editor');
 
-// Фильтрация контактов: по роли (user/readonly/editor), для editor — дополнительно по форме фильтров
-const filteredContacts = computed(() => {
-  let list;
-  if (userAccessLevel.value?.level === 'user') {
-    // USER видит только editor админов и себя
-    list = contactsArray.value.filter(contact => {
-      const isEditor = contact.role === 'editor';
-      const isSelf = contact.id === userId.value;
-      return isEditor || isSelf;
-    });
-  } else {
-    // READONLY и EDITOR видят всех
-    list = [...contactsArray.value];
+function buildFilterParams() {
+  const params = {
+    limit: pageSize,
+    offset: (currentPage.value - 1) * pageSize
+  };
+  if (selectedTagIds.value.length > 0) params.tagIds = selectedTagIds.value.join(',');
+  if (filterDateFrom.value) params.dateFrom = formatDateOnly(filterDateFrom.value);
+  if (filterDateTo.value) params.dateTo = formatDateOnly(filterDateTo.value);
+  if (filterContactType.value && filterContactType.value !== 'all') params.contactType = filterContactType.value;
+  if (filterSearch.value) params.search = filterSearch.value;
+  if (filterNewMessages.value) params.newMessages = filterNewMessages.value;
+  if (filterBlocked.value && filterBlocked.value !== 'all') params.blocked = filterBlocked.value;
+  return params;
+}
+
+async function loadContactsPage() {
+  if (!isAuthenticated.value) return;
+  isLoadingContacts.value = true;
+  try {
+    const result = await getContacts(buildFilterParams());
+    pageContacts.value = result.contacts || [];
+    totalContacts.value = result.total || 0;
+    cacheContacts(pageContacts.value);
+    updateSelectAllState();
+  } catch (error) {
+    console.error('[ContactTable] Ошибка загрузки контактов:', error);
+    pageContacts.value = [];
+    totalContacts.value = 0;
+  } finally {
+    isLoadingContacts.value = false;
   }
+}
 
-  // Фильтры формы применяем только для роли editor
-  if (!isEditorRole.value) return list;
+function updateSelectAllState() {
+  const pageIds = pageContacts.value.map(c => c.id);
+  selectAll.value = pageIds.length > 0 && pageIds.every(id => selectedIds.value.includes(id));
+}
 
-  return list.filter(contact => {
-    if (filterSearch.value) {
-      const q = filterSearch.value.toLowerCase();
-      const name = (contact.name || '').toLowerCase();
-      const email = (contact.email || '').toLowerCase();
-      const telegram = (contact.telegram || '').toLowerCase();
-      const wallet = (contact.wallet || '').toLowerCase();
-      if (!name.includes(q) && !email.includes(q) && !telegram.includes(q) && !wallet.includes(q)) return false;
-    }
-    if (filterContactType.value && filterContactType.value !== 'all') {
-      const ct = (contact.contact_type || '').toLowerCase();
-      if (ct !== filterContactType.value) return false;
-    }
-    if (filterDateFrom.value) {
-      const created = contact.created_at ? new Date(contact.created_at) : null;
-      const from = new Date(filterDateFrom.value);
-      from.setHours(0, 0, 0, 0);
-      if (!created || created < from) return false;
-    }
-    if (filterDateTo.value) {
-      const created = contact.created_at ? new Date(contact.created_at) : null;
-      const to = new Date(filterDateTo.value);
-      to.setHours(23, 59, 59, 999);
-      if (!created || created > to) return false;
-    }
-    if (filterNewMessages.value === 'yes') {
-      if (!newMsgUserIds.value.includes(String(contact.id))) return false;
-    }
-    if (filterBlocked.value === 'blocked' && !contact.is_blocked) return false;
-    if (filterBlocked.value === 'unblocked' && contact.is_blocked) return false;
-    if (selectedTagIds.value.length > 0) {
-      const contactTagIds = contact.tag_ids || (contact.tags || []).map(t => t.id || t);
-      const hasMatch = selectedTagIds.value.some(tid => contactTagIds.includes(tid));
-      if (!hasMatch) return false;
-    }
-    return true;
-  });
-});
+function applyFilters(resetPage = true) {
+  if (resetPage) currentPage.value = 1;
+  selectedIds.value = [];
+  selectAll.value = false;
+  loadContactsPage();
+}
 
-// WebSocket для тегов - ОТКЛЮЧАЕМ из-за циклических запросов
-// const { onTagsUpdate } = useTagsWebSocket();
-// let unsubscribeFromTags = null;
-let lastTagsHash = ref(''); // Хеш последних загруженных тегов
-let tagsUpdateInterval = null; // Интервал для периодического обновления тегов
+function onSearchInput() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => applyFilters(true), 350);
+}
 
-// Реактивная загрузка ролей и контактов при авторизации
-watch(isAuthenticated, async (newValue) => {
-  if (newValue) {
-    console.log('[ContactTable] Пользователь авторизован, загружаем роли');
-    try {
-      await fetchRoles();
-      // Контакты загружаются автоматически через useContactsAndMessagesWebSocket
-    } catch (error) {
-      console.log('[ContactTable] Ошибка загрузки ролей (возможно, пользователь не авторизован):', error.message);
-    }
-  }
-});
+function onPageChange(page) {
+  currentPage.value = page;
+  loadContactsPage();
+}
 
-// Контакты обновляются автоматически через useContactsAndMessagesWebSocket при смене пользователя
+watch(selectedIds, () => {
+  cacheContacts(pageContacts.value.filter(c => selectedIds.value.includes(c.id)));
+  updateSelectAllState();
+}, { deep: true });
 
 // WebSocket для обновления контактов в реальном времени
 let ws = null;
@@ -299,9 +303,8 @@ function setupContactsWebSocket() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'contacts-updated') {
-      console.log('[ContactTable] Получено WebSocket уведомление об обновлении контактов');
-      // Контакты обновляются автоматически через useContactsAndMessagesWebSocket
-      fetchRoles(); // Обновляем роли
+      fetchRoles();
+      loadContactsPage();
     }
   };
   
@@ -315,58 +318,41 @@ function setupContactsWebSocket() {
 }
 
 onMounted(async () => {
-  // Контакты загружаются автоматически через useContactsAndMessagesWebSocket
-  // Загружаем роли только если пользователь авторизован
   if (isAuthenticated.value) {
     try {
       await fetchRoles();
       await loadPrivateUnreadCount();
+      await loadContactsPage();
     } catch (error) {
-      console.log('[ContactTable] Ошибка загрузки ролей в onMounted:', error.message);
+      console.log('[ContactTable] Ошибка загрузки в onMounted:', error.message);
     }
   }
-  
-  // Настраиваем WebSocket для обновления контактов в реальном времени
   setupContactsWebSocket();
-  
-  // ContactTable - дочерний компонент, данные управляются через props
-  // Централизованные события обрабатываются в родительском компоненте (ContactsView)
-  // Здесь только очищаем локальные состояния таблицы при изменении props.contacts
-  // ВРЕМЕННО ОТКЛЮЧАЕМ - await loadAvailableTags();
-  
-  // ВРЕМЕННО ОТКЛЮЧАЕМ - Вместо WebSocket используем периодическое обновление каждые 30 секунд
-  // tagsUpdateInterval = setInterval(async () => {
-  //   console.log('[ContactTable] Периодическое обновление тегов');
-  //   await loadAvailableTags();
-  // }, 30000); // 30 секунд
-  
-  // Подписываемся на обновления тегов - ОТКЛЮЧАЕМ
-  // unsubscribeFromTags = onTagsUpdate(async () => {
-  //   console.log('[ContactTable] Получено обновление тегов, проверяем необходимость перезагрузки');
-  //   await loadAvailableTags();
-  // });
+});
+
+watch(isAuthenticated, async (newValue) => {
+  if (newValue) {
+    try {
+      await fetchRoles();
+      await loadContactsPage();
+    } catch (error) {
+      console.log('[ContactTable] Ошибка загрузки после авторизации:', error.message);
+    }
+  } else {
+    pageContacts.value = [];
+    totalContacts.value = 0;
+    selectedIds.value = [];
+    selectAll.value = false;
+  }
 });
 
 onUnmounted(() => {
-  // Отписываемся от WebSocket при размонтировании - ОТКЛЮЧАЕМ
-  // if (unsubscribeFromTags) {
-  //   unsubscribeFromTags();
-  // }
-  
-  // Закрываем WebSocket для контактов
   if (ws) {
     ws.close();
     ws = null;
   }
-  
-  // Удаляем обработчики централизованных событий
-  window.removeEventListener('clear-application-data', () => {});
-  window.removeEventListener('refresh-application-data', () => {});
-  
-  // Очищаем интервал
-  if (tagsUpdateInterval) {
-    clearInterval(tagsUpdateInterval);
-    tagsUpdateInterval = null;
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
   }
 });
 
@@ -410,22 +396,6 @@ onUnmounted(() => {
 //   }
 // }
 
-function buildQuery() {
-  const params = new URLSearchParams();
-  if (selectedTagIds.value.length > 0) params.append('tagIds', selectedTagIds.value.join(','));
-  if (filterDateFrom.value) params.append('dateFrom', formatDateOnly(filterDateFrom.value));
-  if (filterDateTo.value) params.append('dateTo', formatDateOnly(filterDateTo.value));
-  if (filterContactType.value && filterContactType.value !== 'all') params.append('contactType', filterContactType.value);
-  if (filterSearch.value) params.append('search', filterSearch.value);
-  if (filterNewMessages.value) params.append('newMessages', filterNewMessages.value);
-  if (filterBlocked.value && filterBlocked.value !== 'all') params.append('blocked', filterBlocked.value);
-  return params.toString();
-}
-
-// Функция fetchContacts больше не нужна - данные загружаются через useContactsAndMessagesWebSocket
-
-// Фильтрация происходит реактивно через computed свойство filteredContacts
-
 function resetFilters() {
   filterSearch.value = '';
   filterContactType.value = 'all';
@@ -433,8 +403,8 @@ function resetFilters() {
   filterDateTo.value = '';
   filterNewMessages.value = '';
   filterBlocked.value = 'all';
-  selectedTagIds.value = []; // Сбрасываем выбранные теги
-  // Фильтрация происходит реактивно через computed свойство filteredContacts
+  selectedTagIds.value = [];
+  applyFilters(true);
 }
 
 function formatDateOnly(date) {
@@ -462,7 +432,7 @@ async function goToContactDetails(contactId) {
 
 function onImported() {
   showImportModal.value = false;
-  // Контакты обновляются автоматически через useContactsAndMessagesWebSocket
+  applyFilters(true);
 }
 
 async function openChatForSelected() {
@@ -472,7 +442,7 @@ async function openChatForSelected() {
   const contactId = selectedIds.value[0];
   
   // Находим контакт в списке
-  const contact = filteredContacts.value.find(c => c.id === contactId);
+  const contact = getContactByIdLocal(contactId);
   if (!contact) return;
   
   // Открываем чат с этим контактом (user_chat)
@@ -487,7 +457,7 @@ function sendPublicMessage() {
   }
   
   const contactId = selectedIds.value[0];
-  const contact = filteredContacts.value.find(c => c.id === contactId);
+  const contact = getContactByIdLocal(contactId);
   if (!contact) {
     ElMessage.error('Контакт не найден');
     return;
@@ -520,11 +490,7 @@ async function openPrivateChatForSelected(contact = null) {
     
     // Берем первый выбранный контакт
     const contactId = selectedIds.value[0];
-    console.log('[ContactTable] Ищем контакт с ID:', contactId);
-    console.log('[ContactTable] Доступные контакты:', contactsArray.value.map(c => ({ id: c.id, name: c.name })));
-    
-    // Находим контакт в списке
-    targetContact = filteredContacts.value.find(c => c.id === contactId);
+    targetContact = getContactByIdLocal(contactId);
     if (!targetContact) {
       console.error('[ContactTable] Контакт не найден с ID:', contactId);
       return;
@@ -547,42 +513,26 @@ function goToPersonalMessages() {
   router.push({ name: 'personal-messages' });
 }
 
-function toggleSelectAll() {
-  if (selectAll.value) {
-    selectedIds.value = filteredContacts.value.map(c => c.id);
-  } else {
-    selectedIds.value = [];
+function goToBroadcastPage() {
+  if (!selectedIds.value.length) {
+    ElMessage.warning('Выберите пользователей для рассылки');
+    return;
   }
+  router.push({
+    name: 'contacts-broadcast',
+    query: { ids: selectedIds.value.join(',') }
+  });
 }
 
-watch(contactsArray, (newContacts, oldContacts) => {
-  console.log('[ContactTable] Contacts array changed:', {
-    oldLength: oldContacts?.length || 0,
-    newLength: newContacts?.length || 0
-  });
-  
-  // Сбросить выбор при обновлении данных
-  selectedIds.value = [];
-  selectAll.value = false;
-  
-  // Если контакты очищены (например, при отключении кошелька), очищаем и локальные фильтры
-  if (newContacts?.length === 0 && oldContacts?.length > 0) {
-    console.log('[ContactTable] Contacts cleared, resetting filters');
-    filterSearch.value = '';
-    filterContactType.value = 'all';
-    filterDateFrom.value = null;
-    filterDateTo.value = null;
-    filterNewMessages.value = '';
-    filterBlocked.value = 'all';
+function toggleSelectAll() {
+  const pageIds = pageContacts.value.map(c => c.id);
+  if (selectAll.value) {
+    selectedIds.value = [...new Set([...selectedIds.value, ...pageIds])];
+    cacheContacts(pageContacts.value);
+  } else {
+    selectedIds.value = selectedIds.value.filter(id => !pageIds.includes(id));
   }
-});
-
-// Функция для обработки изменений фильтров
-const onAnyFilterChange = () => {
-  // Просто сбрасываем выбор при изменении фильтров
-  selectedIds.value = [];
-  selectAll.value = false;
-};
+}
 
 async function deleteSelected() {
   if (!selectedIds.value.length) return;
@@ -596,9 +546,9 @@ async function deleteSelected() {
       await fetch(`/api/users/${id}`, { method: 'DELETE' });
     }
     ElMessage.success('Контакты удалены');
-    // Контакты обновляются автоматически через useContactsAndMessagesWebSocket
     selectedIds.value = [];
     selectAll.value = false;
+    await loadContactsPage();
   } catch (e) {
     // Отмена
   }
@@ -651,8 +601,26 @@ async function deleteMessagesSelected() {
 .contact-table-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5em;
   margin-bottom: 24px;
   position: relative;
+}
+.selection-info {
+  margin-left: auto;
+  margin-right: 3rem;
+  font-weight: 600;
+  color: var(--color-primary, #409eff);
+}
+.contacts-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+.loading-row {
+  text-align: center;
+  padding: 24px;
+  color: #888;
 }
 .close-btn {
   position: absolute;

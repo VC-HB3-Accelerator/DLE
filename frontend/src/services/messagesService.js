@@ -40,10 +40,13 @@ export default {
     });
     return data;
   },
-  async getMessagesByConversationId(conversationId) {
-    if (!conversationId) return [];
-    // Используем новый API для публичных сообщений
-    const { data } = await api.get('/messages/public');
+  async getMessagesByConversationId(conversationId, options = {}) {
+    if (!conversationId) return { success: true, messages: [] };
+    const { limit = 50, offset = 0 } = options;
+    const { data } = await api.get(`/messages/conversations/${conversationId}/messages`, {
+      params: { limit, offset },
+      withCredentials: true
+    });
     return data;
   },
   async getConversationByUserId(userId) {
@@ -53,10 +56,28 @@ export default {
     const { data } = await api.post('/chat/ai-draft', { conversationId, messages, language });
     return data;
   },
-  async broadcastMessage({ userId, message }) {
+  async broadcastMessage({ userId, message, subject = 'Новое сообщение', attachments = [] }) {
+    if (attachments.length > 0) {
+      const formData = new FormData();
+      formData.append('user_id', userId);
+      formData.append('content', message);
+      formData.append('subject', subject);
+      attachments.forEach(attachment => {
+        const file = attachment.file || attachment.raw || attachment;
+        formData.append('attachments', file);
+      });
+
+      const { data } = await api.post('/messages/broadcast', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true
+      });
+      return data;
+    }
+
     const { data } = await api.post('/messages/broadcast', {
       user_id: userId,
-      content: message
+      content: message,
+      subject
     }, {
       withCredentials: true
     });
@@ -164,6 +185,16 @@ export async function getPrivateUnreadCount() {
 export async function markPrivateMessagesAsRead(conversationId) {
   const { data } = await api.post('/messages/private/mark-read', {
     conversationId
+  });
+  return data;
+}
+
+export async function getMessagesByConversationId(conversationId, options = {}) {
+  if (!conversationId) return { success: true, messages: [] };
+  const { limit = 50, offset = 0 } = options;
+  const { data } = await api.get(`/messages/conversations/${conversationId}/messages`, {
+    params: { limit, offset },
+    withCredentials: true
   });
   return data;
 }

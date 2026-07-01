@@ -76,8 +76,12 @@ router.get('/', requireAuth, async (req, res, next) => {
       contactType = 'all',
       search = '',
       newMessages = '',
-      blocked = 'all'
+      blocked = 'all',
+      limit: limitParam = '1000',
+      offset: offsetParam = '0'
     } = req.query;
+    const limit = Math.min(Math.max(parseInt(limitParam, 10) || 1000, 1), 1000);
+    const offset = Math.max(parseInt(offsetParam, 10) || 0, 0);
     const adminId = req.user && req.user.id;
     const userRole = req.user.role;
 
@@ -141,6 +145,42 @@ router.get('/', requireAuth, async (req, res, next) => {
       where.push(`u.is_blocked = false`);
     }
 
+    // Фильтр по новым сообщениям (на сервере, до пагинации)
+    if (newMessages === 'yes' && adminId) {
+      where.push(`EXISTS (
+        SELECT 1 FROM messages m
+        WHERE m.user_id = u.id
+        AND m.created_at > COALESCE(
+          (SELECT arm.last_read_at FROM admin_read_messages arm WHERE arm.admin_id = $${idx++} AND arm.user_id = u.id),
+          '1970-01-01'::timestamptz
+        )
+      )`);
+      params.push(adminId);
+    }
+
+    // --- COUNT для пагинации ---
+    let countSql = 'SELECT COUNT(DISTINCT u.id) AS cnt FROM users u';
+    const countParams = [...params];
+    const tagIdArr = tagIds ? tagIds.split(',').map(Number).filter(Boolean) : [];
+
+    if (tagIdArr.length > 0) {
+      countSql = `
+        SELECT COUNT(*) AS cnt FROM (
+          SELECT u.id FROM users u
+          JOIN user_tag_links utl ON utl.user_id = u.id
+          WHERE utl.tag_id = ANY($${countParams.length + 1})
+          GROUP BY u.id
+          HAVING COUNT(DISTINCT utl.tag_id) = $${countParams.length + 2}
+        ) tagged_users
+      `;
+      countParams.push(tagIdArr, tagIdArr.length);
+    } else if (where.length > 0) {
+      countSql += ` WHERE ${where.join(' AND ')} `;
+    }
+
+    const countResult = await db.getQuery()(countSql, countParams);
+    const userTotal = parseInt(countResult.rows[0]?.cnt || 0, 10);
+
     // --- Основной SQL ---
     let sql = `
       SELECT u.id, 
@@ -166,56 +206,27 @@ router.get('/', requireAuth, async (req, res, next) => {
     params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
 
     // Фильтрация по тегам
-    if (tagIds) {
-      const tagIdArr = tagIds.split(',').map(Number).filter(Boolean);
-      if (tagIdArr.length > 0) {
-        sql += `
+    if (tagIdArr.length > 0) {
+      sql += `
           JOIN user_tag_links utl ON utl.user_id = u.id
           WHERE utl.tag_id = ANY($${idx++})
           GROUP BY u.id
           HAVING COUNT(DISTINCT utl.tag_id) = $${idx++}
         `;
-        params.push(tagIdArr);
-        params.push(tagIdArr.length);
-      }
+      params.push(tagIdArr);
+      params.push(tagIdArr.length);
     } else if (where.length > 0) {
       sql += ` WHERE ${where.join(' AND ')} `;
     }
 
-    if (!tagIds) {
-      sql += ' ORDER BY u.id ';
-    }
+    sql += ' ORDER BY u.id ';
+
+    sql += ` LIMIT $${idx++} OFFSET $${idx++}`;
+    params.push(limit, offset);
 
     // --- Выполняем запрос ---
     const usersResult = await db.getQuery()(sql, params);
-    let users = usersResult.rows;
-
-    // --- Фильтрация по новым сообщениям ---
-    if (newMessages === 'yes' && adminId) {
-      // Получаем время последнего прочтения для каждого пользователя
-      const readRes = await db.getQuery()(
-        'SELECT user_id, last_read_at FROM admin_read_messages WHERE admin_id = $1',
-        [adminId]
-      );
-      const readMap = {};
-      for (const row of readRes.rows) {
-        readMap[row.user_id] = row.last_read_at;
-      }
-      // Получаем последнее сообщение для каждого пользователя
-      const msgRes = await db.getQuery()(
-        `SELECT user_id, MAX(created_at) as last_msg_at FROM messages GROUP BY user_id`
-      );
-      const msgMap = {};
-      for (const row of msgRes.rows) {
-        msgMap[row.user_id] = row.last_msg_at;
-      }
-      // Оставляем только тех, у кого есть новые сообщения
-      users = users.filter(u => {
-        const lastRead = readMap[u.id];
-        const lastMsg = msgMap[u.id];
-        return lastMsg && (!lastRead || new Date(lastMsg) > new Date(lastRead));
-      });
-    }
+    const users = usersResult.rows;
 
     // --- Формируем ответ для зарегистрированных пользователей ---
     const contacts = users.map(u => ({
@@ -231,7 +242,15 @@ router.get('/', requireAuth, async (req, res, next) => {
       role: u.role || 'user'
     }));
 
-    // --- Добавляем гостевые контакты ---
+    // --- Добавляем гостевые контакты (только на первой странице без тегового фильтра) ---
+    let guestContacts = [];
+    const includeGuests = offset === 0
+      && tagIdArr.length === 0
+      && !search
+      && newMessages !== 'yes'
+      && contactType === 'all'
+      && blocked === 'all';
+    if (includeGuests) {
     const guestContactsResult = await db.getQuery()(
       `WITH decrypted_guests AS (
         SELECT 
@@ -281,7 +300,7 @@ router.get('/', requireAuth, async (req, res, next) => {
       [encryptionKey]
     );
 
-    const guestContacts = guestContactsResult.rows.map((g) => {
+    guestContacts = guestContactsResult.rows.map((g) => {
       const channelMap = {
         'web': '🌐',
         'telegram': '📱',
@@ -332,11 +351,20 @@ router.get('/', requireAuth, async (req, res, next) => {
         }
       };
     });
+    }
 
     // Объединяем списки
     const allContacts = [...contacts, ...guestContacts];
+    const total = userTotal + (includeGuests ? guestContacts.length : 0);
 
-    res.json({ success: true, contacts: allContacts });
+    res.json({
+      success: true,
+      contacts: allContacts,
+      total,
+      limit,
+      offset,
+      hasMore: offset + contacts.length < userTotal
+    });
   } catch (error) {
     logger.error('Error fetching contacts:', error);
     next(error);

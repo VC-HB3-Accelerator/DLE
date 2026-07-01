@@ -11,7 +11,6 @@
  */
 
 import { ref, onMounted, onUnmounted } from 'vue';
-import { getContacts } from '../services/contactsService';
 import { getPublicMessages } from '../services/messagesService';
 import axios from 'axios';
 
@@ -47,8 +46,8 @@ export function useContactsAndMessagesWebSocket() {
   }
 
   async function fetchContacts() {
-    const all = await getContacts();
-    contacts.value = all;
+    // Список контактов загружается постранично в ContactTable
+    contacts.value = [];
     updateNewContacts();
   }
 
@@ -195,7 +194,6 @@ export function useContactsAndMessagesWebSocket() {
   // Централизованная подписка на изменения аутентификации
   onMounted(async () => {
     await fetchContactsReadStatus();
-    await fetchContacts();
     await fetchReadStatus();
     await fetchMessages();
     setupWebSocket();

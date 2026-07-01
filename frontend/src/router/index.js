@@ -176,6 +176,12 @@ const routes = [
     // meta: { permission: PERMISSIONS.VIEW_CONTACTS } // Временно убираем проверку прав
   },
   {
+    path: '/contacts-list/broadcast',
+    name: 'contacts-broadcast',
+    component: () => import('../views/contacts/BroadcastCreateView.vue'),
+    meta: { permission: PERMISSIONS.BROADCAST }
+  },
+  {
     path: '/admin-chat/:adminId',
     name: 'admin-chat',
     component: () => import('../views/AdminChatView.vue'),

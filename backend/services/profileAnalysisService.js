@@ -460,10 +460,15 @@ async function analyzeUserMessage(userId, message) {
       nameMissing = !currentName;
     }
 
-    // 1. Извлечение имени из сообщения
-    logger.info(`[ProfileAnalysis] Начало извлечения имени для пользователя ${userId}...`);
-    const nameResult = await extractName(message);
-    logger.info(`[ProfileAnalysis] Извлечение имени завершено: name=${nameResult.name || 'null'}, should_update=${nameResult.should_update_name}`);
+    // 1. Извлечение имени из сообщения (пропускаем, если имя уже известно)
+    let nameResult = { name: null, should_update_name: false };
+    if (!isGuest && !currentName) {
+      logger.info(`[ProfileAnalysis] Начало извлечения имени для пользователя ${userId}...`);
+      nameResult = await extractName(message);
+      logger.info(`[ProfileAnalysis] Извлечение имени завершено: name=${nameResult.name || 'null'}, should_update=${nameResult.should_update_name}`);
+    } else if (!isGuest && currentName) {
+      logger.info(`[ProfileAnalysis] Имя пользователя ${userId} уже известно: "${currentName}", extractName пропущен`);
+    }
     
     // 2. Обновление имени пользователя (если нужно)
     if (!isGuest && nameResult.name) {

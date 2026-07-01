@@ -164,7 +164,7 @@ import Message from '../../components/Message.vue';
 import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
-import { getPublicMessages, getConversationByUserId, sendMessage, getPersonalChatHistory } from '../../services/messagesService.js';
+import { getConversationByUserId, getMessagesByConversationId, sendMessage } from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { PERMISSIONS } from './permissions.js';
@@ -426,69 +426,33 @@ function formatDate(date) {
 }
 async function loadMessages() {
   if (!contact.value || !contact.value.id) return;
-  
+
   console.log('[ContactDetailsView] 📥 loadMessages START for:', contact.value.id);
   isLoadingMessages.value = true;
   try {
-    // Проверяем, является ли контакт собственным ID пользователя
-    const isOwnContact = currentUserId.value && contact.value.id == currentUserId.value;
-    
-    let allMessages = [];
-    
-    if (isOwnContact) {
-      // Для собственного ID загружаем И личные сообщения с ИИ, И публичные сообщения от других пользователей
-      console.log('[ContactDetailsView] 🔍 Loading personal chat with AI + public messages for own ID:', contact.value.id);
-      
-      // Загружаем личные сообщения с ИИ
-      const personalResponse = await getPersonalChatHistory({ limit: 50, offset: 0 });
-      if (personalResponse.success && personalResponse.messages) {
-        allMessages = [...allMessages, ...personalResponse.messages];
-      }
-      
-      // Загружаем публичные сообщения от других пользователей (входящие)
-      const publicResponse = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
-      if (publicResponse.success && publicResponse.messages) {
-        allMessages = [...allMessages, ...publicResponse.messages];
-      }
-      
-      // Сортируем по времени создания
-      allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      
-    } else {
-      // Для других пользователей загружаем публичные сообщения между текущим пользователем и выбранным контактом
-      // И личные сообщения с ИИ целевого пользователя (для Telegram/Email пользователей)
-      console.log('[ContactDetailsView] 🔍 Loading public messages between current user and contact:', contact.value.id);
-      const response = await getPublicMessages(contact.value.id, { limit: 50, offset: 0 });
-      if (response.success && response.messages) {
-        allMessages = response.messages;
-        // Сортируем по времени создания (от старых к новым)
-        allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      }
-    }
-    
-    console.log('[ContactDetailsView] 📩 Loaded messages:', allMessages.length, 'for', contact.value.id);
-    messages.value = allMessages;
-    
-    if (messages.value.length > 0) {
-      lastMessageDate.value = messages.value[messages.value.length - 1].created_at;
-    } else {
+    if (String(contact.value.id).startsWith('guest_')) {
+      messages.value = [];
+      conversationId.value = null;
       lastMessageDate.value = null;
+      return;
     }
-    
-    // Получаем conversationId только для зарегистрированных пользователей
-    // Гости не имеют conversations
-    if (!String(contact.value.id).startsWith('guest_')) {
-      try {
-        const conv = await getConversationByUserId(contact.value.id);
-        conversationId.value = conv?.id || null;
-      } catch (convError) {
-        console.warn('[ContactDetailsView] Не удалось загрузить conversationId:', convError.message);
-        conversationId.value = null;
-      }
-    } else {
-      conversationId.value = null; // Гости не имеют conversationId
+
+    const convData = await getConversationByUserId(contact.value.id);
+    const convId = convData?.conversations?.[0]?.id || convData?.id || null;
+    conversationId.value = convId;
+
+    if (!convId) {
+      messages.value = [];
+      lastMessageDate.value = null;
+      return;
     }
-    
+
+    const response = await getMessagesByConversationId(convId, { limit: 50, offset: 0 });
+    messages.value = response?.messages || [];
+    lastMessageDate.value = messages.value.length
+      ? messages.value[messages.value.length - 1].created_at
+      : null;
+
     console.log('[ContactDetailsView] ✅ loadMessages DONE, messages count:', messages.value.length);
   } catch (e) {
     console.error('[ContactDetailsView] ❌ Ошибка загрузки сообщений:', e);

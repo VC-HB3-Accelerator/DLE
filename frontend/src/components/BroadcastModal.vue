@@ -46,6 +46,7 @@ import ChatInterface from './ChatInterface.vue';
 import messagesService from '../services/messagesService.js';
 import { ElMessage } from 'element-plus';
 const props = defineProps({ userIds: { type: Array, required: true } });
+const emit = defineEmits(['close']);
 const visible = ref(true);
 const message = ref('');
 const attachments = ref([]);

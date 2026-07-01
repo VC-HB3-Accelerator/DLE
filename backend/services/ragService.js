@@ -585,7 +585,8 @@ async function generateLLMResponse({
   selectedRagTables,
   userId = null, // Добавляем userId для function calling
   multiSourceResults = null, // Результаты мульти-источникового поиска
-  userProfile = null
+  userProfile = null,
+  enableTools = false
 }) {
   console.log(`[RAG] generateLLMResponse called with:`, {
     userQuestion,
@@ -753,8 +754,8 @@ async function generateLLMResponse({
       stream: false
     };
     
-    // Добавляем tools для function calling (если userId передан)
-    if (userId) {
+    // Добавляем tools только когда возможны изменения профиля
+    if (userId && enableTools) {
       const tools = getFunctionDefinitions(userId);
       requestBodyOptions.tools = tools;
       requestBodyOptions.tool_choice = "auto";
@@ -767,35 +768,59 @@ async function generateLLMResponse({
     const timeouts = ollamaConfig.getTimeouts();
 
     try {
-      // ✨ НОВОЕ: Используем очередь (если включена)
-      // ВАЖНО: Function calling не поддерживается в очереди, поэтому если tools нужны - используем прямой вызов
-      if (USE_AI_QUEUE && !userId) {
+      // Все запросы к Ollama проходят через очередь, чтобы не положить сервер.
+      if (USE_AI_QUEUE) {
         try {
-          llmResponse = await aiQueue.addTask({
+          const queuedResult = await aiQueue.addTask({
             messages,
             model: requestBody.model,
-            // Передаем параметры для очереди
             llmParameters,
-            qwenParameters
+            qwenParameters,
+            tools: requestBody.tools || null,
+            tool_choice: requestBody.tool_choice || null,
+            returnFullResponse: true
           });
-          
+
+          const queuedMessage = queuedResult.message || {};
+          if (queuedMessage.tool_calls && queuedMessage.tool_calls.length > 0) {
+            logger.info(`[RAG] ИИ запросил выполнение ${queuedMessage.tool_calls.length} функций`);
+
+            const toolResults = [];
+            for (const toolCall of queuedMessage.tool_calls) {
+              const result = await executeToolCall(toolCall, userId);
+              toolResults.push({
+                tool_call_id: toolCall.id,
+                role: 'tool',
+                name: toolCall.function.name,
+                content: JSON.stringify(result)
+              });
+            }
+
+            const finalMessages = [...messages, queuedMessage, ...toolResults];
+            llmResponse = await aiQueue.addTask({
+              messages: finalMessages,
+              model: requestBody.model,
+              llmParameters,
+              qwenParameters,
+              returnFullResponse: false
+            });
+          } else {
+            llmResponse = queuedResult.response;
+          }
+
           console.log('[RAG] LLM response from queue:', llmResponse ? llmResponse.substring(0, 100) + '...' : 'null');
           return llmResponse;
-          
         } catch (queueError) {
-          console.warn('[RAG] Queue error, fallback to direct call:', queueError.message);
-          
-          // Fallback: если очередь переполнена и есть ответ из RAG - возвращаем его
+          logger.error('[RAG] Queue error:', queueError.message);
           if (queueError.message.includes('переполнена') && answer) {
             console.log('[RAG] Возврат прямого ответа из RAG (очередь переполнена)');
             return answer;
           }
-          
-          // Продолжаем к прямому вызову
+          throw queueError;
         }
       }
 
-      // Прямой вызов Ollama (если очередь отключена или ошибка очереди)
+      // Прямой вызов Ollama оставлен только как fallback, если очередь явно отключена.
       
       // Логируем размер промпта для отладки
       const promptSize = JSON.stringify(messages).length;

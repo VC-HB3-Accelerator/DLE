@@ -294,6 +294,9 @@ class AIAssistant {
         suggestedTags: profileAnalysis?.suggestedTags || []
       };
 
+      const normalizedQuestion = String(userQuestion || '').toLowerCase();
+      const mentionsProfileChange = /меня зовут|мое имя|моё имя|переимен|тег|лиценз|vip|клиент|холдер|держател/i.test(normalizedQuestion);
+
       logger.info(`[AIAssistant] Вызов generateLLMResponse для пользователя ${userId}...`);
       const aiResponse = await generateLLMResponse({
         userQuestion,
@@ -304,10 +307,11 @@ class AIAssistant {
         model: aiSettings ? aiSettings.model : undefined,
         rules: rules ? rules.rules : null,
         selectedRagTables: aiSettings ? aiSettings.selected_rag_tables : [],
-        userId: userId, // Передаем userId для function calling
-        multiSourceResults: searchResults, // Передаем результаты мульти-поиска
+        userId: userId,
+        multiSourceResults: searchResults,
         userTags: userTags,
-        userProfile
+        userProfile,
+        enableTools: mentionsProfileChange
       });
 
       logger.info(`[AIAssistant] generateLLMResponse вернул ответ типа: ${typeof aiResponse}, длина: ${aiResponse ? (typeof aiResponse === 'string' ? aiResponse.length : JSON.stringify(aiResponse).length) : 0}`);

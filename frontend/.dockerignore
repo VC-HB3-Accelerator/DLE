@@ -16,6 +16,7 @@
 # Документация
 docs/
 *.md
+!public/THIRD_PARTY_NOTICES.md
 README*
 
 # Git

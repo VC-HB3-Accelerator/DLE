@@ -524,7 +524,7 @@ class EmailBot {
    * @param {string} text - Текст письма
    * @returns {Promise<boolean>} - Успешность отправки
    */
-  async sendEmail(to, subject, text) {
+  async sendEmail(to, subject, text, attachments = []) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(to)) {
       throw new Error(`Неверный формат email адреса: ${to}`);
@@ -536,6 +536,7 @@ class EmailBot {
         to,
         subject,
         text,
+        attachments
       };
       
       await this.transporter.sendMail(mailOptions);

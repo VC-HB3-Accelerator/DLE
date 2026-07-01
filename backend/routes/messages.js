@@ -12,6 +12,7 @@
 
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { broadcastMessagesUpdate } = require('../wsHub');
@@ -22,6 +23,11 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
+
+const broadcastUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 }
+});
 
 // GET /api/messages/public?userId=123 - получить публичные сообщения пользователя
 router.get('/public', requireAuth, async (req, res) => {
@@ -383,8 +389,14 @@ router.get('/read-status', async (req, res) => {
 
 // Массовая рассылка сообщения во все каналы пользователя
 // Массовая рассылка сообщений
-router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST), broadcastUpload.array('attachments'), async (req, res) => {
   const { user_id, content } = req.body;
+  const subject = String(req.body.subject || 'Новое сообщение').trim() || 'Новое сообщение';
+  const attachments = (req.files || []).map(file => ({
+    filename: file.originalname,
+    content: file.buffer,
+    contentType: file.mimetype
+  }));
   if (!user_id || !content) {
     return res.status(400).json({ error: 'user_id и content обязательны' });
   }
@@ -442,7 +454,7 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
       try {
         const emailBot = botManager.getBot('email');
         if (emailBot && emailBot.isInitialized) {
-          await emailBot.sendEmail(email, 'Новое сообщение', content);
+          await emailBot.sendEmail(email, subject, content, attachments);
           // Сохраняем в messages с conversation_id
           await db.getQuery()(
             `INSERT INTO messages (conversation_id, sender_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, user_id, role, direction, created_at)
@@ -1123,10 +1135,61 @@ router.get('/conversations', requireAuth, async (req, res) => {
   
   try {
     const result = await db.getQuery()(
-      'SELECT * FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC',
+      `SELECT DISTINCT c.*
+       FROM conversations c
+       LEFT JOIN conversation_participants cp ON cp.conversation_id = c.id
+       WHERE c.user_id = $1 OR cp.user_id = $1
+       ORDER BY c.updated_at DESC, c.created_at DESC`,
       [userId]
     );
     res.json({ success: true, conversations: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: 'DB error', details: e.message });
+  }
+});
+
+// GET /api/messages/conversations/:conversationId/messages - сообщения беседы
+router.get('/conversations/:conversationId/messages', requireAuth, async (req, res) => {
+  const conversationId = req.params.conversationId;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+  const offset = parseInt(req.query.offset, 10) || 0;
+
+  if (!conversationId) {
+    return res.status(400).json({ error: 'conversationId required' });
+  }
+
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+
+  try {
+    const countResult = await db.getQuery()(
+      'SELECT COUNT(*) FROM messages WHERE conversation_id = $1',
+      [conversationId]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const result = await db.getQuery()(
+      `SELECT m.id, m.user_id, m.sender_id, m.conversation_id,
+              decrypt_text(m.sender_type_encrypted, $2) as sender_type,
+              decrypt_text(m.content_encrypted, $2) as content,
+              decrypt_text(m.channel_encrypted, $2) as channel,
+              decrypt_text(m.role_encrypted, $2) as role,
+              decrypt_text(m.direction_encrypted, $2) as direction,
+              m.message_type, m.created_at
+       FROM messages m
+       WHERE m.conversation_id = $1
+       ORDER BY m.created_at ASC
+       LIMIT $3 OFFSET $4`,
+      [conversationId, encryptionKey, limit, offset]
+    );
+
+    res.json({
+      success: true,
+      messages: result.rows,
+      total,
+      limit,
+      offset
+    });
   } catch (e) {
     res.status(500).json({ error: 'DB error', details: e.message });
   }

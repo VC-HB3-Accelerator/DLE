@@ -12,13 +12,31 @@
 
 import api from '../api/axios';
 
+const EMPTY_RESULT = {
+  contacts: [],
+  total: 0,
+  limit: 1000,
+  offset: 0,
+  hasMore: false
+};
+
+function parseContactsResponse(res) {
+  if (res.data && res.data.success) {
+    return {
+      contacts: res.data.contacts || [],
+      total: res.data.total ?? 0,
+      limit: res.data.limit ?? 1000,
+      offset: res.data.offset ?? 0,
+      hasMore: res.data.hasMore ?? false
+    };
+  }
+  return { ...EMPTY_RESULT };
+}
+
 export default {
-  async getContacts() {
-    const res = await api.get('/users');
-    if (res.data && res.data.success) {
-      return res.data.contacts;
-    }
-    return [];
+  async getContacts(params = {}) {
+    const res = await api.get('/users', { params });
+    return parseContactsResponse(res);
   },
   async updateContact(id, data) {
     const res = await api.patch(`/users/${id}`, data);
@@ -27,16 +45,11 @@ export default {
   async deleteContact(id) {
     try {
       const res = await api.delete(`/users/${id}`);
-      // console.log('Ответ на удаление контакта:', res.status, res.data);
       return res.data;
     } catch (err) {
-              // console.error('Ошибка при удалении контакта:', err.response?.status, err.response?.data, err);
-      
-      // Если пользователь уже удален (404), считаем это успехом
       if (err.response?.status === 404) {
         return { success: true, deleted: 0, message: 'Пользователь уже удален' };
       }
-      
       throw err;
     }
   },
@@ -55,28 +68,21 @@ export default {
     const res = await api.patch(`/users/${id}/unblock`);
     return res.data;
   },
-  // --- Работа с тегами пользователя ---
   async addTagsToContact(contactId, tagIds) {
-  // PATCH /tags/user/:id { tags: [...] }
-  const res = await api.patch(`/tags/user/${contactId}`, { tags: tagIds });
-  return res.data;
-},
-async getContactTags(contactId) {
-  // GET /tags/user/:id
-  const res = await api.get(`/tags/user/${contactId}`);
-  return res.data.tags || [];
-},
-async removeTagFromContact(contactId, tagId) {
-  // DELETE /tags/user/:id/tag/:tagId
-  const res = await api.delete(`/tags/user/${contactId}/tag/${tagId}`);
-  return res.data;
-}
+    const res = await api.patch(`/tags/user/${contactId}`, { tags: tagIds });
+    return res.data;
+  },
+  async getContactTags(contactId) {
+    const res = await api.get(`/tags/user/${contactId}`);
+    return res.data.tags || [];
+  },
+  async removeTagFromContact(contactId, tagId) {
+    const res = await api.delete(`/tags/user/${contactId}/tag/${tagId}`);
+    return res.data;
+  }
 };
 
-export async function getContacts() {
-  const res = await api.get('/users');
-  if (res.data && res.data.success) {
-    return res.data.contacts;
-  }
-  return [];
-} 
+export async function getContacts(params = {}) {
+  const res = await api.get('/users', { params });
+  return parseContactsResponse(res);
+}

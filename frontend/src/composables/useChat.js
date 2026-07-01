@@ -15,7 +15,6 @@ import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
 import websocketModule from '../services/websocketService';
-import { getPublicMessages } from '../services/messagesService';
 
 const { websocketService } = websocketModule;
 
@@ -136,32 +135,8 @@ export function useChat(auth) {
             } 
         });
         
-        // Загружаем публичные сообщения от других пользователей
-        const publicResponse = await api.get('/messages/public', { 
-            params: { 
-                offset: 0, 
-                limit: 50 
-            } 
-        });
-        
-        // Объединяем сообщения
-        let allMessages = [];
-        if (personalResponse.data.success && personalResponse.data.messages) {
-            allMessages = [...allMessages, ...personalResponse.data.messages];
-        }
-        if (publicResponse.data.success && publicResponse.data.messages) {
-            allMessages = [...allMessages, ...publicResponse.data.messages];
-        }
-        
-        // Сортируем по времени создания
-        allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        
         const response = {
-            data: {
-                success: true,
-                messages: allMessages,
-                total: allMessages.length
-            }
+            data: personalResponse.data
         };
 
         if (response.data.success && response.data.messages) {

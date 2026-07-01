@@ -213,7 +213,8 @@ onBeforeUnmount(() => {
 async function loadContacts() {
   isLoadingContacts.value = true;
   try {
-    contacts.value = await contactsService.getContacts();
+    const result = await contactsService.getContacts({ limit: 1000, offset: 0 });
+    contacts.value = result.contacts || [];
   } catch (e) {
     contacts.value = [];
     alert('Ошибка загрузки контактов');
