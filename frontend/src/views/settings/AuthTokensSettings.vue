@@ -12,14 +12,14 @@
 
 <template>
   <div class="auth-tokens-settings">
-    <h4>Токены аутентификации</h4>
+    <h4>{{ $t('settings.authTokens.title') }}</h4>
     
     <!-- Отображение текущего уровня доступа -->
     <div v-if="userAccessLevel && userAccessLevel.hasAccess" class="access-level-info">
       <div class="access-level-badge" :class="getLevelClass(userAccessLevel.level)">
         <i class="fas fa-shield-alt"></i>
         <span>{{ getLevelDescription(userAccessLevel.level) }}</span>
-        <span class="token-count">({{ userAccessLevel.tokenCount }} токен{{ userAccessLevel.tokenCount === 1 ? '' : userAccessLevel.tokenCount < 5 ? 'а' : 'ов' }})</span>
+        <span class="token-count">{{ $t('settings.authTokens.tokenCount', userAccessLevel.tokenCount) }}</span>
       </div>
       <div class="access-level-description">
         {{ getAccessLevelDescription(userAccessLevel.level) }}
@@ -27,27 +27,27 @@
     </div>
     <div v-if="authTokens.length > 0" class="tokens-list">
       <div v-for="(token, index) in authTokens" :key="token.address + token.network" class="token-entry">
-        <span><strong>Название:</strong> {{ token.name }}</span>
-        <span><strong>Адрес:</strong> {{ token.address }}</span>
-        <span><strong>Сеть:</strong> {{ getNetworkLabel(token.network) }}</span>
-        <span><strong>Мин. баланс:</strong> {{ token.minBalance }}</span>
-        <span><strong>Read-Only:</strong> {{ token.readonlyThreshold || 1 }} токен{{ token.readonlyThreshold === 1 ? '' : 'а' }}</span>
-        <span><strong>Editor:</strong> {{ token.editorThreshold || 2 }} токен{{ token.editorThreshold === 1 ? '' : token.editorThreshold < 5 ? 'а' : 'ов' }}</span>
+        <span><strong>{{ $t('settings.authTokens.name') }}</strong> {{ token.name }}</span>
+        <span><strong>{{ $t('settings.authTokens.address') }}</strong> {{ token.address }}</span>
+        <span><strong>{{ $t('settings.authTokens.network') }}</strong> {{ getNetworkLabel(token.network) }}</span>
+        <span><strong>{{ $t('settings.authTokens.minBalance') }}</strong> {{ token.minBalance }}</span>
+        <span><strong>{{ $t('settings.authTokens.readOnly') }}</strong> {{ token.readonlyThreshold || 1 }} {{ getTokenSuffix(token.readonlyThreshold || 1) }}</span>
+        <span><strong>{{ $t('settings.authTokens.editor') }}</strong> {{ token.editorThreshold || 2 }} {{ getTokenSuffix(token.editorThreshold || 2) }}</span>
         <button 
           class="btn btn-sm" 
           :class="canManageSettings ? 'btn-danger' : 'btn-secondary'" 
           @click="canManageSettings ? removeToken(index) : null"
           :disabled="!canManageSettings"
         >
-          Удалить
+          {{ $t('common.delete') }}
         </button>
       </div>
     </div>
-    <p v-else>Нет добавленных токенов аутентификации.</p>
+    <p v-else>{{ $t('settings.authTokens.empty') }}</p>
     <div class="add-token-form">
-      <h5>Добавить новый токен:</h5>
+      <h5>{{ $t('settings.authTokens.addTitle') }}</h5>
       <div class="form-group">
-        <label>Название:</label>
+        <label>{{ $t('settings.authTokens.name') }}</label>
         <input 
           type="text" 
           v-model="newToken.name" 
@@ -57,7 +57,7 @@
         >
       </div>
       <div class="form-group">
-        <label>Адрес:</label>
+        <label>{{ $t('settings.authTokens.address') }}</label>
         <input 
           type="text" 
           v-model="newToken.address" 
@@ -67,9 +67,9 @@
         >
       </div>
       <div class="form-group">
-        <label>Сеть:</label>
+        <label>{{ $t('settings.authTokens.network') }}</label>
         <select v-model="newToken.network" class="form-control" :disabled="!canManageSettings">
-          <option value="">-- Выберите сеть --</option>
+          <option value="">{{ $t('settings.authTokens.selectNetwork') }}</option>
           <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
             <option v-for="option in group.options" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -78,7 +78,7 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Мин. баланс:</label>
+        <label>{{ $t('settings.authTokens.minBalance') }}</label>
         <input 
           type="number" 
           v-model.number="newToken.minBalance" 
@@ -88,14 +88,14 @@
           step="0.01"
           :disabled="!canManageSettings"
         >
-        <small class="form-text">Минимальный баланс токена для получения доступа</small>
+        <small class="form-text">{{ $t('settings.authTokens.minBalanceHelp') }}</small>
       </div>
       
       <!-- Настройки прав доступа -->
       <div class="access-settings">
-        <h6>Настройки прав доступа</h6>
+        <h6>{{ $t('settings.authTokens.accessSettings') }}</h6>
         <div class="form-group">
-          <label>Минимум токенов для Read-Only доступа:</label>
+          <label>{{ $t('settings.authTokens.readonlyThreshold') }}</label>
           <input 
             type="number" 
             v-model="newToken.readonlyThreshold" 
@@ -104,10 +104,10 @@
             min="1"
             :disabled="!canManageSettings"
           >
-          <small class="form-text">Количество токенов для получения прав только на чтение</small>
+          <small class="form-text">{{ $t('settings.authTokens.readonlyThresholdHelp') }}</small>
         </div>
         <div class="form-group">
-          <label>Минимум токенов для Editor доступа:</label>
+          <label>{{ $t('settings.authTokens.editorThreshold') }}</label>
           <input 
             type="number" 
             v-model="newToken.editorThreshold" 
@@ -116,7 +116,7 @@
             min="2"
             :disabled="!canManageSettings"
           >
-          <small class="form-text">Количество токенов для получения прав на редактирование и удаление</small>
+          <small class="form-text">{{ $t('settings.authTokens.editorThresholdHelp') }}</small>
         </div>
       </div>
       <button 
@@ -125,13 +125,15 @@
         @click="canManageSettings ? addToken() : null"
         :disabled="!canManageSettings"
       >
-        Добавить токен
+        {{ $t('settings.authTokens.addButton') }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { reactive, computed, onMounted } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
@@ -169,15 +171,24 @@ onMounted(() => {
   });
 });
 
+function getTokenSuffix(count) {
+  const n = Math.abs(Number(count));
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return t('settings.authTokens.tokenSuffixOne');
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return t('settings.authTokens.tokenSuffixFew');
+  return t('settings.authTokens.tokenSuffixMany');
+}
+
 async function addToken() {
   if (!newToken.name || !newToken.address || !newToken.network) {
-    alert('Все поля обязательны');
+    alert(t('settings.authTokens.allFieldsRequired'));
     return;
   }
   
   // Валидация порогов доступа
   if (newToken.readonlyThreshold >= newToken.editorThreshold) {
-    alert('Минимум токенов для Read-Only доступа должен быть меньше минимума для Editor доступа');
+    alert(t('settings.authTokens.thresholdInvalid'));
     return;
   }
   
@@ -229,14 +240,14 @@ async function addToken() {
     newToken.readonlyThreshold = 1;
     newToken.editorThreshold = 2;
   } catch (e) {
-    alert('Ошибка при добавлении токена: ' + (e.response?.data?.error || e.message));
+    alert(t('settings.authTokens.addError', { error: e.response?.data?.error || e.message }));
   }
 }
 
 async function removeToken(index) {
   const token = props.authTokens[index];
   if (!token) return;
-  if (!confirm(`Удалить токен ${token.name} (${token.address})?`)) return;
+  if (!confirm(t('settings.authTokens.confirmDelete', { name: token.name, address: token.address }))) return;
   
   console.log('[AuthTokensSettings] Удаление токена:', token);
   console.log('[AuthTokensSettings] URL:', `/settings/auth-token/${token.address}/${token.network}`);
@@ -271,7 +282,7 @@ async function removeToken(index) {
   } catch (e) {
     console.error('[AuthTokensSettings] Ошибка при удалении токена:', e);
     console.error('[AuthTokensSettings] Response:', e.response);
-    alert('Ошибка при удалении токена: ' + (e.response?.data?.error || e.message));
+    alert(t('settings.authTokens.deleteError', { error: e.response?.data?.error || e.message }));
   }
 }
 
@@ -284,12 +295,12 @@ function getNetworkLabel(networkId) {
 function getAccessLevelDescription(level) {
   switch (level) {
     case 'readonly':
-      return 'Можете просматривать данные, но не можете редактировать или удалять';
+      return t('settings.authTokens.accessReadonly');
     case 'editor':
-      return 'Можете просматривать, редактировать и удалять данные';
+      return t('settings.authTokens.accessEditor');
     case 'user':
     default:
-      return 'Базовые права пользователя';
+      return t('settings.authTokens.accessUser');
   }
 }
 </script>

@@ -54,6 +54,7 @@
 
 <script setup>
   import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { useAuthContext } from '../composables/useAuth';
   import { useChat } from '../composables/useChat';
   import { connectWithWallet } from '../services/wallet';
@@ -78,6 +79,7 @@
   // 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES
   // =====================================================================
 
+  const { t } = useI18n();
   const auth = useAuthContext();
 
   // =====================================================================
@@ -110,7 +112,7 @@
   function updateHomeSeo() {
     const origin = window.location.origin;
     const canonicalUrl = `${origin}/`;
-    document.title = 'VC HB3 Accelerator — венчурный фонд и платформа DLE';
+    document.title = t('home.pageTitle');
     let canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement('link');

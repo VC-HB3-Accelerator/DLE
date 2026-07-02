@@ -29,9 +29,14 @@ export function usePermissions() {
     if (!isAuthenticated.value) {
       return ROLES.GUEST; // Неавторизованный
     }
-    
-    // Если userAccessLevel не определен, возвращаем USER (авторизованный пользователь)
-    return userAccessLevel.value?.level || ROLES.USER;
+
+    const level = userAccessLevel.value?.level;
+    // Авторизован, но уровень ещё не подтянулся — не считаем гостем
+    if (!level || level === ROLES.GUEST) {
+      return ROLES.USER;
+    }
+
+    return level;
   });
 
   /**

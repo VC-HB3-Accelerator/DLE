@@ -67,8 +67,11 @@ async function requireAdmin(req, res, next) {
       address: req.session?.address
     });
     
-    // Проверка аутентификации
-    if (!req.session || !req.session.authenticated) {
+    const isAuthenticated = req.session?.authenticated ||
+      (req.session?.userId && req.session?.authType) ||
+      (req.session?.address && req.session?.authType === 'wallet');
+
+    if (!req.session || !isAuthenticated) {
       logger.warn(`[requireAdmin] Сессия не аутентифицирована`);
       return next(createError('Требуется аутентификация', 401));
     }

@@ -1,5 +1,8 @@
 import { ref, computed } from 'vue';
 import axios from 'axios';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Composable для работы с сетями блокчейн
@@ -28,10 +31,9 @@ export default function useBlockchainNetworks() {
     }
   };
 
-  // Группы сетей для отображения в интерфейсе
-  const networkGroups = [
+  const networkGroups = computed(() => [
     {
-      label: 'Основные сети',
+      label: t('blockchainNetworks.mainNetworks'),
       options: [
         { value: 'ethereum', label: 'Ethereum Mainnet', chainId: 1 },
         { value: 'bsc', label: 'Binance Smart Chain', chainId: 56 },
@@ -49,7 +51,7 @@ export default function useBlockchainNetworks() {
       ]
     },
     {
-      label: 'Тестовые сети',
+      label: t('blockchainNetworks.testNetworks'),
       options: [
         { value: 'sepolia', label: 'Sepolia (Ethereum testnet)', chainId: 11155111 },
         { value: 'goerli', label: 'Goerli (Ethereum testnet)', chainId: 5 },
@@ -65,23 +67,23 @@ export default function useBlockchainNetworks() {
       ]
     },
     {
-      label: 'Локальные сети',
+      label: t('blockchainNetworks.localNetworks'),
       options: [
         { value: 'localhost', label: 'Localhost (Hardhat)', chainId: 31337 },
         { value: 'ganache', label: 'Ganache', chainId: 1337 }
       ]
     },
     {
-      label: 'Другое',
+      label: t('blockchainNetworks.other'),
       options: [
-        { value: 'custom', label: 'Другая сеть (ввести вручную)', chainId: null }
+        { value: 'custom', label: t('blockchainNetworks.customNetwork'), chainId: null }
       ]
     }
-  ];
+  ]);
   
   // Создаем плоский список всех сетей для удобного использования в компонентах
   const networksComputed = computed(() => {
-    return networkGroups.flatMap(group => group.options);
+    return networkGroups.value.flatMap(group => group.options);
   });
 
   // Объект для хранения выбранной сети и пользовательских значений
@@ -94,7 +96,7 @@ export default function useBlockchainNetworks() {
 
   // Функция для получения chainId по networkId
   const getChainIdByNetworkId = (networkId) => {
-    for (const group of networkGroups) {
+    for (const group of networkGroups.value) {
       const option = group.options.find(opt => opt.value === networkId);
       if (option) {
         return option.chainId;
@@ -112,12 +114,12 @@ export default function useBlockchainNetworks() {
     if (networkId === 'custom') {
       networkId = networkEntry.value.customNetworkId.trim();
       if (!networkId) {
-        return { valid: false, error: 'Пожалуйста, введите пользовательский ID сети' };
+        return { valid: false, error: t('blockchainNetworks.errors.customNetworkIdRequired') };
       }
     }
     
     if (!networkId || !rpcUrl) {
-      return { valid: false, error: 'Пожалуйста, выберите ID Сети и введите RPC URL' };
+      return { valid: false, error: t('blockchainNetworks.errors.networkIdAndRpcRequired') };
     }
     
     // Определяем chainId
@@ -173,20 +175,23 @@ export default function useBlockchainNetworks() {
       if (response.data && response.data.success) {
         return {
           success: true,
-          message: `Соединение с ${networkId} успешно установлено! Номер блока: ${response.data.blockNumber}`,
+          message: t('blockchainNetworks.rpcConnectionSuccess', {
+            networkId,
+            blockNumber: response.data.blockNumber
+          }),
           blockNumber: response.data.blockNumber
         };
       } else {
         return {
           success: false,
-          error: response.data?.error || 'Не удалось установить соединение'
+          error: response.data?.error || t('blockchainNetworks.errors.connectionFailed')
         };
       }
     } catch (error) {
       console.error('[useBlockchainNetworks] Ошибка при тестировании RPC:', error);
       return {
         success: false,
-        error: error.response?.data?.error || error.message || 'Неизвестная ошибка'
+        error: error.response?.data?.error || error.message || t('common.unknownError')
       };
     } finally {
       testingRpc.value = false;

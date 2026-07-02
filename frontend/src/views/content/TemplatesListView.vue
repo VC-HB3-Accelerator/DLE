@@ -11,18 +11,18 @@
 
       <div class="content-block">
         <div class="section-header">
-          <h2>Список шаблонов</h2>
+          <h2>{{ t('content.templates.title') }}</h2>
           <div class="filters">
             <div class="filter-group">
-              <label for="visibility-filter">Видимость:</label>
+              <label for="visibility-filter">{{ t('content.templates.visibilityLabel') }}</label>
               <select v-model="visibilityFilter" id="visibility-filter" class="filter-select">
-                <option value="">Все</option>
-                <option value="public">Публичные</option>
-                <option value="internal">Внутренние</option>
+                <option value="">{{ t('common.all') }}</option>
+                <option value="public">{{ t('content.templates.visibilityPublic') }}</option>
+                <option value="internal">{{ t('content.templates.visibilityInternal') }}</option>
               </select>
             </div>
             <div class="search-box">
-              <input v-model="search" type="text" placeholder="Поиск шаблонов..." class="search-input" />
+              <input v-model="search" type="text" :placeholder="t('content.templates.searchPlaceholder')" class="search-input" />
               <i class="fas fa-search search-icon"></i>
             </div>
           </div>
@@ -34,11 +34,11 @@
               <h3>{{ p.title }}</h3>
             </div>
             <div class="page-card-content">
-              <p class="page-summary">{{ p.summary || 'Без описания' }}</p>
+              <p class="page-summary">{{ p.summary || t('common.noDescription') }}</p>
               <div class="page-meta">
-                <span class="page-status draft"><i class="fas fa-circle"></i>Черновик</span>
-                <span class="page-status"><i class="fas fa-cube"></i>Шаблон</span>
-                <span class="page-status" :class="p.visibility"><i class="fas fa-eye"></i>{{ p.visibility === 'internal' ? 'Внутренний' : 'Публичный' }}</span>
+                <span class="page-status draft"><i class="fas fa-circle"></i>{{ t('common.status.draft') }}</span>
+                <span class="page-status"><i class="fas fa-cube"></i>{{ t('content.templates.templateBadge') }}</span>
+                <span class="page-status" :class="p.visibility"><i class="fas fa-eye"></i>{{ p.visibility === 'internal' ? t('content.templates.visibilityInternalBadge') : t('content.templates.visibilityPublicBadge') }}</span>
               </div>
             </div>
           </div>
@@ -46,8 +46,8 @@
 
         <div v-else class="empty-state">
           <div class="empty-icon"><i class="fas fa-file-alt"></i></div>
-          <h3>Шаблонов не найдено</h3>
-          <p v-if="!canEditData || !address">Требуются права редактора и подключённый кошелёк для просмотра системных шаблонов.</p>
+          <h3>{{ t('content.templates.emptyTitle') }}</h3>
+          <p v-if="!canEditData || !address">{{ t('content.templates.emptyPermissionHint') }}</p>
         </div>
       </div>
     </div>
@@ -57,6 +57,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
@@ -71,6 +72,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const { t } = useI18n();
 const search = ref('');
 const visibilityFilter = ref('');
 const pages = ref([]);

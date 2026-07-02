@@ -11,9 +11,9 @@
 -->
 
 <template>
-  <el-dialog v-model="visible" title="Массовая рассылка" width="700px" @close="$emit('close')">
+  <el-dialog v-model="visible" :title="t('contacts.broadcastModal.title')" width="700px" @close="$emit('close')">
     <div v-if="step === 1">
-      <div style="margin-bottom:1em;">Вы выбрали {{userIds.length}} пользователей для рассылки.</div>
+      <div style="margin-bottom:1em;">{{ t('contacts.broadcastModal.selectedUsers', { count: userIds.length }) }}</div>
       <ChatInterface
         v-model:newMessage="message"
         :canSend="true"
@@ -24,27 +24,29 @@
         @update:attachments="val => attachments = val"
         @send-message="onSend"
       />
-      <el-button type="primary" :disabled="!message.trim()" @click="sendBroadcast" :loading="loading">Отправить</el-button>
-      <el-button @click="$emit('close')" style="margin-left:1em;">Отмена</el-button>
+      <el-button type="primary" :disabled="!message.trim()" @click="sendBroadcast" :loading="loading">{{ t('common.send') }}</el-button>
+      <el-button @click="$emit('close')" style="margin-left:1em;">{{ t('common.cancel') }}</el-button>
     </div>
     <div v-else-if="step === 2">
-      <div v-if="result.success" style="color:green;">Рассылка завершена успешно!</div>
+      <div v-if="result.success" style="color:green;">{{ t('contacts.broadcastModal.success') }}</div>
       <div v-if="result.errors && result.errors.length" style="color:red;max-height:120px;overflow:auto;">
-        Ошибки:
+        {{ t('common.errors') }}
         <ul>
-          <li v-for="err in result.errors" :key="err.userId">ID {{err.userId}}: {{err.error}}</li>
+          <li v-for="err in result.errors" :key="err.userId">{{ t('common.userId', { id: err.userId, error: err.error }) }}</li>
         </ul>
       </div>
-      <el-button type="primary" @click="closeAndRefresh">Закрыть</el-button>
+      <el-button type="primary" @click="closeAndRefresh">{{ t('common.close') }}</el-button>
     </div>
   </el-dialog>
 </template>
 
 <script setup>
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import ChatInterface from './ChatInterface.vue';
 import messagesService from '../services/messagesService.js';
-import { ElMessage } from 'element-plus';
+
+const { t } = useI18n();
 const props = defineProps({ userIds: { type: Array, required: true } });
 const emit = defineEmits(['close']);
 const visible = ref(true);
@@ -63,7 +65,7 @@ async function sendBroadcast() {
       await messagesService.broadcastMessage({ userId, message: message.value });
       successCount++;
     } catch (e) {
-      errors.push({ userId, error: e?.message || 'Ошибка отправки' });
+      errors.push({ userId, error: e?.message || t('common.sendError') });
     }
   }
   result.value = { success: errors.length === 0, errors };
@@ -81,8 +83,7 @@ function closeAndRefresh() {
     message.value = '';
     attachments.value = [];
     loading.value = false;
-    // Сообщаем родителю об успешной рассылке
     emit('close');
   }, 300);
 }
-</script> 
+</script>

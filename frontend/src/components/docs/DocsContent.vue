@@ -30,34 +30,34 @@
     <!-- Заголовок страницы -->
     <header v-if="page" class="page-header">
       <div class="page-header-top">
-        <button v-if="!hideBackButton" class="back-btn" @click="$emit('back')" title="Вернуться к списку">
+        <button v-if="!hideBackButton" class="back-btn" @click="$emit('back')" :title="$t('content.publicPage.backToList')">
           <i class="fas fa-arrow-left"></i>
-          <span>Назад</span>
+          <span>{{ $t('common.back') }}</span>
         </button>
         <div v-if="canManageDocs" class="page-header-actions">
           <button
             class="page-action-btn page-edit-btn"
             @click="editPage"
-            title="Редактировать документ"
+            :title="$t('content.publishedList.editDocument')"
           >
             <i class="fas fa-edit"></i>
-            <span>Редактировать</span>
+            <span>{{ $t('common.edit') }}</span>
           </button>
           <button
             class="page-action-btn page-index-btn"
             @click="reindexPage"
-            title="Отправить документ в поиск"
+            :title="$t('content.docsContent.reindexTitle')"
           >
             <i class="fas fa-search"></i>
-            <span>Индексировать</span>
+            <span>{{ $t('content.docsContent.reindex') }}</span>
           </button>
           <button
             class="page-action-btn page-delete-btn"
             @click="confirmDeletePage"
-            title="Удалить документ"
+            :title="$t('content.publishedList.deleteDocument')"
           >
             <i class="fas fa-trash"></i>
-            <span>Удалить</span>
+            <span>{{ $t('common.delete') }}</span>
           </button>
         </div>
       </div>
@@ -81,16 +81,16 @@
     <article v-if="page" class="page-article">
       <div v-if="page.format === 'pdf' && page.file_path" class="file-preview">
         <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
-        <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
+        <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ $t('content.page.downloadPdf') }}</a>
       </div>
       <div v-else-if="page.format === 'image' && page.file_path" class="file-preview">
-        <img :src="page.file_path" alt="Документ" class="image-preview" />
-        <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать изображение</a>
+        <img :src="page.file_path" :alt="$t('content.page.documentAlt')" class="image-preview" />
+        <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ $t('content.page.downloadImage') }}</a>
       </div>
       <div v-else-if="page.content" class="content-text" v-html="formatContent"></div>
       <div v-else class="empty-content">
         <i class="fas fa-file-alt"></i>
-        <p>Контент не добавлен</p>
+        <p>{{ $t('content.page.noContent') }}</p>
       </div>
     </article>
 
@@ -105,14 +105,14 @@
         >
           <div class="nav-label">
             <i class="fas fa-arrow-left"></i>
-            <span>Предыдущая</span>
+            <span>{{ $t('content.docsContent.previous') }}</span>
           </div>
           <div class="nav-title">{{ navigation.previous.title }}</div>
         </a>
         <div v-else class="nav-link nav-prev disabled">
           <div class="nav-label">
             <i class="fas fa-arrow-left"></i>
-            <span>Предыдущая</span>
+            <span>{{ $t('content.docsContent.previous') }}</span>
           </div>
         </div>
       </div>
@@ -125,14 +125,14 @@
           @click.prevent="navigateTo(navigation.next.path)"
         >
           <div class="nav-label">
-            <span>Следующая</span>
+            <span>{{ $t('content.docsContent.next') }}</span>
             <i class="fas fa-arrow-right"></i>
           </div>
           <div class="nav-title">{{ navigation.next.title }}</div>
         </a>
         <div v-else class="nav-link nav-next disabled">
           <div class="nav-label">
-            <span>Следующая</span>
+            <span>{{ $t('content.docsContent.next') }}</span>
             <i class="fas fa-arrow-right"></i>
           </div>
         </div>
@@ -143,7 +143,7 @@
     <section v-if="page && isBlogPage && relatedArticles.length > 0" class="related-articles">
       <h3 class="related-title">
         <i class="fas fa-newspaper"></i>
-        Читайте также
+        {{ $t('content.docsContent.readAlso') }}
       </h3>
       <div class="related-grid">
         <article
@@ -154,7 +154,7 @@
         >
           <h4 class="related-card-title">{{ article.title }}</h4>
           <p v-if="article.summary" class="related-card-summary">{{ truncateSummary(article.summary) }}</p>
-          <span class="related-card-link">Читать →</span>
+          <span class="related-card-link">{{ $t('content.docsContent.readMore') }}</span>
         </article>
       </div>
     </section>
@@ -162,7 +162,7 @@
     <!-- Загрузка -->
     <div v-if="!page && isLoading" class="loading-state">
       <div class="loading-spinner"></div>
-      <p>Загрузка документа...</p>
+      <p>{{ $t('content.publishedPage.loadingDocument') }}</p>
     </div>
 
     <!-- Ошибка -->
@@ -170,16 +170,18 @@
       <div class="error-icon">
         <i class="fas fa-exclamation-triangle"></i>
       </div>
-      <h3>Документ не найден</h3>
-      <p>Запрашиваемый документ не существует или не опубликован</p>
+      <h3>{{ $t('content.docsContent.notFoundTitle') }}</h3>
+      <p>{{ $t('content.publicPage.notFoundDescription') }}</p>
       <p v-if="route.path.startsWith('/blog')" class="error-hint">
-        <small>Проверьте консоль браузера для деталей ошибки. Убедитесь, что страница опубликована и отмечена для отображения в блоге.</small>
+        <small>{{ $t('content.docsContent.blogErrorHint') }}</small>
       </p>
     </div>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t, locale } = useI18n();
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
@@ -253,7 +255,7 @@ function updateMetaTags(pageData) {
     }
   }
   
-  const title = seoData?.title || pageData.title || 'Документ';
+  const title = seoData?.title || pageData.title || t('content.docsContent.defaultDocumentTitle');
   const description = seoData?.description || pageData.summary || '';
   const keywords = seoData?.keywords || '';
   
@@ -410,7 +412,7 @@ async function loadPage() {
         
         if (!response) {
           console.error('[DocsContent] API вернул пустой ответ');
-          throw new Error('Страница не найдена');
+          throw new Error(t('content.page.notFoundTitle'));
         }
         
         // Устанавливаем page.value ДО любых других операций
@@ -682,8 +684,9 @@ const formatContent = computed(() => {
 });
 
 function formatDate(date) {
-  if (!date) return 'Не указана';
-  return new Date(date).toLocaleDateString('ru-RU', {
+  if (!date) return t('common.dateNotSpecified');
+  const dateLocale = locale.value === 'en' ? 'en-US' : 'ru-RU';
+  return new Date(date).toLocaleDateString(dateLocale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -744,7 +747,7 @@ function editPage() {
 async function confirmDeletePage() {
   if (!page.value || !page.value.id) return;
   
-  if (!confirm(`Вы уверены, что хотите удалить документ "${page.value.title}"?\n\nЭто действие нельзя отменить.`)) {
+  if (!confirm(t('content.publishedList.confirmDelete', { title: page.value.title }))) {
     return;
   }
   
@@ -760,7 +763,7 @@ async function confirmDeletePage() {
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
   } catch (error) {
     console.error('[DocsContent] Ошибка удаления документа:', error);
-    alert('Ошибка удаления: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.publishedList.deleteError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   }
 }
 
@@ -769,10 +772,10 @@ async function reindexPage() {
   if (!page.value || !page.value.id) return;
   try {
     await api.post(`/pages/${page.value.id}/reindex`);
-    alert('Индексация выполнена');
+    alert(t('content.page.reindexSuccess'));
   } catch (error) {
     console.error('[DocsContent] Ошибка индексации документа:', error);
-    alert('Ошибка индексации: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.page.reindexError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   }
 }
 
@@ -798,24 +801,24 @@ function setupVideoErrorHandlers() {
       video.addEventListener('error', (e) => {
         console.error('Ошибка загрузки видео:', e);
         const error = e.target.error;
-        let errorMessage = 'Неизвестная ошибка';
+        let errorMessage = t('content.page.video.unknownError');
         
         if (error) {
           switch (error.code) {
             case error.MEDIA_ERR_ABORTED:
-              errorMessage = 'Загрузка видео была прервана';
+              errorMessage = t('content.page.video.aborted');
               break;
             case error.MEDIA_ERR_NETWORK:
-              errorMessage = 'Ошибка сети при загрузке видео';
+              errorMessage = t('content.page.video.networkError');
               break;
             case error.MEDIA_ERR_DECODE:
-              errorMessage = 'Ошибка декодирования видео';
+              errorMessage = t('content.page.video.decodeError');
               break;
             case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Формат видео не поддерживается';
+              errorMessage = t('content.page.video.formatNotSupported');
               break;
             default:
-              errorMessage = `Ошибка загрузки видео (код: ${error.code})`;
+              errorMessage = t('content.page.video.loadErrorWithCode', { code: error.code });
           }
         }
         

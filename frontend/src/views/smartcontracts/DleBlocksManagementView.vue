@@ -30,47 +30,47 @@
         <!-- Столбец 1 -->
         <div class="blocks-column">
           <div class="management-block">
-            <h3>Создать предложение</h3>
-            <p>Универсальная форма для создания новых предложений</p>
+            <h3>{{ t('smartcontracts.createProposal.title') }}</h3>
+            <p>{{ t('smartcontracts.createProposal.description') }}</p>
             <button class="details-btn" @click="openCreateProposal">
-              Подробнее
+              {{ t('common.details') }}
             </button>
           </div>
           
           <div class="management-block">
-            <h3>Модули DLE</h3>
-            <p>Установка, настройка, управление</p>
-            <button class="details-btn" @click="openModules">Подробнее</button>
+            <h3>{{ t('smartcontracts.modules.title') }}</h3>
+            <p>{{ t('smartcontracts.modules.description') }}</p>
+            <button class="details-btn" @click="openModules">{{ t('common.details') }}</button>
           </div>
         </div>
 
         <!-- Столбец 2 -->
         <div class="blocks-column">
           <div class="management-block">
-            <h3>Предложения</h3>
-            <p>Создание, подписание, выполнение</p>
-            <button class="details-btn" @click="openProposals">Подробнее</button>
+            <h3>{{ t('smartcontracts.proposals.title') }}</h3>
+            <p>{{ t('smartcontracts.proposals.description') }}</p>
+            <button class="details-btn" @click="openProposals">{{ t('common.details') }}</button>
           </div>
           
           <div class="management-block">
-            <h3>Аналитика</h3>
-            <p>Графики, статистика, отчеты</p>
-            <button class="details-btn" @click="openAnalytics">Подробнее</button>
+            <h3>{{ t('smartcontracts.analytics.title') }}</h3>
+            <p>{{ t('smartcontracts.analytics.description') }}</p>
+            <button class="details-btn" @click="openAnalytics">{{ t('common.details') }}</button>
           </div>
         </div>
 
         <!-- Столбец 3 -->
         <div class="blocks-column">
           <div class="management-block">
-            <h3>История</h3>
-            <p>Лог операций, события, транзакции</p>
-            <button class="details-btn" @click="openHistory">Подробнее</button>
+            <h3>{{ t('smartcontracts.history.title') }}</h3>
+            <p>{{ t('smartcontracts.history.description') }}</p>
+            <button class="details-btn" @click="openHistory">{{ t('common.details') }}</button>
           </div>
           
           <div class="management-block">
-            <h3>Настройки</h3>
-            <p>Параметры DLE, конфигурация</p>
-            <button class="details-btn" @click="openSettings">Подробнее</button>
+            <h3>{{ t('smartcontracts.settings.title') }}</h3>
+            <p>{{ t('smartcontracts.settings.description') }}</p>
+            <button class="details-btn" @click="openSettings">{{ t('common.details') }}</button>
           </div>
         </div>
       </div>
@@ -79,9 +79,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+
+const { t } = useI18n();
 
 // Props
 const props = defineProps({

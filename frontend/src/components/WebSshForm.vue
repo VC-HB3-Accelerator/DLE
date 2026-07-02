@@ -16,111 +16,108 @@
     <div class="connection-status">
       <div class="status-indicator" :class="{ 'active': isConnected, 'inactive': !isConnected }"></div>
       <span class="status-text">{{ connectionStatus }}</span>
-      <button v-if="isConnected" @click="resetConnection" class="disconnect-btn">Сбросить статус</button>
+      <button v-if="isConnected" @click="resetConnection" class="disconnect-btn">{{ t('webssh.resetStatus') }}</button>
     </div>
     <!-- Форма настроек -->
     <form @submit.prevent="handleSubmit" class="vds-form">
       <div class="form-section">
-        <h3>Настройки VDS</h3>
+        <h3>{{ t('webssh.vdsSettings') }}</h3>
         <div class="form-group">
-          <label for="domain">Домен *</label>
+          <label for="domain">{{ t('webssh.domain') }}</label>
           <input id="domain" v-model="form.domain" type="text" placeholder="example.com" required :disabled="isConnected" @blur="checkDomainDNS" />
-          <small class="form-help">Домен должен указывать на IP VDS сервера (A запись). IP адрес будет определен автоматически.</small>
+          <small class="form-help">{{ t('webssh.domainHelp') }}</small>
           <div v-if="domainStatus" class="domain-status" :class="domainStatus.type">
             {{ domainStatus.message }}
           </div>
         </div>
         <div class="form-group">
-          <label for="email">Email для SSL *</label>
+          <label for="email">{{ t('webssh.emailSsl') }}</label>
           <input id="email" v-model="form.email" type="email" placeholder="admin@example.com" required :disabled="isConnected" />
-          <small class="form-help">Email для получения SSL сертификата от Let's Encrypt</small>
+          <small class="form-help">{{ t('webssh.emailSslHelp') }}</small>
         </div>
         <div class="form-group">
-          <label for="ubuntuUser">Логин Ubuntu *</label>
+          <label for="ubuntuUser">{{ t('webssh.ubuntuUser') }}</label>
           <input id="ubuntuUser" v-model="form.ubuntuUser" type="text" placeholder="ubuntu" required :disabled="isConnected" />
-          <small class="form-help">Обычно: ubuntu, root, или ваш пользователь на VDS</small>
+          <small class="form-help">{{ t('webssh.ubuntuUserHelp') }}</small>
         </div>
         <!-- Пароль Ubuntu убран - доступ только через SSH ключи -->
         <div class="form-group">
-          <label for="dockerUser">Логин Docker *</label>
+          <label for="dockerUser">{{ t('webssh.dockerUser') }}</label>
           <input id="dockerUser" v-model="form.dockerUser" type="text" placeholder="docker" required :disabled="isConnected" />
-          <small class="form-help">Пользователь для Docker (будет создан автоматически)</small>
+          <small class="form-help">{{ t('webssh.dockerUserHelp') }}</small>
         </div>
         <!-- Пароль Docker убран - доступ только через SSH ключи -->
         
         <div class="security-notice">
-          <h4>🔐 Безопасность</h4>
-          <p>Пользователи Ubuntu и Docker будут созданы <strong>без паролей</strong>. Доступ будет осуществляться только через SSH ключи, что обеспечивает максимальную безопасность.</p>
+          <h4>{{ t('webssh.security') }}</h4>
+          <p>{{ t('webssh.securityNote') }}</p>
         </div>
       </div>
       <div class="form-section">
-        <h3>SSH подключение к VDS</h3>
+        <h3>{{ t('webssh.sshConnection') }}</h3>
         <div class="form-group">
-          <label for="sshHost">SSH хост *</label>
+          <label for="sshHost">{{ t('webssh.sshHost') }}</label>
           <input id="sshHost" v-model="form.sshHost" type="text" placeholder="" required :disabled="isConnected" />
-          <small class="form-help">SSH хост сервера (может отличаться от домена)</small>
+          <small class="form-help">{{ t('webssh.sshHostHelp') }}</small>
         </div>
         <div class="form-group">
-          <label for="sshPort">SSH порт *</label>
+          <label for="sshPort">{{ t('webssh.sshPort') }}</label>
           <input id="sshPort" v-model="form.sshPort" type="number" placeholder="" required :disabled="isConnected" />
-          <small class="form-help">SSH порт сервера (обычно 22, но может быть другой)</small>
+          <small class="form-help">{{ t('webssh.sshPortHelp') }}</small>
         </div>
         <div class="form-group">
-          <label for="sshUser">SSH пользователь *</label>
+          <label for="sshUser">{{ t('webssh.sshUser') }}</label>
           <input id="sshUser" v-model="form.sshUser" type="text" placeholder="" required :disabled="isConnected" />
-          <small class="form-help">Пользователь для SSH подключения к VDS</small>
+          <small class="form-help">{{ t('webssh.sshUserHelp') }}</small>
         </div>
         <div class="form-group">
-          <label for="sshPassword">SSH пароль *</label>
+          <label for="sshPassword">{{ t('webssh.sshPassword') }}</label>
           <input id="sshPassword" v-model="form.sshPassword" type="password" placeholder="" required :disabled="isConnected" />
-          <small class="form-help">Пароль для SSH подключения к VDS</small>
+          <small class="form-help">{{ t('webssh.sshPasswordHelp') }}</small>
         </div>
       </div>
       <!-- Ключ шифрования убран - будет генерироваться автоматически на VDS -->
       <div class="form-actions">
         <button type="submit" :disabled="isLoading || isConnected" class="publish-btn">
-          {{ isLoading ? 'Настройка...' : 'Опубликовать' }}
+          {{ isLoading ? t('webssh.configuring') : t('webssh.publish') }}
         </button>
-        <button type="button" @click="resetForm" :disabled="isLoading || isConnected" class="reset-btn">Сбросить</button>
+        <button type="button" @click="resetForm" :disabled="isLoading || isConnected" class="reset-btn">{{ t('webssh.reset') }}</button>
       </div>
     </form>
     <!-- Real-time лог операций WebSSH -->
     <div class="operation-log">
       <div class="log-header">
-        <h3>Real-time лог операций WebSSH</h3>
+        <h3>{{ t('webssh.logTitle') }}</h3>
         <div class="log-controls">
           <button 
             @click="startListening" 
             :disabled="isListening" 
             class="control-btn start-btn"
-            title="Начать прослушивание"
           >
-            ▶️ Начать
+            {{ t('webssh.startListening') }}
           </button>
           <button 
             @click="stopListening" 
             :disabled="!isListening" 
             class="control-btn stop-btn"
-            title="Остановить прослушивание"
           >
-            ⏹️ Остановить
+            {{ t('webssh.stopListening') }}
           </button>
           <button 
             @click="clearLogs" 
             class="control-btn clear-btn"
-            title="Очистить логи"
           >
-            🗑️ Очистить
+            {{ t('webssh.clearLogs') }}
           </button>
           <span class="connection-status" :class="{ connected: isConnected }">
-            {{ isConnected ? '🟢 Подключено' : '🔴 Отключено' }}
+            {{ isConnected ? '🟢 ' + t('common.online') : '🔴 ' + t('common.offline') }}
           </span>
         </div>
       </div>
       
       <div class="log-container" ref="logContainer">
         <div v-if="logs.length === 0" class="no-logs">
-          <p>Нет логов. Нажмите "Начать" для прослушивания real-time логов WebSSH агента.</p>
+          <p>{{ t('webssh.noLogs') }}</p>
         </div>
         <div v-else>
           <div 
@@ -142,10 +139,12 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useWebSshService } from '../services/webSshService';
 import { useWebSshLogs } from '../composables/useWebSshLogs';
 import axios from 'axios';
 
+const { t } = useI18n();
 const router = useRouter();
 const webSshService = useWebSshService();
 
@@ -157,7 +156,6 @@ const encodeDomainForRequest = (domain) => {
     const url = new URL(`http://${normalized}`);
     return url.hostname;
   } catch (error) {
-    console.warn('[WebSSH] Некорректное доменное имя:', domain, error.message);
     return null;
   }
 };
@@ -177,7 +175,7 @@ const {
 } = useWebSshLogs();
 
 const isLoading = ref(false);
-const connectionStatus = ref('Не подключено');
+const connectionStatus = ref('');
 const showSshKey = ref(false);
 const domainStatus = ref(null);
 const form = reactive({
@@ -193,7 +191,7 @@ const form = reactive({
 
 // Ключ шифрования будет генерироваться автоматически на VDS
 onMounted(async () => {
-  // Инициализация компонента
+  connectionStatus.value = t('webssh.notConnected');
 });
 
 // Функции переключения видимости ключей
@@ -211,16 +209,16 @@ const checkDomainDNS = async () => {
   }
 
   try {
-    domainStatus.value = { type: 'loading', message: 'Проверка DNS...' };
+    domainStatus.value = { type: 'loading', message: t('webssh.checkingDns') };
 
     const asciiDomain = encodeDomainForRequest(form.domain);
 
     if (!asciiDomain) {
       domainStatus.value = {
         type: 'error',
-        message: '❌ Некорректное доменное имя'
+        message: t('webssh.invalidDomain')
       };
-      addLog('error', `DNS ошибка: Некорректное доменное имя (${form.domain})`);
+      addLog('error', t('webssh.error', { message: t('webssh.invalidDomain') }));
       return;
     }
 
@@ -230,22 +228,22 @@ const checkDomainDNS = async () => {
     if (data.success) {
       domainStatus.value = { 
         type: 'success', 
-        message: `✅ Домен найден: ${data.ip}` 
+        message: t('webssh.domainFound', { ip: data.ip })
       };
-      addLog('success', `DNS: ${form.domain} → ${data.ip}`);
+      addLog('success', `${form.domain} → ${data.ip}`);
     } else {
       domainStatus.value = { 
         type: 'error', 
-        message: `❌ ${data.message}` 
+        message: data.message
       };
-      addLog('error', `DNS ошибка: ${data.message}`);
+      addLog('error', t('webssh.error', { message: data.message }));
     }
   } catch (error) {
     domainStatus.value = { 
       type: 'error', 
-      message: `❌ Ошибка проверки DNS: ${error.message}` 
+      message: t('webssh.dnsCheckError', { message: error.message })
     };
-    addLog('error', `DNS ошибка: ${error.message}`);
+    addLog('error', t('webssh.dnsCheckError', { message: error.message }));
   }
 };
 
@@ -256,75 +254,67 @@ const handleSubmit = async () => {
 
   try {
     // 1. Сначала всегда сохраняем настройки в БД
-    addLog('info', 'Сохранение настроек VDS на сервере...');
+    addLog('info', t('webssh.savingSettings'));
     try {
-      // axios.defaults.baseURL = '/api', поэтому используем относительный путь
-      // чтобы итоговый URL был /api/vds/settings, а не /api/api/vds/settings
       const response = await axios.post('/vds/settings', {
         domain: form.domain,
         email: form.email,
         ubuntuUser: form.ubuntuUser,
         dockerUser: form.dockerUser,
         sshHost: form.sshHost,
-        sshPort: parseInt(form.sshPort, 10) || 22, // Преобразуем в число
+        sshPort: parseInt(form.sshPort, 10) || 22,
         sshUser: form.sshUser,
         sshPassword: form.sshPassword
       });
       
       if (response.data && response.data.success) {
-        addLog('success', '✅ Настройки VDS сохранены в базе данных');
+        addLog('success', t('webssh.settingsSaved'));
       } else {
-        addLog('error', `❌ Ошибка сохранения настроек: ${response.data?.error || 'Неизвестная ошибка'}`);
+        addLog('error', t('webssh.settingsSaveError', { error: response.data?.error || t('common.unknownError') }));
       }
     } catch (error) {
-      console.error('[WebSSH] Ошибка сохранения настроек:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
-      addLog('error', `❌ Ошибка сохранения настроек на сервере: ${errorMessage}`);
-      // Даже если сохранение настроек упало, продолжаем попытку настройки VDS через агента
+      const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
+      addLog('error', t('webssh.settingsSaveServerError', { error: errorMessage }));
     }
 
-    // 2. Затем запускаем настройку VDS через агента
-    addLog('info', 'Запуск настройки VDS через WebSSH Agent...');
+    addLog('info', t('webssh.startingSetup'));
     const result = await webSshService.setupVDS(form);
 
     if (result.success) {
       isConnected.value = true;
-      connectionStatus.value = `VDS настроен: ${form.domain}`;
-      addLog('success', 'VDS успешно настроена');
-      addLog('info', `Ваше приложение будет доступно по адресу: https://${form.domain}`);
+      connectionStatus.value = t('webssh.vdsConfigured', { domain: form.domain });
+      addLog('success', t('webssh.setupSuccess'));
+      addLog('info', t('webssh.appAvailable', { domain: form.domain }));
       
-      // Сохраняем статус VDS как настроенного локально
       localStorage.setItem('vds-config', JSON.stringify({ 
         isConfigured: true,
         domain: form.domain 
       }));
       
-      // Отправляем событие об изменении статуса VDS
       window.dispatchEvent(new CustomEvent('vds-status-changed', {
         detail: { isConfigured: true }
       }));
       
-      // Перенаправляем на страницу управления VDS через 3 секунды
-      addLog('info', 'Перенаправление на страницу управления VDS через 3 секунды...');
+      addLog('info', t('webssh.redirecting'));
       setTimeout(() => {
         router.push({ name: 'vds-management' });
       }, 3000);
     } else {
-      addLog('error', result.message || 'Ошибка при настройке VDS');
+      addLog('error', result.message || t('webssh.setupError'));
     }
   } catch (error) {
-    addLog('error', `Ошибка: ${error.message}`);
+    addLog('error', t('webssh.error', { message: error.message }));
   } finally {
     isLoading.value = false;
   }
 };
 const resetConnection = async () => {
   isLoading.value = true;
-  addLog('info', 'Сброс статуса подключения...');
+  addLog('info', t('webssh.resettingStatus'));
   try {
     isConnected.value = false;
-    connectionStatus.value = 'Не подключено';
-    addLog('success', 'Статус сброшен');
+    connectionStatus.value = t('webssh.notConnected');
+    addLog('success', t('webssh.statusReset'));
     
     // Очищаем статус VDS
     localStorage.removeItem('vds-config');
@@ -334,24 +324,24 @@ const resetConnection = async () => {
       detail: { isConfigured: false }
     }));
   } catch (error) {
-    addLog('error', `Ошибка: ${error.message}`);
+    addLog('error', t('webssh.error', { message: error.message }));
   } finally {
     isLoading.value = false;
   }
 };
 const validateForm = () => {
   if (!form.domain || !form.email || !form.ubuntuUser || !form.dockerUser || !form.sshHost || !form.sshPort || !form.sshUser || !form.sshPassword) {
-    addLog('error', 'Заполните все обязательные поля');
+    addLog('error', t('webssh.fillRequired'));
     return false;
   }
   const asciiDomain = encodeDomainForRequest(form.domain);
   if (!asciiDomain) {
-    addLog('error', 'Введите корректный домен (например: example.com)');
+    addLog('error', t('webssh.invalidDomainExample'));
     return false;
   }
   const domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
   if (!domainRegex.test(asciiDomain)) {
-    addLog('error', 'Введите корректный домен (например: example.com)');
+    addLog('error', t('webssh.invalidDomainExample'));
     return false;
   }
 
@@ -359,25 +349,25 @@ const validateForm = () => {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(form.email)) {
-    addLog('error', 'Введите корректный email адрес');
+    addLog('error', t('webssh.invalidEmail'));
     return false;
   }
 
   if (form.ubuntuUser.length < 3 || form.ubuntuUser.length > 32) {
-    addLog('error', 'Логин Ubuntu должен быть от 3 до 32 символов');
+    addLog('error', t('webssh.ubuntuLoginLength'));
     return false;
   }
   if (!/^[a-z][a-z0-9_-]*$/.test(form.ubuntuUser)) {
-    addLog('error', 'Логин Ubuntu должен начинаться с буквы и содержать только строчные буквы, цифры, _ и -');
+    addLog('error', t('webssh.ubuntuLoginFormat'));
     return false;
   }
 
   if (form.dockerUser.length < 3 || form.dockerUser.length > 32) {
-    addLog('error', 'Логин Docker должен быть от 3 до 32 символов');
+    addLog('error', t('webssh.dockerLoginLength'));
     return false;
   }
   if (!/^[a-z][a-z0-9_-]*$/.test(form.dockerUser)) {
-    addLog('error', 'Логин Docker должен начинаться с буквы и содержать только строчные буквы, цифры, _ и -');
+    addLog('error', t('webssh.dockerLoginFormat'));
     return false;
   }
 

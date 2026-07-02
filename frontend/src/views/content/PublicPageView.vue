@@ -31,11 +31,11 @@
           </span>
           <span class="page-status published">
             <i class="fas fa-circle"></i>
-            Опубликовано
+            {{ t('common.status.published') }}
           </span>
           <span class="page-author" v-if="page.author_address">
             <i class="fas fa-user"></i>
-            Автор: {{ formatAddress(page.author_address) }}
+            {{ t('content.publicPage.authorPrefix') }}{{ formatAddress(page.author_address) }}
           </span>
         </div>
       </div>
@@ -44,40 +44,40 @@
       <div class="content-block" v-if="page">
         <!-- Краткое описание -->
         <div v-if="page.summary" class="page-summary">
-          <h2>Описание</h2>
+          <h2>{{ t('content.page.description') }}</h2>
           <p>{{ page.summary }}</p>
         </div>
 
         <!-- Основной контент -->
         <div class="page-content">
-          <h2>Содержание</h2>
+          <h2>{{ t('content.page.content') }}</h2>
           <div class="content-text" v-if="page.format === 'html'" v-html="formatContent"></div>
           <div v-else-if="page.format === 'pdf' && page.file_path" class="file-preview">
             <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
-            <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
+            <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ t('content.page.downloadPdf') }}</a>
           </div>
           <div v-else-if="page.format === 'image' && page.file_path" class="file-preview">
-            <img :src="page.file_path" alt="Документ" class="image-preview" />
-            <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать изображение</a>
+            <img :src="page.file_path" :alt="t('content.page.documentAlt')" class="image-preview" />
+            <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ t('content.page.downloadImage') }}</a>
           </div>
-          <div v-else class="content-text">Контент не добавлен</div>
+          <div v-else class="content-text">{{ t('content.page.noContent') }}</div>
         </div>
 
         <!-- SEO информация -->
         <div v-if="page.seo" class="page-seo">
-          <h2>SEO информация</h2>
+          <h2>{{ t('content.page.seoInfo') }}</h2>
           <div class="seo-info">
             <div class="seo-item">
               <label>Meta Title:</label>
-              <span>{{ page.seo.title || 'Не указан' }}</span>
+              <span>{{ page.seo.title || t('common.notSpecified') }}</span>
             </div>
             <div class="seo-item">
               <label>Meta Description:</label>
-              <span>{{ page.seo.description || 'Не указан' }}</span>
+              <span>{{ page.seo.description || t('common.notSpecified') }}</span>
             </div>
             <div class="seo-item">
               <label>Keywords:</label>
-              <span>{{ page.seo.keywords || 'Не указаны' }}</span>
+              <span>{{ page.seo.keywords || t('common.notSpecifiedPlural') }}</span>
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@
       <!-- Загрузка -->
       <div v-else-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>Загрузка страницы...</p>
+        <p>{{ t('content.page.loading') }}</p>
       </div>
 
       <!-- Ошибка -->
@@ -94,11 +94,11 @@
         <div class="error-icon">
           <i class="fas fa-exclamation-triangle"></i>
         </div>
-        <h3>Страница не найдена</h3>
-        <p>Запрашиваемая страница не существует или не опубликована</p>
+        <h3>{{ t('content.page.notFoundTitle') }}</h3>
+        <p>{{ t('content.publicPage.notFoundDescription') }}</p>
         <button class="btn btn-primary" @click="goBack">
           <i class="fas fa-arrow-left"></i>
-          Вернуться к списку
+          {{ t('content.publicPage.backToList') }}
         </button>
       </div>
     </div>
@@ -107,6 +107,7 @@
 
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
@@ -138,6 +139,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 
 // Состояние
 const page = ref(null);
@@ -149,7 +151,7 @@ function goBack() {
 }
 
 function formatDate(date) {
-  if (!date) return 'Не указана';
+  if (!date) return t('common.dateNotSpecified');
   return new Date(date).toLocaleDateString('ru-RU', {
     year: 'numeric',
     month: 'long',
@@ -207,24 +209,24 @@ function setupVideoErrorHandlers() {
       video.addEventListener('error', (e) => {
         console.error('Ошибка загрузки видео:', e);
         const error = e.target.error;
-        let errorMessage = 'Неизвестная ошибка';
+        let errorMessage = t('content.page.video.unknownError');
         
         if (error) {
           switch (error.code) {
             case error.MEDIA_ERR_ABORTED:
-              errorMessage = 'Загрузка видео была прервана';
+              errorMessage = t('content.page.video.aborted');
               break;
             case error.MEDIA_ERR_NETWORK:
-              errorMessage = 'Ошибка сети при загрузке видео';
+              errorMessage = t('content.page.video.networkError');
               break;
             case error.MEDIA_ERR_DECODE:
-              errorMessage = 'Ошибка декодирования видео';
+              errorMessage = t('content.page.video.decodeError');
               break;
             case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Формат видео не поддерживается';
+              errorMessage = t('content.page.video.formatNotSupported');
               break;
             default:
-              errorMessage = `Ошибка загрузки видео (код: ${error.code})`;
+              errorMessage = t('content.page.video.loadErrorWithCode', { code: error.code });
           }
         }
         
@@ -261,7 +263,7 @@ function updatePageMetaTags() {
     }
   }
   
-  const title = seoData?.title || page.value.title || 'Публичная страница';
+  const title = seoData?.title || page.value.title || t('content.publicPage.defaultSeoTitle');
   const description = seoData?.description || page.value.summary || '';
   const keywords = seoData?.keywords || '';
   

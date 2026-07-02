@@ -13,17 +13,17 @@
 <template>
   <BaseLayout>
     <div class="personal-messages-header">
-      <span>Личные сообщения</span>
+      <span>{{ t('chat.personalMessages') }}</span>
       <span v-if="newMessagesCount > 0" class="badge">+{{ newMessagesCount }}</span>
       <button class="close-btn" @click="goBack">×</button>
     </div>
     
     <div v-if="isLoading" class="loading-container">
-      <div class="loading">Загрузка бесед...</div>
+      <div class="loading">{{ t('chat.loadingConversations') }}</div>
     </div>
     
     <div v-else-if="personalMessages.length === 0" class="empty-state">
-      <p>У вас пока нет личных бесед с другими администраторами</p>
+      <p>{{ t('chat.noConversations') }}</p>
     </div>
     
     <div v-else class="personal-messages-list">
@@ -34,11 +34,11 @@
       >
         <div class="message-info">
           <div class="admin-name">{{ message.name }}</div>
-          <div class="message-preview">{{ message.last_message || 'Нет сообщений' }}</div>
+          <div class="message-preview">{{ message.last_message || t('chat.noMessages') }}</div>
           <div class="message-date">{{ formatDate(message.last_message_at) }}</div>
         </div>
         <el-button type="primary" size="small" @click="openPersonalChat(message)">
-          Открыть
+          {{ t('chat.open') }}
         </el-button>
       </div>
     </div>
@@ -47,12 +47,14 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import adminChatService from '../services/adminChatService.js';
 import { usePermissions } from '@/composables/usePermissions';
 import { getPrivateConversations } from '../services/messagesService';
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const { canChatWithAdmins } = usePermissions();
@@ -91,8 +93,8 @@ async function fetchPersonalMessages() {
         id: conv.conversation_id,
         conversation_id: conv.conversation_id,
         user_id: conv.user_id,
-        name: conv.title || `Чат с пользователем ${conv.user_id}`,
-        last_message: 'Приватный чат',
+        name: conv.title || t('chat.chatWithUser', { id: conv.user_id }),
+        last_message: t('chat.privateChatPreview'),
         last_message_at: conv.updated_at,
         message_count: conv.message_count || 0
       };

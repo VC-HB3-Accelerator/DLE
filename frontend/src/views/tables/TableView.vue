@@ -14,14 +14,14 @@
   <BaseLayout>
     <div class="table-block-wrapper">
     <div class="tableview-header-row">
-      <button class="nav-btn" @click="goToTables">Таблицы</button>
-      <button class="nav-btn" @click="goToCreate">Создать таблицу</button>
-      <button class="close-btn" @click="closeTable">Закрыть</button>
-      <button v-if="canEditData" class="action-btn" @click="goToEdit">Редактировать</button>
-      <button v-if="canDeleteData" class="danger-btn" @click="goToDelete">Удалить</button>
+      <button class="nav-btn" @click="goToTables">{{ t('tables.view.navTables') }}</button>
+      <button class="nav-btn" @click="goToCreate">{{ t('tables.common.createTable') }}</button>
+      <button class="close-btn" @click="closeTable">{{ t('tables.common.close') }}</button>
+      <button v-if="canEditData" class="action-btn" @click="goToEdit">{{ t('tables.common.edit') }}</button>
+      <button v-if="canDeleteData" class="danger-btn" @click="goToDelete">{{ t('tables.common.delete') }}</button>
     </div>
     <UserTableView v-if="canViewData" :table-id="Number($route.params.id)" />
-    <div v-else class="empty-table-placeholder">Нет данных для отображения</div>
+    <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
     </div>
   </BaseLayout>
 </template>
@@ -30,24 +30,24 @@
 import BaseLayout from '../../components/BaseLayout.vue';
 import UserTableView from '../../components/tables/UserTableView.vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { onMounted } from 'vue';
 const $route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const { canViewData, canEditData, canDeleteData } = usePermissions();
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[TableView] Clearing table data');
     // Очищаем данные при выходе из системы
     tableData.value = [];
     columns.value = [];
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[TableView] Refreshing table data');
     loadTableData(); // Обновляем данные при входе в систему
   });
 });

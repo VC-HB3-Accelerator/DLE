@@ -12,14 +12,14 @@
 
 <template>
   <div class="system-monitoring">
-    <h3>🔍 Мониторинг системы</h3>
+    <h3>{{ t('ai.monitoring.title') }}</h3>
     
     <div class="monitoring-controls">
       <button @click="refreshStatus" :disabled="loading" class="refresh-btn">
-        {{ loading ? '🔄 Обновление...' : '🔄 Обновить статус' }}
+        {{ loading ? t('ai.monitoring.updating') : t('ai.monitoring.refreshStatus') }}
       </button>
       <span class="last-update">
-        Последнее обновление: {{ lastUpdate }}
+        {{ lastUpdateText }}
       </span>
     </div>
 
@@ -35,7 +35,7 @@
         </h4>
         <div class="details">
           <div class="status-text">
-            Статус: {{ getStatusText(service.status) }}
+            {{ t('ai.monitoring.status', { status: getStatusText(service.status) }) }}
           </div>
           <div class="service-details" v-if="service.details">
             {{ service.details }}
@@ -45,44 +45,46 @@
     </div>
 
     <div class="rag-test-section">
-      <h4>🧠 Тест RAG-функциональности</h4>
-      
+      <h4>{{ t('ai.monitoring.ragTest') }}</h4>
 
-      
-      <!-- Выбор RAG-таблицы -->
       <div class="rag-table-selection">
-        <label>Выберите RAG-таблицу:</label>
+        <label>{{ t('ai.monitoring.selectRagTable') }}</label>
         <div class="rag-table-controls">
           <select v-model="selectedRagTable" class="rag-table-select">
             <option v-if="availableRagTables.length === 0" value="" disabled>
-              Нет доступных RAG-таблиц
+              {{ t('ai.monitoring.noRagTables') }}
             </option>
             <option v-for="table in availableRagTables" :key="table.id" :value="table.id">
               {{ table.name }} (ID: {{ table.id }})
             </option>
           </select>
-          <button @click="loadRagTables" class="refresh-tables-btn" title="Обновить список таблиц">
+          <button @click="loadRagTables" class="refresh-tables-btn" :title="t('common.refresh')">
             🔄
           </button>
         </div>
         <div v-if="availableRagTables.length === 0" class="no-rag-tables">
-          <p>Для тестирования RAG необходимо создать таблицу и установить её как источник для ИИ-ассистента.</p>
-          <p>Перейдите в <router-link to="/tables">Таблицы</router-link> и создайте таблицу с вопросами и ответами.</p>
+          <p>{{ t('ai.monitoring.ragHint') }}</p>
+          <p>
+            <i18n-t keypath="ai.monitoring.ragHintLink" tag="span">
+              <template #link>
+                <router-link to="/tables">{{ t('ai.monitoring.tablesLink') }}</router-link>
+              </template>
+            </i18n-t>
+          </p>
         </div>
       </div>
       
       <div class="rag-test-controls">
         <input 
           v-model="ragQuestion" 
-          placeholder="Введите вопрос" 
+          :placeholder="t('ai.monitoring.questionPlaceholder')" 
           class="rag-input"
         />
         <button @click="testRAG" :disabled="ragTesting || !selectedRagTable" class="rag-test-btn">
-          {{ ragTesting ? 'Тестирование...' : 'Тестировать RAG' }}
+          {{ ragTesting ? t('ai.monitoring.testing') : t('ai.monitoring.testRag') }}
         </button>
       </div>
       
-      <!-- Прогресс-бар и статус -->
       <div v-if="ragTesting" class="rag-progress-section">
         <div class="rag-status">{{ ragStatus }}</div>
         <div class="rag-progress-bar">
@@ -93,32 +95,31 @@
       
       <div v-if="ragResult" :class="['rag-result', getRagResultClass()]">
         <div v-if="ragResult.success">
-          <strong>✅ Успешно!</strong><br>
-          Таблица: {{ availableRagTables.find(t => t.id === selectedRagTable)?.name || 'Неизвестно' }}<br>
-          Вопрос: "{{ ragQuestion }}"<br>
-          Ответ: "{{ ragResult.answer || 'Нет ответа' }}"<br>
+          <strong>{{ t('ai.monitoring.success') }}</strong><br>
+          {{ t('ai.monitoring.table') }} {{ availableRagTables.find(tbl => tbl.id === selectedRagTable)?.name || t('common.status.unknown') }}<br>
+          {{ t('ai.monitoring.question') }} "{{ ragQuestion }}"<br>
+          {{ t('ai.monitoring.answer') }} "{{ ragResult.answer || t('ai.monitoring.noAnswer') }}"<br>
           Score: {{ ragResult.score || 'N/A' }}
-
         </div>
         <div v-else>
-          <strong>❌ Ошибка!</strong><br>
+          <strong>{{ t('ai.monitoring.error') }}</strong><br>
           {{ ragResult.error }}
-
         </div>
       </div>
-      
-
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 
+const { t, locale } = useI18n();
+
 const loading = ref(false);
-const lastUpdate = ref('никогда');
-const ragQuestion = ref('Как работает ИИ-ассистент?');
+const lastUpdateTime = ref(null);
+const ragQuestion = ref('');
 const ragTesting = ref(false);
 const ragResult = ref(null);
 const monitoringData = ref(null);
@@ -126,6 +127,16 @@ const availableRagTables = ref([]);
 const selectedRagTable = ref(null);
 const ragProgress = ref(0);
 const ragStatus = ref('');
+
+const lastUpdateText = computed(() => {
+  if (lastUpdateTime.value === null) {
+    return t('ai.monitoring.lastUpdate', { time: t('ai.monitoring.never') });
+  }
+  if (lastUpdateTime.value === 'error') {
+    return t('ai.monitoring.lastUpdate', { time: t('ai.monitoring.updateError') });
+  }
+  return t('ai.monitoring.lastUpdate', { time: lastUpdateTime.value });
+});
 
 const serviceLabels = {
   backend: 'Backend',
@@ -141,8 +152,10 @@ const serviceList = computed(() => {
     label: serviceLabels[key] || key,
     status: val.status,
     details: val.status === 'ok'
-      ? (key === 'ollama' && val.models !== undefined ? `Доступно моделей: ${val.models}` : 'Работает')
-      : val.error || 'Ошибка',
+      ? (key === 'ollama' && val.models !== undefined
+        ? t('ai.monitoring.modelsAvailable', { count: val.models })
+        : t('ai.monitoring.statusHealthy'))
+      : val.error || t('ai.monitoring.updateError'),
   }));
 });
 
@@ -159,10 +172,10 @@ const getStatusClass = (status) => {
 const getStatusText = (status) => {
   switch (status) {
     case 'ok':
-    case 'healthy': return 'Работает';
-    case 'warning': return 'Предупреждение';
-    case 'error': return 'Ошибка';
-    default: return 'Неизвестно';
+    case 'healthy': return t('ai.monitoring.statusHealthy');
+    case 'warning': return t('ai.monitoring.statusWarning');
+    case 'error': return t('ai.monitoring.statusError');
+    default: return t('ai.monitoring.statusUnknown');
   }
 };
 
@@ -175,13 +188,8 @@ const loadRagTables = async () => {
   try {
     const response = await axios.get('/tables');
     const tables = response.data || [];
-    
-    // Фильтруем только таблицы, которые являются источниками для RAG
     const ragTables = tables.filter(table => table.is_rag_source_id === 1);
-    
     availableRagTables.value = ragTables;
-    
-    // Если есть доступные таблицы, выбираем первую по умолчанию
     if (availableRagTables.value.length > 0 && !selectedRagTable.value) {
       selectedRagTable.value = availableRagTables.value[0].id;
     }
@@ -195,10 +203,11 @@ const refreshStatus = async () => {
   try {
     const response = await axios.get('/monitoring');
     monitoringData.value = response.data;
-    lastUpdate.value = new Date().toLocaleString('ru-RU');
+    const dateLocale = locale.value === 'ru' ? 'ru-RU' : 'en-US';
+    lastUpdateTime.value = new Date().toLocaleString(dateLocale);
   } catch (e) {
     monitoringData.value = null;
-    lastUpdate.value = 'Ошибка';
+    lastUpdateTime.value = 'error';
   }
   loading.value = false;
 };
@@ -209,7 +218,7 @@ const testRAG = async () => {
   if (!selectedRagTable.value) {
     ragResult.value = {
       success: false,
-      error: 'Не выбрана RAG-таблица для тестирования'
+      error: t('ai.monitoring.noRagTableSelected')
     };
     return;
   }
@@ -217,9 +226,8 @@ const testRAG = async () => {
   ragTesting.value = true;
   ragResult.value = null;
   ragProgress.value = 0;
-  ragStatus.value = '🔍 Ищем ответ в базе знаний...';
+  ragStatus.value = t('ai.monitoring.searchingKnowledge');
   
-  // Симуляция прогресса для лучшего UX
   const progressInterval = setInterval(() => {
     if (ragProgress.value < 90) {
       ragProgress.value += Math.random() * 15;
@@ -227,7 +235,7 @@ const testRAG = async () => {
   }, 1000);
   
   try {
-    ragStatus.value = '🤖 Генерируем ответ с помощью ИИ...';
+    ragStatus.value = t('ai.monitoring.generatingAnswer');
     
     const response = await axios.post('/rag/answer', {
       tableId: selectedRagTable.value,
@@ -237,7 +245,7 @@ const testRAG = async () => {
     
     clearInterval(progressInterval);
     ragProgress.value = 100;
-    ragStatus.value = '✅ Готово!';
+    ragStatus.value = t('ai.monitoring.done');
     
     ragResult.value = {
       success: true,
@@ -246,7 +254,6 @@ const testRAG = async () => {
       llmResponse: response.data.llmResponse
     };
     
-    // Обновляем список таблиц после успешного тестирования
     await loadRagTables();
   } catch (error) {
     clearInterval(progressInterval);
@@ -255,7 +262,7 @@ const testRAG = async () => {
     
     ragResult.value = {
       success: false,
-      error: error.response?.data?.error || error.message || 'Неизвестная ошибка'
+      error: error.response?.data?.error || error.message || t('common.unknownError')
     };
   }
   
@@ -263,15 +270,13 @@ const testRAG = async () => {
 };
 
 onMounted(() => {
+  ragQuestion.value = t('ai.monitoring.defaultQuestion');
   refreshStatus();
   loadRagTables();
-  
-  // Подписываемся на обновление плейсхолдеров (когда создаются новые таблицы)
   window.addEventListener('placeholders-updated', loadRagTables);
 });
 
 onUnmounted(() => {
-  // Отписываемся от события
   window.removeEventListener('placeholders-updated', loadRagTables);
 });
 </script>
@@ -620,4 +625,4 @@ onUnmounted(() => {
     min-width: auto;
   }
 }
-</style> 
+</style>

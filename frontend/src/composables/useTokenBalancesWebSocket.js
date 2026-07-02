@@ -12,6 +12,9 @@
 
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import wsClient from '../utils/websocket';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 export function useTokenBalancesWebSocket() {
   // Состояние балансов
@@ -77,13 +80,13 @@ export function useTokenBalancesWebSocket() {
     const errorInfo = {
       network: 'unknown',
       tokenAddress: 'error',
-      tokenName: 'Ошибка получения балансов',
+      tokenName: t('tokenBalances.fetchError'),
       symbol: 'ERROR',
       balance: '0',
       minBalance: '0',
       readonlyThreshold: 1,
       editorThreshold: 1,
-      error: data.error || 'Неизвестная ошибка',
+      error: data.error || t('common.unknownError'),
       errorDetails: data.errorDetails || data.error
     };
     
@@ -114,7 +117,7 @@ export function useTokenBalancesWebSocket() {
   
   // Вычисляемое свойство для форматированного времени обновления
   const formattedLastUpdate = computed(() => {
-    if (!lastUpdateTime.value) return 'Не обновлялось';
+    if (!lastUpdateTime.value) return t('tokenBalances.neverUpdated');
     return lastUpdateTime.value.toLocaleTimeString();
   });
   

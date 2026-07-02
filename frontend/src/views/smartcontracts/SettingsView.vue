@@ -28,7 +28,7 @@
           {{ address }}
         </div>
         <div v-else-if="isLoading" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          Загрузка...
+          {{ t('common.loading') }}
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
@@ -36,17 +36,17 @@
         <!-- Отображение в футере -->
         <div v-if="canSetFooterDle" class="footer-card">
           <div class="footer-header">
-            <h3>Отображение в футере</h3>
+            <h3>{{ t('smartcontracts.settings.footerDisplay') }}</h3>
           </div>
           <div class="footer-content">
-            <p>Выберите этот DLE для отображения в футере приложения. Название будет показано в строке с кнопкой бургера.</p>
+            <p>{{ t('smartcontracts.settings.footerDescription') }}</p>
             <div v-if="isSelectedForFooter" class="selected-info">
               <i class="fas fa-check-circle"></i>
-              <span>Этот DLE отображается в футере</span>
+              <span>{{ t('smartcontracts.settings.selectedForFooter') }}</span>
             </div>
             <div v-else-if="hasFooterDle" class="other-selected-info">
               <i class="fas fa-info-circle"></i>
-              <span>В футере отображается другой DLE: {{ footerDle.value?.name }} ({{ footerDle.value?.symbol }})</span>
+              <span>{{ t('smartcontracts.settings.otherSelectedForFooter', { name: footerDle.value?.name, symbol: footerDle.value?.symbol }) }}</span>
             </div>
             <div class="footer-actions">
               <button 
@@ -56,7 +56,7 @@
                 :disabled="isLoading"
               >
                 <i class="fas fa-eye"></i>
-                Отображать в футере
+                {{ t('smartcontracts.settings.showInFooter') }}
               </button>
               <button 
                 v-if="isSelectedForFooter" 
@@ -65,7 +65,7 @@
                 :disabled="isLoading"
               >
                 <i class="fas fa-trash"></i>
-                Удалить из футера
+                {{ t('smartcontracts.settings.removeFromFooter') }}
               </button>
               <button 
                 v-if="hasFooterDle && !isSelectedForFooter" 
@@ -74,7 +74,7 @@
                 :disabled="isLoading"
               >
                 <i class="fas fa-trash"></i>
-                Удалить из футера
+                {{ t('smartcontracts.settings.removeFromFooter') }}
               </button>
             </div>
           </div>
@@ -83,21 +83,21 @@
         <!-- Удаление DLE -->
         <div class="danger-card">
           <div class="danger-header">
-            <h3>Удаление DLE</h3>
+            <h3>{{ t('smartcontracts.settings.deleteSection') }}</h3>
           </div>
           <div class="danger-content">
-            <p>Полное удаление DLE и всех связанных данных. Это действие необратимо.</p>
+            <p>{{ t('smartcontracts.settings.deleteDescription') }}</p>
             <div class="warning-info">
-              <h4>⚠️ Важно:</h4>
+              <h4>{{ t('smartcontracts.settings.important') }}</h4>
               <ul>
-                <li>Для деактивации DLE необходимо иметь токены</li>
-                <li>Может потребоваться голосование участников</li>
-                <li>DLE должен быть активен</li>
-                <li>Только владелец токенов может инициировать деактивацию</li>
+                <li>{{ t('smartcontracts.settings.warningTokens') }}</li>
+                <li>{{ t('smartcontracts.settings.warningVoting') }}</li>
+                <li>{{ t('smartcontracts.settings.warningActive') }}</li>
+                <li>{{ t('smartcontracts.settings.warningOwner') }}</li>
               </ul>
             </div>
             <button @click="deleteDLE" class="btn-danger" :disabled="isLoading">
-              {{ isLoading ? 'Загрузка...' : 'Удалить DLE' }}
+              {{ isLoading ? t('common.loading') : t('smartcontracts.settings.deleteDleBtn') }}
             </button>
           </div>
         </div>
@@ -105,10 +105,10 @@
 
       <!-- Сообщение если DLE не выбран -->
       <div v-if="!address" class="no-dle-card">
-        <h3>DLE не выбран</h3>
-        <p>Для управления настройками необходимо выбрать DLE</p>
+        <h3>{{ t('smartcontracts.settings.noDleSelected') }}</h3>
+        <p>{{ t('smartcontracts.settings.noDleSelectedDesc') }}</p>
         <button @click="goBackToBlocks" class="btn-primary">
-          Вернуться к списку DLE
+          {{ t('smartcontracts.settings.backToList') }}
         </button>
       </div>
     </div>
@@ -118,6 +118,7 @@
 <script setup>
 import { ref, defineProps, defineEmits, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../../composables/useAuth';
 import { useFooterDle } from '../../composables/useFooterDle';
 import { usePermissions } from '../../composables/usePermissions';
@@ -125,6 +126,9 @@ import { ROLES } from '../../composables/permissions';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { deactivateDLE } from '../../utils/dle-contract.js';
 import api from '../../api/axios';
+import { errorMessageMatches } from '../../utils/i18nErrorMatch';
+
+const { t } = useI18n();
 
 // Определяем props
 const props = defineProps({
@@ -188,12 +192,12 @@ const hasFooterDle = computed(() => {
 const setAsFooterDle = async () => {
   // Проверяем права доступа (только редактор может устанавливать DLE для футера)
   if (!canSetFooterDle.value) {
-    alert('❌ Только пользователи с ролью редактор могут устанавливать DLE для отображения в футере');
+    alert(t('smartcontracts.settings.alerts.editorOnlySetFooter'));
     return;
   }
 
   if (!dleInfo.value || !address) {
-    alert('Информация о DLE не загружена');
+    alert(t('smartcontracts.settings.alerts.dleInfoNotLoaded'));
     return;
   }
 
@@ -201,10 +205,13 @@ const setAsFooterDle = async () => {
     // Устанавливаем адрес, данные будут загружены из блокчейна
     await setFooterDle(address, dleInfo.value?.currentChainId ?? null);
     
-    alert(`✅ DLE "${dleInfo.value.name} (${dleInfo.value.symbol})" теперь отображается в футере приложения`);
+    alert(t('smartcontracts.settings.alerts.footerSetSuccess', {
+      name: dleInfo.value.name,
+      symbol: dleInfo.value.symbol
+    }));
   } catch (error) {
     console.error('Ошибка при установке выбранного DLE:', error);
-    alert('❌ Не удалось установить выбранный DLE');
+    alert(t('smartcontracts.settings.alerts.footerSetFailed'));
   }
 };
 
@@ -212,33 +219,31 @@ const setAsFooterDle = async () => {
 const removeFromFooter = async () => {
   // Проверяем права доступа (только редактор может удалять DLE из футера)
   if (!canSetFooterDle.value) {
-    alert('❌ Только пользователи с ролью редактор могут удалять DLE из футера');
+    alert(t('smartcontracts.settings.alerts.editorOnlyRemoveFooter'));
     return;
   }
 
-  if (!confirm('Вы уверены, что хотите удалить этот DLE из футера?')) {
+  if (!confirm(t('smartcontracts.settings.alerts.confirmRemoveFooter'))) {
     return;
   }
 
   try {
     await clearFooterDle();
-    alert('✅ DLE удален из футера приложения');
+    alert(t('smartcontracts.settings.alerts.footerRemoved'));
   } catch (error) {
     console.error('Ошибка при удалении DLE из футера:', error);
-    alert('❌ Не удалось удалить DLE из футера');
+    alert(t('smartcontracts.settings.alerts.footerRemoveFailed'));
   }
 };
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[SettingsView] Clearing DLE settings data');
     // Очищаем данные при выходе из системы
     dleInfo.value = null;
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[SettingsView] Refreshing DLE settings data');
     loadDLEInfo(); // Обновляем данные при входе в систему
   });
 });
@@ -252,7 +257,6 @@ const loadDLEInfo = async () => {
 
   try {
     isLoading.value = true;
-    console.log('Загружаем информацию о DLE:', address);
     
     // Загружаем данные DLE из блокчейна через API
     const response = await api.post('/blockchain/read-dle-info', {
@@ -261,7 +265,6 @@ const loadDLEInfo = async () => {
     
     if (response.data.success) {
       const dleData = response.data.data;
-      console.log('Загружены данные DLE из блокчейна:', dleData);
       
       dleInfo.value = {
         name: dleData.name,           // Название DLE из блокчейна
@@ -272,7 +275,7 @@ const loadDLEInfo = async () => {
       };
     } else {
       console.error('Ошибка загрузки DLE:', response.data.error);
-      throw new Error(response.data.error || 'Не удалось загрузить данные DLE');
+      throw new Error(response.data.error || t('smartcontracts.settings.alerts.dleLoadFailed'));
     }
     
   } catch (error) {
@@ -288,34 +291,36 @@ const loadDLEInfo = async () => {
 // Методы
 const deleteDLE = async () => {
   if (!address) {
-    alert('Адрес DLE не найден');
+    alert(t('smartcontracts.settings.alerts.addressNotFound'));
     return;
   }
 
   // Проверяем аутентификацию
   if (!props.isAuthenticated || !userAddress.value) {
-    alert('❌ Для удаления DLE необходимо авторизоваться в приложении');
+    alert(t('smartcontracts.settings.alerts.authRequired'));
     return;
   }
 
-  if (!confirm(`ВНИМАНИЕ! Это действие необратимо. Вы уверены, что хотите деактивировать DLE ${dleInfo.value?.name || address}?`)) {
+  const dleName = dleInfo.value?.name || address;
+
+  if (!confirm(t('smartcontracts.settings.alerts.confirmDeactivate', { name: dleName }))) {
     return;
   }
   
-  if (!confirm('Это действие нельзя отменить. Подтвердите деактивацию еще раз.')) {
+  if (!confirm(t('smartcontracts.settings.alerts.confirmDeactivateAgain'))) {
     return;
   }
 
   try {
     isSaving.value = true;
-    console.log('Деактивация DLE:', address);
     
     // Выполняем деактивацию DLE
     const result = await deactivateDLE(address, userAddress.value);
     
-    console.log('Результат деактивации:', result);
-    
-    alert(`✅ DLE ${dleInfo.value?.name || address} успешно деактивирован!\n\nТранзакция: ${result.txHash}`);
+    alert(t('smartcontracts.settings.alerts.deactivateSuccess', {
+      name: dleInfo.value?.name || address,
+      txHash: result.txHash
+    }));
     
     // Перенаправляем на страницу блоков управления
     goBackToBlocks();
@@ -323,22 +328,22 @@ const deleteDLE = async () => {
   } catch (error) {
     console.error('Ошибка при деактивации DLE:', error);
     
-    let errorMessage = 'Ошибка при деактивации DLE';
+    let errorMessage = t('smartcontracts.settings.alerts.deactivateError');
     
     if (error.message.includes('execution reverted')) {
-      errorMessage = '❌ Деактивация невозможна: не выполнены условия смарт-контракта. Возможно, требуется голосование участников или DLE уже деактивирован.';
-    } else if (error.message.includes('владелец')) {
-      errorMessage = '❌ Только владелец DLE может его деактивировать';
-    } else if (error.message.includes('кошелек')) {
-      errorMessage = '❌ Необходимо подключить кошелек';
-    } else if (error.message.includes('деактивирован')) {
-      errorMessage = '❌ DLE уже деактивирован';
-    } else if (error.message.includes('токены')) {
-      errorMessage = '❌ Для деактивации DLE необходимо иметь токены';
-    } else if (error.message.includes('условия смарт-контракта')) {
-      errorMessage = error.message; // Используем сообщение из dle-contract.js
+      errorMessage = t('smartcontracts.settings.alerts.deactivateReverted');
+    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.owner')) {
+      errorMessage = t('smartcontracts.settings.alerts.ownerOnly');
+    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.wallet')) {
+      errorMessage = t('smartcontracts.settings.alerts.walletRequired');
+    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.deactivated')) {
+      errorMessage = t('smartcontracts.settings.alerts.alreadyDeactivated');
+    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.tokens')) {
+      errorMessage = t('smartcontracts.settings.alerts.tokensRequired');
+    } else if (errorMessageMatches(error.message, 'smartcontracts.settings.errorPatterns.smartContractConditions')) {
+      errorMessage = t('smartcontracts.settings.alerts.deactivateReverted');
     } else {
-      errorMessage = `❌ Ошибка: ${error.message}`;
+      errorMessage = t('smartcontracts.settings.alerts.errorWithMessage', { message: error.message });
     }
     
     alert(errorMessage);

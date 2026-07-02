@@ -50,6 +50,7 @@
 
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits, provide, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../composables/useAuth';
 import { useAuthFlow } from '../composables/useAuthFlow';
 import { useNotifications } from '../composables/useNotifications';
@@ -66,6 +67,7 @@ import NotificationDisplay from './NotificationDisplay.vue';
 // 1. ИСПОЛЬЗОВАНИЕ COMPOSABLES
 // =====================================================================
 
+const { t } = useI18n();
 const auth = useAuthContext();
 const { notifications, showSuccessMessage, showErrorMessage } = useNotifications();
 
@@ -163,48 +165,38 @@ const handleWalletAuth = async () => {
         // Связывание кошелька с существующим аккаунтом
         const linkResult = await auth.linkIdentity('wallet', result.address);
         if (linkResult.success) {
-          showSuccessMessage('Кошелек успешно подключен к вашему аккаунту!');
+          showSuccessMessage(t('auth.walletConnected'));
           emit('auth-action-completed');
         } else {
-          showErrorMessage(linkResult.error || 'Не удалось подключить кошелек');
+          showErrorMessage(linkResult.error || t('auth.walletConnectFailed'));
         }
       } else {
-        // Новая аутентификация через кошелек
         const authResponse = await auth.checkAuth();
         if (authResponse.authenticated && authResponse.authType === 'wallet') {
-          // console.log('[BaseLayout] Кошелёк успешно подключен и аутентифицирован');
-          showSuccessMessage('Кошелёк успешно подключен!');
+          showSuccessMessage(t('auth.walletAuthSuccess'));
           emit('auth-action-completed');
         } else {
-           showErrorMessage('Не удалось завершить аутентификацию через кошелек.');
+           showErrorMessage(t('auth.walletAuthFailed'));
         }
       }
     } else {
-              // console.error('[BaseLayout] Не удалось подключить кошелёк:', result.error);
-      showErrorMessage(result.error || 'Не удалось подключить кошелёк');
+      showErrorMessage(result.error || t('auth.walletConnectError'));
     }
   } catch (error) {
-          // console.error('[BaseLayout] Ошибка при подключении кошелька:', error);
-    
-    // Улучшенная обработка ошибок MetaMask
-    let errorMessage = 'Произошла ошибка при подключении кошелька';
-    
+    let errorMessage = t('auth.walletGenericError');
+
     if (error.message && error.message.includes('MetaMask extension not found')) {
-      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
+      errorMessage = t('auth.metamaskNotFound');
     } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
-      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
-    } else if (error.message && error.message.includes('Браузерный кошелек не установлен')) {
-      errorMessage = 'Браузерный кошелек не установлен. Пожалуйста, установите MetaMask.';
-    } else if (error.message && error.message.includes('Не удалось получить nonce')) {
-      errorMessage = 'Ошибка получения nonce. Попробуйте обновить страницу и повторить попытку.';
+      errorMessage = t('auth.metamaskConnectFailed');
     } else if (error.message && error.message.includes('Invalid nonce')) {
-      errorMessage = 'Ошибка аутентификации. Попробуйте обновить страницу и повторить попытку.';
+      errorMessage = t('auth.invalidNonce');
     } else if (error.message && error.message.includes('Nonce expired')) {
-      errorMessage = 'Время сессии истекло. Попробуйте обновить страницу и повторить попытку.';
+      errorMessage = t('auth.nonceExpired');
     } else if (error.message) {
       errorMessage = error.message;
     }
-    
+
     showErrorMessage(errorMessage);
   } finally {
     isConnectingWallet.value = false;
@@ -221,14 +213,13 @@ const disconnectWallet = async () => {
     const result = await auth.disconnect();
     
     if (result.success) {
-      showSuccessMessage('Вы успешно вышли из системы');
+      showSuccessMessage(t('auth.logoutSuccess'));
       emit('auth-action-completed');
     } else {
-      showErrorMessage(result.error || 'Произошла ошибка при выходе из системы');
+      showErrorMessage(result.error || t('auth.logoutError'));
     }
   } catch (error) {
-          // console.error('[BaseLayout] Ошибка при выходе из системы:', error);
-    showErrorMessage('Произошла ошибка при выходе из системы');
+    showErrorMessage(t('auth.logoutError'));
   }
 };
 

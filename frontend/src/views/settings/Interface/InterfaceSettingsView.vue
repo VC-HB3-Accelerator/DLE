@@ -13,7 +13,7 @@
 <template>
   <div class="interface-settings settings-panel" style="position:relative;min-height:120px">
     <button class="close-btn" @click="goBack">×</button>
-    <h2>Web3 Хостинг</h2>
+    <h2>{{ $t('settings.interface.web3Hosting') }}</h2>
     
 
 
@@ -23,20 +23,20 @@
     <div class="web3-service-block">
       <div class="service-header">
         <h3>Akash Network</h3>
-        <span class="service-badge akash">Децентрализованная облачная платформа</span>
+        <span class="service-badge akash">{{ $t('settings.interface.akash.badge') }}</span>
       </div>
-      <p>Разверните ваше приложение на децентрализованной облачной инфраструктуре Akash Network. Оплата токенами AKT.</p>
+      <p>{{ $t('settings.interface.akash.description') }}</p>
       <div class="service-features">
-        <span class="feature">✓ Децентрализованный хостинг</span>
-        <span class="feature">✓ Оплата в AKT</span>
-        <span class="feature">✓ Полный контроль</span>
+        <span class="feature">{{ $t('settings.interface.akash.feature1') }}</span>
+        <span class="feature">{{ $t('settings.interface.akash.feature2') }}</span>
+        <span class="feature">{{ $t('settings.interface.akash.feature3') }}</span>
       </div>
       <button 
         class="btn-primary" 
         @click="canManageSettings ? goToAkashDetails() : null"
         :disabled="!canManageSettings"
       >
-        Подробнее
+        {{ $t('common.details') }}
       </button>
     </div>
 
@@ -46,55 +46,57 @@
         <h3>Flux</h3>
         <span class="service-badge flux">Web3 Cloud Infrastructure</span>
       </div>
-      <p>Децентрализованная облачная платформа Flux для развертывания и управления Web3 приложениями с высокой производительностью.</p>
+      <p>{{ $t('settings.interface.flux.description') }}</p>
       <div class="service-features">
         <span class="feature">✓ Web3 Infrastructure</span>
-        <span class="feature">✓ Высокая производительность</span>
-        <span class="feature">✓ Глобальная сеть</span>
+        <span class="feature">{{ $t('settings.interface.flux.feature2') }}</span>
+        <span class="feature">{{ $t('settings.interface.flux.feature3') }}</span>
       </div>
       <button 
         class="btn-primary" 
         @click="canManageSettings ? goToFluxDetails() : null"
         :disabled="!canManageSettings"
       >
-        Подробнее
+        {{ $t('common.details') }}
       </button>
     </div>
 
     <!-- WEB SSH -->
     <div class="web3-service-block">
       <div class="service-header">
-        <h3>VDS Сервер</h3>
-        <span class="service-badge webssh">Публикация на VDS сервере</span>
+        <h3>{{ $t('settings.interface.vds.title') }}</h3>
+        <span class="service-badge webssh">{{ $t('settings.interface.vds.badge') }}</span>
       </div>
-      <p>Автоматическая публикация приложения в интернете.</p>
+      <p>{{ $t('settings.interface.vds.description') }}</p>
       <div class="service-features">
-        <span class="feature">✓ Быстрое подключение</span>
-        <span class="feature">✓ Безопасно</span>
-        <span class="feature">✓ Для локальных и VPS</span>
+        <span class="feature">{{ $t('settings.interface.vds.feature1') }}</span>
+        <span class="feature">{{ $t('settings.interface.vds.feature2') }}</span>
+        <span class="feature">{{ $t('settings.interface.vds.feature3') }}</span>
       </div>
       <button 
         class="btn-primary" 
         @click="canManageSettings ? goToWebSsh() : null"
         :disabled="!canManageSettings"
       >
-        Подробнее
+        {{ $t('common.details') }}
       </button>
     </div>
 
     <!-- Модальное окно с формой WEB SSH -->
     <NoAccessModal v-if="showWebSsh" @close="showWebSsh = false">
       <div style="padding:2rem;max-width:600px">
-        <h3>WEB SSH Туннель (форма)</h3>
+        <h3>{{ $t('settings.interface.websshModalTitle') }}</h3>
         <!-- Здесь будет компонент WebSshForm.vue -->
-        <div style="color:#888">Здесь появится форма WEB SSH (будет вынесена из WebSshSettingsView.vue)</div>
-        <button class="btn-primary" @click="showWebSsh = false" style="margin-top:1.5rem">Закрыть</button>
+        <div style="color:#888">{{ $t('settings.interface.websshModalPlaceholder') }}</div>
+        <button class="btn-primary" @click="showWebSsh = false" style="margin-top:1.5rem">{{ $t('common.close') }}</button>
       </div>
     </NoAccessModal>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';

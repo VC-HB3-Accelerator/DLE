@@ -15,55 +15,55 @@
     <div class="contact-table-header">
       <!-- Кнопка "Личные сообщения" для всех пользователей -->
       <el-button v-if="canChatWithAdmins" type="info" @click="goToPersonalMessages" style="margin-right: 1em;">
-        Личные сообщения
+        {{ t('contacts.personalMessages') }}
         <el-badge v-if="privateUnreadCount > 0" :value="privateUnreadCount" class="notification-badge" />
       </el-button>
-      <el-button v-if="canSendToUsers" type="success" :disabled="!hasSelectedEditor" @click="sendPublicMessage" style="margin-right: 1em;">Публичное сообщение</el-button>
-      <el-button v-if="canViewContacts" type="warning" :disabled="!hasSelectedEditor" @click="sendPrivateMessage" style="margin-right: 1em;">Приватное сообщение</el-button>
-      <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="goToBroadcastPage" style="margin-right: 1em;">Рассылка</el-button>
-      <el-button v-if="canDeleteMessages" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">Удалить сообщения</el-button>
-      <el-button v-if="canDeleteData" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">Удалить</el-button>
-      <el-button v-if="canEditData" type="primary" @click="showImportModal = true" style="margin-right: 1em;">Импорт</el-button>
-      <span v-if="selectedIds.length" class="selection-info">Выбрано: {{ selectedIds.length }}</span>
+      <el-button v-if="canSendToUsers" type="success" :disabled="!hasSelectedEditor" @click="sendPublicMessage" style="margin-right: 1em;">{{ t('contacts.publicMessage') }}</el-button>
+      <el-button v-if="canViewContacts" type="warning" :disabled="!hasSelectedEditor" @click="sendPrivateMessage" style="margin-right: 1em;">{{ t('contacts.privateMessage') }}</el-button>
+      <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="goToBroadcastPage" style="margin-right: 1em;">{{ t('contacts.broadcast') }}</el-button>
+      <el-button v-if="canDeleteMessages" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">{{ t('contacts.deleteMessages') }}</el-button>
+      <el-button v-if="canDeleteData" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">{{ t('contacts.delete') }}</el-button>
+      <el-button v-if="canEditData" type="primary" @click="showImportModal = true" style="margin-right: 1em;">{{ t('contacts.import') }}</el-button>
+      <span v-if="selectedIds.length" class="selection-info">{{ t('common.selected', { count: selectedIds.length }) }}</span>
       <button class="close-btn" @click="$emit('close')">×</button>
     </div>
     <el-form v-if="isEditorRole" :inline="true" class="filters-form" label-position="top">
-      <el-form-item label="Поиск">
-        <el-input v-model="filterSearch" placeholder="Поиск по имени, email, telegram, кошельку" clearable @input="onSearchInput" />
+      <el-form-item :label="t('contacts.search')">
+        <el-input v-model="filterSearch" :placeholder="t('contacts.searchPlaceholder')" clearable @input="onSearchInput" />
       </el-form-item>
-      <el-form-item label="Тип контакта">
-        <el-select v-model="filterContactType" placeholder="Все" style="min-width:120px;" @change="() => applyFilters(true)">
-          <el-option label="Все" value="all" />
-          <el-option label="Email" value="email" />
-          <el-option label="Telegram" value="telegram" />
-          <el-option label="Кошелек" value="wallet" />
+      <el-form-item :label="t('contacts.contactType')">
+        <el-select v-model="filterContactType" :placeholder="t('common.all')" style="min-width:120px;" @change="() => applyFilters(true)">
+          <el-option :label="t('common.all')" value="all" />
+          <el-option :label="t('contacts.email')" value="email" />
+          <el-option :label="t('contacts.telegram')" value="telegram" />
+          <el-option :label="t('contacts.wallet')" value="wallet" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Дата от">
-        <el-date-picker v-model="filterDateFrom" type="date" placeholder="Дата от" clearable style="width: 100%;" @change="() => applyFilters(true)" />
+      <el-form-item :label="t('contacts.dateFrom')">
+        <el-date-picker v-model="filterDateFrom" type="date" :placeholder="t('contacts.dateFrom')" clearable style="width: 100%;" @change="() => applyFilters(true)" />
       </el-form-item>
-      <el-form-item label="Дата до">
-        <el-date-picker v-model="filterDateTo" type="date" placeholder="Дата до" clearable style="width: 100%;" @change="() => applyFilters(true)" />
+      <el-form-item :label="t('contacts.dateTo')">
+        <el-date-picker v-model="filterDateTo" type="date" :placeholder="t('contacts.dateTo')" clearable style="width: 100%;" @change="() => applyFilters(true)" />
       </el-form-item>
-      <el-form-item label="Только с новыми сообщениями">
-        <el-select v-model="filterNewMessages" placeholder="Нет" style="min-width:110px;" @change="() => applyFilters(true)">
-          <el-option label="Нет" :value="''" />
-          <el-option label="Да" value="yes" />
+      <el-form-item :label="t('contacts.newMessagesOnly')">
+        <el-select v-model="filterNewMessages" :placeholder="t('common.no')" style="min-width:110px;" @change="() => applyFilters(true)">
+          <el-option :label="t('common.no')" :value="''" />
+          <el-option :label="t('common.yes')" value="yes" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Блокировка">
-        <el-select v-model="filterBlocked" placeholder="Все" style="min-width:120px;" @change="() => applyFilters(true)">
-          <el-option label="Все" value="all" />
-          <el-option label="Только заблокированные" value="blocked" />
-          <el-option label="Только не заблокированные" value="unblocked" />
+      <el-form-item :label="t('contacts.blocked')">
+        <el-select v-model="filterBlocked" :placeholder="t('common.all')" style="min-width:120px;" @change="() => applyFilters(true)">
+          <el-option :label="t('common.all')" value="all" />
+          <el-option :label="t('contacts.blockedOnly')" value="blocked" />
+          <el-option :label="t('contacts.unblockedOnly')" value="unblocked" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Теги" v-if="availableTags.length">
+      <el-form-item :label="t('contacts.tags')" v-if="availableTags.length">
         <el-select
           v-model="selectedTagIds"
           multiple
           filterable
-          placeholder="Выберите теги"
+          :placeholder="t('contacts.selectTags')"
           style="min-width:180px;"
           @change="() => applyFilters(true)"
         >
@@ -76,28 +76,28 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button @click="resetFilters" type="default">Сбросить фильтры</el-button>
+        <el-button @click="resetFilters" type="default">{{ t('common.resetFilters') }}</el-button>
       </el-form-item>
     </el-form>
     <table class="contact-table">
         <thead>
           <tr>
             <th v-if="canViewContacts"><input type="checkbox" v-model="selectAll" @change="toggleSelectAll" /></th>
-            <th>ID</th>
-            <th>Тип</th>
-            <th>Имя</th>
-            <th>Email</th>
-            <th>Telegram</th>
-            <th>Кошелек</th>
-            <th>Дата создания</th>
+            <th>{{ t('contacts.id') }}</th>
+            <th>{{ t('contacts.type') }}</th>
+            <th>{{ t('contacts.name') }}</th>
+            <th>{{ t('contacts.email') }}</th>
+            <th>{{ t('contacts.telegram') }}</th>
+            <th>{{ t('contacts.wallet') }}</th>
+            <th>{{ t('contacts.createdAt') }}</th>
           </tr>
         </thead>
       <tbody>
         <tr v-if="isLoadingContacts">
-          <td :colspan="canViewContacts ? 8 : 7" class="loading-row">Загрузка контактов...</td>
+          <td :colspan="canViewContacts ? 8 : 7" class="loading-row">{{ t('contacts.loading') }}</td>
         </tr>
         <tr v-else-if="!pageContacts.length">
-          <td :colspan="canViewContacts ? 8 : 7" class="loading-row">Контакты не найдены</td>
+          <td :colspan="canViewContacts ? 8 : 7" class="loading-row">{{ t('contacts.notFound') }}</td>
         </tr>
         <tr v-for="contact in pageContacts" :key="contact.id" :class="{ 'new-contact-row': newIds.includes(contact.id) }" @click="goToContactDetails(contact.id)" style="cursor: pointer;">
           <td v-if="canViewContacts" @click.stop><input type="checkbox" v-model="selectedIds" :value="contact.id" /></td>
@@ -109,7 +109,7 @@
             >
               {{ getRoleDisplayName(contact.role) }}
             </span>
-            <span v-else class="user-badge">Неизвестно</span>
+            <span v-else class="user-badge">{{ t('common.unknown') }}</span>
           </td>
           <td>{{ contact.name || '-' }}</td>
           <td>{{ maskPersonalData(contact.email) }}</td>
@@ -121,7 +121,7 @@
     </table>
     <div v-if="totalContacts > 0" class="contacts-pagination">
       <div class="pagination-size">
-        <span class="pagination-size-label">На странице:</span>
+        <span class="pagination-size-label">{{ t('common.perPage') }}</span>
         <el-select
           v-model="pageSize"
           :disabled="isLoadingContacts"
@@ -151,6 +151,7 @@
 
 <script setup>
 import { defineProps, computed, ref, onMounted, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker, ElButton, ElMessageBox, ElMessage, ElPagination } from 'element-plus';
 import ImportContactsModal from './ImportContactsModal.vue';
@@ -161,6 +162,8 @@ import { useAuthContext } from '@/composables/useAuth';
 import { PERMISSIONS } from './permissions.js';
 import { getPrivateUnreadCount } from '../services/messagesService';
 import { useRoles } from '@/composables/useRoles';
+
+const { t } = useI18n();
 const props = defineProps({
   contacts: { type: Array, default: () => [] },
   newContacts: { type: Array, default: () => [] },
@@ -272,6 +275,7 @@ async function loadContactsPage() {
     updateSelectAllState();
   } catch (error) {
     console.error('[ContactTable] Ошибка загрузки контактов:', error);
+    ElMessage.error(t('crm.loadContactsError'));
     pageContacts.value = [];
     totalContacts.value = 0;
   } finally {
@@ -477,14 +481,14 @@ async function openChatForSelected() {
 // Новая функция для отправки публичного сообщения
 function sendPublicMessage() {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('Выберите контакт для отправки публичного сообщения');
+    ElMessage.warning(t('contacts.selectContactPublic'));
     return;
   }
   
   const contactId = selectedIds.value[0];
   const contact = getContactByIdLocal(contactId);
   if (!contact) {
-    ElMessage.error('Контакт не найден');
+    ElMessage.error(t('contacts.contactNotFound'));
     return;
   }
   
@@ -495,7 +499,7 @@ function sendPublicMessage() {
 // Функция для открытия приватного чата
 function sendPrivateMessage() {
   if (selectedIds.value.length === 0) {
-    ElMessage.warning('Выберите контакт для отправки приватного сообщения');
+    ElMessage.warning(t('contacts.selectContactPrivate'));
     return;
   }
   
@@ -540,7 +544,7 @@ function goToPersonalMessages() {
 
 function goToBroadcastPage() {
   if (!selectedIds.value.length) {
-    ElMessage.warning('Выберите пользователей для рассылки');
+    ElMessage.warning(t('contacts.selectForBroadcast'));
     return;
   }
   router.push({
@@ -563,14 +567,14 @@ async function deleteSelected() {
   if (!selectedIds.value.length) return;
   try {
     await ElMessageBox.confirm(
-      `Вы действительно хотите удалить ${selectedIds.value.length} контакт(ов)?`,
-      'Подтверждение удаления',
+      t('contacts.confirmDelete', { count: selectedIds.value.length }),
+      t('contacts.confirmDeleteTitle'),
       { type: 'warning' }
     );
     for (const id of selectedIds.value) {
       await fetch(`/api/users/${id}`, { method: 'DELETE' });
     }
-    ElMessage.success('Контакты удалены');
+    ElMessage.success(t('contacts.deleted'));
     selectedIds.value = [];
     selectAll.value = false;
     await loadContactsPage();
@@ -583,8 +587,8 @@ async function deleteMessagesSelected() {
   if (!selectedIds.value.length) return;
   try {
     await ElMessageBox.confirm(
-      `Вы действительно хотите удалить историю сообщений для ${selectedIds.value.length} контакт(ов)? Это действие необратимо.`,
-      'Подтверждение удаления сообщений',
+      t('contacts.confirmDeleteMessages', { count: selectedIds.value.length }),
+      t('contacts.confirmDeleteMessagesTitle'),
       { type: 'warning' }
     );
     
@@ -603,7 +607,7 @@ async function deleteMessagesSelected() {
       }
     }
     
-    ElMessage.success(`Удалено сообщений: ${deletedMessages}, бесед: ${deletedConversations}`);
+    ElMessage.success(t('contacts.deletedMessages', { messages: deletedMessages, conversations: deletedConversations }));
     selectedIds.value = [];
     selectAll.value = false;
   } catch (e) {

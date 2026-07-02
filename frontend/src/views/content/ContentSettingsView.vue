@@ -15,12 +15,12 @@
     <div class="list-page">
       <div class="content-block">
         <div class="section-header">
-          <h2>Юр. реквизиты (переменные)</h2>
+          <h2>{{ t('content.settings.legalVariablesTitle') }}</h2>
         </div>
         <div class="empty-state">
           <div class="empty-icon"><i class="fas fa-cog"></i></div>
-          <h3>Скоро здесь появится настройка переменных</h3>
-          <p>Редактор сможет заполнить реквизиты для подстановки во все шаблоны</p>
+          <h3>{{ t('content.settings.comingSoonTitle') }}</h3>
+          <p>{{ t('content.settings.comingSoonDescription') }}</p>
         </div>
       </div>
     </div>
@@ -28,7 +28,10 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+
+const { t } = useI18n();
 </script>
 
 <style scoped>

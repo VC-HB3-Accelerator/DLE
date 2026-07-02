@@ -25,58 +25,58 @@
           {{ dleAddress }}
         </div>
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          Загрузка...
+          {{ t('common.loading') }}
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div class="info-section">
-        <h2>Основная информация</h2>
+        <h2>{{ t('smartcontracts.analytics.basicInfo') }}</h2>
         <div class="info-grid">
           <div class="info-card">
-            <h3>Название</h3>
-            <p class="info-value">{{ selectedDle?.name || 'Загрузка...' }}</p>
+            <h3>{{ t('smartcontracts.analytics.name') }}</h3>
+            <p class="info-value">{{ selectedDle?.name || t('common.loading') }}</p>
           </div>
           <div class="info-card">
-            <h3>Символ</h3>
-            <p class="info-value">{{ selectedDle?.symbol || 'Загрузка...' }}</p>
+            <h3>{{ t('smartcontracts.analytics.symbol') }}</h3>
+            <p class="info-value">{{ selectedDle?.symbol || t('common.loading') }}</p>
           </div>
           <div class="info-card">
-            <h3>Статус</h3>
+            <h3>{{ t('smartcontracts.analytics.status') }}</h3>
             <p class="info-value" :class="selectedDle?.isActive ? 'status-active' : 'status-inactive'">
-              {{ selectedDle?.isActive ? 'Активен' : 'Неактивен' }}
+              {{ selectedDle?.isActive ? t('smartcontracts.analytics.active') : t('smartcontracts.analytics.inactive') }}
             </p>
           </div>
           <div class="info-card">
-            <h3>Дата создания</h3>
+            <h3>{{ t('smartcontracts.analytics.creationDate') }}</h3>
             <p class="info-value">{{ formatDate(selectedDle?.creationTimestamp) }}</p>
           </div>
           <div class="info-card">
-            <h3>Местоположение</h3>
-            <p class="info-value">{{ selectedDle?.location || 'Не указано' }}</p>
+            <h3>{{ t('smartcontracts.analytics.location') }}</h3>
+            <p class="info-value">{{ selectedDle?.location || t('smartcontracts.analytics.notSpecified') }}</p>
           </div>
           <div class="info-card">
-            <h3>Юрисдикция</h3>
-            <p class="info-value">{{ selectedDle?.jurisdiction || 'Не указано' }}</p>
+            <h3>{{ t('smartcontracts.analytics.jurisdiction') }}</h3>
+            <p class="info-value">{{ selectedDle?.jurisdiction || t('smartcontracts.analytics.notSpecified') }}</p>
           </div>
         </div>
       </div>
 
       <!-- Токеномика -->
       <div class="tokenomics-section">
-        <h2>Токеномика</h2>
+        <h2>{{ t('smartcontracts.analytics.tokenomics') }}</h2>
         <div class="tokenomics-grid">
           <div class="tokenomics-card">
-            <h3>Общий объем токенов</h3>
+            <h3>{{ t('smartcontracts.analytics.totalSupply') }}</h3>
             <p class="tokenomics-value">{{ formatNumber(tokenomics.totalSupply) }}</p>
-            <p class="tokenomics-label">Токенов в обращении</p>
+            <p class="tokenomics-label">{{ t('smartcontracts.analytics.tokensInCirculation') }}</p>
           </div>
           <div class="tokenomics-card">
-            <h3>Держатели токенов</h3>
+            <h3>{{ t('smartcontracts.analytics.tokenHolders') }}</h3>
             <p class="tokenomics-value">{{ tokenomics.holdersCount }}</p>
-            <p class="tokenomics-label">Активных держателей</p>
+            <p class="tokenomics-label">{{ t('smartcontracts.analytics.activeHolders') }}</p>
           </div>
           <div class="tokenomics-card">
-            <h3>Крупнейший держатель</h3>
+            <h3>{{ t('smartcontracts.analytics.topHolder') }}</h3>
             <p class="tokenomics-value">{{ tokenomics.topHolderPercentage }}%</p>
             <p class="tokenomics-label">{{ formatAddress(tokenomics.topHolderAddress) }}</p>
           </div>
@@ -85,30 +85,30 @@
 
       <!-- Управление -->
       <div class="governance-section">
-        <h2>Управление</h2>
+        <h2>{{ t('smartcontracts.analytics.governance') }}</h2>
         <div class="governance-grid">
           <div class="governance-card">
-            <h3>Всего предложений</h3>
+            <h3>{{ t('smartcontracts.analytics.totalProposals') }}</h3>
             <p class="governance-value">{{ governance.totalProposals }}</p>
           </div>
           <div class="governance-card">
-            <h3>Исполнено</h3>
+            <h3>{{ t('smartcontracts.analytics.executed') }}</h3>
             <p class="governance-value">{{ governance.executedProposals }}</p>
           </div>
           <div class="governance-card">
-            <h3>Отклонено</h3>
+            <h3>{{ t('smartcontracts.analytics.defeated') }}</h3>
             <p class="governance-value">{{ governance.defeatedProposals }}</p>
           </div>
           <div class="governance-card">
-            <h3>Кворум</h3>
+            <h3>{{ t('smartcontracts.analytics.quorum') }}</h3>
             <p class="governance-value">{{ governance.quorumPercentage }}%</p>
           </div>
           <div class="governance-card">
-            <h3>Поддерживаемые сети</h3>
+            <h3>{{ t('smartcontracts.analytics.supportedChains') }}</h3>
             <p class="governance-value">{{ governance.supportedChainsCount }}</p>
             </div>
           <div class="governance-card">
-            <h3>Текущая сеть</h3>
+            <h3>{{ t('smartcontracts.analytics.currentChain') }}</h3>
             <p class="governance-value">{{ getChainName(governance.currentChainId) }}</p>
           </div>
         </div>
@@ -116,33 +116,33 @@
 
       <!-- Статистика предложений -->
       <div class="proposals-section">
-        <h2>Статистика предложений</h2>
+        <h2>{{ t('smartcontracts.analytics.proposalsStats') }}</h2>
         <div class="proposals-grid">
           <div class="proposals-card">
-            <h3>Статусы предложений</h3>
+            <h3>{{ t('smartcontracts.analytics.proposalStatuses') }}</h3>
             <div class="proposals-stats">
               <div class="stat-item">
-                <span class="stat-label">Ожидают голосования</span>
+                <span class="stat-label">{{ t('smartcontracts.analytics.pendingVote') }}</span>
                 <span class="stat-value">{{ proposalsStats.pending }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Успешные</span>
+                <span class="stat-label">{{ t('smartcontracts.analytics.succeeded') }}</span>
                 <span class="stat-value">{{ proposalsStats.succeeded }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Отклоненные</span>
+                <span class="stat-label">{{ t('smartcontracts.analytics.defeatedProposals') }}</span>
                 <span class="stat-value">{{ proposalsStats.defeated }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Исполненные</span>
+                <span class="stat-label">{{ t('smartcontracts.analytics.executedProposals') }}</span>
                 <span class="stat-value">{{ proposalsStats.executed }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Отмененные</span>
+                <span class="stat-label">{{ t('smartcontracts.analytics.canceled') }}</span>
                 <span class="stat-value">{{ proposalsStats.canceled }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">Готовы к исполнению</span>
+                <span class="stat-label">{{ t('smartcontracts.analytics.readyForExecution') }}</span>
                 <span class="stat-value">{{ proposalsStats.readyForExecution }}</span>
               </div>
             </div>
@@ -152,13 +152,13 @@
 
       <!-- Модули -->
       <div class="modules-section">
-        <h2>Модули</h2>
+        <h2>{{ t('smartcontracts.analytics.modules') }}</h2>
         <div class="modules-grid">
           <div class="modules-card">
-            <h3>Активные модули</h3>
+            <h3>{{ t('smartcontracts.analytics.activeModules') }}</h3>
             <div class="modules-list">
               <div v-if="modules.length === 0" class="no-modules">
-                <p>Нет активных модулей</p>
+                <p>{{ t('smartcontracts.analytics.noActiveModules') }}</p>
               </div>
               <div 
                 v-for="module in modules" 
@@ -170,7 +170,7 @@
                   <span class="module-address">{{ formatAddress(module.address) }}</span>
                 </div>
                 <div class="module-status">
-                  <span class="status-badge active">Активен</span>
+                  <span class="status-badge active">{{ t('smartcontracts.analytics.active') }}</span>
                 </div>
               </div>
             </div>
@@ -180,10 +180,10 @@
 
       <!-- Мульти-чейн -->
       <div class="multichain-section">
-        <h2>Мульти-чейн</h2>
+        <h2>{{ t('smartcontracts.analytics.multichain') }}</h2>
         <div class="multichain-grid">
           <div class="multichain-card">
-            <h3>Поддерживаемые сети</h3>
+            <h3>{{ t('smartcontracts.analytics.supportedChains') }}</h3>
             <div class="chains-list">
               <div 
                 v-for="chainId in multichain.supportedChains" 
@@ -191,7 +191,7 @@
                 class="chain-item"
               >
                 <span class="chain-name">{{ getChainName(chainId) }}</span>
-                <span class="chain-id">ID: {{ chainId }}</span>
+                <span class="chain-id">{{ t('smartcontracts.analytics.chainIdLabel', { id: chainId }) }}</span>
               </div>
             </div>
           </div>
@@ -200,7 +200,7 @@
 
       <!-- Топ держатели -->
       <div class="holders-section">
-        <h2>Топ держатели токенов</h2>
+        <h2>{{ t('smartcontracts.analytics.topHolders') }}</h2>
         <div class="holders-grid">
           <div class="holders-card">
             <div class="holders-list">
@@ -212,12 +212,12 @@
                 <div class="holder-rank">#{{ index + 1 }}</div>
                 <div class="holder-info">
                   <div class="holder-address">{{ formatAddress(holder.address) }}</div>
-                  <div class="holder-balance">{{ formatNumber(holder.balance) }} токенов</div>
+                  <div class="holder-balance">{{ formatNumber(holder.balance) }} {{ t('smartcontracts.analytics.tokensUnit') }}</div>
                 </div>
                 <div class="holder-percentage">{{ holder.percentage.toFixed(2) }}%</div>
             </div>
               <div v-if="topHolders.length === 0" class="no-holders">
-                <p>Нет данных о держателях токенов</p>
+                <p>{{ t('smartcontracts.analytics.noHoldersData') }}</p>
           </div>
             </div>
           </div>
@@ -230,8 +230,11 @@
 <script setup>
 import { ref, defineProps, defineEmits, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import api from '../../api/axios';
+
+const { t, locale } = useI18n();
 
 // Определяем props
 const props = defineProps({
@@ -306,8 +309,6 @@ async function loadDleData() {
       return;
     }
 
-    console.log('[AnalyticsView] Загрузка данных DLE:', dleAddress.value);
-    
     // Читаем данные из блокчейна
     const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress.value
@@ -315,7 +316,6 @@ async function loadDleData() {
     
     if (response.data.success) {
       selectedDle.value = response.data.data;
-      console.log('[AnalyticsView] Данные DLE загружены:', selectedDle.value);
       
       // Загружаем все аналитические данные
       await Promise.all([
@@ -539,23 +539,24 @@ const formatNumber = (number) => {
 };
 
 const formatDate = (timestamp) => {
-  if (!timestamp) return 'Не указано';
-  return new Date(Number(timestamp) * 1000).toLocaleDateString('ru-RU');
+  if (!timestamp) return t('smartcontracts.analytics.notSpecified');
+  const dateLocale = locale.value === 'en' ? 'en-US' : 'ru-RU';
+  return new Date(Number(timestamp) * 1000).toLocaleDateString(dateLocale);
 };
 
 const getChainName = (chainId) => {
   const chains = {
-    1: 'Ethereum Mainnet',
-    11155111: 'Sepolia Testnet',
-    17000: 'Holesky Testnet',
-    84532: 'Base Sepolia Testnet',
-    80002: 'Polygon Amoy Testnet',
-    421614: 'Arbitrum Sepolia Testnet',
-    137: 'Polygon',
-    56: 'BSC',
-    42161: 'Arbitrum One'
+    1: t('smartcontracts.analytics.chains.ethereum'),
+    11155111: t('smartcontracts.analytics.chains.sepolia'),
+    17000: t('smartcontracts.analytics.chains.holesky'),
+    84532: t('smartcontracts.analytics.chains.baseSepolia'),
+    80002: t('smartcontracts.analytics.chains.polygonAmoy'),
+    421614: t('smartcontracts.analytics.chains.arbitrumSepolia'),
+    137: t('smartcontracts.analytics.chains.polygon'),
+    56: t('smartcontracts.analytics.chains.bsc'),
+    42161: t('smartcontracts.analytics.chains.arbitrum')
   };
-  return chains[chainId] || `Chain ID: ${chainId}`;
+  return chains[chainId] || t('smartcontracts.analytics.chains.unknown', { id: chainId });
 };
 
 // Загружаем данные при монтировании компонента

@@ -14,6 +14,9 @@ import { ref, onUnmounted } from 'vue';
 import api from '../api/axios';
 import { useAuthContext } from './useAuth';
 import { useNotifications } from './useNotifications';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 export function useAuthFlow(options = {}) {
   const { onAuthSuccess } = options; // Callback после успешной аутентификации/привязки
@@ -81,7 +84,7 @@ export function useAuthFlow(options = {}) {
               telegramAuth.value.verificationCode = '';
               telegramAuth.value.error = '';
 
-              showSuccessMessage('Telegram успешно подключен!');
+              showSuccessMessage(t('auth.flow.telegramConnectedSuccess'));
               if (onAuthSuccess) onAuthSuccess('telegram'); // Вызываем callback
               // Нет необходимости продолжать интервал
               return;
@@ -95,12 +98,12 @@ export function useAuthFlow(options = {}) {
         }, 3000); // Проверяем каждые 3 секунды
 
       } else {
-        telegramAuth.value.error = response.data.error || 'Ошибка инициализации Telegram';
+        telegramAuth.value.error = response.data.error || t('auth.flow.telegramInitFailed');
         showErrorMessage(telegramAuth.value.error);
       }
     } catch (error) {
       // console.error('[useAuthFlow] Ошибка инициализации Telegram аутентификации:', error);
-      const message = error?.response?.data?.error || 'Ошибка при инициализации аутентификации через Telegram';
+      const message = error?.response?.data?.error || t('auth.flow.telegramInitError');
       telegramAuth.value.error = message;
       showErrorMessage(message);
     } finally {
@@ -150,12 +153,12 @@ export function useAuthFlow(options = {}) {
         emailAuth.value.verificationCode = ''; // Очищаем поле кода
         // console.log('[useAuthFlow] Код верификации Email отправлен на:', emailAuth.value.verificationEmail);
       } else {
-        emailAuth.value.error = response.data.error || 'Ошибка инициализации аутентификации по email';
+        emailAuth.value.error = response.data.error || t('auth.flow.emailInitFailed');
         showErrorMessage(emailAuth.value.error);
       }
     } catch (error) {
       // console.error('[useAuthFlow] Ошибка при запросе инициализации Email:', error);
-      const message = error?.response?.data?.error || 'Ошибка при запросе кода подтверждения';
+      const message = error?.response?.data?.error || t('auth.flow.emailCodeRequestError');
       emailAuth.value.error = message;
       showErrorMessage(message);
     } finally {
@@ -166,7 +169,7 @@ export function useAuthFlow(options = {}) {
   const verifyEmailCode = async () => {
     emailAuth.value.error = '';
     if (!emailAuth.value.verificationCode) {
-      emailAuth.value.error = 'Пожалуйста, введите код верификации';
+      emailAuth.value.error = t('auth.flow.verificationCodeRequired');
       return;
     }
     if (emailAuth.value.isVerifying) return;
@@ -186,17 +189,17 @@ export function useAuthFlow(options = {}) {
 
         // Обновляем состояние аутентификации через useAuth
         await auth.checkAuth(); 
-        showSuccessMessage(`Email ${emailAuth.value.verificationEmail} успешно подтвержден!`);
+        showSuccessMessage(t('auth.flow.emailVerifiedSuccess', { email: emailAuth.value.verificationEmail }));
 
         if (onAuthSuccess) onAuthSuccess('email'); // Вызываем callback
 
       } else {
-        emailAuth.value.error = response.data.message || 'Неверный код верификации';
+        emailAuth.value.error = response.data.message || t('auth.flow.invalidVerificationCode');
         // Не используем showErrorMessage здесь, т.к. ошибка отображается локально в форме
       }
     } catch (error) {
         console.error('[useAuthFlow] Ошибка проверки кода Email:', error);
-        const message = error?.response?.data?.error || 'Ошибка при проверке кода';
+        const message = error?.response?.data?.error || t('auth.flow.verifyCodeError');
         emailAuth.value.error = message;
         // Не используем showErrorMessage здесь
     } finally {

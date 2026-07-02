@@ -26,11 +26,11 @@
             {{ selectedDle.dleAddress }}
           </div>
           <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-            Загрузка...
+            {{ t('common.loading') }}
           </div>
-          <div class="websocket-status" :class="{ connected: isWSConnected }" title="WebSocket соединение для обновления модулей">
+          <div class="websocket-status" :class="{ connected: isWSConnected }" :title="t('smartcontracts.modules.websocket.title')">
             <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
-            <span>{{ isWSConnected ? 'Подключено' : 'Отключено' }}</span>
+            <span>{{ isWSConnected ? t('smartcontracts.modules.websocket.connected') : t('smartcontracts.modules.websocket.disconnected') }}</span>
           </div>
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
@@ -39,10 +39,10 @@
         <div class="modal-content" @click.stop>
           <div class="modal-header">
             <div class="header-content">
-              <h3>🚀 Деплой модуля {{ currentDeployingModule }}</h3>
+              <h3>{{ t('smartcontracts.modules.deploy.modalTitle', { module: currentDeployingModule }) }}</h3>
               <div class="websocket-status" :class="{ connected: isWSConnected }">
                 <i class="fas fa-circle" :class="isWSConnected ? 'fa-solid' : 'fa-light'"></i>
-                <span>{{ isWSConnected ? 'Подключено' : 'Отключено' }}</span>
+                <span>{{ isWSConnected ? t('smartcontracts.modules.websocket.connected') : t('smartcontracts.modules.websocket.disconnected') }}</span>
             </div>
             </div>
             <button 
@@ -65,7 +65,7 @@
             </div>
               <div class="status-content">
                 <h4>{{ getStatusTitle() }}</h4>
-                <p>{{ deploymentProgress || 'Подготовка к деплою...' }}</p>
+                <p>{{ deploymentProgress || t('smartcontracts.modules.deploy.preparing') }}</p>
           </div>
         </div>
 
@@ -86,8 +86,8 @@
                   <i class="fas fa-check" v-else></i>
                 </div>
                 <div class="step-content">
-                  <h5>Инициализация</h5>
-                  <p>Загрузка параметров из базы данных</p>
+                  <h5>{{ t('smartcontracts.modules.steps.init.title') }}</h5>
+                  <p>{{ t('smartcontracts.modules.steps.init.description') }}</p>
                 </div>
               </div>
 
@@ -98,8 +98,8 @@
                   <i class="fas fa-check" v-else></i>
                 </div>
                 <div class="step-content">
-                  <h5>Компиляция</h5>
-                  <p>Компиляция смарт-контракта модуля</p>
+                  <h5>{{ t('smartcontracts.modules.steps.compile.title') }}</h5>
+                  <p>{{ t('smartcontracts.modules.steps.compile.description') }}</p>
                 </div>
               </div>
 
@@ -110,8 +110,8 @@
                   <i class="fas fa-check" v-else></i>
                 </div>
                 <div class="step-content">
-                  <h5>Деплой в сетях</h5>
-                  <p>Развертывание контракта во всех сетях</p>
+                  <h5>{{ t('smartcontracts.modules.steps.deployNetworks.title') }}</h5>
+                  <p>{{ t('smartcontracts.modules.steps.deployNetworks.description') }}</p>
                 </div>
               </div>
 
@@ -122,8 +122,8 @@
                   <i class="fas fa-check" v-else></i>
                 </div>
                 <div class="step-content">
-                  <h5>Верификация</h5>
-                  <p>Верификация контракта в блокчейн-сканерах</p>
+                  <h5>{{ t('smartcontracts.modules.steps.verification.title') }}</h5>
+                  <p>{{ t('smartcontracts.modules.steps.verification.description') }}</p>
                 </div>
               </div>
 
@@ -134,15 +134,15 @@
                   <i class="fas fa-check" v-else></i>
                 </div>
                 <div class="step-content">
-                  <h5>Завершение</h5>
-                  <p>Сохранение результатов и обновление интерфейса</p>
+                  <h5>{{ t('smartcontracts.modules.steps.completion.title') }}</h5>
+                  <p>{{ t('smartcontracts.modules.steps.completion.description') }}</p>
                 </div>
               </div>
             </div>
 
             <!-- Лог процесса -->
             <div class="deployment-log" v-if="deploymentLogs.length > 0">
-              <h5>Лог процесса:</h5>
+              <h5>{{ t('smartcontracts.modules.deploy.processLog') }}</h5>
               <div class="log-container">
                 <div 
                   v-for="(log, index) in deploymentLogs" 
@@ -160,7 +160,7 @@
           <div class="modal-footer" v-if="moduleDeploymentStatus === 'success'">
             <div class="success-message">
               <i class="fas fa-check-circle"></i>
-              <span>Деплой завершен! Окно закроется автоматически...</span>
+              <span>{{ t('smartcontracts.modules.deploy.successAutoClose') }}</span>
             </div>
           </div>
         </div>
@@ -174,11 +174,11 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>TreasuryModule</h4>
-              <p>Казначейство DLE - управление финансами, депозиты, выводы, дивиденды</p>
+              <p>{{ t('smartcontracts.modules.treasury.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Финансы</span>
-                <span class="feature-tag">Бюджет</span>
-                <span class="feature-tag">Дивиденды</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.treasury.features.finance') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.treasury.features.budget') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.treasury.features.dividends') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -189,7 +189,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -198,11 +198,11 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>TimelockModule</h4>
-              <p>Задержки исполнения - безопасность критических операций через таймлоки</p>
+              <p>{{ t('smartcontracts.modules.timelock.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Безопасность</span>
-                <span class="feature-tag">Таймлок</span>
-                <span class="feature-tag">Аудит</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.timelock.features.security') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.timelock.features.timelock') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.timelock.features.audit') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -213,7 +213,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -222,12 +222,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>DLEReader</h4>
-              <p>Чтение данных DLE - API для получения информации о контракте и предложениях</p>
+              <p>{{ t('smartcontracts.modules.reader.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">API</span>
-                <span class="feature-tag">Чтение</span>
-                <span class="feature-tag">Данные</span>
-                <span class="feature-tag">Интеграция</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.reader.features.api') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.reader.features.reading') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.reader.features.data') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.reader.features.integration') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -238,7 +238,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -247,11 +247,11 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>CommunicationModule</h4>
-              <p>Коммуникации - сообщения, звонки, история общения между участниками</p>
+              <p>{{ t('smartcontracts.modules.communication.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Сообщения</span>
-                <span class="feature-tag">Звонки</span>
-                <span class="feature-tag">История</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.communication.features.messages') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.communication.features.calls') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.communication.features.history') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -262,7 +262,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -271,11 +271,11 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>ApplicationModule</h4>
-              <p>Управление вызовом функций приложения через предложения и голосование</p>
+              <p>{{ t('smartcontracts.modules.application.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">API</span>
-                <span class="feature-tag">Голосование</span>
-                <span class="feature-tag">Управление</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.application.features.api') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.application.features.voting') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.application.features.management') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -286,7 +286,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -295,11 +295,11 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>MintModule</h4>
-              <p>Выпуск новых токенов DLE - создание дополнительных токенов через governance</p>
+              <p>{{ t('smartcontracts.modules.mint.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Минтинг</span>
-                <span class="feature-tag">Токены</span>
-                <span class="feature-tag">Governance</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.mint.features.minting') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.mint.features.tokens') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.mint.features.governance') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -310,7 +310,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -319,11 +319,11 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>BurnModule</h4>
-              <p>Сжигание токенов DLE - уменьшение общего предложения через governance</p>
+              <p>{{ t('smartcontracts.modules.burn.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Сжигание</span>
-                <span class="feature-tag">Токены</span>
-                <span class="feature-tag">Governance</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.burn.features.burning') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.burn.features.tokens') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.burn.features.governance') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -334,7 +334,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -343,12 +343,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>OracleModule</h4>
-              <p>Интеграция с внешними данными - автоматизация на основе IoT, API, датчиков</p>
+              <p>{{ t('smartcontracts.modules.oracle.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Оракулы</span>
-                <span class="feature-tag">Автоматизация</span>
-                <span class="feature-tag">IoT</span>
-                <span class="feature-tag">API</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.oracle.features.oracles') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.oracle.features.automation') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.oracle.features.iot') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.oracle.features.api') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -359,7 +359,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -368,12 +368,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>InheritanceModule</h4>
-              <p>Наследование токенов - автоматическая передача токенов наследникам</p>
+              <p>{{ t('smartcontracts.modules.inheritance.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Наследование</span>
-                <span class="feature-tag">Безопасность</span>
-                <span class="feature-tag">Юридические</span>
-                <span class="feature-tag">Автоматизация</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.inheritance.features.inheritance') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.inheritance.features.security') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.inheritance.features.legal') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.inheritance.features.automation') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -384,7 +384,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -393,12 +393,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>VestingModule</h4>
-              <p>Вестинг токенов - постепенное разблокирование токенов по расписанию</p>
+              <p>{{ t('smartcontracts.modules.vesting.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Вестинг</span>
-                <span class="feature-tag">Мотивация</span>
-                <span class="feature-tag">Удержание</span>
-                <span class="feature-tag">Расписание</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.vesting.features.vesting') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.vesting.features.motivation') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.vesting.features.retention') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.vesting.features.schedule') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -409,7 +409,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -418,12 +418,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>StakingModule</h4>
-              <p>Стейкинг токенов - заработок на удержании токенов</p>
+              <p>{{ t('smartcontracts.modules.staking.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Стейкинг</span>
-                <span class="feature-tag">Доход</span>
-                <span class="feature-tag">Ликвидность</span>
-                <span class="feature-tag">APY</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.staking.features.staking') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.staking.features.income') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.staking.features.liquidity') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.staking.features.apy') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -434,7 +434,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -443,12 +443,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>InsuranceModule</h4>
-              <p>Страхование токенов - защита от рисков и потерь</p>
+              <p>{{ t('smartcontracts.modules.insurance.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Страхование</span>
-                <span class="feature-tag">Защита</span>
-                <span class="feature-tag">Риски</span>
-                <span class="feature-tag">Безопасность</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.insurance.features.insurance') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.insurance.features.protection') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.insurance.features.risks') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.insurance.features.security') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -459,7 +459,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -468,12 +468,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>ComplianceModule</h4>
-              <p>Соответствие требованиям - KYC/AML, налоги, аудит</p>
+              <p>{{ t('smartcontracts.modules.compliance.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">KYC/AML</span>
-                <span class="feature-tag">Налоги</span>
-                <span class="feature-tag">Аудит</span>
-                <span class="feature-tag">Регуляторы</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.compliance.features.kycAml') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.compliance.features.taxes') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.compliance.features.audit') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.compliance.features.regulators') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -484,7 +484,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -493,12 +493,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>SupplyChainModule</h4>
-              <p>Цепочка поставок - отслеживание и токенизация логистики</p>
+              <p>{{ t('smartcontracts.modules.supplychain.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Логистика</span>
-                <span class="feature-tag">Отслеживание</span>
-                <span class="feature-tag">Качество</span>
-                <span class="feature-tag">Прозрачность</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.supplychain.features.logistics') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.supplychain.features.tracking') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.supplychain.features.quality') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.supplychain.features.transparency') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -509,7 +509,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -518,12 +518,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>EventModule</h4>
-              <p>Событийный модуль - токенизация мероприятий и событий</p>
+              <p>{{ t('smartcontracts.modules.event.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">События</span>
-                <span class="feature-tag">NFT-билеты</span>
-                <span class="feature-tag">Мероприятия</span>
-                <span class="feature-tag">VR/AR</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.event.features.events') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.event.features.nftTickets') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.event.features.activities') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.event.features.vrAr') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -534,7 +534,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -543,12 +543,12 @@
           <div class="module-deploy-card">
             <div class="module-content">
               <h4>HierarchicalVotingModule</h4>
-              <p>Иерархическое голосование - DLE может голосовать в других DLE на основе владения токенами</p>
+              <p>{{ t('smartcontracts.modules.hierarchicalVoting.description') }}</p>
               <div class="module-features">
-                <span class="feature-tag">Голосование</span>
-                <span class="feature-tag">Иерархия</span>
-                <span class="feature-tag">Токены</span>
-                <span class="feature-tag">Governance</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.hierarchicalVoting.features.voting') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.hierarchicalVoting.features.hierarchy') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.hierarchicalVoting.features.tokens') }}</span>
+                <span class="feature-tag">{{ t('smartcontracts.modules.hierarchicalVoting.features.governance') }}</span>
               </div>
             </div>
             <div class="module-actions">
@@ -559,7 +559,7 @@
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
-                {{ isDeploying ? 'Деплой...' : 'Деплой' }}
+                {{ isDeploying ? t('smartcontracts.modules.deploy.deploying') : t('smartcontracts.modules.deploy.button') }}
               </button>
             </div>
           </div>
@@ -570,9 +570,9 @@
       <!-- Список модулей -->
       <div class="modules-list">
         <div class="list-header">
-          <h3>📋 Модули DLE</h3>
+          <h3>{{ t('smartcontracts.modules.listTitle') }}</h3>
           <button class="btn btn-sm btn-outline-secondary" @click="loadModules" :disabled="isLoadingModules || isLoadingDeploymentStatus">
-            <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingModules || isLoadingDeploymentStatus }"></i> Обновить
+            <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingModules || isLoadingDeploymentStatus }"></i> {{ t('common.refresh') }}
           </button>
         </div>
 
@@ -580,7 +580,7 @@
         <div v-if="isLoadingDeploymentStatus" class="deployment-status">
           <div class="status-loading">
             <i class="fas fa-spinner fa-spin"></i>
-            <span>Проверка статуса деплоя...</span>
+            <span>{{ t('smartcontracts.modules.deploymentStatus.checking') }}</span>
           </div>
         </div>
 
@@ -596,25 +596,25 @@
             <div class="status-content">
               <h4>{{ deploymentStatusMessage }}</h4>
               <p v-if="deploymentStatus === 'not_started'">
-                Для активации модулей необходимо запустить поэтапный деплой DLE.
+                {{ t('smartcontracts.modules.deploymentStatus.hintNotStarted') }}
               </p>
               <p v-else-if="deploymentStatus === 'failed'">
-                Проверьте логи деплоя и повторите попытку через форму деплоя.
+                {{ t('smartcontracts.modules.deploymentStatus.hintFailed') }}
               </p>
               <p v-else-if="deploymentStatus === 'in_progress'">
-                Дождитесь завершения деплоя. Модули станут доступны автоматически.
+                {{ t('smartcontracts.modules.deploymentStatus.hintInProgress') }}
               </p>
             </div>
           </div>
         </div>
 
         <div v-else-if="isLoadingModules" class="loading-modules">
-          <p>Загрузка модулей...</p>
+          <p>{{ t('smartcontracts.modules.list.loading') }}</p>
         </div>
 
         <div v-else-if="modules.length === 0" class="no-modules">
-          <p>Модулей пока нет</p>
-          <p>Используйте форму выше для добавления первого модуля</p>
+          <p>{{ t('smartcontracts.modules.list.empty') }}</p>
+          <p>{{ t('smartcontracts.modules.list.emptyHint') }}</p>
         </div>
 
         <div v-else-if="canShowModules && modules.length > 0" class="modules-grid">
@@ -625,21 +625,21 @@
             :class="{ 'active': module.isActive, 'inactive': !module.isActive }"
           >
             <div class="module-header">
-              <h5>{{ module.moduleName || 'Неизвестный модуль' }}</h5>
+              <h5>{{ module.moduleName || t('smartcontracts.modules.list.unknownModule') }}</h5>
               <span class="module-status" :class="{ 'active': module.isActive, 'inactive': !module.isActive }">
-                {{ module.isActive ? 'Активен' : 'Неактивен' }}
+                {{ module.isActive ? t('smartcontracts.modules.list.active') : t('smartcontracts.modules.list.inactive') }}
               </span>
             </div>
 
             <div class="module-details">
               <div class="detail-item" v-if="module.moduleDescription">
-                <strong>Описание:</strong> 
+                <strong>{{ t('smartcontracts.modules.list.labelDescription') }}</strong> 
                 <span>{{ module.moduleDescription }}</span>
               </div>
               
               <!-- Адреса модуля в разных сетях -->
               <div class="detail-item">
-                <strong>Адреса в сетях:</strong>
+                <strong>{{ t('smartcontracts.modules.list.labelAddresses') }}</strong>
                 <div class="addresses-list">
                   <div 
                     v-for="addr in module.addresses" 
@@ -665,7 +665,7 @@
               </div>
               
               <div class="detail-item" v-if="module.deployedAt">
-                <strong>Дата деплоя:</strong> 
+                <strong>{{ t('smartcontracts.modules.list.labelDeployDate') }}</strong> 
                 <span>{{ formatDate(module.deployedAt) }}</span>
               </div>
               
@@ -676,22 +676,22 @@
               </div>
               
               <div class="detail-item" v-if="module.dleLocation">
-                <strong>Местоположение:</strong> 
+                <strong>{{ t('smartcontracts.modules.list.labelLocation') }}</strong> 
                 <span>{{ module.dleLocation }}</span>
               </div>
               
               <div class="detail-item" v-if="module.dleJurisdiction">
-                <strong>Юрисдикция:</strong> 
+                <strong>{{ t('smartcontracts.modules.list.labelJurisdiction') }}</strong> 
                 <span>{{ module.dleJurisdiction }}</span>
               </div>
               
               <div class="detail-item" v-if="module.dleOkvedCodes && module.dleOkvedCodes.length > 0">
-                <strong>ОКВЭД:</strong> 
+                <strong>{{ t('smartcontracts.modules.list.labelOkved') }}</strong> 
                 <span>{{ module.dleOkvedCodes.join(', ') }}</span>
               </div>
               
               <div class="detail-item" v-if="module.dleOktmo">
-                <strong>ОКТМО:</strong> 
+                <strong>{{ t('smartcontracts.modules.list.labelOktmo') }}</strong> 
                 <span>{{ module.dleOktmo }}</span>
               </div>
             </div>
@@ -704,7 +704,7 @@
                 :disabled="isActivating === module.moduleId"
               >
                 <i class="fas fa-check"></i> 
-                {{ isActivating === module.moduleId ? 'Активация...' : 'Активировать' }}
+                {{ isActivating === module.moduleId ? t('smartcontracts.modules.list.activating') : t('smartcontracts.modules.list.activate') }}
                 </button>
             </div>
           </div>
@@ -718,6 +718,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { 
   isModuleActive,
@@ -742,6 +743,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { t, locale } = useI18n();
 
 // Получаем адрес DLE из URL
 const dleAddress = computed(() => {
@@ -793,15 +795,15 @@ const canShowModules = computed(() => deploymentStatus.value === 'completed');
 const deploymentStatusMessage = computed(() => {
   switch (deploymentStatus.value) {
     case 'completed':
-      return 'Деплой завершен. Модули готовы к использованию.';
+      return t('smartcontracts.modules.deploymentStatus.completed');
     case 'in_progress':
-      return 'Деплой в процессе. Модули будут доступны после завершения.';
+      return t('smartcontracts.modules.deploymentStatus.inProgress');
     case 'failed':
-      return 'Деплой не удался. Проверьте логи и повторите попытку.';
+      return t('smartcontracts.modules.deploymentStatus.failed');
     case 'not_started':
-      return 'Деплой не начат. Запустите деплой для активации модулей.';
+      return t('smartcontracts.modules.deploymentStatus.notStarted');
     default:
-      return 'Статус деплоя неизвестен. Проверьте состояние системы.';
+      return t('smartcontracts.modules.deploymentStatus.unknown');
   }
 });
 
@@ -812,12 +814,10 @@ async function loadDleData() {
     const dleAddress = route.query.address;
     
     if (!dleAddress) {
-      console.error('Адрес DLE не указан');
+      console.error('[ModulesView] DLE address not specified');
       return;
     }
 
-    console.log('[ModulesView] Загрузка данных DLE:', dleAddress);
-    
     // Читаем данные из блокчейна
     const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress
@@ -825,7 +825,6 @@ async function loadDleData() {
     
     if (response.data.success) {
       selectedDle.value = response.data.data;
-      console.log('[ModulesView] Данные DLE загружены:', selectedDle.value);
     } else {
       console.error('[ModulesView] Ошибка загрузки DLE:', response.data.error);
     }
@@ -843,15 +842,11 @@ async function checkDeploymentStatus() {
     const dleAddress = route.query.address;
     
     if (!dleAddress) {
-      console.warn('[ModulesView] Адрес DLE не найден для проверки статуса деплоя');
       deploymentStatus.value = 'unknown';
       return;
     }
 
-    console.log('[ModulesView] Проверка статуса деплоя для DLE:', dleAddress);
-    
     const statusResponse = await getDeploymentStatus(dleAddress);
-    console.log('[ModulesView] Статус деплоя:', statusResponse);
     
     if (statusResponse.success) {
       deploymentStatus.value = statusResponse.data.status || 'unknown';
@@ -885,20 +880,17 @@ async function loadModules() {
     const dleAddress = route.query.address;
     
     if (!dleAddress) {
-      console.error('[ModulesView] Адрес DLE не указан');
+      console.error('[ModulesView] DLE address not specified');
       modules.value = [];
       supportedNetworks.value = [];
       return;
     }
 
-    console.log('[ModulesView] Загрузка модулей для DLE:', dleAddress);
-    
     // Проверяем статус деплоя (но не блокируем загрузку модулей)
     try {
     await checkDeploymentStatus();
     } catch (error) {
-      console.warn('[ModulesView] Ошибка при проверке статуса деплоя, устанавливаем completed:', error);
-      deploymentStatus.value = 'completed'; // Устанавливаем статус как завершенный при ошибке
+      deploymentStatus.value = 'completed';
     }
     
     // Загружаем модули и информацию о сетях параллельно
@@ -907,29 +899,8 @@ async function loadModules() {
       getNetworksInfo(dleAddress)
     ]);
     
-    console.log('[ModulesView] Ответ от API модулей:', modulesResponse);
-    console.log('[ModulesView] Ответ от API сетей:', networksResponse);
-    
     if (modulesResponse.success) {
       modules.value = modulesResponse.data.modules || [];
-      console.log('[ModulesView] Модули загружены успешно:', {
-        count: modules.value.length,
-        modules: modules.value.map(m => ({ 
-          name: m.moduleName, 
-          addresses: m.addresses?.length || 0,
-          active: m.isActive,
-          id: m.moduleId 
-        })),
-        requiresGovernance: modulesResponse.data.requiresGovernance,
-        totalModules: modulesResponse.data.totalModules,
-        activeModules: modulesResponse.data.activeModules
-      });
-      
-      // Обновляем счетчики
-      if (modulesResponse.data.requiresGovernance === true) {
-        console.log('[ModulesView] Модули требуют инициализации через governance');
-      }
-      
     } else {
       console.error('[ModulesView] Ошибка загрузки модулей:', modulesResponse.error);
       modules.value = [];
@@ -937,25 +908,13 @@ async function loadModules() {
 
     if (networksResponse.success) {
       supportedNetworks.value = networksResponse.data.networks || [];
-      console.log('[ModulesView] Сети загружены успешно:', {
-        count: supportedNetworks.value.length,
-        networks: supportedNetworks.value.map(n => ({
-          name: n.networkName,
-          chainId: n.chainId
-        }))
-      });
     } else {
       console.error('[ModulesView] Ошибка загрузки сетей:', networksResponse.error);
       supportedNetworks.value = [];
     }
     
   } catch (error) {
-    console.error('[ModulesView] Ошибка загрузки модулей:', error);
-    console.error('[ModulesView] Детали ошибки:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
+    console.error('[ModulesView] Error loading modules:', error);
     modules.value = [];
     supportedNetworks.value = [];
   } finally {
@@ -969,14 +928,13 @@ async function loadModules() {
 async function activateModule(moduleId) {
   try {
     isActivating.value = moduleId;
-    console.log('[ModulesView] Активация модуля:', moduleId);
     
     // Здесь нужно будет реализовать активацию модуля
-    alert('Функция активации модуля будет реализована позже');
+    alert(t('smartcontracts.modules.alerts.activateNotImplemented'));
     
   } catch (error) {
-    console.error('[ModulesView] Ошибка активации модуля:', error);
-    alert('❌ Ошибка активации модуля: ' + error.message);
+    console.error('[ModulesView] Module activation error:', error);
+    alert(t('smartcontracts.modules.alerts.activateError', { error: error.message }));
   } finally {
     isActivating.value = null;
   }
@@ -1014,7 +972,8 @@ function formatDate(dateString) {
   if (!dateString) return '';
   try {
     const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
+    const dateLocale = locale.value === 'ru' ? 'ru-RU' : 'en-US';
+    return date.toLocaleDateString(dateLocale, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -1045,36 +1004,24 @@ function connectWebSocket() {
   
   // Подписываемся на деплой для текущего DLE
   if (dleAddress.value) {
-    console.log('[ModulesView] Подписываемся на DLE:', dleAddress.value);
     wsClient.ws.send(JSON.stringify({
       type: 'subscribe',
       dleAddress: dleAddress.value
     }));
-  } else {
-    console.warn('[ModulesView] dleAddress не найден для подписки');
   }
 }
 
 function handleWebSocketMessage(data) {
-  console.log('[ModulesView] WebSocket сообщение:', data);
-  
-  // Проверяем, что data существует и имеет type
   if (!data || !data.type) {
-    console.warn('[ModulesView] Получены некорректные данные WebSocket:', data);
     return;
   }
   
-  console.log('[ModulesView] Тип сообщения:', data.type);
-  console.log('[ModulesView] DLE адрес в сообщении:', data.dleAddress);
-  console.log('[ModulesView] Текущий DLE адрес:', dleAddress.value);
-  
   switch (data.type) {
     case 'subscribed':
-      addLog('info', `Подписка на деплой активирована для DLE: ${data.dleAddress}`);
+      addLog('info', t('smartcontracts.modules.logs.subscribeActivated', { address: data.dleAddress }));
       break;
       
     case 'deployment_started':
-      console.log('[ModulesView] Показываем модалку деплоя');
       showDeploymentModal.value = true;
       deploymentStep.value = 1;
       progressPercentage.value = 10;
@@ -1088,7 +1035,6 @@ function handleWebSocketMessage(data) {
       break;
       
     case 'deployment_log':
-      console.log('[ModulesView] Получен лог деплоя:', data.log);
       addLog(data.log.type, data.log.message);
       break;
       
@@ -1116,24 +1062,18 @@ function handleWebSocketMessage(data) {
       
     // Обработка сообщений модулей
     case 'modules_updated':
-      // Автоматически обновляем список модулей
-      console.log('[ModulesView] Получено уведомление об обновлении модулей');
       loadModulesDebounced();
       break;
       
     case 'module_verified':
-      console.log('[ModulesView] Модуль верифицирован:', data);
-      addLog('success', `Модуль ${data.moduleType} верифицирован в сети ${data.network}`);
+      addLog('success', t('smartcontracts.modules.logs.moduleVerified', { moduleType: data.moduleType, network: data.network }));
       break;
       
     case 'module_deployment_error':
-      console.log('[ModulesView] Ошибка деплоя модуля:', data);
-      addLog('error', `Ошибка деплоя модуля ${data.moduleType}: ${data.error}`);
+      addLog('error', t('smartcontracts.modules.logs.moduleDeployError', { moduleType: data.moduleType, error: data.error }));
       break;
       
     default:
-      console.log('[ModulesView] Неизвестный тип сообщения:', data.type, data);
-      // Для неизвестных типов просто логируем
       if (data.log) {
         addLog(data.log.type || 'info', data.log.message);
       }
@@ -1181,7 +1121,7 @@ function openDeploymentModal(moduleType) {
   deploymentStep.value = 0;
   progressPercentage.value = 0;
   deploymentLogs.value = [];
-  addLog('info', 'Инициализация деплоя модуля...');
+  addLog('info', t('smartcontracts.modules.logs.initDeploy'));
   
   // Подключаемся к WebSocket
   connectWebSocket();
@@ -1203,7 +1143,8 @@ function closeDeploymentModal() {
 
 function addLog(type, message) {
   const now = new Date();
-  const time = now.toLocaleTimeString('ru-RU');
+  const timeLocale = locale.value === 'ru' ? 'ru-RU' : 'en-US';
+  const time = now.toLocaleTimeString(timeLocale);
   deploymentLogs.value.push({
     type,
     message,
@@ -1214,13 +1155,13 @@ function addLog(type, message) {
 function getStatusTitle() {
   switch (moduleDeploymentStatus.value) {
     case 'starting':
-      return 'Деплой запущен';
+      return t('smartcontracts.modules.status.starting');
     case 'success':
-      return 'Деплой завершен успешно';
+      return t('smartcontracts.modules.status.success');
     case 'error':
-      return 'Ошибка деплоя';
+      return t('smartcontracts.modules.status.error');
     default:
-      return 'Подготовка к деплою';
+      return t('smartcontracts.modules.status.preparing');
   }
 }
 
@@ -1234,10 +1175,8 @@ async function deployModule(moduleType) {
     openDeploymentModal(moduleType);
     
     isDeploying.value = true;
-    deploymentProgress.value = 'Инициализация деплоя...';
+    deploymentProgress.value = t('smartcontracts.modules.deploy.initProgress');
     moduleDeploymentStatus.value = 'starting';
-    
-    console.log(`[ModulesView] Начинаем деплой модуля ${moduleType} для DLE ${dleAddress.value}`);
     
     // Вызываем API для деплоя модуля с данными из БД
     const response = await api.post('/module-deployment/deploy-module-from-db', {
@@ -1247,12 +1186,11 @@ async function deployModule(moduleType) {
     
     if (response.data.success) {
       if (response.data.status === 'started') {
-        addLog('success', 'Деплой успешно запущен. Отслеживание через WebSocket...');
+        addLog('success', t('smartcontracts.modules.deploy.started'));
       } else {
-        // Если деплой завершился сразу
-        deploymentProgress.value = 'Деплой успешно завершен!';
+        deploymentProgress.value = t('smartcontracts.modules.deploy.completed');
         moduleDeploymentStatus.value = 'success';
-        addLog('success', 'Деплой завершен успешно');
+        addLog('success', t('smartcontracts.modules.deploy.completedLog'));
         
         // Перезагружаем список модулей
         await loadModules();
@@ -1264,14 +1202,14 @@ async function deployModule(moduleType) {
       }
       
     } else {
-      throw new Error(response.data.error || 'Ошибка при деплое модуля');
+      throw new Error(response.data.error || t('smartcontracts.modules.deploy.errorDefault'));
     }
     
   } catch (error) {
-    console.error('[ModulesView] Ошибка при деплое модуля:', error);
-    deploymentProgress.value = `Ошибка: ${error.message}`;
+    console.error('[ModulesView] Module deployment error:', error);
+    deploymentProgress.value = t('smartcontracts.modules.deploy.errorWithMessage', { error: error.message });
     moduleDeploymentStatus.value = 'error';
-    addLog('error', `Ошибка: ${error.message}`);
+    addLog('error', t('smartcontracts.modules.deploy.errorWithMessage', { error: error.message }));
   } finally {
     isDeploying.value = false;
   }

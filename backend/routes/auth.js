@@ -29,6 +29,26 @@ const sessionService = require('../services/session-service');
 const consentService = require('../services/consentService');
 const { DOCUMENT_CONSENT_MAP } = consentService;
 
+const fs = require('fs');
+const path = require('path');
+const siweStatementPath = [
+  path.join(__dirname, '../shared/siweStatements.json'),
+  path.join(__dirname, '../../shared/siweStatements.json'),
+].find((candidate) => fs.existsSync(candidate));
+if (!siweStatementPath) {
+  throw new Error('shared/siweStatements.json not found');
+}
+const SIWE_STATEMENTS = require(siweStatementPath);
+const SIWE_LOCALES = Object.keys(SIWE_STATEMENTS);
+
+function resolveSiweLocale(locale) {
+  return SIWE_LOCALES.includes(locale) ? locale : 'ru';
+}
+
+function getSiweStatement(locale) {
+  return SIWE_STATEMENTS[resolveSiweLocale(locale)];
+}
+
 // Создаем лимитер для попыток аутентификации (отключено - лимиты убраны)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
@@ -119,7 +139,7 @@ router.get('/nonce', async (req, res) => {
 // Верификация подписи и создание сессии
 router.post('/verify', async (req, res) => {
   try {
-    const { address, signature, nonce, issuedAt } = req.body;
+    const { address, signature, nonce, issuedAt, siweLocale } = req.body;
 
     logger.info(`[verify] Verifying signature for address: ${address}`);
     logger.info(`[verify] Request body:`, JSON.stringify(req.body, null, 2));
@@ -244,6 +264,9 @@ router.post('/verify', async (req, res) => {
     // Используем issuedAt из запроса, если он есть, иначе создаем новый
     const messageIssuedAt = issuedAt || new Date().toISOString();
     
+    const statementLocale = resolveSiweLocale(siweLocale);
+    const siweStatement = getSiweStatement(statementLocale);
+
     const { SiweMessage } = require('siwe');
     
     // Реконструируем SIWE-сообщение на бэкенде, НО уже с теми же полями,
@@ -251,7 +274,7 @@ router.post('/verify', async (req, res) => {
     const message = new SiweMessage({
       domain,
       address: normalizedAddress,
-      statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
+      statement: siweStatement,
       uri: origin,
       version: '1',
       chainId: 1,
@@ -263,6 +286,7 @@ router.post('/verify', async (req, res) => {
     
     const messageToSign = message.prepareMessage();
     
+    logger.info(`[verify] SIWE locale: ${statementLocale}`);
     logger.info(`[verify] SIWE message for verification: ${messageToSign}`);
     logger.info(`[verify] Resources (backend expectation): ${JSON.stringify(resources)}`);
     logger.info(`[verify] IssuedAt (backend): ${messageIssuedAt}`);

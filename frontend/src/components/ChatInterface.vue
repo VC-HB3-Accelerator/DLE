@@ -50,7 +50,7 @@
           ref="messageInputRef"
           :value="newMessage"
           @input="handleInput"
-          placeholder="Введите сообщение..."
+          :placeholder="t('chat.inputPlaceholder')"
           :disabled="isLoading || !props.canSend"
           autofocus
           @keydown.enter.prevent="sendMessage"
@@ -61,7 +61,7 @@
       <div class="chat-icons">
         <button 
           class="chat-icon-btn" 
-          title="Удерживайте для записи аудио" 
+          :title="t('chat.holdForAudio')" 
           @mousedown="startAudioRecording" 
           @mouseup="stopAudioRecording"
           @mouseleave="stopAudioRecording"
@@ -75,7 +75,7 @@
         </button>
         <button 
           class="chat-icon-btn" 
-          title="Удерживайте для записи видео" 
+          :title="t('chat.holdForVideo')" 
           @mousedown="startVideoRecording" 
           @mouseup="stopVideoRecording"
           @mouseleave="stopVideoRecording"
@@ -86,24 +86,24 @@
             <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" fill="currentColor"/>
           </svg>
         </button>
-        <button class="chat-icon-btn" title="Прикрепить файл" @click="handleFileUpload" :disabled="!props.canSend">
+        <button class="chat-icon-btn" :title="t('chat.attachFile')" @click="handleFileUpload" :disabled="!props.canSend">
           <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
             <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" fill="currentColor"/>
           </svg>
         </button>
-        <button class="chat-icon-btn" title="Клавиатура" @click="handleKeyboardToggle">
+        <button class="chat-icon-btn" :title="t('chat.keyboard')" @click="handleKeyboardToggle">
           <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
             <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z" fill="currentColor"/>
           </svg>
         </button>
-        <button class="chat-icon-btn" title="Очистить поле ввода" @click="clearInput">
+        <button class="chat-icon-btn" :title="t('chat.clearInput')" @click="clearInput">
           <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
             <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
           </svg>
         </button>
         <button 
           class="chat-icon-btn send-button" 
-          title="Отправить сообщение" 
+          :title="t('chat.sendMessage')" 
           :disabled="isSendDisabled" 
           @click="sendMessage"
         >
@@ -111,7 +111,7 @@
             <path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" fill="currentColor"/>
           </svg>
         </button>
-        <button v-if="props.canGenerateAI" class="chat-icon-btn ai-reply-btn" title="Сгенерировать ответ ІІ" @click="handleAiReply" :disabled="isAiLoading">
+        <button v-if="props.canGenerateAI" class="chat-icon-btn ai-reply-btn" :title="t('chat.generateAi')" @click="handleAiReply" :disabled="isAiLoading">
           <template v-if="isAiLoading">
             <svg class="ai-spinner" width="22" height="22" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
           </template>
@@ -142,8 +142,11 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Message from './Message.vue';
 import messagesService from '../services/messagesService.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   messages: {
@@ -524,9 +527,14 @@ const handleBlur = () => {
 
 // Форматирование размера файла
 const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Байт';
+  if (bytes === 0) return t('common.fileSize.zero');
   const k = 1024;
-  const sizes = ['Байт', 'КБ', 'МБ', 'ГБ'];
+  const sizes = [
+    t('common.fileSize.bytes'),
+    t('common.fileSize.kb'),
+    t('common.fileSize.mb'),
+    t('common.fileSize.gb'),
+  ];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
@@ -627,7 +635,7 @@ async function handleAiReply() {
     // Используем более дружелюбное уведомление вместо alert
     emit('error', {
       type: 'ai-generation-error',
-      message: 'Не удалось сгенерировать ответ ИИ. Попробуйте еще раз.',
+      message: t('chat.aiGenerationError'),
       details: e.message
     });
   } finally {

@@ -11,6 +11,9 @@
  */
 
 import { ref, onMounted, onUnmounted } from 'vue';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Композабл для real-time логов WebSSH агента
@@ -98,13 +101,13 @@ export function useWebSshLogs() {
       ws.onopen = () => {
         console.log('[WebSSH Logs] Подключено к WebSSH Agent');
         isConnected.value = true;
-        addLog('success', 'Подключено к WebSSH Agent');
+        addLog('success', t('webssh.logs.connected'));
       };
       
       ws.onclose = () => {
         console.log('[WebSSH Logs] Отключено от WebSSH Agent');
         isConnected.value = false;
-        addLog('warning', 'Отключено от WebSSH Agent');
+        addLog('warning', t('webssh.logs.disconnected'));
       };
       
       ws.onmessage = (event) => {
@@ -132,14 +135,14 @@ export function useWebSshLogs() {
       
       ws.onerror = (error) => {
         console.error('[WebSSH Logs] Ошибка WebSocket:', error);
-        addLog('error', 'Ошибка подключения к WebSSH Agent');
+        addLog('error', t('webssh.logs.connectionError'));
       };
       
       isListening.value = true;
-      addLog('info', 'Подключение к WebSSH логам...');
+      addLog('info', t('webssh.logs.connecting'));
     } catch (error) {
       console.error('[WebSSH Logs] Ошибка создания WebSocket:', error);
-      addLog('error', 'Не удалось подключиться к WebSSH Agent');
+      addLog('error', t('webssh.logs.connectFailed'));
     }
   };
 
@@ -157,13 +160,13 @@ export function useWebSshLogs() {
     
     isListening.value = false;
     isConnected.value = false;
-    addLog('info', 'Отключение от WebSSH логов');
+    addLog('info', t('webssh.logs.disconnecting'));
   };
 
   // Очистить логи
   const clearLogs = () => {
     logs.value = [];
-    addLog('info', 'Логи очищены');
+    addLog('info', t('webssh.logs.cleared'));
   };
 
   // Форматирование времени

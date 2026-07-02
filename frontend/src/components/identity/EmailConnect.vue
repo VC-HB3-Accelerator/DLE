@@ -15,32 +15,32 @@
     <form @submit.prevent="showVerification ? verifyCode() : requestCode()" class="email-form-panel">
       <div class="form-header">
         <div>
-          <div class="form-title">Email</div>
-          <div class="form-step">{{ showVerification ? 'Шаг 2 из 2' : 'Шаг 1 из 2' }}</div>
+          <div class="form-title">{{ t('identity.email.title') }}</div>
+          <div class="form-step">{{ showVerification ? t('identity.email.step2of2') : t('identity.email.step1of2') }}</div>
         </div>
       </div>
     <div v-if="!showVerification" class="email-form">
-        <label for="email-input" class="form-label">Email</label>
-        <input id="email-input" v-model="email" type="email" placeholder="Введите email" class="email-input" :disabled="isLoading" autocomplete="email" />
-        <div class="form-hint">На этот адрес придёт код подтверждения</div>
+        <label for="email-input" class="form-label">{{ t('identity.email.title') }}</label>
+        <input id="email-input" v-model="email" type="email" :placeholder="t('identity.email.placeholder')" class="email-input" :disabled="isLoading" autocomplete="email" />
+        <div class="form-hint">{{ t('identity.email.codeHint') }}</div>
         <button type="submit" :disabled="isLoading || !isValidEmail" class="email-btn main-btn">
-        {{ isLoading ? 'Отправка...' : 'Получить код' }}
+        {{ isLoading ? t('identity.email.sending') : t('identity.email.getCode') }}
       </button>
     </div>
     <div v-else class="verification-form">
-        <p class="verification-info success-msg">Код отправлен на <b>{{ email }}</b></p>
-        <label for="code-input" class="form-label">Код</label>
-        <input id="code-input" v-model="code" type="text" placeholder="Введите код из письма" class="code-input" :disabled="isLoading" autocomplete="one-time-code" />
-        <div class="form-hint">Проверьте почту и введите код из письма</div>
+        <p class="verification-info success-msg">{{ t('identity.email.codeSent') }} <b>{{ email }}</b></p>
+        <label for="code-input" class="form-label">{{ t('identity.email.codeLabel') }}</label>
+        <input id="code-input" v-model="code" type="text" :placeholder="t('identity.email.codePlaceholder')" class="code-input" :disabled="isLoading" autocomplete="one-time-code" />
+        <div class="form-hint">{{ t('identity.email.codeVerifyHint') }}</div>
         <button type="submit" :disabled="isLoading || !code" class="verify-btn main-btn">
-        {{ isLoading ? 'Проверка...' : 'Подтвердить' }}
+        {{ isLoading ? t('identity.email.verifying') : t('identity.email.verify') }}
       </button>
-        <button type="button" class="reset-btn link-btn" @click="resetForm" :disabled="isLoading">Изменить email</button>
+        <button type="button" class="reset-btn link-btn" @click="resetForm" :disabled="isLoading">{{ t('identity.email.changeEmail') }}</button>
       </div>
       <div v-if="error" class="error-msg">{{ error }}</div>
       <div class="actions">
         <slot name="actions">
-          <button type="button" class="cancel-btn" @click="$emit('close')" :disabled="isLoading">Отмена</button>
+          <button type="button" class="cancel-btn" @click="$emit('close')" :disabled="isLoading">{{ t('common.cancel') }}</button>
         </slot>
     </div>
     </form>
@@ -48,25 +48,24 @@
 </template>
 
 <script setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import axios from '@/api/axios';
   import { useAuthContext } from '@/composables/useAuth';
 
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[EmailConnect] Clearing email connect data');
-    // Очищаем данные при выходе из системы
-    // EmailConnect не нуждается в очистке данных
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[EmailConnect] Refreshing email connect data');
-    // EmailConnect не нуждается в обновлении данных
-  });
-});
+  const { t } = useI18n();
 
-const emit = defineEmits(['close', 'success']);
+  onMounted(() => {
+    window.addEventListener('clear-application-data', () => {
+      console.log('[EmailConnect] Clearing email connect data');
+    });
+    
+    window.addEventListener('refresh-application-data', () => {
+      console.log('[EmailConnect] Refreshing email connect data');
+    });
+  });
+
+  const emit = defineEmits(['close', 'success']);
   const { linkIdentity } = useAuthContext();
 
   const email = ref('');
@@ -89,10 +88,10 @@ const emit = defineEmits(['close', 'success']);
       if (response.data.success) {
         showVerification.value = true;
       } else {
-        error.value = response.data.error || 'Ошибка отправки кода';
+        error.value = response.data.error || t('identity.email.sendCodeError');
       }
     } catch (err) {
-      error.value = err.response?.data?.error || 'Ошибка отправки кода';
+      error.value = err.response?.data?.error || t('identity.email.sendCodeError');
     } finally {
       isLoading.value = false;
     }
@@ -109,10 +108,10 @@ const emit = defineEmits(['close', 'success']);
       if (response.data.success) {
       emit('success');
       } else {
-        error.value = response.data.error || 'Неверный код';
+        error.value = response.data.error || t('identity.email.invalidCode');
       }
     } catch (err) {
-      error.value = err.response?.data?.error || 'Ошибка проверки кода';
+      error.value = err.response?.data?.error || t('identity.email.verifyCodeError');
     } finally {
       isLoading.value = false;
     }

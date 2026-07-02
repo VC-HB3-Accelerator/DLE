@@ -194,8 +194,8 @@ services:
 
   frontend-nginx:
     build:
-      context: ./frontend
-      dockerfile: nginx.Dockerfile
+      context: .
+      dockerfile: frontend/nginx.Dockerfile
     container_name: dapp-frontend-nginx
     restart: unless-stopped
     dns:

@@ -14,7 +14,7 @@
   <BaseLayout>
     <div class="email-settings-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>Email: интеграция и настройки</h2>
+      <h2>{{ $t('settings.ai.email.pageTitle') }}</h2>
       <div class="email-settings settings-panel">
         <form v-if="editMode" @submit.prevent="saveEmailSettings" class="settings-form">
           <div class="form-group">
@@ -31,7 +31,7 @@
           </div>
           <div class="form-group">
             <label for="smtpPassword">SMTP Password</label>
-            <input id="smtpPassword" v-model="form.smtpPassword" type="password" :placeholder="form.smtpPassword ? 'Изменить пароль' : 'Введите пароль'" />
+            <input id="smtpPassword" v-model="form.smtpPassword" type="password" :placeholder="form.smtpPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
           </div>
           <div class="form-group">
             <label for="imapHost">IMAP Host</label>
@@ -47,14 +47,14 @@
           </div>
           <div class="form-group">
             <label for="imapPassword">IMAP Password</label>
-            <input id="imapPassword" v-model="form.imapPassword" type="password" :placeholder="form.imapPassword ? 'Изменить пароль' : 'Введите пароль'" />
+            <input id="imapPassword" v-model="form.imapPassword" type="password" :placeholder="form.imapPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
           </div>
           <div class="form-group">
             <label for="fromEmail">From Email</label>
             <input id="fromEmail" v-model="form.fromEmail" type="email" required />
           </div>
-          <button type="submit" class="save-btn">Сохранить</button>
-          <button type="button" class="cancel-btn" @click="cancelEdit">Отмена</button>
+          <button type="submit" class="save-btn">{{ $t('common.save') }}</button>
+          <button type="button" class="cancel-btn" @click="cancelEdit">{{ $t('common.cancel') }}</button>
         </form>
         <div v-else class="settings-view">
           <div class="view-row"><span>SMTP Host:</span> <b>{{ form.smtpHost }}</b></div>
@@ -63,11 +63,11 @@
           <div class="view-row"><span>IMAP Host:</span> <b>{{ form.imapHost }}</b></div>
           <div class="view-row"><span>IMAP Port:</span> <b>{{ form.imapPort }}</b></div>
           <div class="view-row"><span>IMAP User:</span> <b>{{ form.imapUser }}</b></div>
-          <div class="view-row"><span>IMAP Password:</span> <b>{{ form.imapPassword ? '••••••••' : 'Не установлен' }}</b></div>
+          <div class="view-row"><span>IMAP Password:</span> <b>{{ form.imapPassword ? '••••••••' : $t('settings.ai.email.notSet') }}</b></div>
           <div class="view-row"><span>From Email:</span> <b>{{ form.fromEmail }}</b></div>
-          <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
-          <button type="button" class="clear-btn" @click="clearEmailSettings">Очистить</button>
-          <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
+          <button type="button" class="edit-btn" @click="editMode = true">{{ $t('common.edit') }}</button>
+          <button type="button" class="clear-btn" @click="clearEmailSettings">{{ $t('settings.ai.email.clear') }}</button>
+          <button type="button" class="cancel-btn" @click="goBack">{{ $t('common.close') }}</button>
         </div>
       </div>
     </div>
@@ -75,6 +75,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
 import { reactive, ref, onMounted, watch } from 'vue';
@@ -165,13 +167,13 @@ const saveEmailSettings = async () => {
       imap_password: form.imapPassword || undefined,
       from_email: form.fromEmail
     });
-    alert('Настройки Email сохранены');
+    alert(t('settings.ai.email.saved'));
     form.smtpPassword = '';
     form.imapPassword = '';
     Object.assign(original, JSON.parse(JSON.stringify(form)));
     editMode.value = false;
   } catch (e) {
-    alert('Ошибка сохранения email-настроек');
+    alert(t('settings.ai.email.saveError'));
   }
 };
 
@@ -183,12 +185,12 @@ const cancelEdit = () => {
 };
 
 const clearEmailSettings = async () => {
-  const confirmClear = confirm('Внимание! Это действие полностью удалит все настройки Email из базы данных. Продолжить?');
+  const confirmClear = confirm(t('settings.ai.email.confirmClear'));
   if (!confirmClear) return;
   
   try {
     await api.delete('/settings/email-settings');
-    alert('Настройки Email полностью удалены');
+    alert(t('settings.ai.email.cleared'));
     
     // Очищаем форму
     form.smtpHost = '';
@@ -204,7 +206,7 @@ const clearEmailSettings = async () => {
     editMode.value = false;
   } catch (e) {
     console.error('Ошибка удаления настроек Email:', e);
-    alert('Ошибка удаления настроек Email');
+    alert(t('settings.ai.email.clearError'));
   }
 };
 </script>

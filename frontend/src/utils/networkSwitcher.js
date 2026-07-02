@@ -20,6 +20,9 @@
  */
 
 import { getNetworkConfig, getHexChainId, isNetworkSupported } from './networkConfig.js';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Переключить сеть в MetaMask
@@ -32,18 +35,18 @@ export async function switchNetwork(targetChainId) {
     
     // Проверяем, поддерживается ли сеть
     if (!isNetworkSupported(targetChainId)) {
-      throw new Error(`Сеть ${targetChainId} не поддерживается`);
+      throw new Error(t('networkSwitcher.errors.networkNotSupported', { chainId: targetChainId }));
     }
     
     // Проверяем наличие MetaMask
     if (!window.ethereum) {
-      throw new Error('MetaMask не найден. Пожалуйста, установите MetaMask.');
+      throw new Error(t('networkSwitcher.errors.metamaskNotFound'));
     }
     
     // Получаем конфигурацию сети
     const networkConfig = getNetworkConfig(targetChainId);
     if (!networkConfig) {
-      throw new Error(`Конфигурация для сети ${targetChainId} не найдена`);
+      throw new Error(t('networkSwitcher.errors.networkConfigNotFound', { chainId: targetChainId }));
     }
     
     // Проверяем текущую сеть
@@ -103,12 +106,12 @@ export async function switchNetwork(targetChainId) {
           
         } catch (addError) {
           console.error(`❌ [Network Switch] Ошибка добавления сети:`, addError);
-          throw new Error(`Не удалось добавить сеть ${networkConfig.chainName}: ${addError.message}`);
+          throw new Error(t('networkSwitcher.errors.addNetworkFailed', { chainName: networkConfig.chainName, message: addError.message }));
         }
       } else {
         // Другие ошибки переключения
         console.error(`❌ [Network Switch] Ошибка переключения сети:`, switchError);
-        throw new Error(`Не удалось переключиться на ${networkConfig.chainName}: ${switchError.message}`);
+        throw new Error(t('networkSwitcher.errors.switchNetworkFailed', { chainName: networkConfig.chainName, message: switchError.message }));
       }
     }
     
@@ -129,7 +132,7 @@ export async function switchNetwork(targetChainId) {
 export async function getCurrentNetwork() {
   try {
     if (!window.ethereum) {
-      throw new Error('MetaMask не найден');
+      throw new Error(t('networkSwitcher.errors.metamaskNotFoundShort'));
     }
     
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });

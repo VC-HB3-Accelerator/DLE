@@ -13,25 +13,25 @@
 <template>
   <BaseLayout>
     <div class="create-table-container">
-      <h2>Создать новую таблицу</h2>
+      <h2>{{ t('tables.create.title') }}</h2>
       <form v-if="canEditData" @submit.prevent="handleCreateTable" class="create-table-form">
-        <label>Название таблицы</label>
-        <input v-model="newTableName" required placeholder="Введите название" />
-        <label>Описание</label>
-        <textarea v-model="newTableDescription" placeholder="Описание (необязательно)" />
-        <label>Источник для ИИ ассистента</label>
+        <label>{{ t('tables.create.tableNameLabel') }}</label>
+        <input v-model="newTableName" required :placeholder="t('tables.create.namePlaceholder')" />
+        <label>{{ t('tables.common.description') }}</label>
+        <textarea v-model="newTableDescription" :placeholder="t('tables.create.descriptionPlaceholder')" />
+        <label>{{ t('tables.common.aiSource') }}</label>
         <select v-model="newTableIsRagSourceId" required>
-          <option :value="1">Да</option>
-          <option :value="2">Нет</option>
+          <option :value="1">{{ t('common.yes') }}</option>
+          <option :value="2">{{ t('common.no') }}</option>
         </select>
         <div class="form-actions">
-          <button type="submit">Создать</button>
-          <button type="button" @click="goBack">Отмена</button>
+          <button type="submit">{{ t('tables.common.create') }}</button>
+          <button type="button" @click="goBack">{{ t('tables.common.cancel') }}</button>
         </div>
       </form>
       <div v-else class="empty-table-placeholder">
-        <p>Нет прав для создания таблицы</p>
-        <button type="button" @click="goBack" class="btn btn-primary">Назад</button>
+        <p>{{ t('tables.create.noPermission') }}</p>
+        <button type="button" @click="goBack" class="btn btn-primary">{{ t('tables.common.back') }}</button>
       </div>
     </div>
   </BaseLayout>
@@ -40,12 +40,14 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import tablesService from '../../services/tablesService';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 
 const router = useRouter();
+const { t } = useI18n();
 const newTableName = ref('');
 const newTableDescription = ref('');
 const newTableIsRagSourceId = ref(2);
@@ -54,13 +56,11 @@ const { canEditData } = usePermissions();
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[CreateTableView] Clearing form data');
     // Очищаем данные формы при выходе из системы
     form.value = { name: '', description: '' };
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[CreateTableView] Refreshing form data');
     // CreateTableView не нуждается в обновлении данных
   });
 });

@@ -13,16 +13,16 @@
 <template>
   <div class="web-ssh-settings">
     <div class="settings-header">
-      <h2>WEB SSH Туннель</h2>
-      <p>Автоматическая публикация локального приложения в интернете через SSH-туннель и NGINX</p>
+      <h2>{{ $t('settings.websshTunnel.title') }}</h2>
+      <p>{{ $t('settings.websshTunnel.description') }}</p>
     </div>
 
     <div v-if="!agentAvailable" class="agent-instruction-block">
-      <h3>Установка локального агента</h3>
+      <h3>{{ $t('settings.websshTunnel.installAgent') }}</h3>
       <ol>
         <li>
-          <b>Windows:</b><br>
-          Откройте <b>PowerShell</b> или <b>Командную строку</b> и выполните:
+          <b>{{ $t('settings.websshTunnel.windows') }}</b><br>
+          {{ $t('settings.websshTunnel.openPowerShell') }}
           <div class="copy-block" @click="copyToClipboard('wsl')">
             <pre><code>wsl</code></pre>
             <span class="copy-icon">
@@ -30,7 +30,7 @@
               <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 11.5L9 15L15 7" stroke="#27ae60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
           </div>
-          Затем в открывшемся терминале WSL выполните:
+          {{ $t('settings.websshTunnel.thenInWsl') }}
           <div class="copy-block" @click="copyToClipboard('cd ~/Digital_Legal_Entity(DLE)\nsudo bash webssh-agent/install.sh')">
             <pre><code>cd ~/Digital_Legal_Entity(DLE)
 sudo bash webssh-agent/install.sh</code></pre>
@@ -41,8 +41,8 @@ sudo bash webssh-agent/install.sh</code></pre>
           </div>
         </li>
         <li>
-          <b>Linux:</b><br>
-          Откройте терминал и выполните:
+          <b>{{ $t('settings.websshTunnel.linux') }}</b><br>
+          {{ $t('settings.websshTunnel.openTerminal') }}
           <div class="copy-block" @click="copyToClipboard('cd ~/Digital_Legal_Entity(DLE)\nsudo bash webssh-agent/install.sh')">
             <pre><code>cd ~/Digital_Legal_Entity(DLE)
 sudo bash webssh-agent/install.sh</code></pre>
@@ -53,13 +53,15 @@ sudo bash webssh-agent/install.sh</code></pre>
           </div>
         </li>
       </ol>
-      <button @click="checkAgent" class="check-btn">Проверить</button>
-      <div v-if="copied" class="copied-indicator">Скопировано!</div>
+      <button @click="checkAgent" class="check-btn">{{ $t('settings.websshTunnel.check') }}</button>
+      <div v-if="copied" class="copied-indicator">{{ $t('settings.websshTunnel.copied') }}</div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useWebSshService } from '../../services/webSshService';
@@ -72,7 +74,7 @@ const agentAvailable = ref(false);
 // Реактивные данные
 const isLoading = ref(false);
 const isConnected = ref(false);
-const connectionStatus = ref('Не подключено');
+const connectionStatus = ref('');
 const logs = ref([]);
 
 // Форма
@@ -122,7 +124,7 @@ const handleSubmit = async () => {
 
   // Дополнительная валидация приватного ключа
   if (!validatePrivateKey(form.sshKey)) {
-    addLog('error', 'Проверьте формат приватного ключа!');
+    addLog('error', t('settings.websshTunnel.invalidPrivateKey'));
     return;
   }
 
@@ -138,26 +140,26 @@ const handleSubmit = async () => {
   // });
 
   isLoading.value = true;
-  addLog('info', 'Запуск публикации...');
+  addLog('info', t('settings.websshTunnel.publishing'));
   try {
     // Публикация через агента
     const result = await webSshService.setupVDS(form);
     if (result.success) {
       isConnected.value = true;
-      connectionStatus.value = `Подключено к ${form.domain}`;
-      addLog('success', 'VDS успешно настроена');
-      addLog('info', `Ваше приложение будет доступно по адресу: https://${form.domain}`);
+      connectionStatus.value = t('settings.websshTunnel.connectedTo', { domain: form.domain });
+      addLog('success', t('settings.websshTunnel.vdsConfigured'));
+      addLog('info', t('settings.websshTunnel.appAvailable', { domain: form.domain }));
       
       // Перенаправляем на страницу VDS Mock через 3 секунды
-      addLog('info', 'Перенаправление на страницу управления VDS через 3 секунды...');
+      addLog('info', t('settings.websshTunnel.redirecting'));
       setTimeout(() => {
         router.push({ name: 'vds-management' });
       }, 3000);
     } else {
-      addLog('error', result.message || 'Ошибка при настройке VDS');
+      addLog('error', result.message || t('settings.websshTunnel.setupError'));
     }
   } catch (error) {
-    addLog('error', `Ошибка: ${error.message}`);
+    addLog('error', t('settings.websshTunnel.error', { message: error.message }));
   } finally {
     isLoading.value = false;
   }
@@ -165,20 +167,20 @@ const handleSubmit = async () => {
 
 const disconnectTunnel = async () => {
   isLoading.value = true;
-  addLog('info', 'Отключаю SSH туннель...');
+  addLog('info', t('settings.websshTunnel.disconnecting'));
 
   try {
     const result = await webSshService.disconnectTunnel();
     
     if (result.success) {
       isConnected.value = false;
-      connectionStatus.value = 'Не подключено';
-      addLog('success', 'SSH туннель отключен');
+      connectionStatus.value = t('settings.websshTunnel.notConnected');
+      addLog('success', t('settings.websshTunnel.disconnected'));
     } else {
-      addLog('error', result.message || 'Ошибка при отключении туннеля');
+      addLog('error', result.message || t('settings.websshTunnel.disconnectError'));
     }
   } catch (error) {
-    addLog('error', `Ошибка: ${error.message}`);
+    addLog('error', t('settings.websshTunnel.error', { message: error.message }));
   } finally {
     isLoading.value = false;
   }
@@ -186,17 +188,17 @@ const disconnectTunnel = async () => {
 
 const validateForm = () => {
   if (!form.domain || !form.email || !form.sshHost || !form.sshUser || !form.sshKey) {
-    addLog('error', 'Заполните все обязательные поля');
+    addLog('error', t('settings.websshTunnel.fillRequired'));
     return false;
   }
   
   if (!form.email.includes('@')) {
-    addLog('error', 'Введите корректный email');
+    addLog('error', t('settings.websshTunnel.invalidEmail'));
     return false;
   }
   
   if (!form.sshKey.includes('-----BEGIN') || !form.sshKey.includes('-----END')) {
-    addLog('error', 'SSH ключ должен быть в формате OpenSSH');
+    addLog('error', t('settings.websshTunnel.invalidSshKey'));
     return false;
   }
   
@@ -234,8 +236,8 @@ const checkConnectionStatus = async () => {
     const status = await webSshService.getStatus();
     isConnected.value = status.connected;
     connectionStatus.value = status.connected 
-      ? `Подключено к ${status.domain}` 
-      : 'Не подключено';
+      ? t('settings.websshTunnel.connectedTo', { domain: status.domain }) 
+      : t('settings.websshTunnel.notConnected');
   } catch (error) {
     // console.error('Ошибка проверки статуса:', error);
   }
@@ -248,6 +250,7 @@ const checkAgent = async () => {
 
 // Жизненный цикл
 onMounted(() => {
+  connectionStatus.value = t('settings.websshTunnel.notConnected');
   checkAgent();
   checkConnectionStatus();
   

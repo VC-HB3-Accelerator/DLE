@@ -14,9 +14,9 @@
   <BaseLayout>
     <div class="ai-assistant-settings-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>ИИ-ассистент: интеграция и настройки</h2>
+      <h2>{{ $t('settings.ai.assistant.pageTitle') }}</h2>
       <div class="assistant-status">
-        <h3>Управление каналами ассистента</h3>
+        <h3>{{ $t('settings.ai.assistant.channelManagement') }}</h3>
         <div class="status-list">
           <div class="status-item" v-for="channel in assistantChannels" :key="channel.key">
             <div class="status-info">
@@ -25,7 +25,7 @@
                 class="status-value"
                 :class="settings.enabled_channels?.[channel.key] ? 'status-enabled' : 'status-disabled'"
               >
-                {{ settings.enabled_channels?.[channel.key] ? 'Включен' : 'Отключен' }}
+                {{ settings.enabled_channels?.[channel.key] ? $t('settings.ai.assistant.enabled') : $t('settings.ai.assistant.disabled') }}
               </div>
             </div>
             <div class="status-actions">
@@ -35,7 +35,7 @@
                 :disabled="channelStatusLoading[channel.key] || settings.enabled_channels?.[channel.key]"
                 @click="setChannelStatus(channel.key, true)"
               >
-                Включить
+                {{ $t('settings.ai.assistant.enable') }}
               </button>
               <button
                 type="button"
@@ -43,7 +43,7 @@
                 :disabled="channelStatusLoading[channel.key] || !settings.enabled_channels?.[channel.key]"
                 @click="setChannelStatus(channel.key, false)"
               >
-                Отключить
+                {{ $t('settings.ai.assistant.disable') }}
               </button>
             </div>
           </div>
@@ -51,18 +51,18 @@
       </div>
       <div class="ai-assistant-settings settings-panel">
         <form @submit.prevent="saveSettings">
-          <label>Системный промт</label>
+          <label>{{ $t('settings.ai.assistant.systemPrompt') }}</label>
           <textarea v-model="settings.system_prompt" rows="3" />
           <!-- Блок плейсхолдеров -->
           <div class="placeholders-block">
-            <h4>Плейсхолдеры пользовательских таблиц</h4>
-            <div v-if="placeholders.length === 0" class="empty-placeholder">Нет пользовательских плейсхолдеров</div>
+            <h4>{{ $t('settings.ai.assistant.placeholdersTitle') }}</h4>
+            <div v-if="placeholders.length === 0" class="empty-placeholder">{{ $t('settings.ai.assistant.noPlaceholders') }}</div>
             <table v-else class="placeholders-table">
               <thead>
                 <tr>
-                  <th>Плейсхолдер</th>
-                  <th>Столбец</th>
-                  <th>Таблица</th>
+                  <th>{{ $t('settings.ai.assistant.placeholderCol') }}</th>
+                  <th>{{ $t('settings.ai.assistant.columnCol') }}</th>
+                  <th>{{ $t('settings.ai.assistant.tableCol') }}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -71,7 +71,7 @@
                   <td><code>{ {{ ph.placeholder }} }</code></td>
                   <td>{{ ph.column_name }}</td>
                   <td>{{ ph.table_name }}</td>
-                  <td><button type="button" @click="openEditPlaceholder(ph)">Редактировать</button></td>
+                  <td><button type="button" @click="openEditPlaceholder(ph)">{{ $t('common.edit') }}</button></td>
                 </tr>
               </tbody>
             </table>
@@ -79,104 +79,104 @@
           <!-- Модалка редактирования плейсхолдера -->
           <div v-if="editingPlaceholder" class="modal-bg">
             <div class="modal">
-              <h4>Редактировать плейсхолдер</h4>
-              <div><b>Таблица:</b> {{ editingPlaceholder.table_name }}</div>
-              <div><b>Столбец:</b> {{ editingPlaceholder.column_name }}</div>
-              <label>Плейсхолдер</label>
+              <h4>{{ $t('settings.ai.assistant.editPlaceholder') }}</h4>
+              <div><b>{{ $t('settings.ai.assistant.tableLabel') }}</b> {{ editingPlaceholder.table_name }}</div>
+              <div><b>{{ $t('settings.ai.assistant.columnLabel') }}</b> {{ editingPlaceholder.column_name }}</div>
+              <label>{{ $t('settings.ai.assistant.placeholderCol') }}</label>
               <input v-model="editingPlaceholderValue" />
               <div class="actions">
-                <button type="button" @click="savePlaceholderEdit">Сохранить</button>
-                <button type="button" @click="closeEditPlaceholder">Отмена</button>
+                <button type="button" @click="savePlaceholderEdit">{{ $t('common.save') }}</button>
+                <button type="button" @click="closeEditPlaceholder">{{ $t('common.cancel') }}</button>
               </div>
             </div>
           </div>
           <!-- Настройки Ollama (инфраструктура) -->
           <div class="ollama-settings">
-            <h3>Настройки Ollama (инфраструктура)</h3>
-            <p class="section-description">Настройки подключения к Ollama серверу. Используются как дефолтные значения для всех операций с Ollama, если не указана конкретная модель в настройках AI ассистента ниже.</p>
+            <h3>{{ $t('settings.ai.assistant.ollamaInfra') }}</h3>
+            <p class="section-description">{{ $t('settings.ai.assistant.ollamaInfraDesc') }}</p>
             
             <div class="form-group">
-              <label>Ollama Base URL</label>
+              <label>{{ $t('settings.ai.assistant.ollamaBaseUrl') }}</label>
               <input type="text" v-model="ollamaConfig.baseUrl" placeholder="http://ollama:11434" />
-              <small>Базовый URL для Ollama API</small>
+              <small>{{ $t('settings.ai.assistant.ollamaBaseUrlHelp') }}</small>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>LLM Model (Ollama) - дефолтная</label>
+                <label>{{ $t('settings.ai.assistant.llmModelDefault') }}</label>
                 <input type="text" v-model="ollamaConfig.llmModel" placeholder="qwen2.5:7b" />
-                <small>Название LLM модели по умолчанию (используется, если не выбрана модель ниже)</small>
+                <small>{{ $t('settings.ai.assistant.llmModelDefaultHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Embedding Model (Ollama) - дефолтная</label>
+                <label>{{ $t('settings.ai.assistant.embeddingModelDefault') }}</label>
                 <input type="text" v-model="ollamaConfig.embeddingModel" placeholder="mxbai-embed-large:latest" />
-                <small>Название Embedding модели по умолчанию (используется, если не выбрана модель ниже)</small>
+                <small>{{ $t('settings.ai.assistant.embeddingModelDefaultHelp') }}</small>
               </div>
             </div>
           </div>
 
           <!-- Настройки Vector Search -->
           <div class="vector-search-settings">
-            <h3>Настройки Vector Search</h3>
+            <h3>{{ $t('settings.ai.assistant.vectorSearchTitle') }}</h3>
             
             <div class="form-group">
-              <label>Vector Search URL</label>
+              <label>{{ $t('settings.ai.assistant.vectorSearchUrl') }}</label>
               <input type="text" v-model="vectorSearchConfig.url" placeholder="http://vector-search:8001" />
-              <small>URL для сервиса векторного поиска</small>
+              <small>{{ $t('settings.ai.assistant.vectorSearchUrlHelp') }}</small>
             </div>
           </div>
 
           <!-- Выбор модели для AI ассистента -->
           <div class="model-selection-settings">
-            <h3>Выбор модели для AI ассистента</h3>
-            <p class="section-description">Выберите конкретную модель из списка доступных провайдеров. Если модель не выбрана, будет использована дефолтная модель Ollama из настроек выше.</p>
+            <h3>{{ $t('settings.ai.assistant.modelSelectionTitle') }}</h3>
+            <p class="section-description">{{ $t('settings.ai.assistant.modelSelectionDesc') }}</p>
             
-            <label>LLM-модель для AI ассистента</label>
+            <label>{{ $t('settings.ai.assistant.llmForAssistant') }}</label>
           <select v-if="llmModels.length" v-model="settings.model">
-              <option value="">Использовать дефолтную модель Ollama</option>
+              <option value="">{{ $t('settings.ai.assistant.useDefaultOllama') }}</option>
             <option v-for="m in llmModels" :key="m.id" :value="m.id">{{ m.id }} ({{ m.provider }})</option>
           </select>
           <input v-else v-model="settings.model" placeholder="qwen2.5" />
-            <small v-if="!settings.model">Будет использована: {{ ollamaConfig.llmModel }}</small>
+            <small v-if="!settings.model">{{ $t('settings.ai.assistant.willUseLlm', { model: ollamaConfig.llmModel }) }}</small>
             
-            <label>Embedding-модель для AI ассистента</label>
+            <label>{{ $t('settings.ai.assistant.embeddingForAssistant') }}</label>
           <select v-if="filteredEmbeddingModels.length" v-model="settings.embedding_model">
-              <option value="">Использовать дефолтную модель Ollama</option>
+              <option value="">{{ $t('settings.ai.assistant.useDefaultOllama') }}</option>
             <option v-for="m in filteredEmbeddingModels" :key="m.id" :value="m.id">{{ m.id }} ({{ m.provider }})</option>
           </select>
           <input v-else v-model="settings.embedding_model" placeholder="bge-base-zh" />
-            <small v-if="!settings.embedding_model">Будет использована: {{ ollamaConfig.embeddingModel }}</small>
+            <small v-if="!settings.embedding_model">{{ $t('settings.ai.assistant.willUseEmbedding', { model: ollamaConfig.embeddingModel }) }}</small>
           </div>
-          <label>Выбранные RAG-таблицы</label>
+          <label>{{ $t('settings.ai.assistant.ragTables') }}</label>
           <select v-model="settings.selected_rag_tables" :multiple="false">
-            <option value="">Выберите таблицу</option>
+            <option value="">{{ $t('settings.ai.assistant.selectTable') }}</option>
             <option v-for="table in ragTables" :key="table.id" :value="table.id">
               {{ getTableDisplayName(table) }}
             </option>
           </select>
-          <label>Набор правил</label>
+          <label>{{ $t('settings.ai.assistant.rulesSet') }}</label>
           <div class="rules-row">
             <select v-model="settings.rules_id">
-              <option value="">Выберите набор правил</option>
+              <option value="">{{ $t('settings.ai.assistant.selectRules') }}</option>
               <option v-for="rule in rulesList" :key="rule.id" :value="rule.id">
                 {{ getRuleDisplayName(rule) }}
               </option>
             </select>
-            <button type="button" @click="openRuleEditor()">Создать</button>
-            <button type="button" :disabled="!settings.rules_id" @click="openRuleEditor(settings.rules_id)">Редактировать</button>
-            <button type="button" :disabled="!settings.rules_id" @click="deleteRule(settings.rules_id)">Удалить</button>
+            <button type="button" @click="openRuleEditor()">{{ $t('common.create') }}</button>
+            <button type="button" :disabled="!settings.rules_id" @click="openRuleEditor(settings.rules_id)">{{ $t('common.edit') }}</button>
+            <button type="button" :disabled="!settings.rules_id" @click="deleteRule(settings.rules_id)">{{ $t('common.delete') }}</button>
           </div>
           <div v-if="selectedRule">
-            <p><b>Описание:</b> {{ selectedRule.description }}</p>
+            <p><b>{{ $t('settings.ai.assistant.descriptionLabel') }}</b> {{ selectedRule.description }}</p>
             <pre class="rules-json">{{ JSON.stringify(selectedRule.rules, null, 2) }}</pre>
           </div>
-          <label>Telegram-бот</label>
+          <label>{{ $t('settings.ai.assistant.telegramBot') }}</label>
           <select v-model="settings.telegram_settings_id">
             <option v-for="tg in telegramBots" :key="tg.id" :value="tg.id">
               {{ tg.bot_username }}
             </option>
           </select>
-          <label>Email для связи</label>
+          <label>{{ $t('settings.ai.assistant.contactEmail') }}</label>
           <select v-model="settings.email_settings_id">
             <option v-for="em in emailList" :key="em.id" :value="em.id">
               {{ em.from_email }}
@@ -185,163 +185,163 @@
           
           <!-- Настройки RAG поиска -->
           <div class="rag-search-settings">
-            <h3>Настройки RAG поиска</h3>
+            <h3>{{ $t('settings.ai.assistant.ragSearchTitle') }}</h3>
             
             <!-- Порог расстояния (threshold) -->
-            <label>Порог расстояния для векторного поиска (threshold)</label>
+            <label>{{ $t('settings.ai.assistant.ragThreshold') }}</label>
             <input type="number" v-model.number="ragSettings.threshold" min="0" max="1000" step="10" />
-            <small>Минимальное расстояние для включения результата в ответ (меньше = строже)</small>
+            <small>{{ $t('settings.ai.assistant.ragThresholdHelp') }}</small>
             
             <!-- Метод поиска -->
-            <label>Метод поиска</label>
+            <label>{{ $t('settings.ai.assistant.searchMethod') }}</label>
             <select v-model="ragSettings.searchMethod">
-              <option value="semantic">Только семантический поиск</option>
-              <option value="keyword">Только поиск по ключевым словам</option>
-              <option value="hybrid">Гибридный поиск</option>
+              <option value="semantic">{{ $t('settings.ai.assistant.searchSemantic') }}</option>
+              <option value="keyword">{{ $t('settings.ai.assistant.searchKeyword') }}</option>
+              <option value="hybrid">{{ $t('settings.ai.assistant.searchHybrid') }}</option>
             </select>
             
             <!-- Количество результатов -->
-            <label>Максимальное количество результатов поиска</label>
+            <label>{{ $t('settings.ai.assistant.maxResults') }}</label>
             <input type="number" v-model.number="ragSettings.maxResults" min="1" max="20" />
             
             <!-- Порог релевантности -->
-            <label>Порог релевантности ({{ ragSettings.relevanceThreshold }})</label>
+            <label>{{ $t('settings.ai.assistant.relevanceThreshold', { value: ragSettings.relevanceThreshold }) }}</label>
             <input type="range" v-model.number="ragSettings.relevanceThreshold" 
                    min="0.01" max="1.0" step="0.01" />
             
             <!-- Настройки извлечения ключевых слов -->
             <div class="keyword-settings">
-              <h4>Извлечение ключевых слов</h4>
+              <h4>{{ $t('settings.ai.assistant.keywordExtraction') }}</h4>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="ragSettings.keywordExtraction.enabled" />
-                Включить извлечение ключевых слов
+                {{ $t('settings.ai.assistant.enableKeywordExtraction') }}
               </label>
               
-              <label>Минимальная длина слова</label>
+              <label>{{ $t('settings.ai.assistant.minWordLength') }}</label>
               <input type="number" v-model="ragSettings.keywordExtraction.minWordLength" 
                      min="2" max="10" />
               
-              <label>Максимальное количество ключевых слов</label>
+              <label>{{ $t('settings.ai.assistant.maxKeywords') }}</label>
               <input type="number" v-model="ragSettings.keywordExtraction.maxKeywords" 
                      min="5" max="20" />
               
               <label class="checkbox-label">
                 <input type="checkbox" v-model="ragSettings.keywordExtraction.removeStopWords" />
-                Удалять стоп-слова
+                {{ $t('settings.ai.assistant.removeStopWords') }}
               </label>
             </div>
             
             <!-- Веса для гибридного поиска -->
             <div v-if="ragSettings.searchMethod === 'hybrid'" class="search-weights">
-              <h4>Веса поиска</h4>
-              <label>Семантический поиск: {{ ragSettings.searchWeights.semantic }}%</label>
+              <h4>{{ $t('settings.ai.assistant.searchWeights') }}</h4>
+              <label>{{ $t('settings.ai.assistant.semanticWeight', { value: ragSettings.searchWeights.semantic }) }}</label>
               <input type="range" v-model="ragSettings.searchWeights.semantic" 
                      min="0" max="100" />
               
-              <label>Поиск по ключевым словам: {{ ragSettings.searchWeights.keyword }}%</label>
+              <label>{{ $t('settings.ai.assistant.keywordWeight', { value: ragSettings.searchWeights.keyword }) }}</label>
               <input type="range" v-model="ragSettings.searchWeights.keyword" 
                      min="0" max="100" />
             </div>
             
             <!-- Дополнительные настройки -->
             <div class="advanced-settings">
-              <h4>Дополнительные настройки</h4>
+              <h4>{{ $t('settings.ai.assistant.advancedSettings') }}</h4>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="ragSettings.advanced.enableFuzzySearch" />
-                Нечеткий поиск
+                {{ $t('settings.ai.assistant.fuzzySearch') }}
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="ragSettings.advanced.enableStemming" />
-                Стемминг слов
+                {{ $t('settings.ai.assistant.stemming') }}
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" v-model="ragSettings.advanced.enableSynonyms" />
-                Поиск синонимов
+                {{ $t('settings.ai.assistant.synonyms') }}
               </label>
             </div>
           </div>
 
           <!-- Настройки LLM параметров -->
           <div class="llm-parameters-settings">
-            <h3>Параметры LLM</h3>
+            <h3>{{ $t('settings.ai.assistant.llmParamsTitle') }}</h3>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Temperature (0.0-2.0)</label>
+                <label>{{ $t('settings.ai.assistant.temperature') }}</label>
                 <input type="number" v-model.number="llmParameters.temperature" min="0" max="2" step="0.1" />
-                <small>Креативность ответов (выше = более креативно)</small>
+                <small>{{ $t('settings.ai.assistant.temperatureHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Max Tokens</label>
+                <label>{{ $t('settings.ai.assistant.maxTokens') }}</label>
                 <input type="number" v-model.number="llmParameters.maxTokens" min="1" max="4000" />
-                <small>Максимальная длина ответа</small>
+                <small>{{ $t('settings.ai.assistant.maxTokensHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Top P (0.0-1.0)</label>
+                <label>{{ $t('settings.ai.assistant.topP') }}</label>
                 <input type="number" v-model.number="llmParameters.top_p" min="0" max="1" step="0.01" />
-                <small>Ядро выборки (nucleus sampling)</small>
+                <small>{{ $t('settings.ai.assistant.topPHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Top K</label>
+                <label>{{ $t('settings.ai.assistant.topK') }}</label>
                 <input type="number" v-model.number="llmParameters.top_k" min="1" max="100" />
-                <small>Количество лучших токенов для выборки</small>
+                <small>{{ $t('settings.ai.assistant.topKHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>Repeat Penalty (1.0-2.0)</label>
+              <label>{{ $t('settings.ai.assistant.repeatPenalty') }}</label>
               <input type="number" v-model.number="llmParameters.repeat_penalty" min="1.0" max="2.0" step="0.1" />
-              <small>Штраф за повторения (выше = меньше повторений)</small>
+              <small>{{ $t('settings.ai.assistant.repeatPenaltyHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки Qwen -->
           <div class="qwen-parameters-settings">
-            <h3>Параметры Qwen</h3>
+            <h3>{{ $t('settings.ai.assistant.qwenParamsTitle') }}</h3>
             
             <div class="form-group">
-              <label>Format</label>
+              <label>{{ $t('settings.ai.assistant.format') }}</label>
               <select v-model="qwenParameters.format">
-                <option :value="null">Автоматически (null)</option>
-                <option value="json">JSON</option>
+                <option :value="null">{{ $t('settings.ai.assistant.formatAuto') }}</option>
+                <option value="json">{{ $t('settings.ai.assistant.formatJson') }}</option>
               </select>
-              <small>Формат ответа (json для структурированных ответов)</small>
+              <small>{{ $t('settings.ai.assistant.formatHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки Embedding -->
           <div class="embedding-parameters-settings">
-            <h3>Параметры Embedding модели</h3>
+            <h3>{{ $t('settings.ai.assistant.embeddingParamsTitle') }}</h3>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Batch Size</label>
+                <label>{{ $t('settings.ai.assistant.batchSize') }}</label>
                 <input type="number" v-model.number="embeddingParameters.batch_size" min="1" max="128" />
-                <small>Размер батча для обработки</small>
+                <small>{{ $t('settings.ai.assistant.batchSizeHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Dimension</label>
-                <input type="number" v-model.number="embeddingParameters.dimension" min="0" :placeholder="'Авто (null)'" />
-                <small>Размерность вектора (0 = авто)</small>
+                <label>{{ $t('settings.ai.assistant.dimension') }}</label>
+                <input type="number" v-model.number="embeddingParameters.dimension" min="0" :placeholder="$t('settings.ai.assistant.dimensionPlaceholder')" />
+                <small>{{ $t('settings.ai.assistant.dimensionHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Pooling</label>
+                <label>{{ $t('settings.ai.assistant.pooling') }}</label>
                 <select v-model="embeddingParameters.pooling">
-                  <option value="mean">Mean (среднее)</option>
-                  <option value="max">Max (максимум)</option>
-                  <option value="cls">CLS</option>
+                  <option value="mean">{{ $t('settings.ai.assistant.poolingMean') }}</option>
+                  <option value="max">{{ $t('settings.ai.assistant.poolingMax') }}</option>
+                  <option value="cls">{{ $t('settings.ai.assistant.poolingCls') }}</option>
                 </select>
               </div>
               <div class="form-group">
                 <label class="checkbox-label">
                   <input type="checkbox" v-model="embeddingParameters.normalize" />
-                  Нормализация векторов
+                  {{ $t('settings.ai.assistant.normalizeVectors') }}
                 </label>
               </div>
             </div>
@@ -349,146 +349,146 @@
 
           <!-- Настройки кэша -->
           <div class="cache-settings">
-            <h3>Настройки кэширования</h3>
+            <h3>{{ $t('settings.ai.assistant.cacheTitle') }}</h3>
             
             <label class="checkbox-label">
               <input type="checkbox" v-model="cacheSettings.enabled" />
-              Включить кэширование
+              {{ $t('settings.ai.assistant.enableCache') }}
             </label>
             
             <div class="form-row">
               <div class="form-group">
-                <label>LLM TTL (мс)</label>
+                <label>{{ $t('settings.ai.assistant.llmTtl') }}</label>
                 <input type="number" v-model.number="cacheSettings.llmTTL" min="0" step="1000" />
-                <small>Время жизни кэша для LLM ответов</small>
+                <small>{{ $t('settings.ai.assistant.llmTtlHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>RAG TTL (мс)</label>
+                <label>{{ $t('settings.ai.assistant.ragTtl') }}</label>
                 <input type="number" v-model.number="cacheSettings.ragTTL" min="0" step="1000" />
-                <small>Время жизни кэша для RAG результатов</small>
+                <small>{{ $t('settings.ai.assistant.ragTtlHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>Max Size</label>
+              <label>{{ $t('settings.ai.assistant.cacheMaxSize') }}</label>
               <input type="number" v-model.number="cacheSettings.maxSize" min="1" max="10000" />
-              <small>Максимальный размер кэша (количество записей)</small>
+              <small>{{ $t('settings.ai.assistant.cacheMaxSizeHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки очереди -->
           <div class="queue-settings">
-            <h3>Настройки очереди запросов</h3>
+            <h3>{{ $t('settings.ai.assistant.queueTitle') }}</h3>
             
             <label class="checkbox-label">
               <input type="checkbox" v-model="queueSettings.enabled" />
-              Включить очередь
+              {{ $t('settings.ai.assistant.enableQueue') }}
             </label>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Timeout (мс)</label>
+                <label>{{ $t('settings.ai.assistant.queueTimeout') }}</label>
                 <input type="number" v-model.number="queueSettings.timeout" min="1000" step="1000" />
-                <small>Таймаут обработки запроса</small>
+                <small>{{ $t('settings.ai.assistant.queueTimeoutHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Max Size</label>
+                <label>{{ $t('settings.ai.assistant.queueMaxSize') }}</label>
                 <input type="number" v-model.number="queueSettings.maxSize" min="1" max="1000" />
-                <small>Максимальный размер очереди</small>
+                <small>{{ $t('settings.ai.assistant.queueMaxSizeHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>Interval (мс)</label>
+              <label>{{ $t('settings.ai.assistant.queueInterval') }}</label>
               <input type="number" v-model.number="queueSettings.interval" min="10" step="10" />
-              <small>Интервал обработки очереди</small>
+              <small>{{ $t('settings.ai.assistant.queueIntervalHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки дедупликации -->
           <div class="deduplication-settings">
-            <h3>Настройки дедупликации сообщений</h3>
+            <h3>{{ $t('settings.ai.assistant.dedupTitle') }}</h3>
             
             <label class="checkbox-label">
               <input type="checkbox" v-model="deduplicationSettings.enabled" />
-              Включить дедупликацию
+              {{ $t('settings.ai.assistant.enableDedup') }}
             </label>
             
             <div class="form-group">
-              <label>TTL (мс)</label>
+              <label>{{ $t('settings.ai.assistant.dedupTtl') }}</label>
               <input type="number" v-model.number="deduplicationSettings.ttl" min="1000" step="1000" />
-              <small>Время жизни записи о сообщении</small>
+              <small>{{ $t('settings.ai.assistant.dedupTtlHelp') }}</small>
             </div>
           </div>
 
           <!-- Настройки RAG поведения -->
           <div class="rag-behavior-settings">
-            <h3>Поведение RAG</h3>
+            <h3>{{ $t('settings.ai.assistant.ragBehaviorTitle') }}</h3>
             
             <label class="checkbox-label">
               <input type="checkbox" v-model="ragBehavior.upsertOnQuery" />
-              Автоматически индексировать при запросе
+              {{ $t('settings.ai.assistant.upsertOnQuery') }}
             </label>
             
             <label class="checkbox-label">
               <input type="checkbox" v-model="ragBehavior.autoIndexOnTableChange" />
-              Автоматически индексировать при изменении таблицы
+              {{ $t('settings.ai.assistant.autoIndexOnChange') }}
             </label>
           </div>
 
           <!-- Настройки таймаутов -->
           <div class="timeouts-settings">
-            <h3>Таймауты для операций (мс)</h3>
+            <h3>{{ $t('settings.ai.assistant.timeoutsTitle') }}</h3>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Ollama Chat</label>
+                <label>{{ $t('settings.ai.assistant.timeoutOllamaChat') }}</label>
                 <input type="number" v-model.number="timeouts.ollamaChat" min="1000" step="1000" />
-                <small>Таймаут для LLM чата</small>
+                <small>{{ $t('settings.ai.assistant.timeoutOllamaChatHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Ollama Embedding</label>
+                <label>{{ $t('settings.ai.assistant.timeoutOllamaEmbedding') }}</label>
                 <input type="number" v-model.number="timeouts.ollamaEmbedding" min="1000" step="1000" />
-                <small>Таймаут для embedding</small>
+                <small>{{ $t('settings.ai.assistant.timeoutOllamaEmbeddingHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Vector Search</label>
+                <label>{{ $t('settings.ai.assistant.timeoutVectorSearch') }}</label>
                 <input type="number" v-model.number="timeouts.vectorSearch" min="1000" step="1000" />
-                <small>Таймаут для поиска</small>
+                <small>{{ $t('settings.ai.assistant.timeoutVectorSearchHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Vector Upsert</label>
+                <label>{{ $t('settings.ai.assistant.timeoutVectorUpsert') }}</label>
                 <input type="number" v-model.number="timeouts.vectorUpsert" min="1000" step="1000" />
-                <small>Таймаут для индексации</small>
+                <small>{{ $t('settings.ai.assistant.timeoutVectorUpsertHelp') }}</small>
               </div>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label>Vector Health</label>
+                <label>{{ $t('settings.ai.assistant.timeoutVectorHealth') }}</label>
                 <input type="number" v-model.number="timeouts.vectorHealth" min="1000" step="1000" />
-                <small>Таймаут для health check</small>
+                <small>{{ $t('settings.ai.assistant.timeoutVectorHealthHelp') }}</small>
               </div>
               <div class="form-group">
-                <label>Ollama Health</label>
+                <label>{{ $t('settings.ai.assistant.timeoutOllamaHealth') }}</label>
                 <input type="number" v-model.number="timeouts.ollamaHealth" min="1000" step="1000" />
-                <small>Таймаут для health check</small>
+                <small>{{ $t('settings.ai.assistant.timeoutOllamaHealthHelp') }}</small>
               </div>
             </div>
             
             <div class="form-group">
-              <label>Ollama Tags</label>
+              <label>{{ $t('settings.ai.assistant.timeoutOllamaTags') }}</label>
               <input type="number" v-model.number="timeouts.ollamaTags" min="1000" step="1000" />
-              <small>Таймаут для получения тегов</small>
+              <small>{{ $t('settings.ai.assistant.timeoutOllamaTagsHelp') }}</small>
             </div>
           </div>
           
           <div class="actions">
-            <button type="submit">Сохранить</button>
-            <button type="button" @click="goBack">Отмена</button>
+            <button type="submit">{{ $t('common.save') }}</button>
+            <button type="button" @click="goBack">{{ $t('common.cancel') }}</button>
           </div>
         </form>
         <RuleEditor v-if="showRuleEditor" :rule="editingRule" @close="onRuleEditorClose" />
@@ -500,6 +500,8 @@
   </BaseLayout>
 </template>
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
@@ -535,11 +537,11 @@ const placeholders = ref([]);
 const editingPlaceholder = ref(null);
 const editingPlaceholderValue = ref('');
 const channelStatusLoading = ref({ web: false, telegram: false, email: false });
-const assistantChannels = [
-  { key: 'web', label: 'Web-чат' },
-  { key: 'telegram', label: 'Telegram' },
-  { key: 'email', label: 'Email' }
-];
+const assistantChannels = computed(() => [
+  { key: 'web', label: t('settings.ai.assistant.channels.web') },
+  { key: 'telegram', label: t('settings.ai.assistant.channels.telegram') },
+  { key: 'email', label: t('settings.ai.assistant.channels.email') }
+]);
 
 // Настройки RAG поиска (загружаются из ai_config)
 const ragSettings = ref({
@@ -998,7 +1000,7 @@ async function setChannelStatus(channelKey, isEnabled) {
     settings.value.enabled_channels = { ...updatedChannels };
   } catch (error) {
     console.error('[AiAssistantSettings] Не удалось обновить статус ассистента для канала', channelKey, error);
-    alert(`Не удалось обновить статус ассистента для канала ${channelKey}. Проверьте логи.`);
+    alert(t('settings.ai.assistant.channelUpdateError', { channel: channelKey }));
   } finally {
     channelStatusLoading.value = {
       ...channelStatusLoading.value,
@@ -1015,7 +1017,7 @@ function openRuleEditor(ruleId = null) {
   showRuleEditor.value = true;
 }
 async function deleteRule(ruleId) {
-  if (!confirm('Удалить этот набор правил?')) return;
+  if (!confirm(t('settings.ai.assistant.confirmDeleteRules'))) return;
       await axios.delete(`/settings/ai-assistant-rules/${ruleId}`);
   await loadRules();
   if (settings.value.rules_id === ruleId) settings.value.rules_id = null;
@@ -1028,12 +1030,12 @@ async function onRuleEditorClose(updated) {
 
 function getTableDisplayName(table) {
   if (!table) return '';
-  return table.name || `Таблица ${table.id}`;
+  return table.name || t('settings.ai.assistant.tableFallback', { id: table.id });
 }
 
 function getRuleDisplayName(rule) {
   if (!rule) return '';
-  return rule.name || `Набор правил ${rule.id}`;
+  return rule.name || t('settings.ai.assistant.rulesFallback', { id: rule.id });
 }
 </script>
 

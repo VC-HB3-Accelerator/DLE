@@ -15,6 +15,9 @@ import api from '../api/axios';
 import { getFromStorage, setToStorage, removeFromStorage } from '../utils/storage';
 import { generateUniqueId } from '../utils/helpers';
 import websocketModule from '../services/websocketService';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 const { websocketService } = websocketModule;
 
@@ -229,7 +232,7 @@ export function useChat(auth) {
     // Создаем локальное сообщение для отображения
     const userMessage = {
         id: tempId,
-        content: userMessageContent || `[${files.length} вложений]`, // Отображение для UI
+        content: userMessageContent || t('chat.attachmentsCount', { count: files.length }),
         sender_type: 'user',
         role: 'user',
         isLocal: true,
@@ -346,7 +349,7 @@ export function useChat(auth) {
             setToStorage('hasUserSentMessage', true);
 
         } else {
-            throw new Error(response.data.error || 'Ошибка отправки сообщения от API');
+            throw new Error(response.data.error || t('chat.sendApiError'));
         }
 
     } catch (error) {
@@ -359,7 +362,7 @@ export function useChat(auth) {
         // Добавляем системное сообщение об ошибке
         messages.value.push({
             id: `error-${Date.now()}`,
-            content: 'Произошла ошибка при отправке сообщения. Пожалуйста, попробуйте еще раз.',
+            content: t('chat.sendMessageError'),
             sender_type: 'system',
             role: 'system',
             timestamp: new Date().toISOString(),

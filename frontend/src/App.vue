@@ -12,6 +12,7 @@
 
 <template>
   <div id="app">
+    <el-config-provider :locale="elementPlusLocale">
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-spinner" />
     </div>
@@ -35,17 +36,26 @@
       <p>tokenBalances: {{ JSON.stringify(tokenBalances) }}</p>
       <p>isLoadingTokens: {{ isLoadingTokens }}</p>
     </div>
+    </el-config-provider>
   </div>
 </template>
 
 <script setup>
   import { ref, watch, onMounted, computed, onUnmounted } from 'vue';
   import { RouterView } from 'vue-router';
+  import { useI18n } from 'vue-i18n';
+  import { elementPlusLocales } from './locales';
   import { useAuth, provideAuth } from './composables/useAuth';
   import { provideFooterDle } from './composables/useFooterDle';
   import { useTokenBalancesWebSocket } from './composables/useTokenBalancesWebSocket';
   import eventBus from './utils/eventBus';
   import wsClient from './utils/websocket';
+  import { fetchRegionUrls } from './services/regionUrlsService';
+
+  const { locale } = useI18n();
+  const elementPlusLocale = computed(
+    () => elementPlusLocales[locale.value] || elementPlusLocales.ru
+  );
   
   // Импорт стилей
   import './assets/styles/variables.css';
@@ -180,6 +190,7 @@
     
     // Проверяем наличие MetaMask
     checkMetaMaskAvailability();
+    fetchRegionUrls().catch(() => {});
     if (auth.isAuthenticated.value) {
       console.log('[App] onMounted - вызываем refreshTokenBalances');
       refreshTokenBalances();

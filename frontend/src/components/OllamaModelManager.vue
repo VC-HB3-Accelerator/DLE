@@ -12,23 +12,23 @@
 
 <template>
   <div class="ollama-model-manager">
-    <h3>Управление локальными моделями</h3>
+    <h3>{{ t('ai.ollama.title') }}</h3>
     
     <!-- Статус подключения -->
     <div class="connection-status">
       <div class="status-indicator" :class="{ connected: isConnected }">
-        {{ isConnected ? '🟢 Подключено' : '🔴 Не подключено' }}
+        {{ isConnected ? t('ai.ollama.connected') : t('ai.ollama.disconnected') }}
       </div>
       <button @click="checkConnection" :disabled="checking">
-        {{ checking ? 'Проверка...' : 'Проверить подключение' }}
+        {{ checking ? t('ai.ollama.checking') : t('ai.ollama.checkConnection') }}
       </button>
     </div>
 
     <!-- Установленные модели -->
     <div class="installed-models" v-if="isConnected">
-      <h4>Установленные модели</h4>
+      <h4>{{ t('ai.ollama.installedModels') }}</h4>
       <div v-if="installedModels.length === 0" class="no-models">
-        Нет установленных моделей
+        {{ t('ai.ollama.noModels') }}
       </div>
       <div v-else class="models-list">
         <div v-for="model in installedModels" :key="model.name" class="model-item">
@@ -39,7 +39,7 @@
           </div>
           <div class="model-actions">
             <button @click="removeModel(model.name)" :disabled="removing === model.name" class="remove-btn">
-              {{ removing === model.name ? 'Удаление...' : 'Удалить' }}
+              {{ removing === model.name ? t('ai.ollama.removing') : t('ai.ollama.remove') }}
             </button>
           </div>
         </div>
@@ -48,21 +48,21 @@
 
     <!-- Поиск и установка моделей -->
     <div class="model-search" v-if="isConnected">
-      <h4>Установить новую модель</h4>
+      <h4>{{ t('ai.ollama.installNew') }}</h4>
       <div class="search-form">
         <input 
           v-model="searchQuery" 
-          placeholder="Введите название модели (например: qwen2.5:7b, llama2:7b)"
+          :placeholder="t('ai.ollama.modelPlaceholder')"
           @keyup.enter="searchModels"
         />
         <button @click="searchModels" :disabled="searching || !searchQuery">
-          {{ searching ? 'Поиск...' : 'Найти' }}
+          {{ searching ? t('ai.ollama.searching') : t('ai.ollama.find') }}
         </button>
       </div>
       
       <!-- Популярные модели -->
       <div class="popular-models">
-        <h5>Популярные модели:</h5>
+        <h5>{{ t('ai.ollama.popularModels') }}</h5>
         <div class="popular-list">
           <button 
             v-for="model in popularModels" 
@@ -71,7 +71,7 @@
             :disabled="installing === model"
             class="popular-model-btn"
           >
-            {{ installing === model ? 'Установка...' : model }}
+            {{ installing === model ? t('ai.ollama.installing') : model }}
           </button>
         </div>
       </div>
@@ -79,25 +79,25 @@
 
     <!-- Инструкции -->
     <div class="instructions" v-if="!isConnected">
-      <h4>Как установить Ollama</h4>
+      <h4>{{ t('ai.ollama.howToInstall') }}</h4>
       <div class="instruction-steps">
         <div class="step">
-          <strong>1. Установите Ollama:</strong>
+          <strong>{{ t('ai.ollama.step1') }}</strong>
           <a href="https://ollama.ai/download" target="_blank" class="download-link">
-            Скачать с официального сайта
+            {{ t('ai.ollama.downloadLink') }}
           </a>
         </div>
         <div class="step">
-          <strong>2. Запустите Ollama:</strong>
+          <strong>{{ t('ai.ollama.step2') }}</strong>
           <code>ollama serve</code>
         </div>
         <div class="step">
-          <strong>3. Установите модель:</strong>
+          <strong>{{ t('ai.ollama.step3') }}</strong>
           <code>ollama pull qwen2.5:7b</code>
         </div>
         <div class="step">
-          <strong>4. Проверьте подключение:</strong>
-          Нажмите кнопку "Проверить подключение" выше
+          <strong>{{ t('ai.ollama.step4') }}</strong>
+          {{ t('ai.ollama.step4Hint') }}
         </div>
       </div>
     </div>
@@ -106,7 +106,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import axios from 'axios';
+
+const { t, tm, locale } = useI18n();
 
 const isConnected = ref(false);
 const checking = ref(false);
@@ -125,7 +128,6 @@ const popularModels = [
   'qwen2.5:14b'
 ];
 
-// Проверка подключения к Ollama
 async function checkConnection() {
   checking.value = true;
   try {
@@ -135,40 +137,34 @@ async function checkConnection() {
       await loadInstalledModels();
     }
   } catch (error) {
-            // console.error('Ошибка проверки подключения:', error);
     isConnected.value = false;
   } finally {
     checking.value = false;
   }
 }
 
-// Загрузка установленных моделей
 async function loadInstalledModels() {
   try {
     const response = await axios.get('/ollama/models');
     installedModels.value = response.data.models || [];
   } catch (error) {
-            // console.error('Ошибка загрузки моделей:', error);
+    // ignore
   }
 }
 
-// Поиск моделей
 async function searchModels() {
   if (!searchQuery.value.trim()) return;
   
   searching.value = true;
   try {
-    // Здесь можно добавить поиск моделей в реестре Ollama
-    // Пока просто устанавливаем модель напрямую
     await installModel(searchQuery.value.trim());
   } catch (error) {
-            // console.error('Ошибка поиска моделей:', error);
+    // ignore
   } finally {
     searching.value = false;
   }
 }
 
-// Установка модели
 async function installModel(modelName) {
   installing.value = modelName;
   try {
@@ -176,38 +172,36 @@ async function installModel(modelName) {
     await loadInstalledModels();
     searchQuery.value = '';
   } catch (error) {
-            // console.error('Ошибка установки модели:', error);
+    // ignore
   } finally {
     installing.value = '';
   }
 }
 
-// Удаление модели
 async function removeModel(modelName) {
   removing.value = modelName;
   try {
     await axios.delete(`/ollama/models/${encodeURIComponent(modelName)}`);
     await loadInstalledModels();
   } catch (error) {
-            // console.error('Ошибка удаления модели:', error);
+    // ignore
   } finally {
     removing.value = '';
   }
 }
 
-// Форматирование размера
 function formatSize(bytes) {
-  if (bytes === 0) return '0 Б';
+  if (bytes === 0) return t('ai.ollama.zeroBytes');
   const k = 1024;
-  const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
+  const sizes = tm('ai.ollama.sizeUnits');
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Форматирование даты
 function formatDate(dateString) {
   const date = new Date(dateString);
-  return date.toLocaleDateString('ru-RU', {
+  const dateLocale = locale.value === 'ru' ? 'ru-RU' : 'en-US';
+  return date.toLocaleDateString(dateLocale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -432,4 +426,4 @@ h4 {
 h5 {
   font-size: 1em;
 }
-</style> 
+</style>

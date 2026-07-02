@@ -14,31 +14,31 @@
   <BaseLayout>
     <!-- Доступ проверяет router guard, v-if не нужен -->
     <div class="contact-details-page">
-    <div v-if="isLoading">Загрузка...</div>
-    <div v-else-if="!contact">Контакт не найден</div>
+    <div v-if="isLoading">{{ t('common.loading') }}</div>
+    <div v-else-if="!contact">{{ t('contacts.contactNotFound') }}</div>
     <div v-else class="contact-details-content">
       <div class="contact-details-header">
-        <h2>Детали контакта</h2>
+        <h2>{{ t('contacts.details.title') }}</h2>
           <button class="close-btn" @click="goBack">×</button>
       </div>
       <div class="contact-info-section">
         <div class="contact-info-block">
-        <div><strong>ID пользователя:</strong> {{ contact.id }}</div>
+        <div><strong>{{ t('contacts.details.userId') }}</strong> {{ contact.id }}</div>
         <div>
-          <strong>Имя:</strong>
+          <strong>{{ t('contacts.details.name') }}</strong>
             <template v-if="canEditContacts">
           <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
-          <span v-if="isSavingName" class="saving">Сохранение...</span>
+          <span v-if="isSavingName" class="saving">{{ t('common.saving') }}</span>
             </template>
             <template v-else>
               {{ contact.name }}
             </template>
         </div>
-        <div><strong>Email:</strong> {{ maskPersonalData(contact.email) }}</div>
-        <div><strong>Telegram:</strong> {{ maskPersonalData(contact.telegram) }}</div>
-        <div><strong>Кошелек:</strong> {{ maskPersonalData(contact.wallet) }}</div>
+        <div><strong>{{ t('contacts.details.email') }}</strong> {{ maskPersonalData(contact.email) }}</div>
+        <div><strong>{{ t('contacts.details.telegram') }}</strong> {{ maskPersonalData(contact.telegram) }}</div>
+        <div><strong>{{ t('contacts.details.wallet') }}</strong> {{ maskPersonalData(contact.wallet) }}</div>
         <div>
-          <strong>Язык:</strong>
+          <strong>{{ t('contacts.details.language') }}</strong>
           <div class="multi-select">
             <div class="selected-langs">
               <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
@@ -52,7 +52,7 @@
                 @input="showLangDropdown = true"
                 @keydown.enter.prevent="addLanguageFromInput"
                 class="lang-input"
-                placeholder="Добавить язык..."
+                :placeholder="t('contacts.details.addLanguage')"
               />
             </div>
             <ul v-if="showLangDropdown && canEditContacts" class="lang-dropdown">
@@ -66,22 +66,22 @@
               </li>
             </ul>
           </div>
-          <span v-if="isSavingLangs" class="saving">Сохранение...</span>
+          <span v-if="isSavingLangs" class="saving">{{ t('common.saving') }}</span>
         </div>
-        <div><strong>Дата создания:</strong> {{ formatDate(contact.created_at) }}</div>
-        <div><strong>Дата последнего сообщения:</strong> {{ formatDate(lastMessageDate) }}</div>
+        <div><strong>{{ t('contacts.details.createdAt') }}</strong> {{ formatDate(contact.created_at) }}</div>
+        <div><strong>{{ t('contacts.details.lastMessageDate') }}</strong> {{ formatDate(lastMessageDate) }}</div>
         <div class="user-tags-block">
-          <strong>Теги пользователя:</strong>
+          <strong>{{ t('contacts.details.userTags') }}</strong>
           <span v-for="tag in userTags" :key="tag.id" class="user-tag">
             {{ tag.name }}
             <span v-if="canManageTags" class="remove-tag" @click="removeUserTag(tag.id)">×</span>
           </span>
-          <button v-if="canManageTags" class="add-tag-btn" @click="openTagModal">Добавить тег</button>
+          <button v-if="canManageTags" class="add-tag-btn" @click="openTagModal">{{ t('contacts.details.addTag') }}</button>
         </div>
         <div class="block-user-section">
-          <strong>Статус блокировки:</strong>
-          <span v-if="contact.is_blocked" class="blocked-status">Заблокирован</span>
-          <span v-else class="unblocked-status">Не заблокирован</span>
+          <strong>{{ t('contacts.details.blockStatus') }}</strong>
+          <span v-if="contact.is_blocked" class="blocked-status">{{ t('contacts.details.blocked') }}</span>
+          <span v-else class="unblocked-status">{{ t('contacts.details.unblocked') }}</span>
           <template v-if="canBlockUsers">
             <el-button
               v-if="!contact.is_blocked"
@@ -89,24 +89,24 @@
               size="small"
               @click="blockUser"
               style="margin-left: 1em;"
-            >Заблокировать</el-button>
+            >{{ t('contacts.details.block') }}</el-button>
             <el-button
               v-else
               type="success"
               size="small"
               @click="unblockUser"
               style="margin-left: 1em;"
-            >Разблокировать</el-button>
+            >{{ t('contacts.details.unblock') }}</el-button>
           </template>
         </div>
         <div class="delete-actions" v-if="canDeleteData">
-          <button class="delete-history-btn" @click="deleteMessagesHistory">Удалить историю сообщений</button>
-          <button class="delete-btn" @click="deleteContact">Удалить контакт</button>
+          <button class="delete-history-btn" @click="deleteMessagesHistory">{{ t('contacts.details.deleteHistory') }}</button>
+          <button class="delete-btn" @click="deleteContact">{{ t('contacts.details.deleteContact') }}</button>
         </div>
         </div>
       </div>
       <div class="messages-block">
-        <h3>Чат с пользователем</h3>
+        <h3>{{ t('contacts.details.chatWithUser') }}</h3>
         <ChatInterface
           :messages="messages"
           :isLoading="isLoadingMessages"
@@ -122,13 +122,13 @@
           @ai-reply="handleAiReply"
         />
       </div>
-      <el-dialog v-if="canManageTags" v-model="showTagModal" title="Добавить тег пользователю">
+      <el-dialog v-if="canManageTags" v-model="showTagModal" :title="t('contacts.details.addTagTitle')">
         <div v-if="allTags.length">
           <el-select
             v-model="selectedTags"
             multiple
             filterable
-            placeholder="Выберите теги"
+            :placeholder="t('contacts.details.selectTags')"
             @change="addTagsToUser"
           >
             <el-option
@@ -139,16 +139,16 @@
             />
           </el-select>
           <div style="margin-top: 1em; color: #888; font-size: 0.95em;">
-            <strong>Существующие теги:</strong>
+            <strong>{{ t('contacts.details.existingTags') }}</strong>
             <span v-for="tag in allTags" :key="'list-' + tag.id" style="margin-right: 0.7em;">
               {{ tag.name }}<span v-if="tag.description"> ({{ tag.description }})</span>
             </span>
           </div>
         </div>
         <div style="margin-top: 1em;">
-          <el-input v-model="newTagName" placeholder="Новый тег" />
-          <el-input v-model="newTagDescription" placeholder="Описание" />
-          <el-button type="primary" @click="createTag">Создать тег</el-button>
+          <el-input v-model="newTagName" :placeholder="t('contacts.details.newTag')" />
+          <el-input v-model="newTagDescription" :placeholder="t('contacts.details.tagDescription')" />
+          <el-button type="primary" @click="createTag">{{ t('contacts.details.createTag') }}</el-button>
         </div>
       </el-dialog>
     </div>
@@ -158,6 +158,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import Message from '../../components/Message.vue';
@@ -170,6 +171,7 @@ import { usePermissions } from '@/composables/usePermissions';
 import { PERMISSIONS } from './permissions.js';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
 import websocketServiceModule from '@/services/websocketService';
+const { t } = useI18n();
 const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts, hasPermission } = usePermissions();
 const { address, userId: currentUserId } = useAuthContext();
 const { markContactAsRead } = useContactsAndMessagesWebSocket();
@@ -192,6 +194,7 @@ onMounted(() => {
 import { ElMessageBox } from 'element-plus';
 import tablesService from '../../services/tablesService';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
+import { getClientTagsTableMeta } from '../../utils/clientTagsTable';
 
 const route = useRoute();
 const router = useRouter();
@@ -243,33 +246,34 @@ function maskPersonalData(data) {
 }
 
 async function ensureTagsTable() {
+  const tagsMeta = getClientTagsTableMeta();
   // Получаем все пользовательские таблицы
   const tables = await tablesService.getTables();
-  let tagsTable = tables.find(t => t.name === 'Теги клиентов');
+  let tagsTable = tables.find(t => t.name === tagsMeta.name);
   
   if (!tagsTable) {
     // Если таблицы нет — создаём
     tagsTable = await tablesService.createTable({
-      name: 'Теги клиентов',
-      description: 'Справочник тегов для контактов',
+      name: tagsMeta.name,
+      description: tagsMeta.description,
       isRagSourceId: 2 // не источник для RAG по умолчанию
     });
     
     // Добавляем столбцы параллельно
     await Promise.all([
-      tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' }),
-      tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' })
+      tablesService.addColumn(tagsTable.id, { name: tagsMeta.columnName, type: 'text' }),
+      tablesService.addColumn(tagsTable.id, { name: tagsMeta.columnDescription, type: 'text' })
     ]);
   } else {
     // Проверяем, есть ли нужные столбцы, если таблица уже была создана
     const table = await tablesService.getTable(tagsTable.id);
-    const hasName = table.columns.some(col => col.name === 'Название');
-    const hasDesc = table.columns.some(col => col.name === 'Описание');
+    const hasName = table.columns.some(col => col.name === tagsMeta.columnName);
+    const hasDesc = table.columns.some(col => col.name === tagsMeta.columnDescription);
     
     // Добавляем недостающие столбцы параллельно
     const addColumnPromises = [];
-    if (!hasName) addColumnPromises.push(tablesService.addColumn(tagsTable.id, { name: 'Название', type: 'text' }));
-    if (!hasDesc) addColumnPromises.push(tablesService.addColumn(tagsTable.id, { name: 'Описание', type: 'text' }));
+    if (!hasName) addColumnPromises.push(tablesService.addColumn(tagsTable.id, { name: tagsMeta.columnName, type: 'text' }));
+    if (!hasDesc) addColumnPromises.push(tablesService.addColumn(tagsTable.id, { name: tagsMeta.columnDescription, type: 'text' }));
     
     if (addColumnPromises.length > 0) {
       await Promise.all(addColumnPromises);
@@ -310,33 +314,33 @@ function toggleSidebar() {
 }
 
 // --- Языки ---
-const allLanguages = [
-  { value: 'ru', label: 'Русский' },
-  { value: 'en', label: 'English' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'fr', label: 'Français' },
-  { value: 'es', label: 'Español' },
-  { value: 'zh', label: '中文' },
-  { value: 'ar', label: 'العربية' },
-  { value: 'pt', label: 'Português' },
-  { value: 'it', label: 'Italiano' },
-  { value: 'ja', label: '日本語' },
-  { value: 'tr', label: 'Türkçe' },
-  { value: 'pl', label: 'Polski' },
-  { value: 'uk', label: 'Українська' },
-  { value: 'other', label: 'Другое' }
-];
+const allLanguages = computed(() => [
+  { value: 'ru', label: t('common.languages.ru') },
+  { value: 'en', label: t('common.languages.en') },
+  { value: 'de', label: t('common.languages.de') },
+  { value: 'fr', label: t('common.languages.fr') },
+  { value: 'es', label: t('common.languages.es') },
+  { value: 'zh', label: t('common.languages.zh') },
+  { value: 'ar', label: t('common.languages.ar') },
+  { value: 'pt', label: t('common.languages.pt') },
+  { value: 'it', label: t('common.languages.it') },
+  { value: 'ja', label: t('common.languages.ja') },
+  { value: 'tr', label: t('common.languages.tr') },
+  { value: 'pl', label: t('common.languages.pl') },
+  { value: 'uk', label: t('common.languages.uk') },
+  { value: 'other', label: t('common.languages.other') }
+]);
 const selectedLanguages = ref([]);
 const langInput = ref('');
 const showLangDropdown = ref(false);
 const filteredLanguages = computed(() => {
   const input = langInput.value.toLowerCase();
-  return allLanguages.filter(
+  return allLanguages.value.filter(
     l => !selectedLanguages.value.includes(l.value) && l.label.toLowerCase().includes(input)
   );
 });
 function getLanguageLabel(val) {
-  const found = allLanguages.find(l => l.value === val);
+  const found = allLanguages.value.find(l => l.value === val);
   return found ? found.label : val;
 }
 function addLanguage(lang) {
@@ -382,11 +386,11 @@ async function deleteMessagesHistory() {
   
   try {
     const confirmed = await ElMessageBox.confirm(
-      'Вы действительно хотите удалить всю историю сообщений этого пользователя? Это действие необратимо.',
-      'Подтверждение удаления',
+      t('contacts.details.confirmDeleteHistory'),
+      t('contacts.details.confirmDeleteHistoryTitle'),
       {
-        confirmButtonText: 'Удалить',
-        cancelButtonText: 'Отмена',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     );
@@ -395,21 +399,20 @@ async function deleteMessagesHistory() {
       const result = await messagesService.deleteMessagesHistory(contact.value.id);
       if (result.success) {
         ElMessageBox.alert(
-          `История сообщений успешно удалена. Удалено сообщений: ${result.deletedMessages}, бесед: ${result.deletedConversations}`,
-          'Успех',
+          t('contacts.details.historyDeleted', { messages: result.deletedMessages, conversations: result.deletedConversations }),
+          t('common.success'),
           { type: 'success' }
         );
-        // Обновляем список сообщений
         await loadMessages();
       } else {
-        throw new Error('Не удалось удалить историю сообщений');
+        throw new Error(t('contacts.details.failedDeleteHistory'));
       }
     }
   } catch (e) {
     if (e !== 'cancel') {
       ElMessageBox.alert(
-        'Ошибка при удалении истории сообщений: ' + (e?.response?.data?.error || e?.message || e),
-        'Ошибка',
+        t('contacts.details.deleteHistoryError', { error: e?.response?.data?.error || e?.message || e }),
+        t('common.error'),
         { type: 'error' }
       );
     }
@@ -491,7 +494,7 @@ async function handleSendMessage({ message, attachments }) {
   if (!contact.value || !contact.value.id) return;
   if (contact.value.is_blocked) {
     if (typeof ElMessageBox === 'function') {
-      ElMessageBox.alert('Пользователь заблокирован. Отправка сообщений невозможна.', 'Ошибка', { type: 'error' });
+      ElMessageBox.alert(t('contacts.details.userBlocked'), t('common.error'), { type: 'error' });
     } else {
       console.error('Пользователь заблокирован. Отправка сообщений невозможна.');
     }
@@ -501,7 +504,7 @@ async function handleSendMessage({ message, attachments }) {
   const hasAnyId = contact.value.email || contact.value.telegram || contact.value.wallet;
   if (!hasAnyId) {
     if (typeof ElMessageBox === 'function') {
-      ElMessageBox.alert('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.', 'Ошибка', { type: 'warning' });
+      ElMessageBox.alert(t('contacts.details.noIdentifiers'), t('common.error'), { type: 'warning' });
     } else {
       console.error('У пользователя нет ни одного идентификатора (email, telegram, wallet). Сообщение не может быть отправлено.');
     }
@@ -520,14 +523,14 @@ async function handleSendMessage({ message, attachments }) {
       // Обновляем список сообщений
       await loadMessages();
       if (typeof ElMessageBox === 'function') {
-        ElMessageBox.alert('Сообщение отправлено успешно', 'Успех', { type: 'success' });
+        ElMessageBox.alert(t('contacts.details.sendSuccess'), t('common.success'), { type: 'success' });
       }
     } else {
-      throw new Error(result?.message || 'Неизвестная ошибка');
+      throw new Error(result?.message || t('common.unknownError'));
     }
   } catch (e) {
     if (typeof ElMessageBox === 'function') {
-      ElMessageBox.alert('Ошибка отправки: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
+      ElMessageBox.alert(t('contacts.details.sendError', { error: e?.response?.data?.error || e?.message || e }), t('common.error'), { type: 'error' });
     } else {
       console.error('Ошибка отправки:', e?.response?.data?.error || e?.message || e);
     }
@@ -541,7 +544,7 @@ async function handleAiReply(selectedMessages = []) {
     return;
   }
   if (!Array.isArray(selectedMessages) || selectedMessages.length === 0) {
-    alert('Выберите хотя бы одно сообщение пользователя для генерации ответа.');
+    alert(t('contacts.details.selectMessageForAi'));
     return;
   }
   isAiLoading.value = true;
@@ -552,10 +555,10 @@ async function handleAiReply(selectedMessages = []) {
       chatNewMessage.value = draftResp.aiMessage;
       // console.log('[AI-ASSISTANT] Черновик сгенерирован:', draftResp.aiMessage);
     } else {
-      alert('Не удалось сгенерировать ответ ИИ.');
+      alert(t('contacts.details.aiGenerateFailed'));
     }
   } catch (e) {
-    alert('Ошибка генерации ответа ИИ: ' + (e?.message || e));
+    alert(t('contacts.details.aiGenerateError', { error: e?.message || e }));
   } finally {
     isAiLoading.value = false;
     // console.log('[AI-ASSISTANT] Генерация завершена');
@@ -564,7 +567,7 @@ async function handleAiReply(selectedMessages = []) {
 
 function showBlockStatusMessage(msg, type = 'info') {
   if (typeof ElMessageBox === 'function') {
-    ElMessageBox.alert(msg, 'Статус блокировки', { type });
+    ElMessageBox.alert(msg, t('contacts.details.blockStatusTitle'), { type });
   } else {
     alert(msg);
   }
@@ -575,9 +578,9 @@ async function blockUser() {
   try {
     await contactsService.blockContact(contact.value.id);
     contact.value.is_blocked = true;
-    showBlockStatusMessage('Пользователь заблокирован', 'success');
+    showBlockStatusMessage(t('contacts.details.blockSuccess'), 'success');
   } catch (e) {
-    showBlockStatusMessage('Ошибка блокировки пользователя', 'error');
+    showBlockStatusMessage(t('contacts.details.blockError'), 'error');
   }
 }
 
@@ -586,9 +589,9 @@ async function unblockUser() {
   try {
     await contactsService.unblockContact(contact.value.id);
     contact.value.is_blocked = false;
-    showBlockStatusMessage('Пользователь разблокирован', 'success');
+    showBlockStatusMessage(t('contacts.details.unblockSuccess'), 'success');
   } catch (e) {
-    showBlockStatusMessage('Ошибка разблокировки пользователя', 'error');
+    showBlockStatusMessage(t('contacts.details.unblockError'), 'error');
   }
 }
 
@@ -605,7 +608,7 @@ async function createTag() {
       // console.log('DEBUG newRow:', newRow);
   if (!newRow || !newRow.id) {
           // console.error('Ошибка: не удалось получить id новой строки', newRow);
-    alert('Ошибка: не удалось получить id новой строки. См. консоль.');
+    alert(t('contacts.details.tagRowError'));
     return;
   }
   const newRowId = newRow.id;
@@ -661,9 +664,9 @@ async function addTagsToUser() {
     await contactsService.addTagsToContact(contact.value.id, selectedTags.value);
     await loadUserTags();
     showTagModal.value = false;
-    ElMessageBox.alert('Теги успешно добавлены.', 'Успех', { type: 'success' });
+    ElMessageBox.alert(t('contacts.details.tagsAdded'), t('common.success'), { type: 'success' });
   } catch (e) {
-    ElMessageBox.alert('Ошибка добавления тегов: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
+    ElMessageBox.alert(t('contacts.details.tagsAddError', { error: e?.response?.data?.error || e?.message || e }), t('common.error'), { type: 'error' });
   }
 }
 
@@ -673,9 +676,9 @@ async function removeUserTag(tagId) {
   try {
     await contactsService.removeTagFromContact(contact.value.id, tagId);
     await loadUserTags();
-    ElMessageBox.alert('Тег успешно удален.', 'Успех', { type: 'success' });
+    ElMessageBox.alert(t('contacts.details.tagRemoved'), t('common.success'), { type: 'success' });
   } catch (e) {
-    ElMessageBox.alert('Ошибка удаления тега: ' + (e?.response?.data?.error || e?.message || e), 'Ошибка', { type: 'error' });
+    ElMessageBox.alert(t('contacts.details.tagRemoveError', { error: e?.response?.data?.error || e?.message || e }), t('common.error'), { type: 'error' });
   }
 }
 

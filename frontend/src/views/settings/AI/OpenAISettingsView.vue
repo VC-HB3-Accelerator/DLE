@@ -14,11 +14,11 @@
   <BaseLayout>
     <div class="openai-settings-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>OpenAI: интеграция и настройки</h2>
+      <h2>{{ $t('settings.ai.openai.pageTitle') }}</h2>
       <AIProviderSettings
         provider="openai"
-        label="OpenAI API Key"
-        description="Введите OpenAI API Key и (опционально) Base URL для кастомных endpoint."
+        :label="t('settings.ai.openai.label')"
+        :description="t('settings.ai.openai.providerDescription')"
         apiKeyPlaceholder="sk-..."
         baseUrlPlaceholder="https://api.openai.com/v1"
         :showApiKey="true"
@@ -29,6 +29,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import AIProviderSettings from '@/views/settings/AIProviderSettings.vue';
 import { useRouter } from 'vue-router';

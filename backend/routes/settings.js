@@ -53,6 +53,7 @@ const aiAssistantRulesService = require('../services/aiAssistantRulesService');
 const botsSettings = require('../services/botsSettings');
 const dbSettingsService = require('../services/dbSettingsService');
 const footerDleService = require('../services/footerDleService');
+const regionUrlsService = require('../services/regionUrlsService');
 const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
 
 // Логируем версию ethers для отладки
@@ -113,6 +114,37 @@ router.delete('/footer-dle', requireAdmin, async (req, res) => {
   } catch (error) {
     logger.error('[Settings] Ошибка при очистке footer DLE:', error);
     res.status(500).json({ success: false, error: 'Не удалось очистить выбранный DLE для футера' });
+  }
+});
+
+// === REGION SERVER URLS (RU / International switcher) =======================
+
+router.get('/region-urls', async (req, res) => {
+  try {
+    const data = await regionUrlsService.getRegionUrls(req);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] Ошибка получения region-urls:', error);
+    res.status(500).json({ success: false, error: 'Не удалось получить адреса региональных серверов' });
+  }
+});
+
+router.put('/region-urls', requireAdmin, async (req, res) => {
+  try {
+    const { regions } = req.body || {};
+    const data = await regionUrlsService.setRegionUrls({ regions }, req);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] Ошибка сохранения region-urls:', error);
+    let message = 'Не удалось сохранить адреса региональных серверов';
+    if (error.message?.includes('Invalid URL')) {
+      message = 'Укажите корректный URL (http:// или https://)';
+    } else if (error.message?.includes('label required') || error.message?.includes('URL required')) {
+      message = 'Для каждого региона укажите название кнопки и URL сервера';
+    } else if (error.message === 'Invalid regions payload') {
+      message = 'Некорректный формат списка регионов';
+    }
+    res.status(400).json({ success: false, error: message });
   }
 });
 

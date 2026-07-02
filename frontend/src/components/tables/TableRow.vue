@@ -21,14 +21,17 @@
       @update="val => $emit('update', { rowId: row.id, columnId: col.id, value: val })"
     />
     <td>
-      <button class="danger" @click="$emit('delete')">Удалить</button>
+      <button class="danger" @click="$emit('delete')">{{ t('tables.common.delete') }}</button>
     </td>
   </tr>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import TableCell from './TableCell.vue';
-const props = defineProps(['row', 'columns', 'cellValues']);
+
+const { t } = useI18n();
+defineProps(['row', 'columns', 'cellValues']);
 </script>
 
 <style scoped>
@@ -45,4 +48,4 @@ const props = defineProps(['row', 'columns', 'cellValues']);
 .danger:hover {
   background: #d9363e;
 }
-</style> 
+</style>

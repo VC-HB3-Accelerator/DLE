@@ -24,47 +24,47 @@
         <!-- Столбец 1 -->
         <div class="blocks-column">
           <div class="management-block">
-            <h3>Контакты</h3>
-            <p>Управление контактной базой, клиентами и партнерами</p>
+            <h3>{{ t('crm.contacts') }}</h3>
+            <p>{{ t('crm.contactsDesc') }}</p>
             <button class="details-btn" @click="goToContactsList">
-              Подробнее
+              {{ t('common.details') }}
             </button>
           </div>
           
           <div class="management-block">
-            <h3>Таблицы</h3>
-            <p>Создание и управление таблицами данных</p>
-            <button class="details-btn" @click="goToTables">Подробнее</button>
+            <h3>{{ t('crm.tables') }}</h3>
+            <p>{{ t('crm.tablesDesc') }}</p>
+            <button class="details-btn" @click="goToTables">{{ t('common.details') }}</button>
           </div>
         </div>
 
         <!-- Столбец 2 -->
         <div class="blocks-column">
           <div class="management-block">
-            <h3>Контент</h3>
-            <p>Управление контентом, страницами и публикациями</p>
-            <button class="details-btn" @click="goToContent">Подробнее</button>
+            <h3>{{ t('crm.content') }}</h3>
+            <p>{{ t('crm.contentDesc') }}</p>
+            <button class="details-btn" @click="goToContent">{{ t('common.details') }}</button>
           </div>
           
           <div class="management-block">
-            <h3>Управление</h3>
-            <p>Администрирование системы и настройки</p>
-            <button class="details-btn" @click="goToManagement">Подробнее</button>
+            <h3>{{ t('crm.management') }}</h3>
+            <p>{{ t('crm.managementDesc') }}</p>
+            <button class="details-btn" @click="goToManagement">{{ t('common.details') }}</button>
           </div>
         </div>
 
         <!-- Столбец 3 -->
         <div class="blocks-column">
           <div class="management-block">
-            <h3>VDS Сервер</h3>
-            <p>Настройки и управление</p>
-            <button class="details-btn" @click="goToWeb3App">Подробнее</button>
+            <h3>{{ t('crm.vds') }}</h3>
+            <p>{{ t('crm.vdsDesc') }}</p>
+            <button class="details-btn" @click="goToWeb3App">{{ t('common.details') }}</button>
           </div>
           
           <div class="management-block">
-            <h3>Группы</h3>
-            <p>Создание и управление</p>
-            <button class="details-btn" @click="goToAcceleratorRegistration">Подробнее</button>
+            <h3>{{ t('crm.groups') }}</h3>
+            <p>{{ t('crm.groupsDesc') }}</p>
+            <button class="details-btn" @click="goToAcceleratorRegistration">{{ t('common.details') }}</button>
           </div>
         </div>
       </div>
@@ -74,6 +74,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, defineProps, defineEmits, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../composables/useAuth';
 import { useRouter } from 'vue-router';
 import { setToStorage } from '../utils/storage';
@@ -94,6 +95,7 @@ const props = defineProps({
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
 
+const { t } = useI18n();
 const auth = useAuthContext();
 const router = useRouter();
 const isLoading = ref(true);
@@ -217,7 +219,7 @@ async function loadContacts() {
     contacts.value = result.contacts || [];
   } catch (e) {
     contacts.value = [];
-    alert('Ошибка загрузки контактов');
+    alert(t('crm.loadContactsError'));
   } finally {
     isLoadingContacts.value = false;
   }

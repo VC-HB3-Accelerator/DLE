@@ -13,7 +13,7 @@
 <template>
   <BaseLayout>
     <div class="contacts-header">
-      <span>Контакты</span>
+      <span>{{ t('contacts.title') }}</span>
       <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
     </div>
     <!-- Таблица контактов для всех пользователей -->
@@ -31,6 +31,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import ContactTable from '../components/ContactTable.vue';
@@ -38,6 +39,7 @@ import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSo
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 
+const { t } = useI18n();
 const {
   contacts, newContacts, newMessages,
   markMessagesAsRead, markMessagesAsReadForUser, markContactAsRead, fetchContacts, clearContactsData

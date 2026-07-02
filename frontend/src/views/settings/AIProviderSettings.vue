@@ -16,18 +16,18 @@
     <p class="desc">{{ description }}</p>
     <form @submit.prevent="onSave">
       <div v-if="showApiKey">
-        <label>API Key:</label>
+        <label>{{ $t('settings.ai.providerSettings.apiKey') }}</label>
         <input type="password" v-model="apiKey" :placeholder="apiKeyPlaceholder" />
-        <button type="button" class="verify-btn" @click="onVerify" :disabled="verifying">Verify</button>
+        <button type="button" class="verify-btn" @click="onVerify" :disabled="verifying">{{ $t('settings.ai.providerSettings.verify') }}</button>
         <span v-if="verifyStatus === true" class="ok">✔️</span>
-        <span v-if="verifyStatus === false" class="error">Ошибка: {{ verifyError }}</span>
+        <span v-if="verifyStatus === false" class="error">{{ $t('settings.ai.providerSettings.errorPrefix') }} {{ verifyError }}</span>
       </div>
       <div v-if="showBaseUrl">
-        <label>Base URL:</label>
+        <label>{{ $t('settings.ai.providerSettings.baseUrl') }}</label>
         <input type="text" v-model="baseUrl" :placeholder="baseUrlPlaceholder" />
       </div>
       <div v-if="models.length">
-        <label>Модель (LLM):</label>
+        <label>{{ $t('settings.ai.providerSettings.llmModel') }}</label>
         <select v-model="selectedModel">
           <option v-for="model in models" :key="model.id || model.name || model" :value="model.id || model.name || model">
             {{ model.id || model.name || model }}
@@ -35,7 +35,7 @@
         </select>
       </div>
       <div v-if="embeddingModels.length">
-        <label>Embeddings-модель:</label>
+        <label>{{ $t('settings.ai.providerSettings.embeddingModel') }}</label>
         <select v-model="selectedEmbeddingModel">
           <option v-for="model in embeddingModels" :key="model.id || model.name || model" :value="model.id || model.name || model">
             {{ model.id || model.name || model }}
@@ -43,17 +43,19 @@
         </select>
       </div>
       <div class="actions">
-        <button type="submit" :disabled="saving">Сохранить</button>
-        <button type="button" @click="onDelete" v-if="hasSettings">Удалить ключ</button>
-        <button type="button" @click="$emit('cancel')">Закрыть</button>
+        <button type="submit" :disabled="saving">{{ $t('common.save') }}</button>
+        <button type="button" @click="onDelete" v-if="hasSettings">{{ $t('settings.ai.providerSettings.deleteKey') }}</button>
+        <button type="button" @click="$emit('cancel')">{{ $t('common.close') }}</button>
       </div>
-      <div v-if="saveStatus === true" class="ok">Сохранено!</div>
-      <div v-if="saveStatus === false" class="error">Ошибка: {{ saveError }}</div>
+      <div v-if="saveStatus === true" class="ok">{{ $t('settings.ai.providerSettings.saved') }}</div>
+      <div v-if="saveStatus === false" class="error">{{ $t('settings.ai.providerSettings.errorPrefix') }} {{ saveError }}</div>
     </form>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 const props = defineProps({

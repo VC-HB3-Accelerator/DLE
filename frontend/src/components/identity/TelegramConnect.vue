@@ -14,34 +14,38 @@
   <form class="tg-form-panel" @submit.prevent>
     <div class="tg-header">
       <div>
-        <div class="tg-title">Telegram</div>
-        <div class="tg-step">Шаг 1 из 2</div>
+        <div class="tg-title">{{ t('identity.telegram.title') }}</div>
+        <div class="tg-step">{{ t('identity.telegram.step1of2') }}</div>
       </div>
     </div>
     <ol class="tg-steps">
       <li>
-        Откройте Telegram-бота:<br>
+        {{ t('identity.telegram.openBot') }}<br>
         <a :href="botLink" target="_blank" class="tg-link">{{ botLink }}</a>
-        <div class="tg-hint">Ссылка откроется в новом окне</div>
+        <div class="tg-hint">{{ t('identity.telegram.linkHint') }}</div>
       </li>
       <li>
-        Введите код:
+        {{ t('identity.telegram.enterCode') }}
         <span class="tg-code">{{ verificationCode }}</span>
-        <span class="tg-hint">Скопируйте и отправьте этот код боту</span>
+        <span class="tg-hint">{{ t('identity.telegram.codeHint') }}</span>
       </li>
     </ol>
     <p v-if="error" class="tg-error">{{ error }}</p>
-    <button type="button" class="tg-cancel-btn" @click="$emit('cancel')">Отмена</button>
+    <button type="button" class="tg-cancel-btn" @click="$emit('cancel')">{{ t('common.cancel') }}</button>
   </form>
 </template>
 
 <script setup>
-const props = defineProps({
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
+defineProps({
   botLink: String,
   verificationCode: String,
   error: String
 });
-const emit = defineEmits(['cancel']);
+defineEmits(['cancel']);
 </script>
 
 <style scoped>
@@ -132,4 +136,4 @@ const emit = defineEmits(['cancel']);
 .tg-cancel-btn:hover {
   background: var(--color-grey, #bdbdbd);
 }
-</style> 
+</style>

@@ -14,21 +14,21 @@
   <div v-if="isOpen" class="consent-modal-overlay" @click.self="close">
     <div class="consent-modal">
       <div class="consent-modal-header">
-        <h2>Подписание документов</h2>
+        <h2>{{ t('consent.title') }}</h2>
         <button class="close-btn" @click="close">×</button>
       </div>
       
       <div class="consent-modal-content">
         <p class="consent-description">
-          Для полноценного использования сервиса необходимо ознакомиться и подписать следующие документы:
+          {{ t('consent.description') }}
         </p>
         
         <div v-if="loading" class="loading-state">
-          <p>Загрузка документов...</p>
+          <p>{{ t('consent.loading') }}</p>
         </div>
         
         <div v-else-if="documents.length === 0" class="empty-state">
-          <p>Документы не найдены</p>
+          <p>{{ t('consent.notFound') }}</p>
         </div>
         
         <div v-else class="documents-list">
@@ -49,7 +49,7 @@
                   class="document-link"
                   @click.stop
                 >
-                  Открыть документ →
+                  {{ t('consent.openDocument') }}
                 </a>
               </div>
             </label>
@@ -58,13 +58,13 @@
       </div>
       
       <div class="consent-modal-footer">
-        <button class="btn-secondary" @click="close">Отмена</button>
+        <button class="btn-secondary" @click="close">{{ t('common.cancel') }}</button>
         <button 
           class="btn-primary" 
           @click="submitConsent"
           :disabled="selectedDocuments.length === 0 || submitting"
         >
-          {{ submitting ? 'Подписание...' : 'Подписать' }}
+          {{ submitting ? t('consent.signing') : t('consent.sign') }}
         </button>
       </div>
     </div>
@@ -73,7 +73,10 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import api from '../api/axios';
+
+const { t } = useI18n();
 
 const props = defineProps({
   isOpen: {
@@ -93,14 +96,11 @@ const selectedDocuments = ref([]);
 const loading = ref(false);
 const submitting = ref(false);
 
-// Загружаем документы для подписания
 async function loadDocuments() {
   loading.value = true;
   try {
     const response = await api.get('/consent/documents');
     documents.value = response.data || [];
-    
-    // Автоматически выбираем все документы
     selectedDocuments.value = documents.value.map(doc => doc.id);
   } catch (error) {
     console.error('Ошибка загрузки документов:', error);
@@ -110,13 +110,11 @@ async function loadDocuments() {
   }
 }
 
-// Отправляем согласие
 async function submitConsent() {
   if (selectedDocuments.value.length === 0) return;
   
   submitting.value = true;
   try {
-    // Получаем типы согласий для выбранных документов
     const consentTypes = documents.value
       .filter(doc => selectedDocuments.value.includes(doc.id))
       .map(doc => doc.consentType)
@@ -131,7 +129,7 @@ async function submitConsent() {
     close();
   } catch (error) {
     console.error('Ошибка подписания документов:', error);
-    alert('Ошибка при подписании документов. Попробуйте еще раз.');
+    alert(t('consent.signError'));
   } finally {
     submitting.value = false;
   }
@@ -142,7 +140,6 @@ function close() {
   selectedDocuments.value = [];
 }
 
-// Загружаем документы при открытии модалки
 watch(() => props.isOpen, (newValue) => {
   if (newValue) {
     loadDocuments();
@@ -338,4 +335,3 @@ onMounted(() => {
   cursor: not-allowed;
 }
 </style>
-

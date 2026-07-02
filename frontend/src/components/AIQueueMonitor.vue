@@ -13,15 +13,15 @@
 <template>
   <div class="ai-queue-monitor">
     <div class="monitor-header">
-      <h3>Мониторинг AI Очереди</h3>
+      <h3>{{ t('ai.queue.title') }}</h3>
       <div class="refresh-controls">
         <button @click="refreshStats" :disabled="loading" class="btn-refresh">
           <i class="fas fa-sync-alt" :class="{ 'fa-spin': loading }"></i>
-          Обновить
+          {{ t('ai.queue.refresh') }}
         </button>
         <label class="auto-refresh">
           <input type="checkbox" v-model="autoRefresh" />
-          Автообновление
+          {{ t('ai.queue.autoRefresh') }}
         </label>
       </div>
     </div>
@@ -29,62 +29,62 @@
     <div class="stats-grid">
       <!-- Основная статистика -->
       <div class="stat-card">
-        <div class="stat-title">Статус очереди</div>
+        <div class="stat-title">{{ t('ai.queue.queueStatus') }}</div>
         <div class="stat-value" :class="queueStatusClass">
           {{ queueStatus }}
         </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-title">Задач в очереди</div>
+        <div class="stat-title">{{ t('ai.queue.tasksInQueue') }}</div>
         <div class="stat-value">{{ stats.currentQueueSize }}</div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-title">Выполняется</div>
+        <div class="stat-title">{{ t('ai.queue.running') }}</div>
         <div class="stat-value">{{ stats.runningTasks }}</div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-title">Успешность</div>
+        <div class="stat-title">{{ t('ai.queue.successRate') }}</div>
         <div class="stat-value" :class="successRateClass">
           {{ successRate }}%
         </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-title">Среднее время</div>
-        <div class="stat-value">{{ averageTime }}с</div>
+        <div class="stat-title">{{ t('ai.queue.avgTime') }}</div>
+        <div class="stat-value">{{ t('ai.queue.avgTimeSec', { time: averageTime }) }}</div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-title">Всего обработано</div>
+        <div class="stat-title">{{ t('ai.queue.totalProcessed') }}</div>
         <div class="stat-value">{{ stats.totalProcessed }}</div>
       </div>
     </div>
 
     <!-- Детальная информация -->
     <div class="detailed-stats">
-      <h4>Детальная статистика</h4>
+      <h4>{{ t('ai.queue.detailedStats') }}</h4>
       <div class="stats-table">
         <div class="stat-row">
-          <span class="stat-label">Всего задач:</span>
+          <span class="stat-label">{{ t('ai.queue.totalTasks') }}</span>
           <span class="stat-value">{{ stats.totalProcessed }}</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">Успешных:</span>
+          <span class="stat-label">{{ t('ai.queue.successful') }}</span>
           <span class="stat-value success">{{ stats.totalProcessed - stats.totalFailed }}</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">Ошибок:</span>
+          <span class="stat-label">{{ t('ai.queue.errors') }}</span>
           <span class="stat-value error">{{ stats.totalFailed }}</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">Среднее время обработки:</span>
-          <span class="stat-value">{{ Math.round(stats.averageProcessingTime) }}мс</span>
+          <span class="stat-label">{{ t('ai.queue.avgProcessingTime') }}</span>
+          <span class="stat-value">{{ t('ai.queue.avgProcessingMs', { time: Math.round(stats.averageProcessingTime) }) }}</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">Последняя обработка:</span>
+          <span class="stat-label">{{ t('ai.queue.lastProcessed') }}</span>
           <span class="stat-value">{{ lastProcessedTime }}</span>
         </div>
       </div>
@@ -92,26 +92,26 @@
 
     <!-- Управление очередью (только для админов) -->
     <div v-if="canManageSettings" class="queue-controls">
-      <h4>Управление очередью</h4>
+      <h4>{{ t('ai.queue.queueControl') }}</h4>
       <div class="control-buttons">
         <button @click="controlQueue('pause')" class="btn-control btn-pause">
           <i class="fas fa-pause"></i>
-          Пауза
+          {{ t('ai.queue.pause') }}
         </button>
         <button @click="controlQueue('resume')" class="btn-control btn-resume">
           <i class="fas fa-play"></i>
-          Возобновить
+          {{ t('ai.queue.resume') }}
         </button>
         <button @click="controlQueue('clear')" class="btn-control btn-clear">
           <i class="fas fa-trash"></i>
-          Очистить
+          {{ t('ai.queue.clear') }}
         </button>
       </div>
     </div>
 
     <!-- График производительности -->
     <div class="performance-chart">
-      <h4>Производительность</h4>
+      <h4>{{ t('ai.queue.performance') }}</h4>
       <div class="chart-container">
         <canvas ref="performanceChart"></canvas>
       </div>
@@ -121,6 +121,7 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import axios from 'axios'
 import Chart from 'chart.js/auto'
 import { usePermissions } from '@/composables/usePermissions'
@@ -128,6 +129,7 @@ import { usePermissions } from '@/composables/usePermissions'
 export default {
   name: 'AIQueueMonitor',
   setup() {
+    const { t } = useI18n();
     const { canManageSettings } = usePermissions();
     const stats = ref({
       totalProcessed: 0,
@@ -147,10 +149,10 @@ export default {
 
     // Вычисляемые свойства
     const queueStatus = computed(() => {
-      if (!stats.value.isInitialized) return 'Не инициализирована'
-      if (stats.value.currentQueueSize === 0 && stats.value.runningTasks === 0) return 'Пуста'
-      if (stats.value.runningTasks > 0) return 'Работает'
-      return 'Ожидает'
+      if (!stats.value.isInitialized) return t('ai.queue.notInitialized')
+      if (stats.value.currentQueueSize === 0 && stats.value.runningTasks === 0) return t('ai.queue.empty')
+      if (stats.value.runningTasks > 0) return t('ai.queue.working')
+      return t('ai.queue.waiting')
     })
 
     const queueStatusClass = computed(() => {
@@ -176,7 +178,7 @@ export default {
     })
 
     const lastProcessedTime = computed(() => {
-      if (!stats.value.lastProcessedAt) return 'Нет данных'
+      if (!stats.value.lastProcessedAt) return t('ai.queue.noData')
       return new Date(stats.value.lastProcessedAt).toLocaleString('ru-RU')
     })
 
@@ -217,7 +219,7 @@ export default {
         data: {
           labels: [],
           datasets: [{
-            label: 'Время обработки (мс)',
+            label: t('ai.queue.processingTimeMs'),
             data: [],
             borderColor: 'rgb(75, 192, 192)',
             backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -283,6 +285,7 @@ export default {
     })
 
     return {
+      t,
       canManageSettings,
       stats,
       loading,

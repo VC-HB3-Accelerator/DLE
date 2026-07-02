@@ -39,7 +39,7 @@
       <!-- Уведомление о необходимости авторизации -->
       <div v-if="!isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
-          <strong>Внимание!</strong> Для просмотра предложений необходимо авторизоваться.
+          <strong>{{ t('smartcontracts.proposals.authNoticeTitle') }}</strong> {{ t('smartcontracts.proposals.authNoticeMessage') }}
         </div>
       </div>
 
@@ -49,24 +49,24 @@
         <!-- Фильтры и поиск -->
         <div class="proposals-filters">
           <div class="filter-group">
-            <label>Статус:</label>
+            <label>{{ t('smartcontracts.proposals.statusLabel') }}</label>
             <select v-model="statusFilter" @change="filterProposals">
-              <option value="">Все</option>
-              <option value="active">Активные</option>
-              <option value="succeeded">Успешные</option>
-              <option value="defeated">Отклоненные</option>
-              <option value="executed">Выполненные</option>
-              <option value="cancelled">Отмененные</option>
-              <option value="ready">Готовые к выполнению</option>
+              <option value="">{{ t('common.all') }}</option>
+              <option value="active">{{ t('smartcontracts.proposals.filter.active') }}</option>
+              <option value="succeeded">{{ t('smartcontracts.proposals.filter.succeeded') }}</option>
+              <option value="defeated">{{ t('smartcontracts.proposals.filter.defeated') }}</option>
+              <option value="executed">{{ t('smartcontracts.proposals.filter.executed') }}</option>
+              <option value="cancelled">{{ t('smartcontracts.proposals.filter.cancelled') }}</option>
+              <option value="ready">{{ t('smartcontracts.proposals.filter.ready') }}</option>
             </select>
           </div>
           <div class="filter-group">
-            <label>Поиск:</label>
+            <label>{{ t('smartcontracts.proposals.searchLabel') }}</label>
             <input
               v-model="searchQuery"
               @input="filterProposals"
               type="text"
-              placeholder="Поиск по описанию, инициатору или ID..."
+              :placeholder="t('smartcontracts.proposals.searchPlaceholder')"
             />
           </div>
         </div>
@@ -74,24 +74,24 @@
         <!-- Состояние загрузки -->
         <div v-if="isLoading" class="loading-state">
           <div class="spinner"></div>
-          <p>Загрузка предложений...</p>
+          <p>{{ t('smartcontracts.proposals.loading') }}</p>
         </div>
 
         <!-- Пустое состояние -->
         <div v-else-if="filteredProposals.length === 0" class="empty-state">
           <div class="empty-icon">📄</div>
-          <h3>Нет предложений</h3>
-          <p>Предложения не найдены или еще не загружены</p>
-          <button @click="loadProposals" class="btn btn-primary">Перезагрузить</button>
+          <h3>{{ t('smartcontracts.proposals.emptyTitle') }}</h3>
+          <p>{{ t('smartcontracts.proposals.emptyDescription') }}</p>
+          <button @click="loadProposals" class="btn btn-primary">{{ t('common.reload') }}</button>
         </div>
 
         <!-- Список предложений -->
         <div v-else class="proposals-grid">
           <div v-for="proposal in filteredProposals" :key="proposal.uniqueId" class="proposal-card">
             <div class="proposal-header">
-              <div class="proposal-id">Предложение #{{ proposal.id + 1 }}</div>
+              <div class="proposal-id">{{ t('smartcontracts.proposals.proposalNumber', { number: proposal.id + 1 }) }}</div>
               <div class="proposal-status" :class="getProposalStatusClass(proposal.state)">
-                {{ getProposalStatusText(proposal.state) }}
+                {{ getProposalStatusTextI18n(proposal.state) }}
               </div>
             </div>
             
@@ -100,7 +100,7 @@
             <div class="proposal-meta">
               <div class="meta-item">
                 <span>👤</span>
-                <span>Инициатор: {{ proposal.initiator }}</span>
+                <span>{{ t('smartcontracts.proposals.initiator') }} {{ proposal.initiator }}</span>
               </div>
               <div class="meta-item">
                 <span>🔗</span>
@@ -109,22 +109,22 @@
               <!-- Мульти-чейн информация -->
               <div v-if="proposal.chains && proposal.chains.length > 1" class="meta-item multichain-info">
                 <span>🌐</span>
-                <span>Цепочки ({{ proposal.chains.length }}): {{ proposal.chains.map(c => c.networkName || `Chain ${c.chainId}`).join(', ') }}</span>
+                <span>{{ t('smartcontracts.proposals.chainsCount', { count: proposal.chains.length, names: proposal.chains.map(c => getChainDisplayName(c)).join(', ') }) }}</span>
               </div>
               <div v-else class="meta-item">
                 <span>⛓️</span>
-                <span>Chain: {{ proposal.chainId ? (proposal.chains?.[0]?.networkName || `Chain ${proposal.chainId}`) : 'N/A' }}</span>
+                <span>{{ t('smartcontracts.proposals.chainLabel') }} {{ proposal.chainId ? getChainDisplayName(proposal.chains?.[0] || { chainId: proposal.chainId }) : 'N/A' }}</span>
               </div>
               <div class="meta-item">
                 <span>📄</span>
-                <span>Hash: {{ ((proposal.transactionHash || proposal.chains?.[0]?.transactionHash || '')).substring(0, 10) }}...</span>
+                <span>{{ t('smartcontracts.proposals.hashLabel') }} {{ ((proposal.transactionHash || proposal.chains?.[0]?.transactionHash || '')).substring(0, 10) }}...</span>
               </div>
             </div>
             
             <!-- Детали по цепочкам для мульти-чейн предложений -->
             <div v-if="proposal.chains && proposal.chains.length > 1" class="chains-details">
               <div class="chains-header">
-                <strong>Статус по цепочкам:</strong>
+                <strong>{{ t('smartcontracts.proposals.statusByChains') }}</strong>
               </div>
               <div class="chains-list">
                 <div 
@@ -138,35 +138,35 @@
                   }"
                 >
                   <div class="chain-main-info">
-                    <span class="chain-name">{{ chain.networkName || `Chain ${chain.chainId}` }}</span>
+                    <span class="chain-name">{{ getChainDisplayName(chain) }}</span>
                     <span class="chain-status">
-                      <span v-if="chain.executed">✅ Выполнено</span>
-                      <span v-else-if="chain.canceled">❌ Отменено</span>
-                      <span v-else-if="chain.deadline && chain.deadline < Date.now() / 1000">⏰ Истекло</span>
-                      <span v-else-if="Number(chain.state) === 5">🟡 Готово к выполнению</span>
-                      <span v-else-if="Number(chain.state) === 0">🟢 Активно</span>
+                      <span v-if="chain.executed">{{ t('smartcontracts.proposals.chainStatus.executed') }}</span>
+                      <span v-else-if="chain.canceled">{{ t('smartcontracts.proposals.chainStatus.cancelled') }}</span>
+                      <span v-else-if="chain.deadline && chain.deadline < Date.now() / 1000">{{ t('smartcontracts.proposals.chainStatus.expired') }}</span>
+                      <span v-else-if="Number(chain.state) === 5">{{ t('smartcontracts.proposals.chainStatus.ready') }}</span>
+                      <span v-else-if="Number(chain.state) === 0">{{ t('smartcontracts.proposals.chainStatus.active') }}</span>
                       <span v-else>⚪ {{ chain.state }}</span>
                     </span>
                   </div>
                   <div class="chain-details-info">
                     <div class="chain-detail-item">
-                      <span class="detail-label">ID предложения:</span>
+                      <span class="detail-label">{{ t('smartcontracts.proposals.proposalIdLabel') }}</span>
                       <span class="detail-value">#{{ chain.id !== undefined && chain.id !== null ? chain.id : 'N/A' }}</span>
                     </div>
                     <div class="chain-detail-item">
-                      <span class="detail-label">Голоса:</span>
+                      <span class="detail-label">{{ t('smartcontracts.proposals.votesLabel') }}</span>
                       <span class="detail-value">
                         👍 {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE | 
                         👎 {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
                       </span>
                     </div>
                     <div class="chain-detail-item">
-                      <span class="detail-label">Кворум:</span>
+                      <span class="detail-label">{{ t('smartcontracts.proposals.quorumLabel') }}</span>
                       <span class="detail-value" :class="{ 'quorum-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) >= Number(chain.quorumRequired), 'quorum-not-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) < Number(chain.quorumRequired) }">
                         {{ chain.forVotes && chain.quorumRequired ? 
-                          (Number(chain.forVotes) >= Number(chain.quorumRequired) ? '✅ Достигнут' : '❌ Не достигнут') : 
+                          (Number(chain.forVotes) >= Number(chain.quorumRequired) ? t('smartcontracts.proposals.quorumReached') : t('smartcontracts.proposals.quorumNotReached')) : 
                           'N/A' }}
-                        ({{ chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }} DLE требуется)
+                        {{ t('smartcontracts.proposals.quorumRequired', { amount: chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }) }}
                       </span>
                     </div>
                   </div>
@@ -177,7 +177,7 @@
             <!-- Для одиночных предложений тоже показываем детали -->
             <div v-else-if="proposal.chains && proposal.chains.length === 1" class="chains-details">
               <div class="chains-header">
-                <strong>Детали цепочки:</strong>
+                <strong>{{ t('smartcontracts.proposals.chainDetails') }}</strong>
               </div>
               <div class="chains-list">
                 <div 
@@ -191,34 +191,34 @@
                   }"
                 >
                   <div class="chain-main-info">
-                    <span class="chain-name">{{ chain.networkName || `Chain ${chain.chainId}` }}</span>
+                    <span class="chain-name">{{ getChainDisplayName(chain) }}</span>
                     <span class="chain-status">
-                      <span v-if="chain.executed">✅ Выполнено</span>
-                      <span v-else-if="chain.canceled">❌ Отменено</span>
-                      <span v-else-if="chain.state === 5">🟡 Готово к выполнению</span>
-                      <span v-else-if="Number(chain.state) === 0">🟢 Активно</span>
+                      <span v-if="chain.executed">{{ t('smartcontracts.proposals.chainStatus.executed') }}</span>
+                      <span v-else-if="chain.canceled">{{ t('smartcontracts.proposals.chainStatus.cancelled') }}</span>
+                      <span v-else-if="chain.state === 5">{{ t('smartcontracts.proposals.chainStatus.ready') }}</span>
+                      <span v-else-if="Number(chain.state) === 0">{{ t('smartcontracts.proposals.chainStatus.active') }}</span>
                       <span v-else>⚪ {{ chain.state }}</span>
                     </span>
                   </div>
                   <div class="chain-details-info">
                     <div class="chain-detail-item">
-                      <span class="detail-label">ID предложения:</span>
+                      <span class="detail-label">{{ t('smartcontracts.proposals.proposalIdLabel') }}</span>
                       <span class="detail-value">#{{ chain.id !== undefined && chain.id !== null ? chain.id : proposal.id }}</span>
                     </div>
                     <div class="chain-detail-item">
-                      <span class="detail-label">Голоса:</span>
+                      <span class="detail-label">{{ t('smartcontracts.proposals.votesLabel') }}</span>
                       <span class="detail-value">
                         👍 {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE | 
                         👎 {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
                       </span>
                     </div>
                     <div class="chain-detail-item">
-                      <span class="detail-label">Кворум:</span>
+                      <span class="detail-label">{{ t('smartcontracts.proposals.quorumLabel') }}</span>
                       <span class="detail-value" :class="{ 'quorum-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) >= Number(chain.quorumRequired), 'quorum-not-reached': chain.forVotes && chain.quorumRequired && Number(chain.forVotes) < Number(chain.quorumRequired) }">
                         {{ chain.forVotes && chain.quorumRequired ? 
-                          (Number(chain.forVotes) >= Number(chain.quorumRequired) ? '✅ Достигнут' : '❌ Не достигнут') : 
+                          (Number(chain.forVotes) >= Number(chain.quorumRequired) ? t('smartcontracts.proposals.quorumReached') : t('smartcontracts.proposals.quorumNotReached')) : 
                           'N/A' }}
-                        ({{ chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }} DLE требуется)
+                        {{ t('smartcontracts.proposals.quorumRequired', { amount: chain.quorumRequired ? (Number(chain.quorumRequired) / 1e18).toFixed(2) : '0.00' }) }}
                       </span>
                     </div>
                   </div>
@@ -231,12 +231,12 @@
                 <div class="progress-fill" :style="{ width: getQuorumPercentage(proposal) + '%' }"></div>
               </div>
               <div class="progress-text">
-                Кворум: {{ getQuorumPercentage(proposal) }}% (требуется: {{ getRequiredQuorumPercentage(proposal) }}%)
+                {{ t('smartcontracts.proposals.quorumProgress', { current: getQuorumPercentage(proposal), required: getRequiredQuorumPercentage(proposal) }) }}
               </div>
               <div class="votes-info">
-                <span class="vote-count">👍 За: {{ proposal.forVotes || 0 }}</span>
-                <span class="vote-count">👎 Против: {{ proposal.againstVotes || 0 }}</span>
-                <span class="vote-count">📊 Всего: {{ (Number(proposal.forVotes || 0) + Number(proposal.againstVotes || 0)) }}</span>
+                <span class="vote-count">{{ t('smartcontracts.proposals.votesFor', { count: proposal.forVotes || 0 }) }}</span>
+                <span class="vote-count">{{ t('smartcontracts.proposals.votesAgainst', { count: proposal.againstVotes || 0 }) }}</span>
+                <span class="vote-count">{{ t('smartcontracts.proposals.votesTotal', { count: (Number(proposal.forVotes || 0) + Number(proposal.againstVotes || 0)) }) }}</span>
               </div>
             </div>
             
@@ -247,7 +247,7 @@
                 class="btn btn-success"
                 :disabled="isVoting"
               >
-                {{ isVoting ? 'Голосование...' : 'За' }}
+                {{ isVoting ? t('common.voting') : t('common.forVote') }}
               </button>
               <button 
                 v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
@@ -255,7 +255,7 @@
                 class="btn btn-danger"
                 :disabled="isVoting"
               >
-                {{ isVoting ? 'Голосование...' : 'Против' }}
+                {{ isVoting ? t('common.voting') : t('common.againstVote') }}
               </button>
               <button 
                 v-if="proposal.chains && proposal.chains.length > 1 ? canExecuteMultichain(proposal) : canExecute(proposal)" 
@@ -263,7 +263,7 @@
                 class="btn btn-primary"
                 :disabled="isExecuting"
               >
-                {{ isExecuting ? 'Выполнение...' : 'Выполнить' }}
+                {{ isExecuting ? t('common.executing') : t('common.execute') }}
               </button>
               <button 
                 v-if="canCancel(proposal)" 
@@ -271,7 +271,7 @@
                 class="btn btn-warning"
                 :disabled="isCancelling"
               >
-                {{ isCancelling ? 'Отмена...' : 'Отменить' }}
+                {{ isCancelling ? t('common.cancelling') : t('common.cancel') }}
               </button>
             </div>
           </div>
@@ -284,6 +284,7 @@
 <script>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { useProposals } from '@/composables/useProposals';
 import BaseLayout from '@/components/BaseLayout.vue';
@@ -316,6 +317,7 @@ export default {
     const router = useRouter();
     const route = useRoute();
     const { address } = useAuthContext();
+    const { t } = useI18n();
 
     const dleAddress = computed(() => {
       return route.query.address;
@@ -336,7 +338,6 @@ export default {
       executeProposal,
       cancelProposal,
       getProposalStatusClass,
-      getProposalStatusText,
       getQuorumPercentage,
       getRequiredQuorumPercentage,
       canVote,
@@ -345,6 +346,24 @@ export default {
       canExecuteMultichain,
       canCancel
     } = useProposals(dleAddress, computed(() => props.isAuthenticated), address);
+
+    const proposalStatusKeys = {
+      0: 'smartcontracts.proposals.status.active',
+      1: 'smartcontracts.proposals.status.succeeded',
+      2: 'smartcontracts.proposals.status.defeated',
+      3: 'smartcontracts.proposals.status.executed',
+      4: 'smartcontracts.proposals.status.cancelled',
+      5: 'smartcontracts.proposals.status.ready'
+    };
+
+    const getProposalStatusTextI18n = (state) => {
+      return t(proposalStatusKeys[state] || 'common.status.unknown');
+    };
+
+    const getChainDisplayName = (chain) => {
+      if (!chain) return 'N/A';
+      return chain.networkName || t('common.chainFallback', { chainId: chain.chainId });
+    };
 
     const goBack = () => {
       router.push('/management/dle-blocks');
@@ -369,6 +388,7 @@ export default {
     });
 
     return {
+      t,
       proposals,
       filteredProposals,
       isLoading,
@@ -386,7 +406,8 @@ export default {
       cancelProposal,
       goBack,
       getProposalStatusClass,
-      getProposalStatusText,
+      getProposalStatusTextI18n,
+      getChainDisplayName,
       getQuorumPercentage,
       getRequiredQuorumPercentage,
       canVote,

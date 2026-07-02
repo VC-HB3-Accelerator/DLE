@@ -11,6 +11,9 @@
  */
 
 import api from '@/api/axios';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Получить информацию о мультиконтрактном предложении
@@ -30,7 +33,7 @@ export async function getProposalMultichainInfo(dleAddress, proposalId, governan
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.error || 'Не удалось получить информацию о мультиконтрактном предложении');
+      throw new Error(response.data.error || t('multichainExecution.errors.getProposalInfoFailed'));
     }
   } catch (error) {
     console.error('Ошибка получения информации о мультиконтрактном предложении:', error);
@@ -58,7 +61,7 @@ export async function executeInAllTargetChains(dleAddress, proposalId, deploymen
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.error || 'Не удалось исполнить предложение во всех целевых сетях');
+      throw new Error(response.data.error || t('multichainExecution.errors.executeAllChainsFailed'));
     }
   } catch (error) {
     console.error('Ошибка исполнения во всех целевых сетях:', error);
@@ -88,7 +91,7 @@ export async function executeInTargetChain(dleAddress, proposalId, targetChainId
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.error || 'Не удалось исполнить предложение в целевой сети');
+      throw new Error(response.data.error || t('multichainExecution.errors.executeTargetChainFailed'));
     }
   } catch (error) {
     console.error('Ошибка исполнения в целевой сети:', error);
@@ -110,7 +113,7 @@ export async function getDeploymentId(dleAddress) {
     if (response.data.success) {
       return response.data.data.deploymentId;
     } else {
-      throw new Error(response.data.error || 'Не удалось получить ID деплоя');
+      throw new Error(response.data.error || t('multichainExecution.errors.getDeploymentIdFailed'));
     }
   } catch (error) {
     console.error('Ошибка получения ID деплоя:', error);
@@ -157,11 +160,14 @@ export function formatExecutionResult(result) {
   const { summary, executionResults } = result;
   
   if (summary.successful === summary.total) {
-    return `✅ Успешно исполнено во всех ${summary.total} сетях`;
+    return t('multichainExecution.results.allSuccess', { total: summary.total });
   } else if (summary.successful > 0) {
-    return `⚠️ Частично исполнено: ${summary.successful}/${summary.total} сетей`;
+    return t('multichainExecution.results.partialSuccess', {
+      successful: summary.successful,
+      total: summary.total
+    });
   } else {
-    return `❌ Не удалось исполнить ни в одной сети`;
+    return t('multichainExecution.results.allFailed');
   }
 }
 

@@ -16,6 +16,18 @@ import { ethers } from 'ethers';
 import { useProposalValidation } from './useProposalValidation';
 import { voteForProposal, executeProposal as executeProposalUtil, cancelProposal as cancelProposalUtil, checkTokenBalance } from '@/utils/dle-contract';
 import api from '@/api/axios';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
+
+const PROPOSAL_STATUS_KEYS = {
+  0: 'smartcontracts.proposals.status.active',
+  1: 'smartcontracts.proposals.status.succeeded',
+  2: 'smartcontracts.proposals.status.defeated',
+  3: 'smartcontracts.proposals.status.executed',
+  4: 'smartcontracts.proposals.status.cancelled',
+  5: 'smartcontracts.proposals.status.ready'
+};
 
 // Функция checkVoteStatus удалена - в контракте DLE нет публичной функции hasVoted
 // Функция checkTokenBalance перенесена в useDleContract.js
@@ -316,14 +328,14 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       // Проверяем наличие MetaMask
       if (!window.ethereum) {
-        throw new Error('MetaMask не найден. Пожалуйста, установите MetaMask.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.metamaskNotFound'));
       }
       
       // Проверяем состояние предложения
       console.log('🔍 [DEBUG] Проверяем состояние предложения...');
       const proposal = proposals.value.find(p => p.id === proposalId);
       if (!proposal) {
-        throw new Error('Предложение не найдено');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotFound'));
       }
       
       // КРИТИЧЕСКИ ВАЖНО: Если предложение мультичейн, используем voteOnMultichainProposal
@@ -345,22 +357,22 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       // Проверяем, что предложение активно (Pending)
       if (proposal.state !== 0) {
         const statusText = getProposalStatusText(proposal.state);
-        throw new Error(`Предложение не активно (статус: ${statusText}). Голосование возможно только для активных предложений.`);
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotActiveForVote', { status: statusText }));
       }
       
       // Проверяем, что предложение не выполнено и не отменено
       if (proposal.executed) {
-        throw new Error('Предложение уже выполнено. Голосование невозможно.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalAlreadyExecutedNoVote'));
       }
       
       if (proposal.canceled) {
-        throw new Error('Предложение отменено. Голосование невозможно.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalCancelledNoVote'));
       }
       
       // Проверяем deadline
       const currentTime = Math.floor(Date.now() / 1000);
       if (proposal.deadline && currentTime > proposal.deadline) {
-        throw new Error('Время голосования истекло. Голосование невозможно.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.votingDeadlineExpired'));
       }
       
       // Проверяем баланс токенов пользователя
@@ -370,7 +382,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         console.log('💰 [DEBUG] Баланс токенов:', balanceCheck);
         
         if (!balanceCheck.hasTokens) {
-          throw new Error('У вас нет токенов для голосования. Необходимо иметь токены DLE для участия в голосовании.');
+          throw new Error(t('smartcontracts.proposals.composableErrors.noTokensForVoting'));
         }
       } catch (balanceError) {
         console.warn('⚠️ [DEBUG] Ошибка проверки баланса (продолжаем):', balanceError.message);
@@ -385,7 +397,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         console.log('🌐 [DEBUG] Сеть предложения:', proposal.chainId);
         
         if (chainId !== proposal.chainId) {
-          throw new Error(`Неправильная сеть! Текущая сеть: ${chainId}, требуется: ${proposal.chainId}`);
+          throw new Error(t('smartcontracts.proposals.composableErrors.wrongNetwork', {
+            currentChainId: chainId,
+            requiredChainId: proposal.chainId
+          }));
         }
       } catch (networkError) {
         console.warn('⚠️ [DEBUG] Ошибка проверки сети (продолжаем):', networkError.message);
@@ -396,7 +411,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       const result = await voteForProposal(dleAddress.value, proposalId, support);
       
       console.log('✅ Голосование успешно отправлено:', result.txHash);
-      alert(`Голосование успешно отправлено! Хеш транзакции: ${result.txHash}`);
+      alert(t('smartcontracts.proposals.composableAlerts.voteSuccess', { txHash: result.txHash }));
       
       // Принудительно обновляем данные предложения
       console.log('🔄 [VOTE] Обновляем данные после голосования...');
@@ -415,28 +430,19 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       if (error.message.includes('execution reverted')) {
         if (error.data === '0xe7005635') {
-          errorMessage = 'Голосование отклонено смарт-контрактом. Возможные причины:\n' +
-            '• Вы уже голосовали за это предложение\n' +
-            '• У вас нет токенов для голосования\n' +
-            '• Предложение не активно\n' +
-            '• Время голосования истекло';
+          errorMessage = t('smartcontracts.proposals.composableErrors.voteRejectedByContract');
         } else if (error.data === '0xc7567e07') {
-          errorMessage = 'Голосование отклонено смарт-контрактом. Возможные причины:\n' +
-            '• Вы уже голосовали за это предложение\n' +
-            '• У вас нет токенов для голосования\n' +
-            '• Предложение не активно\n' +
-            '• Время голосования истекло\n' +
-            '• Неправильная сеть для голосования';
+          errorMessage = t('smartcontracts.proposals.composableErrors.voteRejectedByContractWithNetwork');
         } else {
-          errorMessage = `Транзакция отклонена смарт-контрактом (код: ${error.data}). Проверьте условия голосования.`;
+          errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByContract', { code: error.data });
         }
       } else if (error.message.includes('user rejected')) {
-        errorMessage = 'Транзакция отклонена пользователем';
+        errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByUser');
       } else if (error.message.includes('insufficient funds')) {
-        errorMessage = 'Недостаточно средств для оплаты газа';
+        errorMessage = t('smartcontracts.proposals.composableErrors.insufficientFundsForGas');
       }
       
-      alert('Ошибка при голосовании: ' + errorMessage);
+      alert(t('smartcontracts.proposals.composableAlerts.voteError', { message: errorMessage }));
     } finally {
       isVoting.value = false;
     }
@@ -451,7 +457,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       console.log('🔍 [DEBUG] Проверяем состояние предложения для выполнения...');
       const proposal = proposals.value.find(p => p.id === proposalId);
       if (!proposal) {
-        throw new Error('Предложение не найдено');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotFound'));
       }
       
       // КРИТИЧЕСКИ ВАЖНО: Если предложение мультичейн, используем executeMultichainProposal
@@ -470,24 +476,24 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       // Проверяем, что предложение можно выполнить
       if (proposal.executed) {
-        throw new Error('Предложение уже выполнено. Повторное выполнение невозможно.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalAlreadyExecutedNoReExecute'));
       }
       
       if (proposal.canceled) {
-        throw new Error('Предложение отменено. Выполнение невозможно.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalCancelledNoExecute'));
       }
       
       // Проверяем, что предложение готово к выполнению
       if (proposal.state !== 5) {
         const statusText = getProposalStatusText(proposal.state);
-        throw new Error(`Предложение не готово к выполнению (статус: ${statusText}). Выполнение возможно только для предложений в статусе "Готово к выполнению".`);
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotReadyForExecute', { status: statusText }));
       }
       
       // Исполняем предложение через готовую функцию из utils/dle-contract.js
       const result = await executeProposalUtil(dleAddress.value, proposalId);
       
       console.log('✅ Предложение успешно исполнено:', result.txHash);
-      alert(`Предложение успешно исполнено! Хеш транзакции: ${result.txHash}`);
+      alert(t('smartcontracts.proposals.composableAlerts.executeSuccess', { txHash: result.txHash }));
       
       // Принудительно обновляем состояние предложения в UI
       updateProposalState(proposalId, {
@@ -504,24 +510,20 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       let errorMessage = error.message;
       
       if (error.message.includes('execution reverted')) {
-        errorMessage = 'Выполнение отклонено смарт-контрактом. Возможные причины:\n' +
-          '• Предложение уже выполнено\n' +
-          '• Предложение отменено\n' +
-          '• Кворум не достигнут\n' +
-          '• Предложение не активно';
+        errorMessage = t('smartcontracts.proposals.composableErrors.executeRejectedByContract');
       } else if (error.message.includes('user rejected')) {
-        errorMessage = 'Транзакция отклонена пользователем';
+        errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByUser');
       } else if (error.message.includes('insufficient funds')) {
-        errorMessage = 'Недостаточно средств для оплаты газа';
+        errorMessage = t('smartcontracts.proposals.composableErrors.insufficientFundsForGas');
       }
       
-      alert('Ошибка при исполнении предложения: ' + errorMessage);
+      alert(t('smartcontracts.proposals.composableAlerts.executeError', { message: errorMessage }));
     } finally {
       isExecuting.value = false;
     }
   };
 
-  const cancelProposal = async (proposalId, reason = 'Отменено пользователем') => {
+  const cancelProposal = async (proposalId, reason = t('smartcontracts.proposals.composableErrors.defaultCancelReason')) => {
     try {
       console.log('❌ [CANCEL] Отменяем предложение через DLE контракт:', { proposalId, reason, dleAddress: dleAddress.value });
       isCancelling.value = true;
@@ -530,7 +532,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       console.log('🔍 [DEBUG] Проверяем состояние предложения для отмены...');
       const proposal = proposals.value.find(p => p.id === proposalId);
       if (!proposal) {
-        throw new Error('Предложение не найдено');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalNotFound'));
       }
       
       console.log('📊 [DEBUG] Данные предложения для отмены:', {
@@ -544,16 +546,16 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       
       // Проверяем, что предложение можно отменить
       if (proposal.executed) {
-        throw new Error('Предложение уже выполнено. Отмена невозможна.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalAlreadyExecutedNoCancel'));
       }
       
       if (proposal.canceled) {
-        throw new Error('Предложение уже отменено. Повторная отмена невозможна.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.proposalAlreadyCancelled'));
       }
       
       // Проверяем, что пользователь является инициатором
       if (proposal.initiator?.toLowerCase() !== userAddress.value?.toLowerCase()) {
-        throw new Error('Только инициатор предложения может его отменить.');
+        throw new Error(t('smartcontracts.proposals.composableErrors.onlyInitiatorCanCancel'));
       }
       
       // Проверяем deadline (нужен запас 15 минут)
@@ -561,7 +563,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       if (proposal.deadline) {
         const timeRemaining = proposal.deadline - currentTime;
         if (timeRemaining <= 900) { // 15 минут запас
-          throw new Error('Время для отмены истекло. Отмена возможна только за 15 минут до окончания голосования.');
+          throw new Error(t('smartcontracts.proposals.composableErrors.cancelDeadlineExpired'));
         }
       }
       
@@ -573,7 +575,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         );
         
         if (activeChains.length === 0) {
-          throw new Error('Не найдено ни одной активной цепочки для отмены');
+          throw new Error(t('smartcontracts.proposals.composableErrors.noActiveChainsForCancel'));
         }
         
         console.log(`🚀 [MULTI-CANCEL] Начинаем отмену в ${activeChains.length} цепочках последовательно...`);
@@ -592,7 +594,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
             console.log(`🔄 [${index + 1}/${activeChains.length}] Переключаемся на сеть ${chain.chainId}...`);
             const switched = await switchToVotingNetwork(chain.chainId);
             if (!switched) {
-              throw new Error(`Не удалось переключиться на сеть ${chain.networkName} (${chain.chainId})`);
+              throw new Error(t('smartcontracts.proposals.composableErrors.networkSwitchFailed', {
+                networkName: chain.networkName,
+                chainId: chain.chainId
+              }));
             }
             
             // Задержка после переключения сети
@@ -610,7 +615,12 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
             }
             
             if (chainProposalId === null || isNaN(chainProposalId)) {
-              throw new Error(`Неверный ID предложения для цепочки ${chain.networkName} (${chain.chainId}). chain.id=${chain.id}, proposalId=${proposalId}`);
+              throw new Error(t('smartcontracts.proposals.composableErrors.invalidProposalIdForChainCancel', {
+                networkName: chain.networkName,
+                chainId: chain.chainId,
+                chainIdValue: chain.id,
+                proposalId
+              }));
             }
             
             chainProposalId = Number(chainProposalId); // Убеждаемся, что это число
@@ -652,15 +662,24 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
         console.log(`📊 [MULTI-CANCEL] Отмена завершена: успешно в ${successful.length} из ${activeChains.length} цепочек`);
         
         if (successful.length > 0) {
-          alert(`Предложение отменено в ${successful.length} из ${activeChains.length} цепочек!\n${failed.length > 0 ? `Ошибки в ${failed.length} цепочках.` : ''}`);
+          const alertMessage = [
+            t('smartcontracts.proposals.composableAlerts.cancelMultiSuccess', {
+              successful: successful.length,
+              total: activeChains.length
+            }),
+            failed.length > 0
+              ? t('smartcontracts.proposals.composableAlerts.cancelMultiPartialErrors', { failed: failed.length })
+              : ''
+          ].filter(Boolean).join('\n');
+          alert(alertMessage);
         } else {
-          throw new Error('Не удалось отменить предложение ни в одной цепочке');
+          throw new Error(t('smartcontracts.proposals.composableErrors.cancelFailedAllChains'));
         }
       } else {
         // Одиночное предложение (без мультичейн)
         const result = await cancelProposalUtil(dleAddress.value, proposalId, reason);
         console.log('✅ Предложение успешно отменено:', result.txHash);
-        alert(`Предложение успешно отменено! Хеш транзакции: ${result.txHash}`);
+        alert(t('smartcontracts.proposals.composableAlerts.cancelSuccess', { txHash: result.txHash }));
       }
       
       // Принудительно обновляем состояние предложения в UI
@@ -678,18 +697,14 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       let errorMessage = error.message;
       
       if (error.message.includes('execution reverted')) {
-        errorMessage = 'Отмена отклонена смарт-контрактом. Возможные причины:\n' +
-          '• Предложение уже отменено\n' +
-          '• Предложение уже выполнено\n' +
-          '• Предложение не активно\n' +
-          '• Недостаточно прав для отмены';
+        errorMessage = t('smartcontracts.proposals.composableErrors.cancelRejectedByContract');
       } else if (error.message.includes('user rejected')) {
-        errorMessage = 'Транзакция отклонена пользователем';
+        errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByUser');
       } else if (error.message.includes('insufficient funds')) {
-        errorMessage = 'Недостаточно средств для оплаты газа';
+        errorMessage = t('smartcontracts.proposals.composableErrors.insufficientFundsForGas');
       }
       
-      alert('Ошибка при отмене предложения: ' + errorMessage);
+      alert(t('smartcontracts.proposals.composableAlerts.cancelError', { message: errorMessage }));
     } finally {
       isCancelling.value = false;
     }
@@ -708,15 +723,8 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   };
 
   const getProposalStatusText = (state) => {
-    switch (state) {
-      case 0: return 'Активное';
-      case 1: return 'Успешное';
-      case 2: return 'Отклоненное';
-      case 3: return 'Выполнено';
-      case 4: return 'Отменено';
-      case 5: return 'Готово к выполнению';
-      default: return 'Неизвестно';
-    }
+    const key = PROPOSAL_STATUS_KEYS[state];
+    return key ? t(key) : t('smartcontracts.proposals.status.active');
   };
 
   const getQuorumPercentage = (proposal) => {
@@ -813,7 +821,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       const activeChains = proposal.chains.filter(chain => canVote(chain));
       
       if (activeChains.length === 0) {
-        throw new Error('Не найдено ни одной активной цепочки для голосования');
+        throw new Error(t('smartcontracts.proposals.composableErrors.noActiveChainsForVote'));
       }
 
       console.log(`🌐 [MULTI-VOTE] Начинаем голосование в ${activeChains.length} цепочках последовательно...`);
@@ -832,7 +840,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
           console.log(`🔄 [${index + 1}/${activeChains.length}] Переключаемся на сеть ${chain.chainId}...`);
           const switched = await switchToVotingNetwork(chain.chainId);
           if (!switched) {
-            throw new Error(`Не удалось переключиться на сеть ${chain.networkName} (${chain.chainId})`);
+            throw new Error(t('smartcontracts.proposals.composableErrors.networkSwitchFailed', {
+              networkName: chain.networkName,
+              chainId: chain.chainId
+            }));
           }
           
           // Задержка после переключения сети
@@ -850,7 +861,12 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
           }
           
           if (chainProposalId === null || isNaN(chainProposalId)) {
-            throw new Error(`Неверный ID предложения для цепочки ${chain.networkName} (${chain.chainId}). chain.id=${chain.id}, proposal.id=${proposal.id}`);
+            throw new Error(t('smartcontracts.proposals.composableErrors.invalidProposalIdForChain', {
+              networkName: chain.networkName,
+              chainId: chain.chainId,
+              chainIdValue: chain.id,
+              proposalId: proposal.id
+            }));
           }
           
           chainProposalId = Number(chainProposalId); // Убеждаемся, что это число
@@ -869,7 +885,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
                 chainId: chain.chainId,
                 networkName: chain.networkName,
                 success: false,
-                error: `Нет токенов DLE в сети ${chain.networkName} для голосования`
+                error: t('smartcontracts.proposals.composableErrors.noTokensInNetwork', { networkName: chain.networkName })
               });
               // Продолжаем с следующей сетью
               continue;
@@ -933,7 +949,7 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       const readyChains = proposal.chains.filter(chain => canExecute(chain));
       
       if (readyChains.length === 0) {
-        throw new Error('Нет цепочек, готовых к выполнению');
+        throw new Error(t('smartcontracts.proposals.composableErrors.noChainsReadyForExecute'));
       }
 
       console.log(`🚀 [MULTI-EXECUTE] Начинаем исполнение в ${readyChains.length} цепочках последовательно...`);
@@ -952,7 +968,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
           console.log(`🔄 [${index + 1}/${readyChains.length}] Переключаемся на сеть ${chain.chainId}...`);
           const switched = await switchToVotingNetwork(chain.chainId);
           if (!switched) {
-            throw new Error(`Не удалось переключиться на сеть ${chain.networkName} (${chain.chainId})`);
+            throw new Error(t('smartcontracts.proposals.composableErrors.networkSwitchFailed', {
+              networkName: chain.networkName,
+              chainId: chain.chainId
+            }));
           }
           
           // Задержка после переключения сети
@@ -970,7 +989,12 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
           }
           
           if (chainProposalId === null || isNaN(chainProposalId)) {
-            throw new Error(`Неверный ID предложения для цепочки ${chain.networkName} (${chain.chainId}). chain.id=${chain.id}, proposal.id=${proposal.id}`);
+            throw new Error(t('smartcontracts.proposals.composableErrors.invalidProposalIdForChain', {
+              networkName: chain.networkName,
+              chainId: chain.chainId,
+              chainIdValue: chain.id,
+              proposalId: proposal.id
+            }));
           }
           
           chainProposalId = Number(chainProposalId); // Убеждаемся, что это число
@@ -1040,10 +1064,10 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
   };
 
   const getChainStatusText = (chain) => {
-    if (chain.executed) return 'Исполнено';
-    if (chain.state === 'active') return 'Активно';
-    if (chain.deadline && chain.deadline < Date.now() / 1000) return 'Истекло';
-    return 'Неактивно';
+    if (chain.executed) return t('smartcontracts.proposals.chainStatus.executed');
+    if (chain.state === 'active') return t('smartcontracts.proposals.chainStatus.active');
+    if (chain.deadline && chain.deadline < Date.now() / 1000) return t('smartcontracts.proposals.chainStatus.expired');
+    return t('smartcontracts.proposals.chainStatus.inactive');
   };
 
   return {

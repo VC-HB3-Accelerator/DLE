@@ -7,7 +7,7 @@
   
   For licensing inquiries: info@hb3-accelerator.com
   Website: https://hb3-accelerator.com
-  GitHub: https://github.com/VC-HB3-Accelerator
+  GitHub: https://github.com/HB3-ACCELERATOR
 -->
 
 <template>
@@ -22,41 +22,41 @@
       <!-- Форма добавления DLE -->
       <div class="add-dle-form">
         <div class="form-header">
-          <h4>➕ Добавить новый DLE</h4>
+          <h4>{{ t('smartcontracts.dleManagement.addTitle') }}</h4>
         </div>
         
         <div class="form-content">
           <div class="form-group">
-            <label for="dleLink">Ссылка на DLE контракт:</label>
+            <label for="dleLink">{{ t('smartcontracts.dleManagement.linkLabel') }}</label>
             <input 
               type="text" 
               id="dleLink" 
               v-model="newDle.link" 
               class="form-control"
-              placeholder="https://sepolia.etherscan.io/address/0x..."
+              :placeholder="t('smartcontracts.dleManagement.linkPlaceholder')"
             >
-            <small class="form-help">Вставьте ссылку на Etherscan или другой блокчейн-эксплорер</small>
+            <small class="form-help">{{ t('smartcontracts.dleManagement.linkHelp') }}</small>
           </div>
           
           <div class="form-group">
-            <label for="dleName">Название DLE:</label>
+            <label for="dleName">{{ t('smartcontracts.dleManagement.nameLabel') }}</label>
             <input 
               type="text" 
               id="dleName" 
               v-model="newDle.name" 
               class="form-control"
-              placeholder="Название DLE"
+              :placeholder="t('smartcontracts.dleManagement.namePlaceholder')"
             >
           </div>
           
           <div class="form-group">
-            <label for="dleDescription">Описание:</label>
+            <label for="dleDescription">{{ t('smartcontracts.dleManagement.descriptionLabel') }}</label>
             <textarea 
               id="dleDescription" 
               v-model="newDle.description" 
               class="form-control" 
               rows="3"
-              placeholder="Краткое описание DLE..."
+              :placeholder="t('smartcontracts.dleManagement.descriptionPlaceholder')"
             ></textarea>
           </div>
           
@@ -67,7 +67,7 @@
               :disabled="!isFormValid || isAdding"
             >
               <i class="fas fa-plus"></i> 
-              {{ isAdding ? 'Добавление...' : 'Добавить DLE' }}
+              {{ isAdding ? t('smartcontracts.dleManagement.adding') : t('smartcontracts.dleManagement.addButton') }}
             </button>
           </div>
         </div>
@@ -76,12 +76,12 @@
       <!-- Список добавленных DLE -->
       <div class="dles-list">
         <div class="list-header">
-          <h4>📋 Добавленные DLE</h4>
+          <h4>{{ t('smartcontracts.dleManagement.listTitle') }}</h4>
         </div>
 
         <div v-if="dles.length === 0" class="no-dles">
-          <p>Добавленных DLE пока нет</p>
-          <p>Используйте форму выше для добавления первого DLE</p>
+          <p>{{ t('smartcontracts.dleManagement.emptyTitle') }}</p>
+          <p>{{ t('smartcontracts.dleManagement.emptyHint') }}</p>
         </div>
 
         <div v-else class="dles-grid">
@@ -92,21 +92,21 @@
           >
             <div class="dle-header">
               <h5>{{ dle.name }}</h5>
-              <span class="dle-status">Добавлен</span>
+              <span class="dle-status">{{ t('smartcontracts.dleManagement.statusAdded') }}</span>
             </div>
 
             <div class="dle-details">
               <div class="detail-item">
-                <strong>Описание:</strong> {{ dle.description }}
+                <strong>{{ t('smartcontracts.dleManagement.detailDescription') }}</strong> {{ dle.description }}
               </div>
               <div class="detail-item">
-                <strong>Ссылка:</strong> 
+                <strong>{{ t('smartcontracts.dleManagement.detailLink') }}</strong> 
                 <a :href="dle.link" target="_blank" class="dle-link">
                   {{ shortenUrl(dle.link) }}
                 </a>
               </div>
               <div class="detail-item">
-                <strong>Добавлен:</strong> {{ formatDate(dle.addedAt) }}
+                <strong>{{ t('smartcontracts.dleManagement.detailAddedAt') }}</strong> {{ formatDate(dle.addedAt) }}
               </div>
             </div>
 
@@ -115,13 +115,13 @@
                 class="btn btn-sm btn-primary" 
                 @click="openDle(dle.link)"
               >
-                <i class="fas fa-external-link-alt"></i> Открыть
+                <i class="fas fa-external-link-alt"></i> {{ t('smartcontracts.dleManagement.open') }}
               </button>
               <button 
                 class="btn btn-sm btn-danger" 
                 @click="removeDle(dle.id)"
               >
-                <i class="fas fa-trash"></i> Удалить
+                <i class="fas fa-trash"></i> {{ t('common.delete') }}
               </button>
             </div>
           </div>
@@ -133,9 +133,10 @@
 
 <script setup>
 import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthContext } from '@/composables/useAuth';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
+
+const { t, locale } = useI18n();
 
 const props = defineProps({
   isAuthenticated: Boolean,
@@ -144,44 +145,22 @@ const props = defineProps({
   isLoadingTokens: Boolean
 });
 
-const emit = defineEmits(['auth-action-completed']);
+defineEmits(['auth-action-completed']);
 
-const router = useRouter();
-const { address } = useAuthContext();
-
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
-  window.addEventListener('clear-application-data', () => {
-    console.log('[DleManagementView] Clearing DLE management data');
-    // Очищаем данные при выходе из системы
-    dles.value = [];
-  });
-  
-  window.addEventListener('refresh-application-data', () => {
-    console.log('[DleManagementView] Refreshing DLE management data');
-    loadDleList(); // Обновляем данные при входе в систему
-  });
-});
-
-// Состояние формы
 const isAdding = ref(false);
 
-// Новый DLE
 const newDle = ref({
   link: '',
   name: '',
   description: ''
 });
 
-// Список DLE
 const dles = ref([]);
 
-// Вычисляемые свойства
 const isFormValid = computed(() => {
   return newDle.value.link && newDle.value.name;
 });
 
-// Функции
 function shortenUrl(url) {
   if (!url) return '';
   try {
@@ -194,7 +173,8 @@ function shortenUrl(url) {
 
 function formatDate(date) {
   if (!date) return '';
-  return new Date(date).toLocaleDateString('ru-RU', {
+  const localeTag = locale.value === 'en' ? 'en-US' : 'ru-RU';
+  return new Date(date).toLocaleDateString(localeTag, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -205,14 +185,13 @@ function formatDate(date) {
 
 function addDle() {
   if (!isFormValid.value) {
-    alert('Пожалуйста, заполните все обязательные поля');
+    alert(t('smartcontracts.dleManagement.fillRequired'));
     return;
   }
 
   isAdding.value = true;
   
   try {
-    // Создаем новый DLE
     const dle = {
       id: Date.now(),
       link: newDle.value.link,
@@ -221,39 +200,33 @@ function addDle() {
       addedAt: new Date().toISOString()
     };
     
-    // Добавляем в список
     dles.value.unshift(dle);
-    
-    // Сохраняем в localStorage
     saveDlesToStorage();
     
-    // Сбрасываем форму
     newDle.value = {
       link: '',
       name: '',
       description: ''
     };
     
-    alert('✅ DLE успешно добавлен!');
+    alert(t('smartcontracts.dleManagement.addSuccess'));
     
   } catch (error) {
-    console.error('Ошибка при добавлении DLE:', error);
-    alert('❌ Ошибка при добавлении DLE: ' + error.message);
+    alert(t('smartcontracts.dleManagement.addError', { message: error.message }));
   } finally {
     isAdding.value = false;
   }
 }
 
 function removeDle(dleId) {
-  if (!confirm('Удалить этот DLE?')) return;
+  if (!confirm(t('smartcontracts.dleManagement.confirmRemove'))) return;
   
   try {
     dles.value = dles.value.filter(dle => dle.id !== dleId);
     saveDlesToStorage();
-    alert('✅ DLE успешно удален!');
+    alert(t('smartcontracts.dleManagement.removeSuccess'));
   } catch (error) {
-    console.error('Ошибка при удалении DLE:', error);
-    alert('❌ Ошибка при удалении DLE: ' + error.message);
+    alert(t('smartcontracts.dleManagement.removeError', { message: error.message }));
   }
 }
 
@@ -265,7 +238,7 @@ function saveDlesToStorage() {
   try {
     localStorage.setItem('admin-dles', JSON.stringify(dles.value));
   } catch (error) {
-    console.error('Ошибка при сохранении DLE:', error);
+    console.error('Error saving DLE:', error);
   }
 }
 
@@ -276,11 +249,19 @@ function loadDlesFromStorage() {
       dles.value = JSON.parse(saved);
     }
   } catch (error) {
-    console.error('Ошибка при загрузке DLE:', error);
+    console.error('Error loading DLE:', error);
   }
 }
 
 onMounted(() => {
+  window.addEventListener('clear-application-data', () => {
+    dles.value = [];
+  });
+  
+  window.addEventListener('refresh-application-data', () => {
+    loadDlesFromStorage();
+  });
+
   loadDlesFromStorage();
 });
 </script>
@@ -418,7 +399,6 @@ onMounted(() => {
   gap: 1.5rem;
 }
 
-/* Мобильная адаптивность */
 @media (max-width: 768px) {
   .dles-grid {
     grid-template-columns: 1fr;
@@ -496,4 +476,4 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
 }
-</style> 
+</style>

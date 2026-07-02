@@ -28,15 +28,15 @@
           {{ dleAddress }}
         </div>
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          Загрузка...
+          {{ t('common.loading') }}
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
           <i class="fas fa-info-circle"></i>
-          <strong>Для создания предложений необходимо авторизоваться в приложении</strong>
-          <p class="mb-0 mt-2">Подключите кошелек в сайдбаре для создания новых предложений</p>
+          <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
+          <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
       </div>
       
@@ -46,73 +46,73 @@
           <div class="operation-category">
             <div class="operation-blocks">
               <div class="operation-block">
-                <h6>Передача токенов</h6>
-                <p>Перевод токенов DLE другому адресу через governance</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.transferTokens.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.transferTokens.description') }}</p>
                 <button class="create-btn" @click="openTransferForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Обновить данные DLE</h6>
-                <p>Изменение основной информации о DLE (название, символ, адрес и т.д.)</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.updateDleInfo.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.updateDleInfo.description') }}</p>
                 <button class="create-btn" @click="openUpdateDLEInfoForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Изменить кворум</h6>
-                <p>Изменение процента голосов, необходимого для принятия решений</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.updateQuorum.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.updateQuorum.description') }}</p>
                 <button class="create-btn" @click="openUpdateQuorumForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Изменить время голосования</h6>
-                <p>Настройка минимального и максимального времени голосования</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.updateVotingDurations.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.updateVotingDurations.description') }}</p>
                 <button class="create-btn" @click="openUpdateVotingDurationsForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Оффчейн действие</h6>
-                <p>Создание предложения для выполнения оффчейн операций в приложении</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.offchainAction.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.offchainAction.description') }}</p>
                 <button class="create-btn" @click="openOffchainActionForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Добавить модуль</h6>
-                <p>Добавление нового модуля в DLE контракт</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.addModule.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.addModule.description') }}</p>
                 <button class="create-btn" @click="openAddModuleForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Удалить модуль</h6>
-                <p>Удаление существующего модуля из DLE контракта</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.removeModule.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.removeModule.description') }}</p>
                 <button class="create-btn" @click="openRemoveModuleForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Добавить сеть</h6>
-                <p>Добавление новой поддерживаемой блокчейн сети</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.addChain.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.addChain.description') }}</p>
                 <button class="create-btn" @click="openAddChainForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Удалить сеть</h6>
-                <p>Удаление поддерживаемой блокчейн сети</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.removeChain.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.removeChain.description') }}</p>
                 <button class="create-btn" @click="openRemoveChainForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
               <div class="operation-block">
-                <h6>Изменить логотип</h6>
-                <p>Обновление URI логотипа DLE для отображения в блокчейн-сканерах</p>
+                <h6>{{ t('smartcontracts.createProposal.operations.setLogoUri.title') }}</h6>
+                <p>{{ t('smartcontracts.createProposal.operations.setLogoUri.description') }}</p>
                 <button class="create-btn" @click="openSetLogoURIForm" :disabled="!props.isAuthenticated">
-                  Создать
+                  {{ t('common.create') }}
                 </button>
               </div>
             </div>
@@ -120,7 +120,7 @@
 
           <!-- Операции модулей (динамические) -->
           <div v-if="isLoadingModuleOperations" class="loading-modules">
-            Загрузка операций модулей...
+            {{ t('smartcontracts.createProposal.loadingModules') }}
           </div>
           
           <div 
@@ -143,8 +143,8 @@
                   @click="openModuleOperationForm(moduleOperation.moduleType, operation)" 
                   :disabled="!props.isAuthenticated || isLoadingModuleOperations"
                 >
-                  <span v-if="isLoadingModuleOperations">Загрузка...</span>
-                  <span v-else>Создать</span>
+                  <span v-if="isLoadingModuleOperations">{{ t('common.loading') }}</span>
+                  <span v-else>{{ t('common.create') }}</span>
                 </button>
               </div>
             </div>
@@ -156,8 +156,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, defineProps, defineEmits, inject } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineProps, defineEmits } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getDLEInfo } from '../../services/dleV2Service.js';
@@ -182,29 +183,24 @@ const props = defineProps({
 
 const emit = defineEmits(['auth-action-completed']);
 
-const { address, isAuthenticated, tokenBalances, checkTokenBalances } = useAuthContext();
+const { t } = useI18n();
+const { address, isAuthenticated, checkTokenBalances } = useAuthContext();
 const router = useRouter();
 const route = useRoute();
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[CreateProposalView] Clearing DLE proposal data');
-    // Очищаем данные при выходе из системы
     dleInfo.value = null;
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[CreateProposalView] Refreshing DLE proposal data');
-    loadDleData(); // Обновляем данные при входе в систему
+    loadDleData();
   });
 });
 
-// Получаем адрес DLE из URL
 const dleAddress = computed(() => {
-  const address = route.query.address || props.dleAddress;
-  console.log('DLE Address from URL:', address);
-  return address;
+  return route.query.address || props.dleAddress;
 });
 
 // Функция возврата к блокам управления
@@ -246,53 +242,46 @@ function openAddModuleForm() {
 }
 
 function openRemoveModuleForm() {
-  // TODO: Открыть форму для удаления модуля
-  alert('Форма удаления модуля будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.removeModule'));
 }
 
 function openAddChainForm() {
-  // TODO: Открыть форму для добавления сети
-  alert('Форма добавления сети будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.addChain'));
 }
 
 function openRemoveChainForm() {
-  // TODO: Открыть форму для удаления сети
-  alert('Форма удаления сети будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.removeChain'));
 }
 
 
 function openUpdateDLEInfoForm() {
-  // TODO: Открыть форму для обновления данных DLE
-  alert('Форма обновления данных DLE будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.updateDleInfo'));
 }
 
 function openUpdateQuorumForm() {
-  // TODO: Открыть форму для изменения кворума
-  alert('Форма изменения кворума будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.updateQuorum'));
 }
 
 function openUpdateVotingDurationsForm() {
-  // TODO: Открыть форму для изменения времени голосования
-  alert('Форма изменения времени голосования будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.updateVotingDurations'));
 }
 
 function openSetLogoURIForm() {
-  // TODO: Открыть форму для изменения логотипа
-  alert('Форма изменения логотипа будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.setLogoUri'));
 }
 
 function openOffchainActionForm() {
-  // TODO: Открыть форму для оффчейн действий
-  alert('Форма оффчейн действий будет реализована');
+  alert(t('smartcontracts.createProposal.comingSoon.offchainAction'));
 }
 
-// Функция для создания предложения операции модуля
 function openModuleOperationForm(moduleType, operation) {
-  console.log('[CreateProposalView] Открытие формы для операции модуля:', { moduleType, operation });
-  
-  // TODO: Открыть форму для создания предложения операции модуля
-  // Пока показываем alert с информацией об операции
-  alert(`Создание предложения для операции "${operation.name}" модуля ${moduleType}.\n\nОписание: ${operation.description}\nФункция: ${operation.functionName}\nКатегория: ${operation.category}`);
+  alert(t('smartcontracts.createProposal.comingSoon.moduleOperation', {
+    name: operation.name,
+    moduleType,
+    description: operation.description,
+    functionName: operation.functionName,
+    category: operation.category
+  }));
 }
 
 // Получить иконку для типа модуля
@@ -302,28 +291,22 @@ function getModuleIcon(moduleType) {
 
 // Функции
 async function loadDleData() {
-  console.log('loadDleData вызвана с адресом:', dleAddress.value);
-  
   if (!dleAddress.value) {
-    console.warn('Адрес DLE не указан');
     return;
   }
 
   isLoadingDle.value = true;
   try {
-    // Загружаем данные DLE из блокчейна
     const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress.value
     });
     
     if (response.data.success) {
       selectedDle.value = response.data.data;
-      console.log('Загружены данные DLE из блокчейна:', selectedDle.value);
     } else {
       console.error('Ошибка загрузки DLE:', response.data.error);
     }
     
-    // Получаем поддерживаемые цепочки из данных DLE
     if (selectedDle.value?.deployedNetworks) {
       availableChains.value = selectedDle.value.deployedNetworks.map(net => ({
         chainId: net.chainId,
@@ -333,10 +316,7 @@ async function loadDleData() {
       availableChains.value = [];
     }
 
-    // Загружаем операции модулей
     await loadModuleOperations();
-
-    // Повторно подписываемся на обновления модулей для нового DLE
     resubscribeToModules();
 
   } catch (error) {
@@ -346,22 +326,17 @@ async function loadDleData() {
   }
 }
 
-// Загрузка операций модулей
 async function loadModuleOperations() {
   if (!dleAddress.value) {
-    console.warn('Адрес DLE не указан для загрузки операций модулей');
     return;
   }
 
   isLoadingModuleOperations.value = true;
   try {
-    console.log('[CreateProposalView] Загрузка операций модулей для DLE:', dleAddress.value);
-    
     const response = await getModuleOperations(dleAddress.value);
     
     if (response.success) {
       moduleOperations.value = response.data.moduleOperations || [];
-      console.log('[CreateProposalView] Загружены операции модулей:', moduleOperations.value);
     } else {
       console.error('[CreateProposalView] Ошибка загрузки операций модулей:', response.error);
       moduleOperations.value = [];
@@ -386,42 +361,29 @@ function connectModulesWebSocket() {
     
     // Подписываемся на события deployment_update
     wsClient.on('deployment_update', (data) => {
-      console.log('[CreateProposalView] Получено обновление деплоя:', data);
       handleModulesWebSocketMessage(data);
     });
 
-    // Подписываемся на подтверждение подписки
-    wsClient.on('subscribed', (data) => {
-      console.log('[CreateProposalView] Подписка подтверждена:', data);
-    });
+    wsClient.on('subscribed', () => {});
 
-    // Подписываемся на обновления модулей
-    wsClient.on('modules_updated', (data) => {
-      console.log('[CreateProposalView] Модули обновлены:', data);
-      // Перезагружаем операции модулей при обновлении
+    wsClient.on('modules_updated', () => {
       loadModuleOperations();
     });
 
-    // Подписываемся на статус деплоя
     wsClient.on('deployment_status', (data) => {
-      console.log('[CreateProposalView] Статус деплоя:', data);
       handleModulesWebSocketMessage(data);
     });
 
-    // Подписываемся на событие подключения
     wsClient.on('connected', () => {
-      console.log('[CreateProposalView] WebSocket подключен, подписываемся на модули');
       if (dleAddress.value) {
         wsClient.ws.send(JSON.stringify({
           type: 'subscribe',
           dleAddress: dleAddress.value
         }));
-        console.log('[CreateProposalView] Подписка на модули отправлена для DLE:', dleAddress.value);
       }
     });
 
     isModulesWSConnected.value = true;
-    console.log('[CreateProposalView] WebSocket модулей соединение установлено');
   } catch (error) {
     console.error('[CreateProposalView] Ошибка подключения WebSocket модулей:', error);
     isModulesWSConnected.value = false;
@@ -434,24 +396,16 @@ function connectModulesWebSocket() {
 }
 
 function handleModulesWebSocketMessage(data) {
-  console.log('[CreateProposalView] WebSocket модулей сообщение:', data);
-  
   switch (data.type) {
     case 'modules_updated':
-      // Автоматически обновляем список операций модулей
-      console.log('[CreateProposalView] Получено уведомление об обновлении модулей');
       loadModuleOperations();
       break;
       
     case 'module_verified':
-      // Обновляем операции модуля
-      console.log(`[CreateProposalView] Модуль ${data.moduleType} верифицирован`);
       loadModuleOperations();
       break;
       
     case 'module_status_changed':
-      // Обновляем операции модуля
-      console.log(`[CreateProposalView] Статус модуля ${data.moduleType} изменен`);
       loadModuleOperations();
       break;
   }
@@ -459,7 +413,6 @@ function handleModulesWebSocketMessage(data) {
 
 function disconnectModulesWebSocket() {
   if (isModulesWSConnected.value) {
-    // Отписываемся от всех событий
     wsClient.off('deployment_update');
     wsClient.off('subscribed');
     wsClient.off('modules_updated');
@@ -467,37 +420,27 @@ function disconnectModulesWebSocket() {
     wsClient.off('connected');
     
     isModulesWSConnected.value = false;
-    console.log('[CreateProposalView] WebSocket модулей отключен');
   }
 }
 
-// Функция для повторной подписки при изменении DLE адреса
 function resubscribeToModules() {
   if (isModulesWSConnected.value && wsClient.ws && wsClient.ws.readyState === WebSocket.OPEN && dleAddress.value) {
     wsClient.ws.send(JSON.stringify({
       type: 'subscribe',
       dleAddress: dleAddress.value
     }));
-    console.log('[CreateProposalView] Повторная подписка на модули для DLE:', dleAddress.value);
-  } else if (wsClient.ws && wsClient.ws.readyState === WebSocket.CONNECTING) {
-    // Если соединение еще устанавливается, ждем события подключения
-    console.log('[CreateProposalView] WebSocket еще подключается, ждем события connected');
   }
 }
 
 onMounted(async () => {
-  // Принудительно загружаем токены, если пользователь аутентифицирован
   if (isAuthenticated.value && address.value) {
-    console.log('[CreateProposalView] Принудительная загрузка токенов для адреса:', address.value);
     await checkTokenBalances(address.value);
   }
   
-  // Загрузка данных DLE
   if (dleAddress.value) {
     loadDleData();
   }
   
-  // Подключаемся к WebSocket для получения обновлений модулей
   connectModulesWebSocket();
 });
 
@@ -518,7 +461,7 @@ function getChainName(chainId) {
     56: 'BSC',
     42161: 'Arbitrum'
   };
-  return chainNames[chainId] || `Chain ${chainId}`;
+  return chainNames[chainId] || t('common.chainFallback', { chainId });
 }
 </script>
 

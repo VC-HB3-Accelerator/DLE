@@ -13,12 +13,12 @@
 <template>
   <BaseLayout>
     <div class="admin-chat-header">
-      <span>Приватный чат</span>
+      <span>{{ t('chat.privateChat') }}</span>
       <button class="close-btn" @click="goBack">×</button>
     </div>
     
     <div v-if="isLoadingMessages" class="loading-container">
-      <div class="loading">Загрузка сообщений...</div>
+      <div class="loading">{{ t('chat.loadingMessages') }}</div>
     </div>
     
     <div v-else class="chat-container">
@@ -43,12 +43,14 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import ChatInterface from '../components/ChatInterface.vue';
 import { getPrivateMessages, sendPrivateMessage, getPrivateConversations, markPrivateMessagesAsRead } from '../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { userId } = useAuthContext();

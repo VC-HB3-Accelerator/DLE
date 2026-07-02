@@ -25,18 +25,18 @@
         <!-- Столбец 1 -->
         <div class="blocks-column">
           <div v-if="canEditData" class="management-block">
-            <h3>Создать группу</h3>
-            <p>Создание новой группы для организации работы и совместной деятельности</p>
+            <h3>{{ t('groups.createGroup') }}</h3>
+            <p>{{ t('groups.createGroupDesc') }}</p>
             <button class="details-btn" @click="goToCreateGroup">
-              Подробнее
+              {{ t('common.details') }}
             </button>
           </div>
           
           <div v-if="isAuthenticated" class="management-block">
-            <h3>Приватные группы</h3>
-            <p>Просмотр и управление приватными группами</p>
+            <h3>{{ t('groups.privateGroups') }}</h3>
+            <p>{{ t('groups.privateGroupsDesc') }}</p>
             <button class="details-btn" @click="goToPrivateGroups">
-              Подробнее
+              {{ t('common.details') }}
             </button>
           </div>
         </div>
@@ -47,6 +47,7 @@
 
 <script setup>
 import { ref, defineProps, defineEmits, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { usePermissions } from '../../composables/usePermissions';
 import { useAuthContext } from '../../composables/useAuth';
@@ -63,6 +64,7 @@ const props = defineProps({
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
 
+const { t } = useI18n();
 const router = useRouter();
 
 // Используем composable для проверки прав доступа

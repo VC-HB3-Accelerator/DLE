@@ -15,6 +15,20 @@
 import api from '../api/axios';
 import { ethers } from 'ethers';
 import { SiweMessage } from 'siwe';
+import { i18n } from '@/locales/index.js';
+import siweStatements from '@shared/siweStatements.json';
+
+const t = (key, params) => i18n.global.t(key, params);
+
+function getSiweStatement() {
+  const locale = i18n.global.locale.value;
+  return siweStatements[locale] || siweStatements.ru;
+}
+
+function getSiweLocale() {
+  const locale = i18n.global.locale.value;
+  return siweStatements[locale] ? locale : 'ru';
+}
 
 /**
  * Нормализует Ethereum адрес
@@ -83,7 +97,7 @@ export const connectWallet = async () => {
     if (!window.ethereum) {
       return {
         success: false,
-        error: 'Не найден кошелек MetaMask или другой Ethereum провайдер. Пожалуйста, установите расширение MetaMask.',
+        error: t('auth.providerNotFound'),
       };
     }
 
@@ -92,7 +106,7 @@ export const connectWallet = async () => {
     if (!accounts || accounts.length === 0) {
       return {
         success: false,
-        error: 'Не удалось получить доступ к аккаунтам. Пожалуйста, разрешите доступ в MetaMask.',
+        error: t('auth.accountsAccessDenied'),
       };
     }
 
@@ -102,7 +116,7 @@ export const connectWallet = async () => {
     if (!walletAddress) {
       return {
         success: false,
-        error: 'Кошелек не подключен. Пожалуйста, подключите кошелек и попробуйте снова.',
+        error: t('auth.walletNotConnectedRetry'),
       };
     }
 
@@ -136,7 +150,7 @@ export const connectWallet = async () => {
     if (!nonce) {
       return {
         success: false,
-        error: 'Не удалось получить nonce от сервера.',
+        error: t('auth.nonceFromServerFailed'),
       };
     }
 
@@ -147,7 +161,7 @@ export const connectWallet = async () => {
     if (!addressBeforeSign) {
       return {
         success: false,
-        error: 'Не удалось получить адрес кошелька. Пожалуйста, попробуйте снова.',
+        error: t('auth.addressFetchFailed'),
       };
     }
 
@@ -163,7 +177,7 @@ export const connectWallet = async () => {
       console.error('  Получен (нормализован):', normalizedAddressForMessage);
       return {
         success: false,
-        error: 'Адрес кошелька изменился. Пожалуйста, попробуйте снова.',
+        error: t('auth.addressChanged'),
       };
     }
 
@@ -172,7 +186,7 @@ export const connectWallet = async () => {
     const message = new SiweMessage({
       domain,
       address: normalizedAddressForMessage, // Используем нормализованный адрес
-      statement: 'Sign in with Ethereum to the app.\n\nПодписывая это сообщение, вы подтверждаете ознакомление с документами, указанными в Resources, и согласие на обработку персональных данных.',
+      statement: getSiweStatement(),
       uri: origin,
       version: '1',
       chainId: 1,
@@ -197,7 +211,7 @@ export const connectWallet = async () => {
       console.error('  Адрес для подписи (нормализован):', normalizedSignAddress);
       return {
         success: false,
-        error: 'Несоответствие адресов в сообщении и подписи. Пожалуйста, попробуйте снова.',
+        error: t('auth.addressMismatch'),
       };
     }
 
@@ -226,7 +240,7 @@ export const connectWallet = async () => {
     if (!signature) {
       return {
         success: false,
-        error: 'Подпись не была получена. Пожалуйста, подпишите сообщение в MetaMask.',
+        error: t('auth.signatureNotReceived'),
       };
     }
 
@@ -237,6 +251,7 @@ export const connectWallet = async () => {
       signature,
       nonce,
       issuedAt: issuedAt,
+      siweLocale: getSiweLocale(),
     };
     
     const verifyResponse = await api.post('/auth/verify', requestData, {
@@ -249,7 +264,7 @@ export const connectWallet = async () => {
     const authDisplayEl = document.getElementById('auth-display');
     if (authDisplayEl) {
       const shortAddress = `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`;
-      authDisplayEl.innerHTML = `Кошелек: <strong>${shortAddress}</strong>`;
+      authDisplayEl.innerHTML = t('auth.walletConnectedLabel', { address: shortAddress });
       authDisplayEl.style.display = 'inline-block';
     }
 
@@ -267,22 +282,22 @@ export const connectWallet = async () => {
     } else {
       return {
         success: false,
-        error: verifyResponse.data.error || 'Ошибка верификации на сервере.',
+        error: verifyResponse.data.error || t('auth.verifyServerError'),
       };
     }
   } catch (error) {
-    let errorMessage = 'Произошла ошибка при подключении кошелька.';
+    let errorMessage = t('auth.walletGenericError');
 
     if (error.message && error.message.includes('MetaMask extension not found')) {
-      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
+      errorMessage = t('auth.metamaskNotFound');
     } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
-      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
+      errorMessage = t('auth.metamaskConnectFailed');
     } else if (error.code === 4001) {
-      errorMessage = 'Вы отклонили запрос на подпись в MetaMask.';
+      errorMessage = t('auth.signatureRejected');
     } else if (error.message && error.message.includes('No accounts found')) {
-      errorMessage = 'Аккаунты не найдены. Пожалуйста, разблокируйте MetaMask и попробуйте снова.';
+      errorMessage = t('auth.accountsNotFoundUnlock');
     } else if (error.message && error.message.includes('MetaMask not detected')) {
-      errorMessage = 'MetaMask не обнаружен. Пожалуйста, установите расширение MetaMask.';
+      errorMessage = t('auth.metamaskNotDetected');
     } else if (error.response && error.response.data && error.response.data.error) {
       errorMessage = error.response.data.error;
     } else if (error.message) {

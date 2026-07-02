@@ -17,26 +17,26 @@
         <button
           class="create-category-btn"
           @click="showCreateCategoryModal = true"
-          title="Создать новый раздел"
+          :title="$t('content.docsSidebar.createSectionTitle')"
         >
           <i class="fas fa-plus"></i>
-          <span>Создать раздел</span>
+          <span>{{ $t('content.docsSidebar.createSection') }}</span>
         </button>
         <button
           class="edit-category-btn"
           @click="showEditCategoryModal = true"
-          title="Редактировать раздел"
+          :title="$t('content.docsSidebar.editSectionTitle')"
         >
           <i class="fas fa-edit"></i>
-          <span>Редактировать раздел</span>
+          <span>{{ $t('content.docsSidebar.editSection') }}</span>
         </button>
         <button
           class="delete-category-btn"
           @click="openDeleteCategoryModal"
-          title="Удалить раздел"
+          :title="$t('content.docsSidebar.deleteSectionTitle')"
         >
           <i class="fas fa-trash"></i>
-          <span>Удалить раздел</span>
+          <span>{{ $t('content.docsSidebar.deleteSection') }}</span>
         </button>
       </div>
     </div>
@@ -44,11 +44,11 @@
     <nav class="sidebar-nav">
       <div v-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>Загрузка...</p>
+        <p>{{ $t('common.loading') }}</p>
       </div>
 
       <div v-else-if="!structure.categories || structure.categories.length === 0" class="empty-state">
-        <p>Нет документов</p>
+        <p>{{ $t('content.docsSidebar.noDocuments') }}</p>
       </div>
 
       <div v-else class="categories-list">
@@ -78,7 +78,7 @@
               <button
                 class="category-action-btn"
                 @click="editCategory(category.name)"
-                title="Редактировать раздел"
+                :title="$t('content.docsSidebar.editSectionTitle')"
               >
                 <i class="fas fa-edit"></i>
               </button>
@@ -98,13 +98,13 @@
                     @click.prevent="navigateToPage(page.id)"
                   >
                     <span class="nav-link-text">{{ page.title }}</span>
-                    <span v-if="page.is_index_page" class="nav-link-badge">Главная</span>
+                    <span v-if="page.is_index_page" class="nav-link-badge">{{ $t('content.publishedList.indexBadge') }}</span>
                   </a>
                   <button
                     v-if="canManageDocs"
                     class="nav-link-edit-btn"
                     @click.stop="editPageStructure(page)"
-                    title="Изменить структуру"
+                    :title="$t('content.publishedList.editStructure')"
                   >
                     <i class="fas fa-cog"></i>
                   </button>
@@ -137,25 +137,25 @@
     <div v-if="showCreateCategoryModal" class="modal-overlay" @click="showCreateCategoryModal = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Создать новый раздел</h3>
+          <h3>{{ $t('content.docsSidebar.createSectionModalTitle') }}</h3>
           <button class="modal-close" @click="showCreateCategoryModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Название раздела:</label>
+            <label>{{ $t('content.docsSidebar.sectionNameLabel') }}</label>
             <input
               v-model="newCategoryName"
               type="text"
-              placeholder="Например: Руководства, API, FAQ"
+              :placeholder="$t('content.docsSidebar.sectionNamePlaceholder')"
               class="form-input"
               @keyup.enter="createCategory"
             />
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showCreateCategoryModal = false">Отмена</button>
+          <button class="btn btn-secondary" @click="showCreateCategoryModal = false">{{ $t('common.cancel') }}</button>
           <button class="btn btn-primary" @click="createCategory" :disabled="!newCategoryName.trim()">
-            Создать
+            {{ $t('common.create') }}
           </button>
         </div>
       </div>
@@ -165,18 +165,18 @@
     <div v-if="showEditCategoryModal" class="modal-overlay" @click="showEditCategoryModal = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Редактировать раздел</h3>
+          <h3>{{ $t('content.docsSidebar.editSectionModalTitle') }}</h3>
           <button class="modal-close" @click="showEditCategoryModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Выберите раздел для редактирования:</label>
+            <label>{{ $t('content.docsSidebar.selectSectionToEdit') }}</label>
             <select
               v-model="editingCategoryName"
               class="form-input"
               @change="onCategorySelect"
             >
-              <option value="">-- Выберите раздел --</option>
+              <option value="">{{ $t('content.docsSidebar.selectSectionPlaceholder') }}</option>
               <option
                 v-for="cat in availableCategoriesForEdit"
                 :key="cat"
@@ -187,25 +187,25 @@
             </select>
           </div>
           <div v-if="editingCategoryName" class="form-group">
-            <label>Новое название раздела:</label>
+            <label>{{ $t('content.docsSidebar.newSectionNameLabel') }}</label>
             <input
               v-model="newCategoryNameForEdit"
               type="text"
-              :placeholder="`Текущее название: ${formatCategoryName(editingCategoryName)}`"
+              :placeholder="t('content.docsSidebar.currentNamePlaceholder', { name: formatCategoryName(editingCategoryName) })"
               class="form-input"
               @keyup.enter="saveCategoryEdit"
             />
-            <small class="form-hint">Все документы в этом разделе будут переименованы</small>
+            <small class="form-hint">{{ $t('content.docsSidebar.renameAllHint') }}</small>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showEditCategoryModal = false">Отмена</button>
+          <button class="btn btn-secondary" @click="showEditCategoryModal = false">{{ $t('common.cancel') }}</button>
           <button 
             class="btn btn-primary" 
             @click="saveCategoryEdit" 
             :disabled="!editingCategoryName || !newCategoryNameForEdit.trim() || isSavingCategory"
           >
-            {{ isSavingCategory ? 'Сохранение...' : 'Сохранить' }}
+            {{ isSavingCategory ? $t('common.saving') : $t('common.save') }}
           </button>
         </div>
       </div>
@@ -215,18 +215,18 @@
     <div v-if="showDeleteCategoryModal" class="modal-overlay" @click="showDeleteCategoryModal = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Удалить раздел</h3>
+          <h3>{{ $t('content.docsSidebar.deleteSectionModalTitle') }}</h3>
           <button class="modal-close" @click="showDeleteCategoryModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Выберите раздел для удаления:</label>
+            <label>{{ $t('content.docsSidebar.selectSectionToDelete') }}</label>
             <select
               v-model="deletingCategoryName"
               class="form-input"
               :disabled="isDeletingCategory"
             >
-              <option value="">-- Выберите раздел --</option>
+              <option value="">{{ $t('content.docsSidebar.selectSectionPlaceholder') }}</option>
               <option
                 v-for="cat in availableCategoriesForEdit"
                 :key="cat"
@@ -236,26 +236,33 @@
               </option>
             </select>
             <div v-if="availableCategoriesForEdit.length === 0" class="form-hint">
-              Нет доступных разделов для удаления
+              {{ $t('content.docsSidebar.noSectionsToDelete') }}
             </div>
           </div>
           <div v-if="deletingCategoryName && deletingCategoryName.trim()" class="form-group">
             <div class="alert alert-warning">
-              <strong>Внимание!</strong> Все документы в разделе "{{ formatCategoryName(deletingCategoryName) }}" будут перемещены в категорию "Без категории".
+              <strong>{{ $t('content.docsSidebar.warningTitle') }}</strong>
+              {{ $t('content.docsSidebar.deleteWarning', {
+                name: formatCategoryName(deletingCategoryName),
+                uncategorized: t('content.publishedList.uncategorized')
+              }) }}
             </div>
             <div v-if="getCategoryPageCountByName(deletingCategoryName) > 0" class="form-hint">
-              В этом разделе {{ getCategoryPageCountByName(deletingCategoryName) }} {{ getCategoryPageCountByName(deletingCategoryName) === 1 ? 'документ' : 'документов' }}.
+              {{ getCategoryPageCountByName(deletingCategoryName) === 1
+                ? $t('content.docsSidebar.sectionHasOneDocument')
+                : $t('content.docsSidebar.sectionHasDocuments', { count: getCategoryPageCountByName(deletingCategoryName) })
+              }}
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showDeleteCategoryModal = false">Отмена</button>
+          <button class="btn btn-secondary" @click="showDeleteCategoryModal = false">{{ $t('common.cancel') }}</button>
           <button 
             class="btn btn-danger" 
             @click="deleteCategory" 
             :disabled="!deletingCategoryName || !deletingCategoryName.trim() || isDeletingCategory"
           >
-            {{ isDeletingCategory ? 'Удаление...' : 'Удалить раздел' }}
+            {{ isDeletingCategory ? $t('content.docsSidebar.deleting') : $t('content.docsSidebar.deleteSection') }}
           </button>
         </div>
       </div>
@@ -265,17 +272,17 @@
     <div v-if="showEditPageModal" class="modal-overlay" @click="showEditPageModal = false">
       <div class="modal-content modal-large" @click.stop>
         <div class="modal-header">
-          <h3>Изменить структуру документа</h3>
+          <h3>{{ $t('content.publishedList.structureModalTitle') }}</h3>
           <button class="modal-close" @click="showEditPageModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Категория:</label>
+            <label>{{ $t('content.publishedList.categoryLabel') }}</label>
             <input
               v-model="editingPage.category"
               type="text"
               class="form-input"
-              placeholder="Введите название категории или выберите из списка"
+              :placeholder="$t('content.publishedList.categoryPlaceholder')"
               list="categories-list"
             />
             <datalist id="categories-list">
@@ -287,12 +294,12 @@
                 {{ formatCategoryName(cat) }}
               </option>
             </datalist>
-            <small class="form-hint">Категория создается автоматически при сохранении. Можно ввести новую или выбрать существующую.</small>
+            <small class="form-hint">{{ $t('content.publishedList.categoryHint') }}</small>
           </div>
           <div class="form-group">
-            <label>Родительский документ:</label>
+            <label>{{ $t('content.publishedList.parentDocumentLabel') }}</label>
             <select v-model="editingPage.parent_id" class="form-input">
-              <option :value="null">Нет (корневой документ)</option>
+              <option :value="null">{{ $t('content.publishedList.noParent') }}</option>
               <option
                 v-for="parent in availableParents"
                 :key="parent.id"
@@ -303,7 +310,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Порядок сортировки:</label>
+            <label>{{ $t('content.publishedList.sortOrderLabel') }}</label>
             <input
               v-model.number="editingPage.order_index"
               type="number"
@@ -319,14 +326,14 @@
                 type="checkbox"
                 class="form-checkbox"
               />
-              Главная страница категории
+              {{ $t('content.publishedList.indexPageCheckbox') }}
             </label>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showEditPageModal = false">Отмена</button>
+          <button class="btn btn-secondary" @click="showEditPageModal = false">{{ $t('common.cancel') }}</button>
           <button class="btn btn-primary" @click="savePageStructure" :disabled="isSaving">
-            {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
+            {{ isSaving ? $t('common.saving') : $t('common.save') }}
           </button>
         </div>
       </div>
@@ -335,6 +342,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import pagesService from '../../services/pagesService';
@@ -564,7 +573,7 @@ async function saveCategoryEdit() {
   const newCategoryName = newCategoryNameForEdit.value.trim().toLowerCase();
   
   if (oldCategoryName === newCategoryName) {
-    alert('Новое название должно отличаться от текущего');
+    alert(t('content.docsSidebar.newNameMustDiffer'));
     return;
   }
   
@@ -633,14 +642,14 @@ async function saveCategoryEdit() {
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
     
     if (pagesToUpdate.length > 0) {
-      alert(`Раздел успешно переименован. Обновлено документов: ${pagesToUpdate.length}`);
+      alert(t('content.docsSidebar.renameSuccessWithCount', { count: pagesToUpdate.length }));
     } else {
-      alert(`Раздел успешно переименован. В разделе не было документов.`);
+      alert(t('content.docsSidebar.renameSuccessEmpty'));
     }
     
   } catch (error) {
     console.error('[DocsSidebar] Ошибка переименования категории:', error);
-    alert('Ошибка переименования раздела: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.docsSidebar.renameError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   } finally {
     isSavingCategory.value = false;
   }
@@ -671,7 +680,7 @@ async function createCategory() {
     );
     
     if (existingCategory) {
-      alert(`Раздел "${formatCategoryName(categoryName)}" уже существует. Выберите другое название.`);
+      alert(t('content.docsSidebar.sectionExists', { name: formatCategoryName(categoryName) }));
       return;
     }
     
@@ -693,19 +702,17 @@ async function createCategory() {
     // Уведомляем другие компоненты об обновлении
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
     
-    alert(`Раздел "${categoryName}" успешно создан. Теперь вы можете добавлять в него документы, назначив им эту категорию.`);
+    alert(t('content.docsSidebar.sectionCreatedSuccess', { name: categoryName }));
     
   } catch (error) {
     console.error('[DocsSidebar] Ошибка создания категории:', error);
-    alert('Ошибка создания раздела: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.editor.categoryCreateError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   }
 }
 
 // Редактирование категории
 function editCategory(categoryName) {
-  // Показываем список документов этой категории для редактирования
-  // Можно открыть модальное окно с документами категории
-  alert(`Редактирование категории "${formatCategoryName(categoryName)}". Выберите документ для изменения его структуры.`);
+  alert(t('content.docsSidebar.editCategoryHint', { name: formatCategoryName(categoryName) }));
 }
 
 // Открытие модального окна удаления категории
@@ -741,7 +748,7 @@ async function deleteCategory() {
   const categoryName = deletingCategoryName.value.toLowerCase();
   
   if (categoryName === 'uncategorized') {
-    alert('Нельзя удалить категорию "Без категории"');
+    alert(t('content.docsSidebar.cannotDeleteUncategorized', { name: t('content.publishedList.uncategorized') }));
     return;
   }
   
@@ -794,14 +801,18 @@ async function deleteCategory() {
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
     
     if (pagesToUpdate.length > 0) {
-      alert(`Раздел "${formatCategoryName(categoryName)}" успешно удален. Все документы (${pagesToUpdate.length}) перемещены в категорию "Без категории".`);
+      alert(t('content.docsSidebar.deleteSuccessWithMove', {
+        name: formatCategoryName(categoryName),
+        count: pagesToUpdate.length,
+        uncategorized: t('content.publishedList.uncategorized')
+      }));
     } else {
-      alert(`Раздел "${formatCategoryName(categoryName)}" успешно удален. В разделе не было документов.`);
+      alert(t('content.docsSidebar.deleteSuccessEmpty', { name: formatCategoryName(categoryName) }));
     }
     
   } catch (error) {
     console.error('[DocsSidebar] Ошибка удаления категории:', error);
-    alert('Ошибка удаления раздела: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.docsSidebar.deleteError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   } finally {
     isDeletingCategory.value = false;
   }
@@ -861,7 +872,7 @@ async function savePageStructure() {
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
   } catch (error) {
     console.error('Ошибка сохранения структуры:', error);
-    alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.publishedList.saveError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   } finally {
     isSaving.value = false;
   }
@@ -872,8 +883,7 @@ function toggleCategory(categoryName) {
 }
 
 function formatCategoryName(name) {
-  if (name === 'uncategorized') return 'Без категории';
-  // Преобразуем только первую букву в заглавную, остальные оставляем как есть
+  if (name === 'uncategorized') return t('content.publishedList.uncategorized');
   if (!name || name.length === 0) return name;
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }

@@ -13,6 +13,9 @@
 import api from '@/api/axios';
 import { ethers } from 'ethers';
 import { DLE_ABI, DLE_DEACTIVATION_ABI, TOKEN_ABI } from './dle-abi';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 // Функция для переключения сети кошелька
 export async function switchToVotingNetwork(chainId) {
@@ -111,7 +114,7 @@ export async function switchToVotingNetwork(chainId) {
 export async function checkWalletConnection() {
   try {
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -130,14 +133,14 @@ export async function checkWalletConnection() {
     console.error('Ошибка подключения к кошельку:', error);
     
     // Улучшенная обработка ошибок MetaMask
-    let errorMessage = 'Ошибка подключения к кошельку.';
+    let errorMessage = t('dleContract.errors.walletConnectionError');
     
     if (error.message && error.message.includes('MetaMask extension not found')) {
-      errorMessage = 'Расширение MetaMask не найдено. Пожалуйста, установите MetaMask и обновите страницу.';
+      errorMessage = t('dleContract.errors.metamaskExtensionNotFound');
     } else if (error.message && error.message.includes('Failed to connect to MetaMask')) {
-      errorMessage = 'Не удалось подключиться к MetaMask. Проверьте, что расширение установлено и активно.';
-    } else if (error.message && error.message.includes('Браузерный кошелек не установлен')) {
-      errorMessage = 'Браузерный кошелек не установлен. Пожалуйста, установите MetaMask.';
+      errorMessage = t('dleContract.errors.metamaskConnectFailed');
+    } else if (error.message && error.message === t('dleContract.errors.browserWalletNotInstalled')) {
+      errorMessage = t('dleContract.errors.browserWalletNotInstalledWithHint');
     } else if (error.message) {
       errorMessage = error.message;
     }
@@ -167,7 +170,7 @@ export async function getDLEInfo(dleAddress) {
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.message || 'Не удалось прочитать данные из блокчейна');
+      throw new Error(response.data.message || t('dleContract.errors.readBlockchainFailed'));
     }
   } catch (error) {
     console.error('Ошибка получения информации о DLE:', error);
@@ -194,7 +197,7 @@ export async function createProposal(dleAddress, proposalData) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Запрашиваем подключение к кошельку
@@ -244,7 +247,7 @@ export async function voteForProposal(dleAddress, proposalId, support) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Запрашиваем подключение к кошельку
@@ -263,7 +266,7 @@ export async function voteForProposal(dleAddress, proposalId, support) {
       
       // Проверяем, можно ли голосовать (состояние должно быть 0 = Pending)
       if (Number(proposalState) !== 0) {
-        throw new Error(`Предложение в состоянии ${proposalState}, голосование невозможно`);
+        throw new Error(t('dleContract.errors.proposalWrongState', { state: proposalState }));
       }
       
       console.log('🔍 [VOTE DEBUG] Предложение в правильном состоянии для голосования');
@@ -275,7 +278,7 @@ export async function voteForProposal(dleAddress, proposalId, support) {
           const votingPower = await dle.getPastVotes(signer.address, proposal.snapshotTimepoint);
           console.log('🔍 [VOTE DEBUG] Право голоса:', votingPower.toString());
           if (votingPower === 0n) {
-            throw new Error('У пользователя нет права голоса (votingPower = 0)');
+            throw new Error(t('dleContract.errors.noVotingPower'));
           }
           console.log('🔍 [VOTE DEBUG] У пользователя есть право голоса');
         }
@@ -347,7 +350,7 @@ export async function executeProposal(dleAddress, proposalId) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Запрашиваем подключение к кошельку
@@ -389,7 +392,7 @@ export async function cancelProposal(dleAddress, proposalId, reason) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Запрашиваем подключение к кошельку
@@ -428,7 +431,7 @@ export async function checkTokenBalance(dleAddress, userAddress) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Создаем провайдер (только для чтения)
@@ -484,7 +487,7 @@ export async function createAddModuleProposal(dleAddress, description, duration,
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.error || 'Не удалось создать предложение о добавлении модуля');
+      throw new Error(response.data.error || t('dleContract.errors.createAddModuleProposalFailed'));
     }
   } catch (error) {
     console.error('Ошибка создания предложения о добавлении модуля:', error);
@@ -514,7 +517,7 @@ export async function createRemoveModuleProposal(dleAddress, description, durati
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.message || 'Не удалось создать предложение об удалении модуля');
+      throw new Error(response.data.message || t('dleContract.errors.createRemoveModuleProposalFailed'));
     }
   } catch (error) {
     console.error('Ошибка создания предложения об удалении модуля:', error);
@@ -538,7 +541,7 @@ export async function isModuleActive(dleAddress, moduleId) {
     if (response.data.success) {
       return response.data.data.isActive;
     } else {
-      throw new Error(response.data.message || 'Не удалось проверить активность модуля');
+      throw new Error(response.data.message || t('dleContract.errors.moduleActiveCheckFailed'));
     }
   } catch (error) {
     console.error('Ошибка проверки активности модуля:', error);
@@ -563,7 +566,7 @@ export async function getModuleAddress(dleAddress, moduleId, chainId) {
     if (response.data.success) {
       return response.data.data.moduleAddress;
     } else {
-      throw new Error(response.data.message || 'Не удалось получить адрес модуля');
+      throw new Error(response.data.message || t('dleContract.errors.moduleAddressFailed'));
     }
   } catch (error) {
     console.error('Ошибка получения адреса модуля:', error);
@@ -587,7 +590,7 @@ export async function isChainSupported(dleAddress, chainId) {
     if (response.data.success) {
       return response.data.data.isSupported;
     } else {
-      throw new Error(response.data.message || 'Не удалось проверить поддержку цепочки');
+      throw new Error(response.data.message || t('dleContract.errors.chainSupportCheckFailed'));
     }
   } catch (error) {
     console.error('Ошибка проверки поддержки цепочки:', error);
@@ -609,7 +612,7 @@ export async function getCurrentChainId(dleAddress) {
     if (response.data.success) {
       return response.data.data.chainId;
     } else {
-      throw new Error(response.data.message || 'Не удалось получить текущий ID цепочки');
+      throw new Error(response.data.message || t('dleContract.errors.currentChainIdFailed'));
     }
   } catch (error) {
     console.error('Ошибка получения текущего ID цепочки:', error);
@@ -633,7 +636,7 @@ export async function checkProposalResult(dleAddress, proposalId) {
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.message || 'Не удалось проверить результат предложения');
+      throw new Error(response.data.message || t('dleContract.errors.proposalResultCheckFailed'));
     }
   } catch (error) {
     console.error('Ошибка проверки результата предложения:', error);
@@ -658,7 +661,7 @@ export async function loadProposals(dleAddress) {
     if (response.data.success) {
       return response.data.data.proposals;
     } else {
-      throw new Error(response.data.message || 'Не удалось загрузить предложения');
+      throw new Error(response.data.message || t('dleContract.errors.loadProposalsFailed'));
     }
   } catch (error) {
     console.error('Ошибка загрузки предложений:', error);
@@ -750,7 +753,7 @@ export async function getSupportedChains(dleAddress) {
     if (response.data.success) {
       return response.data.data.chains;
     } else {
-      throw new Error(response.data.message || 'Не удалось получить поддерживаемые цепочки');
+      throw new Error(response.data.message || t('dleContract.errors.supportedChainsFailed'));
     }
   } catch (error) {
     console.error('Ошибка получения поддерживаемых цепочек:', error);
@@ -770,7 +773,7 @@ export async function deactivateDLE(dleAddress, userAddress) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Запрашиваем подключение к кошельку
@@ -781,7 +784,7 @@ export async function deactivateDLE(dleAddress, userAddress) {
     // Проверяем, что подключенный адрес совпадает с userAddress
     const connectedAddress = await signer.getAddress();
     if (connectedAddress.toLowerCase() !== userAddress.toLowerCase()) {
-      throw new Error('Подключенный кошелек не совпадает с адресом пользователя');
+      throw new Error(t('dleContract.errors.walletAddressMismatch'));
     }
 
     // Сначала проверяем возможность деактивации через API
@@ -792,7 +795,7 @@ export async function deactivateDLE(dleAddress, userAddress) {
     });
 
     if (!checkResponse.data.success) {
-      throw new Error(checkResponse.data.error || 'Не удалось проверить возможность деактивации');
+      throw new Error(checkResponse.data.error || t('dleContract.errors.deactivationCheckFailed'));
     }
 
     console.log('Проверка деактивации прошла успешно, выполняем деактивацию...');
@@ -804,17 +807,17 @@ export async function deactivateDLE(dleAddress, userAddress) {
     // Дополнительные проверки перед деактивацией
     const balance = await dle.balanceOf(userAddress);
     if (balance <= 0) {
-      throw new Error('Для деактивации DLE необходимо иметь токены');
+      throw new Error(t('dleContract.errors.tokensRequiredForDeactivation'));
     }
 
     const totalSupply = await dle.totalSupply();
     if (totalSupply <= 0) {
-      throw new Error('DLE не имеет токенов');
+      throw new Error(t('dleContract.errors.dleNoTokens'));
     }
 
     const isActive = await dle.isActive();
     if (!isActive) {
-      throw new Error('DLE уже деактивирован');
+      throw new Error(t('dleContract.errors.dleAlreadyDeactivated'));
     }
 
     // Выполняем деактивацию
@@ -835,20 +838,20 @@ export async function deactivateDLE(dleAddress, userAddress) {
     console.error('Ошибка деактивации DLE:', error);
     
     // Улучшенная обработка ошибок
-    let errorMessage = 'Ошибка при деактивации DLE';
+    let errorMessage = t('dleContract.errors.deactivationError');
     
     if (error.message.includes('execution reverted')) {
-      errorMessage = '❌ Деактивация невозможна: не выполнены условия смарт-контракта. Возможно, требуется голосование участников или DLE уже деактивирован.';
-    } else if (error.message.includes('владелец')) {
-      errorMessage = '❌ Только владелец DLE может его деактивировать';
-    } else if (error.message.includes('кошелек')) {
-      errorMessage = '❌ Необходимо подключить кошелек';
-    } else if (error.message.includes('деактивирован')) {
-      errorMessage = '❌ DLE уже деактивирован';
-    } else if (error.message.includes('токены')) {
-      errorMessage = '❌ Для деактивации DLE необходимо иметь токены';
+      errorMessage = t('dleContract.errors.deactivationNotPossible');
+    } else if (error.message.includes('владелец') || error.message.includes('owner')) {
+      errorMessage = t('dleContract.errors.deactivationOwnerOnly');
+    } else if (error.message.includes('кошелек') || error.message.includes('wallet')) {
+      errorMessage = t('dleContract.errors.walletRequired');
+    } else if (error.message.includes('деактивирован') || error.message.includes('deactivated')) {
+      errorMessage = t('dleContract.errors.dleAlreadyDeactivatedWithEmoji');
+    } else if (error.message.includes('токены') || error.message.includes('token')) {
+      errorMessage = t('dleContract.errors.tokensRequiredWithEmoji');
     } else {
-      errorMessage = `❌ Ошибка: ${error.message}`;
+      errorMessage = t('dleContract.errors.genericError', { message: error.message });
     }
     
     throw new Error(errorMessage);
@@ -868,7 +871,7 @@ export async function createDeactivationProposal(dleAddress, description, durati
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     const provider = new ethers.BrowserProvider(window.ethereum);
@@ -887,7 +890,7 @@ export async function createDeactivationProposal(dleAddress, description, durati
       success: true,
       txHash: tx.hash,
       blockNumber: receipt.blockNumber,
-      message: 'Предложение о деактивации создано'
+      message: t('dleContract.messages.deactivationProposalCreated')
     };
 
   } catch (error) {
@@ -907,7 +910,7 @@ export async function createDeactivationProposal(dleAddress, description, durati
 export async function voteDeactivationProposal(dleAddress, proposalId, support) {
   try {
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     const provider = new ethers.BrowserProvider(window.ethereum);
@@ -926,7 +929,7 @@ export async function voteDeactivationProposal(dleAddress, proposalId, support) 
       success: true,
       txHash: tx.hash,
       blockNumber: receipt.blockNumber,
-      message: `Голосование ${support ? 'за' : 'против'} предложения деактивации`
+      message: support ? t('dleContract.messages.deactivationVoteFor') : t('dleContract.messages.deactivationVoteAgainst')
     };
 
   } catch (error) {
@@ -951,7 +954,7 @@ export async function checkDeactivationProposalResult(dleAddress, proposalId) {
     if (response.data.success) {
       return response.data.data;
     } else {
-      throw new Error(response.data.message || 'Не удалось проверить результат предложения деактивации');
+      throw new Error(response.data.message || t('dleContract.errors.deactivationProposalResultFailed'));
     }
   } catch (error) {
     console.error('Ошибка проверки результата предложения деактивации:', error);
@@ -969,7 +972,7 @@ export async function checkDeactivationProposalResult(dleAddress, proposalId) {
 export async function executeDeactivationProposal(dleAddress, proposalId) {
   try {
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     const provider = new ethers.BrowserProvider(window.ethereum);
@@ -988,7 +991,7 @@ export async function executeDeactivationProposal(dleAddress, proposalId) {
       success: true,
       txHash: tx.hash,
       blockNumber: receipt.blockNumber,
-      message: 'Предложение деактивации успешно исполнено'
+      message: t('dleContract.messages.deactivationProposalExecuted')
     };
 
   } catch (error) {
@@ -1011,7 +1014,7 @@ export async function loadDeactivationProposals(dleAddress) {
     if (response.data.success) {
       return response.data.data.proposals;
     } else {
-      throw new Error(response.data.message || 'Не удалось загрузить предложения деактивации');
+      throw new Error(response.data.message || t('dleContract.errors.loadDeactivationProposalsFailed'));
     }
   } catch (error) {
     console.error('Ошибка загрузки предложений деактивации:', error);
@@ -1034,7 +1037,7 @@ export async function createTransferTokensProposal(dleAddress, transferData) {
   try {
     // Проверяем наличие браузерного кошелька
     if (!window.ethereum) {
-      throw new Error('Браузерный кошелек не установлен');
+      throw new Error(t('dleContract.errors.browserWalletNotInstalled'));
     }
 
     // Запрашиваем подключение к кошельку

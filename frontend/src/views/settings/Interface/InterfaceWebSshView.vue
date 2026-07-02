@@ -21,12 +21,14 @@
   />
   <div class="webssh-settings-block">
     <button class="close-btn" @click="goBack">×</button>
-    <h2>Настройка VDS Сервер</h2>
+    <h2>{{ $t('settings.interface.vds.setupTitle') }}</h2>
     <WebSshForm />
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import WebSshForm from '@/components/WebSshForm.vue';

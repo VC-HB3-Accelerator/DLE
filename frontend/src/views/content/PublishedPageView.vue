@@ -14,7 +14,7 @@
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
     <div class="docs-page">
       <div class="docs-header">
-        <button class="close-btn" @click="goBack" title="Закрыть">×</button>
+        <button class="close-btn" @click="goBack" :title="t('common.close')">×</button>
       </div>
 
       <!-- Основной контент: сайдбар + контент -->
@@ -28,7 +28,7 @@
           
           <div v-else class="loading-state">
             <div class="loading-spinner"></div>
-            <p>Загрузка документа...</p>
+            <p>{{ t('content.publishedPage.loadingDocument') }}</p>
           </div>
         </div>
       </div>
@@ -39,6 +39,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import DocsSidebar from '../../components/docs/DocsSidebar.vue';
 import DocsContent from '../../components/docs/DocsContent.vue';
@@ -53,6 +54,7 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 
 const currentPageId = ref(null);
 const pageSlug = computed(() => route.params.slug);

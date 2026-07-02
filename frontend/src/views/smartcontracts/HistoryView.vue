@@ -25,35 +25,35 @@
           {{ selectedDle.dleAddress }}
         </div>
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          Загрузка...
+          {{ t('common.loading') }}
         </div>
         <button class="close-btn" @click="goBackToBlocks">×</button>
       </div>
       <div class="filters-section">
-        <h2>Фильтры</h2>
+        <h2>{{ t('smartcontracts.history.filters') }}</h2>
         <div class="filters-form">
           <div class="filters-row">
             <div class="filter-group">
-              <label for="eventType">Тип события:</label>
+              <label for="eventType">{{ t('smartcontracts.history.eventType') }}</label>
               <select id="eventType" v-model="filters.eventType">
-                <option value="">Все события</option>
-                <option value="dle_created">Создание DLE</option>
-                <option value="proposal_created">Создание предложений</option>
-                <option value="proposal_executed">Исполнение предложений</option>
-                <option value="proposal_cancelled">Отмена предложений</option>
-                <option value="module_added">Добавление модулей</option>
-                <option value="module_removed">Удаление модулей</option>
-                <option value="chain_added">Добавление сетей</option>
-                <option value="chain_removed">Удаление сетей</option>
-                <option value="chain_updated">Изменение текущей сети</option>
-                <option value="quorum_updated">Изменение кворума</option>
-                <option value="dle_info_updated">Обновление информации DLE</option>
-                <option value="proposal_execution_approved">Одобрение исполнения</option>
+                <option value="">{{ t('smartcontracts.history.allEvents') }}</option>
+                <option value="dle_created">{{ t('smartcontracts.history.eventTypes.dle_created') }}</option>
+                <option value="proposal_created">{{ t('smartcontracts.history.eventTypes.proposal_created') }}</option>
+                <option value="proposal_executed">{{ t('smartcontracts.history.eventTypes.proposal_executed') }}</option>
+                <option value="proposal_cancelled">{{ t('smartcontracts.history.eventTypes.proposal_cancelled') }}</option>
+                <option value="module_added">{{ t('smartcontracts.history.eventTypes.module_added') }}</option>
+                <option value="module_removed">{{ t('smartcontracts.history.eventTypes.module_removed') }}</option>
+                <option value="chain_added">{{ t('smartcontracts.history.eventTypes.chain_added') }}</option>
+                <option value="chain_removed">{{ t('smartcontracts.history.eventTypes.chain_removed') }}</option>
+                <option value="chain_updated">{{ t('smartcontracts.history.eventTypes.chain_updated') }}</option>
+                <option value="quorum_updated">{{ t('smartcontracts.history.eventTypes.quorum_updated') }}</option>
+                <option value="dle_info_updated">{{ t('smartcontracts.history.eventTypes.dle_info_updated') }}</option>
+                <option value="proposal_execution_approved">{{ t('smartcontracts.history.eventTypes.proposal_execution_approved') }}</option>
               </select>
             </div>
             
             <div class="filter-group">
-              <label for="dateFrom">Дата с:</label>
+              <label for="dateFrom">{{ t('smartcontracts.history.dateFrom') }}</label>
               <input 
                 id="dateFrom"
                 v-model="filters.dateFrom" 
@@ -62,7 +62,7 @@
             </div>
             
             <div class="filter-group">
-              <label for="dateTo">Дата по:</label>
+              <label for="dateTo">{{ t('smartcontracts.history.dateTo') }}</label>
               <input 
                 id="dateTo"
                 v-model="filters.dateTo" 
@@ -74,30 +74,30 @@
           </div>
           
           <div class="filters-actions">
-            <button @click="applyFilters" class="btn-primary">Применить фильтры</button>
-            <button @click="clearFilters" class="btn-secondary">Сбросить</button>
+            <button @click="applyFilters" class="btn-primary">{{ t('smartcontracts.history.applyFilters') }}</button>
+            <button @click="clearFilters" class="btn-secondary">{{ t('smartcontracts.history.reset') }}</button>
           </div>
         </div>
       </div>
 
       <!-- Статистика -->
       <div class="stats-section">
-        <h2>Статистика</h2>
+        <h2>{{ t('smartcontracts.history.statistics') }}</h2>
         <div class="stats-grid">
           <div class="stat-card">
-            <h3>Всего событий</h3>
+            <h3>{{ t('smartcontracts.history.totalEvents') }}</h3>
             <p class="stat-value">{{ totalOperations }}</p>
           </div>
           <div class="stat-card">
-            <h3>Предложения</h3>
+            <h3>{{ t('smartcontracts.history.proposals') }}</h3>
             <p class="stat-value">{{ history.filter(e => e.type.includes('proposal')).length }}</p>
           </div>
           <div class="stat-card">
-            <h3>Модули</h3>
+            <h3>{{ t('smartcontracts.history.modules') }}</h3>
             <p class="stat-value">{{ history.filter(e => e.type.includes('module')).length }}</p>
           </div>
           <div class="stat-card">
-            <h3>Сети</h3>
+            <h3>{{ t('smartcontracts.history.chains') }}</h3>
             <p class="stat-value">{{ history.filter(e => e.type.includes('chain')).length }}</p>
           </div>
         </div>
@@ -105,21 +105,21 @@
 
       <!-- История событий -->
       <div class="history-section">
-        <h2>История событий</h2>
+        <h2>{{ t('smartcontracts.history.eventHistory') }}</h2>
         <div class="history-controls">
           <div class="search-box">
             <input 
               v-model="searchQuery" 
               type="text" 
-              placeholder="Поиск по названию или описанию события..."
+              :placeholder="t('smartcontracts.history.searchPlaceholder')"
               @input="filterHistory"
             >
           </div>
           <div class="sort-controls">
             <select v-model="sortBy" @change="sortHistory">
-              <option value="timestamp">По дате</option>
-              <option value="type">По типу</option>
-              <option value="title">По названию</option>
+              <option value="timestamp">{{ t('smartcontracts.history.sortByDate') }}</option>
+              <option value="type">{{ t('smartcontracts.history.sortByType') }}</option>
+              <option value="title">{{ t('smartcontracts.history.sortByTitle') }}</option>
             </select>
             <button @click="toggleSortOrder" class="sort-btn">
               {{ sortOrder === 'desc' ? '↓' : '↑' }}
@@ -128,7 +128,7 @@
         </div>
         
         <div v-if="filteredHistory.length === 0" class="empty-state">
-          <p>Нет событий, соответствующих фильтрам</p>
+          <p>{{ t('smartcontracts.history.emptyState') }}</p>
         </div>
         <div v-else class="history-list">
           <div 
@@ -145,7 +145,7 @@
               <div class="event-header">
                 <h3>{{ getEventTitle(event) }}</h3>
                 <span class="event-status success">
-                  Успешно
+                  {{ t('smartcontracts.history.success') }}
                 </span>
               </div>
               
@@ -153,8 +153,8 @@
                 <p class="event-description">{{ event.description }}</p>
                 <div class="event-meta">
                   <span class="event-date">{{ formatDate(event.timestamp) }}</span>
-                  <span class="event-hash">Tx: {{ formatHash(event.transactionHash) }}</span>
-                  <span v-if="event.blockNumber" class="event-block">Block: {{ event.blockNumber }}</span>
+                  <span class="event-hash">{{ t('smartcontracts.history.txPrefix') }} {{ formatHash(event.transactionHash) }}</span>
+                  <span v-if="event.blockNumber" class="event-block">{{ t('smartcontracts.history.blockPrefix') }} {{ event.blockNumber }}</span>
                 </div>
                 <div v-if="event.details" class="event-data">
                   <div v-for="(value, key) in event.details" :key="key" class="data-item">
@@ -167,10 +167,10 @@
             
             <div class="event-actions">
               <button @click="viewDetails(event)" class="btn-secondary">
-                Детали
+                {{ t('common.details') }}
               </button>
               <button @click="viewOnExplorer(event)" class="btn-secondary">
-                Explorer
+                {{ t('smartcontracts.history.explorer') }}
               </button>
             </div>
           </div>
@@ -187,7 +187,7 @@
           </button>
           
           <span class="page-info">
-            Страница {{ currentPage }} из {{ totalPages }}
+            {{ t('smartcontracts.history.pageInfo', { current: currentPage, total: totalPages }) }}
           </span>
           
           <button 
@@ -204,39 +204,39 @@
       <div v-if="showDetailsModal" class="modal-overlay" @click="showDetailsModal = false">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
-            <h3>Детали операции</h3>
+            <h3>{{ t('smartcontracts.history.modalTitle') }}</h3>
             <button @click="showDetailsModal = false" class="close-btn">✕</button>
           </div>
           <div class="modal-body">
             <div v-if="selectedEvent" class="event-details-full">
               <div class="detail-row">
-                <span class="detail-label">Тип:</span>
+                <span class="detail-label">{{ t('smartcontracts.history.type') }}</span>
                 <span class="detail-value">{{ getEventTitle(selectedEvent) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Статус:</span>
+                <span class="detail-label">{{ t('smartcontracts.history.status') }}</span>
                 <span class="detail-value success">
-                  Успешно
+                  {{ t('smartcontracts.history.success') }}
                 </span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Дата:</span>
+                <span class="detail-label">{{ t('smartcontracts.history.date') }}</span>
                 <span class="detail-value">{{ formatDate(selectedEvent.timestamp) }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Транзакция:</span>
+                <span class="detail-label">{{ t('smartcontracts.history.transaction') }}</span>
                 <span class="detail-value">{{ selectedEvent.transactionHash }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Блок:</span>
+                <span class="detail-label">{{ t('smartcontracts.history.block') }}</span>
                 <span class="detail-value">{{ selectedEvent.blockNumber }}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Описание:</span>
+                <span class="detail-label">{{ t('smartcontracts.history.descriptionLabel') }}</span>
                 <span class="detail-value">{{ selectedEvent.description }}</span>
               </div>
               <div v-if="selectedEvent.details" class="detail-section">
-                <h4>Детали события:</h4>
+                <h4>{{ t('smartcontracts.history.eventDetails') }}</h4>
                 <div class="data-grid">
                   <div 
                     v-for="(value, key) in selectedEvent.details" 
@@ -259,8 +259,11 @@
 <script setup>
 import { ref, computed, defineProps, defineEmits, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import api from '../../api/axios';
+
+const { t, locale } = useI18n();
 
 // Определяем props
 const props = defineProps({
@@ -320,8 +323,6 @@ async function loadDleData() {
       return;
     }
 
-    console.log('[HistoryView] Загрузка данных DLE:', dleAddress.value);
-    
     // Читаем данные из блокчейна
     const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress.value
@@ -329,7 +330,6 @@ async function loadDleData() {
     
     if (response.data.success) {
       selectedDle.value = response.data.data;
-      console.log('[HistoryView] Данные DLE загружены:', selectedDle.value);
       
       // Загружаем историю событий
       await loadEventHistory();
@@ -346,8 +346,6 @@ async function loadDleData() {
 // Загрузка истории событий
 async function loadEventHistory() {
   try {
-    console.log('[HistoryView] Загрузка расширенной истории событий для DLE:', dleAddress.value);
-    
     // Загружаем расширенную историю из блокчейна
     const response = await api.post('/dle-history/get-extended-history', {
       dleAddress: dleAddress.value
@@ -356,8 +354,6 @@ async function loadEventHistory() {
     if (response.data.success) {
       const historyData = response.data.data;
       history.value = historyData.history || [];
-      
-      console.log('[HistoryView] Расширенная история событий загружена:', history.value);
     } else {
       console.error('[HistoryView] Ошибка загрузки истории:', response.data.error);
       history.value = [];
@@ -491,16 +487,16 @@ const getEventIcon = (type) => {
 };
 
 const getEventTitle = (event) => {
-  return event.title || 'Операция';
+  return event.title || t('smartcontracts.history.defaultOperation');
 };
 
-const getStatusText = (status) => {
-  // Все события из блокчейна считаются успешными, так как они уже произошли
-  return 'Успешно';
+const getStatusText = () => {
+  return t('smartcontracts.history.success');
 };
 
 const formatDate = (timestamp) => {
-  return new Date(timestamp).toLocaleString('ru-RU');
+  const dateLocale = locale.value === 'en' ? 'en-US' : 'ru-RU';
+  return new Date(timestamp).toLocaleString(dateLocale);
 };
 
 const formatHash = (hash) => {

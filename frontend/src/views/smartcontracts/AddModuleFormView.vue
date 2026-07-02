@@ -28,15 +28,15 @@
           {{ dleAddress }}
         </div>
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          Загрузка...
+          {{ t('common.loading') }}
         </div>
         <button class="close-btn" @click="goBackToProposals">×</button>
       </div>
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
           <i class="fas fa-info-circle"></i>
-          <strong>Для создания предложений необходимо авторизоваться в приложении</strong>
-          <p class="mb-0 mt-2">Подключите кошелек в сайдбаре для создания новых предложений</p>
+          <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
+          <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
       </div>
 
@@ -47,7 +47,7 @@
           <div class="form-group">
             <label for="moduleType" class="form-label">
               <i class="fas fa-cube"></i>
-              Тип модуля *
+              {{ t('smartcontracts.addModule.moduleTypeLabel') }}
             </label>
             <select 
               id="moduleType" 
@@ -57,7 +57,7 @@
               :disabled="isLoadingModules"
               required
             >
-              <option value="">Выберите тип модуля</option>
+              <option value="">{{ t('smartcontracts.addModule.moduleTypePlaceholder') }}</option>
               <option 
                 v-for="module in availableModules" 
                 :key="module.moduleType" 
@@ -68,15 +68,15 @@
             </select>
             <div v-if="availableModules.length === 0 && !isLoadingModules" class="no-modules-warning">
               <i class="fas fa-exclamation-triangle"></i>
-              Нет доступных модулей для выбора ({{ availableModules.length }} модулей)
-              <button @click="loadAvailableModules" class="btn-reload-modules">
+              {{ t('smartcontracts.addModule.noModulesWarning', { count: availableModules.length }) }}
+              <button type="button" @click="loadAvailableModules" class="btn-reload-modules">
                 <i class="fas fa-sync-alt"></i>
-                Перезагрузить
+                {{ t('common.reload') }}
               </button>
             </div>
             <div v-if="isLoadingModules" class="loading-indicator">
               <i class="fas fa-spinner fa-spin"></i>
-              Загрузка модулей...
+              {{ t('smartcontracts.addModule.loadingModules') }}
             </div>
           </div>
 
@@ -84,7 +84,7 @@
           <div class="form-group" v-if="formData.moduleType && selectedModuleAddresses.length > 0">
             <label class="form-label">
               <i class="fas fa-map-marker-alt"></i>
-              Адреса модуля (автоматически выбраны)
+              {{ t('smartcontracts.addModule.addressesLabel') }}
             </label>
             <div class="module-addresses">
               <div 
@@ -97,13 +97,13 @@
                   <span class="address-value">{{ address.address }}</span>
                 </div>
                 <div class="address-status">
-                  <span v-if="address.isActive" class="status-badge active">Активен</span>
-                  <span v-else class="status-badge inactive">Неактивен</span>
+                  <span v-if="address.isActive" class="status-badge active">{{ t('smartcontracts.addModule.active') }}</span>
+                  <span v-else class="status-badge inactive">{{ t('smartcontracts.addModule.inactive') }}</span>
                 </div>
               </div>
             </div>
             <div class="input-hint">
-              Модуль будет добавлен во все {{ selectedModuleAddresses.length }} поддерживаемых сетей DLE
+              {{ t('smartcontracts.addModule.addressesHint', { count: selectedModuleAddresses.length }) }}
             </div>
           </div>
 
@@ -112,7 +112,7 @@
           <div class="form-group">
             <label for="votingChain" class="form-label">
               <i class="fas fa-network-wired"></i>
-              Сеть для голосования *
+              {{ t('smartcontracts.addModule.votingChainLabel') }}
             </label>
             <select 
               id="votingChain" 
@@ -120,7 +120,7 @@
               class="form-select"
               required
             >
-              <option value="">Выберите сеть для голосования</option>
+              <option value="">{{ t('smartcontracts.addModule.votingChainPlaceholder') }}</option>
               <option 
                 v-for="chain in supportedChains" 
                 :key="chain.chainId" 
@@ -130,7 +130,7 @@
               </option>
             </select>
             <div class="input-hint">
-              Голосование будет проводиться в выбранной сети, но модуль добавится во все сети
+              {{ t('smartcontracts.addModule.votingChainHint') }}
             </div>
           </div>
 
@@ -138,7 +138,7 @@
           <div class="form-group">
             <label for="votingDuration" class="form-label">
               <i class="fas fa-clock"></i>
-              Длительность голосования (дни) *
+              {{ t('smartcontracts.addModule.votingDurationLabel') }}
             </label>
             <input 
               type="number" 
@@ -147,42 +147,42 @@
               min="1" 
               max="365" 
               class="form-input"
-              placeholder="Введите количество дней (1-365)"
+              :placeholder="t('smartcontracts.addModule.votingDurationPlaceholder')"
               required
             />
-            <div class="input-hint">От 1 до 365 дней</div>
+            <div class="input-hint">{{ t('smartcontracts.addModule.votingDurationHint') }}</div>
           </div>
 
           <!-- Описание предложения -->
           <div class="form-group">
             <label for="description" class="form-label">
               <i class="fas fa-file-text"></i>
-              Описание предложения *
+              {{ t('smartcontracts.addModule.descriptionLabel') }}
             </label>
             <textarea 
               id="description" 
               v-model="formData.description" 
               class="form-textarea"
-              placeholder="Опишите цель добавления модуля..."
+              :placeholder="t('smartcontracts.addModule.descriptionPlaceholder')"
               maxlength="500"
               rows="4"
               required
             ></textarea>
             <div class="input-hint">
-              {{ formData.description.length }}/500 символов
+              {{ t('smartcontracts.addModule.charCount', { current: formData.description.length }) }}
             </div>
           </div>
 
 
           <!-- Предварительный просмотр -->
           <div v-if="showPreview" class="preview-section">
-            <h3>Предварительный просмотр</h3>
+            <h3>{{ t('smartcontracts.addModule.previewTitle') }}</h3>
             <div class="preview-content">
               <div class="preview-item">
-                <strong>Тип модуля:</strong> {{ getSelectedModuleName() }}
+                <strong>{{ t('smartcontracts.addModule.previewModuleType') }}</strong> {{ getSelectedModuleName() }}
               </div>
               <div class="preview-item">
-                <strong>Адреса модуля:</strong> {{ selectedModuleAddresses.length }} сетей
+                <strong>{{ t('smartcontracts.addModule.previewAddresses') }}</strong> {{ t('smartcontracts.addModule.previewNetworksCount', { count: selectedModuleAddresses.length }) }}
                 <ul class="preview-networks">
                   <li v-for="address in selectedModuleAddresses" :key="address.chainId">
                     {{ address.networkName }}: {{ address.address }}
@@ -190,10 +190,10 @@
                 </ul>
               </div>
               <div class="preview-item">
-                <strong>Сеть для голосования:</strong> {{ getSelectedChainName() }}
+                <strong>{{ t('smartcontracts.addModule.previewVotingChain') }}</strong> {{ getSelectedChainName() }}
               </div>
               <div class="preview-item">
-                <strong>Мультичейн деплой:</strong> {{ supportedChains.length }} сетей
+                <strong>{{ t('smartcontracts.addModule.previewMultichain') }}</strong> {{ t('smartcontracts.addModule.previewNetworksCount', { count: supportedChains.length }) }}
                 <ul class="preview-networks">
                   <li v-for="chain in supportedChains" :key="chain.chainId">
                     {{ chain.name }} ({{ chain.chainId }})
@@ -201,10 +201,10 @@
                 </ul>
               </div>
               <div class="preview-item">
-                <strong>Длительность:</strong> {{ formData.votingDuration }} дней
+                <strong>{{ t('smartcontracts.addModule.previewDuration') }}</strong> {{ t('common.daysUnit', { count: formData.votingDuration }) }}
               </div>
               <div class="preview-item">
-                <strong>Описание:</strong> {{ formData.description }}
+                <strong>{{ t('smartcontracts.addModule.previewDescription') }}</strong> {{ formData.description }}
               </div>
             </div>
           </div>
@@ -219,7 +219,7 @@
               :disabled="!isFormValid"
             >
               <i class="fas fa-eye"></i>
-              {{ showPreview ? 'Скрыть' : 'Предварительный просмотр' }}
+              {{ showPreview ? t('common.hide') : t('common.showPreview') }}
             </button>
             
             <button 
@@ -229,7 +229,7 @@
             >
               <i v-if="isSubmitting" class="fas fa-spinner fa-spin"></i>
               <i v-else class="fas fa-plus"></i>
-              {{ isSubmitting ? 'Создание предложения...' : 'Создать предложение' }}
+              {{ isSubmitting ? t('smartcontracts.addModule.creating') : t('smartcontracts.transferTokens.createProposal') }}
             </button>
           </div>
         </form>
@@ -243,27 +243,27 @@
             <div class="success-icon">
               <i class="fas fa-check-circle"></i>
             </div>
-            <h2>Предложение успешно создано!</h2>
+            <h2>{{ t('smartcontracts.addModule.successTitle') }}</h2>
           </div>
           
           <div class="success-content">
             <div class="success-details">
               <div class="detail-item">
                 <i class="fas fa-hashtag"></i>
-                <span class="label">ID предложения:</span>
-                <span class="value">{{ successData.proposalId === 'неизвестно' ? 'неизвестно' : (Number(successData.proposalId) + 1) }}</span>
+                <span class="label">{{ t('smartcontracts.addModule.proposalIdLabel') }}</span>
+                <span class="value">{{ formatProposalId(successData.proposalId) }}</span>
               </div>
               
               <div class="detail-item">
                 <i class="fas fa-link"></i>
-                <span class="label">Хеш транзакции:</span>
+                <span class="label">{{ t('smartcontracts.addModule.txHashLabel') }}</span>
                 <div class="value">
                   <span class="transaction-hash">{{ successData.transactionHash }}</span>
                   <a 
                     :href="getEtherscanUrl(successData.transactionHash, successData.votingChain)" 
                     target="_blank" 
                     class="etherscan-link"
-                    title="Открыть в блокчейн-эксплорере"
+                    :title="t('smartcontracts.addModule.openInExplorer')"
                   >
                     <i class="fas fa-external-link-alt"></i>
                   </a>
@@ -272,37 +272,37 @@
               
               <div class="detail-item">
                 <i class="fas fa-gas-pump"></i>
-                <span class="label">Потрачено газа:</span>
-                <span class="value">{{ successData.gasUsed }}</span>
+                <span class="label">{{ t('smartcontracts.addModule.gasUsedLabel') }}</span>
+                <span class="value">{{ formatUnknownValue(successData.gasUsed) }}</span>
               </div>
 
               <div class="detail-item">
                 <i class="fas fa-network-wired"></i>
-                <span class="label">Сеть голосования:</span>
+                <span class="label">{{ t('smartcontracts.addModule.votingNetworkLabel') }}</span>
                 <span class="value">{{ successData.votingNetwork }}</span>
               </div>
 
               <div class="detail-item">
                 <i class="fas fa-clock"></i>
-                <span class="label">Длительность:</span>
-                <span class="value">{{ successData.duration }} дней</span>
+                <span class="label">{{ t('smartcontracts.addModule.durationLabel') }}</span>
+                <span class="value">{{ t('common.daysUnit', { count: successData.duration }) }}</span>
               </div>
 
               <div class="detail-item">
                 <i class="fas fa-cube"></i>
-                <span class="label">Тип модуля:</span>
+                <span class="label">{{ t('smartcontracts.addModule.moduleTypeDetailLabel') }}</span>
                 <span class="value">{{ successData.moduleType }}</span>
               </div>
 
               <div class="detail-item">
                 <i class="fas fa-building"></i>
-                <span class="label">Адрес DLE:</span>
+                <span class="label">{{ t('smartcontracts.addModule.dleAddressLabel') }}</span>
                 <span class="value dle-address">{{ successData.dleAddress }}</span>
               </div>
 
               <div class="detail-item">
                 <i class="fas fa-map-marker-alt"></i>
-                <span class="label">Адреса модуля:</span>
+                <span class="label">{{ t('smartcontracts.addModule.moduleAddressesLabel') }}</span>
                 <div class="value module-addresses-list">
                   <div v-for="addr in successData.moduleAddresses" :key="`${addr.chainId}-${addr.address}`" class="module-address-item">
                     <strong>{{ addr.networkName }}:</strong> {{ addr.address }}
@@ -312,14 +312,14 @@
 
               <div class="detail-item">
                 <i class="fas fa-file-alt"></i>
-                <span class="label">Описание:</span>
+                <span class="label">{{ t('smartcontracts.addModule.descriptionDetailLabel') }}</span>
                 <span class="value description-text">{{ successData.description }}</span>
               </div>
             </div>
             
             <div class="success-message">
-              <p><strong>Мультичейн инициализация:</strong></p>
-              <p>После успешного голосования модуль будет добавлен во все {{ successData.networksCount }} поддерживаемых сетей DLE:</p>
+              <p><strong>{{ t('smartcontracts.addModule.multichainInitTitle') }}</strong></p>
+              <p>{{ t('smartcontracts.addModule.multichainInitMessage', { count: successData.networksCount }) }}</p>
               <ul class="networks-list">
                 <li v-for="network in successData.networks" :key="network.chainId">
                   <i class="fas fa-link"></i>
@@ -332,11 +332,11 @@
           <div class="success-actions">
             <button @click="closeSuccessModal" class="btn btn-secondary">
               <i class="fas fa-times"></i>
-              Закрыть
+              {{ t('common.close') }}
             </button>
             <button @click="openProposals" class="btn btn-primary">
               <i class="fas fa-external-link-alt"></i>
-              Открыть предложения
+              {{ t('smartcontracts.addModule.openProposals') }}
             </button>
           </div>
         </div>
@@ -347,6 +347,7 @@
 <script setup>
 import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { getAllModules, getDeploymentId } from '../../services/modulesService.js';
 import { createAddModuleProposal } from '../../utils/dle-contract.js';
@@ -362,15 +363,13 @@ const props = defineProps({
 
 const emit = defineEmits(['auth-action-completed']);
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 
-// Получаем адрес DLE из URL
-const dleAddress = computed(() => {
-  const address = route.query.address;
-  console.log('DLE Address from URL:', address);
-  return address;
-});
+const UNKNOWN_VALUE = '__unknown__';
+
+const dleAddress = computed(() => route.query.address);
 
 // Состояние DLE
 const selectedDle = ref(null);
@@ -440,27 +439,22 @@ const goBackToProposals = () => {
 
 const loadDleData = async () => {
   if (!dleAddress.value) {
-    console.warn('Адрес DLE не указан');
     return;
   }
 
-  console.log('Начинаем загрузку данных DLE для адреса:', dleAddress.value);
   isLoadingDle.value = true;
   try {
     const response = await api.post('/blockchain/read-dle-info', {
       dleAddress: dleAddress.value
     });
     
-    console.log('Ответ от API DLE:', response.data);
-    
     if (response.data.success) {
       selectedDle.value = response.data.data;
-      console.log('Загружены данные DLE:', selectedDle.value);
     } else {
-      console.error('Ошибка загрузки DLE:', response.data.error);
+      console.error('DLE load error:', response.data.error);
     }
   } catch (error) {
-    console.error('Ошибка загрузки данных DLE:', error);
+    console.error('DLE data load error:', error);
   } finally {
     isLoadingDle.value = false;
   }
@@ -468,31 +462,23 @@ const loadDleData = async () => {
 
 const loadAvailableModules = async () => {
   if (!dleAddress.value) {
-    console.warn('Адрес DLE не указан для загрузки модулей');
     return;
   }
 
   isLoadingModules.value = true;
   try {
     const response = await getAllModules(dleAddress.value);
-    console.log('Ответ от API модулей:', response);
     
     if (response.success && response.data && response.data.modules) {
-      console.log('Модули из API:', response.data.modules);
-      
-      // Загружаем поддерживаемые сети
       if (response.data.supportedNetworks) {
         supportedChains.value = response.data.supportedNetworks.map(network => ({
           chainId: network.chainId,
           name: network.networkName,
           etherscanUrl: network.etherscanUrl
         }));
-        console.log('Поддерживаемые сети:', supportedChains.value);
       }
       
-      // Преобразуем данные из API в нужный формат
       const modules = response.data.modules.map(module => {
-        // Создаем правильный moduleType из moduleName
         let moduleType = '';
         switch(module.moduleName) {
           case 'TREASURY':
@@ -511,23 +497,21 @@ const loadAvailableModules = async () => {
             moduleType = module.moduleName.toLowerCase();
         }
         
-        console.log('Преобразование модуля:', module.moduleName, '->', moduleType);
         return {
-          moduleType: moduleType,
+          moduleType,
           moduleName: module.moduleName,
           moduleDescription: module.moduleDescription,
           addresses: module.addresses || []
         };
       });
       
-      console.log('Преобразованные модули:', modules);
       availableModules.value = modules;
     } else {
-      console.error('Ошибка загрузки модулей:', response.error);
+      console.error('Modules load error:', response.error);
       availableModules.value = [];
     }
   } catch (error) {
-    console.error('Ошибка загрузки модулей:', error);
+    console.error('Modules load error:', error);
     availableModules.value = [];
   } finally {
     isLoadingModules.value = false;
@@ -536,10 +520,11 @@ const loadAvailableModules = async () => {
 
 
 const onModuleTypeChange = () => {
-  // Автозаполнение описания
   const selectedModule = availableModules.value.find(m => m.moduleType === formData.value.moduleType);
   if (selectedModule) {
-    formData.value.description = `Добавление модуля ${selectedModule.moduleName} для расширения функциональности DLE контракта. Модуль будет добавлен во все поддерживаемые сети DLE.`;
+    formData.value.description = t('smartcontracts.addModule.autoDescription', {
+      moduleName: selectedModule.moduleName
+    });
   }
 };
 
@@ -553,19 +538,33 @@ const getSelectedChainName = () => {
   return selectedChain ? selectedChain.name : '';
 };
 
+const moduleNameKeys = {
+  TREASURY: 'treasury',
+  TIMELOCK: 'timelock',
+  READER: 'reader',
+  HIERARCHICALVOTING: 'hierarchicalVoting'
+};
+
 const getModuleDisplayName = (moduleName) => {
-  switch(moduleName) {
-    case 'TREASURY':
-      return 'Treasury Module';
-    case 'TIMELOCK':
-      return 'Timelock Module';
-    case 'READER':
-      return 'Reader Module';
-    case 'HIERARCHICALVOTING':
-      return 'Hierarchical Voting Module';
-    default:
-      return moduleName;
+  const key = moduleNameKeys[moduleName];
+  if (key) {
+    return t(`smartcontracts.addModule.moduleNames.${key}`);
   }
+  return moduleName;
+};
+
+const formatUnknownValue = (value) => {
+  if (value === UNKNOWN_VALUE || value == null || value === '') {
+    return t('common.unknownLower');
+  }
+  return value;
+};
+
+const formatProposalId = (proposalId) => {
+  if (proposalId === UNKNOWN_VALUE || proposalId == null || proposalId === '') {
+    return t('common.unknownLower');
+  }
+  return Number(proposalId) + 1;
 };
 
 const togglePreview = () => {
@@ -620,59 +619,41 @@ const submitForm = async () => {
 
   isSubmitting.value = true;
   try {
-    console.log('Создание предложения с данными:', formData.value);
-    console.log('Выбранные адреса модуля:', selectedModuleAddresses.value);
-    
-    // Для мультичейн деплоя нужно передать все адреса модуля
-    // Создаем предложение с первым адресом (для голосования)
     const primaryAddress = selectedModuleAddresses.value.find(addr => addr.chainId === formData.value.votingChain);
     
     if (!primaryAddress) {
-      throw new Error('Не найден адрес модуля для выбранной сети голосования');
+      throw new Error(t('smartcontracts.addModule.errors.noModuleAddress'));
     }
     
-    // Получаем deploymentId если он еще не получен
     if (!deploymentId.value) {
-      console.log('Получаем deploymentId для автоматической оплаты газа...');
       const deploymentResult = await getDeploymentId(dleAddress.value);
       if (deploymentResult.success) {
         deploymentId.value = deploymentResult.data.deploymentId;
-        console.log('DeploymentId получен:', deploymentId.value);
-      } else {
-        console.warn('DeploymentId не найден, будет использован PRIVATE_KEY из переменных окружения');
       }
     }
     
-    // Преобразуем moduleType в bytes32 для смарт-контракта
     const moduleId = ethers.encodeBytes32String(formData.value.moduleType);
     
-    // Создаем предложение с автоматической оплатой газа
     const result = await createAddModuleProposal(
       dleAddress.value,
       formData.value.description,
-      formData.value.votingDuration * 24 * 60 * 60, // Конвертируем дни в секунды
+      formData.value.votingDuration * 24 * 60 * 60,
       moduleId,
       primaryAddress.address,
       formData.value.votingChain,
-      deploymentId.value // Передаем deploymentId для автоматической оплаты газа
+      deploymentId.value
     );
     
-    console.log('Предложение создано:', result);
-    
-    // Получаем название сети голосования
     const votingNetworkName = getSelectedChainName();
-    
-    // Получаем название типа модуля
     const moduleTypeName = getSelectedModuleName();
     
-    // Показываем красивую модалку об успехе
     showSuccessModal.value = true;
     successData.value = {
-      proposalId: result.proposalId || 'неизвестно',
+      proposalId: result.proposalId || UNKNOWN_VALUE,
       transactionHash: result.transactionHash,
-      gasUsed: result.gasUsed || 'неизвестно',
+      gasUsed: result.gasUsed || UNKNOWN_VALUE,
       votingNetwork: votingNetworkName,
-      votingChain: formData.value.votingChain, // Добавляем chainId для explorer'а
+      votingChain: formData.value.votingChain,
       duration: formData.value.votingDuration,
       moduleType: moduleTypeName,
       dleAddress: dleAddress.value,
@@ -686,33 +667,22 @@ const submitForm = async () => {
     };
     
   } catch (error) {
-    console.error('Ошибка создания предложения:', error);
-    alert('Ошибка при создании предложения: ' + error.message);
+    alert(t('smartcontracts.addModule.errors.createFailed', { message: error.message }));
   } finally {
     isSubmitting.value = false;
   }
 };
 
 onMounted(async () => {
-  console.log('Компонент AddModuleFormView смонтирован');
-  console.log('Адрес DLE из URL:', dleAddress.value);
-  
   if (dleAddress.value) {
-    console.log('Загружаем данные DLE и модули...');
     await Promise.all([
       loadDleData(),
       loadAvailableModules()
     ]);
   } else {
-    console.warn('Адрес DLE не найден в URL');
-    // Если адрес не передан, используем тестовый адрес
     const testAddress = '0x40A99dBEC8D160a226E856d370dA4f3C67713940';
-    console.log('Используем тестовый адрес DLE:', testAddress);
-    
-    // Обновляем URL с тестовым адресом
     router.replace(`/management/add-module?address=${testAddress}`);
     
-    // Загружаем данные с тестовым адресом
     await Promise.all([
       loadDleData(),
       loadAvailableModules()

@@ -13,37 +13,37 @@
 <template>
   <div class="ai-settings settings-panel" style="position:relative">
     <button class="close-btn" @click="$router.push('/settings')">×</button>
-    <h2>Интеграции</h2>
+    <h2>{{ t('settings.ai.integrations') }}</h2>
     <div class="integration-blocks" v-if="!showProvider && !showEmailSettings && !showTelegramSettings && !showDbSettings">
       <div class="integration-block">
-        <h3>OpenAI</h3>
-        <p>Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).</p>
-        <button class="details-btn" @click="goTo('/settings/ai/openai')">Подробнее</button>
+        <h3>{{ t('settings.ai.openai.title') }}</h3>
+        <p>{{ t('settings.ai.openai.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/openai')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
-        <h3>Ollama</h3>
-        <p>Локальные open-source модели через Ollama.</p>
-        <button class="details-btn" @click="goTo('/settings/ai/ollama')">Подробнее</button>
+        <h3>{{ t('settings.ai.ollama.title') }}</h3>
+        <p>{{ t('settings.ai.ollama.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/ollama')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
-        <h3>Telegram</h3>
-        <p>Интеграция с Telegram-ботом для уведомлений и авторизации.</p>
-        <button class="details-btn" @click="goTo('/settings/ai/telegram')">Подробнее</button>
+        <h3>{{ t('settings.ai.telegram.title') }}</h3>
+        <p>{{ t('settings.ai.telegram.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/telegram')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
-        <h3>Email</h3>
-        <p>Интеграция с Email для отправки писем и уведомлений.</p>
-        <button class="details-btn" @click="goTo('/settings/ai/email')">Подробнее</button>
+        <h3>{{ t('settings.ai.email.title') }}</h3>
+        <p>{{ t('settings.ai.email.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/email')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
-        <h3>База данных</h3>
-        <p>Интеграция с PostgreSQL для хранения данных приложения и управления настройками.</p>
-        <button class="details-btn" @click="goTo('/settings/ai/database')">Подробнее</button>
+        <h3>{{ t('settings.ai.database.title') }}</h3>
+        <p>{{ t('settings.ai.database.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/database')">{{ t('common.details') }}</button>
       </div>
       <div class="integration-block">
-        <h3>ИИ-ассистент</h3>
-        <p>Настройки поведения, языков, моделей и правил работы ассистента.</p>
-        <button class="details-btn" @click="goTo('/settings/ai/assistant')">Подробнее</button>
+        <h3>{{ t('settings.ai.assistant.title') }}</h3>
+        <p>{{ t('settings.ai.assistant.description') }}</p>
+        <button class="details-btn" @click="goTo('/settings/ai/assistant')">{{ t('common.details') }}</button>
       </div>
     </div>
     <AIProviderSettings
@@ -59,31 +59,38 @@
     />
     <NoAccessModal 
       :show="showNoAccessModal" 
-      title="Доступ ограничен"
-      message="Настройки ИИ доступны только администраторам."
+      :title="t('settings.accessRestricted')"
+      :message="t('settings.ai.adminOnly')"
       @close="closeNoAccessModal" 
     />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import AIProviderSettings from './AIProviderSettings.vue';
-import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
 import NoAccessModal from '@/components/NoAccessModal.vue';
 
-// Подписываемся на централизованные события очистки и обновления данных
-onMounted(() => {
+const { t } = useI18n();
+const router = useRouter();
+const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
+
+onMounted(async () => {
+  await checkAuth();
+  if (isAuthenticated.value && address.value) {
+    await checkUserAccessLevel(address.value);
+  }
+
   window.addEventListener('clear-application-data', () => {
     console.log('[AiSettingsView] Clearing AI settings data');
-    // Очищаем данные при выходе из системы
-    // AiSettingsView не нуждается в очистке данных
   });
   
   window.addEventListener('refresh-application-data', () => {
     console.log('[AiSettingsView] Refreshing AI settings data');
-    // AiSettingsView не нуждается в обновлении данных
   });
 });
 
@@ -91,15 +98,14 @@ const showProvider = ref(null);
 const showTelegramSettings = ref(false);
 const showEmailSettings = ref(false);
 const showDbSettings = ref(false);
-const showAiAssistantSettings = ref(false);
 const showNoAccessModal = ref(false);
 
 const { canManageSettings } = usePermissions();
 
-const providerLabels = {
+const providerLabels = computed(() => ({
   openai: {
-    label: 'OpenAI API Key',
-    description: 'Введите OpenAI API Key и (опционально) Base URL для кастомных endpoint.',
+    label: t('settings.ai.openai.label'),
+    description: t('settings.ai.openai.providerDescription'),
     apiKeyPlaceholder: 'sk-...',
     baseUrlPlaceholder: 'https://api.openai.com/v1',
     showApiKey: true,
@@ -107,7 +113,7 @@ const providerLabels = {
   },
   anthropic: {
     label: 'Anthropic API Key',
-    description: 'Введите Anthropic API Key и (опционально) Base URL.',
+    description: 'Enter Anthropic API Key and (optional) Base URL.',
     apiKeyPlaceholder: '...',
     baseUrlPlaceholder: 'https://api.anthropic.com/v1',
     showApiKey: true,
@@ -115,28 +121,33 @@ const providerLabels = {
   },
   google: {
     label: 'Google Gemini API Key',
-    description: 'Введите Google Gemini API Key и (опционально) Base URL.',
+    description: 'Enter Google Gemini API Key and (optional) Base URL.',
     apiKeyPlaceholder: '...',
     baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
     showApiKey: true,
     showBaseUrl: true,
   },
   ollama: {
-    label: 'Ollama (локальные модели)',
-    description: 'Настройка Ollama для локальных open-source моделей. Ключ не требуется.',
+    label: t('settings.ai.ollama.label'),
+    description: t('settings.ai.ollama.providerDescription'),
     apiKeyPlaceholder: '',
     baseUrlPlaceholder: 'http://localhost:11434',
     showApiKey: false,
     showBaseUrl: true,
   },
-};
+}));
 
-function goTo(path) {
+async function goTo(path) {
+  await checkAuth();
+  if (isAuthenticated.value && address.value) {
+    await checkUserAccessLevel(address.value);
+  }
+
   if (!canManageSettings.value) {
     showNoAccessModal.value = true;
     return;
   }
-  window.location.href = path;
+  router.push(path);
 }
 
 function closeNoAccessModal() {
@@ -201,4 +212,4 @@ function closeNoAccessModal() {
 .close-btn:hover {
   color: #333;
 }
-</style> 
+</style>

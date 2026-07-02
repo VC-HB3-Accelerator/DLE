@@ -14,10 +14,10 @@
       <div class="page-header" v-if="canManageSystemMessages">
         <div class="header-content">
           <p v-if="canManageSystemMessages">
-            Создавайте и управляйте уведомлениями, которые видят пользователи в чате и интерфейсе DLE
+            {{ t('content.systemMessages.headerDescription') }}
           </p>
           <p v-else>
-            Для работы с системными сообщениями требуются права редактора.
+            {{ t('content.systemMessages.editorRequired') }}
           </p>
         </div>
         <div class="header-actions">
@@ -26,48 +26,48 @@
       </div>
 
       <section v-if="!canManageSystemMessages" class="permission-warning">
-        <p>У вас нет прав для просмотра и редактирования системных сообщений.</p>
+        <p>{{ t('content.systemMessages.noPermission') }}</p>
       </section>
 
       <section v-else class="table-section">
         <div class="toolbar">
           <div class="search-group">
-            <label class="sr-only" for="system-message-search">Поиск</label>
+            <label class="sr-only" for="system-message-search">{{ t('common.search') }}</label>
             <input
               id="system-message-search"
               v-model="searchTerm"
               type="search"
-              placeholder="Поиск по заголовку..."
+              :placeholder="t('content.systemMessages.searchPlaceholder')"
               class="search-input"
             />
           </div>
 
           <div class="filters">
             <label class="filter-control">
-              <span>Статус</span>
+              <span>{{ t('content.systemMessages.statusLabel') }}</span>
               <select v-model="statusFilter" class="filter-select">
-                <option value="all">Все</option>
-                <option value="published">Опубликовано</option>
-                <option value="draft">Черновик</option>
+                <option value="all">{{ t('common.all') }}</option>
+                <option value="published">{{ t('common.status.published') }}</option>
+                <option value="draft">{{ t('common.status.draft') }}</option>
               </select>
             </label>
 
             <label class="filter-control">
-              <span>Аудитория</span>
+              <span>{{ t('content.systemMessages.audienceLabel') }}</span>
               <select v-model="audienceFilter" class="filter-select">
-                <option value="all">Все</option>
-                <option value="authenticated">Только авторизованные</option>
-                <option value="guests">Только гости</option>
+                <option value="all">{{ t('common.all') }}</option>
+                <option value="authenticated">{{ t('content.systemMessages.audienceAuthenticated') }}</option>
+                <option value="guests">{{ t('content.systemMessages.audienceGuests') }}</option>
               </select>
             </label>
           </div>
 
           <div class="toolbar-actions">
             <button class="btn primary" type="button" @click="openCreateMessage">
-              Создать сообщение
+              {{ t('content.systemMessages.create') }}
             </button>
             <button class="btn outline" type="button" @click="refresh">
-              Обновить
+              {{ t('common.refresh') }}
             </button>
           </div>
         </div>
@@ -83,7 +83,7 @@
           v-if="selectedRows.length"
           class="bulk-actions"
         >
-          <span>Выбрано: {{ selectedRows.length }}</span>
+          <span>{{ t('content.systemMessages.selectedCount') }}{{ selectedRows.length }}</span>
           <div class="bulk-buttons">
             <button
               class="btn outline"
@@ -91,7 +91,7 @@
               :disabled="isBulkProcessing"
               @click="handleBulkPublish"
             >
-              Опубликовать
+              {{ t('content.systemMessages.publish') }}
             </button>
             <button
               class="btn outline"
@@ -99,7 +99,7 @@
               :disabled="isBulkProcessing"
               @click="handleBulkUnpublish"
             >
-              Снять с публикации
+              {{ t('content.systemMessages.unpublish') }}
             </button>
             <button
               class="btn destructive"
@@ -107,7 +107,7 @@
               :disabled="isBulkProcessing"
               @click="handleBulkDelete"
             >
-              Удалить
+              {{ t('common.delete') }}
             </button>
             <button
               class="btn text"
@@ -115,7 +115,7 @@
               :disabled="isBulkProcessing"
               @click="selectedRows = []"
             >
-              Сбросить выбор
+              {{ t('content.systemMessages.clearSelection') }}
             </button>
           </div>
         </div>
@@ -132,12 +132,12 @@
                     @change="toggleSelectAll"
                   />
                 </th>
-                <th>Заголовок</th>
-                <th>Статус</th>
-                <th>Тип ответа</th>
-                <th>Аудитория</th>
-                <th>Срок действия</th>
-                <th>Обновлено</th>
+                <th>{{ t('content.systemMessages.columnTitle') }}</th>
+                <th>{{ t('content.systemMessages.columnStatus') }}</th>
+                <th>{{ t('content.systemMessages.columnReplyType') }}</th>
+                <th>{{ t('content.systemMessages.columnAudience') }}</th>
+                <th>{{ t('content.systemMessages.columnValidity') }}</th>
+                <th>{{ t('content.systemMessages.columnUpdated') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -175,13 +175,13 @@
                 <td>
                   <div class="period">
                     <span v-if="message.publish_at || message.publishAt">
-                      c {{ formatDate(message.publish_at || message.publishAt) }}
+                      {{ t('content.systemMessages.validFrom') }}{{ formatDate(message.publish_at || message.publishAt) }}
                     </span>
                     <span v-if="message.expire_at || message.expireAt">
-                      по {{ formatDate(message.expire_at || message.expireAt) }}
+                      {{ t('content.systemMessages.validUntil') }}{{ formatDate(message.expire_at || message.expireAt) }}
                     </span>
                     <span v-if="!message.publish_at && !message.publishAt && !message.expire_at && !message.expireAt">
-                      Без ограничений
+                      {{ t('content.systemMessages.noValidityLimit') }}
                     </span>
                   </div>
                 </td>
@@ -194,8 +194,8 @@
         </div>
 
         <div v-else class="empty-state">
-          <p v-if="isLoading">Загрузка системных сообщений...</p>
-          <p v-else>Системные сообщения ещё не созданы.</p>
+          <p v-if="isLoading">{{ t('content.systemMessages.loading') }}</p>
+          <p v-else>{{ t('content.systemMessages.empty') }}</p>
         </div>
       </section>
     </div>
@@ -204,6 +204,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import BaseLayout from '../../../components/BaseLayout.vue';
@@ -232,6 +233,7 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const { t } = useI18n();
 const { hasPermission, PERMISSIONS } = usePermissions();
 
 const canManageSystemMessages = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
@@ -297,7 +299,7 @@ async function fetchMessages() {
     systemMessages.value = Array.isArray(response?.items) ? response.items : (Array.isArray(response) ? response : []);
   } catch (error) {
     console.error('[SystemMessagesTableView] Ошибка загрузки системных сообщений', error);
-    showNotification('error', 'Не удалось загрузить системные сообщения. Попробуйте обновить страницу.');
+    showNotification('error', t('content.systemMessages.loadError'));
   } finally {
     isLoading.value = false;
   }
@@ -312,11 +314,11 @@ function refresh() {
 }
 
 function openCreateMessage() {
-  showNotification('info', 'Форма создания системного сообщения будет добавлена позднее.');
+  showNotification('info', t('content.systemMessages.createComingSoon'));
 }
 
 function openDetails(id) {
-  showNotification('info', `Детальный просмотр сообщения ${id} находится в разработке.`);
+  showNotification('info', t('content.systemMessages.detailsComingSoon', { id }));
 }
 
 function toggleSelectAll(event) {
@@ -332,15 +334,15 @@ function isSelected(id) {
 }
 
 async function handleBulkPublish() {
-  await handleBulkAction('publish', systemMessagesService.bulkPublish, 'Сообщения опубликованы');
+  await handleBulkAction('publish', systemMessagesService.bulkPublish, t('content.systemMessages.bulkPublishSuccess'));
 }
 
 async function handleBulkUnpublish() {
-  await handleBulkAction('unpublish', systemMessagesService.bulkUnpublish, 'Публикация снята');
+  await handleBulkAction('unpublish', systemMessagesService.bulkUnpublish, t('content.systemMessages.bulkUnpublishSuccess'));
 }
 
 async function handleBulkDelete() {
-  await handleBulkAction('delete', systemMessagesService.bulkDelete, 'Сообщения удалены');
+  await handleBulkAction('delete', systemMessagesService.bulkDelete, t('content.systemMessages.bulkDeleteSuccess'));
 }
 
 async function handleBulkAction(actionName, actionFn, successMessage) {
@@ -357,7 +359,7 @@ async function handleBulkAction(actionName, actionFn, successMessage) {
     await fetchMessages();
   } catch (error) {
     console.error(`[SystemMessagesTableView] Ошибка массового действия (${actionName})`, error);
-    showNotification('error', 'Не удалось выполнить операцию. Проверьте подключение и права доступа.');
+    showNotification('error', t('content.systemMessages.bulkActionError'));
   } finally {
     isBulkProcessing.value = false;
   }
@@ -366,34 +368,34 @@ async function handleBulkAction(actionName, actionFn, successMessage) {
 function formatStatus(status) {
   switch (status) {
     case 'published':
-      return 'Опубликовано';
+      return t('common.status.published');
     case 'draft':
-      return 'Черновик';
+      return t('common.status.draft');
     default:
-      return 'Неизвестно';
+      return t('common.status.unknown');
   }
 }
 
 function formatReplyType(type = 'inline') {
   switch (type) {
     case 'assistant_reply':
-      return 'Ответ ассистента';
+      return t('content.systemMessages.replyTypeAssistant');
     case 'inline':
-      return 'Показать в чате';
+      return t('content.systemMessages.replyTypeInline');
     default:
-      return 'Показать в чате';
+      return t('content.systemMessages.replyTypeInline');
   }
 }
 
 function formatAudience(audience = 'all') {
   switch (audience) {
     case 'authenticated':
-      return 'Только авторизованные';
+      return t('content.systemMessages.audienceAuthenticated');
     case 'guests':
-      return 'Только гости';
+      return t('content.systemMessages.audienceGuests');
     case 'all':
     default:
-      return 'Все пользователи';
+      return t('content.systemMessages.audienceAll');
   }
 }
 

@@ -13,7 +13,7 @@
 <template>
   <div class="tables-container">
     <header class="tables-header">
-      <button class="create-btn" @click="createTable">Создать таблицу</button>
+      <button class="create-btn" @click="createTable">{{ t('tables.common.createTable') }}</button>
     </header>
     <ul class="tables-list-simple">
       <!-- Системная таблица tags -->
@@ -25,7 +25,7 @@
         <button class="table-link" @click="selectTable(table)">{{ table.name }}</button>
       </li>
       <li v-if="!tables.length" class="empty-state">
-        <span>Нет таблиц. Создайте первую!</span>
+        <span>{{ t('tables.list.empty') }}</span>
       </li>
     </ul>
   </div>
@@ -33,11 +33,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import tablesService from '../../services/tablesService';
 
+const { t } = useI18n();
 const router = useRouter();
-const route = useRoute();
 
 const tables = ref([]);
 
@@ -122,4 +123,4 @@ function createTable() {
   margin: 2em 0;
   font-size: 1.1em;
 }
-</style> 
+</style>

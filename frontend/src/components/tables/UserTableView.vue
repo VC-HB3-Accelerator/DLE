@@ -15,12 +15,12 @@
     <h2>{{ tableMeta.name }}</h2>
     <div class="table-desc">{{ tableMeta.description }}</div>
     <div class="table-header-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; margin-bottom: 18px;">
-      <el-button v-if="canEditData" type="danger" :disabled="!selectedRows.length" @click="deleteSelectedRows">Удалить выбранные</el-button>
-      <span v-if="selectedRows.length">Выбрано: {{ selectedRows.length }}</span>
+      <el-button v-if="canEditData" type="danger" :disabled="!selectedRows.length" @click="deleteSelectedRows">{{ t('tables.common.deleteSelected') }}</el-button>
+      <span v-if="selectedRows.length">{{ t('tables.common.selected', { count: selectedRows.length }) }}</span>
       <button v-if="canEditData" class="rebuild-btn" @click="rebuildIndex" :disabled="rebuilding">
-        {{ rebuilding ? 'Пересборка...' : 'Пересобрать индекс' }}
+        {{ rebuilding ? t('tables.common.rebuilding') : t('tables.common.rebuildIndex') }}
       </button>
-      <el-button @click="resetFilters" type="default" icon="el-icon-refresh">Сбросить фильтры</el-button>
+      <el-button @click="resetFilters" type="default" icon="el-icon-refresh">{{ t('tables.common.resetFilters') }}</el-button>
       <template v-for="def in relationFilterDefs" :key="def.col.id">
         <el-select
           v-model="relationFilters[def.filterKey]"
@@ -63,8 +63,8 @@
         <template #header="{ column }">
           <template v-if="editingCol && editingCol.id === col.id">
             <input v-model="colEditValue" class="notion-input" style="width: 90px; display: inline-block;" @keyup.enter="saveColEdit(col)" />
-            <button class="save-btn" @click="saveColEdit(col)">Сохранить</button>
-            <button class="cancel-btn" @click="cancelColEdit">Отмена</button>
+            <button class="save-btn" @click="saveColEdit(col)">{{ t('tables.common.save') }}</button>
+            <button class="cancel-btn" @click="cancelColEdit">{{ t('tables.common.cancel') }}</button>
           </template>
           <template v-else>
             <span>{{ col.name }}</span>
@@ -90,7 +90,7 @@
         :resizable="false"
       >
         <template #header>
-          <button v-if="canEditData" class="add-col-btn" @click.stop="openAddMenu($event)" title="Добавить">
+          <button v-if="canEditData" class="add-col-btn" @click.stop="openAddMenu($event)" :title="t('tables.common.add')">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="11" cy="11" r="10" fill="#f3f4f6" stroke="#b6c6e6"/>
               <rect x="10" y="5.5" width="2" height="11" rx="1" fill="#4f8cff"/>
@@ -99,8 +99,8 @@
           </button>
           <teleport to="body">
             <div v-if="showAddMenu" class="context-menu" :style="addMenuStyle">
-              <button class="menu-item" @click="addColumn">Добавить столбец</button>
-              <button class="menu-item" @click="addRow">Добавить строку</button>
+              <button class="menu-item" @click="addColumn">{{ t('tables.common.addColumn') }}</button>
+              <button class="menu-item" @click="addRow">{{ t('tables.common.addRow') }}</button>
             </div>
           </teleport>
         </template>
@@ -108,10 +108,10 @@
           <button v-if="canEditData" class="row-menu" @click.stop="openRowMenu(row, $event)">⋮</button>
           <teleport to="body">
             <div v-if="openedRowMenuId === row.id" class="context-menu" :style="rowMenuStyle">
-              <button class="menu-item" @click="addRowAfter(row)">Добавить строку</button>
-              <button class="menu-item" @click="moveRowUp(row)" :disabled="rows.findIndex(r => r.id === row.id) === 0">Переместить вверх</button>
-              <button class="menu-item" @click="moveRowDown(row)" :disabled="rows.findIndex(r => r.id === row.id) === rows.length - 1">Переместить вниз</button>
-              <button class="menu-item danger" @click="deleteRow(row)">Удалить</button>
+              <button class="menu-item" @click="addRowAfter(row)">{{ t('tables.common.addRow') }}</button>
+              <button class="menu-item" @click="moveRowUp(row)" :disabled="rows.findIndex(r => r.id === row.id) === 0">{{ t('tables.common.moveUp') }}</button>
+              <button class="menu-item" @click="moveRowDown(row)" :disabled="rows.findIndex(r => r.id === row.id) === rows.length - 1">{{ t('tables.common.moveDown') }}</button>
+              <button class="menu-item danger" @click="deleteRow(row)">{{ t('tables.common.delete') }}</button>
             </div>
           </teleport>
         </template>
@@ -119,8 +119,8 @@
     </el-table>
     <teleport to="body">
       <div v-if="openedColMenuId" class="context-menu" :style="colMenuStyle">
-        <button class="menu-item" @click="editColumn(columns.find(c => c.id === openedColMenuId))">Редактировать</button>
-        <button class="menu-item danger" @click="deleteColumn(columns.find(c => c.id === openedColMenuId))">Удалить</button>
+        <button class="menu-item" @click="editColumn(columns.find(c => c.id === openedColMenuId))">{{ t('tables.common.edit') }}</button>
+        <button class="menu-item danger" @click="deleteColumn(columns.find(c => c.id === openedColMenuId))">{{ t('tables.common.delete') }}</button>
         <!-- <button class="menu-item" @click="addColumn">Добавить столбец</button> -->
       </div>
     </teleport>
@@ -128,48 +128,48 @@
     <!-- Модалка добавления столбца -->
     <div v-if="showAddColModal" class="modal-backdrop">
       <div class="modal add-col-modal">
-        <h4>Добавить столбец</h4>
-        <label>Название</label>
-        <input v-model="newColName" class="notion-input" placeholder="Название столбца" />
-        <label>Тип</label>
+        <h4>{{ t('tables.common.addColumn') }}</h4>
+        <label>{{ t('tables.common.name') }}</label>
+        <input v-model="newColName" class="notion-input" :placeholder="t('tables.common.columnName')" />
+        <label>{{ t('tables.common.type') }}</label>
         <select v-model="newColType" class="notion-input">
-          <option value="text">Текст</option>
-          <option value="number">Число</option>
-          <option value="multiselect">Мультивыбор</option>
-          <option value="multiselect-relation">Мультивыбор из таблицы</option>
-          <option value="relation">Связь (relation)</option>
+          <option value="text">{{ t('tables.common.typeText') }}</option>
+          <option value="number">{{ t('tables.common.typeNumber') }}</option>
+          <option value="multiselect">{{ t('tables.common.typeMultiselect') }}</option>
+          <option value="multiselect-relation">{{ t('tables.common.typeMultiselectRelation') }}</option>
+          <option value="relation">{{ t('tables.common.typeRelation') }}</option>
           <option value="lookup">Lookup</option>
         </select>
         <div v-if="newColType === 'relation' || newColType === 'lookup' || newColType === 'multiselect-relation'">
-          <label>Связанная таблица</label>
+          <label>{{ t('tables.common.relatedTable') }}</label>
           <select v-model="relatedTableId" class="notion-input">
             <option v-for="tbl in allTables" :key="tbl.id" :value="tbl.id">{{ tbl.name }}</option>
           </select>
-          <label>Связанный столбец</label>
+          <label>{{ t('tables.common.relatedColumn') }}</label>
           <select v-model="relatedColumnId" class="notion-input">
             <option v-for="col in relatedTableColumns" :key="col.id" :value="col.id">{{ col.name }}</option>
           </select>
         </div>
         <div v-if="newColType === 'multiselect'">
-          <label>Опции для мультивыбора (через запятую)</label>
-          <input v-model="multiOptionsInput" class="notion-input" placeholder="например: VIP, B2B, Startup" />
+          <label>{{ t('tables.common.multiselectOptions') }}</label>
+          <input v-model="multiOptionsInput" class="notion-input" :placeholder="t('tables.common.multiselectOptionsPlaceholder')" />
         </div>
-        <label>Плейсхолдер</label>
-        <input v-model="newColPlaceholder" class="notion-input" placeholder="Плейсхолдер (авто)" />
-        <label>Назначение (для RAG)</label>
+        <label>{{ t('tables.common.placeholder') }}</label>
+        <input v-model="newColPlaceholder" class="notion-input" :placeholder="t('tables.common.placeholderAuto')" />
+        <label>{{ t('tables.common.ragPurpose') }}</label>
         <select v-model="newColPurpose" class="notion-input">
-          <option value="">Без назначения</option>
-          <option value="question">Вопрос для AI</option>
-          <option value="answer">Ответ AI</option>
-          <option value="product">Продукт</option>
-          <option value="userTags">Теги пользователя</option>
-          <option value="context">Контекст</option>
-          <option value="priority">Приоритет</option>
-          <option value="date">Дата</option>
+          <option value="">{{ t('tables.common.noPurpose') }}</option>
+          <option value="question">{{ t('tables.common.purposeQuestion') }}</option>
+          <option value="answer">{{ t('tables.common.purposeAnswer') }}</option>
+          <option value="product">{{ t('tables.common.purposeProduct') }}</option>
+          <option value="userTags">{{ t('tables.common.purposeUserTags') }}</option>
+          <option value="context">{{ t('tables.common.purposeContext') }}</option>
+          <option value="priority">{{ t('tables.common.purposePriority') }}</option>
+          <option value="date">{{ t('tables.common.purposeDate') }}</option>
         </select>
         <div class="modal-actions">
-          <button class="save-btn" @click="handleAddColumn">Добавить</button>
-          <button class="cancel-btn" @click="closeAddColModal">Отмена</button>
+          <button class="save-btn" @click="handleAddColumn">{{ t('tables.common.add') }}</button>
+          <button class="cancel-btn" @click="closeAddColModal">{{ t('tables.common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -177,23 +177,23 @@
 </template>
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import tablesService from '../../services/tablesService';
 import TableCell from './TableCell.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import axios from 'axios';
+import { getClientTagsTableMeta } from '../../utils/clientTagsTable';
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[UserTableView] Clearing table data');
     // Очищаем данные при выходе из системы
     tableData.value = [];
     columns.value = [];
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[UserTableView] Refreshing table data');
     fetchTable(); // Обновляем данные при входе в систему
   });
 });
@@ -206,6 +206,7 @@ let unsubscribeFromTableUpdate = null;
 let unsubscribeFromTagsUpdate = null;
 
 const { canEditData } = usePermissions();
+const { t } = useI18n();
 const rebuilding = ref(false);
 const rebuildStatus = ref(null);
 
@@ -226,7 +227,7 @@ function handleSelectionChange(val) {
 }
 async function deleteSelectedRows() {
   if (!selectedRows.value.length) return;
-  if (!confirm(`Удалить выбранные строки (${selectedRows.value.length})?`)) return;
+  if (!confirm(t('tables.common.confirmDeleteRows', { count: selectedRows.value.length }))) return;
   for (const row of selectedRows.value) {
     await tablesService.deleteRow(row.id);
   }
@@ -276,16 +277,17 @@ watch(newColName, async (val) => {
   } catch { newColPlaceholder.value = ''; }
 });
 
-// Автоматизация для столбца 'Теги клиентов'
+// Автоматизация для столбца тегов клиентов
 watch([newColType, selectedTagIds], async ([type, tagIds]) => {
   if ((type === 'relation' || type === 'multiselect') && tagIds.length > 0) {
-    // Найти или создать таблицу 'Теги клиентов'
+    const tagsMeta = getClientTagsTableMeta();
+    // Найти или создать таблицу тегов клиентов
     let tables = await tablesService.getTables();
-    let tagsTable = tables.find(t => t.name === 'Теги клиентов');
+    let tagsTable = tables.find(t => t.name === tagsMeta.name);
     if (!tagsTable) {
       tagsTable = await tablesService.createTable({
-        name: 'Теги клиентов',
-        description: 'Справочник тегов для контактов',
+        name: tagsMeta.name,
+        description: tagsMeta.description,
         isRagSourceId: 2
       });
       tables = await tablesService.getTables();
@@ -355,7 +357,7 @@ async function handleAddColumn() {
 
 async function deleteColumn(col) {
   // Можно добавить подтверждение
-  if (!confirm(`Удалить столбец "${col.name}"?`)) return;
+  if (!confirm(t('tables.common.confirmDeleteColumn', { name: col.name }))) return;
   await tablesService.deleteColumn(col.id);
   await fetchTable();
   await updateRelationFilterDefs(); // Явно обновляем фильтры
@@ -557,7 +559,7 @@ async function updateRelationFilterDefs() {
       const opts = Array.from(idsSet).map(id => {
         const relRow = relTable.rows.find(r => String(r.id) === String(id));
         const cell = relTable.cellValues.find(c => c.row_id === (relRow ? relRow.id : id) && c.column_id === col.options.relatedColumnId);
-        return { id, display: cell ? cell.value : `ID ${id}` };
+        return { id, display: cell ? cell.value : t('tables.common.idFallback', { id }) };
       });
       defs.push({
         col,
@@ -744,7 +746,7 @@ function setMenuPosition(event, styleRef) {
 
 async function deleteRow(row) {
   // Можно добавить подтверждение
-  if (!confirm(`Удалить строку с ID ${row.id}?`)) return;
+  if (!confirm(t('tables.common.confirmDeleteRowWithId', { id: row.id }))) return;
   await tablesService.deleteRow(row.id);
   await fetchTable();
 }
@@ -781,10 +783,10 @@ async function rebuildIndex() {
   rebuildStatus.value = null;
   try {
     const result = await tablesService.rebuildIndex(props.tableId);
-    rebuildStatus.value = { success: true, message: `Индекс успешно пересобран (${result.count || 0} строк)` };
+    rebuildStatus.value = { success: true, message: t('tables.common.indexRebuildSuccess', { count: result.count || 0 }) };
     await fetchTable();
   } catch (e) {
-    let msg = 'Ошибка пересборки индекса';
+    let msg = t('tables.common.indexRebuildError');
     if (e?.response?.data?.error) msg += `: ${e.response.data.error}`;
     rebuildStatus.value = { success: false, message: msg };
   } finally {

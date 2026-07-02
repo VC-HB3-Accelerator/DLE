@@ -16,14 +16,14 @@
     <div class="form-content">
       <!-- Выбор страны -->
       <div class="form-group">
-        <label class="form-label" for="jurisdiction">Выберите страну:</label>
+        <label class="form-label" for="jurisdiction">{{ $t('deploy.form.выберите_страну_1') }}</label>
         <select 
           id="jurisdiction" 
           v-model="dleSettings.jurisdiction" 
           class="form-control"
           :disabled="isLoadingCountries"
         >
-          <option value="">{{ isLoadingCountries ? 'Загрузка стран...' : '-- Выберите страну --' }}</option>
+          <option value="">{{ isLoadingCountries ? $t('deploy.form.загрузка_стран') : $t('deploy.form.выберите_страну') }}</option>
           <option 
             v-for="country in countriesOptions" 
             :key="country.numeric" 
@@ -37,7 +37,7 @@
           <!-- Классификаторы видов деятельности -->
       <div v-if="dleSettings.jurisdiction">
         <div v-if="isLoadingRussianClassifiers" class="loading-section">
-          <p><i class="fas fa-spinner fa-spin"></i> Загрузка российских классификаторов...</p>
+          <p><i class="fas fa-spinner fa-spin"></i> {{ $t('deploy.form.загрузка_российских_классификаторов') }}</p>
         </div>
         
         <div v-else>
@@ -45,15 +45,15 @@
 
               <!-- Форма ручного заполнения адреса -->
               <div class="address-form-section">
-                <h4>Юридический адрес</h4>
-                <p class="form-help">Введите почтовый индекс → нажмите "Поиск" → поля заполнятся автоматически → дозаполните при необходимости → нажмите "Проверить адрес"</p>
+                <h4>{{ $t('deploy.form.юридический_адрес') }}</h4>
+                <p class="form-help">{{ $t('deploy.form.инструкция_заполнения_адреса') }}</p>
                 
                 <div class="address-fields">
                   <!-- Поиск по почтовому индексу -->
                   <div class="postal-search-section">
                     <div class="form-row">
                       <div class="form-group flex-grow">
-                        <label class="form-label" for="postalCode">Почтовый индекс:</label>
+                        <label class="form-label" for="postalCode">{{ $t('deploy.form.почтовый_индекс') }}</label>
                         <input 
                           type="text" 
                           id="postalCode" 
@@ -70,20 +70,18 @@
                           @click="searchByPostalCode" 
                           class="btn btn-primary"
                           :disabled="!postalCodeInput || postalCodeInput.length < 5"
-                        >
-                          Поиск
-                        </button>
+                        >{{ $t('deploy.form.поиск') }}</button>
                       </div>
                     </div>
 
                     <!-- Индикатор поиска -->
                     <div v-if="isSearchingAddress" class="searching-indicator">
-                      <i class="fas fa-spinner fa-spin"></i> Поиск данных по индексу...
+                      <i class="fas fa-spinner fa-spin"></i> {{ $t('deploy.form.поиск_данных_по_индексу') }}
                     </div>
 
                     <!-- Результаты поиска -->
                     <div v-if="searchResults.length > 0 && !isSearchingAddress" class="search-results">
-                      <h5>Найденные данные (первый автоматически выбран):</h5>
+                      <h5>{{ $t('deploy.form.найденные_данные_первый_автоматически_вы') }}</h5>
                       <div class="results-list">
                         <div 
                           v-for="(result, index) in searchResults" 
@@ -92,7 +90,7 @@
                           :class="['search-result-item', { 'selected': index === 0 }]"
                         >
                           <div class="result-address">
-                            <span v-if="index === 0" class="auto-selected">✓ Выбрано:</span>
+                            <span v-if="index === 0" class="auto-selected">{{ $t('deploy.form.выбрано') }}</span>
                             {{ result.fullAddress }}
                           </div>
                           <div class="result-details">
@@ -107,28 +105,28 @@
 
                   <!-- Ручное дозаполнение полей -->
                   <div class="manual-fields-section">
-                    <h5>Дозаполните данные для точного юридического адреса:</h5>
+                    <h5>{{ $t('deploy.form.дозаполните_данные_для_точного_юридическ') }}</h5>
                     
                     <!-- Регион и город -->
                     <div class="form-row">
                       <div class="form-group flex-grow">
-                        <label class="form-label" for="region">Регион/область:</label>
+                        <label class="form-label" for="region">{{ $t('deploy.form.регион_область') }}</label>
                         <input 
                           type="text" 
                           id="region" 
                           v-model="dleSettings.addressData.region" 
                           class="form-control" 
-                          placeholder="Московская область"
+                          :placeholder="$t('deploy.form.московская_область')"
                         >
                       </div>
                       <div class="form-group flex-grow">
-                        <label class="form-label" for="city">Город/населенный пункт:</label>
+                        <label class="form-label" for="city">{{ $t('deploy.form.город_населенный_пункт') }}</label>
                         <input 
                           type="text" 
                           id="city" 
                           v-model="dleSettings.addressData.city" 
                           class="form-control" 
-                          placeholder="Москва"
+                          :placeholder="$t('deploy.form.москва')"
                         >
                       </div>
                     </div>
@@ -136,17 +134,17 @@
                     <!-- Улица и дом -->
                   <div class="form-row">
                     <div class="form-group flex-grow">
-                      <label class="form-label" for="street">Улица:</label>
+                      <label class="form-label" for="street">{{ $t('deploy.form.улица') }}</label>
                       <input 
                         type="text" 
                         id="street" 
                         v-model="dleSettings.addressData.street" 
                         class="form-control" 
-                        placeholder="Тверская улица"
+                        :placeholder="$t('deploy.form.тверская_улица')"
                       >
                     </div>
                     <div class="form-group">
-                      <label class="form-label" for="building">Дом:</label>
+                      <label class="form-label" for="building">{{ $t('deploy.form.дом') }}</label>
                       <input 
                         type="text" 
                         id="building" 
@@ -156,7 +154,7 @@
                       >
                     </div>
                     <div class="form-group">
-                      <label class="form-label" for="apartment">Кв./офис:</label>
+                      <label class="form-label" for="apartment">{{ $t('deploy.form.кв_офис') }}</label>
                       <input 
                         type="text" 
                         id="apartment" 
@@ -169,7 +167,7 @@
 
                   <!-- Поиск подсказок (если есть) -->
                   <div v-if="isSearchingAddress" class="searching-indicator">
-                    <i class="fas fa-spinner fa-spin"></i> Поиск подсказок адреса...
+                    <i class="fas fa-spinner fa-spin"></i> {{ $t('deploy.form.поиск_подсказок_адреса') }}
                   </div>
                   
 
@@ -181,17 +179,13 @@
                       @click="verifyAddress" 
                       class="btn btn-primary"
                       :disabled="!canVerifyAddress"
-                    >
-                      Проверить адрес
-                    </button>
+                    >{{ $t('deploy.form.проверить_адрес') }}</button>
                     <button 
                       v-if="dleSettings.addressData.isVerified" 
                       type="button" 
                       @click="clearAddress" 
                       class="btn btn-secondary"
-                    >
-                      Очистить
-                    </button>
+                    >{{ $t('deploy.form.очистить') }}</button>
                   </div>
                 </div>
               </div>
@@ -199,16 +193,16 @@
               <!-- Виды экономической деятельности -->
               <div class="form-group okved-section">
                 <label class="form-label okved-title">
-                  {{ dleSettings.jurisdiction === '643' ? 'ОКВЭД (виды экономической деятельности)' : 'ISIC (виды экономической деятельности)' }}:
+                  {{ dleSettings.jurisdiction === '643' ? $t('deploy.form.оквэд_виды_экономической_деятельности') : $t('deploy.form.isic_виды_экономической_деятельности') }}:
                 </label>
                 
                 <!-- Форма для России (ОКВЭД) -->
                 <div v-if="dleSettings.jurisdiction === '643'" class="okved-cascade">
                   <!-- Уровень 1: Класс (01.11, 01.12...) -->
                   <div class="form-group">
-                    <label class="form-label-small">Выберите класс деятельности:</label>
+                    <label class="form-label-small">{{ $t('deploy.form.выберите_класс_деятельности') }}</label>
                     <select v-model="selectedOkvedLevel1" class="form-control" :disabled="isLoadingOkvedLevel1">
-                      <option value="">-- {{ isLoadingOkvedLevel1 ? 'Загрузка классов...' : 'Выберите класс' }} --</option>
+                      <option value="">-- {{ isLoadingOkvedLevel1 ? $t('deploy.form.загрузка_классов') : $t('deploy.form.выберите_класс') }} --</option>
                       <option 
                         v-for="option in okvedLevel1Options" 
                         :key="option.value" 
@@ -221,9 +215,9 @@
 
                   <!-- Уровень 2: Подкласс (01.11.1, 01.11.2...) -->
                   <div class="form-group" v-if="selectedOkvedLevel1">
-                    <label class="form-label-small">Подкласс (необязательно):</label>
+                    <label class="form-label-small">{{ $t('deploy.form.подкласс_необязательно') }}</label>
                     <select v-model="selectedOkvedLevel2" class="form-control" :disabled="isLoadingOkvedLevel2">
-                      <option value="">-- {{ isLoadingOkvedLevel2 ? 'Загрузка подклассов...' : 'Выберите подкласс или оставьте пустым' }} --</option>
+                      <option value="">-- {{ isLoadingOkvedLevel2 ? $t('deploy.form.загрузка_подклассов') : $t('deploy.form.выберите_подкласс_или_оставьте_пустым') }} --</option>
                       <option 
                         v-for="option in okvedLevel2Options" 
                         :key="option.value" 
@@ -236,10 +230,8 @@
 
                   <!-- Выбранный код ОКВЭД -->
                   <div v-if="currentSelectedOkvedText" class="current-okved-selection">
-                    <p><strong>Выбранный код:</strong> {{ currentSelectedOkvedText }}</p>
-                    <button @click="addOkvedCode" class="btn btn-success btn-sm" :disabled="!currentSelectedOkvedCode">
-                      Добавить код деятельности
-                    </button>
+                    <p><strong>{{ $t('deploy.form.выбранный_код') }}</strong> {{ currentSelectedOkvedText }}</p>
+                    <button @click="addOkvedCode" class="btn btn-success btn-sm" :disabled="!currentSelectedOkvedCode">{{ $t('deploy.form.добавить_код_деятельности') }}</button>
                   </div>
                 </div>
 
@@ -247,9 +239,9 @@
                 <div v-else class="isic-cascade">
                   <!-- Уровень 1: Раздел (A, B, C...) -->
                   <div class="form-group">
-                    <label class="form-label-small">Выберите раздел деятельности:</label>
+                    <label class="form-label-small">{{ $t('deploy.form.выберите_раздел_деятельности') }}</label>
                     <select v-model="selectedIsicLevel1" class="form-control" :disabled="isLoadingIsicLevel1">
-                      <option value="">-- {{ isLoadingIsicLevel1 ? 'Загрузка разделов...' : 'Выберите раздел' }} --</option>
+                      <option value="">-- {{ isLoadingIsicLevel1 ? $t('deploy.form.загрузка_разделов') : $t('deploy.form.выберите_раздел') }} --</option>
                       <option 
                         v-for="option in isicLevel1Options" 
                         :key="option.value" 
@@ -262,9 +254,9 @@
 
              <!-- Уровень 2: Группа (01, 02, 03...) -->
              <div class="form-group" v-if="selectedIsicLevel1">
-               <label class="form-label-small">Выберите группу деятельности:</label>
+               <label class="form-label-small">{{ $t('deploy.form.выберите_группу_деятельности') }}</label>
                <select v-model="selectedIsicLevel2" class="form-control" :disabled="isLoadingIsicLevel2">
-                 <option value="">-- {{ isLoadingIsicLevel2 ? 'Загрузка групп...' : 'Выберите группу' }} --</option>
+                 <option value="">-- {{ isLoadingIsicLevel2 ? $t('deploy.form.загрузка_групп') : $t('deploy.form.выберите_группу') }} --</option>
                  <option 
                    v-for="option in isicLevel2Options" 
                    :key="option.value" 
@@ -277,9 +269,9 @@
 
              <!-- Уровень 3: Класс (011, 012, 013...) -->
              <div class="form-group" v-if="selectedIsicLevel2">
-               <label class="form-label-small">Выберите класс деятельности:</label>
+               <label class="form-label-small">{{ $t('deploy.form.выберите_класс_деятельности') }}</label>
                <select v-model="selectedIsicLevel3" class="form-control" :disabled="isLoadingIsicLevel3">
-                 <option value="">-- {{ isLoadingIsicLevel3 ? 'Загрузка классов...' : 'Выберите класс' }} --</option>
+                 <option value="">-- {{ isLoadingIsicLevel3 ? $t('deploy.form.загрузка_классов') : $t('deploy.form.выберите_класс') }} --</option>
                  <option 
                    v-for="option in isicLevel3Options" 
                    :key="option.value" 
@@ -292,9 +284,9 @@
 
              <!-- Уровень 4: Подкласс (0111, 0112, 0113...) -->
              <div class="form-group" v-if="selectedIsicLevel3">
-               <label class="form-label-small">Выберите подкласс деятельности:</label>
+               <label class="form-label-small">{{ $t('deploy.form.выберите_подкласс_деятельности') }}</label>
                <select v-model="selectedIsicLevel4" class="form-control" :disabled="isLoadingIsicLevel4">
-                 <option value="">-- {{ isLoadingIsicLevel4 ? 'Загрузка подклассов...' : 'Выберите подкласс' }} --</option>
+                 <option value="">-- {{ isLoadingIsicLevel4 ? $t('deploy.form.загрузка_подклассов') : $t('deploy.form.выберите_подкласс') }} --</option>
                  <option 
                    v-for="option in isicLevel4Options" 
                    :key="option.value" 
@@ -307,17 +299,15 @@
 
              <!-- Выбранный код ISIC -->
              <div v-if="currentSelectedIsicText" class="current-isic-selection">
-               <p><strong>Выбранный код:</strong> {{ currentSelectedIsicText }}</p>
-               <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">
-                 Добавить код деятельности
-               </button>
+               <p><strong>{{ $t('deploy.form.выбранный_код') }}</strong> {{ currentSelectedIsicText }}</p>
+               <button @click="addIsicCode" class="btn btn-success btn-sm" :disabled="!currentSelectedIsicCode">{{ $t('deploy.form.добавить_код_деятельности') }}</button>
              </div>
                 </div>
 
                 <!-- Основной код ОКВЭД (оставляем для совместимости) -->
                 <div class="okved-main" style="display: none;">
                   <select v-model="dleSettings.mainOkvedCode" class="form-control">
-                    <option value="">-- Выберите основной код ОКВЭД --</option>
+                    <option value="">{{ $t('deploy.form.выберите_основной_код_оквэд') }}</option>
                     <option 
                       v-for="okved in russianClassifiers.okved" 
                       :key="okved.code" 
@@ -330,7 +320,7 @@
 
                 <!-- Список добавленных кодов ОКВЭД -->
                 <div v-if="dleSettings.selectedOkved.length" class="selected-okved-codes">
-                  <h5>Добавленные коды ОКВЭД:</h5>
+                  <h5>{{ $t('deploy.form.добавленные_коды_оквэд') }}</h5>
                   <ul class="codes-list">
                     <li v-for="(code, index) in dleSettings.selectedOkved" :key="index" class="code-item">
                                               <span>{{ code }}</span>
@@ -338,9 +328,7 @@
                         type="button" 
                         class="btn btn-danger btn-sm" 
                         @click="removeOkvedCode(index)"
-                      >
-                        Удалить
-                      </button>
+                      >{{ $t('deploy.form.удалить') }}</button>
                     </li>
                   </ul>
                 </div>
@@ -348,13 +336,13 @@
 
               <!-- КПП - Код причины постановки на учет -->
               <div class="form-group kpp-section">
-                <label class="form-label">КПП (код причины постановки на учет):</label>
+                <label class="form-label">{{ $t('deploy.form.кпп_код_причины_постановки_на') }}</label>
                 <select 
                   v-model="dleSettings.kppCode" 
                   class="form-control" 
                   :disabled="isLoadingKppCodes"
                 >
-                  <option value="">-- {{ isLoadingKppCodes ? 'Загрузка КПП кодов...' : 'Выберите КПП код' }} --</option>
+                  <option value="">-- {{ isLoadingKppCodes ? $t('deploy.form.загрузка_кпп_кодов') : $t('deploy.form.выберите_кпп_код') }} --</option>
                   <option 
                     v-for="kpp in kppCodes" 
                     :key="kpp.code" 
@@ -364,43 +352,43 @@
                   </option>
                 </select>
                 <div v-if="selectedKppInfo" class="selected-kpp-info">
-                  <p><strong>Выбранный КПП:</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}</p>
+                  <p><strong>{{ $t('deploy.form.выбранный_кпп') }}</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}</p>
             </div>
           </div>
 
               <!-- Имя DLE -->
               <div class="form-group">
-                <label class="form-label" for="dleName">Имя DLE (Digital Legal Entity):</label>
+                <label class="form-label" for="dleName">{{ $t('deploy.form.имя_dle_digital_legal_entity') }}</label>
                 <input 
                   type="text" 
                   id="dleName" 
                   v-model="dleSettings.name" 
                   class="form-control" 
-                  placeholder="Например: My Digital Company"
+                  :placeholder="$t('deploy.form.например_my_digital_company')"
                   maxlength="100"
                 >
-                <small class="form-help">Название вашего цифрового юридического лица</small>
+                <small class="form-help">{{ $t('deploy.form.название_вашего_цифрового_юридического_л') }}</small>
               </div>
 
               <!-- Символ токена -->
               <div class="form-group">
-                <label class="form-label" for="tokenSymbol">Символ токена управления:</label>
+                <label class="form-label" for="tokenSymbol">{{ $t('deploy.form.символ_токена_управления') }}</label>
                 <input 
                   type="text" 
                   id="tokenSymbol" 
                   v-model="dleSettings.tokenSymbol" 
                   class="form-control" 
-                  placeholder="Например: MDGT"
+                  :placeholder="$t('deploy.form.например_mdgt')"
                   maxlength="10"
                   style="text-transform: uppercase;"
                   @input="formatTokenSymbol"
                 >
-                <small class="form-help">3-10 символов для токена управления (Governance Token)</small>
+                <small class="form-help">{{ $t('deploy.form.3_10_символов_для_токена') }}</small>
               </div>
 
               <!-- Логотип токена -->
               <div class="form-group">
-                <label class="form-label" for="tokenLogo">Логотип токена (изображение):</label>
+                <label class="form-label" for="tokenLogo">{{ $t('deploy.form.логотип_токена_изображение') }}</label>
                 <input
                   id="tokenLogo"
                   type="file"
@@ -408,25 +396,25 @@
                   class="form-control"
                   @change="onLogoSelected"
                 >
-                <small class="form-help">Поддерживаются PNG/JPG/GIF/WEBP, до 5MB</small>
+                <small class="form-help">{{ $t('deploy.form.поддерживаются_png_jpg_gif_webp') }}</small>
                 <div v-if="logoPreviewUrl" class="logo-preview" style="margin-top:8px;display:flex;gap:10px;align-items:center;">
                   <img :src="logoPreviewUrl" alt="logo preview" style="width:48px;height:48px;border-radius:6px;object-fit:contain;border:1px solid #e9ecef;" />
-                  <span class="address">{{ logoFile?.name || 'Предпросмотр' }}</span>
+                  <span class="address">{{ logoFile?.name || $t('deploy.form.предпросмотр') }}</span>
                 </div>
               </div>
 
               <!-- ENS домен для логотипа -->
               <div class="form-group">
-                <label class="form-label" for="ensDomain">ENS‑домен для логотипа (опционально):</label>
+                <label class="form-label" for="ensDomain">{{ $t('deploy.form.ens_домен_для_логотипа_опционально') }}</label>
                 <input
                   id="ensDomain"
                   type="text"
                   v-model="ensDomain"
-                  placeholder="например: vc-hb3-accelerator.eth"
+                  :placeholder="$t('deploy.form.например_vc_hb3_accelerator_eth')"
                   class="form-control"
                   @blur="resolveEnsAvatar"
                 >
-                <small class="form-help">Если указан, попытаемся получить аватар ENS и использовать его как logoURI</small>
+                <small class="form-help">{{ $t('deploy.form.если_указан_попытаемся_получить_аватар') }}</small>
                 <div v-if="ensResolvedUrl" style="margin-top:8px;display:flex;gap:10px;align-items:center;">
                   <img :src="ensResolvedUrl" alt="ens avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #e9ecef;" />
                   <span class="address">{{ ensResolvedUrl }}</span>
@@ -439,24 +427,24 @@
 
               <!-- Партнеры и распределение токенов -->
               <div class="partners-section">
-                <h4>Партнеры и распределение токенов</h4>
+                <h4>{{ $t('deploy.form.партнеры_и_распределение_токенов') }}</h4>
                 
                 <div v-for="(partner, index) in dleSettings.partners" :key="index" class="partner-entry">
                   <div class="partner-header">
-                    <span class="partner-title">Партнер {{ index + 1 }}</span>
+                    <span class="partner-title">{{ $t('deploy.form.партнер_n', { n: index + 1 }) }}</span>
                     <button 
                       v-if="dleSettings.partners.length > 1" 
                       @click="removePartner(index)" 
                       type="button" 
                       class="btn btn-danger btn-sm"
                     >
-                      Удалить
+                      {{ $t('deploy.form.удалить') }}
                     </button>
                   </div>
                   
                   <div class="form-row">
                     <div class="form-group flex-grow">
-                      <label class="form-label">Адрес кошелька:</label>
+                      <label class="form-label">{{ $t('deploy.form.адрес_кошелька_1') }}</label>
                       <div class="address-input-group">
                         <input 
                           type="text" 
@@ -470,14 +458,14 @@
                           @click="useMyWalletAddress" 
                           type="button" 
                           class="btn btn-outline-primary btn-sm"
-                          title="Использовать мой адрес кошелька"
+                          :title="$t('deploy.form.использовать_мой_адрес_кошелька')"
                         >
-                          <i class="fas fa-wallet"></i> Мой кошелек
+                          <i class="fas fa-wallet"></i> {{ $t('deploy.form.мой_кошелек') }}
                         </button>
                       </div>
                     </div>
                     <div class="form-group">
-                      <label class="form-label">Количество токенов:</label>
+                      <label class="form-label">{{ $t('deploy.form.количество_токенов') }}</label>
                       <input 
                         type="number" 
                         v-model.number="partner.amount" 
@@ -495,19 +483,19 @@
                     type="button" 
                     class="btn btn-secondary"
                   >
-                    <i class="fas fa-plus"></i> Добавить партнера
+                    <i class="fas fa-plus"></i> {{ $t('deploy.form.добавить_партнера') }}
                   </button>
                   
                   <div class="total-tokens">
-                    <strong>Общее количество токенов: {{ totalTokens }}</strong>
+                    <strong>{{ $t('deploy.form.общее_количество_токенов', { total: totalTokens }) }}</strong>
                   </div>
                 </div>
 
                 <!-- Кворум голосования -->
                 <div class="quorum-section">
-                  <h5>Настройки голосования</h5>
+                  <h5>{{ $t('deploy.form.настройки_голосования') }}</h5>
                   <div class="form-group">
-                    <label class="form-label" for="governanceQuorum">Кворум подписей партнеров для принятия решений (%):</label>
+                    <label class="form-label" for="governanceQuorum">{{ $t('deploy.form.кворум_подписей_партнеров_для_принятия') }}</label>
                     <input 
                       type="number" 
                       id="governanceQuorum" 
@@ -517,25 +505,21 @@
                       max="100"
                       placeholder="51"
                     >
-                    <small class="form-help">
-                      Минимальный процент токенов для принятия решений. Рекомендуется 51% или выше.
-                    </small>
+                    <small class="form-help">{{ $t('deploy.form.минимальный_процент_токенов_для_принятия') }}</small>
                   </div>
                 </div>
               </div>
 
               <!-- Мульти-чейн деплой -->
               <div class="multichain-deploy-section">
-                <h4>🔗 Мульти-чейн деплой</h4>
-                <p class="section-description">
-                  Выберите сети для деплоя DLE. Адрес будет одинаковым во всех сетях.
-                </p>
+                <h4>{{ $t('deploy.form.мульти_чейн_деплой') }}</h4>
+                <p class="section-description">{{ $t('deploy.form.выберите_сети_для_деплоя_dle') }}</p>
                 
                 <!-- Индикатор загрузки -->
                 <div v-if="isLoadingNetworks" class="networks-loading">
                   <div class="loading-spinner">
                     <i class="fas fa-spinner fa-spin"></i>
-                    <p>Загрузка доступных сетей...</p>
+                    <p>{{ $t('deploy.form.загрузка_доступных_сетей') }}</p>
                   </div>
                 </div>
                 
@@ -566,7 +550,7 @@
                         </div>
                         <div v-if="network.isLimited" class="network-limited">
                           <small class="text-muted">
-                            <i class="fas fa-eye-slash"></i> RPC URL скрыт для безопасности
+                            <i class="fas fa-eye-slash"></i> {{ $t('deploy.form.rpc_url_скрыт') }}
                           </small>
                         </div>
                       </div>
@@ -578,10 +562,10 @@
                 <div v-else-if="!isLoadingNetworks && availableNetworks.length === 0" class="no-networks-message">
                   <div class="empty-state">
                     <i class="fas fa-network-wired"></i>
-                    <h5>Нет доступных сетей</h5>
-                    <p>Добавьте RPC провайдеры в настройках, чтобы начать работу с мульти-чейн деплоем.</p>
+                    <h5>{{ $t('deploy.form.нет_доступных_сетей') }}</h5>
+                    <p>{{ $t('deploy.form.добавьте_rpc_провайдеры_в_настройках') }}</p>
                     <button @click="openRpcSettings" class="btn btn-primary">
-                      <i class="fas fa-plus"></i> Добавить RPC провайдера
+                      <i class="fas fa-plus"></i> {{ $t('deploy.form.добавить_rpc_провайдера') }}
                     </button>
                   </div>
                 </div>
@@ -594,7 +578,7 @@
                     type="button" 
                     class="btn btn-secondary btn-sm"
                   >
-                    <i class="fas fa-plus"></i> Добавить RPC провайдера
+                    <i class="fas fa-plus"></i> {{ $t('deploy.form.добавить_rpc_провайдера') }}
                   </button>
                   
                   <button 
@@ -604,7 +588,7 @@
                     :disabled="isLoadingNetworks"
                   >
                     <i class="fas fa-sync-alt" :class="{ 'fa-spin': isLoadingNetworks }"></i> 
-                    {{ isLoadingNetworks ? 'Обновление...' : 'Обновить список' }}
+                    {{ isLoadingNetworks ? $t('deploy.form.обновление') : $t('deploy.form.обновить_список') }}
                   </button>
                 </div>
               </div>
@@ -613,10 +597,8 @@
 
               <!-- Приватный ключ для деплоя -->
               <div class="private-keys-section">
-                <h4>🔐 Приватный ключ для деплоя</h4>
-                <p class="section-description">
-                  Один ключ будет использован для деплоя DLE во всех выбранных сетях
-                </p>
+                <h4>{{ $t('deploy.form.приватный_ключ_для_деплоя') }}</h4>
+                <p class="section-description">{{ $t('deploy.form.один_ключ_будет_использован_для') }}</p>
                 
                 <!-- Предупреждение если сети не выбраны -->
                 <div v-if="selectedNetworks.length === 0" class="networks-warning">
@@ -625,8 +607,8 @@
                       <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div class="warning-content">
-                      <h5>⚠️ Сначала выберите сети</h5>
-                      <p>Для деплоя DLE необходимо выбрать хотя бы одну сеть выше. После выбора сетей здесь появится форма для ввода приватного ключа.</p>
+                      <h5>{{ $t('deploy.form.сначала_выберите_сети') }}</h5>
+                      <p>{{ $t('deploy.form.для_деплоя_dle_необходимо_выбрать') }}</p>
                     </div>
                   </div>
                 </div>
@@ -641,7 +623,7 @@
                         :type="showUnifiedKey ? 'text' : 'password'"
                         v-model="unifiedPrivateKey" 
                         class="form-control" 
-                        placeholder="Введите приватный ключ (0x... или без префикса)"
+                        :placeholder="$t('deploy.form.введите_приватный_ключ_0x_или')"
 
                         @input="validatePrivateKey('unified')"
                         @keyup="validatePrivateKey('unified')"
@@ -658,7 +640,7 @@
                   <div v-if="keyValidation.unified" class="key-validation">
                     <div v-if="keyValidation.unified.isValid" class="validation-success">
                       <i class="fas fa-check-circle"></i>
-                      <span>Адрес кошелька: {{ keyValidation.unified.address }}</span>
+                      <span>{{ $t('deploy.form.адрес_кошелька_с_адресом', { address: keyValidation.unified.address }) }}</span>
                     </div>
                     <div v-else class="validation-error">
                       <i class="fas fa-exclamation-circle"></i>
@@ -670,29 +652,29 @@
                 <!-- Ключ блокчейн-скана (Etherscan V2) -->
                 <div v-if="selectedNetworks.length > 0" class="preview-item explorer-keys-inline">
                   <div class="explorer-unified-key">
-                    <label class="explorer-key-label">Ключ блокчейн-скана (Etherscan V2, единый для всех сетей)</label>
+                    <label class="explorer-key-label">{{ $t('deploy.form.ключ_блокчейн_скана_etherscan_v2') }}</label>
                     <div class="explorer-key-input">
                       <input
                         :type="unifiedScanKeyVisible ? 'text' : 'password'"
                         class="form-control"
-                        placeholder="Введите единый API‑ключ Etherscan V2"
+                        :placeholder="$t('deploy.form.введите_единый_api_ключ_etherscan')"
                         v-model="etherscanApiKey"
                         autocomplete="off"
                       />
                       <button type="button" class="btn btn-secondary btn-sm"
                         @click="unifiedScanKeyVisible = !unifiedScanKeyVisible">
-                        {{ unifiedScanKeyVisible ? 'Скрыть' : 'Показать' }}
+                        {{ unifiedScanKeyVisible ? $t('deploy.form.скрыть') : $t('deploy.form.показать') }}
                       </button>
                     </div>
                     <div class="explorer-keys-actions">
-                      <label><input type="checkbox" v-model="autoVerifyAfterDeploy" /> Авто-верификация после деплоя</label>
+                      <label><input type="checkbox" v-model="autoVerifyAfterDeploy" /> {{ $t('deploy.form.авто_верификация_после_деплоя') }}</label>
                     </div>
                   </div>
                 </div>
 
                 <!-- Требования к балансу -->
                 <div v-if="selectedNetworks.length > 0" class="balance-requirements">
-                  <h5>Требования к балансу:</h5>
+                  <h5>{{ $t('deploy.form.требования_к_балансу') }}</h5>
                   <div class="balance-grid">
                     <div 
                       v-for="network in selectedNetworkDetails" 
@@ -701,11 +683,11 @@
                     >
                       <div class="network-name">{{ network.name }}</div>
                       <div class="balance-amount">~{{ network.estimatedCost }}</div>
-                      <div class="balance-note">для оплаты газа</div>
+                      <div class="balance-note">{{ $t('deploy.form.для_оплаты_газа') }}</div>
                     </div>
                   </div>
                   <div class="total-balance">
-                    <strong>Общая стоимость деплоя: ~${{ totalDeployCost.toFixed(2) }}</strong>
+                    <strong>{{ $t('deploy.form.общая_стоимость_деплоя', { cost: totalDeployCost.toFixed(2) }) }}</strong>
                   </div>
                 </div>
                 
@@ -716,12 +698,12 @@
                       <i class="fas fa-shield-alt"></i>
                     </div>
                     <div class="security-content">
-                      <h5>Рекомендации по безопасности:</h5>
+                      <h5>{{ $t('deploy.form.рекомендации_по_безопасности') }}</h5>
                       <ul>
-                        <li>Используйте отдельный кошелек только для деплоя DLE</li>
-                        <li>Убедитесь, что на кошельке достаточно средств для оплаты газа</li>
-                        <li>После успешного деплоя можете передать управление на основной кошелек</li>
-                        <li>Храните приватный ключ в безопасном месте</li>
+                        <li>{{ $t('deploy.form.security_tip_1') }}</li>
+                        <li>{{ $t('deploy.form.security_tip_2') }}</li>
+                        <li>{{ $t('deploy.form.security_tip_3') }}</li>
+                        <li>{{ $t('deploy.form.security_tip_4') }}</li>
                       </ul>
                     </div>
                   </div>
@@ -736,41 +718,41 @@
     <div class="preview-section-below" v-if="selectedCountryInfo">
       <div class="data-preview">
         <div class="preview-header">
-          <h3>Выбранные данные</h3>
+          <h3>{{ $t('deploy.form.выбранные_данные') }}</h3>
         </div>
         
         <!-- Выбранная страна -->
         <div v-if="selectedCountryInfo" class="preview-section">
-          <h4>Юрисдикция</h4>
+          <h4>{{ $t('deploy.form.юрисдикция') }}</h4>
           <div class="preview-item">
-            <strong>Страна:</strong> {{ selectedCountryInfo.title }}
+            <strong>{{ $t('deploy.form.страна') }}</strong> {{ selectedCountryInfo.title }}
           </div>
           <div class="preview-item">
-            <strong>Код:</strong> {{ selectedCountryInfo.code }}
+            <strong>{{ $t('deploy.form.код') }}</strong> {{ selectedCountryInfo.code }}
           </div>
           <div class="preview-item">
-            <strong>Числовой код:</strong> {{ selectedCountryInfo.numeric }}
+            <strong>{{ $t('deploy.form.числовой_код') }}</strong> {{ selectedCountryInfo.numeric }}
           </div>
         </div>
 
         <!-- Основная информация DLE -->
         <div v-if="dleSettings.name || dleSettings.tokenSymbol || logoPreviewUrl" class="preview-section">
-          <h4>Основная информация DLE</h4>
+          <h4>{{ $t('deploy.form.основная_информация_dle') }}</h4>
           
           <div v-if="logoPreviewUrl" class="preview-item">
-            <strong>Логотип:</strong>
+            <strong>{{ $t('deploy.form.логотип') }}</strong>
             <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
               <img :src="logoPreviewUrl" alt="Logo preview" style="width: 48px; height: 48px; border-radius: 6px; object-fit: contain; border: 1px solid #e9ecef;" />
-              <span style="color: #666; font-size: 0.9em;">{{ logoFile?.name || 'ENS аватар' || 'Дефолтный логотип' }}</span>
+              <span style="color: #666; font-size: 0.9em;">{{ logoFile?.name || $t('deploy.form.ens_аватар') || $t('deploy.form.дефолтный_логотип') }}</span>
             </div>
           </div>
           
           <div v-if="dleSettings.name" class="preview-item">
-            <strong>Название:</strong> {{ dleSettings.name }}
+            <strong>{{ $t('deploy.form.название') }}</strong> {{ dleSettings.name }}
           </div>
           
           <div v-if="dleSettings.tokenSymbol" class="preview-item">
-            <strong>Токен:</strong> {{ dleSettings.tokenSymbol }}
+            <strong>{{ $t('deploy.form.токен') }}</strong> {{ dleSettings.tokenSymbol }}
           </div>
           
 
@@ -780,41 +762,41 @@
 
         <!-- Партнеры и токены -->
         <div v-if="dleSettings.partners.length > 0 && dleSettings.partners.some(p => p.address || p.amount > 1) && selectedCountryInfo" class="preview-section">
-          <h4>Партнеры и токены</h4>
+          <h4>{{ $t('deploy.form.партнеры_и_токены') }}</h4>
           
           <div v-for="(partner, index) in dleSettings.partners" :key="index">
             <div v-if="partner.address || partner.amount > 1" class="preview-item">
-              <strong>Партнер {{ index + 1 }}:</strong>
+              <strong>{{ $t('deploy.form.партнер_preview', { n: index + 1 }) }}</strong>
               <div class="partner-details">
                 <div v-if="partner.address" class="partner-address">
-                  Адрес: {{ partner.address.substring(0, 10) }}...{{ partner.address.substring(partner.address.length - 8) }}
+                  {{ $t('deploy.form.адрес_preview') }} {{ partner.address.substring(0, 10) }}...{{ partner.address.substring(partner.address.length - 8) }}
                 </div>
                 <div class="partner-tokens">
-                  Токенов: {{ partner.amount }}
+                  {{ $t('deploy.form.токенов_preview') }} {{ partner.amount }}
                 </div>
               </div>
             </div>
           </div>
           
           <div class="preview-item">
-            <strong>Общий эмиссия:</strong> {{ totalTokens }} токенов
+            <strong>{{ $t('deploy.form.общий_эмиссия') }}</strong> {{ $t('deploy.form.tokens_count', { count: totalTokens }) }}
           </div>
           
           <div class="preview-item">
-            <strong>Кворум подписей партнеров:</strong> {{ dleSettings.governanceQuorum }}%
+            <strong>{{ $t('deploy.form.кворум_подписей_партнеров') }}</strong> {{ dleSettings.governanceQuorum }}%
           </div>
         </div>
 
         <!-- Мульти-чейн деплой -->
         <div v-if="hasSelectedNetworks" class="preview-section">
-          <h4>🔗 Мульти-чейн деплой</h4>
+          <h4>{{ $t('deploy.form.мульти_чейн_деплой') }}</h4>
           
           <!-- <div class="preview-item">
-            <strong> Адрес DLE:</strong> {{ predictedAddress || 'Вычисляется...' }}
+            <strong>{{ $t('deploy.form.адрес_dle') }}</strong> {{ predictedAddress || 'Вычисляется...' }}
           </div> -->
           
           <div class="preview-item">
-            <strong>Выбранные сети:</strong>
+            <strong>{{ $t('deploy.form.выбранные_сети') }}</strong>
             <ul class="networks-list">
               <li v-for="network in selectedNetworkDetails" :key="network.chainId">
                 {{ network.name }} (Chain ID: {{ network.chainId }}) - ~${{ network.estimatedCost }}
@@ -823,7 +805,7 @@
           </div>
           
           <div class="preview-item">
-            <strong>Общая стоимость:</strong> ~${{ totalDeployCost.toFixed(2) }}
+            <strong>{{ $t('deploy.form.общая_стоимость') }}</strong> ~${{ totalDeployCost.toFixed(2) }}
           </div>
 
           <!-- Предсказанные адреса скрыты, чтобы не создавать шум при отсутствии данных -->
@@ -833,26 +815,26 @@
 
         <!-- Приватный ключ -->
         <div v-if="hasSelectedNetworks && unifiedPrivateKey" class="preview-section">
-          <h4>🔐 Приватный ключ</h4>
+          <h4>{{ $t('deploy.form.приватный_ключ') }}</h4>
           
           <div class="preview-item">
-            <strong>Ключ:</strong> ***{{ unifiedPrivateKey.slice(-4) }}
+            <strong>{{ $t('deploy.form.ключ') }}</strong> ***{{ unifiedPrivateKey.slice(-4) }}
           </div>
           
           <div v-if="keyValidation.unified && keyValidation.unified.isValid" class="preview-item">
-            <strong>📍 Адрес кошелька:</strong> {{ keyValidation.unified.address.substring(0, 10) }}...{{ keyValidation.unified.address.substring(keyValidation.unified.address.length - 8) }}
+            <strong>{{ $t('deploy.form.адрес_кошелька') }}</strong> {{ keyValidation.unified.address.substring(0, 10) }}...{{ keyValidation.unified.address.substring(keyValidation.unified.address.length - 8) }}
           </div>
           
           
           
           <div class="preview-item">
-            <strong>💰 Требуемый баланс:</strong> ~${{ totalDeployCost.toFixed(2) }}
+            <strong>{{ $t('deploy.form.требуемый_баланс') }}</strong> ~${{ totalDeployCost.toFixed(2) }}
           </div>
         </div>
 
         <!-- Данные для смарт-контракта -->
         <div v-if="dleSettings.jurisdiction === '643'" class="preview-section">
-          <h4>Данные адреса</h4>
+          <h4>{{ $t('deploy.form.данные_адреса') }}</h4>
           
           <!-- Данные адреса (компактно) -->
           <div v-if="hasAddressData" class="preview-item">
@@ -862,7 +844,7 @@
                 {{ lastApiResult.coordinates.lat }} {{ lastApiResult.coordinates.lon }}
               </div>
               <div v-if="dleSettings.selectedOktmo" class="oktmo-line">
-                ОКТМО: {{ dleSettings.selectedOktmo }}
+                {{ $t('deploy.form.oktmo_label') }} {{ dleSettings.selectedOktmo }}
               </div>
             </div>
           </div>
@@ -871,12 +853,12 @@
           
           <!-- Основной ОКВЭД -->
           <div v-if="selectedMainOkvedInfo" class="preview-item">
-            <strong>📊 Основной ОКВЭД:</strong> {{ selectedMainOkvedInfo.code }} - {{ selectedMainOkvedInfo.title }}
+            <strong>{{ $t('deploy.form.основной_оквэд') }}</strong> {{ selectedMainOkvedInfo.code }} - {{ selectedMainOkvedInfo.title }}
           </div>
           
           <!-- Дополнительные ОКВЭД -->
           <div v-if="dleSettings.selectedOkved.length > 0" class="preview-item">
-            <strong>📋 Дополнительные ОКВЭД:</strong>
+            <strong>{{ $t('deploy.form.дополнительные_оквэд') }}</strong>
             <ul class="okved-list">
               <li v-for="code in dleSettings.selectedOkved" :key="code">
                 {{ code }}
@@ -886,38 +868,36 @@
 
           <!-- КПП код -->
           <div v-if="selectedKppInfo" class="preview-item">
-            <strong>🏢 КПП:</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}
+            <strong>{{ $t('deploy.form.кпп') }}</strong> {{ selectedKppInfo.code }} - {{ selectedKppInfo.title }}
           </div>
           
           <!-- Координаты -->
           <div v-if="dleSettings.coordinates" class="preview-item">
-            <strong>📍Координаты:</strong> {{ dleSettings.coordinates }}
+            <strong>{{ $t('deploy.form.координаты') }}</strong> {{ dleSettings.coordinates }}
           </div>
           
           <!-- Кнопка деплоя смарт-контрактов -->
           <div class="deploy-section">
             <!-- Информация о поэтапном деплое -->
             <div class="deployment-info">
-              <h4>🚀 Поэтапный деплой DLE</h4>
-              <p class="deployment-description">
-                Автоматический деплой DLE контракта и всех модулей с проверками, верификацией и инициализацией во всех выбранных сетях
-              </p>
+              <h4>{{ $t('deploy.form.поэтапный_деплой_dle') }}</h4>
+              <p class="deployment-description">{{ $t('deploy.form.автоматический_деплой_dle_контракта_и') }}</p>
               <div class="deployment-features">
                 <div class="feature-item">
                   <i class="fas fa-check-circle"></i>
-                  <span>Деплой DLE контракта во всех сетях</span>
+                  <span>{{ $t('deploy.form.деплой_dle_контракта_во_всех') }}</span>
                 </div>
                 <div class="feature-item">
                   <i class="fas fa-check-circle"></i>
-                  <span>Автоматическая верификация контрактов</span>
+                  <span>{{ $t('deploy.form.автоматическая_верификация_контрактов') }}</span>
                 </div>
                 <div class="feature-item">
                   <i class="fas fa-check-circle"></i>
-                  <span>Деплой и инициализация всех модулей</span>
+                  <span>{{ $t('deploy.form.деплой_и_инициализация_всех_модулей') }}</span>
                 </div>
                 <div class="feature-item">
                   <i class="fas fa-check-circle"></i>
-                  <span>Повторы при ошибках сети</span>
+                  <span>{{ $t('deploy.form.повторы_при_ошибках_сети') }}</span>
                 </div>
               </div>
             </div>
@@ -931,17 +911,15 @@
                 :title="`isFormValid: ${isFormValid}, canManageSettings: ${canManageSettings}, isLoading: ${adminTokenCheck.isLoading}`"
               >
                 <i class="fas fa-cogs"></i> 
-                Поэтапный деплой DLE
+                {{ $t('deploy.form.поэтапный_деплой_dle_btn') }}
               </button>
               <button 
                 v-if="hasSelectedData" 
                 @click="clearAllData" 
                 class="btn btn-danger btn-lg clear-btn"
-                title="Очистить все данные"
+                :title="$t('deploy.form.очистить_все_данные')"
                 :disabled="false"
-              >
-                Удалить все
-              </button>
+              >{{ $t('deploy.form.удалить_все') }}</button>
             </div>
 
 
@@ -950,7 +928,7 @@
 
         <!-- Заглушка если ничего не выбрано -->
         <div v-if="!selectedCountryInfo" class="preview-empty">
-          <p>Выберите страну, чтобы увидеть данные здесь</p>
+          <p>{{ $t('deploy.form.выберите_страну_чтобы_увидеть_данные') }}</p>
         </div>
       </div>
     </div>
@@ -973,6 +951,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { reactive, ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthContext } from '@/composables/useAuth';
@@ -1494,10 +1474,10 @@ const addIsicCode = () => {
       selectedIsicLevel4.value = '';
       // Остальные опции сбросятся через watchers
     } else {
-      alert('Этот код уже добавлен.');
+      alert(t('deploy.alerts.codeAlreadyAdded'));
     }
   } else {
-    alert('Код не выбран полностью.');
+    alert(t('deploy.alerts.codeNotSelected'));
   }
 };
 
@@ -1513,10 +1493,10 @@ const addOkvedCode = () => {
       selectedOkvedLevel1.value = '';
       // Остальные уровни сбросятся через watchers
     } else {
-      alert('Этот код уже добавлен.');
+      alert(t('deploy.alerts.codeAlreadyAdded'));
     }
   } else {
-    alert('Код не выбран полностью.');
+    alert(t('deploy.alerts.codeNotSelected'));
   }
 };
 
@@ -1576,7 +1556,7 @@ const formattedDraftAddress = computed(() => {
     addr.building,
     addr.apartment
   ].filter(Boolean);
-  return parts.join(', ') || 'Заполните поля адреса';
+  return parts.join(', ') || t('deploy.form.заполните_поля_адреса');
 });
 
 // Фильтрованные данные API (исключаем ненужные поля)
@@ -1626,23 +1606,10 @@ const estimatedGasCost = computed(() => {
 
 // Форматирование ключей API для отображения
 const formatApiKey = (key) => {
-  const translations = {
-    'country': 'Страна',
-    'state': 'Регион/область',
-    'city': 'Город',
-    'town': 'Городок',
-    'village': 'Деревня',
-    'road': 'Дорога',
-    'house_number': 'Номер дома',
-    'postcode': 'Почтовый индекс',
-    'country_code': 'Код страны',
-    'suburb': 'Район',
-    'neighbourhood': 'Микрорайон',
-    'amenity': 'Объект',
-    'building': 'Здание'
-  };
-  
-  return translations[key] || key.charAt(0).toUpperCase() + key.slice(1);
+  const i18nKey = `deploy.apiFields.${key}`;
+  const translated = t(i18nKey);
+  if (translated !== i18nKey) return translated;
+  return key.charAt(0).toUpperCase() + key.slice(1);
 };
 
 // Проверка есть ли выбранные данные
@@ -2237,7 +2204,7 @@ const loadClassifiers = async () => {
     }
   } catch (error) {
     console.error('Ошибка при загрузке классификаторов:', error);
-    alert('Не удалось загрузить классификаторы с сервера.');
+    alert(t('deploy.alerts.classifiersLoadFailed'));
   } finally {
     isLoadingRussianClassifiers.value = false;
   }
@@ -2332,7 +2299,7 @@ const loadAvailableNetworks = async () => {
       availableNetworks.value = networksData.map(network => {
         const chainId = network.chain_id || parseInt(network.network_id);
         const estimatedCost = getFallbackCost(chainId);
-        const description = network.description || 'Блокчейн сеть';
+        const description = network.description || t('deploy.errors.defaultBlockchainNetwork');
         const name = network.name || network.network_id || `Chain ${chainId}`;
          
          return {
@@ -2350,7 +2317,7 @@ const loadAvailableNetworks = async () => {
            // Дополнительные поля для совместимости
            isLimited: network._isLimited || false,
            // Для не-админов скрываем реальный RPC URL в отображении
-           displayRpcUrl: network._isLimited ? 'Скрыто' : (network.rpc_url_display || network.network_id)
+           displayRpcUrl: network._isLimited ? t('deploy.errors.hidden') : (network.rpc_url_display || network.network_id)
          };
       });
       
@@ -2458,7 +2425,7 @@ const updateDeployCost = async () => {
       totalDeployCost.value = parseFloat(costData.totalCostEth);
       console.log('✅ Стоимость деплоя обновлена:', costData);
     } else {
-      throw new Error('Ошибка получения стоимости деплоя');
+      throw new Error(t('deploy.errors.deployCostFailed'));
     }
   } catch (error) {
     console.warn('⚠️ Ошибка расчета стоимости, используем fallback:', error.message);
@@ -2585,7 +2552,7 @@ const validatePrivateKey = async (chainId) => {
       keyValidation[chainId] = {
         isValid: false,
         address: null,
-        error: error.response?.data?.message || 'Ошибка валидации приватного ключа'
+        error: error.response?.data?.message || t('deploy.errors.privateKeyValidationFailed')
       };
     }
   }, 300); // Задержка 300мс
@@ -2799,7 +2766,7 @@ const checkAdminTokens = async () => {
   adminTokenCheck.value.canManageSettings = canManageSettings.value;
   
   if (!address.value) {
-    adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: false, error: 'Кошелек не подключен' };
+    adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: false, error: t('deploy.errors.walletNotConnected') };
     return;
   }
 
@@ -2812,11 +2779,11 @@ const checkAdminTokens = async () => {
       console.log('Проверка админских токенов:', response.data.data);
       // Не перезаписываем canManageSettings, так как это управляется usePermissions
     } else {
-      adminTokenCheck.value = { ...adminTokenCheck.value, error: response.data.message || 'Ошибка проверки токенов' };
+      adminTokenCheck.value = { ...adminTokenCheck.value, error: response.data.message || t('deploy.errors.tokenCheckFailed') };
     }
   } catch (error) {
     console.error('Ошибка проверки админских токенов:', error);
-    adminTokenCheck.value = { ...adminTokenCheck.value, error: error.response?.data?.message || 'Ошибка проверки токенов' };
+    adminTokenCheck.value = { ...adminTokenCheck.value, error: error.response?.data?.message || t('deploy.errors.tokenCheckFailed') };
   } finally {
     adminTokenCheck.value = { ...adminTokenCheck.value, isLoading: false };
   }
@@ -2854,7 +2821,7 @@ const useMyWalletAddress = () => {
     dleSettings.partners[0].address = address.value;
     console.log('Подставлен адрес кошелька:', address.value);
   } else {
-    alert('Кошелек не подключен. Пожалуйста, подключите кошелек сначала.');
+    alert(t('deploy.alerts.walletNotConnected'));
   }
 };
 
@@ -2874,7 +2841,7 @@ const deploySmartContracts = async () => {
   try {
     // Валидация данных
     if (!isFormValid.value) {
-      alert('Пожалуйста, заполните все обязательные поля');
+      alert(t('deploy.alerts.fillRequiredFields'));
       return;
     }
 
@@ -2886,7 +2853,7 @@ const deploySmartContracts = async () => {
     
   } catch (error) {
     console.error('Ошибка деплоя DLE:', error);
-    alert('❌ Ошибка при деплое смарт-контракта: ' + error.message);
+    alert(t('deploy.alerts.deployError', { message: error.message }));
   }
 };
 
@@ -2905,7 +2872,7 @@ const startStagedDeployment = async () => {
       name: dleSettings.name,
       symbol: dleSettings.tokenSymbol,
 
-      location: dleSettings.addressData.fullAddress || 'Не указан',
+      location: dleSettings.addressData.fullAddress || t('deploy.errors.notSpecified'),
       coordinates: dleSettings.coordinates || '0,0',
       jurisdiction: parseInt(dleSettings.jurisdiction) || 0,
       oktmo: dleSettings.selectedOktmo || '',
@@ -2963,8 +2930,7 @@ const startStagedDeployment = async () => {
       if (pre.data?.success && preData) {
         const lacks = (preData.insufficient || []);
         if (lacks.length > 0) {
-          const message = `❌ Недостаточно средств в некоторых сетях!`;
-          alert(message);
+          alert(t('deploy.alerts.insufficientFunds'));
           return;
         }
         console.log('✅ Проверка балансов пройдена:', preData.summary);

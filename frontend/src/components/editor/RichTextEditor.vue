@@ -18,25 +18,26 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
 import api from '../../api/axios';
 
-// Функция для загрузки и регистрации модуля изменения размера изображений
+const { t } = useI18n();
+
 async function loadImageResizeModule() {
-try {
-    // Используем динамический импорт для совместимости с Vite
+  try {
     const module = await import('quill-image-resize-module');
     const ImageResize = module.default || module.ImageResize || module;
     if (ImageResize && typeof ImageResize === 'function') {
-  Quill.register('modules/imageResize', ImageResize);
+      Quill.register('modules/imageResize', ImageResize);
       return true;
     } else if (ImageResize && ImageResize.default && typeof ImageResize.default === 'function') {
       Quill.register('modules/imageResize', ImageResize.default);
       return true;
     }
-} catch (error) {
-  console.warn('[RichTextEditor] Не удалось загрузить модуль изменения размера изображений:', error);
+  } catch (error) {
+    // ignore
   }
   return false;
 }
@@ -48,7 +49,7 @@ const props = defineProps({
   },
   placeholder: {
     type: String,
-    default: 'Введите текст...'
+    default: ''
   }
 });
 
@@ -56,6 +57,56 @@ const emit = defineEmits(['update:modelValue']);
 
 const editorContainer = ref(null);
 let quill = null;
+
+function getUploadErrorMessage(error) {
+  const extractMessage = (obj) => {
+    if (!obj) return null;
+    if (typeof obj === 'string') return obj;
+    if (typeof obj === 'object') {
+      if (obj.message) return String(obj.message);
+      if (obj.error && typeof obj.error === 'string') return obj.error;
+      if (obj.error && typeof obj.error === 'object' && obj.error.message) return String(obj.error.message);
+      if (obj.detail) return String(obj.detail);
+      if (obj.msg) return String(obj.msg);
+      return null;
+    }
+    return String(obj);
+  };
+
+  if (error.response?.status === 503) {
+    return error.response?.data?.message || t('editor.serverUnavailable');
+  }
+  if (error.response?.data?.success === false && error.response?.data?.message) {
+    const msg = extractMessage(error.response.data.message);
+    return msg || (typeof error.response.data.message === 'string' ? error.response.data.message : t('editor.serverError'));
+  }
+  if (error.response?.data?.error?.message) {
+    return String(error.response.data.error.message);
+  }
+  if (error.response?.data?.message) {
+    const msg = extractMessage(error.response.data.message);
+    return msg || (typeof error.response.data.message === 'string' ? error.response.data.message : t('editor.serverError'));
+  }
+  if (error.response?.data?.error) {
+    const err = error.response.data.error;
+    if (typeof err === 'string') return err;
+    if (err && typeof err === 'object') {
+      return err.message || err.detail || err.msg || t('editor.serverError');
+    }
+    return String(err);
+  }
+  if (error.response?.data) {
+    const msg = extractMessage(error.response.data);
+    if (msg) return msg;
+    if (typeof error.response.data === 'string') return error.response.data;
+  }
+  if (error.message) return error.message;
+  return t('common.unknownError');
+}
+
+function getVideoLoadingHtml(videoUrl) {
+  return `<div class="video-wrapper"><div class="video-loading-indicator" style="display: flex;"><div class="spinner"></div><span>${t('editor.loadingVideo')}</span></div><video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${videoUrl}"></video></div>`;
+}
 
 // Настройка Quill с панелью инструментов
 const toolbarOptions = [
@@ -101,7 +152,7 @@ onMounted(async () => {
   // Инициализация Quill
   quill = new Quill(editorContainer.value, {
     theme: 'snow',
-    placeholder: props.placeholder,
+    placeholder: props.placeholder || t('editor.placeholder'),
     modules: modulesConfig
   });
 
@@ -158,7 +209,7 @@ function wrapExistingVideos() {
       const loadingIndicator = document.createElement('div');
       loadingIndicator.className = 'video-loading-indicator';
       loadingIndicator.style.display = 'flex';
-      loadingIndicator.innerHTML = '<div class="spinner"></div><span>Загрузка видео...</span>';
+      loadingIndicator.innerHTML = `<div class="spinner"></div><span>${t('editor.loadingVideo')}</span>`;
       
       // Вставляем обертку перед видео
       video.parentNode?.insertBefore(wrapper, video);
@@ -182,9 +233,6 @@ function handleImageClick() {
     if (!file) return;
 
     try {
-      console.log('[RichTextEditor] Начало загрузки изображения:', file.name);
-      
-      // Загружаем файл
       const formData = new FormData();
       formData.append('media', file);
 
@@ -192,101 +240,38 @@ function handleImageClick() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      console.log('[RichTextEditor] Ответ от сервера:', response.data);
-
       if (response.data && response.data.success && response.data.data && response.data.data.url) {
-        // Получаем текущую позицию курсора или используем конец документа
         let range = quill.getSelection();
         if (!range) {
-          // Если курсор не установлен, вставляем в конец
           const length = quill.getLength();
           range = { index: length - 1, length: 0 };
         }
         
-        // Используем полный URL для доступа к файлу
         let fullUrl = response.data.data.url;
         if (!fullUrl.startsWith('http')) {
-          // Если URL относительный, добавляем origin
           fullUrl = `${window.location.origin}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
         }
         
-        console.log('[RichTextEditor] Вставляем изображение по URL:', fullUrl, 'в позицию:', range.index);
-        
-        // Вставляем изображение
         quill.insertEmbed(range.index, 'image', fullUrl);
-        
-        // Перемещаем курсор после изображения
         quill.setSelection(range.index + 1, 0);
         
-        // Принудительно обновляем modelValue
         const html = quill.root.innerHTML;
         emit('update:modelValue', html);
-        
-        console.log('[RichTextEditor] Изображение успешно вставлено');
       } else {
-        console.error('[RichTextEditor] Неверный формат ответа:', response.data);
-        alert('Ошибка: сервер вернул неверный формат данных');
+        alert(t('editor.invalidResponse'));
       }
     } catch (error) {
-      console.error('[RichTextEditor] Ошибка загрузки изображения:', error);
-      console.error('[RichTextEditor] Детали ошибки:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
-      // Обработка ошибок аналогично обработке ошибок видео
-      let errorMessage = 'Неизвестная ошибка';
-      
-      try {
-        // Проверяем статус ошибки для специальных случаев
-        if (error.response?.status === 503) {
-          errorMessage = error.response?.data?.message || 
-                       'Сервер временно недоступен. Пожалуйста, попробуйте позже.';
-        }
-        // Приоритет 1: response.data.message (если success: false)
-        else if (error.response?.data?.success === false && error.response?.data?.message) {
-          errorMessage = typeof error.response.data.message === 'string' 
-            ? error.response.data.message 
-            : 'Ошибка сервера';
-        }
-        // Приоритет 2: response.data.error.message (формат errorHandler)
-        else if (error.response?.data?.error?.message) {
-          errorMessage = String(error.response.data.error.message);
-        }
-        // Приоритет 3: response.data.message
-        else if (error.response?.data?.message) {
-          errorMessage = typeof error.response.data.message === 'string' 
-            ? error.response.data.message 
-            : 'Ошибка сервера';
-        }
-        // Приоритет 4: response.data.error
-        else if (error.response?.data?.error) {
-          errorMessage = typeof error.response.data.error === 'string' 
-            ? error.response.data.error 
-            : 'Ошибка сервера';
-        }
-        // Приоритет 5: error.message
-        else if (error.message) {
-          errorMessage = error.message;
-        }
-      } catch (e) {
-        console.error('[RichTextEditor] Ошибка при обработке ошибки загрузки изображения:', e);
-        errorMessage = error?.message || 'Ошибка при загрузке изображения';
-      }
-      
-      alert('Ошибка загрузки изображения: ' + errorMessage);
+      const errorMessage = getUploadErrorMessage(error);
+      alert(t('editor.imageUploadError', { message: errorMessage }));
     }
   };
 }
 
 // Обработка вставки видео
 function handleVideoClick() {
-  // Предлагаем выбор: загрузить файл или вставить URL
-  const choice = confirm('Нажмите OK для загрузки файла или Отмена для вставки URL');
+  const choice = confirm(t('editor.videoChoice'));
   
   if (choice) {
-    // Загрузка файла
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'video/*');
@@ -297,9 +282,6 @@ function handleVideoClick() {
       if (!file) return;
 
       try {
-        console.log('[RichTextEditor] Начало загрузки видео:', file.name);
-        
-        // Загружаем файл
         const formData = new FormData();
         formData.append('media', file);
 
@@ -307,35 +289,22 @@ function handleVideoClick() {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
 
-        console.log('[RichTextEditor] Ответ от сервера:', response.data);
-
         if (response.data && response.data.success && response.data.data && response.data.data.url) {
-          // Получаем текущую позицию курсора или используем конец документа
           let range = quill.getSelection();
           if (!range) {
-            // Если курсор не установлен, вставляем в конец
             const length = quill.getLength();
             range = { index: length - 1, length: 0 };
           }
           
-          // Используем полный URL для доступа к файлу
           let fullUrl = response.data.data.url;
           if (!fullUrl.startsWith('http')) {
-            // Если URL относительный, добавляем origin
             fullUrl = `${window.location.origin}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
           }
           
-          console.log('[RichTextEditor] Вставляем видео по URL:', fullUrl, 'в позицию:', range.index);
-          
-          // Проверяем, является ли это локальный файл из нашей системы
           const isLocalFile = fullUrl.includes('/api/uploads/media/') && fullUrl.includes('/file');
           
           if (isLocalFile) {
-            // Для локальных файлов вставляем тег <video> с оберткой для индикатора загрузки
-            const videoHtml = `<div class="video-wrapper"><div class="video-loading-indicator" style="display: flex;"><div class="spinner"></div><span>Загрузка видео...</span></div><video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${fullUrl}"></video></div>`;
-            quill.clipboard.dangerouslyPasteHTML(range.index, videoHtml);
-            
-            // Настраиваем обработчики событий для видео после вставки (сразу и с задержкой для надежности)
+            quill.clipboard.dangerouslyPasteHTML(range.index, getVideoLoadingHtml(fullUrl));
             setupVideoLoadingHandlers();
             setTimeout(() => {
               setupVideoLoadingHandlers();
@@ -344,139 +313,23 @@ function handleVideoClick() {
               setupVideoLoadingHandlers();
             }, 200);
           } else {
-            // Для внешних URL (YouTube, Vimeo) используем iframe через Quill
             quill.insertEmbed(range.index, 'video', fullUrl);
           }
           
-          // Перемещаем курсор после видео
           quill.setSelection(range.index + 1, 0);
           
-          // Принудительно обновляем modelValue
           const html = quill.root.innerHTML;
           emit('update:modelValue', html);
-          
-          console.log('[RichTextEditor] Видео успешно вставлено');
         } else {
-          console.error('[RichTextEditor] Неверный формат ответа:', response.data);
-          alert('Ошибка: сервер вернул неверный формат данных');
+          alert(t('editor.invalidResponse'));
         }
       } catch (error) {
-        console.error('[RichTextEditor] Ошибка загрузки видео:', error);
-        console.error('[RichTextEditor] Детали ошибки:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status,
-          error: error
-        });
-        
-        // Правильная обработка ошибок с учетом всех возможных форматов
-        let errorMessage = 'Неизвестная ошибка';
-        
-        try {
-          // Функция для безопасного извлечения сообщения из объекта
-          const extractMessage = (obj) => {
-            if (!obj) return null;
-            if (typeof obj === 'string') return obj;
-            if (typeof obj === 'object') {
-              // Проверяем различные возможные поля с сообщением
-              if (obj.message) return String(obj.message);
-              if (obj.error && typeof obj.error === 'string') return obj.error;
-              if (obj.error && typeof obj.error === 'object' && obj.error.message) return String(obj.error.message);
-              if (obj.detail) return String(obj.detail);
-              if (obj.msg) return String(obj.msg);
-              // Если ничего не найдено, возвращаем null
-              return null;
-            }
-            return String(obj);
-          };
-          
-          // Проверяем статус ошибки для специальных случаев
-          if (error.response?.status === 503) {
-            // Service Unavailable - обычно ошибка подключения к БД
-            errorMessage = error.response?.data?.message || 
-                         'Сервер временно недоступен. Пожалуйста, попробуйте позже.';
-          }
-          // Приоритет 1: response.data.message (если success: false)
-          else if (error.response?.data?.success === false && error.response?.data?.message) {
-            const msg = extractMessage(error.response.data.message);
-            if (msg) {
-              errorMessage = msg;
-            } else {
-              errorMessage = typeof error.response.data.message === 'string' 
-                ? error.response.data.message 
-                : 'Ошибка сервера';
-            }
-          }
-          // Приоритет 2: response.data.error.message (формат errorHandler)
-          else if (error.response?.data?.error?.message) {
-            errorMessage = String(error.response.data.error.message);
-          }
-          // Приоритет 3: response.data.message
-          else if (error.response?.data?.message) {
-            const msg = extractMessage(error.response.data.message);
-            if (msg) {
-              errorMessage = msg;
-            } else {
-              errorMessage = typeof error.response.data.message === 'string' 
-                ? error.response.data.message 
-                : 'Ошибка сервера (неверный формат сообщения)';
-            }
-          }
-          // Приоритет 4: response.data.error (может быть объектом или строкой)
-          else if (error.response?.data?.error) {
-            const err = error.response.data.error;
-            if (typeof err === 'string') {
-              errorMessage = err;
-            } else if (err && typeof err === 'object') {
-              // Пытаемся извлечь понятное сообщение
-              errorMessage = err.message || err.detail || err.msg || 'Ошибка сервера';
-            } else {
-              errorMessage = String(err);
-            }
-          }
-          // Приоритет 5: response.data (может быть объектом с ошибкой)
-          else if (error.response?.data) {
-            const data = error.response.data;
-            const msg = extractMessage(data);
-            if (msg) {
-              errorMessage = msg;
-            } else if (typeof data === 'string') {
-              errorMessage = data;
-            } else if (data && typeof data === 'object') {
-              errorMessage = data.message || 'Ошибка сервера';
-            }
-          }
-          // Приоритет 6: error.message
-          else if (error.message) {
-            errorMessage = error.message;
-          }
-          // Приоритет 7: error сам по себе
-          else {
-            errorMessage = String(error);
-          }
-        } catch (e) {
-          // Если что-то пошло не так при обработке ошибки, используем базовое сообщение
-          console.error('[RichTextEditor] Ошибка при обработке ошибки:', e);
-          errorMessage = error?.message || 'Ошибка при загрузке видео';
-        }
-        
-        // Гарантируем, что errorMessage всегда строка
-        if (typeof errorMessage !== 'string') {
-          console.error('[RichTextEditor] errorMessage не является строкой:', errorMessage, typeof errorMessage);
-          try {
-            errorMessage = JSON.stringify(errorMessage);
-          } catch (e) {
-            errorMessage = String(errorMessage);
-          }
-        }
-        
-        console.error('[RichTextEditor] Финальное сообщение об ошибке:', errorMessage);
-        alert('Ошибка загрузки видео: ' + errorMessage);
+        const errorMessage = getUploadErrorMessage(error);
+        alert(t('editor.videoUploadError', { message: errorMessage }));
       }
     };
   } else {
-    // Вставка URL
-    const url = prompt('Введите URL видео:');
+    const url = prompt(t('editor.videoUrlPrompt'));
     if (url) {
       let range = quill.getSelection();
       if (!range) {
@@ -484,15 +337,10 @@ function handleVideoClick() {
         range = { index: length - 1, length: 0 };
       }
       
-      // Проверяем, является ли это локальный файл из нашей системы
       const isLocalFile = url.includes('/api/uploads/media/') && url.includes('/file');
       
       if (isLocalFile) {
-        // Для локальных файлов вставляем тег <video> с оберткой для индикатора загрузки
-        const videoHtml = `<div class="video-wrapper"><div class="video-loading-indicator" style="display: flex;"><div class="spinner"></div><span>Загрузка видео...</span></div><video controls class="ql-video" style="max-width: 100%; width: 100%; height: auto; min-height: 400px; border-radius: 8px; margin: 1.5rem 0; display: block;" src="${url}"></video></div>`;
-        quill.clipboard.dangerouslyPasteHTML(range.index, videoHtml);
-        
-        // Настраиваем обработчики событий для видео после вставки (сразу и с задержкой для надежности)
+        quill.clipboard.dangerouslyPasteHTML(range.index, getVideoLoadingHtml(url));
         setupVideoLoadingHandlers();
         setTimeout(() => {
           setupVideoLoadingHandlers();
@@ -501,13 +349,11 @@ function handleVideoClick() {
           setupVideoLoadingHandlers();
         }, 200);
       } else {
-        // Для внешних URL (YouTube, Vimeo) используем iframe через Quill
         quill.insertEmbed(range.index, 'video', url);
       }
       
       quill.setSelection(range.index + 1, 0);
       
-      // Принудительно обновляем modelValue
       const html = quill.root.innerHTML;
       emit('update:modelValue', html);
     }
@@ -564,11 +410,10 @@ function setupVideoLoadingHandlers() {
     };
     
     // Обработка ошибок
-    const handleError = (e) => {
+    const handleError = () => {
       if (loadingIndicator) {
         loadingIndicator.style.display = 'none';
       }
-      console.error('[RichTextEditor] Ошибка загрузки видео в плеере:', e);
     };
     
     // Добавляем обработчики событий (удаляем старые, если есть)

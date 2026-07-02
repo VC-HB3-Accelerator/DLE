@@ -11,6 +11,9 @@
  */
 
 import api from '../api/axios';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 const EMPTY_RESULT = {
   contacts: [],
@@ -48,7 +51,7 @@ export default {
       return res.data;
     } catch (err) {
       if (err.response?.status === 404) {
-        return { success: true, deleted: 0, message: 'Пользователь уже удален' };
+        return { success: true, deleted: 0, message: t('contacts.deleteConfirm.alreadyDeleted') };
       }
       throw err;
     }

@@ -28,15 +28,15 @@
           {{ dleAddress }}
         </div>
         <div v-else-if="isLoadingDle" style="color: var(--color-grey-dark); font-size: 0.9rem;">
-          Загрузка...
+          {{ t('common.loading') }}
         </div>
         <button class="close-btn" @click="goBackToProposals">×</button>
       </div>
       <div v-if="!props.isAuthenticated" class="auth-notice">
         <div class="alert alert-info">
           <i class="fas fa-info-circle"></i>
-          <strong>Для создания предложений необходимо авторизоваться в приложении</strong>
-          <p class="mb-0 mt-2">Подключите кошелек в сайдбаре для создания новых предложений</p>
+          <strong>{{ t('smartcontracts.createProposal.authRequiredTitle') }}</strong>
+          <p class="mb-0 mt-2">{{ t('smartcontracts.createProposal.authRequiredHint') }}</p>
         </div>
       </div>
 
@@ -47,7 +47,7 @@
           <div class="form-group">
             <label for="sender" class="form-label">
               <i class="fas fa-paper-plane"></i>
-              Адрес отправителя *
+              {{ t('smartcontracts.transferTokens.senderLabel') }}
             </label>
             <input
               type="text"
@@ -58,7 +58,7 @@
               required
             />
             <small class="form-help">
-              Ваш подключенный кошелек - токены будут отправлены с этого адреса
+              {{ t('smartcontracts.transferTokens.senderHelp') }}
             </small>
           </div>
 
@@ -66,18 +66,18 @@
           <div class="form-group">
             <label for="recipient" class="form-label">
               <i class="fas fa-user"></i>
-              Адрес получателя *
+              {{ t('smartcontracts.transferTokens.recipientLabel') }}
             </label>
             <input
               type="text"
               id="recipient"
               v-model="formData.recipient"
               class="form-input"
-              placeholder="0x..."
+              :placeholder="t('smartcontracts.transferTokens.recipientPlaceholder')"
               required
             />
             <small class="form-help">
-              Ethereum-адрес получателя токенов DLE
+              {{ t('smartcontracts.transferTokens.recipientHelp') }}
             </small>
           </div>
 
@@ -85,24 +85,24 @@
           <div class="form-group">
             <label for="amount" class="form-label">
               <i class="fas fa-coins"></i>
-              Количество токенов *
+              {{ t('smartcontracts.transferTokens.amountLabel') }}
             </label>
             <input
               type="number"
               id="amount"
               v-model.number="formData.amount"
               class="form-input"
-              placeholder="1000000"
+              :placeholder="t('smartcontracts.transferTokens.amountPlaceholder')"
               min="1"
               step="1"
               required
             />
             <small class="form-help">
-              Количество токенов для перевода (без decimals)
+              {{ t('smartcontracts.transferTokens.amountHelp') }}
             </small>
             <div v-if="dleInfo?.totalSupply" class="balance-info">
               <i class="fas fa-info-circle"></i>
-              Доступный баланс DLE: {{ formatTokenAmount(dleInfo.totalSupply) }} {{ dleInfo.symbol }}
+              {{ t('smartcontracts.transferTokens.availableBalance', { amount: formatTokenAmount(dleInfo.totalSupply), symbol: dleInfo.symbol }) }}
             </div>
           </div>
 
@@ -110,18 +110,18 @@
           <div class="form-group">
             <label for="description" class="form-label">
               <i class="fas fa-file-alt"></i>
-              Описание предложения *
+              {{ t('smartcontracts.transferTokens.descriptionLabel') }}
             </label>
             <textarea
               id="description"
               v-model="formData.description"
               class="form-textarea"
-              placeholder="Опишите цель перевода токенов..."
+              :placeholder="t('smartcontracts.transferTokens.descriptionPlaceholder')"
               rows="3"
               required
             ></textarea>
             <small class="form-help">
-              Подробное описание предложения для голосования
+              {{ t('smartcontracts.transferTokens.descriptionHelp') }}
             </small>
           </div>
 
@@ -129,7 +129,7 @@
           <div class="form-group">
             <label for="votingDuration" class="form-label">
               <i class="fas fa-clock"></i>
-              Время голосования *
+              {{ t('smartcontracts.transferTokens.votingDurationLabel') }}
             </label>
             <select
               id="votingDuration"
@@ -137,35 +137,36 @@
               class="form-select"
               required
             >
-              <option value="">Выберите время голосования</option>
-              <option value="3600">1 час</option>
-              <option value="86400">1 день</option>
-              <option value="259200">3 дня</option>
-              <option value="604800">7 дней</option>
-              <option value="1209600">14 дней</option>
+              <option value="">{{ t('smartcontracts.transferTokens.votingDurationPlaceholder') }}</option>
+              <option value="3600">{{ t('smartcontracts.transferTokens.votingDuration.1h') }}</option>
+              <option value="86400">{{ t('smartcontracts.transferTokens.votingDuration.1d') }}</option>
+              <option value="259200">{{ t('smartcontracts.transferTokens.votingDuration.3d') }}</option>
+              <option value="604800">{{ t('smartcontracts.transferTokens.votingDuration.7d') }}</option>
+              <option value="1209600">{{ t('smartcontracts.transferTokens.votingDuration.14d') }}</option>
             </select>
             <small class="form-help">
-              Время, в течение которого будет проходить голосование
+              {{ t('smartcontracts.transferTokens.votingDurationHelp') }}
             </small>
           </div>
 
           <!-- Информация о мульти-чейн развертывании -->
           <div v-if="dleInfo?.deployedNetworks && dleInfo.deployedNetworks.length > 1" class="multichain-info">
             <i class="fas fa-info-circle"></i>
-            <strong>Мульти-чейн деплой:</strong> Предложение будет создано для {{ dleInfo.deployedNetworks.length }} сетей: {{
-              dleInfo.deployedNetworks.map(net => getChainName(net.chainId)).join(', ')
-            }}. Голосование и исполнение произойдет в каждой сети отдельно.
+            <strong>{{ t('smartcontracts.transferTokens.multichainInfo', {
+              count: dleInfo.deployedNetworks.length,
+              networks: dleInfo.deployedNetworks.map(net => getChainName(net.chainId)).join(', ')
+            }) }}</strong>
           </div>
 
           <!-- Кнопки -->
           <div class="form-actions">
             <button type="button" class="btn-secondary" @click="goBackToProposals">
               <i class="fas fa-arrow-left"></i>
-              Назад
+              {{ t('common.back') }}
             </button>
             <button type="submit" class="btn-primary" :disabled="isSubmitting">
               <i class="fas fa-paper-plane" :class="{ 'fa-spin': isSubmitting }"></i>
-              {{ isSubmitting ? 'Создание...' : 'Создать предложение' }}
+              {{ isSubmitting ? t('smartcontracts.transferTokens.creating') : t('smartcontracts.transferTokens.createProposal') }}
             </button>
           </div>
         </form>
@@ -174,13 +175,13 @@
         <div v-if="proposalResult" class="proposal-result">
           <div class="alert" :class="proposalResult.success ? 'alert-success' : 'alert-danger'">
             <i :class="proposalResult.success ? 'fas fa-check-circle' : 'fas fa-exclamation-triangle'"></i>
-            <strong>{{ proposalResult.success ? 'Успех!' : 'Ошибка!' }}</strong>
+            <strong>{{ proposalResult.success ? `${t('common.success')}!` : `${t('common.error')}!` }}</strong>
             <p class="mb-0 mt-2">{{ proposalResult.message }}</p>
           </div>
 
           <!-- Детализация по цепочкам -->
           <div v-if="proposalResult.results" class="chain-results">
-            <h5>Результаты по цепочкам:</h5>
+            <h5>{{ t('smartcontracts.transferTokens.resultsTitle') }}</h5>
             <div class="chain-result-list">
               <div
                 v-for="result in proposalResult.results"
@@ -192,13 +193,13 @@
                   <span class="chain-name">{{ getChainName(result.chainId) }}</span>
                   <span class="chain-status">
                     <i :class="result.success ? 'fas fa-check' : 'fas fa-times'"></i>
-                    {{ result.success ? 'Успешно' : 'Ошибка' }}
+                    {{ result.success ? t('smartcontracts.transferTokens.resultSuccess') : t('smartcontracts.transferTokens.resultError') }}
                   </span>
                 </div>
                 <div v-if="result.success && result.proposalId" class="proposal-info">
-                  <small>ID предложения: {{ result.proposalId }}</small>
+                  <small>{{ t('smartcontracts.transferTokens.proposalId', { id: result.proposalId }) }}</small>
                   <br>
-                  <small>Адрес контракта: {{ shortenAddress(result.contractAddress) }}</small>
+                  <small>{{ t('smartcontracts.transferTokens.contractAddress', { address: shortenAddress(result.contractAddress) }) }}</small>
                 </div>
                 <div v-if="!result.success" class="error-info">
                   <small>{{ result.error }}</small>
@@ -215,6 +216,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, onMounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import api from '@/api/axios';
 import { ethers } from 'ethers';
@@ -232,6 +234,7 @@ const props = defineProps({
 // Определяем emits
 const emit = defineEmits(['auth-action-completed']);
 
+const { t, locale } = useI18n();
 const router = useRouter();
 const route = useRoute();
 
@@ -269,12 +272,9 @@ async function loadDleInfo() {
 
     if (response.data.success) {
       const allDles = response.data.data || [];
-      console.log('All DLEs from API:', allDles);
       
-      // Ищем DLE по адресу (может быть в любой из сетей)
       let foundDle = null;
       for (const dle of allDles) {
-        // Проверяем, есть ли этот адрес в deployedNetworks
         const networkMatch = dle.deployedNetworks?.find(net => 
           net.address?.toLowerCase() === dleAddress.value.toLowerCase()
         );
@@ -285,35 +285,26 @@ async function loadDleInfo() {
       }
 
       if (foundDle) {
-        // Используем deployedNetworks из найденного DLE
         dleInfo.value = {
           ...foundDle,
           deployedNetworks: foundDle.deployedNetworks || []
         };
-        console.log('DLE Info loaded:', dleInfo.value);
-        console.log('Deployed networks count:', dleInfo.value?.deployedNetworks?.length || 0);
-        console.log('Deployed networks:', dleInfo.value?.deployedNetworks);
 
-        // Получаем поддерживаемые цепочки из данных DLE
         if (dleInfo.value.deployedNetworks && dleInfo.value.deployedNetworks.length > 0) {
           supportedChains.value = dleInfo.value.deployedNetworks.map(net => ({
             chainId: net.chainId,
             name: getChainName(net.chainId)
           }));
         } else {
-          console.warn('No deployed networks found for DLE');
           supportedChains.value = [];
         }
       } else {
-        console.warn('DLE not found in API response, trying blockchain read...');
-        // Fallback: получаем информацию из блокчейна (только текущая сеть)
         const blockchainResponse = await api.post('/blockchain/read-dle-info', {
           dleAddress: dleAddress.value
         });
 
         if (blockchainResponse.data.success) {
           dleInfo.value = blockchainResponse.data.data;
-          console.log('DLE Info loaded from blockchain:', dleInfo.value);
         }
       }
     }
@@ -336,14 +327,16 @@ function formatTokenAmount(amount) {
   const num = parseFloat(amount);
   if (num === 0) return '0';
 
+  const localeTag = locale.value === 'en' ? 'en-US' : 'ru-RU';
+
   if (num < 1) {
-    return num.toLocaleString('ru-RU', {
+    return num.toLocaleString(localeTag, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 18
     });
   }
 
-  return num.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
+  return num.toLocaleString(localeTag, { maximumFractionDigits: 0 });
 }
 
 // Сокращение адреса
@@ -364,7 +357,7 @@ function getChainName(chainId) {
     56: 'BSC',
     42161: 'Arbitrum'
   };
-  return chainNames[chainId] || `Chain ${chainId}`;
+  return chainNames[chainId] || t('common.chainFallback', { chainId });
 }
 
 // Функция для проверки, является ли ошибка временной RPC ошибкой
@@ -408,21 +401,14 @@ async function retryWithBackoff(fn, maxRetries = 3, initialDelay = 1000) {
       
       // Если это не временная RPC ошибка, не повторяем
       if (!isRetryableRpcError(error)) {
-        console.log(`❌ [RETRY] Не повторяемая ошибка:`, error.message);
         throw error;
       }
       
-      // Если это последняя попытка, выбрасываем ошибку
       if (attempt === maxRetries) {
-        console.log(`❌ [RETRY] Исчерпаны все попытки (${maxRetries})`);
         throw error;
       }
       
-      // Вычисляем задержку с экспоненциальным backoff
       const delay = initialDelay * Math.pow(2, attempt - 1);
-      console.log(`🔄 [RETRY] Попытка ${attempt}/${maxRetries} не удалась, повтор через ${delay}ms...`);
-      console.log(`🔄 [RETRY] Ошибка:`, error.message);
-      
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -458,101 +444,72 @@ async function submitForm() {
 
     // Валидация
     if (!isValidAddress(formData.value.sender)) {
-      throw new Error('Некорректный адрес отправителя');
+      throw new Error(t('smartcontracts.transferTokens.errors.invalidSender'));
     }
 
-    // Проверяем, что адрес отправителя совпадает с адресом пользователя (case-insensitive)
     if (formData.value.sender.toLowerCase() !== currentUserAddress.value?.toLowerCase()) {
-      throw new Error('Адрес отправителя должен совпадать с вашим подключенным кошельком');
+      throw new Error(t('smartcontracts.transferTokens.errors.senderMismatch'));
     }
 
     if (!isValidAddress(formData.value.recipient)) {
-      throw new Error('Некорректный адрес получателя');
+      throw new Error(t('smartcontracts.transferTokens.errors.invalidRecipient'));
     }
 
-    // Проверяем, что получатель не является zero address
     if (formData.value.recipient.toLowerCase() === '0x0000000000000000000000000000000000000000') {
-      throw new Error('Адрес получателя не может быть нулевым адресом');
+      throw new Error(t('smartcontracts.transferTokens.errors.zeroRecipient'));
     }
 
-    // Проверяем, что отправитель и получатель не совпадают
     if (formData.value.sender.toLowerCase() === formData.value.recipient.toLowerCase()) {
-      throw new Error('Адрес отправителя и получателя не могут совпадать');
+      throw new Error(t('smartcontracts.transferTokens.errors.sameAddresses'));
     }
 
     if (!formData.value.amount || formData.value.amount <= 0) {
-      throw new Error('Некорректное количество токенов');
+      throw new Error(t('smartcontracts.transferTokens.errors.invalidAmount'));
     }
 
     if (!formData.value.description.trim()) {
-      throw new Error('Описание предложения обязательно');
+      throw new Error(t('smartcontracts.transferTokens.errors.descriptionRequired'));
     }
 
     if (!formData.value.votingDuration) {
-      throw new Error('Выберите время голосования');
+      throw new Error(t('smartcontracts.transferTokens.errors.votingDurationRequired'));
     }
-
-    // Получаем все поддерживаемые цепочки из DLE информации
-    console.log('DLE Info for proposal creation:', dleInfo.value);
-    console.log('Deployed networks:', dleInfo.value?.deployedNetworks);
 
     if (!dleInfo.value?.deployedNetworks || dleInfo.value.deployedNetworks.length === 0) {
-      throw new Error('Не найдены развернутые сети для DLE контракта');
+      throw new Error(t('smartcontracts.transferTokens.errors.noDeployedNetworks'));
     }
 
-    const allChains = dleInfo.value.deployedNetworks.map(net => {
-      console.log('Network info:', { chainId: net.chainId, address: net.address, name: net.networkName });
-      return net.chainId;
-    });
-
-    console.log('Creating proposals in chains:', allChains);
-    console.log('Number of chains:', allChains.length);
+    const allChains = dleInfo.value.deployedNetworks.map(net => net.chainId);
 
     if (allChains.length === 0) {
-      throw new Error('Не найдено ни одной цепочки для создания предложений');
+      throw new Error(t('smartcontracts.transferTokens.errors.noChains'));
     }
-
-    // Создаем предложения последовательно во всех цепочках с переключением сети
-    console.log(`🚀 Starting to create ${allChains.length} proposals sequentially...`);
 
     const results = [];
     
     for (let index = 0; index < allChains.length; index++) {
       const chainId = allChains[index];
-      console.log(`📝 [${index + 1}/${allChains.length}] Starting proposal creation for chain ${chainId}`);
 
       try {
-        // Переключаемся на нужную сеть перед созданием предложения
-        console.log(`🔄 [${index + 1}/${allChains.length}] Switching to network ${chainId}...`);
         const networkSwitched = await switchToVotingNetwork(chainId);
-        console.log(`🔄 [${index + 1}/${allChains.length}] Network switch result:`, networkSwitched);
         
         if (!networkSwitched) {
-          throw new Error(`Не удалось переключиться на сеть ${chainId}`);
+          throw new Error(t('smartcontracts.transferTokens.errors.networkSwitchFailed', { chainId }));
         }
 
-        // Проверяем текущую сеть после переключения
-        const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-        console.log(`🔍 [${index + 1}/${allChains.length}] Current chain after switch:`, currentChainId, `Expected: 0x${chainId.toString(16)}`);
-
-        // Небольшая задержка после переключения сети
-        console.log(`⏳ [${index + 1}/${allChains.length}] Waiting 1 second after network switch...`);
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // КРИТИЧЕСКИ ВАЖНО: Получаем адрес signer для текущей сети
-        // Это гарантирует, что sender в операции совпадает с инициатором предложения
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const senderAddress = await signer.getAddress();
-        console.log(`🔑 [${index + 1}/${allChains.length}] Sender address for chain ${chainId}:`, senderAddress);
 
-        // Проверяем, что адрес signer совпадает с адресом из формы
         if (senderAddress.toLowerCase() !== formData.value.sender.toLowerCase()) {
-          throw new Error(`Адрес signer (${senderAddress}) не совпадает с адресом отправителя из формы (${formData.value.sender})`);
+          throw new Error(t('smartcontracts.transferTokens.errors.signerMismatch', {
+            signer: senderAddress,
+            sender: formData.value.sender
+          }));
         }
 
-        // Кодируем операцию перевода токенов для текущей сети
-        // Используем адрес signer, чтобы гарантировать совпадение с инициатором предложения
         const transferCallData = encodeTransferTokensCall(
           senderAddress,
           formData.value.recipient,
@@ -563,35 +520,21 @@ async function submitForm() {
           description: formData.value.description,
           duration: parseInt(formData.value.votingDuration),
           operation: transferCallData,
-          targetChains: [chainId], // Операция выполняется в той же цепочке
+          targetChains: [chainId],
           timelockDelay: 0
         };
 
-        console.log(`📋 [${index + 1}/${allChains.length}] Proposal data for chain ${chainId}:`, proposalData);
-
-        // Получаем адрес контракта для этой цепочки
         const networkInfo = dleInfo.value?.deployedNetworks?.find(net => net.chainId === chainId);
         const contractAddress = networkInfo?.address || dleAddress.value;
-
-        console.log(`🔄 [${index + 1}/${allChains.length}] Calling createProposal for chain ${chainId}, contract: ${contractAddress}`);
         
-        // Используем retry для временных RPC ошибок
         const result = await retryWithBackoff(
-          async () => {
-            return await createProposal(contractAddress, proposalData);
-          },
-          3, // Максимум 3 попытки
-          2000 // Начальная задержка 2 секунды
+          async () => createProposal(contractAddress, proposalData),
+          3,
+          2000
         );
-        
-        console.log(`✅ [${index + 1}/${allChains.length}] Proposal created successfully in chain ${chainId}:`, result);
 
-        // Дополнительная задержка после подтверждения транзакции
-        // чтобы MetaMask успел обработать транзакцию перед переходом к следующей цепочке
-        // Для Base Sepolia увеличиваем задержку, так как уведомления могут приходить медленнее
         if (result.success && result.txHash) {
-          const delay = chainId === 84532 ? 5000 : 3000; // 5 секунд для Base Sepolia, 3 для остальных
-          console.log(`⏳ [${index + 1}/${allChains.length}] Waiting ${delay/1000} seconds for MetaMask to process transaction in ${getChainName(chainId)}...`);
+          const delay = chainId === 84532 ? 5000 : 3000;
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
@@ -604,45 +547,32 @@ async function submitForm() {
           contractAddress
         });
       } catch (error) {
-        console.error(`❌ [${index + 1}/${allChains.length}] Error creating proposal in chain ${chainId}:`, error);
-        console.error(`❌ [${index + 1}/${allChains.length}] Error details:`, {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        });
         results.push({
           chainId,
           success: false,
-          error: error.message || 'Неизвестная ошибка',
+          error: error.message || t('common.unknownError'),
           contractAddress: dleInfo.value?.deployedNetworks?.find(net => net.chainId === chainId)?.address || dleAddress.value
         });
       }
     }
 
-    console.log(`📊 Всего обработано цепочек: ${results.length} из ${allChains.length}`);
-    console.log(`📊 Результаты создания предложений:`, results);
-
-    // Проверяем результаты
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
-
-    console.log(`✅ Успешно создано в ${successful.length} цепочках`);
-    console.log(`❌ Ошибок в ${failed.length} цепочках`);
 
     if (successful.length > 0) {
       proposalResult.value = {
         success: true,
-        message: `Предложения созданы в ${successful.length} из ${allChains.length} цепочек!`,
-        results: results,
+        message: t('smartcontracts.transferTokens.successMessage', {
+          success: successful.length,
+          total: allChains.length
+        }),
+        results,
         successfulChains: successful,
         failedChains: failed
       };
 
-      // Автоматический переход на страницу предложений
-      console.log('🔄 Переход на страницу предложений...');
       router.push(`/management/proposals?address=${dleAddress.value}`);
 
-      // Очистка формы только при полном успехе
       if (failed.length === 0) {
         formData.value = {
           sender: '',
@@ -654,14 +584,13 @@ async function submitForm() {
         };
       }
     } else {
-      throw new Error('Не удалось создать предложения ни в одной цепочке');
+      throw new Error(t('smartcontracts.transferTokens.errors.allFailed'));
     }
 
   } catch (error) {
-    console.error('Error creating transfer proposals:', error);
     proposalResult.value = {
       success: false,
-      message: error.message || 'Произошла ошибка при создании предложений'
+      message: error.message || t('smartcontracts.transferTokens.errors.generic')
     };
   } finally {
     isSubmitting.value = false;
@@ -684,10 +613,7 @@ watch(currentUserAddress, (newAddress) => {
 });
 
 onMounted(() => {
-  console.log('[TransferTokensFormView] currentUserAddress:', currentUserAddress.value);
-  // Автоматически устанавливаем адрес отправителя
   formData.value.sender = currentUserAddress.value;
-  console.log('[TransferTokensFormView] formData.sender set to:', formData.value.sender);
   loadDleInfo();
 });
 </script>

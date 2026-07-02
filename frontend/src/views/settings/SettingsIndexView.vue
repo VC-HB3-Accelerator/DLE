@@ -1,167 +1,169 @@
 <!--
   Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
-  
-  This software is proprietary and confidential.
-  Unauthorized copying, modification, or distribution is prohibited.
-  
-  For licensing inquiries: info@hb3-accelerator.com
-  Website: https://hb3-accelerator.com
-  GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
 <template>
   <div class="settings-management">
-    <!-- Блоки настроек -->
     <div class="management-blocks">
-      <!-- Столбец 1 -->
       <div class="blocks-column">
         <div class="management-block">
-          <h3>ИИ</h3>
-          <p>Настройки интеграций, моделей, ассистента и RAG</p>
+          <h3>{{ t('settings.index.ai.title') }}</h3>
+          <p>{{ t('settings.index.ai.description') }}</p>
           <button class="details-btn" @click="$router.push('/settings/ai')">
-            Подробнее
+            {{ t('common.details') }}
           </button>
         </div>
-        
+
         <div class="management-block">
-          <h3>Блокчейн</h3>
-          <p>Интеграция с блокчейн-сетями, RPC, токены и смарт-контракты</p>
-          <button class="details-btn" @click="$router.push('/settings/dle-v2-deploy')">Подробнее</button>
+          <h3>{{ t('settings.index.blockchain.title') }}</h3>
+          <p>{{ t('settings.index.blockchain.description') }}</p>
+          <button class="details-btn" @click="$router.push('/settings/dle-v2-deploy')">
+            {{ t('common.details') }}
+          </button>
         </div>
       </div>
 
-      <!-- Столбец 2 -->
       <div class="blocks-column">
         <div class="management-block">
-          <h3>Безопасность</h3>
-          <p>Управление доступом, токенами, аутентификацией и правами</p>
-          <button class="details-btn" @click="$router.push('/settings/security')">Подробнее</button>
+          <h3>{{ t('settings.index.security.title') }}</h3>
+          <p>{{ t('settings.index.security.description') }}</p>
+          <button class="details-btn" @click="$router.push('/settings/security')">
+            {{ t('common.details') }}
+          </button>
         </div>
-        
+
         <div class="management-block">
-          <h3>Сервер</h3>
-          <p>Настройки серверов, хостинга и публикации приложения</p>
-          <button class="details-btn" @click="$router.push('/settings/interface')">Подробнее</button>
+          <h3>{{ t('settings.index.server.title') }}</h3>
+          <p>{{ t('settings.index.server.description') }}</p>
+          <button class="details-btn" @click="$router.push('/settings/interface')">
+            {{ t('common.details') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="blocks-column">
+        <div class="management-block">
+          <h3>{{ t('settings.index.regions.title') }}</h3>
+          <p>{{ t('settings.index.regions.description') }}</p>
+          <button class="details-btn" @click="goToRegions">
+            {{ t('common.details') }}
+          </button>
         </div>
       </div>
     </div>
+
+    <NoAccessModal
+      :show="showNoAccessModal"
+      :title="t('settings.accessRestricted')"
+      :message="t('settings.regions.adminOnly')"
+      @close="showNoAccessModal = false"
+    />
   </div>
 </template>
 
 <script setup>
-// Компонент настроек
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { usePermissions } from '@/composables/usePermissions';
+import { useAuthContext } from '@/composables/useAuth';
+import NoAccessModal from '@/components/NoAccessModal.vue';
+
+const { t } = useI18n();
+const router = useRouter();
+const { canManageSettings } = usePermissions();
+const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
+const showNoAccessModal = ref(false);
+
+async function goToRegions() {
+  await checkAuth();
+  if (isAuthenticated.value && address.value) {
+    await checkUserAccessLevel(address.value);
+  }
+
+  if (!canManageSettings.value) {
+    showNoAccessModal.value = true;
+    return;
+  }
+
+  router.push('/settings/regions');
+}
 </script>
 
 <style scoped>
 .settings-management {
-  padding: 0; /* Убираем отступы, так как они уже есть в родительском контейнере */
-  background-color: transparent; /* Убираем фон, так как он уже есть в родительском контейнере */
-  border-radius: 0; /* Убираем скругление углов */
-  min-height: auto; /* Убираем фиксированную высоту */
-}
-
-.management-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.header-content h1 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 2rem;
-  font-weight: 700;
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  min-height: auto;
 }
 
 .management-blocks {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
   gap: 2rem;
+  flex-wrap: wrap;
 }
 
 .blocks-column {
+  flex: 1;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  align-items: stretch;
 }
 
 .management-block {
   background: white;
   border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 250px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .management-block:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   transform: translateY(-2px);
-  border-color: var(--color-primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .management-block h3 {
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem 0;
   color: var(--color-primary);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  flex-shrink: 0;
 }
 
 .management-block p {
-  margin: 0 0 1.5rem 0;
-  color: #666;
-  font-size: 1rem;
+  margin: 0 0 1.25rem 0;
+  color: #6c757d;
   line-height: 1.5;
-  flex-grow: 1;
+  font-size: 0.95rem;
 }
 
 .details-btn {
   background: var(--color-primary);
-  color: #fff;
+  color: white;
   border: none;
+  padding: 0.625rem 1.25rem;
   border-radius: 8px;
-  padding: 0.75rem 1.5rem;
   cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.2s;
-  min-width: 120px;
-  flex-shrink: 0;
-  margin-top: auto;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
 }
 
 .details-btn:hover {
-  background: var(--color-primary-dark);
-  transform: translateY(-1px);
-}
-
-/* Адаптивность */
-@media (max-width: 1024px) {
-  .management-blocks {
-    grid-template-columns: 1fr;
-  }
+  background: var(--color-primary-dark, #0056b3);
 }
 
 @media (max-width: 768px) {
-  .management-header {
+  .management-blocks {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
   }
-  
-  .header-content h1 {
-    font-size: 1.5rem;
+
+  .blocks-column {
+    min-width: 100%;
   }
 }
-</style> 
+</style>

@@ -23,12 +23,12 @@
       <!-- Основной контент -->
       <div class="content-block">
         <div class="section-header">
-          <h2>Опубликованные страницы</h2>
+          <h2>{{ t('content.publicPages.title') }}</h2>
           <div class="search-box">
             <input 
               v-model="searchQuery" 
               type="text" 
-              placeholder="Поиск страниц..."
+              :placeholder="t('content.publicPages.searchPlaceholder')"
               class="search-input"
             >
             <i class="fas fa-search search-icon"></i>
@@ -47,11 +47,11 @@
               <h3>{{ page.title }}</h3>
               <div class="page-status published">
                 <i class="fas fa-circle"></i>
-                Опубликовано
+                {{ t('common.status.published') }}
               </div>
             </div>
             <div class="page-card-content">
-              <p class="page-summary">{{ page.summary || 'Без описания' }}</p>
+              <p class="page-summary">{{ page.summary || t('common.noDescription') }}</p>
               <div class="page-meta">
                 <span class="page-date">
                   <i class="fas fa-calendar"></i>
@@ -71,14 +71,14 @@
           <div class="empty-icon">
             <i class="fas fa-file-alt"></i>
           </div>
-          <h3>Нет опубликованных страниц</h3>
-          <p>Публичные страницы появятся здесь после их создания администраторами</p>
+          <h3>{{ t('content.publicPages.emptyTitle') }}</h3>
+          <p>{{ t('content.publicPages.emptyDescription') }}</p>
         </div>
 
         <!-- Загрузка -->
         <div v-else class="loading-state">
           <div class="loading-spinner"></div>
-          <p>Загрузка страниц...</p>
+          <p>{{ t('content.publicPages.loading') }}</p>
         </div>
       </div>
     </div>
@@ -87,6 +87,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
@@ -115,6 +116,7 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const { t } = useI18n();
 
 // Состояние
 const pages = ref([]);
@@ -136,7 +138,7 @@ function goToPage(id) {
 }
 
 function formatDate(date) {
-  if (!date) return 'Не указана';
+  if (!date) return t('common.dateNotSpecified');
   return new Date(date).toLocaleDateString('ru-RU');
 }
 
@@ -160,9 +162,9 @@ async function loadPages() {
 
 // Установка мета-тегов для SEO
 function updatePublicPagesMetaTags() {
-  const title = 'Публичные документы - HB3 Accelerator';
-  const description = 'Опубликованные документы и материалы платформы Digital Legal Entity. Публичная документация, статьи и информационные материалы.';
-  const keywords = 'публичные документы, документация, Digital Legal Entity, DLE, публикации';
+  const title = t('content.publicPages.seoTitle');
+  const description = t('content.publicPages.seoDescription');
+  const keywords = t('content.publicPages.seoKeywords');
   const canonicalUrl = `${window.location.origin}/content/published`;
   
   // Обновляем title

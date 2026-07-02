@@ -15,8 +15,8 @@
     <!-- Заголовок встраиваемого интерфейса -->
     <div class="embedded-header">
       <div class="embedded-title">
-        <h3>{{ dleInfo.name }}</h3>
-        <span class="embedded-subtitle">Встраиваемый интерфейс управления</span>
+        <h3>{{ dleInfo.name || t('embedded.defaultDleName') }}</h3>
+        <span class="embedded-subtitle">{{ t('embedded.subtitle') }}</span>
       </div>
       <div class="embedded-status">
         <span class="status-indicator" :class="connectionStatus">
@@ -29,19 +29,19 @@
     <div class="embedded-info">
       <div class="info-grid">
         <div class="info-item">
-          <label>Адрес DLE:</label>
+          <label>{{ t('embedded.dleAddress') }}</label>
           <span class="address">{{ formatAddress(dleAddress) }}</span>
         </div>
         <div class="info-item">
-          <label>Ваш баланс токенов:</label>
+          <label>{{ t('embedded.tokenBalance') }}</label>
           <span class="balance">{{ userTokenBalance }} {{ dleInfo.symbol }}</span>
         </div>
         <div class="info-item">
-          <label>Общий запас:</label>
+          <label>{{ t('embedded.totalSupply') }}</label>
           <span>{{ totalSupply }} {{ dleInfo.symbol }}</span>
         </div>
         <div class="info-item">
-          <label>Кворум:</label>
+          <label>{{ t('embedded.quorum') }}</label>
           <span>{{ quorumPercentage }}%</span>
         </div>
       </div>
@@ -49,7 +49,7 @@
 
     <!-- Быстрые действия -->
     <div class="quick-actions">
-      <h4>Быстрые действия</h4>
+      <h4>{{ t('embedded.quickActions') }}</h4>
       <div class="actions-grid">
         <button 
           @click="createProposal"
@@ -57,7 +57,7 @@
           :disabled="!canCreateProposal"
         >
           <i class="icon">📝</i>
-          <span>Создать предложение</span>
+          <span>{{ t('embedded.createProposal') }}</span>
         </button>
         
         <button 
@@ -65,7 +65,7 @@
           class="action-btn action-secondary"
         >
           <i class="icon">📋</i>
-          <span>Просмотр предложений</span>
+          <span>{{ t('embedded.viewProposals') }}</span>
         </button>
         
         <button 
@@ -73,7 +73,7 @@
           class="action-btn action-secondary"
         >
           <i class="icon">👥</i>
-          <span>Держатели токенов</span>
+          <span>{{ t('embedded.tokenHolders') }}</span>
         </button>
         
         <button 
@@ -81,16 +81,16 @@
           class="action-btn action-secondary"
         >
           <i class="icon">💰</i>
-          <span>Казначейство</span>
+          <span>{{ t('embedded.treasury') }}</span>
         </button>
       </div>
     </div>
 
     <!-- Активные предложения -->
     <div class="active-proposals">
-      <h4>Активные предложения</h4>
+      <h4>{{ t('embedded.activeProposals') }}</h4>
       <div v-if="proposals.length === 0" class="empty-state">
-        <p>Нет активных предложений</p>
+        <p>{{ t('embedded.noActiveProposals') }}</p>
       </div>
       <div v-else class="proposals-list">
         <div 
@@ -108,8 +108,8 @@
             </div>
             <p class="proposal-description">{{ proposal.description }}</p>
             <div class="proposal-meta">
-              <span>Подписи: {{ proposal.signaturesCount }}/{{ proposal.quorumRequired }}</span>
-              <span>До: {{ formatTimeLeft(proposal.timelock) }}</span>
+              <span>{{ t('embedded.signatures', { current: proposal.signaturesCount, required: proposal.quorumRequired }) }}</span>
+              <span>{{ t('embedded.deadline', { time: formatTimeLeft(proposal.timelock) }) }}</span>
             </div>
           </div>
           <div class="proposal-actions">
@@ -119,7 +119,7 @@
               class="btn-sign"
               :disabled="isSigning"
             >
-              Подписать
+              {{ t('embedded.sign') }}
             </button>
             <button 
               v-if="canExecuteProposal(proposal)"
@@ -127,44 +127,44 @@
               class="btn-execute"
               :disabled="isExecuting"
             >
-              Выполнить
+              {{ t('embedded.execute') }}
             </button>
           </div>
         </div>
       </div>
       <div v-if="proposals.length > 3" class="view-more">
         <button @click="viewAllProposals" class="btn-view-more">
-          Показать все предложения ({{ proposals.length }})
+          {{ t('embedded.showAllProposals', { count: proposals.length }) }}
         </button>
       </div>
     </div>
 
     <!-- Статистика -->
     <div class="embedded-stats">
-      <h4>Статистика DLE</h4>
+      <h4>{{ t('embedded.statsTitle') }}</h4>
       <div class="stats-grid">
         <div class="stat-item">
           <div class="stat-value">{{ proposals.length }}</div>
-          <div class="stat-label">Всего предложений</div>
+          <div class="stat-label">{{ t('embedded.totalProposals') }}</div>
         </div>
         <div class="stat-item">
           <div class="stat-value">{{ executedProposals }}</div>
-          <div class="stat-label">Выполнено</div>
+          <div class="stat-label">{{ t('embedded.executed') }}</div>
         </div>
         <div class="stat-item">
           <div class="stat-value">{{ tokenHolders.length }}</div>
-          <div class="stat-label">Держателей токенов</div>
+          <div class="stat-label">{{ t('embedded.tokenHoldersCount') }}</div>
         </div>
         <div class="stat-item">
           <div class="stat-value">{{ installedModules.length }}</div>
-          <div class="stat-label">Установленных модулей</div>
+          <div class="stat-label">{{ t('embedded.installedModules') }}</div>
         </div>
       </div>
     </div>
 
     <!-- Уведомления -->
     <div v-if="notifications.length > 0" class="notifications">
-      <h4>Уведомления</h4>
+      <h4>{{ t('embedded.notifications') }}</h4>
       <div class="notifications-list">
         <div 
           v-for="notification in notifications" 
@@ -187,7 +187,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, defineProps, defineEmits } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 // Props
 const props = defineProps({
@@ -198,9 +201,9 @@ const props = defineProps({
   dleInfo: {
     type: Object,
     default: () => ({
-      name: 'Неизвестное DLE',
+      name: '',
       symbol: 'TOKEN',
-      location: 'Не указано'
+      location: ''
     })
   }
 });
@@ -241,18 +244,12 @@ const connectToDLE = async () => {
   try {
     connectionStatus.value = 'connecting';
     
-    // Здесь будет подключение к DLE через Web3
-    // console.log('Подключение к DLE:', props.dleAddress);
-    
-    // Имитация подключения
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Загрузка данных
     await loadDLEData();
     
     connectionStatus.value = 'connected';
   } catch (error) {
-            // console.error('Ошибка подключения к DLE:', error);
     connectionStatus.value = 'error';
   }
 };
@@ -269,7 +266,7 @@ const loadDLEData = async () => {
     proposals.value = [
       {
         id: 1,
-        description: 'Перевод 100 токенов партнеру',
+        description: t('embedded.mock.proposal1'),
         timelock: Math.floor(Date.now() / 1000) + 3600,
         signaturesCount: 3000,
         quorumRequired: 5100,
@@ -278,7 +275,7 @@ const loadDLEData = async () => {
       },
       {
         id: 2,
-        description: 'Установка нового модуля казначейства',
+        description: t('embedded.mock.proposal2'),
         timelock: Math.floor(Date.now() / 1000) + 7200,
         signaturesCount: 5100,
         quorumRequired: 5100,
@@ -287,32 +284,29 @@ const loadDLEData = async () => {
       }
     ];
     
-    // Загрузка держателей токенов
     tokenHolders.value = [
       { address: '0x1234...5678', balance: 2000 },
       { address: '0x8765...4321', balance: 1500 },
       { address: '0xabcd...efgh', balance: 1000 }
     ];
     
-    // Загрузка модулей
     installedModules.value = [
-      { name: 'Казначейство', address: '0x1111...2222' },
-      { name: 'Коммуникации', address: '0x3333...4444' }
+      { name: t('embedded.mock.moduleTreasury'), address: '0x1111...2222' },
+      { name: t('embedded.mock.moduleCommunications'), address: '0x3333...4444' }
     ];
     
-    // Загрузка уведомлений
     notifications.value = [
       {
         id: 1,
         type: 'info',
-        title: 'Новое предложение',
-        message: 'Создано предложение #3 для установки модуля',
+        title: t('embedded.mock.notificationTitle'),
+        message: t('embedded.mock.notificationMessage'),
         timestamp: Date.now() - 3600000
       }
     ];
     
   } catch (error) {
-            // console.error('Ошибка загрузки данных DLE:', error);
+    // silent
   }
 };
 
@@ -350,9 +344,6 @@ const signProposal = async (proposalId) => {
   try {
     isSigning.value = true;
     
-    // Здесь будет подписание предложения
-    // console.log('Подписание предложения:', proposalId);
-    
     const proposal = proposals.value.find(p => p.id === proposalId);
     if (proposal) {
       proposal.signaturesCount += userTokenBalance.value;
@@ -362,7 +353,7 @@ const signProposal = async (proposalId) => {
     emit('proposal-signed', { proposalId, dleAddress: props.dleAddress });
     
   } catch (error) {
-            // console.error('Ошибка подписания предложения:', error);
+    // silent
   } finally {
     isSigning.value = false;
   }
@@ -374,9 +365,6 @@ const executeProposal = async (proposalId) => {
   try {
     isExecuting.value = true;
     
-    // Здесь будет выполнение предложения
-    // console.log('Выполнение предложения:', proposalId);
-    
     const proposal = proposals.value.find(p => p.id === proposalId);
     if (proposal) {
       proposal.executed = true;
@@ -385,7 +373,7 @@ const executeProposal = async (proposalId) => {
     emit('proposal-executed', { proposalId, dleAddress: props.dleAddress });
     
   } catch (error) {
-            // console.error('Ошибка выполнения предложения:', error);
+    // silent
   } finally {
     isExecuting.value = false;
   }
@@ -412,15 +400,15 @@ const formatTimeLeft = (timestamp) => {
   const now = Math.floor(Date.now() / 1000);
   const diff = timestamp - now;
   
-  if (diff <= 0) return 'Истекло';
+  if (diff <= 0) return t('embedded.timeExpired');
   
   const hours = Math.floor(diff / 3600);
   const minutes = Math.floor((diff % 3600) / 60);
   
   if (hours > 0) {
-    return `${hours}ч ${minutes}м`;
+    return t('embedded.timeLeftHours', { hours, minutes });
   }
-  return `${minutes}м`;
+  return t('embedded.timeLeftMinutes', { minutes });
 };
 
 const formatTime = (timestamp) => {
@@ -429,10 +417,10 @@ const formatTime = (timestamp) => {
 
 const getStatusText = () => {
   switch (connectionStatus.value) {
-    case 'connecting': return 'Подключение...';
-    case 'connected': return 'Подключено';
-    case 'error': return 'Ошибка подключения';
-    default: return 'Неизвестно';
+    case 'connecting': return t('embedded.status.connecting');
+    case 'connected': return t('embedded.status.connected');
+    case 'error': return t('embedded.status.error');
+    default: return t('embedded.status.unknown');
   }
 };
 
@@ -449,9 +437,9 @@ const getProposalStatusClass = (proposal) => {
 };
 
 const getProposalStatusText = (proposal) => {
-  if (proposal.executed) return 'Выполнено';
-  if (proposal.signaturesCount >= proposal.quorumRequired) return 'Готово';
-  return 'Ожидает';
+  if (proposal.executed) return t('embedded.proposalStatus.executed');
+  if (proposal.signaturesCount >= proposal.quorumRequired) return t('embedded.proposalStatus.ready');
+  return t('embedded.proposalStatus.pending');
 };
 
 onMounted(() => {

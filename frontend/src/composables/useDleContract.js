@@ -13,6 +13,9 @@
 import { ref, computed } from 'vue';
 import { ethers } from 'ethers';
 import { DLE_ABI, TOKEN_ABI } from '@/utils/dle-abi';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 /**
  * Композабл для работы с DLE смарт-контрактом
@@ -35,7 +38,7 @@ export function useDleContract() {
   const connectWallet = async () => {
     try {
       if (!window.ethereum) {
-        throw new Error('MetaMask не найден. Пожалуйста, установите MetaMask.');
+        throw new Error(t('dleContract.errors.metamaskNotFound'));
       }
 
       // Запрашиваем подключение
@@ -75,7 +78,7 @@ export function useDleContract() {
    */
   const initContract = (contractAddress) => {
     if (!provider.value) {
-      throw new Error('Провайдер не инициализирован. Сначала подключите кошелек.');
+      throw new Error(t('dleContract.errors.providerNotInitialized'));
     }
 
     contract.value = new ethers.Contract(contractAddress, DLE_ABI, signer.value);
@@ -126,7 +129,7 @@ export function useDleContract() {
       // Проверяем баланс токенов
       const balanceCheck = await checkTokenBalance(contractAddress);
       if (!balanceCheck.hasTokens) {
-        throw new Error('У вас нет токенов для голосования');
+        throw new Error(t('dleContract.errors.noTokensForVoting'));
       }
 
       // Отправляем транзакцию голосования
@@ -148,15 +151,11 @@ export function useDleContract() {
       // Улучшенная обработка ошибок
       let errorMessage = error.message;
       if (error.message.includes('execution reverted')) {
-        errorMessage = 'Транзакция отклонена смарт-контрактом. Возможные причины:\n' +
-          '• Предложение уже не активно\n' +
-          '• Вы уже голосовали за это предложение\n' +
-          '• Недостаточно прав для голосования\n' +
-          '• Предложение не существует';
+        errorMessage = t('dleContract.errors.transactionRejectedWithReasons');
       } else if (error.message.includes('user rejected')) {
-        errorMessage = 'Транзакция отклонена пользователем';
+        errorMessage = t('smartcontracts.proposals.composableErrors.transactionRejectedByUser');
       } else if (error.message.includes('insufficient funds')) {
-        errorMessage = 'Недостаточно средств для оплаты газа';
+        errorMessage = t('smartcontracts.proposals.composableErrors.insufficientFundsForGas');
       }
 
       return {

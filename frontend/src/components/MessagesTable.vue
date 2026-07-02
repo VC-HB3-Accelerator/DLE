@@ -13,9 +13,9 @@
 <template>
   <div class="messages-table-modal">
     <div class="messages-table-header">
-      <h2>Новые сообщения</h2>
+      <h2>{{ t('messages.newMessages') }}</h2>
     </div>
-    <div v-if="!messages.length" class="empty">Нет новых сообщений</div>
+    <div v-if="!messages.length" class="empty">{{ t('messages.noNewMessages') }}</div>
     <div v-else class="messages-list">
       <Message v-for="msg in messages" :key="msg.id" :message="msg" />
     </div>
@@ -24,7 +24,10 @@
 
 <script setup>
 import { defineProps } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Message from './Message.vue';
+
+const { t } = useI18n();
 const props = defineProps({
   messages: { type: Array, required: true }
 });

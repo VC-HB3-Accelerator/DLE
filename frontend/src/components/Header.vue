@@ -26,22 +26,28 @@
           <span class="dle-name">{{ dleDisplayName.name }} ({{ dleDisplayName.symbol }})</span>
         </div>
       </div>
-      <button
-        class="header-wallet-btn"
-        :class="{ active: isSidebarOpen }" 
-        @click="toggleSidebar"
-      >
+      <div class="header-actions">
+        <LocaleControls />
+        <button
+          class="header-wallet-btn"
+          :class="{ active: isSidebarOpen }"
+          @click="toggleSidebar"
+        >
         <div class="hamburger-line" />
-      </button>
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { defineProps, defineEmits, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { useAuthContext } from '../composables/useAuth';
 import { useFooterDle } from '../composables/useFooterDle';
 import eventBus from '../utils/eventBus';
+import LocaleControls from './LocaleControls.vue';
 
 const props = defineProps({
   isSidebarOpen: {
@@ -153,6 +159,14 @@ onBeforeUnmount(() => {
   flex-grow: 1;
   display: flex;
   align-items: center;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .footer-dle-info {

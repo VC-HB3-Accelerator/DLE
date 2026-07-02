@@ -14,9 +14,9 @@
   <BaseLayout>
     <div class="tables-list-block">
       <button class="close-btn" @click="goBack">×</button>
-    <h2>Список таблиц</h2>
+    <h2>{{ t('tables.list.title') }}</h2>
     <UserTablesList v-if="canViewData" />
-    <div v-else class="empty-table-placeholder">Нет данных для отображения</div>
+    <div v-else class="empty-table-placeholder">{{ t('tables.common.noDataToDisplay') }}</div>
     </div>
   </BaseLayout>
 </template>
@@ -25,22 +25,22 @@
 import BaseLayout from '../../components/BaseLayout.vue';
 import UserTablesList from '../../components/tables/UserTablesList.vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import { onMounted } from 'vue';
 const router = useRouter();
+const { t } = useI18n();
 const { canViewData } = usePermissions();
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[TablesListView] Clearing tables data');
     // Очищаем данные при выходе из системы
     tables.value = [];
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[TablesListView] Refreshing tables data');
     loadTables(); // Обновляем данные при входе в систему
   });
 });

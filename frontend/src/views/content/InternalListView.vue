@@ -19,19 +19,19 @@
       <button class="close-btn" @click="goBack" style="margin-bottom: 20px;">×</button>
       <div class="content-block">
         <div class="section-header">
-          <h2>Список документов</h2>
+          <h2>{{ t('content.internal.title') }}</h2>
           <div class="filters">
             <div class="filter-group" v-if="canManageLegalDocs && address">
-              <label for="permission-filter">Уровень доступа:</label>
+              <label for="permission-filter">{{ t('content.internal.accessLevelLabel') }}</label>
               <select v-model="permissionFilter" id="permission-filter" class="filter-select">
-                <option value="">Все уровни</option>
-                <option :value="PERMISSIONS.VIEW_BASIC_DOCS">Пользователи</option>
-                <option :value="PERMISSIONS.VIEW_LEGAL_DOCS">Читатели</option>
-                <option :value="PERMISSIONS.MANAGE_LEGAL_DOCS">Редакторы</option>
+                <option value="">{{ t('content.internal.allLevels') }}</option>
+                <option :value="PERMISSIONS.VIEW_BASIC_DOCS">{{ t('content.internal.permissionUsers') }}</option>
+                <option :value="PERMISSIONS.VIEW_LEGAL_DOCS">{{ t('content.internal.permissionReaders') }}</option>
+                <option :value="PERMISSIONS.MANAGE_LEGAL_DOCS">{{ t('content.internal.permissionEditors') }}</option>
               </select>
             </div>
             <div class="search-box">
-              <input v-model="search" type="text" placeholder="Поиск..." class="search-input" />
+              <input v-model="search" type="text" :placeholder="t('common.searchPlaceholder')" class="search-input" />
               <i class="fas fa-search search-icon"></i>
             </div>
           </div>
@@ -42,17 +42,17 @@
               <h3>{{ p.title }}</h3>
             </div>
             <div class="page-card-content">
-              <p class="page-summary">{{ p.summary || 'Без описания' }}</p>
+              <p class="page-summary">{{ p.summary || t('common.noDescription') }}</p>
               <div class="page-meta">
-                <span class="page-status" :class="p.status === 'published' ? 'published' : 'draft'"><i class="fas fa-circle"></i>{{ p.status === 'published' ? 'Опубликовано' : 'Черновик' }}</span>
-                <span class="page-status"><i class="fas fa-lock"></i>Внутренний</span>
+                <span class="page-status" :class="p.status === 'published' ? 'published' : 'draft'"><i class="fas fa-circle"></i>{{ p.status === 'published' ? t('common.status.published') : t('common.status.draft') }}</span>
+                <span class="page-status"><i class="fas fa-lock"></i>{{ t('content.internal.internalBadge') }}</span>
               </div>
             </div>
           </div>
         </div>
         <div v-else class="empty-state">
           <div class="empty-icon"><i class="fas fa-file-alt"></i></div>
-          <h3>Нет внутренних документов</h3>
+          <h3>{{ t('content.internal.emptyTitle') }}</h3>
         </div>
       </div>
     </div>
@@ -61,6 +61,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
@@ -76,6 +77,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const { t } = useI18n();
 const search = ref('');
 const permissionFilter = ref('');
 const pages = ref([]);

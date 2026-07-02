@@ -13,25 +13,25 @@
 <template>
   <div class='modal-bg'>
     <div class='modal'>
-      <h3>{{ rule ? 'Редактировать' : 'Создать' }} набор правил</h3>
+      <h3>{{ rule ? t('ai.rules.editTitle') : t('ai.rules.createTitle') }}{{ t('ai.rules.titleSuffix') }}</h3>
       
-      <label>Название *</label>
-      <input v-model="name" placeholder="Например: VIP Правило" />
+      <label>{{ t('ai.rules.name') }}</label>
+      <input v-model="name" :placeholder="t('ai.rules.namePlaceholder')" />
       
-      <label>Описание</label>
-      <textarea v-model="description" rows="2" placeholder="Опишите правило в свободной форме" />
+      <label>{{ t('ai.rules.description') }}</label>
+      <textarea v-model="description" rows="2" :placeholder="t('ai.rules.descriptionPlaceholder')" />
       
       <div class="rules-section">
-        <h4>Системный промпт</h4>
+        <h4>{{ t('ai.rules.systemPrompt') }}</h4>
         <textarea 
           v-model="ruleFields.system_prompt" 
           rows="4" 
-          placeholder="Дополнительный системный промпт для этого правила. Например: 'Ты работаешь с VIP клиентами. Будь вежливым и профессиональным.'"
+          :placeholder="t('ai.rules.systemPromptPlaceholder')"
         />
       </div>
 
       <div class="rules-section">
-        <h4>Параметры LLM</h4>
+        <h4>{{ t('ai.rules.llmParams') }}</h4>
         <div class="form-row">
           <div class="form-group">
             <label>Temperature (0.0-2.0)</label>
@@ -58,58 +58,61 @@
       </div>
 
       <div class="rules-section">
-        <h4>Правила поведения</h4>
+        <h4>{{ t('ai.rules.behaviorRules') }}</h4>
         <div class="form-group">
-          <label>Разрешенные темы (через запятую)</label>
+          <label>{{ t('ai.rules.allowedTopics') }}</label>
           <input 
             v-model="allowedTopicsText" 
-            placeholder="продукт, поддержка, VIP услуги"
+            :placeholder="t('ai.rules.allowedTopicsPlaceholder')"
           />
         </div>
         <div class="form-group">
-          <label>Запрещенные слова (через запятую)</label>
+          <label>{{ t('ai.rules.forbiddenWords') }}</label>
           <input 
             v-model="forbiddenWordsText" 
-            placeholder="ругательство, спам"
+            :placeholder="t('ai.rules.forbiddenWordsPlaceholder')"
           />
         </div>
         <div class="form-checkbox">
           <label>
             <input type="checkbox" v-model="ruleFields.checkUserTags" />
-            Учитывать теги пользователя при фильтрации RAG
+            {{ t('ai.rules.useUserTags') }}
           </label>
         </div>
         <div class="form-checkbox">
           <label>
             <input type="checkbox" v-model="ruleFields.searchRagFirst" />
-            Сначала искать в RAG базе знаний
+            {{ t('ai.rules.searchRagFirst') }}
           </label>
         </div>
         <div class="form-checkbox">
           <label>
             <input type="checkbox" v-model="ruleFields.generateIfNoRag" />
-            Генерировать ответ, если ничего не найдено в RAG
+            {{ t('ai.rules.generateIfNotFound') }}
           </label>
         </div>
       </div>
 
       <div class="rules-section" v-if="showJsonPreview">
-        <h4>Предпросмотр JSON</h4>
+        <h4>{{ t('ai.rules.jsonPreview') }}</h4>
         <pre class="json-preview">{{ generatedJson }}</pre>
       </div>
 
       <div v-if="error" class="error">{{ error }}</div>
       
       <div class="actions">
-        <button @click="save" :disabled="!name.trim()">Сохранить</button>
-        <button @click="close">Отмена</button>
+        <button @click="save" :disabled="!name.trim()">{{ t('ai.rules.save') }}</button>
+        <button @click="close">{{ t('ai.rules.cancel') }}</button>
       </div>
     </div>
   </div>
 </template>
 <script setup>
 import { ref, watch, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import axios from 'axios';
+
+const { t } = useI18n();
 
 const emit = defineEmits(['close']);
 const props = defineProps({ rule: Object });
@@ -119,7 +122,6 @@ const description = ref(props.rule ? props.rule.description : '');
 const error = ref('');
 const showJsonPreview = ref(false);
 
-// Поля правила
 const ruleFields = ref({
   system_prompt: props.rule?.rules?.system_prompt || '',
   temperature: props.rule?.rules?.temperature ?? 0.7,
@@ -131,7 +133,6 @@ const ruleFields = ref({
   forbidden_words: props.rule?.rules?.rules?.forbidden_words || []
 });
 
-// Текстовые поля для массивов
 const allowedTopicsText = ref(
   props.rule?.rules?.rules?.allowed_topics?.join(', ') || ''
 );
@@ -139,7 +140,6 @@ const forbiddenWordsText = ref(
   props.rule?.rules?.rules?.forbidden_words?.join(', ') || ''
 );
 
-// Генерация JSON из полей формы
 const generatedJson = computed(() => {
   const rules = {
     system_prompt: ruleFields.value.system_prompt || undefined,
@@ -151,16 +151,15 @@ const generatedJson = computed(() => {
       generateIfNoRag: ruleFields.value.generateIfNoRag,
       allowed_topics: allowedTopicsText.value
         .split(',')
-        .map(t => t.trim())
-        .filter(t => t.length > 0),
+        .map(item => item.trim())
+        .filter(item => item.length > 0),
       forbidden_words: forbiddenWordsText.value
         .split(',')
-        .map(w => w.trim())
-        .filter(w => w.length > 0)
+        .map(item => item.trim())
+        .filter(item => item.length > 0)
     }
   };
 
-  // Удаляем undefined поля
   Object.keys(rules).forEach(key => {
     if (rules[key] === undefined) delete rules[key];
   });
@@ -187,7 +186,6 @@ watch(() => props.rule, (newRule) => {
     allowedTopicsText.value = (newRule.rules?.rules?.allowed_topics || []).join(', ');
     forbiddenWordsText.value = (newRule.rules?.rules?.forbidden_words || []).join(', ');
   } else {
-    // Сброс для нового правила
     name.value = '';
     description.value = '';
     ruleFields.value = {
@@ -208,12 +206,11 @@ watch(() => props.rule, (newRule) => {
 
 async function save() {
   if (!name.value.trim()) {
-    error.value = 'Название обязательно для заполнения';
+    error.value = t('ai.rules.nameRequired');
     return;
   }
 
   try {
-    // Генерируем JSON из полей формы
     const rules = JSON.parse(generatedJson.value);
     
     if (props.rule && props.rule.id) {
@@ -231,8 +228,7 @@ async function save() {
     }
     emit('close', true);
   } catch (e) {
-    error.value = `Ошибка сохранения: ${e.message}`;
-    console.error('Ошибка сохранения правила:', e);
+    error.value = t('ai.rules.saveError', { message: e.message });
   }
 }
 
@@ -414,4 +410,4 @@ button:last-child:hover {
   border: 1px solid #ffcccc;
   font-size: 0.9rem;
 }
-</style> 
+</style>

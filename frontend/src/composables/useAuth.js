@@ -13,6 +13,9 @@
 import { ref, onMounted, onUnmounted, provide, inject } from 'vue';
 import axios from '../api/axios';
 import eventBus from '../utils/eventBus';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 // === SINGLETON STATE ===
 const isAuthenticated = ref(false);
@@ -392,6 +395,11 @@ const checkAuth = async () => {
       console.log('[checkAuth] No authentication changes, skipping update');
     }
 
+    // Всегда синхронизируем уровень доступа с сервером для авторизованных пользователей
+    if (response.data.authenticated && response.data.userAccessLevel) {
+      userAccessLevel.value = response.data.userAccessLevel;
+    }
+
     // Если пользователь аутентифицирован, обновляем список идентификаторов и связываем сообщения
     if (response.data.authenticated) {
       // Сначала обновляем идентификаторы, чтобы иметь актуальные данные
@@ -463,11 +471,18 @@ const disconnect = async () => {
     localStorage.removeItem('guestMessages');
     localStorage.removeItem('telegramId');
     localStorage.removeItem('email');
+    localStorage.removeItem('authData');
+
+    tokenBalances.value = [];
+    userAccessLevel.value = { level: 'guest', tokenCount: 0, hasAccess: false };
 
     // Удаляем класс подключенного кошелька
     document.body.classList.remove('wallet-connected');
 
     console.log('User disconnected successfully and all identifiers cleared');
+
+    // Полная перезагрузка — сбрасывает in-memory данные защищённых страниц
+    window.location.replace('/');
 
     return { success: true };
   } catch (error) {
@@ -493,15 +508,15 @@ const updateConnectionDisplay = (isConnected, authType, authData = {}) => {
 
       const authDisplayEl = document.getElementById('auth-display');
       if (authDisplayEl) {
-        let displayText = 'Подключено';
+        let displayText = t('auth.flow.connectedDisplay');
 
         if (authType === 'wallet' && authData.address) {
           const shortAddress = `${authData.address.substring(0, 6)}...${authData.address.substring(authData.address.length - 4)}`;
-          displayText = `Кошелек: <strong>${shortAddress}</strong>`;
+          displayText = t('auth.walletConnectedLabel', { address: shortAddress });
         } else if (authType === 'email' && authData.email) {
-          displayText = `Email: <strong>${authData.email}</strong>`;
+          displayText = t('auth.flow.emailConnectedLabel', { email: authData.email });
         } else if (authType === 'telegram' && authData.telegramId) {
-          displayText = `Telegram: <strong>${authData.telegramUsername || authData.telegramId}</strong>`;
+          displayText = t('auth.flow.telegramConnectedLabel', { username: authData.telegramUsername || authData.telegramId });
         }
 
         authDisplayEl.innerHTML = displayText;

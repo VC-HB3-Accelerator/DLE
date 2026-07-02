@@ -17,7 +17,7 @@
   <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
     <div class="docs-page">
       <div class="docs-header">
-        <button class="close-btn" @click="goBack" title="Закрыть">×</button>
+        <button class="close-btn" @click="goBack" :title="t('common.close')">×</button>
       </div>
 
       <!-- Основной контент: сайдбар + контент -->
@@ -34,12 +34,12 @@
           <div v-else class="docs-index">
             <div v-if="isLoading" class="loading-state">
               <div class="loading-spinner"></div>
-              <p>Загрузка документов...</p>
+              <p>{{ t('content.publishedList.loading') }}</p>
             </div>
 
             <div v-else-if="groupedPages.length === 0" class="empty-state">
               <div class="empty-icon"><i class="fas fa-file-alt"></i></div>
-              <h3>Нет опубликованных документов</h3>
+              <h3>{{ t('content.publishedList.emptyTitle') }}</h3>
             </div>
 
             <div v-else class="categories-view">
@@ -62,26 +62,26 @@
                     <div class="page-card-header">
                       <h3>{{ page.title }}</h3>
                       <div class="page-card-badges">
-                        <span v-if="page.is_index_page" class="index-badge">Главная</span>
+                        <span v-if="page.is_index_page" class="index-badge">{{ t('content.publishedList.indexBadge') }}</span>
                         <div v-if="canManageDocs" class="page-card-actions">
                           <button
                             class="page-action-btn page-edit-btn"
                             @click.stop="editPage(page.id)"
-                            title="Редактировать документ"
+                            :title="t('content.publishedList.editDocument')"
                           >
                             <i class="fas fa-edit"></i>
                           </button>
                           <button
                             class="page-action-btn page-structure-btn"
                             @click.stop="editPageStructure(page)"
-                            title="Изменить структуру"
+                            :title="t('content.publishedList.editStructure')"
                           >
                             <i class="fas fa-cog"></i>
                           </button>
                           <button
                             class="page-action-btn page-delete-btn"
                             @click.stop="confirmDeletePage(page)"
-                            title="Удалить документ"
+                            :title="t('content.publishedList.deleteDocument')"
                           >
                             <i class="fas fa-trash"></i>
                           </button>
@@ -89,7 +89,7 @@
                       </div>
                     </div>
                     <div class="page-card-content">
-                      <p class="page-summary">{{ page.summary || 'Без описания' }}</p>
+                      <p class="page-summary">{{ page.summary || t('common.noDescription') }}</p>
                       <div class="page-meta">
                         <span class="page-date">
                           <i class="fas fa-calendar"></i>
@@ -114,18 +114,18 @@
     <div v-if="showEditPageModal && editingPage" class="modal-overlay" @click="showEditPageModal = false">
       <div class="modal-content modal-large" @click.stop>
         <div class="modal-header">
-          <h3>Изменить структуру документа</h3>
+          <h3>{{ t('content.publishedList.structureModalTitle') }}</h3>
           <button class="modal-close" @click="showEditPageModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Документ:</label>
+            <label>{{ t('content.publishedList.documentLabel') }}</label>
             <div class="form-readonly">{{ editingPage.title }}</div>
           </div>
           <div class="form-group">
-            <label>Родительский документ:</label>
+            <label>{{ t('content.publishedList.parentDocumentLabel') }}</label>
             <select v-model="editingPage.parent_id" class="form-input">
-              <option :value="null">Нет (корневой документ)</option>
+              <option :value="null">{{ t('content.publishedList.noParent') }}</option>
               <option
                 v-for="parent in availableParents"
                 :key="parent.id"
@@ -134,15 +134,15 @@
                 {{ parent.title }}
               </option>
             </select>
-            <small class="form-hint">Выберите родительский документ для создания иерархии. Доступны только документы той же категории.</small>
+            <small class="form-hint">{{ t('content.publishedList.parentHint') }}</small>
           </div>
           <div class="form-group">
-            <label>Категория:</label>
+            <label>{{ t('content.publishedList.categoryLabel') }}</label>
             <input
               v-model="editingPage.category"
               type="text"
               class="form-input"
-              placeholder="Введите название категории или выберите из списка"
+              :placeholder="t('content.publishedList.categoryPlaceholder')"
               list="categories-list"
             />
             <datalist id="categories-list">
@@ -154,10 +154,10 @@
                 {{ formatCategoryName(cat) }}
               </option>
             </datalist>
-            <small class="form-hint">Категория создается автоматически при сохранении. Можно ввести новую или выбрать существующую.</small>
+            <small class="form-hint">{{ t('content.publishedList.categoryHint') }}</small>
           </div>
           <div class="form-group">
-            <label>Порядок сортировки:</label>
+            <label>{{ t('content.publishedList.sortOrderLabel') }}</label>
             <input
               v-model.number="editingPage.order_index"
               type="number"
@@ -165,7 +165,7 @@
               class="form-input"
               placeholder="0"
             />
-            <small class="form-hint">Чем меньше число, тем выше документ в списке категории.</small>
+            <small class="form-hint">{{ t('content.publishedList.sortOrderHint') }}</small>
           </div>
           <div class="form-group">
             <label class="checkbox-label">
@@ -174,15 +174,15 @@
                 type="checkbox"
                 class="form-checkbox"
               />
-              Главная страница категории
+              {{ t('content.publishedList.indexPageCheckbox') }}
             </label>
-            <small class="form-hint">Если отмечено, этот документ будет главной страницей категории.</small>
+            <small class="form-hint">{{ t('content.publishedList.indexPageHint') }}</small>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showEditPageModal = false">Отмена</button>
+          <button class="btn btn-secondary" @click="showEditPageModal = false">{{ t('common.cancel') }}</button>
           <button class="btn btn-primary" @click="savePageStructure" :disabled="isSaving">
-            {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
+            {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -192,6 +192,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import DocsSidebar from '../../components/docs/DocsSidebar.vue';
@@ -209,6 +210,7 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 const { hasPermission } = usePermissions();
 
 const canManageDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
@@ -225,18 +227,15 @@ const currentPageId = computed(() => {
   if (queryPage) {
     const pageId = typeof queryPage === 'string' ? parseInt(queryPage, 10) : queryPage;
     if (!isNaN(pageId)) {
-      console.log('[PublishedListView] currentPageId computed: найдено в query.page:', pageId);
       return pageId;
     }
   }
   if (route.name === 'public-page-view' && route.params.id) {
     const pageId = typeof route.params.id === 'string' ? parseInt(route.params.id, 10) : route.params.id;
     if (!isNaN(pageId)) {
-      console.log('[PublishedListView] currentPageId computed: найдено в params.id:', pageId);
       return pageId;
     }
   }
-  console.log('[PublishedListView] currentPageId computed: возвращаем null');
   return null;
 });
 
@@ -245,11 +244,7 @@ function goBack() {
 }
 
 function openPublic(id) {
-  console.log('[PublishedListView] openPublic вызвана с id:', id);
-  // Обновляем URL без перехода на другую страницу
-  router.push({ name: 'content-published', query: { page: id } }).catch(err => {
-    console.error('[PublishedListView] Ошибка навигации:', err);
-  });
+  router.push({ name: 'content-published', query: { page: id } }).catch(() => {});
 }
 
 function goToIndex() {
@@ -263,14 +258,12 @@ function editPage(id) {
 
 // Подтверждение удаления документа
 async function confirmDeletePage(page) {
-  if (!confirm(`Вы уверены, что хотите удалить документ "${page.title}"?\n\nЭто действие нельзя отменить.`)) {
+  if (!confirm(t('content.publishedList.confirmDelete', { title: page.title }))) {
     return;
   }
   
   try {
-    console.log('[PublishedListView] Удаление документа:', page.id);
     await pagesService.deletePage(page.id);
-    console.log('[PublishedListView] Документ успешно удален');
     
     // Перезагружаем страницы
     await loadPages();
@@ -283,13 +276,12 @@ async function confirmDeletePage(page) {
       goToIndex();
     }
   } catch (error) {
-    console.error('[PublishedListView] Ошибка удаления документа:', error);
-    alert('Ошибка удаления: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.publishedList.deleteError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   }
 }
 
 function formatCategoryName(name) {
-  if (name === 'uncategorized') return 'Без категории';
+  if (name === 'uncategorized') return t('content.publishedList.uncategorized');
   // Преобразуем только первую букву в заглавную, остальные оставляем как есть
   if (!name || name.length === 0) return name;
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
@@ -306,17 +298,13 @@ function formatDate(date) {
 
 // Группировка страниц по категориям
 const groupedPages = computed(() => {
-  console.log('[PublishedListView] groupedPages computed: pages.value.length =', pages.value?.length);
-  
   const groups = {};
   
   if (!Array.isArray(pages.value)) {
-    console.warn('[PublishedListView] pages.value is not an array:', pages.value);
     return [];
   }
   
   if (pages.value.length === 0) {
-    console.log('[PublishedListView] pages.value пустой массив');
     return [];
   }
   
@@ -355,10 +343,6 @@ const groupedPages = computed(() => {
   });
 
   const result = Object.values(groups);
-  console.log('[PublishedListView] groupedPages result:', result.length, 'categories, всего страниц:', pages.value.length);
-  result.forEach(group => {
-    console.log(`  - ${group.name}: ${group.pages.length} страниц`);
-  });
   return result;
 });
 
@@ -384,15 +368,12 @@ async function loadCategories() {
     // Используем новый endpoint для получения списка категорий
     const categories = await pagesService.getCategories();
     allCategories.value = Array.isArray(categories) ? categories : [];
-    console.log('[PublishedListView] Загружено категорий:', allCategories.value.length);
   } catch (error) {
-    console.error('[PublishedListView] Ошибка загрузки категорий:', error);
     // Fallback: пытаемся получить категории из структуры
     try {
       const structure = await pagesService.getPublicPagesStructure();
       allCategories.value = structure.categories ? structure.categories.map(cat => cat.name) : [];
     } catch (fallbackError) {
-      console.error('[PublishedListView] Ошибка fallback загрузки категорий:', fallbackError);
       allCategories.value = [];
     }
   }
@@ -428,44 +409,21 @@ async function savePageStructure() {
       is_index_page: editingPage.value.is_index_page || false
     };
     
-    console.log('[PublishedListView] Сохранение структуры:', {
-      id: editingPage.value.id,
-      updateData: updateData,
-      originalEditingPage: { ...editingPage.value }
-    });
+    await pagesService.updatePage(editingPage.value.id, updateData);
     
-    // Сохраняем данные страницы
-    const response = await pagesService.updatePage(editingPage.value.id, updateData);
-    
-    console.log('[PublishedListView] Структура успешно сохранена, ответ от сервера:', {
-      id: response.id,
-      category: response.category,
-      parent_id: response.parent_id,
-      order_index: response.order_index,
-      is_index_page: response.is_index_page
-    });
-    
-    // Закрываем модальное окно сразу после успешного сохранения
-    const savedPageId = editingPage.value.id;
     showEditPageModal.value = false;
     editingPage.value = null;
     isSaving.value = false;
     
-    // Перезагружаем страницы и категории в фоне (не блокируем закрытие модального окна)
     Promise.all([
       loadPages(),
-      loadCategories() // Обновляем список категорий
-    ]).catch(err => {
-      console.error('[PublishedListView] Ошибка перезагрузки данных после сохранения:', err);
-    });
+      loadCategories()
+    ]).catch(() => {});
     
-    // Обновляем структуру в сайдбаре через событие
-    console.log('[PublishedListView] Отправляю событие docs-structure-updated для обновления сайдбара');
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
     
   } catch (error) {
-    console.error('[PublishedListView] Ошибка сохранения структуры:', error);
-    alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message || 'Неизвестная ошибка'));
+    alert(t('content.publishedList.saveError') + (error.response?.data?.error || error.message || t('common.unknownError')));
     // НЕ очищаем pages.value при ошибке - оставляем текущие данные
     isSaving.value = false;
   }
@@ -474,34 +432,19 @@ async function savePageStructure() {
 async function loadPages() {
   try {
     isLoading.value = true;
-    console.log('[PublishedListView] Начало загрузки страниц...');
     const loadedPages = await pagesService.getPublicPages();
-    console.log('[PublishedListView] Загружено страниц:', loadedPages?.length || 0);
     
-    // Проверяем, что ответ является массивом
     if (!Array.isArray(loadedPages)) {
-      console.error('[PublishedListView] loadedPages не является массивом:', typeof loadedPages, loadedPages);
-      // Если это объект с ошибкой, логируем её
-      if (loadedPages && typeof loadedPages === 'object' && loadedPages.error) {
-        console.error('[PublishedListView] Ошибка от API:', loadedPages.error);
-      }
-      // НЕ очищаем pages.value - оставляем предыдущие данные
       return;
     }
     
-    // Если массив пустой, это нормально - просто нет документов
     if (loadedPages.length > 0) {
-      console.log('[PublishedListView] Примеры страниц:', loadedPages.slice(0, 3).map(p => ({ id: p.id, title: p.title, category: p.category })));
       pages.value = loadedPages;
     } else {
-      console.log('[PublishedListView] Получен пустой массив - нет опубликованных документов');
-      // Очищаем только если массив действительно пустой (это нормальная ситуация)
       pages.value = [];
     }
   } catch (e) {
-    console.error('[PublishedListView] Ошибка загрузки страниц:', e);
-    // НЕ очищаем pages.value при ошибке - оставляем предыдущие данные
-    // pages.value = [];
+    // keep previous data on error
   } finally {
     isLoading.value = false;
   }

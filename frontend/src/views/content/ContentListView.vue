@@ -26,43 +26,43 @@
           <div class="management-blocks">
             <div class="blocks-column">
               <div class="management-block">
-                <h3>Создать страницу</h3>
-                <p>Создайте новую страницу и заполните содержимое</p>
-                <button class="details-btn" @click="goToCreate">Подробнее</button>
+                <h3>{{ t('content.list.createPage.title') }}</h3>
+                <p>{{ t('content.list.createPage.description') }}</p>
+                <button class="details-btn" @click="goToCreate">{{ t('common.details') }}</button>
               </div>
 
               <div class="management-block">
-                <h3>Шаблоны</h3>
-                <p>Системные шаблоны документов. Персонализируйте перед публикацией</p>
-                <button class="details-btn" @click="goToTemplates">Подробнее</button>
-              </div>
-            </div>
-
-            <div class="blocks-column">
-              <div class="management-block">
-                <h3>Публичные</h3>
-                <p>Публичные документы, доступные пользователям</p>
-                <button class="details-btn" @click="goToPublished">Подробнее</button>
-              </div>
-
-              <div class="management-block">
-                <h3>Настройка</h3>
-                <p>Юр. реквизиты и параметры подстановки переменных</p>
-                <button class="details-btn" @click="goToContentSettings">Подробнее</button>
+                <h3>{{ t('content.list.templates.title') }}</h3>
+                <p>{{ t('content.list.templates.description') }}</p>
+                <button class="details-btn" @click="goToTemplates">{{ t('common.details') }}</button>
               </div>
             </div>
 
             <div class="blocks-column">
               <div class="management-block">
-                <h3>Внутренние</h3>
-                <p>Внутренние документы, видимые только по ролям</p>
-                <button class="details-btn" @click="goToInternal">Подробнее</button>
+                <h3>{{ t('content.list.published.title') }}</h3>
+                <p>{{ t('content.list.published.description') }}</p>
+                <button class="details-btn" @click="goToPublished">{{ t('common.details') }}</button>
               </div>
 
               <div class="management-block">
-                <h3>Системные сообщения</h3>
-                <p>Управляйте уведомлениями, отображаемыми в чате и интерфейсе DLE</p>
-                <button class="details-btn" @click="goToSystemMessages">Подробнее</button>
+                <h3>{{ t('content.list.settings.title') }}</h3>
+                <p>{{ t('content.list.settings.description') }}</p>
+                <button class="details-btn" @click="goToContentSettings">{{ t('common.details') }}</button>
+              </div>
+            </div>
+
+            <div class="blocks-column">
+              <div class="management-block">
+                <h3>{{ t('content.list.internal.title') }}</h3>
+                <p>{{ t('content.list.internal.description') }}</p>
+                <button class="details-btn" @click="goToInternal">{{ t('common.details') }}</button>
+              </div>
+
+              <div class="management-block">
+                <h3>{{ t('content.list.systemMessages.title') }}</h3>
+                <p>{{ t('content.list.systemMessages.description') }}</p>
+                <button class="details-btn" @click="goToSystemMessages">{{ t('common.details') }}</button>
               </div>
             </div>
           </div>
@@ -75,8 +75,8 @@
 </template>
 
 <script setup>
-import { } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
@@ -105,6 +105,7 @@ const props = defineProps({
 const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
+const { t } = useI18n();
 const { address } = useAuthContext();
 const { canEditData } = usePermissions();
 
@@ -139,7 +140,7 @@ function goToSystemMessages() {
 }
 
 async function deletePage(id) {
-  if (confirm('Вы уверены, что хотите удалить эту страницу?')) {
+  if (confirm(t('content.page.confirmDelete'))) {
     try {
       // удаление здесь больше не используется
     } catch (error) {

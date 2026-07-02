@@ -24,7 +24,7 @@
         <div class="page-content">
           <!-- Описание -->
           <div v-if="page.summary" class="content-section">
-            <h2>Описание</h2>
+            <h2>{{ t('content.page.description') }}</h2>
             <div class="summary-content">
               {{ page.summary }}
             </div>
@@ -32,7 +32,7 @@
 
           <!-- Основной контент -->
           <div class="content-section">
-            <h2>Содержание</h2>
+            <h2>{{ t('content.page.content') }}</h2>
             <div class="main-content">
               <!-- HTML -->
               <div v-if="page.format === 'html' && page.content" v-html="formatContent(page.content)"></div>
@@ -40,56 +40,56 @@
               <!-- PDF -->
               <div v-else-if="page.format === 'pdf' && page.file_path" class="file-preview">
                 <embed :src="page.file_path" type="application/pdf" class="pdf-embed" />
-                <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать PDF</a>
+                <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ t('content.page.downloadPdf') }}</a>
               </div>
 
               <!-- Image -->
               <div v-else-if="page.format === 'image' && page.file_path" class="file-preview">
-                <img :src="page.file_path" alt="Документ" class="image-preview" />
-                <a class="btn btn-outline" :href="page.file_path" target="_blank" download>Скачать изображение</a>
+                <img :src="page.file_path" :alt="t('content.page.documentAlt')" class="image-preview" />
+                <a class="btn btn-outline" :href="page.file_path" target="_blank" download>{{ t('content.page.downloadImage') }}</a>
               </div>
 
               <div v-else class="empty-content">
                 <i class="fas fa-file-alt"></i>
-                <p>Контент не добавлен</p>
+                <p>{{ t('content.page.noContent') }}</p>
               </div>
             </div>
           </div>
 
           <!-- SEO информация -->
           <div v-if="page.seo" class="content-section">
-            <h2>SEO информация</h2>
+            <h2>{{ t('content.page.seoInfo') }}</h2>
             <div class="seo-info">
               <div class="seo-item">
                 <label>Meta Title:</label>
-                <span>{{ page.seo.title || 'Не указан' }}</span>
+                <span>{{ page.seo.title || t('common.notSpecified') }}</span>
               </div>
               <div class="seo-item">
                 <label>Meta Description:</label>
-                <span>{{ page.seo.description || 'Не указан' }}</span>
+                <span>{{ page.seo.description || t('common.notSpecified') }}</span>
               </div>
               <div class="seo-item">
                 <label>Keywords:</label>
-                <span>{{ page.seo.keywords || 'Не указаны' }}</span>
+                <span>{{ page.seo.keywords || t('common.notSpecifiedPlural') }}</span>
               </div>
             </div>
           </div>
 
           <!-- Статистика -->
           <div class="content-section">
-            <h2>Статистика</h2>
+            <h2>{{ t('content.page.statistics') }}</h2>
             <div class="stats-grid">
               <div class="stat-item">
                 <div class="stat-value">{{ page.views || 0 }}</div>
-                <div class="stat-label">Просмотров</div>
+                <div class="stat-label">{{ t('content.page.views') }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value">{{ page.wordCount || 0 }}</div>
-                <div class="stat-label">Слов</div>
+                <div class="stat-label">{{ t('content.page.words') }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value">{{ page.characterCount || 0 }}</div>
-                <div class="stat-label">Символов</div>
+                <div class="stat-label">{{ t('content.page.characters') }}</div>
               </div>
             </div>
           </div>
@@ -99,7 +99,7 @@
       <!-- Загрузка -->
       <div v-else-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>Загрузка страницы...</p>
+        <p>{{ t('content.page.loading') }}</p>
       </div>
 
       <!-- Ошибка -->
@@ -107,11 +107,11 @@
         <div class="error-icon">
           <i class="fas fa-exclamation-triangle"></i>
         </div>
-        <h3>Страница не найдена</h3>
-        <p>Запрашиваемая страница не существует или была удалена</p>
+        <h3>{{ t('content.page.notFoundTitle') }}</h3>
+        <p>{{ t('content.page.notFoundDescription') }}</p>
         <button class="btn btn-primary" @click="goBack">
           <i class="fas fa-arrow-left"></i>
-          Вернуться назад
+          {{ t('content.page.goBack') }}
         </button>
       </div>
     </div>
@@ -120,6 +120,7 @@
 
 <script setup>
 import { ref, onMounted, watch, nextTick, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
@@ -153,6 +154,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 // Состояние
 const page = ref(null);
@@ -170,10 +172,7 @@ const isLoading = ref(false);
 
 // Удалять может ТОЛЬКО редактор (MANAGE_LEGAL_DOCS)
 const canDeletePage = computed(() => {
-  const hasPermission = canManageLegalDocs.value;
-  const hasAddress = !!address.value;
-  console.log('[PageView] canDeletePage проверка:', { hasPermission, hasAddress, address: address.value });
-  return hasPermission && hasAddress;
+  return canManageLegalDocs.value && !!address.value;
 });
 
 // Редактировать может редактор или пользователь с правом редактирования
@@ -190,20 +189,20 @@ function goToEdit() {
 async function reindex() {
   try {
     await api.post(`/pages/${route.params.id}/reindex`);
-    alert('Индексация выполнена');
+    alert(t('content.page.reindexSuccess'));
   } catch (e) {
-    alert('Ошибка индексации: ' + (e?.response?.data?.error || e.message));
+    alert(t('content.page.reindexError') + (e?.response?.data?.error || e.message));
   }
 }
 
 async function deletePage() {
   // Дополнительная проверка прав на стороне клиента
   if (!canManageLegalDocs.value) {
-    alert('У вас нет прав для удаления страниц. Требуются права редактора.');
+    alert(t('content.page.deleteNoPermission'));
     return;
   }
   
-  if (!confirm('Вы уверены, что хотите удалить эту страницу? Это действие нельзя отменить. Все связанные файлы также будут удалены.')) {
+  if (!confirm(t('content.page.confirmDeleteWithFiles'))) {
     return;
   }
   
@@ -212,7 +211,7 @@ async function deletePage() {
       router.push({ name: 'content-list' });
     } catch (error) {
       console.error('Ошибка удаления страницы:', error);
-    alert('Ошибка при удалении страницы: ' + (error?.response?.data?.error || error?.message || 'Неизвестная ошибка'));
+    alert(t('content.page.deleteError') + (error?.response?.data?.error || error?.message || t('common.unknownError')));
   }
 }
 
@@ -221,7 +220,7 @@ function goBack() {
 }
 
 function formatDate(date) {
-  if (!date) return 'Не указана';
+  if (!date) return t('common.dateNotSpecified');
   return new Date(date).toLocaleDateString('ru-RU', {
     year: 'numeric',
     month: 'long',
@@ -233,12 +232,10 @@ function formatDate(date) {
 
 function getStatusText(status) {
   const statusMap = {
-    draft: 'Черновик',
-    published: 'Опубликовано',
-    archived: 'Архив',
-    pending: 'На модерации'
+    draft: t('common.status.draft'),
+    published: t('common.status.published'),
   };
-  return statusMap[status] || 'Неизвестно';
+  return statusMap[status] || t('common.status.unknown');
 }
 
 function formatContent(content) {
@@ -292,24 +289,24 @@ function setupVideoErrorHandlers() {
       video.addEventListener('error', (e) => {
         console.error('Ошибка загрузки видео:', e);
         const error = e.target.error;
-        let errorMessage = 'Неизвестная ошибка';
+        let errorMessage = t('content.page.video.unknownError');
         
         if (error) {
           switch (error.code) {
             case error.MEDIA_ERR_ABORTED:
-              errorMessage = 'Загрузка видео была прервана';
+              errorMessage = t('content.page.video.aborted');
               break;
             case error.MEDIA_ERR_NETWORK:
-              errorMessage = 'Ошибка сети при загрузке видео';
+              errorMessage = t('content.page.video.networkError');
               break;
             case error.MEDIA_ERR_DECODE:
-              errorMessage = 'Ошибка декодирования видео';
+              errorMessage = t('content.page.video.decodeError');
               break;
             case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Формат видео не поддерживается';
+              errorMessage = t('content.page.video.formatNotSupported');
               break;
             default:
-              errorMessage = `Ошибка загрузки видео (код: ${error.code})`;
+              errorMessage = t('content.page.video.loadErrorWithCode', { code: error.code });
           }
         }
         

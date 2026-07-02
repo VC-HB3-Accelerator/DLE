@@ -14,7 +14,7 @@
   <div v-if="show" class="modal-overlay" @click="closeModal">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h3>{{ isSuccess ? 'Тест RPC соединения' : 'Ошибка RPC соединения' }}</h3>
+        <h3>{{ isSuccess ? t('rpc.titleSuccess') : t('rpc.titleError') }}</h3>
         <button class="close-btn" @click="closeModal">&times;</button>
       </div>
       
@@ -23,18 +23,18 @@
           <div class="success-icon">
             <i class="fas fa-check-circle"></i>
           </div>
-          <h4>Соединение успешно установлено!</h4>
+          <h4>{{ t('rpc.connectionSuccess') }}</h4>
           <div class="connection-details">
             <div class="detail-row">
-              <span class="label">Сеть:</span>
+              <span class="label">{{ t('rpc.network') }}</span>
               <span class="value">{{ result.networkId }}</span>
             </div>
             <div class="detail-row" v-if="result.blockNumber">
-              <span class="label">Номер блока:</span>
+              <span class="label">{{ t('rpc.blockNumber') }}</span>
               <span class="value">{{ result.blockNumber }}</span>
             </div>
             <div class="detail-row" v-if="result.message">
-              <span class="label">Сообщение:</span>
+              <span class="label">{{ t('rpc.message') }}</span>
               <span class="value">{{ result.message }}</span>
             </div>
           </div>
@@ -44,14 +44,14 @@
           <div class="error-icon">
             <i class="fas fa-exclamation-triangle"></i>
           </div>
-          <h4>Не удалось подключиться к RPC</h4>
+          <h4>{{ t('rpc.connectionFailed') }}</h4>
           <div class="error-details">
             <div class="detail-row">
-              <span class="label">Сеть:</span>
+              <span class="label">{{ t('rpc.network') }}</span>
               <span class="value">{{ result.networkId }}</span>
             </div>
             <div class="detail-row">
-              <span class="label">Ошибка:</span>
+              <span class="label">{{ t('rpc.error') }}</span>
               <span class="value error-text">{{ result.error }}</span>
             </div>
           </div>
@@ -59,7 +59,7 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn btn-primary" @click="closeModal">OK</button>
+        <button class="btn btn-primary" @click="closeModal">{{ t('common.ok') }}</button>
       </div>
     </div>
   </div>
@@ -67,6 +67,9 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   show: {
@@ -235,4 +238,4 @@ const closeModal = () => {
 .btn-primary:hover {
   background: #0056b3;
 }
-</style> 
+</style>

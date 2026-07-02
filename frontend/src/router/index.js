@@ -99,27 +99,37 @@ const routes = [
         name: 'settings-email',
         component: () => import('../views/settings/AI/EmailSettingsView.vue'),
       },
+      {
+        path: 'regions',
+        name: 'settings-regions',
+        component: () => import('@/views/settings/RegionSettingsView.vue'),
+        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+      },
     ]
   },
   {
     path: '/settings/ai/openai',
     name: 'openai-settings',
     component: () => import('@/views/settings/AI/OpenAISettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
     path: '/settings/ai/ollama',
     name: 'ollama-settings',
     component: () => import('@/views/settings/AI/OllamaSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
     path: '/settings/ai/database',
     name: 'database-settings',
     component: () => import('@/views/settings/AI/DatabaseSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
     path: '/settings/ai/assistant',
     name: 'ai-assistant-settings',
     component: () => import('@/views/settings/AI/AiAssistantSettings.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
     path: '/settings/interface/webssh',
@@ -198,11 +208,13 @@ const routes = [
     path: '/settings/ai/telegram',
     name: 'telegram-settings',
     component: () => import('@/views/settings/AI/TelegramSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
     path: '/settings/ai/email',
     name: 'email-settings',
     component: () => import('@/views/settings/AI/EmailSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-ai' },
   },
   {
     path: '/content',
@@ -346,56 +358,63 @@ const router = createRouter({
 
 // console.log('router/index.js: Router created');
 
-// Защита маршрутов
+// Защита маршрутов — только явный meta.permission / meta.requiresAuth
 router.beforeEach(async (to, from, next) => {
-  // Если пытаемся перейти на несуществующий маршрут, перенаправляем на главную
   if (!to.matched.length) {
     return next({ name: 'home' });
   }
 
-  // Проверяем права доступа (новая система permissions)
   const requiredPermission = to.meta?.permission;
-  
-  if (requiredPermission) {
-    try {
-      const response = await axios.get('/auth/check');
-      
-      if (!response.data.authenticated) {
-        // Неавторизованный - редирект на главную
-        console.log('[Router] Доступ запрещен: требуется авторизация для', requiredPermission);
-        return next({ name: 'home' });
+  const requiresAuth = to.meta?.requiresAuth;
+
+  if (!requiredPermission && !requiresAuth) {
+    return next();
+  }
+
+  try {
+    const response = await axios.get('/auth/check');
+    const authData = response.data;
+
+    if (!authData.authenticated) {
+      console.log('[Router] Доступ запрещен: требуется авторизация для', to.path);
+      if (to.meta?.permissionFallback) {
+        return next({ name: to.meta.permissionFallback });
       }
-      
-      // Получаем уровень доступа пользователя
-      const userAccessLevel = response.data.userAccessLevel;
-      if (!userAccessLevel) {
-        console.log('[Router] Доступ запрещен: нет данных об уровне доступа');
-        return next({ name: 'home' });
-      }
-      
-      // Определяем роль на основе уровня доступа
-      let userRole = 'user'; // по умолчанию
-      if (userAccessLevel.level === 'readonly') {
-        userRole = 'readonly';
-      } else if (userAccessLevel.level === 'editor') {
-        userRole = 'editor';
-      }
-      
-      // Проверяем право доступа
-      if (!hasPermission(userRole, requiredPermission)) {
-        console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права ${requiredPermission}`);
-        return next({ name: 'home' });
-      }
-      
-      // Есть право - разрешаем переход
-      next();
-    } catch (error) {
-      console.error('[Router] Ошибка проверки прав:', error);
       return next({ name: 'home' });
     }
-  }
-  else {
+
+    if (requiresAuth && !requiredPermission) {
+      return next();
+    }
+
+    const userAccessLevel = authData.userAccessLevel;
+    if (!userAccessLevel) {
+      console.log('[Router] Доступ запрещен: нет данных об уровне доступа');
+      if (to.meta?.permissionFallback) {
+        return next({ name: to.meta.permissionFallback });
+      }
+      return next({ name: 'home' });
+    }
+
+    let userRole = 'user';
+    if (userAccessLevel.level === 'readonly') {
+      userRole = 'readonly';
+    } else if (userAccessLevel.level === 'editor') {
+      userRole = 'editor';
+    }
+
+    if (!hasPermission(userRole, requiredPermission)) {
+      console.log(`[Router] Доступ запрещен: роль ${userRole} не имеет права ${requiredPermission}`);
+      if (to.meta?.permissionFallback) {
+        return next({ name: to.meta.permissionFallback });
+      }
+      return next({ name: 'home' });
+    }
+
     next();
+  } catch (error) {
+    console.error('[Router] Ошибка проверки прав:', error);
+    return next({ name: 'home' });
   }
 });
 

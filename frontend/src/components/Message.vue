@@ -29,7 +29,7 @@
     <div v-if="message.message_type === 'admin_chat'" class="message-sender-info">
       <div class="sender-label">
         <span class="sender-direction">
-          {{ isCurrentUserMessage ? 'Вы →' : '← Получено от' }}
+          {{ isCurrentUserMessage ? t('chat.message.youArrow') : t('chat.message.receivedFrom') }}
         </span>
         <span class="sender-wallet">
           {{ formatWalletAddress(isCurrentUserMessage ? message.recipient_wallet : message.sender_wallet) }}
@@ -43,7 +43,7 @@
     
     <!-- Ссылка "Ответить" для публичных сообщений от других пользователей -->
     <div v-if="shouldShowReplyLink" class="message-reply-link">
-      <a :href="replyLink" class="reply-link">Ответить</a>
+      <a :href="replyLink" class="reply-link">{{ t('chat.message.reply') }}</a>
     </div>
 
     <!-- Блок с документами для подписания -->
@@ -65,7 +65,7 @@
               class="consent-document-link"
               @click.stop
             >
-              Открыть документ →
+              {{ t('chat.message.openDocument') }}
             </a>
           </div>
         </label>
@@ -76,15 +76,15 @@
           class="system-btn primary"
           :disabled="selectedConsentDocuments.length === 0 || isSubmittingConsent"
         >
-          {{ isSubmittingConsent ? 'Подписание...' : 'Подписать' }}
+          {{ isSubmittingConsent ? t('chat.message.signing') : t('chat.message.sign') }}
         </button>
       </div>
     </div>
 
     <!-- Кнопки для системного сообщения -->
     <div v-if="message.sender_type === 'system' && (message.telegramBotUrl || message.supportEmail) && !message.consentRequired" class="system-actions">
-      <button v-if="message.telegramBotUrl" @click="openTelegram(message.telegramBotUrl)" class="system-btn">Перейти в Telegram-бот</button>
-      <button v-if="message.supportEmail" @click="copyEmail(message.supportEmail)" class="system-btn">Скопировать email</button>
+      <button v-if="message.telegramBotUrl" @click="openTelegram(message.telegramBotUrl)" class="system-btn">{{ t('chat.message.goToTelegram') }}</button>
+      <button v-if="message.supportEmail" @click="copyEmail(message.supportEmail)" class="system-btn">{{ t('chat.message.copyEmail') }}</button>
     </div>
 
     <!-- Блок для отображения прикрепленного файла (теперь с плеерами/изображением/ссылкой) -->
@@ -116,17 +116,17 @@
       </div>
       <div v-if="message.message_type === 'admin_chat'" class="message-read-status">
         <span v-if="isCurrentUserMessage" class="read-status">
-          {{ message.isRead ? '✓ Прочитано' : '○ Отправлено' }}
+          {{ message.isRead ? t('chat.message.read') : t('chat.message.sent') }}
         </span>
         <span v-else class="read-status received">
-          Получено
+          {{ t('chat.message.received') }}
         </span>
       </div>
       <div v-if="message.isLocal" class="message-status">
-        <span class="sending-indicator">Отправка...</span>
+        <span class="sending-indicator">{{ t('chat.message.sending') }}</span>
       </div>
       <div v-if="message.hasError" class="message-status">
-        <span class="error-indicator">Ошибка отправки</span>
+        <span class="error-indicator">{{ t('chat.message.sendError') }}</span>
       </div>
     </div>
   </div>
@@ -134,8 +134,11 @@
 
 <script setup>
 import { defineProps, computed, ref, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+
+const { t } = useI18n();
 
 const props = defineProps({
   message: {
@@ -188,7 +191,7 @@ async function submitConsent() {
     emit('consent-granted', props.message.id);
   } catch (error) {
     console.error('Ошибка подписания документов:', error);
-    alert('Ошибка при подписании документов. Попробуйте еще раз.');
+    alert(t('chat.message.consentSignError'));
   } finally {
     isSubmittingConsent.value = false;
   }
@@ -220,8 +223,8 @@ const isCurrentUserMessage = computed(() => {
 
 // Функция для форматирования wallet адреса
 const formatWalletAddress = (address) => {
-  if (!address || address === 'Админ') {
-    return 'Админ';
+  if (!address || address === t('common.admin')) {
+    return t('common.admin');
   }
   
   // Если это wallet адрес (начинается с 0x), показываем сокращенную версию
@@ -345,9 +348,14 @@ const formattedTime = computed(() => {
 
 // Форматирование размера файла
 const formatFileSize = (bytes) => {
-  if (!bytes || bytes === 0) return '0 Bytes'; // Добавлена проверка на undefined/null
+  if (!bytes || bytes === 0) return t('common.fileSize.zero');
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = [
+    t('common.fileSize.bytes'),
+    t('common.fileSize.kb'),
+    t('common.fileSize.mb'),
+    t('common.fileSize.gb'),
+  ];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };

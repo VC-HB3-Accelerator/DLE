@@ -14,7 +14,7 @@
   <BaseLayout>
     <div class="db-settings-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>База данных: интеграция и настройки</h2>
+      <h2>{{ $t('settings.ai.database.pageTitle') }}</h2>
       <div class="db-settings settings-panel">
         <form v-if="editMode" @submit.prevent="saveDbSettings" class="settings-form">
           <div class="form-group">
@@ -28,7 +28,7 @@
           <div class="form-group">
             <label class="info-label">
               <i class="info-icon">ℹ️</i>
-              Database name: <strong>{{ form.dbName }}</strong> (неизменяемо)
+              Database name: <strong>{{ form.dbName }}</strong> {{ $t('settings.ai.database.readonlyBadge') }}
             </label>
           </div>
           <div class="form-group">
@@ -37,19 +37,19 @@
           </div>
           <div class="form-group">
             <label for="dbPassword">Password</label>
-            <input id="dbPassword" v-model="form.dbPassword" type="password" :placeholder="form.dbPassword ? 'Изменить пароль' : 'Введите пароль'" />
+            <input id="dbPassword" v-model="form.dbPassword" type="password" :placeholder="form.dbPassword ? t('settings.ai.email.changePassword') : t('settings.ai.email.enterPassword')" />
           </div>
-          <button type="submit" class="save-btn">Сохранить</button>
-          <button type="button" class="cancel-btn" @click="cancelEdit">Отмена</button>
+          <button type="submit" class="save-btn">{{ $t('common.save') }}</button>
+          <button type="button" class="cancel-btn" @click="cancelEdit">{{ $t('common.cancel') }}</button>
         </form>
         <div v-else class="settings-view">
           <div class="view-row"><span>Host:</span> <b>{{ form.dbHost }}</b></div>
           <div class="view-row"><span>Port:</span> <b>{{ form.dbPort }}</b></div>
-          <div class="view-row"><span>Database:</span> <b>{{ form.dbName }}</b> <span class="readonly-badge">(неизменяемо)</span></div>
+          <div class="view-row"><span>Database:</span> <b>{{ form.dbName }}</b> <span class="readonly-badge">{{ $t('settings.ai.database.readonlyBadge') }}</span></div>
           <div class="view-row"><span>User:</span> <b>{{ form.dbUser }}</b></div>
           <div class="view-row"><span>Password:</span> <b>••••••••••••••••••••••••••••••••</b></div>
           <div class="view-row encryption-key-row">
-            <span>Ключ шифрования:</span> 
+            <span>{{ $t('settings.ai.database.encryptionKey') }}</span> 
             <div class="encryption-key-inline">
               <div class="encryption-key-field">
                 <span class="key-display">{{ displayKey }}</span>
@@ -65,8 +65,8 @@
               </button>
             </div>
           </div>
-          <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
-          <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
+          <button type="button" class="edit-btn" @click="editMode = true">{{ $t('common.edit') }}</button>
+          <button type="button" class="cancel-btn" @click="goBack">{{ $t('common.close') }}</button>
         </div>
       </div>
     </div>
@@ -74,6 +74,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
 import { reactive, ref, onMounted, nextTick, computed, watch } from 'vue';
@@ -96,7 +98,7 @@ const showKey = ref(false);
 
 // Computed свойство для отображения статуса ключа
 const keyStatus = computed(() => {
-  return encryptionKeyState.exists ? 'Настроен' : 'Не настроен';
+  return encryptionKeyState.exists ? t('settings.ai.database.keyConfigured') : t('settings.ai.database.keyNotConfigured');
 });
 
 const keyStatusClass = computed(() => {
@@ -104,12 +106,12 @@ const keyStatusClass = computed(() => {
 });
 
 const buttonText = computed(() => {
-  return encryptionKeyState.exists ? 'Сгенерировать новый' : 'Сгенерировать ключ';
+  return encryptionKeyState.exists ? t('settings.ai.database.generateNew') : t('settings.ai.database.generateKey');
 });
 
 const displayKey = computed(() => {
-  if (!encryptionKeyState.exists) return 'Ключ не найден';
-  if (!encryptionKeyState.key) return 'Ключ не загружен';
+  if (!encryptionKeyState.exists) return t('settings.ai.database.keyNotFound');
+  if (!encryptionKeyState.key) return t('settings.ai.database.keyNotLoaded');
   return showKey.value ? encryptionKeyState.key : '••••••••••••••••••••••••••••••••';
 });
 
@@ -182,7 +184,7 @@ const checkEncryptionKey = async () => {
 
 const generateNewEncryptionKey = async () => {
   try {
-    const confirmRotate = confirm('Сгенерировать новый ключ шифрования? Все зашифрованные данные будут безопасно перешифрованы новым ключом.');
+    const confirmRotate = confirm(t('settings.ai.database.confirmRotate'));
     if (!confirmRotate) return;
     
     // Безопасная смена ключа (работает как для первой генерации, так и для смены)
@@ -191,11 +193,11 @@ const generateNewEncryptionKey = async () => {
       alert(res.data.message);
       await checkEncryptionKey();
     } else {
-      alert('Ошибка смены ключа шифрования');
+      alert(t('settings.ai.database.rotateError'));
     }
   } catch (e) {
     console.error('Ошибка генерации ключа шифрования:', e);
-    alert('Ошибка генерации ключа шифрования');
+    alert(t('settings.ai.database.generateError'));
   }
 };
 
@@ -215,12 +217,12 @@ const saveDbSettings = async () => {
       db_password: form.dbPassword || undefined
       // db_name не отправляем - он неизменяем
     });
-    alert('Настройки базы данных сохранены');
+    alert(t('settings.ai.database.saved'));
     form.dbPassword = '';
     Object.assign(original, JSON.parse(JSON.stringify(form)));
     editMode.value = false;
   } catch (e) {
-    alert('Ошибка сохранения настроек базы данных');
+    alert(t('settings.ai.database.saveError'));
   }
 };
 

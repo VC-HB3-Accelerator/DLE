@@ -32,6 +32,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, onMounted, watch, onBeforeUnmount, computed, defineProps, defineEmits } from 'vue';
 import { useAuthContext } from '../composables/useAuth';
 import { useRouter, useRoute } from 'vue-router';
@@ -72,15 +74,15 @@ onMounted(() => {
 // Вычисляемый заголовок страницы в зависимости от роута
 const pageTitle = computed(() => {
   if (route.name === 'settings-blockchain-dle-deploy') {
-    return 'Создать новое DLE (Digital Legal Entity)';
+    return t('settings.pageTitles.createDle');
   }
   if (route.name === 'settings-dle-v2-deploy') {
-    return 'Деплой контракта DLE (Digital Legal Entity)';
+    return t('settings.pageTitles.deployDle');
   }
   if (route.name === 'settings-security') {
-    return ''; // Убираем заголовок для страницы безопасности, так как он есть внутри компонента
+    return '';
   }
-  return 'Настройки';
+  return t('settings.title');
 });
 
 // Обработчик события изменения авторизации

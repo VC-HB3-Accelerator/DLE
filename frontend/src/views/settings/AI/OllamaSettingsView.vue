@@ -14,11 +14,11 @@
   <BaseLayout>
     <div class="ollama-settings-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>Ollama: интеграция и настройки</h2>
+      <h2>{{ $t('settings.ai.ollama.pageTitle') }}</h2>
       <AIProviderSettings
         provider="ollama"
-        label="Ollama (локальные модели)"
-        description="Настройка Ollama для локальных open-source моделей. Ключ не требуется."
+        :label="$t('settings.ai.ollama.label')"
+        :description="t('settings.ai.ollama.providerDescription')"
         apiKeyPlaceholder=""
         baseUrlPlaceholder="http://localhost:11434"
         :showApiKey="false"
@@ -30,6 +30,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import AIProviderSettings from '@/views/settings/AIProviderSettings.vue';
 import OllamaModelManager from '@/components/OllamaModelManager.vue';

@@ -12,24 +12,24 @@
 
 <template>
   <div class="rpc-providers-settings">
-    <h4>RPC Провайдеры</h4>
+    <h4>{{ $t('settings.rpc.title') }}</h4>
     <div v-if="Array.isArray(rpcConfigs) && rpcConfigs.length > 0" class="rpc-list">
       <div v-for="(rpc, index) in rpcConfigs" :key="rpc.networkId" class="rpc-entry">
-        <span><strong>ID Сети:</strong> {{ rpc.networkId }}</span>
-        <span><strong>URL:</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
-        <span v-if="rpc.chainId"><strong>Chain ID:</strong> {{ rpc.chainId }}</span>
+        <span><strong>{{ $t('settings.rpc.networkId') }}</strong> {{ rpc.networkId }}</span>
+        <span><strong>{{ $t('settings.rpc.url') }}</strong> {{ rpc.rpcUrlDisplay || rpc.rpcUrl }}</span>
+        <span v-if="rpc.chainId"><strong>{{ $t('settings.rpc.chainId') }}</strong> {{ rpc.chainId }}</span>
         <button class="btn btn-info btn-sm" @click="testRpc(rpc)" :disabled="testingRpc && testingRpcId === rpc.networkId">
           <i class="fas" :class="testingRpc && testingRpcId === rpc.networkId ? 'fa-spinner fa-spin' : 'fa-check-circle'"></i>
-          {{ testingRpc && testingRpcId === rpc.networkId ? 'Проверка...' : 'Тест' }}
+          {{ testingRpc && testingRpcId === rpc.networkId ? t('settings.rpc.testing') : t('settings.rpc.test') }}
         </button>
-        <button class="btn btn-danger btn-sm" @click="removeRpc(index)">Удалить</button>
+        <button class="btn btn-danger btn-sm" @click="removeRpc(index)">{{ $t('common.delete') }}</button>
       </div>
     </div>
-    <p v-else>Нет добавленных RPC конфигураций.</p>
+    <p v-else>{{ $t('settings.rpc.empty') }}</p>
     <div class="add-rpc-form">
-      <h5>Добавить новую RPC конфигурацию:</h5>
+      <h5>{{ $t('settings.rpc.addTitle') }}</h5>
       <div class="form-group">
-        <label>ID Сети:</label>
+        <label>{{ $t('settings.rpc.networkId') }}</label>
         <select v-model="networkEntry.networkId" class="form-control">
           <optgroup v-for="(group, groupIndex) in networkGroups" :key="groupIndex" :label="group.label">
             <option v-for="option in group.options" :key="option.value" :value="option.value">
@@ -38,23 +38,25 @@
           </optgroup>
         </select>
         <div v-if="networkEntry.networkId === 'custom'" class="mt-2">
-          <label>Пользовательский ID:</label>
-          <input type="text" v-model="networkEntry.customNetworkId" class="form-control" placeholder="Введите ID сети">
-          <label class="mt-2">Chain ID:</label>
-          <input type="number" v-model.number="networkEntry.customChainId" class="form-control" placeholder="Например, 1 для Ethereum">
-          <small>Chain ID - уникальный идентификатор блокчейн-сети (целое число)</small>
+          <label>{{ $t('settings.rpc.customId') }}</label>
+          <input type="text" v-model="networkEntry.customNetworkId" class="form-control" :placeholder="$t('settings.rpc.customIdPlaceholder')">
+          <label class="mt-2">{{ $t('settings.rpc.chainIdLabel') }}</label>
+          <input type="number" v-model.number="networkEntry.customChainId" class="form-control" :placeholder="$t('settings.rpc.chainIdPlaceholder')">
+          <small>{{ $t('settings.rpc.chainIdHelp') }}</small>
         </div>
       </div>
       <div class="form-group">
-        <label>RPC URL:</label>
+        <label>{{ $t('settings.rpc.rpcUrlLabel') }}</label>
         <input type="text" v-model="networkEntry.rpcUrl" class="form-control" placeholder="https://...">
       </div>
-      <button class="btn btn-secondary" @click="addRpc">Добавить RPC</button>
+      <button class="btn btn-secondary" @click="addRpc">{{ $t('settings.rpc.addButton') }}</button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, toRefs } from 'vue';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
 import api from '@/api/axios';
@@ -81,40 +83,40 @@ async function addRpc() {
   }
   const { networkId, rpcUrl, chainId } = result.networkConfig;
   if (props.rpcConfigs.some(rpc => rpc.networkId === networkId)) {
-    alert(`Ошибка: RPC конфигурация для сети с ID '${networkId}' уже существует.`);
+    alert(t('settings.security.rpcExists', { networkId }));
     return;
   }
   try {
     await api.post('/settings/rpc', { networkId, rpcUrl, chainId });
-    emit('update'); // сигнал родителю перезагрузить список
+    emit('update');
     resetNetworkEntry();
   } catch (e) {
-    alert('Ошибка при добавлении RPC: ' + (e.response?.data?.error || e.message));
+    alert(t('settings.rpc.addError', { error: e.response?.data?.error || e.message }));
   }
 }
 
 async function removeRpc(index) {
   const rpc = props.rpcConfigs[index];
   if (!rpc) return;
-  if (!confirm(`Удалить RPC для сети ${rpc.networkId}?`)) return;
+  if (!confirm(t('settings.rpc.confirmDelete', { networkId: rpc.networkId }))) return;
   try {
     await api.delete(`/settings/rpc/${rpc.networkId}`);
     emit('update');
   } catch (e) {
-    alert('Ошибка при удалении RPC: ' + (e.response?.data?.error || e.message));
+    alert(t('settings.rpc.deleteError', { error: e.response?.data?.error || e.message }));
   }
 }
 
 async function testRpc(rpc) {
   if (!rpc.networkId || !rpc.rpcUrl) {
-    alert('Для теста RPC нужно указать и ID сети, и URL');
+    alert(t('settings.rpc.testRequiresBoth'));
     return;
   }
   const result = await testRpcConnection(rpc.networkId, rpc.rpcUrl);
   if (result.success) {
     alert(result.message);
   } else {
-    alert(`Ошибка при подключении к ${rpc.networkId}: ${result.error}`);
+    alert(t('settings.security.rpcConnectionError', { networkId: rpc.networkId, error: result.error }));
   }
 }
 </script>

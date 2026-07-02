@@ -10,6 +10,10 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
+
 /**
  * Единая матрица прав доступа для DLE
  * Используется и на backend, и на frontend
@@ -176,14 +180,14 @@ function hasAllPermissions(role, permissions) {
  * @returns {string}
  */
 function getRoleDescription(role) {
-  const descriptions = {
-    [ROLES.GUEST]: 'Неавторизованный гость',
-    [ROLES.USER]: 'Авторизованный гость',
-    [ROLES.READONLY]: 'Админ (только чтение)',
-    [ROLES.EDITOR]: 'Админ (редактор)'
+  const descriptionKeys = {
+    [ROLES.GUEST]: 'permissions.roles.guest',
+    [ROLES.USER]: 'permissions.roles.user',
+    [ROLES.READONLY]: 'permissions.roles.readonly',
+    [ROLES.EDITOR]: 'permissions.roles.editor'
   };
-  
-  return descriptions[role] || 'Неизвестная роль';
+
+  return descriptionKeys[role] ? t(descriptionKeys[role]) : t('permissions.roles.unknown');
 }
 
 /**
@@ -199,7 +203,7 @@ function canSendMessage(senderRole, recipientRole, senderId, recipientId) {
   if (!hasPermission(senderRole, PERMISSIONS.SEND_TO_USERS)) {
     return {
       canSend: false,
-      errorMessage: 'У вас нет права на отправку сообщений'
+      errorMessage: t('permissions.errors.noSendPermission')
     };
   }
   
@@ -223,14 +227,14 @@ function canSendMessage(senderRole, recipientRole, senderId, recipientId) {
       (recipientRole === 'user' || recipientRole === 'readonly')) {
     return {
       canSend: false,
-      errorMessage: 'Пользователи и читатели не могут отправлять сообщения друг другу'
+      errorMessage: t('permissions.errors.userReaderCantMessageEachOther')
     };
   }
   
   // Остальные случаи запрещены
   return {
     canSend: false,
-    errorMessage: `Роль ${senderRole} не может отправлять сообщения роли ${recipientRole}`
+    errorMessage: t('permissions.errors.roleCannotMessageRole', { senderRole, recipientRole })
   };
 }
 

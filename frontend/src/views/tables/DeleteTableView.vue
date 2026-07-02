@@ -13,18 +13,19 @@
 <template>
   <BaseLayout>
     <div class="delete-table-confirm">
-      <h2>Удалить таблицу?</h2>
-      <p>Вы уверены, что хотите удалить эту таблицу? Это действие необратимо.</p>
+      <h2>{{ t('tables.delete.title') }}</h2>
+      <p>{{ t('tables.delete.confirmMessage') }}</p>
       <div class="actions">
-        <button v-if="canDeleteData" class="danger" @click="remove">Удалить</button>
-        <button @click="cancel">Отмена</button>
+        <button v-if="canDeleteData" class="danger" @click="remove">{{ t('tables.common.delete') }}</button>
+        <button @click="cancel">{{ t('tables.common.cancel') }}</button>
       </div>
-      <div v-if="!canDeleteData" class="empty-table-placeholder">Нет прав для удаления таблицы</div>
+      <div v-if="!canDeleteData" class="empty-table-placeholder">{{ t('tables.delete.noPermission') }}</div>
     </div>
   </BaseLayout>
 </template>
 <script setup>
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import axios from 'axios';
 import { useAuthContext } from '@/composables/useAuth';
@@ -32,18 +33,17 @@ import { usePermissions } from '@/composables/usePermissions';
 import { onMounted } from 'vue';
 const $route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const { canDeleteData } = usePermissions();
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
-    console.log('[DeleteTableView] Clearing confirmation data');
     // Очищаем данные при выходе из системы
     table.value = null;
   });
   
   window.addEventListener('refresh-application-data', () => {
-    console.log('[DeleteTableView] Refreshing confirmation data');
     // DeleteTableView не нуждается в обновлении данных
   });
 });

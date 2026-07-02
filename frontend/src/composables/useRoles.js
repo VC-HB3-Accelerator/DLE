@@ -12,6 +12,9 @@
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../api/axios'
+import { i18n } from '@/locales/index.js'
+
+const t = (key, params) => i18n.global.t(key, params)
 
 const roles = ref([])
 const isLoading = ref(false)
@@ -30,7 +33,7 @@ export function useRoles() {
         roles.value = response.data.roles
         console.log('[useRoles] Загружены роли из базы данных:', roles.value)
       } else {
-        throw new Error(response.data.error || 'Ошибка загрузки ролей')
+        throw new Error(response.data.error || t('roles.errors.loadFailed'))
       }
     } catch (err) {
       console.error('[useRoles] Ошибка при загрузке ролей:', err)
@@ -48,7 +51,7 @@ export function useRoles() {
   // Получаем название роли по ID
   const getRoleName = (roleId) => {
     const role = roles.value.find(r => r.id === roleId)
-    return role ? role.name : 'Неизвестно'
+    return role ? role.name : t('roles.unknown')
   }
 
   // Получаем CSS класс для роли
@@ -63,12 +66,9 @@ export function useRoles() {
 
   // Получаем отображаемое название роли
   const getRoleDisplayName = (roleName) => {
-    const displayMap = {
-      'user': 'Пользователь',
-      'readonly': 'Чтение', 
-      'editor': 'Редактор'
-    }
-    return displayMap[roleName] || 'Неизвестно'
+    const key = `roles.names.${roleName}`
+    const translated = t(key)
+    return translated !== key ? translated : t('roles.unknown')
   }
 
   // Функция для очистки ролей

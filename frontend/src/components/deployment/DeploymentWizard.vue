@@ -14,9 +14,9 @@
   <div class="deployment-wizard">
     <!-- Заголовок -->
     <div class="wizard-header">
-      <h2 class="wizard-title">Мастер поэтапного деплоя DLE</h2>
+      <h2 class="wizard-title">{{ t('deployment.wizardTitle') }}</h2>
       <p class="wizard-subtitle">
-        Автоматический деплой DLE контракта и модулей с WebSocket обновлениями в реальном времени
+        {{ t('deployment.wizardSubtitle') }}
       </p>
     </div>
 
@@ -49,13 +49,13 @@
     <!-- Логи операций -->
     <div class="logs-section">
       <div class="logs-header">
-        <h3>Логи операций</h3>
+        <h3>{{ t('deployment.operationLogs') }}</h3>
         <button 
           class="clear-logs-btn" 
           @click="clearLogs"
           :disabled="isDeploying"
         >
-          Очистить
+          {{ t('deployment.clearLogs') }}
         </button>
       </div>
       <div class="logs-container" ref="logsContainer">
@@ -68,14 +68,14 @@
           <span class="log-message">{{ log.message }}</span>
         </div>
         <div v-if="logs.length === 0" class="no-logs">
-          Логи операций будут отображаться здесь
+          {{ t('deployment.noLogs') }}
         </div>
       </div>
     </div>
 
     <!-- Сетевые статусы -->
     <div v-if="Object.keys(networksStatus).length > 0" class="networks-section">
-      <h3>Статус по сетям</h3>
+      <h3>{{ t('deployment.networksStatusTitle') }}</h3>
       <div class="networks-grid">
         <div 
           v-for="(network, chainId) in networksStatus" 
@@ -98,7 +98,7 @@
         v-if="isDeploying"
       >
         <i class="fas fa-stop"></i>
-        Остановить отслеживание
+        {{ t('deployment.stopTracking') }}
       </button>
       
       <button 
@@ -107,7 +107,7 @@
         v-if="deploymentStatus === 'completed' || deploymentStatus === 'failed'"
       >
         <i class="fas fa-redo"></i>
-        Сбросить состояние
+        {{ t('deployment.resetState') }}
       </button>
     </div>
 
@@ -116,7 +116,7 @@
       <div class="error-card">
         <i class="fas fa-exclamation-triangle"></i>
         <div>
-          <h4>Произошла ошибка</h4>
+          <h4>{{ t('deployment.errorTitle') }}</h4>
           <p>{{ error }}</p>
         </div>
       </div>
@@ -126,8 +126,11 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useDeploymentWebSocket } from '@/composables/useDeploymentWebSocket';
 import api from '@/api/axios';
+
+const { t } = useI18n();
 
 // Props
 const props = defineProps({
@@ -212,22 +215,24 @@ const statusIcon = computed(() => {
 
 const statusTitle = computed(() => {
   switch (deploymentStatus.value) {
-    case 'not_started': return 'Готов к запуску';
-    case 'in_progress': return 'Выполняется деплой';
-        case 'completed': return 'Деплой завершен';
-    case 'failed': return 'Ошибка деплоя';
-        default: return 'Неизвестный статус';
-      }
+    case 'not_started': return t('deployment.statusReady');
+    case 'in_progress': return t('deployment.statusInProgress');
+    case 'completed': return t('deployment.statusCompleted');
+    case 'failed': return t('deployment.statusFailed');
+    default: return t('deployment.statusUnknown');
+  }
 });
 
 const statusMessage = computed(() => {
   switch (deploymentStatus.value) {
-    case 'not_started': return 'Готов к автоматическому развертыванию через WebSocket';
-    case 'in_progress': return `Выполняется: ${currentStage.value || 'инициализация'}`;
-    case 'completed': return 'Все этапы деплоя успешно завершены!';
-    case 'failed': return 'Произошла ошибка. Проверьте логи для деталей.';
-        default: return '';
-      }
+    case 'not_started': return t('deployment.statusMsgReady');
+    case 'in_progress': return t('deployment.statusMsgInProgress', {
+      stage: currentStage.value || t('deployment.initialization')
+    });
+    case 'completed': return t('deployment.statusMsgCompleted');
+    case 'failed': return t('deployment.statusMsgFailed');
+    default: return '';
+  }
 });
 
 // Функции
@@ -239,7 +244,7 @@ const getNetworkName = (chainId) => {
     '84532': 'Base Sepolia', 
     '17000': 'Holesky'
   };
-  return networkNames[chainId] || `Network ${chainId}`;
+  return networkNames[chainId] || t('deployment.networkFallback', { chainId });
 };
 
 const scrollToBottom = () => {
@@ -253,11 +258,11 @@ const scrollToBottom = () => {
 // Главная функция запуска деплоя
 const startDeployment = async () => {
   try {
-    addLog('🚀 Начинаем асинхронный деплой с WebSocket отслеживанием', 'info');
+    addLog(t('deployment.logStartAsync'), 'info');
     
     // Генерируем deploymentId заранее, чтобы WebSocket сообщения не игнорировались
     const tempDeploymentId = `deploy_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    addLog(`🆔 Временный ID деплоя: ${tempDeploymentId}`, 'info');
+    addLog(t('deployment.logTempId', { id: tempDeploymentId }), 'info');
     
     // Начинаем отслеживание сразу с временным ID
     startDeploymentTracking(tempDeploymentId);
@@ -267,7 +272,7 @@ const startDeployment = async () => {
       deploymentId: tempDeploymentId, // Передаем временный ID в backend
       name: props.dleData.name,
       symbol: props.dleData.tokenSymbol,
-      location: props.dleData.addressData?.fullAddress || 'Не указан',
+      location: props.dleData.addressData?.fullAddress || t('common.notSpecified'),
       coordinates: props.dleData.coordinates || '0,0',
       jurisdiction: parseInt(props.dleData.jurisdiction) || 0,
       oktmo: props.dleData.selectedOktmo || '',
@@ -284,64 +289,50 @@ const startDeployment = async () => {
             autoVerifyAfterDeploy: props.autoVerifyAfterDeploy !== undefined ? props.autoVerifyAfterDeploy : false
           };
           
-    addLog('📤 Отправляем запрос на асинхронный деплой...', 'info');
+    addLog(t('deployment.logSendingRequest'), 'info');
     
     // Отправляем запрос на асинхронный деплой (без таймаута!)
           const response = await api.post('/dle-v2', deployData);
           
     if (response.data.success && response.data.deploymentId) {
-      addLog(`✅ Деплой запущен! ID: ${response.data.deploymentId}`, 'success');
+      addLog(t('deployment.logDeployStarted', { id: response.data.deploymentId }), 'success');
       
       // Обновляем deploymentId на реальный от сервера
       if (response.data.deploymentId !== tempDeploymentId) {
-        addLog(`🔄 Обновляем ID деплоя: ${tempDeploymentId} → ${response.data.deploymentId}`, 'info');
+        addLog(t('deployment.logUpdatingId', { oldId: tempDeploymentId, newId: response.data.deploymentId }), 'info');
         startDeploymentTracking(response.data.deploymentId);
       }
       
     } else {
-      throw new Error('Не удалось запустить деплой: ' + (response.data.message || 'неизвестная ошибка'));
+      throw new Error(t('deployment.logStartFailed', {
+        message: response.data.message || t('deployment.unknownError')
+      }));
     }
     
-      } catch (error) {
-    addLog(`❌ Ошибка запуска деплоя: ${error.message}`, 'error');
-    console.error('Deployment start failed:', error);
+  } catch (err) {
+    addLog(t('deployment.logStartError', { message: err.message }), 'error');
   }
 };
 
 // Автозапуск деплоя при появлении компонента
 onMounted(() => {
-  console.log('🔧 [DeploymentWizard] onMounted вызван');
-  console.log('🔧 [DeploymentWizard] deploymentStatus.value:', deploymentStatus.value);
-  console.log('🔧 [DeploymentWizard] logs.value.length:', logs.value.length);
-  console.log('🔧 [DeploymentWizard] props:', props);
-  console.log('🔧 [DeploymentWizard] isDeploying.value:', isDeploying.value);
-  
-  // Добавляем тестовый лог сразу
-  addLog('🔧 [DeploymentWizard] Компонент смонтирован', 'info');
+  addLog(t('deployment.logComponentMounted'), 'info');
   
   if (deploymentStatus.value === 'not_started') {
-    console.log('🔧 [DeploymentWizard] Запускаем автоматический деплой');
-    addLog('🚀 Автоматически запускаем деплой...', 'info');
+    addLog(t('deployment.logAutoStart'), 'info');
     startDeployment();
-  } else {
-    console.log('🔧 [DeploymentWizard] Деплой уже запущен, статус:', deploymentStatus.value);
   }
 });
 
 // Следим за новыми логами и скроллим вниз
-watch(logs, (newLogs, oldLogs) => {
-  console.log('📝 [DeploymentWizard] Логи изменились:', { 
-    newLength: newLogs.length, 
-    oldLength: oldLogs?.length || 0,
-    lastLog: newLogs[newLogs.length - 1]
-  });
+watch(logs, () => {
   scrollToBottom();
 }, { deep: true });
 
 // Следим за завершением деплоя
 watch(deploymentStatus, (newStatus) => {
   if (newStatus === 'completed' && deploymentResult.value) {
-    addLog('🎉 Деплой успешно завершен! Перенаправляем на страницу управления...', 'success');
+    addLog(t('deployment.logDeployCompletedRedirect'), 'success');
     setTimeout(() => {
       emit('deployment-completed', deploymentResult.value);
     }, 2000);

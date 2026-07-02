@@ -12,6 +12,9 @@
 
 import { ref, reactive, onUnmounted } from 'vue';
 import wsClient from '../utils/websocket';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 export function useDeploymentWebSocket() {
   // Состояние деплоя
@@ -124,10 +127,10 @@ export function useDeploymentWebSocket() {
           }
           if (updateData.status === 'completed') {
             isDeploying.value = false;
-            addLog('🎉 Деплой успешно завершен!', 'success');
+            addLog(t('deploymentWebSocket.completedSuccess'), 'success');
           } else if (updateData.status === 'failed') {
             isDeploying.value = false;
-            addLog('💥 Деплой завершился с ошибкой!', 'error');
+            addLog(t('deploymentWebSocket.completedFailed'), 'error');
           }
         }
         break;
@@ -141,7 +144,7 @@ export function useDeploymentWebSocket() {
           };
         }
         if (data.message) {
-          addLog(`🌐 [${data.network}] ${data.message}`, 'info');
+          addLog(t('deploymentWebSocket.networkMessage', { network: data.network, message: data.message }), 'info');
         }
         break;
         
@@ -154,10 +157,10 @@ export function useDeploymentWebSocket() {
         if (data.error) error.value = data.error;
         if (data.status === 'completed') {
           isDeploying.value = false;
-          addLog('🎉 Деплой успешно завершен!', 'success');
+          addLog(t('deploymentWebSocket.completedSuccess'), 'success');
         } else if (data.status === 'failed') {
           isDeploying.value = false;
-          addLog('💥 Деплой завершился с ошибкой!', 'error');
+          addLog(t('deploymentWebSocket.completedFailed'), 'error');
         }
         break;
         
@@ -199,7 +202,7 @@ export function useDeploymentWebSocket() {
       console.log('🎯 [DeploymentWebSocket] Подписались на DLE адрес:', tempDleAddress);
     }
     
-    addLog('🔌 Подключено к WebSocket для получения обновлений деплоя', 'info');
+    addLog(t('deploymentWebSocket.connected'), 'info');
   };
   
   // Остановить отслеживание

@@ -16,21 +16,21 @@
       <!-- Loading состояние -->
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
-        <p>Проверка токена...</p>
+        <p>{{ t('wallet.checkingToken') }}</p>
       </div>
 
       <!-- Токен валиден -->
       <div v-else-if="tokenValid && !connected" class="connect-state">
         <div class="icon">🔗</div>
-        <h1>Подключение кошелька</h1>
+        <h1>{{ t('wallet.title') }}</h1>
         
         <div class="info-block">
           <p class="provider-info">
-            Вы переходите из: 
+            {{ t('wallet.comingFrom') }}
             <strong>{{ providerName }}</strong>
           </p>
           <p class="description">
-            Подключите Web3 кошелек для сохранения истории сообщений и полного доступа к системе
+            {{ t('wallet.description') }}
           </p>
         </div>
 
@@ -39,8 +39,8 @@
           :disabled="connecting"
           class="connect-button"
         >
-          <span v-if="!connecting">Подключить MetaMask</span>
-          <span v-else>Подключение...</span>
+          <span v-if="!connecting">{{ t('wallet.connectMetaMask') }}</span>
+          <span v-else>{{ t('wallet.connecting') }}</span>
         </button>
 
         <div v-if="error" class="error-message">
@@ -48,31 +48,32 @@
         </div>
 
         <div class="expires-info">
-          ⏱ Ссылка истекает: {{ expiresAt }}
+          ⏱ {{ t('wallet.linkExpires', { date: expiresAt }) }}
         </div>
       </div>
 
       <!-- Токен истек или недействителен -->
       <div v-else-if="!tokenValid" class="expired-state">
         <div class="icon">⏰</div>
-        <h1>Ссылка истекла</h1>
-        <p>Эта ссылка больше недействительна</p>
+        <h1>{{ t('wallet.linkExpiredTitle') }}</h1>
+        <p>{{ t('wallet.linkExpiredText') }}</p>
         <p class="hint">
-          Запросите новую ссылку в боте, отправив команду 
+          {{ t('wallet.linkExpiredHintBefore') }}
           <code>/connect</code>
+          {{ t('wallet.linkExpiredHintAfter') }}
         </p>
       </div>
 
       <!-- Успешно подключено -->
       <div v-else-if="connected" class="success-state">
         <div class="icon">✅</div>
-        <h1>Кошелек подключен!</h1>
-        <p>История сообщений перенесена</p>
+        <h1>{{ t('wallet.walletConnected') }}</h1>
+        <p>{{ t('wallet.historyMigrated') }}</p>
         <p class="stats" v-if="migrationStats">
-          Перенесено сообщений: {{ migrationStats.migrated }}
+          {{ t('wallet.messagesMigrated', { count: migrationStats.migrated }) }}
         </p>
         <button @click="goToChat" class="go-chat-button">
-          Перейти к чату
+          {{ t('wallet.goToChat') }}
         </button>
       </div>
     </div>
@@ -80,8 +81,15 @@
 </template>
 
 <script>
+import { useI18n } from 'vue-i18n';
+
 export default {
   name: 'ConnectWalletView',
+
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
 
   data() {
     return {
@@ -135,7 +143,7 @@ export default {
 
       } catch (error) {
         console.error('Ошибка проверки токена:', error);
-        this.error = 'Ошибка проверки токена';
+        this.error = this.t('wallet.errors.tokenCheck');
         this.loading = false;
         this.tokenValid = false;
       }
@@ -146,35 +154,34 @@ export default {
         this.connecting = true;
         this.error = null;
 
-        // Проверяем наличие MetaMask
         if (!window.ethereum) {
-          this.error = 'MetaMask не установлен. Установите расширение MetaMask.';
+          this.error = this.t('wallet.errors.metamaskNotInstalled');
           this.connecting = false;
           return;
         }
 
-        // 1. Запрос аккаунтов
         const accounts = await window.ethereum.request({ 
           method: 'eth_requestAccounts' 
         });
         
         if (!accounts || accounts.length === 0) {
-          this.error = 'Не удалось получить адрес кошелька';
+          this.error = this.t('wallet.errors.addressFailed');
           this.connecting = false;
           return;
         }
 
         const address = accounts[0];
 
-        // 2. Получить подпись
-        const message = `Подключение кошелька к системе\nАдрес: ${address}\nВремя: ${new Date().toISOString()}`;
+        const message = this.t('wallet.signMessage', {
+          address,
+          time: new Date().toISOString()
+        });
         
         const signature = await window.ethereum.request({
           method: 'personal_sign',
           params: [message, address]
         });
 
-        // 3. Отправить на сервер
         const token = this.$route.query.token;
         const response = await fetch('/api/auth/wallet-with-link', {
           method: 'POST',
@@ -198,13 +205,12 @@ export default {
             migrated: result.migratedMessages
           };
           
-          // Через 2 секунды переходим в чат
           setTimeout(() => {
             this.goToChat();
           }, 2000);
 
         } else {
-          this.error = result.error || 'Ошибка подключения кошелька';
+          this.error = result.error || this.t('wallet.errors.connectFailed');
           this.connecting = false;
         }
 
@@ -212,9 +218,9 @@ export default {
         console.error('Ошибка подключения кошелька:', error);
         
         if (error.code === 4001) {
-          this.error = 'Вы отклонили запрос подписи';
+          this.error = this.t('wallet.errors.signatureRejected');
         } else {
-          this.error = 'Ошибка подключения кошелька. Попробуйте снова.';
+          this.error = this.t('wallet.errors.connectFailedRetry');
         }
         
         this.connecting = false;
@@ -471,4 +477,3 @@ h1 {
   }
 }
 </style>
-

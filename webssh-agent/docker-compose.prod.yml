@@ -132,6 +132,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+      - ./shared:/app/shared:ro
       - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl:ro
       # Доступ к Docker socket для управления контейнерами на VDS
@@ -270,8 +271,8 @@ services:
   frontend-nginx:
     image: digital_legal_entitydle-frontend-nginx:latest
     build:
-      context: ./frontend
-      dockerfile: nginx.Dockerfile
+      context: .
+      dockerfile: frontend/nginx.Dockerfile
     container_name: dapp-frontend-nginx
     restart: unless-stopped
     networks:

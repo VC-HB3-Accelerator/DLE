@@ -11,6 +11,9 @@
  */
 
 import api from '@/api/axios';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 // Вспомогательные функции для экспорта
 async function getConversationByUserId(userId) {
@@ -56,7 +59,7 @@ export default {
     const { data } = await api.post('/chat/ai-draft', { conversationId, messages, language });
     return data;
   },
-  async broadcastMessage({ userId, message, subject = 'Новое сообщение', attachments = [] }) {
+  async broadcastMessage({ userId, message, subject = t('messages.defaultSubject'), attachments = [] }) {
     if (attachments.length > 0) {
       const formData = new FormData();
       formData.append('user_id', userId);

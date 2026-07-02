@@ -16,6 +16,9 @@
  */
 
 import { ref, computed } from 'vue';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 export function useProposalValidation() {
   const validatedProposals = ref([]);
@@ -46,11 +49,11 @@ export function useProposalValidation() {
 
     // Проверка обязательных полей
     if (!proposal.id && proposal.id !== 0) {
-      errors.push('Отсутствует ID предложения');
+      errors.push(t('proposalValidation.missingProposalId'));
     }
 
     if (!proposal.description || proposal.description.trim() === '') {
-      errors.push('Отсутствует описание предложения');
+      errors.push(t('proposalValidation.missingDescription'));
     }
 
     // Для мультичейн предложений проверяем chains
@@ -60,7 +63,7 @@ export function useProposalValidation() {
     if (hasChains) {
       // Для мультичейн предложений проверяем, что есть хотя бы одна валидная цепочка
       if (proposal.chains.length === 0) {
-        errors.push('Мультичейн предложение не содержит цепочек');
+        errors.push(t('proposalValidation.multichainNoChains'));
       } else {
         // Проверяем каждую цепочку
         let validChainsCount = 0;
@@ -68,35 +71,35 @@ export function useProposalValidation() {
           const chainErrors = [];
           
           if (!chain.id && chain.id !== 0) {
-            chainErrors.push(`Цепочка ${chainIndex}: отсутствует ID`);
+            chainErrors.push(t('proposalValidation.chainMissingId', { index: chainIndex }));
           }
           
           if (!chain.chainId) {
-            chainErrors.push(`Цепочка ${chainIndex}: отсутствует chainId`);
+            chainErrors.push(t('proposalValidation.chainMissingChainId', { index: chainIndex }));
           } else if (!isValidChainId(chain.chainId)) {
-            chainErrors.push(`Цепочка ${chainIndex}: неподдерживаемый chainId ${chain.chainId}`);
+            chainErrors.push(t('proposalValidation.chainUnsupportedChainId', { index: chainIndex, chainId: chain.chainId }));
           }
           
           if (!chain.transactionHash) {
-            chainErrors.push(`Цепочка ${chainIndex}: отсутствует хеш транзакции`);
+            chainErrors.push(t('proposalValidation.chainMissingTxHash', { index: chainIndex }));
           } else if (!isValidTransactionHash(chain.transactionHash)) {
-            chainErrors.push(`Цепочка ${chainIndex}: неверный формат хеша транзакции`);
+            chainErrors.push(t('proposalValidation.chainInvalidTxHash', { index: chainIndex }));
           }
           
           if (chain.state === undefined || chain.state === null) {
-            chainErrors.push(`Цепочка ${chainIndex}: отсутствует статус`);
+            chainErrors.push(t('proposalValidation.chainMissingStatus', { index: chainIndex }));
           }
           
           if (typeof chain.forVotes !== 'number' || chain.forVotes < 0) {
-            chainErrors.push(`Цепочка ${chainIndex}: неверное значение голосов "за"`);
+            chainErrors.push(t('proposalValidation.chainInvalidForVotes', { index: chainIndex }));
           }
           
           if (typeof chain.againstVotes !== 'number' || chain.againstVotes < 0) {
-            chainErrors.push(`Цепочка ${chainIndex}: неверное значение голосов "против"`);
+            chainErrors.push(t('proposalValidation.chainInvalidAgainstVotes', { index: chainIndex }));
           }
           
           if (typeof chain.quorumRequired !== 'number' || chain.quorumRequired < 0) {
-            chainErrors.push(`Цепочка ${chainIndex}: неверное значение требуемого кворума`);
+            chainErrors.push(t('proposalValidation.chainInvalidQuorum', { index: chainIndex }));
           }
           
           if (chainErrors.length === 0) {
@@ -107,45 +110,45 @@ export function useProposalValidation() {
         });
         
         if (validChainsCount === 0) {
-          errors.push('Мультичейн предложение не содержит валидных цепочек');
+          errors.push(t('proposalValidation.multichainNoValidChains'));
         }
       }
     } else {
       // Для одиночных предложений проверяем стандартные поля
       if (!proposal.transactionHash) {
-        errors.push('Отсутствует хеш транзакции');
+        errors.push(t('proposalValidation.missingTxHash'));
       } else if (!isValidTransactionHash(proposal.transactionHash)) {
-        errors.push('Неверный формат хеша транзакции');
+        errors.push(t('proposalValidation.invalidTxHash'));
       }
 
       if (!proposal.chainId) {
-        errors.push('Отсутствует chainId');
+        errors.push(t('proposalValidation.missingChainId'));
       } else if (!isValidChainId(proposal.chainId)) {
-        errors.push('Неподдерживаемый chainId');
+        errors.push(t('proposalValidation.unsupportedChainId'));
       }
 
       // Проверка числовых значений для одиночных предложений
       if (typeof proposal.forVotes !== 'number' || proposal.forVotes < 0) {
-        errors.push('Неверное значение голосов "за"');
+        errors.push(t('proposalValidation.invalidForVotes'));
       }
 
       if (typeof proposal.againstVotes !== 'number' || proposal.againstVotes < 0) {
-        errors.push('Неверное значение голосов "против"');
+        errors.push(t('proposalValidation.invalidAgainstVotes'));
       }
 
       if (typeof proposal.quorumRequired !== 'number' || proposal.quorumRequired < 0) {
-        errors.push('Неверное значение требуемого кворума');
+        errors.push(t('proposalValidation.invalidQuorum'));
       }
     }
 
     if (!proposal.initiator) {
-      errors.push('Отсутствует инициатор предложения');
+      errors.push(t('proposalValidation.missingInitiator'));
     } else if (!isValidAddress(proposal.initiator)) {
-      errors.push('Неверный формат адреса инициатора');
+      errors.push(t('proposalValidation.invalidInitiatorAddress'));
     }
 
     if (proposal.state === undefined || proposal.state === null) {
-      errors.push('Отсутствует статус предложения');
+      errors.push(t('proposalValidation.missingStatus'));
     }
 
     return {

@@ -14,7 +14,7 @@
   <BaseLayout>
     <div class="telegram-settings-block">
       <button class="close-btn" @click="goBack">×</button>
-      <h2>Telegram: интеграция и настройки</h2>
+      <h2>{{ $t('settings.ai.telegram.pageTitle') }}</h2>
       <div class="telegram-settings settings-panel">
         <form v-if="editMode" @submit.prevent="saveTelegramSettings" class="settings-form">
           <div class="form-group">
@@ -25,15 +25,15 @@
             <label for="botUsername">Bot Username</label>
             <input id="botUsername" v-model="form.botUsername" type="text" required />
           </div>
-          <button type="submit" class="save-btn">Сохранить</button>
-          <button type="button" class="cancel-btn" @click="cancelEdit">Отмена</button>
+          <button type="submit" class="save-btn">{{ $t('common.save') }}</button>
+          <button type="button" class="cancel-btn" @click="cancelEdit">{{ $t('common.cancel') }}</button>
         </form>
         <div v-else class="settings-view">
           <div class="view-row"><span>Bot Token:</span> <b>••••••••••••••••••••••••••••••••••••••••</b></div>
           <div class="view-row"><span>Bot Username:</span> <b>{{ form.botUsername }}</b></div>
-          <button type="button" class="edit-btn" @click="editMode = true">Изменить</button>
-          <button type="button" class="clear-btn" @click="clearTelegramSettings">Очистить</button>
-          <button type="button" class="cancel-btn" @click="goBack">Закрыть</button>
+          <button type="button" class="edit-btn" @click="editMode = true">{{ $t('common.edit') }}</button>
+          <button type="button" class="clear-btn" @click="clearTelegramSettings">{{ $t('settings.ai.email.clear') }}</button>
+          <button type="button" class="cancel-btn" @click="goBack">{{ $t('common.close') }}</button>
         </div>
       </div>
     </div>
@@ -41,6 +41,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import BaseLayout from '@/components/BaseLayout.vue';
 import { useRouter } from 'vue-router';
 import { reactive, ref, onMounted, watch } from 'vue';
@@ -110,12 +112,12 @@ const saveTelegramSettings = async () => {
       bot_token: form.botToken,
       bot_username: form.botUsername
     });
-    alert('Настройки Telegram сохранены');
+    alert(t('settings.ai.telegram.saved'));
     form.botToken = '';
     Object.assign(original, JSON.parse(JSON.stringify(form)));
     editMode.value = false;
   } catch (e) {
-    alert('Ошибка сохранения telegram-настроек');
+    alert(t('settings.ai.telegram.saveError'));
   }
 };
 
@@ -126,12 +128,12 @@ const cancelEdit = () => {
 };
 
 const clearTelegramSettings = async () => {
-  const confirmClear = confirm('Внимание! Это действие полностью удалит все настройки Telegram из базы данных. Продолжить?');
+  const confirmClear = confirm(t('settings.ai.telegram.confirmClear'));
   if (!confirmClear) return;
   
   try {
     await api.delete('/settings/telegram-settings');
-    alert('Настройки Telegram полностью удалены');
+    alert(t('settings.ai.telegram.cleared'));
     
     // Очищаем форму
     form.botToken = '';
@@ -140,7 +142,7 @@ const clearTelegramSettings = async () => {
     editMode.value = false;
   } catch (e) {
     console.error('Ошибка удаления настроек Telegram:', e);
-    alert('Ошибка удаления настроек Telegram');
+    alert(t('settings.ai.telegram.clearError'));
   }
 };
 </script>

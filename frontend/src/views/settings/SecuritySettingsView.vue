@@ -20,10 +20,10 @@
       <div class="blocks-column">
         <!-- Блок RPC Провайдеры -->
         <div class="management-block">
-          <h3>RPC Провайдеры</h3>
-          <p>{{ securitySettings.rpcConfigs.length > 0 ? `${securitySettings.rpcConfigs.length} провайдеров настроено` : 'RPC провайдеры не настроены' }}</p>
+          <h3>{{ $t('settings.rpc.title') }}</h3>
+          <p>{{ securitySettings.rpcConfigs.length > 0 ? t('settings.security.providersConfigured', { count: securitySettings.rpcConfigs.length }) : t('settings.security.providersNotConfigured') }}</p>
           <button class="details-btn" @click="handleRpcDetailsClick">
-            Подробнее
+            {{ $t('common.details') }}
           </button>
         </div>
       </div>
@@ -32,10 +32,10 @@
       <div class="blocks-column">
         <!-- Блок Аутентификация -->
         <div class="management-block">
-          <h3>Аутентификация</h3>
-          <p>{{ securitySettings.authTokens.length > 0 ? `${securitySettings.authTokens.length} токенов настроено` : 'Токены аутентификации не настроены' }}</p>
+          <h3>{{ $t('settings.security.authentication') }}</h3>
+          <p>{{ securitySettings.authTokens.length > 0 ? t('settings.security.tokensConfigured', { count: securitySettings.authTokens.length }) : t('settings.security.tokensNotConfigured') }}</p>
           <button class="details-btn" @click="showAuthSettings = !showAuthSettings">
-            Подробнее
+            {{ $t('common.details') }}
           </button>
         </div>
       </div>
@@ -58,14 +58,16 @@
     <!-- Модальное окно "Нет доступа" -->
     <NoAccessModal 
       :show="showNoAccessModal" 
-      title="Доступ ограничен"
-      message="Детальные настройки RPC провайдеров доступны только администраторам."
+      :title="$t('settings.accessRestricted')"
+      :message="t('settings.security.rpcAdminOnly')"
       @close="closeNoAccessModal" 
     />
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { reactive, ref, onMounted, computed, provide } from 'vue';
 import api from '@/api/axios';
 import useBlockchainNetworks from '@/composables/useBlockchainNetworks';
@@ -194,7 +196,7 @@ const loadSettings = async () => {
     // Если не удалось загрузить с бэкенда, устанавливаем дефолтные значения
     setDefaultSettings();
     
-    alert('Не удалось загрузить настройки с сервера. Загружены значения по умолчанию.');
+    alert(t('settings.security.loadFailed'));
   } finally {
     isLoading.value = false;
   }
@@ -233,15 +235,15 @@ const saveSecuritySettings = async () => {
     });
     
     if (rpcResponse.data.success && authResponse.data.success) {
-      alert('Все настройки безопасности успешно сохранены.');
+      alert(t('settings.security.saveSuccess'));
       eventBus.emit('settings-updated');
       eventBus.emit('auth-settings-saved', { tokens: settingsData.authTokens });
     } else {
-      alert('Произошла ошибка при сохранении настроек. Проверьте консоль разработчика.');
+      alert(t('settings.security.saveFailed'));
     }
   } catch (error) {
     console.error('[SecuritySettingsView] Ошибка при сохранении настроек:', error);
-    alert(`Ошибка при сохранении настроек: ${error.message || 'Неизвестная ошибка'}`);
+    alert(t('settings.security.saveError', { error: error.message || t('common.unknownError') }));
   } finally {
     isSaving.value = false;
   }
@@ -277,7 +279,7 @@ const addRpcConfig = () => {
   }
   const { networkId, rpcUrl, chainId } = result.networkConfig;
   if (securitySettings.rpcConfigs.some(rpc => rpc.networkId === networkId)) {
-    alert(`Ошибка: RPC конфигурация для сети с ID '${networkId}' уже существует.`);
+    alert(t('settings.security.rpcExists', { networkId }));
     return;
   }
   securitySettings.rpcConfigs.push({ networkId, rpcUrl, chainId });
@@ -294,11 +296,11 @@ const testRpcHandler = async (rpc) => {
     if (result.success) {
       alert(result.message);
     } else {
-      alert(`Ошибка при подключении к ${rpc.networkId}: ${result.error}`);
+      alert(t('settings.security.rpcConnectionError', { networkId: rpc.networkId, error: result.error }));
     }
   } catch (error) {
     console.error('[SecuritySettingsView] Ошибка при тестировании RPC:', error);
-    alert(`Ошибка при тестировании RPC: ${error.message || 'Неизвестная ошибка'}`);
+    alert(t('settings.security.rpcTestError', { error: error.message || t('common.unknownError') }));
   }
 };
 
@@ -310,7 +312,7 @@ const addAuthToken = () => {
   const network = newAuthToken.network;
   if (name && address) {
     if (securitySettings.authTokens.some(token => token.address.toLowerCase() === address.toLowerCase())) {
-      alert(`Ошибка: Токен с адресом '${address}' уже добавлен.`);
+      alert(t('settings.security.tokenExists', { address }));
       return;
     }
     securitySettings.authTokens.push({ name, address, minBalance, network });
@@ -319,7 +321,7 @@ const addAuthToken = () => {
     newAuthToken.minBalance = '1.0';
     newAuthToken.network = 'eth';
   } else {
-    alert('Пожалуйста, заполните название и адрес токена.');
+    alert(t('settings.security.fillTokenFields'));
   }
 };
 

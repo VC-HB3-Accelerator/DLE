@@ -26,7 +26,7 @@
               class="auth-btn connect-wallet-btn"
               @click="handleWalletAuth"
             >
-              Подключить кошелек
+              {{ t('auth.connectWallet') }}
             </button>
             <button class="close-sidebar-btn" @click="closeSidebar">×</button>
           </div>
@@ -36,7 +36,7 @@
         <div v-if="isAuthenticated">
           <div class="button-with-close">
             <button class="auth-btn disconnect-wallet-btn" @click="disconnectWallet">
-              Отключить
+              {{ t('auth.disconnect') }}
             </button>
             <button class="close-sidebar-btn" @click="closeSidebar">×</button>
           </div>
@@ -45,16 +45,16 @@
         <!-- Навигационные кнопки -->
         <div class="navigation-buttons">
           <router-link to="/" class="nav-link-btn" active-class="active">
-            <span>Чат</span>
+            <span>{{ t('nav.chat') }}</span>
           </router-link>
           <router-link to="/blog" class="nav-link-btn" active-class="active">
-            <span>Блог</span>
+            <span>{{ t('nav.blog') }}</span>
           </router-link>
           <router-link to="/crm" class="nav-link-btn" active-class="active">
-            <span>CRM</span>
+            <span>{{ t('nav.crm') }}</span>
           </router-link>
           <router-link to="/settings" class="nav-link-btn" active-class="active">
-            <span>Настройки</span>
+            <span>{{ t('nav.settings') }}</span>
           </router-link>
           <a
             :href="giteaUrl"
@@ -63,7 +63,7 @@
             class="nav-link-btn"
             @click="closeSidebar"
           >
-            <span>Репозитории</span>
+            <span>{{ t('nav.repositories') }}</span>
           </a>
         </div>
         
@@ -72,7 +72,7 @@
           <div v-if="emailAuth && (emailAuth.showForm || emailAuth.showVerification)" class="auth-modal-panel">
             <EmailConnect @success="$emit('cancel-email-auth')">
               <template #actions>
-                <button class="close-btn" @click="$emit('cancel-email-auth')">Отмена</button>
+                <button class="close-btn" @click="$emit('cancel-email-auth')">{{ t('auth.cancel') }}</button>
               </template>
             </EmailConnect>
           </div>
@@ -85,38 +85,38 @@
             />
           </div>
           <div v-else class="user-info-section sidebar-section">
-            <h3>Ваши идентификаторы:</h3>
+            <h3>{{ t('auth.yourIdentifiers') }}</h3>
             <div class="user-info-item">
-              <span class="user-info-label">Кошелек:</span>
+              <span class="user-info-label">{{ t('auth.wallet') }}</span>
               <span v-if="hasIdentityType('wallet')" class="user-info-value">
                 {{ truncateAddress(getIdentityValue('wallet')) }}
-                <button class="delete-identity-btn" @click="handleDeleteIdentity('wallet', getIdentityValue('wallet'))" title="Удалить">✕</button>
+                <button class="delete-identity-btn" @click="handleDeleteIdentity('wallet', getIdentityValue('wallet'))" :title="t('auth.delete')">✕</button>
               </span>
               <span v-else class="user-info-value">
-                Не подключен
-                <button class="connect-btn" @click="handleWalletAuth">Подключить</button>
+                {{ t('auth.notConnected') }}
+                <button class="connect-btn" @click="handleWalletAuth">{{ t('auth.connect') }}</button>
               </span>
             </div>
             <div class="user-info-item">
-              <span class="user-info-label">Telegram:</span>
+              <span class="user-info-label">{{ t('auth.telegram') }}</span>
               <span v-if="hasIdentityType('telegram')" class="user-info-value">
                 {{ getIdentityValue('telegram') }}
-                <button class="delete-identity-btn" @click="handleDeleteIdentity('telegram', getIdentityValue('telegram'))" title="Удалить">✕</button>
+                <button class="delete-identity-btn" @click="handleDeleteIdentity('telegram', getIdentityValue('telegram'))" :title="t('auth.delete')">✕</button>
               </span>
               <span v-else class="user-info-value">
-                Не подключен
-                <button class="connect-btn" @click="$emit('telegram-auth')">Подключить</button>
+                {{ t('auth.notConnected') }}
+                <button class="connect-btn" @click="$emit('telegram-auth')">{{ t('auth.connect') }}</button>
               </span>
             </div>
             <div class="user-info-item">
-              <span class="user-info-label">Email:</span>
+              <span class="user-info-label">{{ t('auth.email') }}</span>
               <span v-if="hasIdentityType('email')" class="user-info-value">
                 {{ getIdentityValue('email') }}
-                <button class="delete-identity-btn" @click="handleDeleteIdentity('email', getIdentityValue('email'))" title="Удалить">✕</button>
+                <button class="delete-identity-btn" @click="handleDeleteIdentity('email', getIdentityValue('email'))" :title="t('auth.delete')">✕</button>
               </span>
               <span v-else class="user-info-value">
-                Не подключен
-                <button class="connect-btn" @click="$emit('email-auth')">Подключить</button>
+                {{ t('auth.notConnected') }}
+                <button class="connect-btn" @click="$emit('email-auth')">{{ t('auth.connect') }}</button>
               </span>
             </div>
           </div>
@@ -124,12 +124,12 @@
 
         <!-- Блок баланса токенов -->
         <div v-if="isAuthenticated" class="token-balances-section sidebar-section">
-          <h3>Баланс токенов:</h3>
+          <h3>{{ t('nav.tokenBalance') }}</h3>
           <div v-if="isLoadingTokens" class="token-loading">
-            Загрузка балансов...
+            {{ t('nav.loadingTokenBalances') }}
           </div>
           <div v-else-if="!tokenBalances || tokenBalances.length === 0" class="token-no-data">
-            Баланс не доступен (tokenBalances: {{ tokenBalances }}, length: {{ tokenBalances?.length }})
+            {{ t('nav.tokenBalanceUnavailable') }}
           </div>
           <div v-else>
 
@@ -146,11 +146,11 @@
 
         <!-- Блок с информацией об авторских правах -->
         <div class="copyright-section sidebar-section">
-          <h3>© Авторские права</h3>
+          <h3>{{ t('common.copyrightTitle') }}</h3>
           <div class="copyright-info">
             <p class="copyright-text">
               <strong>Тарабанов Александр Викторович</strong><br>
-              2024-2026. Все права защищены.
+              {{ t('common.allRightsReserved') }}
             </p>
             <div class="copyright-links">
               <a href="https://github.com/VC-HB3-Accelerator" target="_blank" class="copyright-link" title="GitHub">
@@ -172,7 +172,9 @@ import eventBus from '../utils/eventBus';
 import EmailConnect from './identity/EmailConnect.vue';
 import TelegramConnect from './identity/TelegramConnect.vue';
 import { useAuthContext } from '@/composables/useAuth';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const router = useRouter();
 const props = defineProps({
   modelValue: Boolean,
@@ -267,7 +269,7 @@ const getIdentityValue = (type) => {
 };
 
 const handleDeleteIdentity = async (provider, providerId) => {
-  if (confirm('Удалить идентификатор?')) {
+  if (confirm(t('auth.confirmDeleteIdentity'))) {
     await deleteIdentity(provider, providerId);
   }
 };

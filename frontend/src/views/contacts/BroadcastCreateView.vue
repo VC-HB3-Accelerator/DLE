@@ -15,10 +15,10 @@
     <div class="broadcast-page">
       <div class="broadcast-header">
         <div>
-          <h1>Массовая рассылка</h1>
-          <p>Вы выбрали {{ userIds.length }} пользователей для рассылки.</p>
+          <h1>{{ t('contacts.broadcast.title') }}</h1>
+          <p>{{ t('contacts.broadcast.selectedUsers', { count: userIds.length }) }}</p>
         </div>
-        <el-button :disabled="loading" @click="goBack">Назад к контактам</el-button>
+        <el-button :disabled="loading" @click="goBack">{{ t('contacts.broadcast.backToContacts') }}</el-button>
       </div>
 
       <el-alert
@@ -28,35 +28,35 @@
         class="broadcast-alert"
       >
         <template #title>
-          Каждое письмо отправляется отдельному получателю. Пользователи не увидят список рассылки.
+          {{ t('contacts.broadcast.infoAlert') }}
         </template>
       </el-alert>
 
       <el-form class="broadcast-form" label-position="top" @submit.prevent>
-        <el-form-item label="Тема письма" required>
-          <el-input v-model="subject" placeholder="Введите тему письма" maxlength="200" show-word-limit />
+        <el-form-item :label="t('contacts.broadcast.subject')" required>
+          <el-input v-model="subject" :placeholder="t('contacts.broadcast.subjectPlaceholder')" maxlength="200" show-word-limit />
         </el-form-item>
 
-        <el-form-item label="Текст письма" required>
+        <el-form-item :label="t('contacts.broadcast.message')" required>
           <el-input
             v-model="message"
             type="textarea"
             :rows="12"
-            placeholder="Введите текст письма"
+            :placeholder="t('contacts.broadcast.messagePlaceholder')"
           />
         </el-form-item>
 
-        <el-form-item label="Вложения">
+        <el-form-item :label="t('contacts.broadcast.attachments')">
           <div class="attachments-box">
             <input ref="fileInputRef" class="file-input" type="file" multiple @change="onFilesSelected" />
-            <el-button type="default" :disabled="loading" @click="openFilePicker">Добавить вложения</el-button>
-            <span class="attachments-hint">Файлы будут приложены к каждому email-письму.</span>
+            <el-button type="default" :disabled="loading" @click="openFilePicker">{{ t('contacts.broadcast.addAttachments') }}</el-button>
+            <span class="attachments-hint">{{ t('contacts.broadcast.attachmentsHint') }}</span>
           </div>
 
           <div v-if="attachments.length" class="attachments-list">
             <div v-for="(file, index) in attachments" :key="`${file.name}-${file.size}-${index}`" class="attachment-item">
               <span>{{ file.name }} ({{ formatFileSize(file.size) }})</span>
-              <el-button link type="danger" :disabled="loading" @click="removeAttachment(index)">Удалить</el-button>
+              <el-button link type="danger" :disabled="loading" @click="removeAttachment(index)">{{ t('contacts.broadcast.remove') }}</el-button>
             </div>
           </div>
         </el-form-item>
@@ -65,17 +65,17 @@
 
         <section class="delivery-settings">
           <div class="section-heading">
-            <h2>Настройки доставки</h2>
+            <h2>{{ t('contacts.broadcast.deliverySettings') }}</h2>
             <el-switch
               v-model="warmupMode"
-              active-text="Режим прогрева"
-              inactive-text="Обычный режим"
+              :active-text="t('contacts.broadcast.warmupMode')"
+              :inactive-text="t('contacts.broadcast.normalMode')"
               :disabled="loading"
             />
           </div>
 
           <div class="settings-grid">
-            <el-form-item label="Пауза между письмами">
+            <el-form-item :label="t('contacts.broadcast.delayBetween')">
               <el-input-number
                 v-model="delaySeconds"
                 :min="0"
@@ -83,17 +83,17 @@
                 :step="5"
                 :disabled="loading"
               />
-              <span class="field-hint">секунд</span>
+              <span class="field-hint">{{ t('contacts.broadcast.seconds') }}</span>
             </el-form-item>
 
-            <el-form-item label="Лимит писем за запуск">
+            <el-form-item :label="t('contacts.broadcast.maxRecipients')">
               <el-input-number
                 v-model="maxRecipients"
                 :min="1"
                 :max="Math.max(userIds.length, 1)"
                 :disabled="loading"
               />
-              <span class="field-hint">будет отправлено {{ recipientsToSend.length }} из {{ userIds.length }}</span>
+              <span class="field-hint">{{ t('contacts.broadcast.willSend', { send: recipientsToSend.length, total: userIds.length }) }}</span>
             </el-form-item>
           </div>
 
@@ -105,7 +105,7 @@
             class="delivery-alert"
           >
             <template #title>
-              Режим прогрева снижает риск спама: небольшой лимит и заметная пауза между письмами.
+              {{ t('contacts.broadcast.warmupAlert') }}
             </template>
           </el-alert>
 
@@ -117,43 +117,42 @@
             class="delivery-alert"
           >
             <template #title>
-              Вложения увеличивают риск попадания в спам. Общий размер: {{ formatFileSize(attachmentsTotalSize) }}.
-              Для больших файлов лучше использовать ссылку в тексте письма.
+              {{ t('contacts.broadcast.attachmentsAlert', { size: formatFileSize(attachmentsTotalSize) }) }}
             </template>
           </el-alert>
 
           <ul class="delivery-checklist">
-            <li>Проверьте тему письма: без капса, спам-слов и агрессивных обещаний.</li>
-            <li>Не отправляйте сразу всю базу с нового домена: начните с малого лимита.</li>
-            <li>Если есть ссылка на отписку или контакт для отказа от писем, добавьте её в текст.</li>
+            <li>{{ t('contacts.broadcast.checklist1') }}</li>
+            <li>{{ t('contacts.broadcast.checklist2') }}</li>
+            <li>{{ t('contacts.broadcast.checklist3') }}</li>
           </ul>
         </section>
 
         <div v-if="loading" class="send-progress">
           <div class="progress-text">
-            Отправка: {{ sentAttempts }} из {{ recipientsToSend.length }}
-            <span v-if="currentUserId">, текущий ID {{ currentUserId }}</span>
+            {{ t('contacts.broadcast.sendingProgress', { current: sentAttempts, total: recipientsToSend.length }) }}
+            <span v-if="currentUserId">{{ t('contacts.broadcast.currentId', { id: currentUserId }) }}</span>
           </div>
           <el-progress :percentage="progressPercentage" />
         </div>
 
         <div class="form-actions">
-          <el-button :disabled="loading" @click="goBack">Отмена</el-button>
+          <el-button :disabled="loading" @click="goBack">{{ t('common.cancel') }}</el-button>
           <el-button type="primary" :disabled="!canSend" :loading="loading" @click="sendBroadcast">
-            Отправить рассылку
+            {{ t('contacts.broadcast.sendBroadcast') }}
           </el-button>
         </div>
       </el-form>
 
       <el-card v-if="result" class="result-card" shadow="never">
-        <template #header>Результат отправки</template>
-        <p>Успешно отправлено: {{ result.successCount }} из {{ result.totalCount }}</p>
-        <p v-if="result.skippedCount">Не отправляли из-за лимита: {{ result.skippedCount }}</p>
+        <template #header>{{ t('contacts.broadcast.resultTitle') }}</template>
+        <p>{{ t('contacts.broadcast.successSent', { count: result.successCount, total: result.totalCount }) }}</p>
+        <p v-if="result.skippedCount">{{ t('contacts.broadcast.skippedDueToLimit', { count: result.skippedCount }) }}</p>
         <div v-if="result.errors.length" class="errors-list">
-          <p>Ошибки:</p>
+          <p>{{ t('common.errors') }}</p>
           <ul>
             <li v-for="error in result.errors" :key="error.userId">
-              ID {{ error.userId }}: {{ error.error }}
+              {{ t('common.userId', { id: error.userId, error: error.error }) }}
             </li>
           </ul>
         </div>
@@ -164,11 +163,13 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import BaseLayout from '@/components/BaseLayout.vue';
 import messagesService from '@/services/messagesService.js';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -245,10 +246,10 @@ function removeAttachment(index) {
 }
 
 function formatFileSize(size) {
-  if (!size) return '0 Б';
-  if (size < 1024) return `${size} Б`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`;
-  return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
+  if (!size) return t('common.fileSize.zero');
+  if (size < 1024) return `${size} ${t('common.fileSize.bytes')}`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} ${t('common.fileSize.kb')}`;
+  return `${(size / (1024 * 1024)).toFixed(1)} ${t('common.fileSize.mb')}`;
 }
 
 function wait(ms) {
@@ -281,7 +282,7 @@ async function sendBroadcast() {
     } catch (error) {
       errors.push({
         userId,
-        error: error?.response?.data?.error || error?.response?.data?.details || error?.message || 'Ошибка отправки'
+        error: error?.response?.data?.error || error?.response?.data?.details || error?.message || t('common.sendError')
       });
     } finally {
       sentAttempts.value = index + 1;
@@ -302,9 +303,9 @@ async function sendBroadcast() {
   currentUserId.value = null;
 
   if (errors.length) {
-    ElMessage.warning(`Рассылка завершена с ошибками: ${errors.length}`);
+    ElMessage.warning(t('contacts.broadcast.completedWithErrors', { count: errors.length }));
   } else {
-    ElMessage.success('Рассылка успешно отправлена');
+    ElMessage.success(t('contacts.broadcast.successSentFull'));
   }
 }
 </script>

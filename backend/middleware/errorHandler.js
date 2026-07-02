@@ -38,19 +38,20 @@ const errorHandler = (err, req, res, next) => {
   let errorMessage = 'Внутренняя ошибка сервера';
 
   // Обрабатываем разные типы ошибок
-  if (err.name === 'UnauthorizedError' || err.status === 401) {
+  const httpStatus = err.statusCode || err.status;
+  if (err.name === 'UnauthorizedError' || httpStatus === 401) {
     statusCode = 401;
     errorCode = ERROR_CODES.UNAUTHORIZED;
     errorMessage = 'Требуется аутентификация';
-  } else if (err.status === 403) {
+  } else if (httpStatus === 403) {
     statusCode = 403;
     errorCode = ERROR_CODES.FORBIDDEN;
     errorMessage = 'Доступ запрещен';
-  } else if (err.status === 404) {
+  } else if (httpStatus === 404) {
     statusCode = 404;
     errorCode = ERROR_CODES.NOT_FOUND;
     errorMessage = 'Ресурс не найден';
-  } else if (err.status === 400) {
+  } else if (httpStatus === 400) {
     statusCode = 400;
     errorCode = ERROR_CODES.BAD_REQUEST;
     errorMessage = err.message || 'Некорректный запрос';

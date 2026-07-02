@@ -14,7 +14,7 @@
   <template v-if="column.type === 'multiselect'">
     <div v-if="!editing" @click="canEditData && (editing = true)" class="tags-cell-view">
       <span v-if="selectedMultiNames.length">{{ selectedMultiNames.join(', ') }}</span>
-      <span v-else class="cell-plus-icon" title="Добавить">
+      <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
           <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
@@ -31,17 +31,17 @@
         </div>
       </div>
       <div class="add-multiselect-option">
-        <input v-model="newMultiOption" @keyup.enter="addMultiOption" placeholder="Новое значение" />
+        <input v-model="newMultiOption" @keyup.enter="addMultiOption" :placeholder="t('tables.common.newValue')" />
         <button class="add-btn" @click="addMultiOption">+</button>
       </div>
-      <button class="save-btn" @click="saveMulti">Сохранить</button>
-      <button class="cancel-btn" @click="cancelMulti">Отмена</button>
+      <button class="save-btn" @click="saveMulti">{{ t('tables.common.save') }}</button>
+      <button class="cancel-btn" @click="cancelMulti">{{ t('tables.common.cancel') }}</button>
     </div>
   </template>
   <template v-else-if="column.type === 'relation'">
     <div v-if="!editing" @click="canEditData && (editing = true)" class="tags-cell-view">
       <span v-if="selectedRelationName">{{ selectedRelationName }}</span>
-      <span v-else class="cell-plus-icon" title="Добавить">
+      <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
           <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
@@ -53,8 +53,8 @@
       <select v-model="editRelationValue" class="notion-input">
         <option v-for="opt in relationOptions" :key="opt.id" :value="opt.id">{{ opt.display }}</option>
       </select>
-      <button class="save-btn" @click="saveRelation">Сохранить</button>
-      <button class="cancel-btn" @click="cancelRelation">Отмена</button>
+      <button class="save-btn" @click="saveRelation">{{ t('tables.common.save') }}</button>
+      <button class="cancel-btn" @click="cancelRelation">{{ t('tables.common.cancel') }}</button>
     </div>
   </template>
   <template v-else-if="column.type === 'lookup'">
@@ -66,7 +66,7 @@
   <template v-else-if="column.type === 'multiselect-relation'">
     <div v-if="!editing" @click="canEditData && (editing = true)" class="tags-cell-view">
       <span v-if="selectedMultiRelationNames.length">{{ selectedMultiRelationNames.join(', ') }}</span>
-      <span v-else class="cell-plus-icon" title="Добавить">
+      <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
           <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
@@ -79,20 +79,20 @@
         <div v-for="option in multiRelationOptions" :key="option.id" class="tag-option">
           <input type="checkbox" :id="'cell-multirel-' + option.id + '-' + rowId" :value="String(option.id)" v-model="editMultiRelationValues" />
           <label :for="'cell-multirel-' + option.id + '-' + rowId">{{ option.display }}</label>
-          <button class="delete-tag-btn" @click.prevent="deleteTag(option.id)" title="Удалить тег">×</button>
+          <button class="delete-tag-btn" @click.prevent="deleteTag(option.id)" :title="t('tables.common.deleteTagTitle')">×</button>
         </div>
       </div>
       <div class="add-tag-block">
-        <button v-if="!showAddTagInput" class="add-tag-btn" @click="showAddTagInput = true">+ Новый тег</button>
+        <button v-if="!showAddTagInput" class="add-tag-btn" @click="showAddTagInput = true">{{ t('tables.common.newTag') }}</button>
         <div v-else class="add-tag-form">
-          <input v-model="newTagName" @keyup.enter="addTag" placeholder="Название тега" />
-          <button class="add-tag-confirm" @click="addTag">Добавить</button>
+          <input v-model="newTagName" @keyup.enter="addTag" :placeholder="t('tables.common.tagName')" />
+          <button class="add-tag-confirm" @click="addTag">{{ t('tables.common.add') }}</button>
           <button class="add-tag-cancel" @click="showAddTagInput = false; newTagName = ''">×</button>
         </div>
       </div>
       <div class="action-buttons">
-        <button class="save-btn" @click="saveMultiRelation">Сохранить</button>
-        <button class="cancel-btn" @click="cancelMultiRelation">Отмена</button>
+        <button class="save-btn" @click="saveMultiRelation">{{ t('tables.common.save') }}</button>
+        <button class="cancel-btn" @click="cancelMultiRelation">{{ t('tables.common.cancel') }}</button>
       </div>
     </div>
   </template>
@@ -100,7 +100,7 @@
     <div v-if="!editing" class="cell-view-value" @click="canEditData && (editing = true)">
     <span v-if="isArrayString(localValue)">{{ parseArrayString(localValue).join(', ') }}</span>
       <span v-else-if="localValue">{{ localValue }}</span>
-      <span v-else class="cell-plus-icon" title="Добавить">
+      <span v-else class="cell-plus-icon" :title="t('tables.common.add')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <circle cx="9" cy="9" r="8" fill="#f3f4f6" stroke="#b6c6e6"/>
           <rect x="8" y="4" width="2" height="10" rx="1" fill="#4f8cff"/>
@@ -124,6 +124,7 @@
 
 <script setup>
 import { ref, watch, onMounted, computed, nextTick, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import tablesService from '../../services/tablesService';
 import { useTablesWebSocket } from '../../composables/useTablesWebSocket';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
@@ -132,6 +133,7 @@ import { usePermissions } from '@/composables/usePermissions';
 
 const props = defineProps(['rowId', 'column', 'cellValues']);
 const emit = defineEmits(['update']);
+const { t } = useI18n();
 const { canEditData } = usePermissions();
 
 const localValue = ref('');
@@ -407,7 +409,7 @@ async function addMultiOption() {
     const colId = props.column.options.relatedColumnId;
     multiOptions.value = relTable.rows.map(row => {
       const cell = relTable.cellValues.find(c => c.row_id === row.id && c.column_id === colId);
-      return cell ? cell.value : `ID ${row.id}`;
+      return cell ? cell.value : t('tables.common.idFallback', { id: row.id });
     });
     // 4. Добавляем новый тег в выбранные
     editMultiValues.value.push(val);
@@ -454,7 +456,7 @@ async function loadRelationOptions() {
       const colId = rel.relatedColumnId || (data.columns[0] && data.columns[0].id);
       for (const row of data.rows) {
         const cell = data.cellValues.find(c => c.row_id === row.id && c.column_id === colId);
-        opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
+        opts.push({ id: row.id, display: cell ? cell.value : t('tables.common.idFallback', { id: row.id }) });
       }
     }
   } catch {}
@@ -488,7 +490,7 @@ async function loadLookupValues() {
         const relData = await relTable.json();
         lookupValues.value = relatedRowIds.map(rowId => {
           const cell = relData.cellValues.find(c => c.row_id === rowId && c.column_id === rel.relatedColumnId);
-          return cell ? cell.value : `ID ${rowId}`;
+          return cell ? cell.value : t('tables.common.idFallback', { id: rowId });
         });
       }
     }
@@ -506,7 +508,6 @@ async function loadMultiRelationOptions() {
   
   // Проверяем, что options содержат необходимые данные
   if (!rel.relatedTableId || !rel.relatedColumnId) {
-    console.warn('[loadMultiRelationOptions] Отсутствуют relatedTableId или relatedColumnId в options:', rel);
     multiRelationOptions.value = [];
     selectedMultiRelationNames.value = [];
     return;
@@ -518,10 +519,8 @@ async function loadMultiRelationOptions() {
     let tableData;
     
     if (cachedTableData) {
-      console.log(`[loadMultiRelationOptions] ✅ Используем предварительно загруженные данные таблицы ${rel.relatedTableId}`);
       tableData = cachedTableData;
     } else {
-      console.log(`[loadMultiRelationOptions] ⚠️ Данные таблицы ${rel.relatedTableId} не найдены в кэше, загружаем заново`);
       const response = await fetch(`/api/tables/${rel.relatedTableId}`);
       tableData = await response.json();
       // Сохраняем в кэш
@@ -533,12 +532,10 @@ async function loadMultiRelationOptions() {
     const opts = [];
     for (const row of tableData.rows) {
       const cell = tableData.cellValues.find(c => c.row_id === row.id && c.column_id === colId);
-      opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
+      opts.push({ id: row.id, display: cell ? cell.value : t('tables.common.idFallback', { id: row.id }) });
     }
     multiRelationOptions.value = opts;
     lastLoadedOptionsKey = cacheKey;
-    
-    console.log('[loadMultiRelationOptions] Загружено опций:', opts.length);
     
     // Обновляем selectedMultiRelationNames на основе текущих значений
     if (editMultiRelationValues.value.length > 0) {
@@ -548,8 +545,7 @@ async function loadMultiRelationOptions() {
     } else {
       selectedMultiRelationNames.value = [];
     }
-  } catch (e) {
-    console.error('[loadMultiRelationOptions] Error:', e);
+  } catch {
     multiRelationOptions.value = [];
     selectedMultiRelationNames.value = [];
   }
@@ -625,7 +621,7 @@ async function loadMultiRelationValues() {
         const opts = [];
         for (const row of tableData.rows) {
           const cell = tableData.cellValues.find(c => c.row_id === row.id && c.column_id === colId);
-          opts.push({ id: row.id, display: cell ? cell.value : `ID ${row.id}` });
+          opts.push({ id: row.id, display: cell ? cell.value : t('tables.common.idFallback', { id: row.id }) });
         }
         multiRelationOptions.value = opts;
         
@@ -728,7 +724,7 @@ async function addTag() {
 
 async function deleteTag(tagId) {
   const rel = props.column.options || {};
-  if (!confirm('Удалить этот тег?')) return;
+  if (!confirm(t('tables.common.confirmDeleteTag'))) return;
   
   try {
     // console.log('[deleteTag] Удаляем тег с ID:', tagId);

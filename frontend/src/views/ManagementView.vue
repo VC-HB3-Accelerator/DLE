@@ -24,8 +24,12 @@
 
 
         <div v-if="deployedDles.length === 0" class="no-dles">
-          <p>Деплоированных DLE пока нет</p>
-          <p>Создайте новый DLE на странице <a href="/settings/dle-v2-deploy" class="link">Деплой DLE</a></p>
+          <p>{{ t('smartcontracts.management.noDeployedDles') }}</p>
+          <i18n-t keypath="smartcontracts.management.createDleHint" tag="p">
+            <template #link>
+              <a href="/settings/dle-v2-deploy" class="link">{{ t('smartcontracts.management.deployDleLink') }}</a>
+            </template>
+          </i18n-t>
         </div>
 
         <div v-else class="dles-grid">
@@ -54,11 +58,11 @@
 
             <div class="dle-details">
               <div class="detail-item" v-if="dle.deployedMultichain">
-                <strong>🌐 Мультичейн деплой:</strong> 
-                <span class="multichain-badge">{{ dle.totalNetworks }}/{{ dle.supportedChainIds?.length || dle.totalNetworks }} сетей</span>
+                <strong>{{ t('smartcontracts.management.multichainDeploy') }}</strong>
+                <span class="multichain-badge">{{ t('smartcontracts.management.networksCount', { deployed: dle.totalNetworks, total: dle.supportedChainIds?.length || dle.totalNetworks }) }}</span>
               </div>
               <div class="detail-item" v-if="dle.networks && dle.networks.length">
-                <strong>Адреса по сетям:</strong>
+                <strong>{{ t('smartcontracts.management.addressesByNetwork') }}</strong>
                 <ul class="networks-list">
                   <li v-for="net in dle.networks" :key="net.chainId" class="network-item">
                     <span class="chain-name">{{ getChainName(net.chainId) }}:</span>
@@ -75,7 +79,7 @@
                 </ul>
               </div>
               <div class="detail-item" v-else>
-                <strong>Адреса контрактов:</strong> 
+                <strong>{{ t('smartcontracts.management.contractAddresses') }}</strong>
                 <div class="addresses-list">
                   <div 
                     v-for="chainId in (dle.supportedChainIds || [11155111])" 
@@ -96,28 +100,28 @@
                 </div>
               </div>
               <div class="detail-item">
-                <strong>Местоположение:</strong> {{ dle.location }}
+                <strong>{{ t('smartcontracts.management.location') }}</strong> {{ dle.location }}
               </div>
               <div class="detail-item">
-                <strong>Юрисдикция:</strong> {{ dle.jurisdiction }}
+                <strong>{{ t('smartcontracts.management.jurisdiction') }}</strong> {{ dle.jurisdiction }}
               </div>
               <div class="detail-item" v-if="dle.quorumPercentage">
-                <strong>Кворум:</strong> 
+                <strong>{{ t('smartcontracts.management.quorum') }}</strong>
                 <span class="quorum-info">{{ dle.quorumPercentage }}%</span>
               </div>
               <div class="detail-item">
-                <strong>Коды ОКВЭД:</strong> {{ dle.okvedCodes?.join(', ') || 'Не указаны' }}
+                <strong>{{ t('smartcontracts.management.okvedCodes') }}</strong> {{ dle.okvedCodes?.join(', ') || t('common.notSpecified') }}
               </div>
               <div class="detail-item">
-                <strong>Статус:</strong> 
-                <span class="status active">Активен</span>
+                <strong>{{ t('smartcontracts.management.status') }}</strong>
+                <span class="status active">{{ t('common.active') }}</span>
               </div>
               <div class="detail-item">
-                <strong>Общий объем токенов:</strong> 
+                <strong>{{ t('smartcontracts.management.totalTokenSupply') }}</strong>
                 <span class="token-supply">{{ formatTokenAmount(dle.totalSupply || 0) }} {{ dle.symbol }}</span>
               </div>
               <div class="detail-item">
-                <strong>Дата создания:</strong> 
+                <strong>{{ t('smartcontracts.management.creationDate') }}</strong>
                 <span class="creation-date">{{ formatTimestamp(dle.creationTimestamp || dle.createdAt) }}</span>
               </div>
               
@@ -139,10 +143,13 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, onMounted, onBeforeUnmount } from 'vue';
+import { defineProps, defineEmits, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import api from '@/api/axios';
+
+const { t } = useI18n();
 
 // Определяем props
 const props = defineProps({
@@ -169,7 +176,6 @@ const openProposals = () => {
 
 // Обработка ошибки загрузки логотипа
 const handleLogoError = (event) => {
-  console.log('Ошибка загрузки логотипа:', event.target.src);
   event.target.style.display = 'none';
   const defaultLogo = event.target.parentElement.querySelector('.default-logo');
   if (defaultLogo) {
@@ -210,18 +216,12 @@ const openSettings = () => {
 // Загрузка деплоированных DLE из блокчейна
 async function loadDeployedDles() {
   try {
-    console.log('[ManagementView] Начинаем загрузку DLE...');
-
-    // Сначала получаем список DLE из API
     const response = await api.get('/dle-v2');
-    console.log('[ManagementView] Ответ от API /dle-v2:', response.data);
 
     if (response.data.success) {
       const dlesFromApi = response.data.data || [];
-      console.log('[ManagementView] DLE из API:', dlesFromApi);
 
       if (dlesFromApi.length === 0) {
-        console.log('[ManagementView] Нет DLE в API, показываем пустой список');
         deployedDles.value = [];
         return;
       }
@@ -234,18 +234,12 @@ async function loadDeployedDles() {
             const dleAddress = dle.dleAddress || (dle.deployedNetworks && dle.deployedNetworks.length > 0 ? dle.deployedNetworks[0].address : null);
 
             if (!dleAddress) {
-              console.warn(`[ManagementView] Нет адреса для DLE ${dle.deployment_id || 'unknown'}`);
               return dle;
             }
 
-            console.log(`[ManagementView] Читаем данные из блокчейна для ${dleAddress}`);
-
-            // Читаем данные из блокчейна
             const blockchainResponse = await api.post('/blockchain/read-dle-info', {
               dleAddress: dleAddress
             });
-
-            console.log(`[ManagementView] Ответ от блокчейна для ${dleAddress}:`, blockchainResponse.data);
 
             if (blockchainResponse.data.success) {
               const blockchainData = blockchainResponse.data.data;
@@ -270,21 +264,17 @@ async function loadDeployedDles() {
                 participantCount: blockchainData.participantCount || 0
               };
 
-              console.log(`[ManagementView] Объединенные данные для ${dle.dleAddress}:`, combinedDle);
               return combinedDle;
             } else {
-              console.warn(`[ManagementView] Не удалось прочитать данные из блокчейна для ${dle.dleAddress}:`, blockchainResponse.data.error);
               return dle;
             }
           } catch (error) {
-            console.warn(`[ManagementView] Ошибка при чтении данных из блокчейна для ${dle.dleAddress}:`, error);
             return dle;
           }
         })
       );
 
       deployedDles.value = dlesWithBlockchainData;
-      console.log('[ManagementView] Итоговый список DLE:', deployedDles.value);
     } else {
       console.error('[ManagementView] Ошибка при загрузке DLE:', response.data.message);
       deployedDles.value = [];

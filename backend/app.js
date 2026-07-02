@@ -134,16 +134,24 @@ const vdsRoutes = require('./routes/vds'); // Добавляем импорт м
 
 const app = express();
 
-// Публичные SEO endpoints не должны зависеть от сессий/БД сессий.
+// Публичные SEO endpoints не должны зависеть от сессий/БД сессий (только GET/HEAD).
 // Иначе при таймаутах session store Google/гости получают 499 и фронт падает в error-state.
-function isPublicSeoEndpoint(url = '') {
+function isPublicSeoEndpoint(url = '', method = 'GET') {
+  const httpMethod = (method || 'GET').toUpperCase();
+  if (httpMethod !== 'GET' && httpMethod !== 'HEAD') {
+    return false;
+  }
+
+  const path = (url || '').split('?')[0];
+
   return (
-    url.startsWith('/api/pages/blog/') ||
-    url === '/api/pages/blog/all' ||
-    url.startsWith('/api/pages/published/') ||
-    url === '/api/settings/footer-dle' ||
-    url === '/api/pages/public/sitemap.xml' ||
-    url === '/api/pages/public/robots.txt'
+    path.startsWith('/api/pages/blog/') ||
+    path === '/api/pages/blog/all' ||
+    path.startsWith('/api/pages/published/') ||
+    path === '/api/settings/footer-dle' ||
+    path === '/api/settings/region-urls' ||
+    path === '/api/pages/public/sitemap.xml' ||
+    path === '/api/pages/public/robots.txt'
   );
 }
 
@@ -178,7 +186,8 @@ app.use(
 
 // Настройка сессии (используем геттер, чтобы всегда был актуальный middleware)
 app.use((req, res, next) => {
-  if (isPublicSeoEndpoint(req.originalUrl || req.url || '')) {
+  const requestUrl = req.originalUrl || req.url || '';
+  if (isPublicSeoEndpoint(requestUrl, req.method)) {
     req.session = req.session || {};
     return next();
   }
@@ -227,7 +236,8 @@ app.use((req, res, next) => {
 
 // Добавим middleware для проверки сессии
 app.use(async (req, res, next) => {
-  if (isPublicSeoEndpoint(req.originalUrl || req.url || '')) {
+  const requestUrl = req.originalUrl || req.url || '';
+  if (isPublicSeoEndpoint(requestUrl, req.method)) {
     return next();
   }
 

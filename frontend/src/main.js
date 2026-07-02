@@ -19,6 +19,7 @@ import router from './router';
 import axios from 'axios';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
+import { i18n, elementPlusLocales, setAppLocale } from './locales';
 
 // Настройка axios
 axios.defaults.baseURL = '/api';
@@ -27,8 +28,12 @@ axios.defaults.withCredentials = true;
 // Создаем и монтируем приложение Vue
 const app = createApp(App);
 
+const initialLocale = i18n.global.locale.value;
+setAppLocale(initialLocale);
+
+app.use(i18n);
 app.use(router);
-app.use(ElementPlus);
+app.use(ElementPlus, { locale: elementPlusLocales[initialLocale] || elementPlusLocales.ru });
 
 // Не используем заглушки, так как сервер работает
 // if (import.meta.env.DEV) {

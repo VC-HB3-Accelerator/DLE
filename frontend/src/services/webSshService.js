@@ -15,6 +15,9 @@
  * Взаимодействует с локальным агентом на порту 3000
  */
 
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 const LOCAL_AGENT_URL = 'http://localhost:3000';
 const API_BASE_PATH = '/api';
 
@@ -208,12 +211,12 @@ class WebSshService {
   async installAndStartAgent() {
       const status = await this.checkAgentStatus();
       if (status.running) {
-        return { success: true, message: 'Агент уже запущен' };
+        return { success: true, message: t('webssh.service.agentAlreadyRunning') };
       }
 
       return {
         success: false,
-      message: 'WebSSH Agent не запущен. Убедитесь, что контейнер dapp-webssh-agent работает (docker compose up -d webssh-agent).'
+      message: t('webssh.service.agentNotRunning')
     };
   }
 
@@ -227,7 +230,7 @@ class WebSshService {
       // Используем backend API для проверки DNS
       const asciiDomain = normalizeDomainToAscii(domain);
       if (!asciiDomain) {
-        return { success: false, error: 'Некорректное доменное имя' };
+        return { success: false, error: t('webssh.service.invalidDomain') };
       }
 
       const response = await fetch(`${API_BASE_PATH}/dns-check/${encodeURIComponent(asciiDomain)}`);
@@ -257,7 +260,10 @@ class WebSshService {
         if (!dnsResult.success) {
           return {
             success: false,
-            message: `Домен ${config.domain} не настроен или недоступен: ${dnsResult.error}`
+            message: t('webssh.service.domainNotConfigured', {
+              domain: config.domain,
+              error: dnsResult.error
+            })
           };
         }
         // Добавляем полученный IP в конфигурацию
@@ -311,14 +317,14 @@ class WebSshService {
         const error = await response.json();
         return {
           success: false,
-          message: error.message || 'Ошибка при настройке VDS'
+          message: error.message || t('webssh.service.vdsSetupError')
         };
       }
     } catch (error) {
               // console.error('Ошибка при настройке VDS:', error);
       return {
         success: false,
-        message: `Ошибка подключения к агенту: ${error.message}`
+        message: t('webssh.service.agentConnectionError', { error: error.message })
       };
     }
   }
@@ -708,7 +714,7 @@ server {
     
     res.json({
       success: true,
-      message: 'Туннель успешно создан',
+      message: t('webssh.service.tunnelCreated'),
       tunnelId,
       domain
     });
@@ -742,7 +748,7 @@ app.post('/tunnel/disconnect', (req, res) => {
     
     res.json({
       success: true,
-      message: 'Туннель отключен'
+      message: t('webssh.service.tunnelDisconnected')
     });
   } catch (error) {
             // console.error('Ошибка отключения туннеля:', error);

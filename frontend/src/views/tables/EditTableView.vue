@@ -13,20 +13,20 @@
 <template>
   <BaseLayout>
     <div class="edit-table-form">
-      <h2>Редактировать таблицу</h2>
+      <h2>{{ t('tables.edit.title') }}</h2>
       <form @submit.prevent="save">
-        <label>Название</label>
+        <label>{{ t('tables.common.name') }}</label>
         <input v-model="name" required />
-        <label>Описание</label>
+        <label>{{ t('tables.common.description') }}</label>
         <textarea v-model="description" />
-        <label>Источник для ИИ ассистента</label>
+        <label>{{ t('tables.common.aiSource') }}</label>
         <select v-model="isRagSourceId" required>
-          <option :value="1">Да</option>
-          <option :value="2">Нет</option>
+          <option :value="1">{{ t('common.yes') }}</option>
+          <option :value="2">{{ t('common.no') }}</option>
         </select>
         <div class="actions">
-          <button type="submit">Сохранить</button>
-          <button type="button" @click="cancel">Отмена</button>
+          <button type="submit">{{ t('tables.common.save') }}</button>
+          <button type="button" @click="cancel">{{ t('tables.common.cancel') }}</button>
         </div>
       </form>
     </div>
@@ -35,8 +35,11 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../../components/BaseLayout.vue';
 import tablesService from '@/services/tablesService';
+
+const { t } = useI18n();
 const $route = useRoute();
 const router = useRouter();
 const name = ref('');
@@ -90,4 +93,4 @@ function cancel() {
   margin-top: 2em;
   justify-content: flex-end;
 }
-</style> 
+</style>

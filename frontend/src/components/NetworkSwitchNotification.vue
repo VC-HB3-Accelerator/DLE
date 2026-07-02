@@ -25,15 +25,15 @@
     <div class="notification-content">
       <div class="notification-icon">⚠️</div>
       <div class="notification-text">
-        <h4>Требуется переключение сети</h4>
-        <p>Для голосования по этому предложению необходимо переключиться на сеть <strong>{{ targetNetworkName }}</strong></p>
-        <p>Текущая сеть: <strong>{{ currentNetworkName }}</strong></p>
+        <h4>{{ t('network.switchRequired') }}</h4>
+        <p>{{ t('network.switchForVote', { network: targetNetworkName }) }}</p>
+        <p>{{ t('network.currentNetwork', { network: currentNetworkName }) }}</p>
       </div>
       <div class="notification-actions">
         <button @click="switchNetwork" class="btn btn-primary" :disabled="isSwitching">
-          {{ isSwitching ? 'Переключение...' : 'Переключить сеть' }}
+          {{ isSwitching ? t('network.switching') : t('network.switchNetwork') }}
         </button>
-        <button @click="dismiss" class="btn btn-secondary">Позже</button>
+        <button @click="dismiss" class="btn btn-secondary">{{ t('network.later') }}</button>
       </div>
     </div>
   </div>
@@ -41,6 +41,7 @@
 
 <script>
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { switchNetwork, getCurrentNetwork } from '@/utils/networkSwitcher';
 
 export default {
@@ -61,10 +62,11 @@ export default {
   },
   emits: ['network-switched', 'dismissed'],
   setup(props, { emit }) {
+    const { t } = useI18n();
     const isSwitching = ref(false);
     const showNotification = computed(() => props.visible && props.targetChainId !== props.currentChainId);
 
-    const targetNetworkName = computed(() => {
+    const getNetworkName = (chainId) => {
       const networkNames = {
         1: 'Ethereum Mainnet',
         11155111: 'Sepolia',
@@ -73,38 +75,27 @@ export default {
         84532: 'Base Sepolia',
         8453: 'Base'
       };
-      return networkNames[props.targetChainId] || `Сеть ${props.targetChainId}`;
-    });
+      return networkNames[chainId] || t('network.networkFallback', { chainId });
+    };
 
-    const currentNetworkName = computed(() => {
-      const networkNames = {
-        1: 'Ethereum Mainnet',
-        11155111: 'Sepolia',
-        17000: 'Holesky',
-        421614: 'Arbitrum Sepolia',
-        84532: 'Base Sepolia',
-        8453: 'Base'
-      };
-      return networkNames[props.currentChainId] || `Сеть ${props.currentChainId}`;
-    });
+    const targetNetworkName = computed(() => getNetworkName(props.targetChainId));
+    const currentNetworkName = computed(() => getNetworkName(props.currentChainId));
 
     const switchNetworkHandler = async () => {
       try {
         isSwitching.value = true;
-        console.log(`🔄 [Network Switch] Переключаемся на сеть ${props.targetChainId}...`);
         
         const result = await switchNetwork(props.targetChainId);
         
         if (result.success) {
-          console.log('✅ [Network Switch] Сеть переключена успешно');
           emit('network-switched', result);
         } else {
           console.error('❌ [Network Switch] Ошибка переключения:', result.error);
-          alert(`Ошибка переключения сети: ${result.error}`);
+          alert(t('network.switchError', { error: result.error }));
         }
       } catch (error) {
         console.error('❌ [Network Switch] Ошибка:', error);
-        alert(`Ошибка переключения сети: ${error.message}`);
+        alert(t('network.switchError', { error: error.message }));
       } finally {
         isSwitching.value = false;
       }
@@ -115,6 +106,7 @@ export default {
     };
 
     return {
+      t,
       showNotification,
       targetNetworkName,
       currentNetworkName,

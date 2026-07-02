@@ -11,6 +11,9 @@
  */
 
 import axios from 'axios';
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
 
 // Создаем экземпляр axios с базовым URL и таймаутами
 const api = axios.create({
@@ -83,7 +86,7 @@ api.interceptors.response.use(
         typeof error.response.data === 'string' && 
         error.response.data.includes('<!DOCTYPE')) {
       // console.error('API Error: Server returned HTML instead of JSON');
-      error.message = 'Ошибка: сервер вернул HTML вместо JSON. Проверьте подключение к API.';
+      error.message = t('api.errors.htmlInsteadOfJsonApi');
     }
     return Promise.reject(error);
   }

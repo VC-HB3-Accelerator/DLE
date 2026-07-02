@@ -24,33 +24,33 @@
         <form class="content-form" @submit.prevent="handleSubmit">
           <!-- Параметры документа -->
           <div class="form-section">
-            <h2>Параметры документа</h2>
+            <h2>{{ t('content.editor.documentParams') }}</h2>
             <div class="form-group">
-              <label for="visibility">Видимость</label>
+              <label for="visibility">{{ t('content.editor.visibility') }}</label>
               <select v-model="form.visibility" id="visibility" class="form-select">
-                <option value="public">Публичный</option>
-                <option value="internal">Внутренний</option>
+                <option value="public">{{ t('content.editor.visibilityPublic') }}</option>
+                <option value="internal">{{ t('content.editor.visibilityInternal') }}</option>
               </select>
             </div>
             <div class="form-group" v-if="form.visibility === 'internal'">
-              <label for="required-permission">Уровень доступа к документу</label>
+              <label for="required-permission">{{ t('content.editor.accessLevel') }}</label>
               <select
                 v-model="form.requiredPermission"
                 id="required-permission"
                 class="form-select"
               >
-                <option value="">— Выберите роль —</option>
-                <option :value="PERMISSIONS.VIEW_BASIC_DOCS">Пользователь</option>
-                <option :value="PERMISSIONS.VIEW_LEGAL_DOCS">Читатель</option>
-                <option :value="PERMISSIONS.MANAGE_LEGAL_DOCS">Редактор</option>
+                <option value="">{{ t('content.editor.selectRole') }}</option>
+                <option :value="PERMISSIONS.VIEW_BASIC_DOCS">{{ t('content.editor.roleUser') }}</option>
+                <option :value="PERMISSIONS.VIEW_LEGAL_DOCS">{{ t('content.editor.roleReader') }}</option>
+                <option :value="PERMISSIONS.MANAGE_LEGAL_DOCS">{{ t('content.editor.roleEditor') }}</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="format">Формат</label>
+              <label for="format">{{ t('content.editor.format') }}</label>
               <select v-model="form.format" id="format" class="form-select">
-                <option value="html">HTML (встроенный)</option>
-                <option value="pdf" disabled>PDF (загрузка файла) — скоро</option>
-                <option value="image" disabled>Изображение (PNG/JPG) — скоро</option>
+                <option value="html">{{ t('content.editor.formatHtml') }}</option>
+                <option value="pdf" disabled>{{ t('content.editor.formatPdfSoon') }}</option>
+                <option value="image" disabled>{{ t('content.editor.formatImageSoon') }}</option>
               </select>
             </div>
             <div class="form-group" v-if="form.visibility === 'public'">
@@ -60,50 +60,50 @@
                   type="checkbox"
                   class="form-checkbox"
                 />
-                <span>Показывать в блоге</span>
+                <span>{{ t('content.editor.showInBlog') }}</span>
               </label>
               <p class="form-hint">
-                Если отмечено, страница будет отображаться на странице блога (/blog)
+                {{ t('content.editor.showInBlogHint') }}
               </p>
             </div>
             <p class="form-hint">
-              Для HTML-постов переменные подставляются при рендере. Реквизиты заполняются на странице настроек контента.
+              {{ t('content.editor.variablesHint') }}
             </p>
           </div>
           <!-- Основная информация -->
           <div class="form-section">
-            <h2>Основная информация</h2>
+            <h2>{{ t('content.editor.mainInfo') }}</h2>
             <div class="form-group">
-              <label for="title">Заголовок страницы *</label>
+              <label for="title">{{ t('content.editor.pageTitle') }}</label>
               <input 
                 v-model="form.title" 
                 id="title" 
                 type="text" 
                 required 
-                placeholder="Введите заголовок страницы"
+                :placeholder="t('content.editor.pageTitlePlaceholder')"
                 class="form-input"
               />
             </div>
             <div class="form-group">
-              <label for="summary">Краткое описание *</label>
+              <label for="summary">{{ t('content.editor.summary') }}</label>
               <textarea 
                 v-model="form.summary" 
                 id="summary" 
                 required 
                 rows="3" 
-                placeholder="Краткое описание страницы"
+                :placeholder="t('content.editor.summaryPlaceholder')"
                 class="form-textarea"
               />
             </div>
             <div class="form-group">
-              <label for="category">Раздел</label>
+              <label for="category">{{ t('content.editor.category') }}</label>
               <div class="category-select-wrapper">
                 <select 
                   v-model="form.category" 
                   id="category" 
                   class="form-select"
                 >
-                  <option value="">— Без раздела —</option>
+                  <option value="">{{ t('content.editor.noCategory') }}</option>
                   <option v-for="cat in categories" :key="cat" :value="cat">
                     {{ cat }}
                   </option>
@@ -114,7 +114,7 @@
                   @click="handleAddSection"
                 >
                   <i class="fas fa-plus"></i>
-                  Добавить раздел
+                  {{ t('content.editor.addCategory') }}
                 </button>
               </div>
             </div>
@@ -122,35 +122,35 @@
 
           <!-- Контент -->
           <div class="form-section">
-            <h2>Содержание</h2>
+            <h2>{{ t('content.editor.contentSection') }}</h2>
             <div class="form-group" v-if="form.format === 'html'">
-              <label for="content">Основной контент *</label>
+              <label for="content">{{ t('content.editor.mainContent') }}</label>
               <RichTextEditor
                 v-model="form.content"
-                placeholder="Введите основной контент страницы"
+                :placeholder="t('content.editor.mainContentPlaceholder')"
               />
               <div class="content-stats">
-                <span>Слов: {{ wordCount }}</span>
-                <span>Символов: {{ characterCount }}</span>
+                <span>{{ t('content.editor.wordCount', { count: wordCount }) }}</span>
+                <span>{{ t('content.editor.charCount', { count: characterCount }) }}</span>
               </div>
             </div>
             <div class="form-group" v-else>
-              <label for="file">Файл (PDF/PNG/JPG) *</label>
+              <label for="file">{{ t('content.editor.file') }}</label>
               <input id="file" type="file" accept="application/pdf,image/png,image/jpeg" @change="onFileChange" class="form-input" />
-              <p class="form-hint" v-if="fileName">Выбран файл: {{ fileName }}</p>
+              <p class="form-hint" v-if="fileName">{{ t('content.editor.fileSelected', { name: fileName }) }}</p>
             </div>
           </div>
 
           <!-- SEO настройки -->
           <div class="form-section">
-            <h2>SEO настройки</h2>
+            <h2>{{ t('content.editor.seoSettings') }}</h2>
             <div class="form-group">
               <label for="seo-title">Meta Title</label>
               <input 
                 v-model="form.seo.title" 
                 id="seo-title" 
                 type="text" 
-                placeholder="SEO заголовок (если отличается от основного)"
+                :placeholder="t('content.editor.seoTitlePlaceholder')"
                 class="form-input"
               />
             </div>
@@ -160,7 +160,7 @@
                 v-model="form.seo.description" 
                 id="seo-description" 
                 rows="3" 
-                placeholder="SEO описание для поисковых систем"
+                :placeholder="t('content.editor.seoDescPlaceholder')"
                 class="form-textarea"
               />
             </div>
@@ -170,7 +170,7 @@
                 v-model="form.seo.keywords" 
                 id="seo-keywords" 
                 type="text" 
-                placeholder="Ключевые слова через запятую"
+                :placeholder="t('content.editor.seoKeywordsPlaceholder')"
                 class="form-input"
               />
             </div>
@@ -181,11 +181,11 @@
           <div class="form-actions">
             <button type="button" class="btn btn-outline" @click="goBack">
               <i class="fas fa-times"></i>
-              Отмена
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
               <i class="fas fa-globe"></i>
-              {{ isSubmitting ? 'Публикация...' : 'Опубликовать' }}
+              {{ isSubmitting ? t('content.editor.publishing') : t('content.editor.publish') }}
             </button>
           </div>
         </form>
@@ -197,6 +197,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import pagesService from '../services/pagesService';
@@ -229,6 +230,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 const PERMISSIONS_REF = PERMISSIONS; // для шаблона
 
 // Проверка прав доступа
@@ -287,7 +289,7 @@ async function deletePage() {
     return;
   }
   
-  if (!confirm('Вы уверены, что хотите удалить эту страницу? Это действие нельзя отменить. Все связанные файлы также будут удалены.')) {
+  if (!confirm(t('content.editor.confirmDelete'))) {
     return;
   }
   
@@ -296,7 +298,7 @@ async function deletePage() {
     router.push({ name: 'content-list' });
   } catch (error) {
     console.error('Ошибка удаления страницы:', error);
-    alert('Ошибка при удалении страницы: ' + (error?.response?.data?.error || error?.message || 'Неизвестная ошибка'));
+    alert(t('content.editor.deleteError') + (error?.response?.data?.error || error?.message || t('common.unknownError')));
   }
 }
 
@@ -324,7 +326,7 @@ async function loadCategories() {
 
 // Обработка добавления нового раздела
 async function handleAddSection() {
-  const newCategory = prompt('Введите название нового раздела:');
+  const newCategory = prompt(t('content.editor.newCategoryPrompt'));
   if (!newCategory || !newCategory.trim()) {
     return;
   }
@@ -334,21 +336,19 @@ async function handleAddSection() {
   
   // Проверяем, не существует ли уже такая категория
   if (categories.value.includes(normalizedCategory)) {
-    alert('Раздел с таким названием уже существует');
+    alert(t('content.editor.categoryExists'));
     form.value.category = normalizedCategory;
     return;
   }
   
   try {
     // Создаем категорию через API
-    const createdCategory = await pagesService.createCategory(
+    await pagesService.createCategory(
       normalizedCategory,
       trimmedCategory, // display_name
       null, // description
       0 // order_index
     );
-    
-    console.log('[ContentPageView] Категория создана:', createdCategory);
     
     // Обновляем список категорий
     await loadCategories();
@@ -356,18 +356,18 @@ async function handleAddSection() {
     // Устанавливаем созданную категорию в форму
     form.value.category = normalizedCategory;
     
-    alert(`Раздел "${trimmedCategory}" успешно создан`);
+    alert(t('content.editor.categoryCreated', { name: trimmedCategory }));
   } catch (error) {
     console.error('[ContentPageView] Ошибка создания раздела:', error);
-    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
     
     // Если категория уже существует на сервере, просто добавляем её в список
-    if (errorMessage.includes('уже существует') || error.response?.status === 409) {
+    if (error.response?.status === 409) {
       await loadCategories();
       form.value.category = normalizedCategory;
-      alert('Раздел с таким названием уже существует');
+      alert(t('content.editor.categoryExists'));
     } else {
-      alert('Ошибка создания раздела: ' + errorMessage);
+      alert(t('content.editor.categoryCreateError') + errorMessage);
     }
   }
 }
@@ -394,18 +394,18 @@ async function loadPageForEdit() {
     }
   } catch (error) {
     console.error('Ошибка загрузки страницы для редактирования:', error);
-    alert('Ошибка загрузки данных страницы');
+    alert(t('content.editor.loadError'));
   }
 }
 
 async function handleSubmit() {
   if (!form.value.title.trim()) {
-    alert('Заполните заголовок страницы!');
+    alert(t('content.editor.titleRequired'));
     return;
   }
 
   if (!form.value.summary.trim()) {
-    alert('Заполните описание страницы!');
+    alert(t('content.editor.summaryRequired'));
     return;
   }
 
@@ -413,12 +413,12 @@ async function handleSubmit() {
     // Проверяем, что контент не пустой (учитываем только видимый текст, без HTML тегов)
     const textContent = form.value.content.replace(/<[^>]*>/g, '').trim();
     if (!textContent) {
-      alert('Заполните контент страницы!');
+      alert(t('content.editor.contentRequired'));
       return;
     }
   } else {
     if (!fileBlob.value) {
-      alert('Загрузите файл документа!');
+      alert(t('content.editor.fileRequired'));
       return;
     }
   }
@@ -532,14 +532,14 @@ async function handleSubmit() {
     }
     
     if (!page || !page.id) {
-      throw new Error(isEditMode.value ? 'Страница не была обновлена' : 'Страница не была создана');
+      throw new Error(isEditMode.value ? t('content.editor.notUpdated') : t('content.editor.notCreated'));
     }
 
     // Перенаправляем на список страниц
     router.push({ name: 'content-list' });
   } catch (error) {
     console.error('Ошибка при создании страницы:', error);
-    alert('Ошибка при создании страницы: ' + (error?.message || error));
+    alert(t('content.editor.createError') + (error?.message || error));
   } finally {
     isSubmitting.value = false;
   }

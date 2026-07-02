@@ -12,20 +12,20 @@
 
 <template>
   <div class="delete-confirm-page">
-    <h2>Подтверждение удаления контакта</h2>
-    <div v-if="isLoading">Загрузка...</div>
-    <div v-else-if="!contact">Контакт не найден</div>
+    <h2>{{ t('contacts.deleteConfirm.title') }}</h2>
+    <div v-if="isLoading">{{ t('common.loading') }}</div>
+    <div v-else-if="!contact">{{ t('contacts.contactNotFound') }}</div>
     <div v-else class="contact-info">
-      <p><strong>Имя:</strong> {{ contact.name || '-' }}</p>
-      <p><strong>Email:</strong> {{ contact.email || '-' }}</p>
-      <p><strong>Telegram:</strong> {{ contact.telegram || '-' }}</p>
-      <p><strong>Кошелек:</strong> {{ contact.wallet || '-' }}</p>
-      <p><strong>Дата создания:</strong> {{ formatDate(contact.created_at) }}</p>
+      <p><strong>{{ t('contacts.name') }}:</strong> {{ contact.name || '-' }}</p>
+      <p><strong>{{ t('contacts.email') }}:</strong> {{ contact.email || '-' }}</p>
+      <p><strong>{{ t('contacts.telegram') }}:</strong> {{ contact.telegram || '-' }}</p>
+      <p><strong>{{ t('contacts.wallet') }}:</strong> {{ contact.wallet || '-' }}</p>
+      <p><strong>{{ t('contacts.createdAt') }}:</strong> {{ formatDate(contact.created_at) }}</p>
       <div class="confirm-actions">
-        <button v-if="canDeleteData" class="delete-btn" @click="deleteContact" :disabled="isDeleting">Удалить</button>
-        <button class="cancel-btn" @click="cancelDelete" :disabled="isDeleting">Отменить</button>
+        <button v-if="canDeleteData" class="delete-btn" @click="deleteContact" :disabled="isDeleting">{{ t('common.delete') }}</button>
+        <button class="cancel-btn" @click="cancelDelete" :disabled="isDeleting">{{ t('common.cancel') }}</button>
       </div>
-      <div v-if="!canDeleteData" class="empty-table-placeholder">Нет прав для удаления контакта</div>
+      <div v-if="!canDeleteData" class="empty-table-placeholder">{{ t('contacts.deleteConfirm.noPermission') }}</div>
       <div v-if="error" class="error">{{ error }}</div>
     </div>
   </div>
@@ -33,27 +33,27 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { errorMessageMatches } from '../../utils/i18nErrorMatch';
 import { useRoute, useRouter } from 'vue-router';
 import contactsService from '../../services/contactsService.js';
-import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const contact = ref(null);
 const isLoading = ref(true);
 
-// Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
   window.addEventListener('clear-application-data', () => {
     console.log('[ContactDeleteConfirm] Clearing contact data');
-    // Очищаем данные при выходе из системы
     contact.value = null;
   });
   
   window.addEventListener('refresh-application-data', () => {
     console.log('[ContactDeleteConfirm] Refreshing contact data');
-    loadContact(); // Обновляем данные при входе в систему
+    loadContact();
   });
 });
 const isDeleting = ref(false);
@@ -70,12 +70,11 @@ async function loadContact() {
   try {
     contact.value = await contactsService.getContactById(route.params.id);
     if (!contact.value) {
-      error.value = 'Контакт не найден';
+      error.value = t('contacts.contactNotFound');
     }
   } catch (e) {
-          // console.error('Ошибка загрузки контакта:', e);
     contact.value = null;
-    error.value = 'Контакт не найден';
+    error.value = t('contacts.contactNotFound');
   } finally {
     isLoading.value = false;
   }
@@ -87,17 +86,13 @@ async function deleteContact() {
   error.value = '';
   try {
     const result = await contactsService.deleteContact(contact.value.id);
-    // console.log('Результат удаления:', result);
-    
-    // Если удаление успешно или пользователь уже удален
-    if (result.success || result.message === 'Пользователь уже удален') {
+    if (result.success || errorMessageMatches(result.message, 'contacts.deleteConfirm.alreadyDeleted')) {
       router.push({ name: 'contacts-list' });
     } else {
-      error.value = 'Ошибка при удалении контакта';
+      error.value = t('contacts.deleteConfirm.deleteError');
     }
   } catch (e) {
-    // console.error('Ошибка при удалении:', e);
-    error.value = 'Ошибка при удалении контакта';
+    error.value = t('contacts.deleteConfirm.deleteError');
   } finally {
     isDeleting.value = false;
   }
@@ -168,4 +163,4 @@ onMounted(loadContact);
   color: #dc3545;
   margin-top: 18px;
 }
-</style> 
+</style>

@@ -19,7 +19,7 @@
       </div>
       <div class="modal-actions">
         <slot name="actions">
-          <button class="modal-ok-btn" @click="$emit('close')">OK</button>
+          <button class="modal-ok-btn" @click="$emit('close')">{{ t('common.ok') }}</button>
         </slot>
       </div>
     </div>
@@ -27,6 +27,10 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
 defineProps({
   show: Boolean,
   title: { type: String, default: '' },

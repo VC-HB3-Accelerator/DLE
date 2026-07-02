@@ -22,74 +22,74 @@
       <div class="vds-header">
         <div class="status-badge" :class="{ online: isOnline }">
           <div class="status-indicator" :class="{ online: isOnline }"></div>
-          <span>{{ isOnline ? 'Онлайн' : 'Офлайн' }}</span>
+          <span>{{ isOnline ? t('common.online') : t('common.offline') }}</span>
         </div>
       </div>
 
       <!-- Настройки VDS -->
       <div class="settings-section">
         <div class="section-header">
-          <h2>Настройки VDS</h2>
+          <h2>{{ t('vds.settings') }}</h2>
           <button v-if="isEditor" @click="toggleEditMode" class="action-btn edit-mode-btn">
-            {{ isEditMode ? 'Отменить' : 'Редактировать' }}
+            {{ isEditMode ? t('common.cancel') : t('common.edit') }}
           </button>
         </div>
         
         <div v-if="!isEditMode && settings" class="settings-display">
           <div v-if="!settings.domain && !settings.sshHost" class="empty-settings">
-            <p>Настройки VDS не заданы. Нажмите "Редактировать" для настройки.</p>
+            <p>{{ t('vds.settingsNotSet') }}</p>
           </div>
           <div v-else class="settings-grid">
             <div class="setting-item">
-              <label>Домен:</label>
+              <label>{{ t('vds.domain') }}</label>
               <div class="setting-value">
                 <a v-if="settings.domain" :href="`https://${settings.domain}`" target="_blank">
                   https://{{ settings.domain }}
                 </a>
-                <span v-else class="empty-value">Не задан</span>
+                <span v-else class="empty-value">{{ t('common.notSet') }}</span>
               </div>
             </div>
             <div class="setting-item">
-              <label>Email для SSL:</label>
-              <div class="setting-value">{{ settings.email || 'Не задан' }}</div>
+              <label>{{ t('vds.emailSsl') }}</label>
+              <div class="setting-value">{{ settings.email || t('common.notSet') }}</div>
             </div>
             <div class="setting-item">
-              <label>SSH Хост:</label>
-              <div class="setting-value">{{ settings.sshHost || 'Не задан' }}</div>
+              <label>{{ t('vds.sshHost') }}</label>
+              <div class="setting-value">{{ settings.sshHost || t('common.notSet') }}</div>
             </div>
             <div class="setting-item">
-              <label>SSH Порт:</label>
-              <div class="setting-value">{{ settings.sshPort || 'Не задан' }}</div>
+              <label>{{ t('vds.sshPort') }}</label>
+              <div class="setting-value">{{ settings.sshPort || t('common.notSet') }}</div>
             </div>
             <div class="setting-item">
-              <label>SSH Пользователь:</label>
-              <div class="setting-value">{{ settings.sshUser || 'Не задан' }}</div>
+              <label>{{ t('vds.sshUser') }}</label>
+              <div class="setting-value">{{ settings.sshUser || t('common.notSet') }}</div>
             </div>
             <div class="setting-item">
-              <label>Ubuntu Пользователь:</label>
-              <div class="setting-value">{{ settings.ubuntuUser || 'Не задан' }}</div>
+              <label>{{ t('vds.ubuntuUser') }}</label>
+              <div class="setting-value">{{ settings.ubuntuUser || t('common.notSet') }}</div>
             </div>
             <div class="setting-item">
-              <label>Docker Пользователь:</label>
-              <div class="setting-value">{{ settings.dockerUser || 'Не задан' }}</div>
+              <label>{{ t('vds.dockerUser') }}</label>
+              <div class="setting-value">{{ settings.dockerUser || t('common.notSet') }}</div>
             </div>
             <div class="setting-item">
-              <label>Путь к docker-compose:</label>
+              <label>{{ t('vds.composePath') }}</label>
               <div class="setting-value">{{ settings.dappPath || '/root/dapp' }}</div>
             </div>
           </div>
         </div>
         
         <div v-if="!isEditMode && !settings" class="empty-settings">
-          <p>Настройки VDS не заданы. Нажмите "Редактировать" для настройки.</p>
+          <p>{{ t('vds.settingsNotSet') }}</p>
         </div>
 
         <div v-if="isEditMode" class="settings-form">
           <form @submit.prevent="saveSettings">
             <div class="form-section">
-              <h3>Настройки VDS</h3>
+              <h3>{{ t('webssh.vdsSettings') }}</h3>
               <div class="form-group">
-                <label for="domain">Домен *</label>
+                <label for="domain">{{ t('webssh.domain') }}</label>
                 <input 
                   id="domain" 
                   v-model="formSettings.domain" 
@@ -97,10 +97,10 @@
                   placeholder="example.com" 
                   required 
                 />
-                <small class="form-help">Домен должен указывать на IP VDS сервера (A запись)</small>
+                <small class="form-help">{{ t('vds.domainHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="email">Email для SSL *</label>
+                <label for="email">{{ t('webssh.emailSsl') }}</label>
                 <input 
                   id="email" 
                   v-model="formSettings.email" 
@@ -108,10 +108,10 @@
                   placeholder="admin@example.com" 
                   required 
                 />
-                <small class="form-help">Email для получения SSL сертификата</small>
+                <small class="form-help">{{ t('vds.emailSslHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="ubuntuUser">Логин Ubuntu *</label>
+                <label for="ubuntuUser">{{ t('webssh.ubuntuUser') }}</label>
                 <input 
                   id="ubuntuUser" 
                   v-model="formSettings.ubuntuUser" 
@@ -119,10 +119,10 @@
                   placeholder="ubuntu" 
                   required 
                 />
-                <small class="form-help">Обычно: ubuntu, root, или ваш пользователь на VDS</small>
+                <small class="form-help">{{ t('webssh.ubuntuUserHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="dockerUser">Логин Docker *</label>
+                <label for="dockerUser">{{ t('webssh.dockerUser') }}</label>
                 <input 
                   id="dockerUser" 
                   v-model="formSettings.dockerUser" 
@@ -130,10 +130,10 @@
                   placeholder="docker" 
                   required 
                 />
-                <small class="form-help">Пользователь для Docker (будет создан автоматически)</small>
+                <small class="form-help">{{ t('webssh.dockerUserHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="dappPath">Путь к docker-compose *</label>
+                <label for="dappPath">{{ t('vds.composePathLabel') }}</label>
                 <input 
                   id="dappPath" 
                   v-model="formSettings.dappPath" 
@@ -141,14 +141,14 @@
                   placeholder="/home/docker/dapp" 
                   required 
                 />
-                <small class="form-help">Путь к директории с docker-compose.prod.yml на VDS сервере (обычно /home/docker/dapp или /home/ubuntu/dapp)</small>
+                <small class="form-help">{{ t('vds.composePathHelp') }}</small>
               </div>
             </div>
 
             <div class="form-section">
-              <h3>SSH подключение к VDS</h3>
+              <h3>{{ t('webssh.sshConnection') }}</h3>
               <div class="form-group">
-                <label for="sshHost">SSH хост *</label>
+                <label for="sshHost">{{ t('vds.sshHostLabel') }}</label>
                 <input 
                   id="sshHost" 
                   v-model="formSettings.sshHost" 
@@ -156,10 +156,10 @@
                   placeholder="185.26.121.127" 
                   required 
                 />
-                <small class="form-help">SSH хост сервера (может отличаться от домена)</small>
+                <small class="form-help">{{ t('webssh.sshHostHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="sshPort">SSH порт *</label>
+                <label for="sshPort">{{ t('vds.sshPortLabel') }}</label>
                 <input 
                   id="sshPort" 
                   v-model="formSettings.sshPort" 
@@ -167,10 +167,10 @@
                   placeholder="22" 
                   required 
                 />
-                <small class="form-help">SSH порт сервера (обычно 22)</small>
+                <small class="form-help">{{ t('vds.sshPortHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="sshUser">SSH пользователь *</label>
+                <label for="sshUser">{{ t('vds.sshUserLabel') }}</label>
                 <input 
                   id="sshUser" 
                   v-model="formSettings.sshUser" 
@@ -178,21 +178,21 @@
                   placeholder="root" 
                   required 
                 />
-                <small class="form-help">Пользователь для SSH подключения к VDS</small>
+                <small class="form-help">{{ t('webssh.sshUserHelp') }}</small>
               </div>
               <div class="form-group">
-                <label for="sshPassword">SSH пароль <span v-if="!settings || !settings.sshHost">*</span></label>
+                <label for="sshPassword">{{ t('vds.sshPasswordLabel') }} <span v-if="!settings || !settings.sshHost">*</span></label>
                 <input 
                   id="sshPassword" 
                   v-model="formSettings.sshPassword" 
                   type="password" 
-                  :placeholder="settings?.sshHost ? '•••••••• (оставьте пустым, чтобы не менять)' : '••••••••'" 
+                  :placeholder="settings?.sshHost ? t('vds.sshPasswordPlaceholderKeep') : '••••••••'" 
                   :required="!settings || !settings.sshHost"
                 />
                 <small class="form-help">
                   {{ settings?.sshHost 
-                    ? 'Пароль для SSH подключения к VDS. Оставьте пустым, чтобы не менять существующий пароль.' 
-                    : 'Пароль для SSH подключения к VDS (обязателен при первой настройке)' 
+                    ? t('vds.sshPasswordHelpKeep')
+                    : t('vds.sshPasswordHelpRequired')
                   }}
                 </small>
               </div>
@@ -200,10 +200,10 @@
 
             <div class="form-actions">
               <button type="submit" :disabled="isSaving" class="save-btn">
-                {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
+                {{ isSaving ? t('common.saving') : t('common.save') }}
               </button>
               <button type="button" @click="cancelEdit" :disabled="isSaving" class="cancel-btn">
-                Отменить
+                {{ t('common.cancel') }}
               </button>
             </div>
           </form>
@@ -212,12 +212,12 @@
 
       <!-- Статистика -->
       <div class="stats-section">
-        <h2>Статистика системы</h2>
+        <h2>{{ t('vds.systemStats') }}</h2>
         <div class="stats-grid">
           <div class="stat-card">
             <h3>CPU</h3>
             <div class="stat-value">{{ stats.cpu?.usage?.toFixed(1) || '--' }}%</div>
-            <div class="stat-detail">{{ stats.cpu?.cores || '--' }} ядер</div>
+            <div class="stat-detail">{{ t('vds.cores', { count: stats.cpu?.cores || '--' }) }}</div>
           </div>
           <div class="stat-card">
             <h3>RAM</h3>
@@ -225,7 +225,7 @@
             <div class="stat-detail">{{ formatBytes((stats.ram?.used || 0) * 1024 * 1024) }} / {{ formatBytes((stats.ram?.total || 0) * 1024 * 1024) }}</div>
           </div>
           <div class="stat-card">
-            <h3>Трафик</h3>
+            <h3>{{ t('vds.traffic') }}</h3>
             <div class="stat-value">{{ formatBytes((stats.traffic?.total || 0) * 1024 * 1024) }}</div>
             <div class="stat-detail">RX: {{ formatBytes((stats.traffic?.rx || 0) * 1024 * 1024) }} / TX: {{ formatBytes((stats.traffic?.tx || 0) * 1024 * 1024) }}</div>
           </div>
@@ -234,22 +234,22 @@
 
       <!-- Графики -->
       <div class="charts-section">
-        <h2>Графики нагрузки</h2>
+        <h2>{{ t('vds.loadCharts') }}</h2>
         <div class="charts-grid">
           <div class="chart-card">
-            <h3>Нагрузка на CPU</h3>
+            <h3>{{ t('vds.cpuLoad') }}</h3>
             <div class="chart-container">
               <canvas ref="cpuChart"></canvas>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Потребление RAM</h3>
+            <h3>{{ t('vds.ramUsage') }}</h3>
             <div class="chart-container">
               <canvas ref="ramChart"></canvas>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Потребление трафика</h3>
+            <h3>{{ t('vds.trafficUsage') }}</h3>
             <div class="chart-container">
               <canvas ref="trafficChart"></canvas>
             </div>
@@ -260,21 +260,21 @@
       <!-- Управление контейнерами -->
       <div class="containers-section">
         <div class="section-header">
-          <h2>Управление контейнерами</h2>
+          <h2>{{ t('vds.containerManagement') }}</h2>
           <div class="container-actions">
             <button v-if="isEditor" @click="restartAllContainers" :disabled="isLoading" class="action-btn restart-all">
-              🔄 Перезапустить все
+              {{ t('vds.restartAll') }}
             </button>
             <button v-if="isEditor" @click="cleanupDocker" :disabled="isLoading" class="action-btn cleanup">
-              🧹 Очистить Docker
+              {{ t('vds.cleanupDocker') }}
             </button>
             <button @click="loadContainers" :disabled="isLoading" class="action-btn refresh">
-              🔃 Обновить
+              {{ t('vds.refresh') }}
             </button>
           </div>
         </div>
-        <div v-if="isLoading && containers.length === 0" class="loading">Загрузка...</div>
-        <div v-else-if="containers.length === 0" class="empty">Контейнеры не найдены</div>
+        <div v-if="isLoading && containers.length === 0" class="loading">{{ t('common.loading') }}</div>
+        <div v-else-if="containers.length === 0" class="empty">{{ t('vds.containersNotFound') }}</div>
         <div v-else class="containers-list">
           <div v-for="container in containers" :key="container.name" class="container-item">
             <div class="container-info">
@@ -283,22 +283,22 @@
               <div class="container-image">{{ container.image }}</div>
             </div>
             <div class="container-actions-item">
-              <button v-if="isEditor" @click="startContainer(container.name)" :disabled="isLoading || container.status.includes('Up')" class="action-btn-small start" title="Запустить">
+              <button v-if="isEditor" @click="startContainer(container.name)" :disabled="isLoading || container.status.includes('Up')" class="action-btn-small start" :title="t('vds.start')">
                 ▶️
               </button>
-              <button v-if="isEditor" @click="stopContainer(container.name)" :disabled="isLoading || !container.status.includes('Up')" class="action-btn-small stop" title="Остановить">
+              <button v-if="isEditor" @click="stopContainer(container.name)" :disabled="isLoading || !container.status.includes('Up')" class="action-btn-small stop" :title="t('vds.stop')">
                 ⏹️
               </button>
-              <button v-if="isEditor" @click="restartContainer(container.name)" :disabled="isLoading" class="action-btn-small restart" title="Перезапустить">
+              <button v-if="isEditor" @click="restartContainer(container.name)" :disabled="isLoading" class="action-btn-small restart" :title="t('vds.restart')">
                 🔄
               </button>
-              <button @click="viewContainerLogs(container.name)" :disabled="isLoading" class="action-btn-small logs" title="Логи">
+              <button @click="viewContainerLogs(container.name)" :disabled="isLoading" class="action-btn-small logs" :title="t('vds.logs')">
                 📋
               </button>
-              <button v-if="isEditor" @click="rebuildContainer(container.name)" :disabled="isLoading" class="action-btn-small rebuild" title="Пересобрать">
+              <button v-if="isEditor" @click="rebuildContainer(container.name)" :disabled="isLoading" class="action-btn-small rebuild" :title="t('vds.rebuild')">
                 🔨
               </button>
-              <button v-if="isEditor" @click="deleteContainer(container.name)" :disabled="isLoading" class="action-btn-small delete" title="Удалить">
+              <button v-if="isEditor" @click="deleteContainer(container.name)" :disabled="isLoading" class="action-btn-small delete" :title="t('common.delete')">
                 🗑️
               </button>
             </div>
@@ -309,29 +309,29 @@
       <!-- Управление сервером -->
       <div class="server-section">
         <div class="section-header">
-          <h2>Управление сервером</h2>
+          <h2>{{ t('vds.serverManagement') }}</h2>
         </div>
         <div v-if="!isEditor" class="access-denied-message">
-          <p>⚠️ Управление сервером доступно только пользователям с ролью "Редактор"</p>
+          <p>{{ t('vds.editorOnlyServer') }}</p>
         </div>
         <div v-else class="server-actions-grid">
           <button @click="rebootServer" :disabled="isLoading" class="action-btn server-btn reboot">
-            🔄 Перезагрузить сервер
+            {{ t('vds.rebootServer') }}
           </button>
           <button @click="shutdownServer" :disabled="isLoading" class="action-btn server-btn shutdown">
-            ⏻ Выключить сервер
+            {{ t('vds.shutdownServer') }}
           </button>
           <button @click="updateSystem" :disabled="isLoading" class="action-btn server-btn update">
-            ⬆️ Обновить систему
+            {{ t('vds.updateSystem') }}
           </button>
           <button @click="viewSystemLogs" :disabled="isLoading" class="action-btn server-btn logs">
-            📋 Системные логи
+            {{ t('vds.systemLogs') }}
           </button>
           <button @click="viewDiskInfo" :disabled="isLoading" class="action-btn server-btn disk">
-            💾 Информация о диске
+            {{ t('vds.diskInfo') }}
           </button>
           <button @click="viewProcesses" :disabled="isLoading" class="action-btn server-btn processes">
-            📊 Процессы
+            {{ t('vds.processes') }}
           </button>
         </div>
       </div>
@@ -339,17 +339,17 @@
       <!-- Управление пользователями -->
       <div class="users-section">
         <div class="section-header">
-          <h2>Управление пользователями</h2>
+          <h2>{{ t('vds.userManagement') }}</h2>
           <button v-if="isEditor" @click="showCreateUserModal = true" class="action-btn create-user">
-            ➕ Создать пользователя
+            {{ t('vds.createUser') }}
           </button>
         </div>
         <div v-if="!isEditor" class="access-denied-message">
-          <p>⚠️ Управление пользователями доступно только пользователям с ролью "Редактор"</p>
+          <p>{{ t('vds.editorOnlyUsers') }}</p>
         </div>
         <template v-if="isEditor">
-          <div v-if="isLoading && users.length === 0" class="loading">Загрузка...</div>
-          <div v-else-if="users.length === 0" class="empty">Пользователи не найдены</div>
+          <div v-if="isLoading && users.length === 0" class="loading">{{ t('common.loading') }}</div>
+          <div v-else-if="users.length === 0" class="empty">{{ t('vds.usersNotFound') }}</div>
           <div v-else class="users-list">
             <div v-for="user in users" :key="user.username" class="user-item">
               <div class="user-info">
@@ -357,13 +357,13 @@
                 <div class="user-details">UID: {{ user.uid }} | Shell: {{ user.shell }}</div>
               </div>
               <div class="user-actions">
-                <button @click="viewUserSshKeys(user.username)" :disabled="isLoading" class="action-btn-small ssh-keys" title="SSH ключи">
+                <button @click="viewUserSshKeys(user.username)" :disabled="isLoading" class="action-btn-small ssh-keys" :title="t('vds.sshKeys')">
                   🔑
                 </button>
-                <button @click="changeUserPassword(user.username)" :disabled="isLoading" class="action-btn-small password" title="Изменить пароль">
+                <button @click="changeUserPassword(user.username)" :disabled="isLoading" class="action-btn-small password" :title="t('vds.changePassword')">
                   🔒
                 </button>
-                <button @click="deleteUser(user.username)" :disabled="isLoading" class="action-btn-small delete" title="Удалить">
+                <button @click="deleteUser(user.username)" :disabled="isLoading" class="action-btn-small delete" :title="t('common.delete')">
                   🗑️
                 </button>
               </div>
@@ -375,17 +375,17 @@
       <!-- Бэкапы -->
       <div class="backup-section">
         <div class="section-header">
-          <h2>Бэкапы</h2>
+          <h2>{{ t('vds.backups') }}</h2>
         </div>
         <div v-if="!isEditor" class="access-denied-message">
-          <p>⚠️ Управление бэкапами доступно только пользователям с ролью "Редактор"</p>
+          <p>{{ t('vds.editorOnlyBackups') }}</p>
         </div>
         <div v-else class="backup-actions-grid">
           <button @click="createBackup" :disabled="isLoading" class="action-btn backup-btn create">
-            💾 Создать бэкап БД
+            {{ t('vds.createDbBackup') }}
           </button>
           <button @click="showSendBackupModal = true" :disabled="isLoading" class="action-btn backup-btn send">
-            📤 Отправить бэкап на локальную машину
+            {{ t('vds.sendBackupLocal') }}
           </button>
         </div>
       </div>
@@ -393,23 +393,23 @@
       <!-- SSL сертификаты -->
       <div class="ssl-section">
         <div class="section-header">
-          <h2>SSL сертификат</h2>
+          <h2>{{ t('vds.sslCert') }}</h2>
           <div v-if="isDevelopment" style="font-size: 12px; color: #666; margin-top: 5px;">
-            Debug: isEditor={{ isEditor }}, currentRole={{ currentRole }}, isLoadingSsl={{ isLoadingSsl }}
+            {{ t('vds.debugStatus', { isEditor, role: currentRole, loading: isLoadingSsl }) }}
           </div>
         </div>
 
         <div v-if="!isEditor" class="access-denied-message">
-          <p>⚠️ Управление SSL доступно только пользователям с ролью "Редактор"</p>
+          <p>{{ t('vds.editorOnlySsl') }}</p>
           <p v-if="isDevelopment" style="font-size: 12px; color: #666;">
-            Текущая роль: {{ currentRole }}
+            {{ t('vds.currentRole', { role: currentRole }) }}
           </p>
         </div>
 
         <div v-else>
           <div class="ssl-status">
             <div v-if="isLoadingSsl">
-              Загрузка статуса SSL...
+              {{ t('vds.loadingSsl') }}
             </div>
               <div v-else>
               <div v-if="sslStatus && sslStatus.success && sslStatus.allCertificates && sslStatus.allCertificates.length">
@@ -419,23 +419,23 @@
                     :key="cert.name"
                     class="ssl-info-item"
                   >
-                    <label>{{ cert.name || 'Без имени' }}</label>
+                    <label>{{ cert.name || t('vds.noName') }}</label>
                     <span :class="{ 'expiring-soon': isCertExpiringSoon(cert.expiryDate) }">
-                      {{ cert.expiryDate ? formatDate(cert.expiryDate) : 'Без данных' }}
+                      {{ cert.expiryDate ? formatDate(cert.expiryDate) : t('vds.noData') }}
                     </span>
                     <div v-if="cert.domains && cert.domains.length" class="ssl-domains">
-                      Домены: {{ cert.domains.join(', ') }}
+                      {{ t('vds.domains', { list: cert.domains.join(', ') }) }}
                     </div>
                   </div>
                 </div>
               </div>
               <div v-else class="ssl-no-cert">
-                <p>SSL сертификат не найден для текущего домена.</p>
+                <p>{{ t('vds.sslNotFound') }}</p>
                 <p v-if="sslStatus && sslStatus.domain" class="ssl-domain-info">
-                  Домен: {{ sslStatus.domain }}
+                  {{ t('vds.domainLabel', { domain: sslStatus.domain }) }}
                 </p>
                 <p v-if="sslStatus && !sslStatus.success" class="ssl-error-info">
-                  Ошибка: {{ sslStatus.error || 'Неизвестная ошибка' }}
+                  {{ t('vds.errorLabel', { error: sslStatus.error || t('common.unknownError') }) }}
                 </p>
               </div>
             </div>
@@ -447,19 +447,19 @@
               :disabled="isLoadingSsl || isLoading"
               @click="checkSslStatus"
             >
-              🔍 Проверить статус SSL
+              {{ t('vds.checkSsl') }}
             </button>
             <button
               v-if="isEditor"
               class="action-btn ssl-btn renew"
               :disabled="isLoading"
               @click="renewSslCertificate"
-              :title="isLoading ? 'Выполняется...' : 'Получить или обновить SSL сертификат'"
+              :title="isLoading ? t('vds.inProgress') : t('vds.renewSsl')"
             >
-              🔐 Получить / обновить SSL
+              {{ t('vds.renewSslBtn') }}
             </button>
             <div v-if="!isEditor && isDevelopment" style="font-size: 12px; color: #f00; margin-top: 5px;">
-              Кнопка скрыта: isEditor=false, currentRole={{ currentRole }}
+              {{ t('vds.debugHiddenBtn', { role: currentRole }) }}
             </div>
           </div>
         </div>
@@ -469,25 +469,25 @@
       <!-- Модальное окно создания пользователя -->
       <div v-if="showCreateUserModal && isEditor" class="modal-overlay" @click="showCreateUserModal = false">
         <div class="modal-content" @click.stop>
-          <h3>Создать пользователя</h3>
+          <h3>{{ t('vds.createUserTitle') }}</h3>
           <form @submit.prevent="createUser">
             <div class="form-group">
-              <label>Имя пользователя *</label>
+              <label>{{ t('vds.username') }}</label>
               <input v-model="newUser.username" type="text" required />
             </div>
             <div class="form-group">
-              <label>Пароль *</label>
+              <label>{{ t('vds.password') }}</label>
               <input v-model="newUser.password" type="password" required />
             </div>
             <div class="form-group">
               <label>
                 <input v-model="newUser.addToDocker" type="checkbox" />
-                Добавить в группу docker
+                {{ t('vds.addToDockerGroup') }}
               </label>
             </div>
             <div class="form-actions">
-              <button type="submit" :disabled="isLoading" class="save-btn">Создать</button>
-              <button type="button" @click="showCreateUserModal = false" class="cancel-btn">Отменить</button>
+              <button type="submit" :disabled="isLoading" class="save-btn">{{ t('common.create') }}</button>
+              <button type="button" @click="showCreateUserModal = false" class="cancel-btn">{{ t('common.cancel') }}</button>
             </div>
           </form>
         </div>
@@ -496,31 +496,31 @@
       <!-- Модальное окно отправки бэкапа -->
       <div v-if="showSendBackupModal && isEditor" class="modal-overlay" @click="showSendBackupModal = false">
         <div class="modal-content" @click.stop>
-          <h3>Отправить бэкап на локальную машину</h3>
+          <h3>{{ t('vds.sendBackupTitle') }}</h3>
           <form @submit.prevent="sendBackup">
             <div class="form-group">
-              <label>Файл бэкапа *</label>
+              <label>{{ t('vds.backupFile') }}</label>
               <input v-model="backupForm.file" type="text" placeholder="/tmp/backup-xxx.sql" required />
             </div>
             <div class="form-group">
-              <label>Локальный хост/IP *</label>
+              <label>{{ t('vds.localHost') }}</label>
               <input v-model="backupForm.localHost" type="text" placeholder="192.168.1.100" required />
             </div>
             <div class="form-group">
-              <label>Локальный пользователь *</label>
+              <label>{{ t('vds.localUser') }}</label>
               <input v-model="backupForm.localUser" type="text" placeholder="user" required />
             </div>
             <div class="form-group">
-              <label>Путь на локальной машине *</label>
+              <label>{{ t('vds.localPath') }}</label>
               <input v-model="backupForm.localPath" type="text" placeholder="/home/user/backups" required />
             </div>
             <div class="form-group">
-              <label>Путь к SSH ключу</label>
+              <label>{{ t('vds.sshKeyPath') }}</label>
               <input v-model="backupForm.sshKeyPath" type="text" placeholder="/root/.ssh/id_rsa" />
             </div>
             <div class="form-actions">
-              <button type="submit" :disabled="isLoading" class="save-btn">Отправить</button>
-              <button type="button" @click="showSendBackupModal = false" class="cancel-btn">Отменить</button>
+              <button type="submit" :disabled="isLoading" class="save-btn">{{ t('common.send') }}</button>
+              <button type="button" @click="showSendBackupModal = false" class="cancel-btn">{{ t('common.cancel') }}</button>
             </div>
           </form>
         </div>
@@ -534,7 +534,7 @@
             <pre>{{ logsContent }}</pre>
           </div>
           <div class="form-actions">
-            <button @click="showLogsModal = false" class="cancel-btn">Закрыть</button>
+            <button @click="showLogsModal = false" class="cancel-btn">{{ t('common.close') }}</button>
           </div>
         </div>
       </div>
@@ -546,11 +546,15 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import axios from 'axios';
 import Chart from 'chart.js/auto';
 import { usePermissions } from '../composables/usePermissions';
 import { ROLES } from '../composables/permissions';
+import { errorMessageMatches } from '../utils/i18nErrorMatch';
+
+const { t, locale } = useI18n();
 
 const props = defineProps({
   isAuthenticated: Boolean,
@@ -679,7 +683,7 @@ const loadSettings = async () => {
 // Переключение режима редактирования
 const toggleEditMode = () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут редактировать настройки VDS');
+    alert(t('vds.alerts.editorOnlyEdit'));
     return;
   }
   if (isEditMode.value) {
@@ -698,20 +702,18 @@ const cancelEdit = () => {
 // Сохранение настроек
 const saveSettings = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут сохранять настройки VDS');
+    alert(t('vds.alerts.editorOnlySave'));
     return;
   }
-  // Валидация (пароль может быть пустым при обновлении, но обязателен при первой настройке)
   if (!formSettings.domain || !formSettings.email || !formSettings.sshHost || 
       !formSettings.sshPort || !formSettings.sshUser) {
-    alert('Заполните все обязательные поля');
+    alert(t('vds.alerts.fillRequired'));
     return;
   }
   
-  // Пароль обязателен только при первой настройке
   if (!settings.value || (!settings.value.sshHost && !formSettings.sshPassword)) {
     if (!formSettings.sshPassword) {
-      alert('Укажите SSH пароль (обязателен при первой настройке)');
+      alert(t('vds.alerts.sshPasswordRequired'));
       return;
     }
   }
@@ -736,11 +738,11 @@ const saveSettings = async () => {
       isEditMode.value = false;
       // Очищаем пароль из формы после сохранения (безопасность)
       formSettings.sshPassword = '';
-      alert('Настройки успешно сохранены');
+      alert(t('vds.alerts.settingsSaved'));
     }
   } catch (error) {
     console.error('Ошибка сохранения настроек:', error);
-    alert(error.response?.data?.error || 'Ошибка сохранения настроек');
+    alert(error.response?.data?.error || t('vds.alerts.settingsSaveError'));
   } finally {
     isSaving.value = false;
   }
@@ -751,11 +753,8 @@ const loadStats = async () => {
   try {
     const response = await axios.get('/vds/stats');
     if (response.data.success) {
-      console.log('[VDS] Получена статистика:', response.data.stats);
       stats.value = response.data.stats;
       updateCharts();
-    } else {
-      console.warn('[VDS] Статистика не успешна:', response.data);
     }
   } catch (error) {
     console.error('Ошибка загрузки статистики:', error);
@@ -771,16 +770,12 @@ const loadContainers = async () => {
     if (response.data.success) {
       containers.value = response.data.containers || [];
     } else {
-      console.warn('[VDS] Загрузка контейнеров не успешна:', response.data);
       containers.value = [];
-      if (response.data.message) {
-        console.info('[VDS]', response.data.message);
-      }
     }
   } catch (error) {
     console.error('Ошибка загрузки контейнеров:', error);
-    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
-    alert(`Ошибка загрузки контейнеров: ${errorMessage}`);
+    const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
+    alert(t('vds.alerts.containersLoadError', { error: errorMessage }));
     containers.value = [];
   } finally {
     isLoading.value = false;
@@ -790,20 +785,20 @@ const loadContainers = async () => {
 // Перезапуск контейнера
 const restartContainer = async (name) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять контейнерами');
+    alert(t('vds.alerts.editorOnlyContainers'));
     return;
   }
-  if (!confirm(`Перезапустить контейнер ${name}?`)) return;
+  if (!confirm(t('vds.alerts.confirmRestartContainer', { name }))) return;
   isLoading.value = true;
   try {
     const response = await axios.post(`/vds/containers/${name}/restart`);
     if (response.data.success) {
-      alert(`Контейнер ${name} перезапущен`);
+      alert(t('vds.alerts.containerRestarted', { name }));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка перезапуска контейнера:', error);
-    alert('Ошибка перезапуска контейнера');
+    alert(t('vds.alerts.restartContainerError'));
   } finally {
     isLoading.value = false;
   }
@@ -812,20 +807,20 @@ const restartContainer = async (name) => {
 // Перезапуск всех контейнеров
 const restartAllContainers = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять контейнерами');
+    alert(t('vds.alerts.editorOnlyContainers'));
     return;
   }
-  if (!confirm('Перезапустить все контейнеры?')) return;
+  if (!confirm(t('vds.alerts.confirmRestartAll'))) return;
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/containers/restart-all');
     if (response.data.success) {
-      alert(`Перезапущено контейнеров: ${response.data.restarted}`);
+      alert(t('vds.alerts.containersRestarted', { count: response.data.restarted }));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка перезапуска контейнеров:', error);
-    alert('Ошибка перезапуска контейнеров');
+    alert(t('vds.alerts.restartAllError'));
   } finally {
     isLoading.value = false;
   }
@@ -834,19 +829,19 @@ const restartAllContainers = async () => {
 // Запуск контейнера
 const startContainer = async (name) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять контейнерами');
+    alert(t('vds.alerts.editorOnlyContainers'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.post(`/vds/containers/${name}/start`);
     if (response.data.success) {
-      alert(`Контейнер ${name} запущен`);
+      alert(t('vds.alerts.containerStarted', { name }));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка запуска контейнера:', error);
-    alert(error.response?.data?.error || 'Ошибка запуска контейнера');
+    alert(error.response?.data?.error || t('vds.alerts.startContainerError'));
   } finally {
     isLoading.value = false;
   }
@@ -855,20 +850,20 @@ const startContainer = async (name) => {
 // Остановка контейнера
 const stopContainer = async (name) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять контейнерами');
+    alert(t('vds.alerts.editorOnlyContainers'));
     return;
   }
-  if (!confirm(`Остановить контейнер ${name}?`)) return;
+  if (!confirm(t('vds.alerts.confirmStopContainer', { name }))) return;
   isLoading.value = true;
   try {
     const response = await axios.post(`/vds/containers/${name}/stop`);
     if (response.data.success) {
-      alert(`Контейнер ${name} остановлен`);
+      alert(t('vds.alerts.containerStopped', { name }));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка остановки контейнера:', error);
-    alert(error.response?.data?.error || 'Ошибка остановки контейнера');
+    alert(error.response?.data?.error || t('vds.alerts.stopContainerError'));
   } finally {
     isLoading.value = false;
   }
@@ -880,13 +875,13 @@ const viewContainerLogs = async (name) => {
   try {
     const response = await axios.get(`/vds/containers/${name}/logs?tail=200`);
     if (response.data.success) {
-      logsTitle.value = `Логи контейнера: ${name}`;
+      logsTitle.value = t('vds.containerLogsTitle', { name });
       logsContent.value = response.data.logs;
       showLogsModal.value = true;
     }
   } catch (error) {
     console.error('Ошибка получения логов:', error);
-    alert(error.response?.data?.error || 'Ошибка получения логов');
+    alert(error.response?.data?.error || t('vds.alerts.logsError'));
   } finally {
     isLoading.value = false;
   }
@@ -895,20 +890,20 @@ const viewContainerLogs = async (name) => {
 // Удаление контейнера
 const deleteContainer = async (name) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять контейнерами');
+    alert(t('vds.alerts.editorOnlyContainers'));
     return;
   }
-  if (!confirm(`Удалить контейнер ${name}? Это действие необратимо!`)) return;
+  if (!confirm(t('vds.alerts.confirmDeleteContainer', { name }))) return;
   isLoading.value = true;
   try {
     const response = await axios.delete(`/vds/containers/${name}`);
     if (response.data.success) {
-      alert(`Контейнер ${name} удален`);
+      alert(t('vds.alerts.containerDeleted', { name }));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка удаления контейнера:', error);
-    alert(error.response?.data?.error || 'Ошибка удаления контейнера');
+    alert(error.response?.data?.error || t('vds.alerts.deleteContainerError'));
   } finally {
     isLoading.value = false;
   }
@@ -917,20 +912,20 @@ const deleteContainer = async (name) => {
 // Очистка Docker
 const cleanupDocker = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут очищать Docker');
+    alert(t('vds.alerts.editorOnlyDockerCleanup'));
     return;
   }
-  if (!confirm('Очистить неиспользуемые образы, контейнеры, сети и тома? Это действие необратимо!')) return;
+  if (!confirm(t('vds.alerts.confirmCleanupDocker'))) return;
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/docker/cleanup', { type: 'all' });
     if (response.data.success) {
-      alert('Docker очищен');
+      alert(t('vds.alerts.dockerCleaned'));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка очистки Docker:', error);
-    alert(error.response?.data?.error || 'Ошибка очистки Docker');
+    alert(error.response?.data?.error || t('vds.alerts.cleanupError'));
   } finally {
     isLoading.value = false;
   }
@@ -939,20 +934,20 @@ const cleanupDocker = async () => {
 // Пересборка контейнера
 const rebuildContainer = async (name) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут пересобирать контейнеры');
+    alert(t('vds.alerts.editorOnlyRebuild'));
     return;
   }
-  if (!confirm(`Пересобрать контейнер ${name}? Это может занять некоторое время.`)) return;
+  if (!confirm(t('vds.alerts.confirmRebuildContainer', { name }))) return;
   isLoading.value = true;
   try {
     const response = await axios.post(`/vds/containers/${name}/rebuild`);
     if (response.data.success) {
-      alert(`Контейнер ${name} пересобран`);
+      alert(t('vds.alerts.containerRebuilt', { name }));
       await loadContainers();
     }
   } catch (error) {
     console.error('Ошибка пересборки контейнера:', error);
-    alert(error.response?.data?.error || 'Ошибка пересборки контейнера');
+    alert(error.response?.data?.error || t('vds.alerts.rebuildError'));
   } finally {
     isLoading.value = false;
   }
@@ -961,57 +956,57 @@ const rebuildContainer = async (name) => {
 // Управление сервером
 const rebootServer = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять сервером');
+    alert(t('vds.alerts.editorOnlyServer'));
     return;
   }
-  if (!confirm('Перезагрузить сервер? Это действие необратимо!')) return;
+  if (!confirm(t('vds.alerts.confirmReboot'))) return;
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/server/reboot');
     if (response.data.success) {
-      alert('Сервер будет перезагружен через 5 секунд');
+      alert(t('vds.alerts.serverRebootScheduled'));
     }
   } catch (error) {
     console.error('Ошибка перезагрузки сервера:', error);
-    alert(error.response?.data?.error || 'Ошибка перезагрузки сервера');
+    alert(error.response?.data?.error || t('vds.alerts.rebootError'));
     isLoading.value = false;
   }
 };
 
 const shutdownServer = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут управлять сервером');
+    alert(t('vds.alerts.editorOnlyServer'));
     return;
   }
-  if (!confirm('Выключить сервер? Это действие необратимо!')) return;
+  if (!confirm(t('vds.alerts.confirmShutdown'))) return;
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/server/shutdown');
     if (response.data.success) {
-      alert('Сервер будет выключен через 5 секунд');
+      alert(t('vds.alerts.serverShutdownScheduled'));
     }
   } catch (error) {
     console.error('Ошибка выключения сервера:', error);
-    alert(error.response?.data?.error || 'Ошибка выключения сервера');
+    alert(error.response?.data?.error || t('vds.alerts.shutdownError'));
     isLoading.value = false;
   }
 };
 
 const updateSystem = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут обновлять систему');
+    alert(t('vds.alerts.editorOnlyUpdateSystem'));
     return;
   }
-  if (!confirm('Обновить систему? Это может занять много времени.')) return;
+  if (!confirm(t('vds.alerts.confirmUpdateSystem'))) return;
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/server/update');
     if (response.data.success) {
-      alert('Система обновлена');
+      alert(t('vds.alerts.systemUpdated'));
     }
   } catch (error) {
     console.error('Ошибка обновления системы:', error);
-    alert(error.response?.data?.error || 'Ошибка обновления системы');
+    alert(error.response?.data?.error || t('vds.alerts.updateSystemError'));
   } finally {
     isLoading.value = false;
   }
@@ -1019,20 +1014,20 @@ const updateSystem = async () => {
 
 const viewSystemLogs = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут просматривать системные логи');
+    alert(t('vds.alerts.editorOnlyViewSystemLogs'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.get('/vds/server/logs?type=syslog&lines=200');
     if (response.data.success) {
-      logsTitle.value = 'Системные логи';
+      logsTitle.value = t('vds.systemLogs');
       logsContent.value = response.data.logs;
       showLogsModal.value = true;
     }
   } catch (error) {
     console.error('Ошибка получения системных логов:', error);
-    alert(error.response?.data?.error || 'Ошибка получения системных логов');
+    alert(error.response?.data?.error || t('vds.alerts.systemLogsError'));
   } finally {
     isLoading.value = false;
   }
@@ -1040,20 +1035,23 @@ const viewSystemLogs = async () => {
 
 const viewDiskInfo = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут просматривать информацию о диске');
+    alert(t('vds.alerts.editorOnlyViewDisk'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.get('/vds/server/disk');
     if (response.data.success) {
-      logsTitle.value = 'Информация о диске';
-      logsContent.value = `Дисковое пространство:\n${response.data.disk.df}\n\nИспользование:\n${response.data.disk.du}`;
+      logsTitle.value = t('vds.diskInfo');
+      logsContent.value = t('vds.diskInfoContent', {
+        df: response.data.disk.df,
+        du: response.data.disk.du
+      });
       showLogsModal.value = true;
     }
   } catch (error) {
     console.error('Ошибка получения информации о диске:', error);
-    alert(error.response?.data?.error || 'Ошибка получения информации о диске');
+    alert(error.response?.data?.error || t('vds.alerts.diskInfoError'));
   } finally {
     isLoading.value = false;
   }
@@ -1061,20 +1059,20 @@ const viewDiskInfo = async () => {
 
 const viewProcesses = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут просматривать процессы');
+    alert(t('vds.alerts.editorOnlyViewProcesses'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.get('/vds/server/processes');
     if (response.data.success) {
-      logsTitle.value = 'Топ процессов (по CPU)';
+      logsTitle.value = t('vds.processesTitle');
       logsContent.value = response.data.processes;
       showLogsModal.value = true;
     }
   } catch (error) {
     console.error('Ошибка получения списка процессов:', error);
-    alert(error.response?.data?.error || 'Ошибка получения списка процессов');
+    alert(error.response?.data?.error || t('vds.alerts.processesError'));
   } finally {
     isLoading.value = false;
   }
@@ -1089,13 +1087,12 @@ const loadUsers = async () => {
     if (response.data.success) {
       users.value = response.data.users;
     } else {
-      console.warn('[VDS] Загрузка пользователей не успешна:', response.data);
       users.value = [];
     }
   } catch (error) {
     console.error('Ошибка загрузки пользователей:', error);
-    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
-    alert(`Ошибка загрузки пользователей: ${errorMessage}`);
+    const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
+    alert(t('vds.alerts.usersLoadError', { error: errorMessage }));
     users.value = [];
   } finally {
     isLoading.value = false;
@@ -1104,14 +1101,14 @@ const loadUsers = async () => {
 
 const createUser = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут создавать пользователей');
+    alert(t('vds.alerts.editorOnlyCreateUsers'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/users/create', newUser);
     if (response.data.success) {
-      alert(`Пользователь ${newUser.username} создан`);
+      alert(t('vds.alerts.userCreated', { name: newUser.username }));
       showCreateUserModal.value = false;
       newUser.username = '';
       newUser.password = '';
@@ -1120,7 +1117,7 @@ const createUser = async () => {
     }
   } catch (error) {
     console.error('Ошибка создания пользователя:', error);
-    alert(error.response?.data?.error || 'Ошибка создания пользователя');
+    alert(error.response?.data?.error || t('vds.alerts.createUserError'));
   } finally {
     isLoading.value = false;
   }
@@ -1128,20 +1125,20 @@ const createUser = async () => {
 
 const deleteUser = async (username) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут удалять пользователей');
+    alert(t('vds.alerts.editorOnlyUsers'));
     return;
   }
-  if (!confirm(`Удалить пользователя ${username}? Это действие необратимо!`)) return;
+  if (!confirm(t('vds.alerts.confirmDeleteUserIrreversible', { name: username }))) return;
   isLoading.value = true;
   try {
     const response = await axios.delete(`/vds/users/${username}`);
     if (response.data.success) {
-      alert(`Пользователь ${username} удален`);
+      alert(t('vds.alerts.userDeleted', { name: username }));
       await loadUsers();
     }
   } catch (error) {
     console.error('Ошибка удаления пользователя:', error);
-    alert(error.response?.data?.error || 'Ошибка удаления пользователя');
+    alert(error.response?.data?.error || t('vds.alerts.deleteUserError'));
   } finally {
     isLoading.value = false;
   }
@@ -1149,21 +1146,21 @@ const deleteUser = async (username) => {
 
 const changeUserPassword = async (username) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут изменять пароли пользователей');
+    alert(t('vds.alerts.editorOnlyChangePassword'));
     return;
   }
-  const password = prompt(`Введите новый пароль для пользователя ${username}:`);
+  const password = prompt(t('vds.alerts.newPasswordPrompt', { name: username }));
   if (!password) return;
   
   isLoading.value = true;
   try {
     const response = await axios.post(`/vds/users/${username}/password`, { password });
     if (response.data.success) {
-      alert(`Пароль пользователя ${username} изменен`);
+      alert(t('vds.alerts.passwordChangedUser', { name: username }));
     }
   } catch (error) {
     console.error('Ошибка изменения пароля:', error);
-    alert(error.response?.data?.error || 'Ошибка изменения пароля');
+    alert(error.response?.data?.error || t('vds.alerts.changePasswordError'));
   } finally {
     isLoading.value = false;
   }
@@ -1171,22 +1168,22 @@ const changeUserPassword = async (username) => {
 
 const viewUserSshKeys = async (username) => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут просматривать SSH ключи');
+    alert(t('vds.alerts.editorOnlyViewSshKeys'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.get(`/vds/users/${username}/ssh-keys`);
     if (response.data.success) {
-      logsTitle.value = `SSH ключи пользователя: ${username}`;
+      logsTitle.value = t('vds.sshKeysTitle', { name: username });
       logsContent.value = response.data.keys.length > 0 
         ? response.data.keys.map((k, i) => `${i + 1}. ${k.key}`).join('\n\n')
-        : 'SSH ключи не найдены';
+        : t('vds.sshKeysNotFound');
       showLogsModal.value = true;
     }
   } catch (error) {
     console.error('Ошибка получения SSH ключей:', error);
-    alert(error.response?.data?.error || 'Ошибка получения SSH ключей');
+    alert(error.response?.data?.error || t('vds.alerts.sshKeysError'));
   } finally {
     isLoading.value = false;
   }
@@ -1195,20 +1192,20 @@ const viewUserSshKeys = async (username) => {
 // Бэкапы
 const createBackup = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут создавать бэкапы');
+    alert(t('vds.alerts.editorOnlyBackups'));
     return;
   }
-  if (!confirm('Создать бэкап базы данных?')) return;
+  if (!confirm(t('vds.alerts.confirmCreateBackup'))) return;
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/backup/create');
     if (response.data.success) {
-      alert(`Бэкап создан: ${response.data.file}`);
+      alert(t('vds.alerts.backupCreated', { file: response.data.file }));
       backupForm.file = response.data.file;
     }
   } catch (error) {
     console.error('Ошибка создания бэкапа:', error);
-    alert(error.response?.data?.error || 'Ошибка создания бэкапа');
+    alert(error.response?.data?.error || t('vds.alerts.backupError'));
   } finally {
     isLoading.value = false;
   }
@@ -1216,14 +1213,14 @@ const createBackup = async () => {
 
 const sendBackup = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут отправлять бэкапы');
+    alert(t('vds.alerts.editorOnlyBackups'));
     return;
   }
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/backup/send', backupForm);
     if (response.data.success) {
-      alert('Бэкап отправлен на локальную машину');
+      alert(t('vds.alerts.backupSentLocal'));
       showSendBackupModal.value = false;
       backupForm.file = '';
       backupForm.localHost = '';
@@ -1233,7 +1230,7 @@ const sendBackup = async () => {
     }
   } catch (error) {
     console.error('Ошибка отправки бэкапа:', error);
-    alert(error.response?.data?.error || 'Ошибка отправки бэкапа');
+    alert(error.response?.data?.error || t('vds.alerts.sendBackupError'));
   } finally {
     isLoading.value = false;
   }
@@ -1242,53 +1239,30 @@ const sendBackup = async () => {
 // SSL Сертификаты
 const loadSslStatus = async () => {
   if (!isEditor.value) {
-    // Не показываем ошибку, если пользователь не редактор - просто не загружаем статус
-    console.log('[VDS] Пользователь не является редактором, пропускаем загрузку SSL статуса');
     return;
   }
-  console.log('[VDS] Загрузка SSL статуса...');
   isLoadingSsl.value = true;
   try {
     const response = await axios.get('/vds/ssl/status');
-    console.log('[VDS] Ответ от /vds/ssl/status:', response.data);
     if (response.data.success) {
       sslStatus.value = response.data;
-      console.log('[VDS] SSL статус загружен:', {
-        hasCertificates: response.data.allCertificates?.length > 0,
-        certificatesCount: response.data.allCertificates?.length || 0,
-        domain: response.data.domain
-      });
     } else {
-      console.warn('[VDS] Получение статуса SSL не успешно:', response.data);
       sslStatus.value = null;
-      // Не показываем alert для автоматической загрузки при монтировании компонента
-      // Alert показываем только при ручной проверке (через кнопку)
     }
   } catch (error) {
     console.error('Ошибка получения статуса SSL:', error);
-    console.error('Детали ошибки:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    });
-    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
     
-    // Если VDS не настроена, это нормальная ситуация - не показываем ошибку
-    if (errorMessage.includes('VDS не настроена') || error.response?.status === 400) {
-      console.log('[VDS] VDS не настроена, это нормально');
+    if (errorMessageMatches(errorMessage, 'vds.errors.notConfigured') || error.response?.status === 400) {
       sslStatus.value = null;
       return;
     }
     
-    // Если ошибка аутентификации (401), это нормальная ситуация - пользователь не авторизован
-    if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
-      console.log('[VDS] Ошибка аутентификации, это нормально');
+    if (error.response?.status === 401 || errorMessageMatches(errorMessage, 'vds.alerts.authRequired') || errorMessageMatches(errorMessage, 'vds.errors.authKeyword')) {
       sslStatus.value = null;
       return;
     }
     
-    // Для других ошибок логируем, но не показываем alert при автоматической загрузке
     sslStatus.value = null;
   } finally {
     isLoadingSsl.value = false;
@@ -1298,7 +1272,7 @@ const loadSslStatus = async () => {
 // Ручная проверка статуса (с показом ошибок пользователю)
 const checkSslStatus = async () => {
   if (!isEditor.value) {
-    alert('Только пользователи с ролью "Редактор" могут проверять SSL сертификаты');
+    alert(t('vds.alerts.editorOnlyCheckSsl'));
     return;
   }
   isLoadingSsl.value = true;
@@ -1307,78 +1281,63 @@ const checkSslStatus = async () => {
     if (response.data.success) {
       sslStatus.value = response.data;
       if (!response.data.allCertificates || response.data.allCertificates.length === 0) {
-        alert('SSL сертификат не найден для текущего домена');
+        alert(t('vds.sslNotFound'));
       }
     } else {
-      alert('Ошибка получения статуса SSL сертификата: ' + (response.data.error || 'Неизвестная ошибка'));
+      alert(t('vds.alerts.sslStatusError', { error: response.data.error || t('common.unknownError') }));
     }
   } catch (error) {
     console.error('Ошибка получения статуса SSL:', error);
-    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
     
-    // Если ошибка аутентификации, показываем понятное сообщение
-    if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
-      alert('Требуется аутентификация. Пожалуйста, войдите в систему.');
+    if (error.response?.status === 401 || errorMessageMatches(errorMessage, 'vds.alerts.authRequired') || errorMessageMatches(errorMessage, 'vds.errors.authKeyword')) {
+      alert(t('vds.alerts.authRequired'));
       return;
     }
     
-    alert(`Ошибка получения статуса SSL сертификата: ${errorMessage}`);
+    alert(t('vds.alerts.sslStatusError', { error: errorMessage }));
   } finally {
     isLoadingSsl.value = false;
   }
 };
 
 const renewSslCertificate = async () => {
-  console.log('[VDS] renewSslCertificate вызвана, isEditor:', isEditor.value);
   if (!isEditor.value) {
-    console.warn('[VDS] Пользователь не является редактором, доступ запрещен');
-    alert('Только пользователи с ролью "Редактор" могут получать SSL сертификаты');
+    alert(t('vds.alerts.editorOnlyRenewSsl'));
     return;
   }
-  if (!confirm('Получить/обновить SSL сертификат от Let\'s Encrypt? Это может занять некоторое время.')) {
-    console.log('[VDS] Пользователь отменил получение SSL сертификата');
+  if (!confirm(t('vds.alerts.confirmRenewSsl'))) {
     return;
   }
-  console.log('[VDS] Начинаем получение SSL сертификата...');
   isLoading.value = true;
   try {
     const response = await axios.post('/vds/ssl/renew', {
       sslProvider: 'letsencrypt'
     });
-    console.log('[VDS] Ответ от /vds/ssl/renew:', response.data);
     if (response.data.success) {
-      alert('SSL сертификат успешно получен/обновлен');
+      alert(t('vds.alerts.sslRenewed'));
       await loadSslStatus();
     } else {
       console.error('[VDS] Ошибка получения SSL сертификата:', response.data);
-      alert('Ошибка получения SSL сертификата: ' + (response.data.error || 'Неизвестная ошибка'));
+      alert(t('vds.alerts.sslStatusError', { error: response.data.error || t('common.unknownError') }));
     }
   } catch (error) {
     console.error('Ошибка получения SSL сертификата:', error);
-    console.error('Детали ошибки:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    });
-    const errorMessage = error.response?.data?.error || error.message || 'Неизвестная ошибка';
+    const errorMessage = error.response?.data?.error || error.message || t('common.unknownError');
     const errorDetails = error.response?.data?.details || '';
     
-    // Если ошибка аутентификации, показываем понятное сообщение
-    if (error.response?.status === 401 || errorMessage.includes('Требуется аутентификация') || errorMessage.includes('аутентификация')) {
-      alert('Требуется аутентификация. Пожалуйста, обновите страницу и войдите в систему заново.');
-      // Перенаправляем на главную страницу для повторной авторизации
+    if (error.response?.status === 401 || errorMessageMatches(errorMessage, 'vds.alerts.authRequired') || errorMessageMatches(errorMessage, 'vds.errors.authKeyword')) {
+      alert(t('vds.alerts.authRequiredRefresh'));
       router.push({ name: 'home' });
       return;
     }
     
-    // Если ошибка лимита Let's Encrypt
     if (error.response?.status === 429 || error.response?.data?.rateLimit || errorMessage.includes('too many certificates') || errorMessage.includes('rate limit') || errorDetails.includes('too many certificates')) {
-      alert('⚠️ Превышен лимит Let\'s Encrypt!\n\nСлишком много сертификатов было выпущено для этого домена за последние 7 дней.\n\nРекомендации:\n1. Подождите до указанной даты\n2. Используйте существующий сертификат (если он есть)\n3. Проверьте статус SSL на странице\n\nЛимит: 5 сертификатов на домен за 168 часов (7 дней)');
+      alert(t('vds.alerts.sslRateLimit'));
       return;
     }
     
-    alert(`Ошибка получения SSL сертификата: ${errorMessage}`);
+    alert(t('vds.alerts.sslStatusError', { error: errorMessage }));
   } finally {
     isLoading.value = false;
   }
@@ -1393,10 +1352,11 @@ const isCertExpiringSoon = (expiryDate) => {
 };
 
 const formatDate = (dateString) => {
-  if (!dateString) return 'Не указан';
+  if (!dateString) return t('common.notSpecified');
   try {
     const date = new Date(dateString);
-    return date.toLocaleString('ru-RU', { 
+    const localeCode = locale.value === 'ru' ? 'ru-RU' : 'en-US';
+    return date.toLocaleString(localeCode, { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric',
@@ -1479,7 +1439,7 @@ const initCharts = async () => {
       data: {
         labels: [],
         datasets: [{
-          label: 'Трафик (MB)',
+          label: t('vds.chartTrafficMb'),
           data: [],
           borderColor: 'rgb(54, 162, 235)',
           backgroundColor: 'rgba(54, 162, 235, 0.2)',
@@ -1506,7 +1466,6 @@ const updateCharts = () => {
   // CPU
   if (cpuChartInstance && stats.value.cpu?.usage !== undefined && stats.value.cpu?.usage !== null) {
     const cpuValue = parseFloat(stats.value.cpu.usage) || 0;
-    console.log('[VDS] Обновление графика CPU:', cpuValue);
     chartData.cpu.labels.push(now);
     chartData.cpu.data.push(cpuValue);
     if (chartData.cpu.labels.length > 20) {
@@ -1516,18 +1475,11 @@ const updateCharts = () => {
     cpuChartInstance.data.labels = chartData.cpu.labels;
     cpuChartInstance.data.datasets[0].data = chartData.cpu.data;
     cpuChartInstance.update('none');
-  } else {
-    console.warn('[VDS] CPU график не обновлен:', { 
-      hasInstance: !!cpuChartInstance, 
-      usage: stats.value.cpu?.usage,
-      statsValue: stats.value
-    });
   }
   
   // RAM
   if (ramChartInstance && stats.value.ram?.usage !== undefined && stats.value.ram?.usage !== null) {
     const ramValue = parseFloat(stats.value.ram.usage) || 0;
-    console.log('[VDS] Обновление графика RAM:', ramValue);
     chartData.ram.labels.push(now);
     chartData.ram.data.push(ramValue);
     if (chartData.ram.labels.length > 20) {
@@ -1537,17 +1489,11 @@ const updateCharts = () => {
     ramChartInstance.data.labels = chartData.ram.labels;
     ramChartInstance.data.datasets[0].data = chartData.ram.data;
     ramChartInstance.update('none');
-  } else {
-    console.warn('[VDS] RAM график не обновлен:', { 
-      hasInstance: !!ramChartInstance, 
-      usage: stats.value.ram?.usage 
-    });
   }
   
   // Traffic (в MB)
   if (trafficChartInstance && stats.value.traffic?.total !== undefined && stats.value.traffic?.total !== null) {
     const trafficValue = parseFloat(stats.value.traffic.total) || 0;
-    console.log('[VDS] Обновление графика Traffic:', trafficValue);
     chartData.traffic.labels.push(now);
     chartData.traffic.data.push(trafficValue);
     if (chartData.traffic.labels.length > 20) {
@@ -1557,32 +1503,21 @@ const updateCharts = () => {
     trafficChartInstance.data.labels = chartData.traffic.labels;
     trafficChartInstance.data.datasets[0].data = chartData.traffic.data;
     trafficChartInstance.update('none');
-  } else {
-    console.warn('[VDS] Traffic график не обновлен:', { 
-      hasInstance: !!trafficChartInstance, 
-      total: stats.value.traffic?.total 
-    });
   }
 };
 
 // Жизненный цикл
 onMounted(async () => {
-  console.log('[VDS] Компонент монтирован, isEditor:', isEditor.value, 'currentRole:', currentRole.value);
   await loadSettings();
   await loadContainers();
   await initCharts();
   await loadStats();
   
-  // Загружаем пользователей только для редакторов
   if (isEditor.value) {
-    console.log('[VDS] Пользователь является редактором, загружаем пользователей и SSL статус');
     await loadUsers();
     await loadSslStatus();
-  } else {
-    console.log('[VDS] Пользователь НЕ является редактором, пропускаем загрузку пользователей и SSL');
   }
   
-  // Обновляем статистику каждые 5 секунд
   statsInterval = setInterval(loadStats, 5000);
 });
 

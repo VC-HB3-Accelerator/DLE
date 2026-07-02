@@ -29,14 +29,14 @@
         <!-- Загрузка -->
         <div v-if="isLoading" class="loading-state">
           <div class="loading-spinner"></div>
-          <p>Загрузка статей...</p>
+          <p>{{ t('blog.loading') }}</p>
         </div>
 
         <!-- Пустое состояние -->
         <div v-else-if="filteredPages.length === 0" class="empty-state">
           <div class="empty-icon"><i class="fas fa-book-open"></i></div>
-          <h3>Нет статей в блоге</h3>
-          <p>Статьи появятся здесь после их публикации редакторами</p>
+          <h3>{{ t('blog.emptyTitle') }}</h3>
+          <p>{{ t('blog.emptyDescription') }}</p>
         </div>
 
         <!-- Список статей -->
@@ -65,7 +65,7 @@
                 {{ formatDate(page.created_at) }}
               </span>
               <span class="article-read-more">
-                Читать далее →
+                {{ t('blog.readMore') }}
               </span>
             </div>
           </article>
@@ -78,6 +78,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import DocsContent from '../components/docs/DocsContent.vue';
 import pagesService from '../services/pagesService';
@@ -93,6 +94,7 @@ const emit = defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 
 const pages = ref([]);
 const isLoading = ref(false);
@@ -123,7 +125,7 @@ const filteredPages = computed(() => {
 });
 
 function formatCategoryName(name) {
-  if (name === 'uncategorized') return 'Без категории';
+  if (name === 'uncategorized') return t('blog.uncategorized');
   if (!name || name.length === 0) return name;
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
@@ -186,8 +188,8 @@ async function loadPages() {
 
 // Установка мета-тегов для страницы блога
 function updateBlogMetaTags() {
-  const title = 'Блог';
-  const description = 'Публикации и статьи';
+  const title = t('blog.title');
+  const description = t('blog.description');
   const canonicalUrl = `${window.location.origin}/blog`;
   
   // Обновляем title
@@ -240,8 +242,8 @@ function addBlogJsonLd() {
   const blogJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
-    'name': 'Блог',
-    'description': 'Публикации и статьи',
+    'name': t('blog.title'),
+    'description': t('blog.description'),
     'url': `${window.location.origin}/blog`,
       'blogPost': pages.value
       .filter(page => page.slug && typeof page.slug === 'string' && page.slug.trim() !== '')

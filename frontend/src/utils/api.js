@@ -10,6 +10,10 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
+import { i18n } from '@/locales/index.js';
+
+const t = (key, params) => i18n.global.t(key, params);
+
 /**
  * Безопасный fetch с проверкой JSON-ответа
  * @param {string} url - URL для запроса
@@ -22,7 +26,7 @@ export async function safeFetch(url, options = {}) {
     
     // Проверяем статус ответа
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(t('api.errors.httpError', { status: response.status, statusText: response.statusText }));
     }
     
     // Проверяем Content-Type
@@ -30,9 +34,9 @@ export async function safeFetch(url, options = {}) {
     if (!contentType || !contentType.includes('application/json')) {
       // Если это HTML, значит, запрос ушёл не на API
       if (contentType && contentType.includes('text/html')) {
-        throw new Error('Сервер вернул HTML вместо JSON. Проверьте путь к API.');
+        throw new Error(t('api.errors.htmlInsteadOfJson'));
       }
-      throw new Error(`Неожиданный Content-Type: ${contentType}`);
+      throw new Error(t('api.errors.unexpectedContentType', { contentType }));
     }
     
     // Парсим JSON
