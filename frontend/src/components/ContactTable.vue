@@ -119,8 +119,25 @@
         </tr>
       </tbody>
     </table>
-    <div v-if="totalContacts > pageSize" class="contacts-pagination">
+    <div v-if="totalContacts > 0" class="contacts-pagination">
+      <div class="pagination-size">
+        <span class="pagination-size-label">На странице:</span>
+        <el-select
+          v-model="pageSize"
+          :disabled="isLoadingContacts"
+          style="min-width: 100px;"
+          @change="onPageSizeChange"
+        >
+          <el-option
+            v-for="size in PAGE_SIZE_OPTIONS"
+            :key="size"
+            :label="String(size)"
+            :value="size"
+          />
+        </el-select>
+      </div>
       <el-pagination
+        v-if="totalContacts > pageSize"
         v-model:current-page="currentPage"
         :page-size="pageSize"
         :total="totalContacts"
@@ -152,7 +169,7 @@ const props = defineProps({
   markContactAsRead: { type: Function, default: null }
 });
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE_OPTIONS = [100, 500, 1000];
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const router = useRouter();
 const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData, hasPermission } = usePermissions();
@@ -162,7 +179,7 @@ const { getRoleDisplayName, getRoleClass, fetchRoles } = useRoles();
 const pageContacts = ref([]);
 const totalContacts = ref(0);
 const currentPage = ref(1);
-const pageSize = PAGE_SIZE;
+const pageSize = ref(1000);
 const isLoadingContacts = ref(false);
 const selectedContactsCache = ref({});
 
@@ -231,8 +248,8 @@ const isEditorRole = computed(() => userAccessLevel.value?.level === 'editor');
 
 function buildFilterParams() {
   const params = {
-    limit: pageSize,
-    offset: (currentPage.value - 1) * pageSize
+    limit: pageSize.value,
+    offset: (currentPage.value - 1) * pageSize.value
   };
   if (selectedTagIds.value.length > 0) params.tagIds = selectedTagIds.value.join(',');
   if (filterDateFrom.value) params.dateFrom = formatDateOnly(filterDateFrom.value);
@@ -281,6 +298,14 @@ function onSearchInput() {
 
 function onPageChange(page) {
   currentPage.value = page;
+  loadContactsPage();
+}
+
+function onPageSizeChange() {
+  if (!PAGE_SIZE_OPTIONS.includes(pageSize.value)) {
+    pageSize.value = 1000;
+  }
+  currentPage.value = 1;
   loadContactsPage();
 }
 
@@ -614,8 +639,21 @@ async function deleteMessagesSelected() {
 }
 .contacts-pagination {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-top: 24px;
+}
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pagination-size-label {
+  font-size: 0.95rem;
+  color: #606266;
+  white-space: nowrap;
 }
 .loading-row {
   text-align: center;
