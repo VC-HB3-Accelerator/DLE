@@ -13,17 +13,6 @@ This section contains legal documentation for the protection of the DLE (Digital
 
 **Template documents:** LICENSE, service-terms, and CONTRIBUTOR_LICENSE in the repository are **base templates**. For customers in each country, an Authorized Contributor prepares a **localized version**; the **Contributor’s lawyer** uses [templates/](templates/) to draft the **local contract**. **Baseline code** — Author; **Contributor Updates** — Contributor (Author’s right of first refusal). Royalty 1,000 / 10,000 USDT accrues per license; payment upon written request.
 
-### Confidential Documents
-
-**Patent documents (do not publish):**
-- [patents/](patents/) — patent applications and innovation processes
-  - Russian Federation patent applications
-  - Technical specifications
-  - Innovation processes
-  - Strategic plans
-
-**Important:** Patent documents contain confidential information and must not be published in public repositories.
-
 ### Public Documents
 
 **Copyright and licenses:**

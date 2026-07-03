@@ -1722,7 +1722,8 @@
       },
       "alerts": {
         "activateNotImplemented": "Функция активации модуля будет реализована позже",
-        "activateError": "❌ Ошибка активации модуля: {error}"
+        "activateError": "❌ Ошибка активации модуля: {error}",
+        "adminOnly": "Деплой модулей доступен только администраторам"
       },
       "logs": {
         "subscribeActivated": "Подписка на деплой активирована для DLE: {address}",

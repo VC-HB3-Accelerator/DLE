@@ -1722,7 +1722,8 @@
       },
       "alerts": {
         "activateNotImplemented": "Module activation will be implemented later",
-        "activateError": "❌ Module activation error: {error}"
+        "activateError": "❌ Module activation error: {error}",
+        "adminOnly": "Module deployment is available to administrators only"
       },
       "logs": {
         "subscribeActivated": "Deployment subscription activated for DLE: {address}",

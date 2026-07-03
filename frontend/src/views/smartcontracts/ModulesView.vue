@@ -185,7 +185,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('treasury')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -209,7 +209,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('timelock')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -234,7 +234,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('reader')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -258,7 +258,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('communication')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -282,7 +282,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('application')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -306,7 +306,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('mint')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -330,7 +330,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('burn')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -355,7 +355,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('oracle')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -380,7 +380,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('inheritance')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -405,7 +405,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('vesting')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -430,7 +430,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('staking')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -455,7 +455,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('insurance')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -480,7 +480,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('compliance')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -505,7 +505,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('supplychain')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -530,7 +530,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('event')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -555,7 +555,7 @@
               <button 
                 class="btn btn-primary btn-deploy" 
                 @click="deployModule('hierarchicalVoting')"
-                :disabled="isDeploying"
+                :disabled="isDeploying || !canDeployModules"
               >
                 <i class="fas fa-rocket" v-if="!isDeploying"></i>
                 <i class="fas fa-spinner fa-spin" v-else></i>
@@ -719,6 +719,8 @@
 import { defineProps, defineEmits, ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { usePermissions } from '../../composables/usePermissions';
+import { useAuthContext } from '../../composables/useAuth';
 import BaseLayout from '../../components/BaseLayout.vue';
 import { 
   isModuleActive,
@@ -744,6 +746,10 @@ const emit = defineEmits(['auth-action-completed']);
 const router = useRouter();
 const route = useRoute();
 const { t, locale } = useI18n();
+const { canManageSettings } = usePermissions();
+const { checkAuth, checkUserAccessLevel, address, isAuthenticated: isAuthContextAuthenticated } = useAuthContext();
+
+const canDeployModules = computed(() => canManageSettings.value);
 
 // Получаем адрес DLE из URL
 const dleAddress = computed(() => {
@@ -1169,6 +1175,11 @@ function getStatusTitle() {
 // Функция деплоя модулей
 async function deployModule(moduleType) {
   if (isDeploying.value) return;
+
+  if (!canDeployModules.value) {
+    alert(t('smartcontracts.modules.alerts.adminOnly'));
+    return;
+  }
   
   try {
     // Открываем модальное окно и подключаемся к WebSocket
@@ -1216,7 +1227,12 @@ async function deployModule(moduleType) {
 }
 
 // Инициализация
-onMounted(() => {
+onMounted(async () => {
+  await checkAuth();
+  if (isAuthContextAuthenticated.value && address.value) {
+    await checkUserAccessLevel(address.value);
+  }
+
   loadDleData();
   loadModules(); // Первоначальная загрузка без debounce
   

@@ -16,12 +16,15 @@ const { spawn } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
 const deploymentWebSocketService = require('../services/deploymentWebSocketService');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('../shared/permissions');
 
 /**
  * Деплой модуля DLE
  * @route POST /api/module-deployment/deploy
  */
-router.post('/deploy', async (req, res) => {
+router.post('/deploy', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   console.log(`[Module Deployment] POST /deploy вызван с body:`, req.body);
   try {
     const { dleAddress, moduleType, params } = req.body;
@@ -184,7 +187,7 @@ router.post('/deploy', async (req, res) => {
  * Деплой модуля из базы данных (алиас для /deploy)
  * @route POST /api/module-deployment/deploy-module-from-db
  */
-router.post('/deploy-module-from-db', async (req, res) => {
+router.post('/deploy-module-from-db', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS), async (req, res) => {
   console.log(`[Module Deployment] POST /deploy-module-from-db вызван с body:`, req.body);
   try {
     const { dleAddress, moduleType } = req.body;
