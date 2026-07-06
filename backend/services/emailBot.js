@@ -524,6 +524,15 @@ class EmailBot {
    * @param {string} text - Текст письма
    * @returns {Promise<boolean>} - Успешность отправки
    */
+  async ensureTransporter() {
+    if (!this.settings) {
+      this.settings = await this.loadSettings();
+    }
+    if (!this.transporter) {
+      this.transporter = await this.createTransporter();
+    }
+  }
+
   async sendEmail(to, subject, text, attachments = []) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(to)) {
@@ -531,6 +540,8 @@ class EmailBot {
     }
     
     try {
+      await this.ensureTransporter();
+
       const mailOptions = {
         from: this.settings.from_email,
         to,
@@ -540,13 +551,13 @@ class EmailBot {
       };
       
       await this.transporter.sendMail(mailOptions);
-      this.transporter.close();
       
       logger.info(`[EmailBot] Email отправлен успешно: ${to}`);
       return true;
       
     } catch (error) {
       logger.error('[EmailBot] Ошибка отправки email:', error);
+      this.transporter = null;
       throw error;
     }
   }
@@ -573,8 +584,8 @@ class EmailBot {
         html
       };
       
+      await this.ensureTransporter();
       await this.transporter.sendMail(mailOptions);
-      this.transporter.close();
       
       logger.info(`[EmailBot] Email с HTML отправлен успешно: ${to}`);
       return true;

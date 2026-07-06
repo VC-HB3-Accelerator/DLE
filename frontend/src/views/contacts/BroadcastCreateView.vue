@@ -280,9 +280,19 @@ async function sendBroadcast() {
       });
       successCount += 1;
     } catch (error) {
+      const apiError = error?.response?.data?.error;
+      const apiDetails = error?.response?.data?.details;
+      const channelErrors = error?.response?.data?.results
+        ?.filter(item => item.status === 'error')
+        ?.map(item => `${item.channel}: ${item.error}`)
+        .join('; ');
+      const combinedError = [apiError, apiDetails, channelErrors].filter(Boolean).join(' — ')
+        || error?.message
+        || t('common.sendError');
+
       errors.push({
         userId,
-        error: error?.response?.data?.error || error?.response?.data?.details || error?.message || t('common.sendError')
+        error: combinedError
       });
     } finally {
       sentAttempts.value = index + 1;

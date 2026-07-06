@@ -29,6 +29,73 @@ const broadcastUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024, files: 10 }
 });
 
+async function saveBroadcastOutgoingMessage({
+  conversationId,
+  senderId,
+  recipientUserId,
+  content,
+  channel,
+  encryptionKey
+}) {
+  await db.getQuery()(
+    `INSERT INTO messages (
+      conversation_id,
+      sender_id,
+      sender_type_encrypted,
+      content_encrypted,
+      channel_encrypted,
+      role_encrypted,
+      direction_encrypted,
+      message_type,
+      user_id,
+      role,
+      direction,
+      created_at
+    ) VALUES (
+      $1, $2,
+      encrypt_text($3, $12),
+      encrypt_text($4, $12),
+      encrypt_text($5, $12),
+      encrypt_text($6, $12),
+      encrypt_text($7, $12),
+      $8, $9, $10, $11,
+      NOW()
+    )`,
+    [
+      conversationId,
+      senderId,
+      'editor',
+      content,
+      channel,
+      'editor',
+      'outgoing',
+      'user_chat',
+      recipientUserId,
+      'user',
+      'outgoing',
+      encryptionKey
+    ]
+  );
+}
+
+async function getOrCreateConversation(recipientUserId) {
+  const conversationResult = await db.getQuery()(
+    'SELECT id, user_id, created_at, updated_at, title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
+    [recipientUserId]
+  );
+
+  if (conversationResult.rows.length > 0) {
+    return conversationResult.rows[0];
+  }
+
+  const title = `Чат с пользователем ${recipientUserId}`;
+  const newConv = await db.getQuery()(
+    'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
+    [recipientUserId, title]
+  );
+  return newConv.rows[0];
+}
+
 // GET /api/messages/public?userId=123 - получить публичные сообщения пользователя
 router.get('/public', requireAuth, async (req, res) => {
   const userId = req.query.userId;
@@ -388,130 +455,156 @@ router.get('/read-status', async (req, res) => {
 // УДАЛЕНО: Дублирующиеся endpoint'ы перенесены ниже
 
 // Массовая рассылка сообщения во все каналы пользователя
-// Массовая рассылка сообщений
 router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST), broadcastUpload.array('attachments'), async (req, res) => {
-  const { user_id, content } = req.body;
+  const { content } = req.body;
   const subject = String(req.body.subject || 'Новое сообщение').trim() || 'Новое сообщение';
+  const recipientUserId = parseInt(req.body.user_id, 10);
+  const senderId = req.user?.id || req.session?.userId;
   const attachments = (req.files || []).map(file => ({
     filename: file.originalname,
     content: file.buffer,
     contentType: file.mimetype
   }));
-  if (!user_id || !content) {
+
+  if (!recipientUserId || Number.isNaN(recipientUserId) || !String(content || '').trim()) {
     return res.status(400).json({ error: 'user_id и content обязательны' });
   }
 
-  // ✨ Проверка прав через adminLogicService (только editor может делать рассылку!)
-  const encryptedDb = require('../services/encryptedDatabaseService');
-  const users = await encryptedDb.getData('users', { id: req.session.userId }, 1);
-  const userRole = users && users.length > 0 ? users[0].role : 'user';
-  
   const adminLogicService = require('../services/adminLogicService');
+  const editorRole = req.userRole || ROLES.USER;
   const canBroadcast = adminLogicService.canPerformAdminAction({
-    role: userRole,  // Передаем точную роль ('editor', 'readonly', 'user')
+    role: editorRole,
     action: 'broadcast_message'
   });
 
   if (!canBroadcast) {
-    console.warn(`[Messages] Пользователь ${req.session.userId} (роль: ${userRole}) пытался сделать broadcast без прав`);
-    return res.status(403).json({ 
-      error: 'Только редакторы (editor) могут делать массовую рассылку' 
+    logger.warn(`[Messages] Пользователь ${senderId} (роль: ${editorRole}) пытался сделать broadcast без прав`);
+    return res.status(403).json({
+      error: 'Только редакторы (editor) могут делать массовую рассылку'
     });
   }
 
-  // Получаем ключ шифрования через унифицированную утилиту
+  if (!senderId) {
+    return res.status(401).json({ error: 'Не удалось определить отправителя' });
+  }
+
   const encryptionUtils = require('../utils/encryptionUtils');
-  const encryptionKey = encryptionUtils.getEncryptionKey();
+  let encryptionKey;
 
   try {
-    // Получаем все идентификаторы пользователя
+    encryptionKey = encryptionUtils.getEncryptionKey();
+  } catch (keyError) {
+    logger.error('[Messages] Broadcast: ключ шифрования недоступен:', keyError);
+    return res.status(500).json({
+      error: 'Ошибка рассылки',
+      details: 'Ключ шифрования недоступен'
+    });
+  }
+
+  try {
     const identitiesRes = await db.getQuery()(
       'SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1',
-      [user_id, encryptionKey]
+      [recipientUserId, encryptionKey]
     );
     const identities = identitiesRes.rows;
-    // --- Найти или создать беседу (conversation) ---
-    let conversationResult = await db.getQuery()(
-      'SELECT id, user_id, created_at, updated_at, title FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC LIMIT 1',
-      [user_id, encryptionKey]
-    );
-    let conversation;
-    if (conversationResult.rows.length === 0) {
-      const title = `Чат с пользователем ${user_id}`;
-      const newConv = await db.getQuery()(
-        'INSERT INTO conversations (user_id, title, created_at, updated_at) VALUES ($1, $2, NOW(), NOW()) RETURNING *',
-        [user_id, title]
-      );
-      conversation = newConv.rows[0];
-    } else {
-      conversation = conversationResult.rows[0];
-    }
+    const conversation = await getOrCreateConversation(recipientUserId);
     const results = [];
     let sent = false;
-    // Email
+    const trimmedContent = String(content).trim();
+
     const email = identities.find(i => i.provider === 'email')?.provider_id;
     if (email) {
       try {
         const emailBot = botManager.getBot('email');
         if (emailBot && emailBot.isInitialized) {
-          await emailBot.sendEmail(email, subject, content, attachments);
-          // Сохраняем в messages с conversation_id
-          await db.getQuery()(
-            `INSERT INTO messages (conversation_id, sender_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, user_id, role, direction, created_at)
-             VALUES ($1, $2, encrypt_text($3, $12), encrypt_text($4, $12), encrypt_text($5, $12), encrypt_text($6, $12), encrypt_text($7, $12), $8, $9, $10, $11, NOW())`,
-            [conversation.id, req.session.userId, 'editor', content, 'email', 'user', 'out', 'user_chat', user_id, 'user', 'out', encryptionKey]
-          );
+          await emailBot.sendEmail(email, subject, trimmedContent, attachments);
+          await saveBroadcastOutgoingMessage({
+            conversationId: conversation.id,
+            senderId,
+            recipientUserId,
+            content: trimmedContent,
+            channel: 'email',
+            encryptionKey
+          });
           results.push({ channel: 'email', status: 'sent' });
           sent = true;
         } else {
-          console.warn('[messages.js] Email Bot не инициализирован');
-          results.push({ channel: 'email', status: 'error', error: 'Bot not initialized' });
+          logger.warn('[messages.js] Email Bot не инициализирован');
+          results.push({ channel: 'email', status: 'error', error: 'Email-бот не инициализирован' });
         }
       } catch (err) {
+        logger.error(`[messages.js] Broadcast email error for user ${recipientUserId}:`, err);
         results.push({ channel: 'email', status: 'error', error: err.message });
       }
     }
-    // Telegram
+
     const telegram = identities.find(i => i.provider === 'telegram')?.provider_id;
     if (telegram) {
       try {
         const telegramBot = botManager.getBot('telegram');
         if (telegramBot && telegramBot.isInitialized) {
           const bot = telegramBot.getBot();
-          await bot.telegram.sendMessage(telegram, content);
-          await db.getQuery()(
-            `INSERT INTO messages (conversation_id, sender_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, user_id, role, direction, created_at)
-             VALUES ($1, $2, encrypt_text($3, $12), encrypt_text($4, $12), encrypt_text($5, $12), encrypt_text($6, $12), encrypt_text($7, $12), $8, $9, $10, $11, NOW())`,
-            [conversation.id, req.session.userId, 'editor', content, 'telegram', 'user', 'out', 'user_chat', user_id, 'user', 'out', encryptionKey]
-          );
+          await bot.telegram.sendMessage(telegram, trimmedContent);
+          await saveBroadcastOutgoingMessage({
+            conversationId: conversation.id,
+            senderId,
+            recipientUserId,
+            content: trimmedContent,
+            channel: 'telegram',
+            encryptionKey
+          });
           results.push({ channel: 'telegram', status: 'sent' });
           sent = true;
         } else {
-          console.warn('[messages.js] Telegram Bot не инициализирован');
-          results.push({ channel: 'telegram', status: 'error', error: 'Bot not initialized' });
+          logger.warn('[messages.js] Telegram Bot не инициализирован');
+          results.push({ channel: 'telegram', status: 'error', error: 'Telegram-бот не инициализирован' });
         }
       } catch (err) {
+        logger.error(`[messages.js] Broadcast telegram error for user ${recipientUserId}:`, err);
         results.push({ channel: 'telegram', status: 'error', error: err.message });
       }
     }
-    // Wallet/web3
+
     const wallet = identities.find(i => i.provider === 'wallet')?.provider_id;
     if (wallet) {
-      // Здесь можно реализовать отправку через web3, если нужно
-      await db.getQuery()(
-        `INSERT INTO messages (conversation_id, sender_id, sender_type_encrypted, content_encrypted, channel_encrypted, role_encrypted, direction_encrypted, message_type, user_id, role, direction, created_at)
-         VALUES ($1, $2, encrypt_text($3, $12), encrypt_text($4, $12), encrypt_text($5, $12), encrypt_text($6, $12), encrypt_text($7, $12), $8, $9, $10, $11, NOW())`,
-        [conversation.id, req.session.userId, 'editor', content, 'wallet', 'user', 'out', 'user_chat', user_id, 'user', 'out', encryptionKey]
-      );
-      results.push({ channel: 'wallet', status: 'saved' });
-      sent = true;
+      try {
+        await saveBroadcastOutgoingMessage({
+          conversationId: conversation.id,
+          senderId,
+          recipientUserId,
+          content: trimmedContent,
+          channel: 'wallet',
+          encryptionKey
+        });
+        results.push({ channel: 'wallet', status: 'saved' });
+        sent = true;
+      } catch (err) {
+        logger.error(`[messages.js] Broadcast wallet save error for user ${recipientUserId}:`, err);
+        results.push({ channel: 'wallet', status: 'error', error: err.message });
+      }
     }
+
     if (!sent) {
+      const channelErrors = results.filter(item => item.status === 'error');
+      if (channelErrors.length) {
+        return res.status(400).json({
+          error: 'Не удалось отправить сообщение ни по одному каналу',
+          results: channelErrors
+        });
+      }
       return res.status(400).json({ error: 'У пользователя нет ни одного канала для рассылки.' });
     }
+
+    try {
+      broadcastMessagesUpdate();
+    } catch (wsError) {
+      logger.warn('[messages.js] Broadcast WebSocket update failed:', wsError.message);
+    }
+
     res.json({ success: true, results });
   } catch (e) {
-    res.status(500).json({ error: 'Broadcast error', details: e.message });
+    logger.error(`[messages.js] Broadcast error for user ${recipientUserId}:`, e);
+    res.status(500).json({ error: 'Ошибка рассылки', details: e.message });
   }
 });
 
