@@ -49,13 +49,14 @@ RUN echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-retries && \
         libasound2 \
         libpango-1.0-0 \
         libcairo2 \
-        libatspi2.0-0 && \
+        libatspi2.0-0 \
+        docker.io && \
     (apt-get install -y --no-install-recommends gcc-12 g++-12 g++ || \
         (sleep 10 && apt-get update && apt-get install -y --no-install-recommends gcc-12 g++-12 g++)) && \
     apt-get install -f -y || true && \
     rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/80-retries
 
-# Docker CLI НЕ устанавливаем - используем Docker Socket + dockerode SDK
+# Docker CLI для управления контейнерами через смонтированный /var/run/docker.sock
 
 COPY package.json yarn.lock THIRD_PARTY_NOTICES.md ./
 RUN yarn config set npmRegistryServer https://registry.npmjs.org \

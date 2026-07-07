@@ -11,17 +11,50 @@
 -->
 
 <template>
-  <BaseLayout>
-    <div class="broadcast-page">
-      <div class="broadcast-header">
-        <div>
-          <h1>{{ t('contacts.broadcast.title') }}</h1>
-          <p>{{ t('contacts.broadcast.selectedUsers', { count: userIds.length }) }}</p>
-        </div>
-        <el-button :disabled="loading" @click="goBack">{{ t('contacts.broadcast.backToContacts') }}</el-button>
-      </div>
+  <div class="broadcast-section">
+    <div class="broadcast-section-header">
+      <h1>{{ t('contacts.broadcast.title') }}</h1>
+      <p>{{ t('contacts.broadcast.selectedUsers', { count: eligibleUserIds.length, total: userIds.length }) }}</p>
+    </div>
 
       <el-alert
+        v-if="!userIds.length"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="broadcast-alert"
+      >
+        <template #title>
+          {{ t('contacts.broadcast.noRecipients') }}
+        </template>
+      </el-alert>
+
+      <el-alert
+        v-if="recipientsSummary?.blocked"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="broadcast-alert"
+      >
+        <template #title>
+          {{ t('contacts.broadcast.blockedSkipped', { count: recipientsSummary.blocked }) }}
+        </template>
+      </el-alert>
+
+      <el-alert
+        v-if="recipientsSummary?.withoutEmail"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="broadcast-alert"
+      >
+        <template #title>
+          {{ t('contacts.broadcast.withoutEmailWarning', { count: recipientsSummary.withoutEmail }) }}
+        </template>
+      </el-alert>
+
+      <el-alert
+        v-if="userIds.length"
         type="info"
         :closable="false"
         show-icon
@@ -33,6 +66,12 @@
       </el-alert>
 
       <el-form class="broadcast-form" label-position="top" @submit.prevent>
+        <div class="template-toolbar">
+          <el-button :disabled="loading" @click="templatesDialogVisible = true">
+            {{ t('contacts.broadcast.templates.button') }}
+          </el-button>
+        </div>
+
         <el-form-item :label="t('contacts.broadcast.subject')" required>
           <el-input v-model="subject" :placeholder="t('contacts.broadcast.subjectPlaceholder')" maxlength="200" show-word-limit />
         </el-form-item>
@@ -51,6 +90,7 @@
             <input ref="fileInputRef" class="file-input" type="file" multiple @change="onFilesSelected" />
             <el-button type="default" :disabled="loading" @click="openFilePicker">{{ t('contacts.broadcast.addAttachments') }}</el-button>
             <span class="attachments-hint">{{ t('contacts.broadcast.attachmentsHint') }}</span>
+            <span class="attachments-hint">{{ t('contacts.broadcast.attachmentsPerRecipient') }}</span>
           </div>
 
           <div v-if="attachments.length" class="attachments-list">
@@ -90,10 +130,10 @@
               <el-input-number
                 v-model="maxRecipients"
                 :min="1"
-                :max="Math.max(userIds.length, 1)"
+                :max="Math.max(eligibleUserIds.length, 1)"
                 :disabled="loading"
               />
-              <span class="field-hint">{{ t('contacts.broadcast.willSend', { send: recipientsToSend.length, total: userIds.length }) }}</span>
+              <span class="field-hint">{{ t('contacts.broadcast.willSend', { send: recipientsToSend.length, total: eligibleUserIds.length }) }}</span>
             </el-form-item>
           </div>
 
@@ -157,8 +197,14 @@
           </ul>
         </div>
       </el-card>
-    </div>
-  </BaseLayout>
+
+      <BroadcastTemplatesDialog
+        v-model="templatesDialogVisible"
+        :subject="subject"
+        :message="message"
+        @apply="applyTemplate"
+      />
+  </div>
 </template>
 
 <script setup>
@@ -166,8 +212,8 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import BaseLayout from '@/components/BaseLayout.vue';
 import messagesService from '@/services/messagesService.js';
+import BroadcastTemplatesDialog from './BroadcastTemplatesDialog.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -184,6 +230,8 @@ const delaySeconds = ref(60);
 const maxRecipients = ref(20);
 const sentAttempts = ref(0);
 const currentUserId = ref(null);
+const templatesDialogVisible = ref(false);
+const recipientsSummary = ref(null);
 
 const userIds = computed(() => {
   const ids = String(route.query.ids || '')
@@ -194,12 +242,18 @@ const userIds = computed(() => {
   return [...new Set(ids)];
 });
 
+const blockedIdSet = computed(() => new Set(recipientsSummary.value?.blockedIds || []));
+
+const eligibleUserIds = computed(() => {
+  return userIds.value.filter(id => !blockedIdSet.value.has(id));
+});
+
 const normalizedMaxRecipients = computed(() => {
-  return Math.max(1, Math.min(Number(maxRecipients.value) || 1, Math.max(userIds.value.length, 1)));
+  return Math.max(1, Math.min(Number(maxRecipients.value) || 1, Math.max(eligibleUserIds.value.length, 1)));
 });
 
 const recipientsToSend = computed(() => {
-  return userIds.value.slice(0, normalizedMaxRecipients.value);
+  return eligibleUserIds.value.slice(0, normalizedMaxRecipients.value);
 });
 
 const attachmentsTotalSize = computed(() => {
@@ -218,17 +272,36 @@ const canSend = computed(() => {
 watch(warmupMode, (enabled) => {
   if (enabled) {
     delaySeconds.value = Math.max(Number(delaySeconds.value) || 0, 60);
-    maxRecipients.value = Math.min(20, Math.max(userIds.value.length, 1));
+    maxRecipients.value = Math.min(20, Math.max(eligibleUserIds.value.length, 1));
   }
 });
 
-watch(userIds, (ids) => {
-  if (!ids.length) return;
+watch(userIds, async (ids) => {
+  if (!ids.length) {
+    recipientsSummary.value = null;
+    return;
+  }
+
   maxRecipients.value = Math.min(Number(maxRecipients.value) || ids.length, ids.length);
+
+  try {
+    const data = await messagesService.getBroadcastRecipientsSummary(ids);
+    recipientsSummary.value = data.summary || null;
+    const eligibleCount = ids.filter(id => !(data.summary?.blockedIds || []).includes(id)).length;
+    maxRecipients.value = Math.min(Number(maxRecipients.value) || eligibleCount, Math.max(eligibleCount, 1));
+  } catch (error) {
+    recipientsSummary.value = null;
+    console.error('[BroadcastCreateView] Failed to load recipients summary:', error);
+  }
 }, { immediate: true });
 
 function goBack() {
   router.push({ name: 'contacts-list' });
+}
+
+function applyTemplate({ subject: nextSubject, message: nextMessage }) {
+  subject.value = nextSubject;
+  message.value = nextMessage;
 }
 
 function openFilePicker() {
@@ -267,6 +340,24 @@ async function sendBroadcast() {
   const errors = [];
   let successCount = 0;
   const recipients = [...recipientsToSend.value];
+  let campaignId = null;
+
+  try {
+    const campaignResponse = await messagesService.createBroadcastCampaign({
+      subject: subject.value.trim(),
+      message: message.value.trim(),
+      recipientIds: eligibleUserIds.value,
+      warmupMode: warmupMode.value,
+      delaySeconds: delaySeconds.value,
+      maxRecipients: normalizedMaxRecipients.value,
+      attachmentsCount: attachments.value.length
+    });
+    campaignId = campaignResponse?.campaign?.id || null;
+  } catch (error) {
+    loading.value = false;
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.campaignCreateError'));
+    return;
+  }
 
   for (const [index, userId] of recipients.entries()) {
     currentUserId.value = userId;
@@ -276,7 +367,8 @@ async function sendBroadcast() {
         userId,
         subject: subject.value.trim(),
         message: message.value.trim(),
-        attachments: attachments.value
+        attachments: attachments.value,
+        campaignId
       });
       successCount += 1;
     } catch (error) {
@@ -289,6 +381,18 @@ async function sendBroadcast() {
       const combinedError = [apiError, apiDetails, channelErrors].filter(Boolean).join(' — ')
         || error?.message
         || t('common.sendError');
+
+      if (campaignId && !error?.response) {
+        try {
+          await messagesService.recordBroadcastDeliveryError(campaignId, {
+            recipientUserId: userId,
+            errorMessage: combinedError,
+            channelResults: error?.response?.data?.results || []
+          });
+        } catch (recordError) {
+          console.error('[BroadcastCreateView] Failed to record delivery error:', recordError);
+        }
+      }
 
       errors.push({
         userId,
@@ -303,11 +407,23 @@ async function sendBroadcast() {
     }
   }
 
+  const skippedCount = Math.max(eligibleUserIds.value.length - recipients.length, 0)
+    + Math.max(userIds.value.length - eligibleUserIds.value.length, 0);
+
+  if (campaignId) {
+    try {
+      await messagesService.completeBroadcastCampaign(campaignId, { skippedCount });
+    } catch (completeError) {
+      console.error('[BroadcastCreateView] Failed to complete campaign:', completeError);
+    }
+  }
+
   result.value = {
     successCount,
     errors,
     totalCount: recipients.length,
-    skippedCount: Math.max(userIds.value.length - recipients.length, 0)
+    skippedCount,
+    campaignId
   };
   loading.value = false;
   currentUserId.value = null;
@@ -321,27 +437,13 @@ async function sendBroadcast() {
 </script>
 
 <style scoped>
-.broadcast-page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px;
-}
-
-.broadcast-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-
-.broadcast-header h1 {
+.broadcast-section-header h1 {
   margin: 0 0 8px;
   font-size: 1.8rem;
 }
 
-.broadcast-header p {
-  margin: 0;
+.broadcast-section-header p {
+  margin: 0 0 20px;
   color: #606266;
 }
 
@@ -354,6 +456,12 @@ async function sendBroadcast() {
   border-radius: 16px;
   box-shadow: 0 4px 32px rgba(0, 0, 0, 0.08);
   padding: 24px;
+}
+
+.template-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .attachments-box {
@@ -457,11 +565,6 @@ async function sendBroadcast() {
 }
 
 @media (max-width: 700px) {
-  .broadcast-page {
-    padding: 12px;
-  }
-
-  .broadcast-header,
   .section-heading {
     flex-direction: column;
     align-items: flex-start;

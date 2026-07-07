@@ -22,6 +22,93 @@ const db = require('../db');
 const encryptedDb = require('../services/encryptedDatabaseService');
 
 const execAsync = promisify(exec);
+const fs = require('fs');
+const dockerSocket = require('../utils/dockerSocket');
+const hostStats = require('../utils/hostStats');
+
+/**
+ * Backend запущен на VDS с доступом к docker.sock (prod compose).
+ * Локальный dev-backend socket не монтирует — там остаётся SSH.
+ */
+function isVdsDockerRuntime() {
+  return dockerSocket.isSocketAvailable();
+}
+
+async function execLocalShellCommand(command) {
+  const { stdout, stderr } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+  return { code: 0, stdout, stderr };
+}
+
+async function checkDockerCliAvailable() {
+  if (!isVdsDockerRuntime()) {
+    return false;
+  }
+
+  try {
+    await execAsync('docker info', { maxBuffer: 1024 * 1024, timeout: 5000 });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Выполнить команду Docker (локально через socket или через SSH на VDS)
+ */
+async function execDockerCommand(command) {
+  const trimmed = command.trim();
+  const vdsSettings = await getVdsSettings();
+
+  if (isVdsDockerRuntime()) {
+    if (trimmed.startsWith('docker ')) {
+      if (await checkDockerCliAvailable()) {
+        try {
+          logger.info('[VDS] Docker CLI через docker.sock');
+          return await execLocalShellCommand(command);
+        } catch (error) {
+          logger.warn(`[VDS] Docker CLI не выполнил команду, fallback на Engine API: ${error.message}`);
+        }
+      }
+
+      try {
+        logger.info('[VDS] Docker Engine API через docker.sock');
+        return await dockerSocket.execDockerCliCommand(command);
+      } catch (error) {
+        return { code: 1, stdout: '', stderr: error.message };
+      }
+    }
+
+    try {
+      return await execLocalShellCommand(command);
+    } catch (error) {
+      return { code: error.code || 1, stdout: error.stdout || '', stderr: error.stderr || error.message };
+    }
+  }
+
+  if (vdsSettings?.sshHost && vdsSettings?.sshUser) {
+    logger.info(`[VDS] Удалённое управление через SSH ${vdsSettings.sshHost}`);
+    return await execSshCommandOnVds(command, vdsSettings);
+  }
+
+  try {
+    return await execLocalShellCommand(command);
+  } catch (error) {
+    return { code: error.code || 1, stdout: error.stdout || '', stderr: error.stderr || error.message };
+  }
+}
+
+async function checkDockerAvailable() {
+  if (isVdsDockerRuntime()) {
+    return true;
+  }
+
+  if (await checkDockerCliAvailable()) {
+    return true;
+  }
+
+  const vdsSettings = await getVdsSettings();
+  return !!(vdsSettings?.sshHost && vdsSettings?.sshUser);
+}
 
 /**
  * Сохранить настройки VDS в базу данных
@@ -205,21 +292,6 @@ router.post('/settings', async (req, res) => {
   }
 });
 
-/**
- * Проверка доступности Docker
- */
-async function checkDockerAvailable() {
-  try {
-    await execAsync('docker --version');
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Получить настройки VDS из базы данных
- */
 async function getVdsSettings() {
   try {
     const encryptionUtils = require('../utils/encryptionUtils');
@@ -274,26 +346,6 @@ async function getVdsSettings() {
     logger.warn('[VDS] Не удалось получить настройки VDS из базы данных:', decryptError.message);
   }
   return null;
-}
-
-/**
- * Выполнить команду Docker (локально или через SSH на VDS)
- */
-async function execDockerCommand(command) {
-  const vdsSettings = await getVdsSettings();
-  
-  if (vdsSettings && vdsSettings.sshHost && vdsSettings.sshUser) {
-    // Выполняем через SSH на VDS
-    return await execSshCommandOnVds(command, vdsSettings);
-  } else {
-    // Выполняем локально
-    try {
-      const { stdout, stderr } = await execAsync(command);
-      return { code: 0, stdout, stderr };
-    } catch (error) {
-      return { code: error.code || 1, stdout: error.stdout || '', stderr: error.stderr || error.message };
-    }
-  }
 }
 
 /**
@@ -379,7 +431,6 @@ async function execSshCommandOnVds(command, settings) {
   // Явно указываем путь к приватному ключу
   // Ключ должен быть в /root/.ssh/id_rsa (монтируется из ~/.ssh хоста через docker-compose)
   const privateKeyPath = '/root/.ssh/id_rsa';
-  const fs = require('fs');
   
   // Проверяем существование ключа и используем его явно
   if (fs.existsSync(privateKeyPath)) {
@@ -616,9 +667,35 @@ router.get('/stats', requireAuth, requirePermission(PERMISSIONS.MANAGE_SETTINGS)
     // Получаем статистику по контейнерам (если Docker доступен)
     let containers = [];
     const vdsSettings = await getVdsSettings();
-    
-    // Если есть настройки VDS, выполняем команды на VDS сервере
-    if (vdsSettings) {
+
+    if (isVdsDockerRuntime()) {
+      try {
+        const host = await hostStats.getHostStats();
+        cpuUsage = host.cpuUsage;
+        ramUsage = host.ramUsage;
+        ramTotal = host.ramTotal;
+        ramUsed = host.ramUsed;
+        rxBytes = host.rxBytes;
+        txBytes = host.txBytes;
+        totalTraffic = host.totalTrafficMb;
+        cpuCores = host.cpuCores;
+        logger.info(`[VDS] Host stats via /proc: CPU=${cpuUsage}%, RAM=${ramUsage}% (${ramUsed}/${ramTotal}MB)`);
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить host stats через /proc:', error.message);
+      }
+
+      try {
+        const result = await execDockerCommand('docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}"');
+        if (result.code === 0 && result.stdout) {
+          containers = result.stdout.trim().split('\n').filter(line => line.trim()).map(line => {
+            const [name, cpu, mem, net] = line.split('|');
+            return { name, cpu, mem, net };
+          });
+        }
+      } catch (error) {
+        logger.warn('[VDS] Не удалось получить статистику контейнеров:', error.message);
+      }
+    } else if (vdsSettings) {
       try {
         // CPU usage - используем упрощенную команду через /proc/stat
         // $ будет экранирован в execSshCommandOnVds

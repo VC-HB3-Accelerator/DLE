@@ -59,12 +59,15 @@ export default {
     const { data } = await api.post('/chat/ai-draft', { conversationId, messages, language });
     return data;
   },
-  async broadcastMessage({ userId, message, subject = t('messages.defaultSubject'), attachments = [] }) {
+  async broadcastMessage({ userId, message, subject = t('messages.defaultSubject'), attachments = [], campaignId = null }) {
     if (attachments.length > 0) {
       const formData = new FormData();
       formData.append('user_id', userId);
       formData.append('content', message);
       formData.append('subject', subject);
+      if (campaignId) {
+        formData.append('campaign_id', campaignId);
+      }
       attachments.forEach(attachment => {
         const file = attachment.file || attachment.raw || attachment;
         formData.append('attachments', file);
@@ -80,8 +83,107 @@ export default {
     const { data } = await api.post('/messages/broadcast', {
       user_id: userId,
       content: message,
-      subject
+      subject,
+      ...(campaignId ? { campaign_id: campaignId } : {})
     }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async createBroadcastCampaign({
+    subject,
+    message,
+    recipientIds,
+    warmupMode = false,
+    delaySeconds = 0,
+    maxRecipients = 0,
+    attachmentsCount = 0
+  }) {
+    const { data } = await api.post('/messages/broadcast/campaigns', {
+      subject,
+      message,
+      recipient_ids: recipientIds,
+      warmup_mode: warmupMode,
+      delay_seconds: delaySeconds,
+      max_recipients: maxRecipients,
+      attachments_count: attachmentsCount
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async completeBroadcastCampaign(campaignId, { skippedCount = 0 } = {}) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/complete`, {
+      skipped_count: skippedCount
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async recordBroadcastDeliveryError(campaignId, { recipientUserId, errorMessage, channelResults = [] }) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/deliveries`, {
+      recipient_user_id: recipientUserId,
+      error_message: errorMessage,
+      channel_results: channelResults
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastHistory({ limit = 20, offset = 0 } = {}) {
+    const { data } = await api.get('/messages/broadcast/history', {
+      params: { limit, offset },
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastAnalytics() {
+    const { data } = await api.get('/messages/broadcast/analytics', {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastCampaignDetails(campaignId) {
+    const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}`, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastRecipientsSummary(ids = []) {
+    const { data } = await api.get('/messages/broadcast/recipients-summary', {
+      params: { ids: ids.join(',') },
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastTemplates() {
+    const { data } = await api.get('/messages/broadcast/templates', {
+      withCredentials: true
+    });
+    return data;
+  },
+  async createBroadcastTemplate({ name, subject, body }) {
+    const { data } = await api.post('/messages/broadcast/templates', {
+      name,
+      subject,
+      body
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async updateBroadcastTemplate(templateId, { name, subject, body }) {
+    const { data } = await api.put(`/messages/broadcast/templates/${templateId}`, {
+      name,
+      subject,
+      body
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async deleteBroadcastTemplate(templateId) {
+    const { data } = await api.delete(`/messages/broadcast/templates/${templateId}`, {
       withCredentials: true
     });
     return data;

@@ -145,6 +145,8 @@ services:
       - /proc:/proc:ro
       - /sys:/sys:ro
       - ~/.ssh:/root/.ssh:ro  # SSH ключи для подключения к VDS
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # Добавляем необходимые capabilities для управления системой
     cap_add:
       - SYS_ADMIN  # Для управления системой (reboot, shutdown, useradd и т.д.)

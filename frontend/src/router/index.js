@@ -187,9 +187,25 @@ const routes = [
   },
   {
     path: '/contacts-list/broadcast',
-    name: 'contacts-broadcast',
-    component: () => import('../views/contacts/BroadcastCreateView.vue'),
-    meta: { permission: PERMISSIONS.BROADCAST }
+    component: () => import('../views/contacts/BroadcastLayout.vue'),
+    meta: { permission: PERMISSIONS.BROADCAST },
+    children: [
+      {
+        path: '',
+        name: 'contacts-broadcast',
+        component: () => import('../views/contacts/BroadcastCreateView.vue'),
+      },
+      {
+        path: 'analytics',
+        name: 'contacts-broadcast-analytics',
+        component: () => import('../views/contacts/BroadcastAnalyticsView.vue'),
+      },
+      {
+        path: 'history',
+        name: 'contacts-broadcast-history',
+        component: () => import('../views/contacts/BroadcastHistoryView.vue'),
+      },
+    ],
   },
   {
     path: '/admin-chat/:adminId',

@@ -19,6 +19,42 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="page-view-container">
+      <div v-if="page" class="page-header">
+        <div class="header-content">
+          <button class="btn btn-outline back-btn-inline" @click="goBack">
+            <i class="fas fa-arrow-left"></i>
+            {{ t('common.back') }}
+          </button>
+          <h1>{{ page.title }}</h1>
+          <div class="page-meta">
+            <span class="page-status" :class="page.status">{{ getStatusText(page.status) }}</span>
+            <span v-if="page.visibility === 'internal'" class="page-status internal">{{ t('content.editor.visibilityInternalBadge') }}</span>
+            <span class="page-date">
+              <i class="fas fa-calendar"></i>
+              {{ formatDate(page.created_at) }}
+            </span>
+            <span v-if="page.updated_at" class="page-updated">
+              <i class="fas fa-edit"></i>
+              {{ formatDate(page.updated_at) }}
+            </span>
+          </div>
+        </div>
+        <div v-if="canManageLegalDocs" class="header-actions">
+          <button class="btn btn-outline" @click="goToEdit">
+            <i class="fas fa-edit"></i>
+            {{ t('common.edit') }}
+          </button>
+          <button class="btn btn-outline" @click="reindex">
+            <i class="fas fa-search"></i>
+            {{ t('content.docsContent.reindex') }}
+          </button>
+          <button class="btn btn-danger" @click="deletePage">
+            <i class="fas fa-trash"></i>
+            {{ t('common.delete') }}
+          </button>
+        </div>
+      </div>
+
       <!-- Контент страницы -->
       <div v-if="page" class="page-content-block">
         <div class="page-content">
@@ -125,7 +161,6 @@ import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
 import pagesService from '../../services/pagesService';
 import api from '../../api/axios';
-import { useAuthContext } from '../../composables/useAuth';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 
@@ -158,8 +193,7 @@ const { t } = useI18n();
 
 // Состояние
 const page = ref(null);
-const { address } = useAuthContext();
-const { canEditData, hasPermission } = usePermissions();
+const { hasPermission } = usePermissions();
 const canManageLegalDocs = computed(() => {
   try {
     return hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS);
@@ -169,17 +203,6 @@ const canManageLegalDocs = computed(() => {
   }
 });
 const isLoading = ref(false);
-
-// Удалять может ТОЛЬКО редактор (MANAGE_LEGAL_DOCS)
-const canDeletePage = computed(() => {
-  return canManageLegalDocs.value && !!address.value;
-});
-
-// Редактировать может редактор или пользователь с правом редактирования
-const canEditPage = computed(() => {
-  if (!address.value) return false;
-  return canManageLegalDocs.value || canEditData.value;
-});
 
 // Методы
 function goToEdit() {
@@ -385,6 +408,15 @@ onMounted(() => {
 .page-status.published {
   background: #e8f5e8;
   color: #2e7d32;
+}
+
+.page-status.internal {
+  background: #ede7f6;
+  color: #5e35b1;
+}
+
+.back-btn-inline {
+  margin-bottom: 15px;
 }
 
 .page-status.archived {

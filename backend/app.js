@@ -52,6 +52,7 @@ const deploymentWebSocketService = require('./services/deploymentWebSocketServic
 const fs = require('fs');
 const path = require('path');
 const messagesRoutes = require('./routes/messages');
+const emailTrackingRoutes = require('./routes/emailTracking');
 const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 const monitoringRoutes = require('./routes/monitoring');
 const pagesRoutes = require('./routes/pages'); // Добавляем импорт роутера страниц
@@ -391,6 +392,7 @@ app.use('/api/dle-analytics', dleAnalyticsRoutes); // Аналитика и ис
 app.use('/api/dle-multichain-execution', require('./routes/dleMultichainExecution')); // Мультиконтрактное исполнение
 app.use('/api/dle-history', dleHistoryRoutes); // Расширенная история
 app.use('/api/messages', messagesRoutes);
+app.use('/api/email', emailTrackingRoutes);
 app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);

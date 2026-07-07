@@ -20,7 +20,7 @@
       </el-button>
       <el-button v-if="canSendToUsers" type="success" :disabled="!hasSelectedEditor" @click="sendPublicMessage" style="margin-right: 1em;">{{ t('contacts.publicMessage') }}</el-button>
       <el-button v-if="canViewContacts" type="warning" :disabled="!hasSelectedEditor" @click="sendPrivateMessage" style="margin-right: 1em;">{{ t('contacts.privateMessage') }}</el-button>
-      <el-button v-if="canManageSettings" type="info" :disabled="!selectedIds.length" @click="goToBroadcastPage" style="margin-right: 1em;">{{ t('contacts.broadcast') }}</el-button>
+      <el-button v-if="canBroadcast" type="info" :disabled="!selectedIds.length" @click="goToBroadcastPage" style="margin-right: 1em;">{{ t('contacts.broadcast.button') }}</el-button>
       <el-button v-if="canDeleteMessages" type="warning" :disabled="!selectedIds.length" @click="deleteMessagesSelected" style="margin-right: 1em;">{{ t('contacts.deleteMessages') }}</el-button>
       <el-button v-if="canDeleteData" type="danger" :disabled="!selectedIds.length" @click="deleteSelected" style="margin-right: 1em;">{{ t('contacts.delete') }}</el-button>
       <el-button v-if="canEditData" type="primary" @click="showImportModal = true" style="margin-right: 1em;">{{ t('contacts.import') }}</el-button>
@@ -175,7 +175,7 @@ const props = defineProps({
 const PAGE_SIZE_OPTIONS = [100, 500, 1000];
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const router = useRouter();
-const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canChatWithAdmins, canEditData, hasPermission } = usePermissions();
+const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canManageSettings, canBroadcast, canChatWithAdmins, canEditData, hasPermission } = usePermissions();
 const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
 const { getRoleDisplayName, getRoleClass, fetchRoles } = useRoles();
 
