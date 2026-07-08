@@ -28,45 +28,80 @@ router.use((req, res, next) => {
 // PATCH /api/tags/user/:userId — установить теги пользователю
 router.patch('/user/:userId', requireAuth, requirePermission(PERMISSIONS.MANAGE_TAGS), async (req, res) => {
   const userIdParam = req.params.userId;
-  const { tags } = req.body; // массив tagIds (id строк из таблицы тегов)
-  
-  // Гостевые пользователи (guest_123) не могут иметь теги
+  const { tags } = req.body;
+
   if (userIdParam.startsWith('guest_')) {
     return res.status(400).json({ error: 'Guests cannot have tags' });
   }
-  
+
   const userId = Number(userIdParam);
-  
+
   if (isNaN(userId)) {
     return res.status(400).json({ error: 'Invalid user ID' });
   }
-  
+
   if (!Array.isArray(tags)) {
     return res.status(400).json({ error: 'tags должен быть массивом' });
   }
-  
+
   try {
-    // Удаляем старые связи
     await db.getQuery()('DELETE FROM user_tag_links WHERE user_id = $1', [userId]);
-    // Добавляем новые связи
     for (const tagId of tags) {
       await db.getQuery()(
         'INSERT INTO user_tag_links (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [userId, tagId]
       );
     }
-    
-    // Отправляем WebSocket уведомление об обновлении тегов
+
     broadcastTagsUpdate(null, userId);
-    
+
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
+// POST /api/tags/users/bulk-add — добавить теги выбранным пользователям (без удаления существующих)
+router.post('/users/bulk-add', requireAuth, requirePermission(PERMISSIONS.MANAGE_TAGS), async (req, res) => {
+  const { userIds = [], tagIds = [] } = req.body;
+
+  const uniqueUserIds = [...new Set(
+    userIds.map(id => Number(id)).filter(id => Number.isInteger(id) && id > 0)
+  )];
+  const uniqueTagIds = [...new Set(
+    tagIds.map(id => Number(id)).filter(id => Number.isInteger(id) && id > 0)
+  )];
+
+  if (!uniqueUserIds.length) {
+    return res.status(400).json({ error: 'userIds обязателен' });
+  }
+
+  if (!uniqueTagIds.length) {
+    return res.status(400).json({ error: 'tagIds обязателен' });
+  }
+
+  try {
+    for (const userId of uniqueUserIds) {
+      for (const tagId of uniqueTagIds) {
+        await db.getQuery()(
+          'INSERT INTO user_tag_links (user_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [userId, tagId]
+        );
+      }
+      broadcastTagsUpdate(null, userId);
+    }
+
+    res.json({
+      success: true,
+      usersUpdated: uniqueUserIds.length,
+      tagsAdded: uniqueTagIds.length
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/tags/user/:userId — получить все теги пользователя
-// Получение тегов пользователя
 router.get('/user/:userId', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
   const userIdParam = req.params.userId;
   

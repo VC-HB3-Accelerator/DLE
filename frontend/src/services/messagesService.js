@@ -130,9 +130,12 @@ export default {
     });
     return data;
   },
-  async getBroadcastHistory({ limit = 20, offset = 0 } = {}) {
+  async getBroadcastHistory({ limit = 20, offset = 0, dateFrom = '', dateTo = '' } = {}) {
+    const params = { limit, offset };
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
     const { data } = await api.get('/messages/broadcast/history', {
-      params: { limit, offset },
+      params,
       withCredentials: true
     });
     return data;
@@ -145,6 +148,13 @@ export default {
   },
   async getBroadcastCampaignDetails(campaignId) {
     const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}`, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async deleteBroadcastCampaigns(ids = []) {
+    const { data } = await api.delete('/messages/broadcast/campaigns', {
+      data: { ids },
       withCredentials: true
     });
     return data;

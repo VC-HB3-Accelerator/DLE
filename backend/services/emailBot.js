@@ -17,6 +17,7 @@ const logger = require('../utils/logger');
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const universalMediaProcessor = require('./UniversalMediaProcessor');
+const emailBounceService = require('./emailBounceService');
 
 /**
  * EmailBot - обработчик Email сообщений
@@ -351,7 +352,26 @@ class EmailBot {
                 
                 const fromEmail = parsed.from?.value?.[0]?.address;
                 logger.info(`[EmailBot] Обработка письма ${seqno} от ${fromEmail || 'неизвестного отправителя'}`);
-                
+
+                if (emailBounceService.isBounceNotification(parsed)) {
+                  try {
+                    const bounceResult = await emailBounceService.processBounce(parsed, {
+                      messageId,
+                      uid,
+                      ownEmail: this.settings?.from_email || null
+                    });
+                    logger.info(`[EmailBot] Bounce письмо ${seqno}: ${JSON.stringify(bounceResult)}`);
+                  } catch (bounceError) {
+                    logger.error(`[EmailBot] Ошибка обработки bounce ${seqno}:`, bounceError);
+                  }
+
+                  processedCount++;
+                  if (processedCount >= totalMessages) {
+                    logger.info('[EmailBot] Обработка всех писем завершена');
+                  }
+                  return;
+                }
+
                 const messageData = await this.extractMessageData(parsed, messageId, uid);
                 if (messageData && this.messageProcessor) {
                   try {

@@ -82,6 +82,13 @@ export default {
   async removeTagFromContact(contactId, tagId) {
     const res = await api.delete(`/tags/user/${contactId}/tag/${tagId}`);
     return res.data;
+  },
+  async addTagsToContactsBulk(userIds = [], tagIds = []) {
+    const res = await api.post('/tags/users/bulk-add', {
+      userIds,
+      tagIds
+    });
+    return res.data;
   }
 };
 

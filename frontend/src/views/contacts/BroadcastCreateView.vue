@@ -382,7 +382,7 @@ async function sendBroadcast() {
         || error?.message
         || t('common.sendError');
 
-      if (campaignId && !error?.response) {
+      if (campaignId) {
         try {
           await messagesService.recordBroadcastDeliveryError(campaignId, {
             recipientUserId: userId,

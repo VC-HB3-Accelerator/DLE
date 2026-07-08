@@ -84,12 +84,7 @@ async function createTracking({ campaignId, recipientUserId, recipientEmail = nu
     ) VALUES ($1, $2, $3, $4)
     ON CONFLICT (campaign_id, recipient_user_id)
     DO UPDATE SET
-      token = EXCLUDED.token,
-      recipient_email = EXCLUDED.recipient_email,
-      open_count = 0,
-      first_opened_at = NULL,
-      last_opened_at = NULL,
-      created_at = NOW()
+      recipient_email = COALESCE(EXCLUDED.recipient_email, broadcast_email_tracking.recipient_email)
     RETURNING token`,
     [token, campaignId, recipientUserId, recipientEmail]
   );

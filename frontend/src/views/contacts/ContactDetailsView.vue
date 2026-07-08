@@ -12,147 +12,195 @@
 
 <template>
   <BaseLayout>
-    <!-- Доступ проверяет router guard, v-if не нужен -->
     <div class="contact-details-page">
-    <div v-if="isLoading">{{ t('common.loading') }}</div>
-    <div v-else-if="!contact">{{ t('contacts.contactNotFound') }}</div>
-    <div v-else class="contact-details-content">
-      <div class="contact-details-header">
-        <h2>{{ t('contacts.details.title') }}</h2>
-          <button class="close-btn" @click="goBack">×</button>
-      </div>
-      <div class="contact-info-section">
-        <div class="contact-info-block">
-        <div><strong>{{ t('contacts.details.userId') }}</strong> {{ contact.id }}</div>
-        <div>
-          <strong>{{ t('contacts.details.name') }}</strong>
-            <template v-if="canEditContacts">
-          <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
-          <span v-if="isSavingName" class="saving">{{ t('common.saving') }}</span>
-            </template>
-            <template v-else>
-              {{ contact.name }}
-            </template>
-        </div>
-        <div><strong>{{ t('contacts.details.email') }}</strong> {{ maskPersonalData(contact.email) }}</div>
-        <div><strong>{{ t('contacts.details.telegram') }}</strong> {{ maskPersonalData(contact.telegram) }}</div>
-        <div><strong>{{ t('contacts.details.wallet') }}</strong> {{ maskPersonalData(contact.wallet) }}</div>
-        <div>
-          <strong>{{ t('contacts.details.language') }}</strong>
-          <div class="multi-select">
-            <div class="selected-langs">
-              <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
-                {{ getLanguageLabel(lang) }}
-                <span v-if="canEditContacts" class="remove-tag" @click="removeLanguage(lang)">×</span>
+      <div v-if="isLoading" class="page-state">{{ t('common.loading') }}</div>
+      <div v-else-if="!contact" class="page-state">{{ t('contacts.contactNotFound') }}</div>
+      <div v-else class="contact-details-content">
+        <header class="contact-details-header">
+          <div class="header-main">
+            <h1>{{ contact.name || t('contacts.details.title') }}</h1>
+            <p class="header-subtitle">{{ t('contacts.details.userId') }} {{ contact.id }}</p>
+          </div>
+          <el-button class="back-btn" @click="goBack">{{ t('contacts.details.backToList') }}</el-button>
+        </header>
+
+        <section class="info-card">
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.name') }}</span>
+              <span class="info-value">
+                <template v-if="canEditContacts">
+                  <input v-model="editableName" class="edit-input" @blur="saveName" @keyup.enter="saveName" />
+                  <span v-if="isSavingName" class="saving">{{ t('common.saving') }}</span>
+                </template>
+                <template v-else>{{ contact.name || '-' }}</template>
               </span>
-              <input
-                v-if="canEditContacts"
-                v-model="langInput"
-                @focus="showLangDropdown = true"
-                @input="showLangDropdown = true"
-                @keydown.enter.prevent="addLanguageFromInput"
-                class="lang-input"
-                :placeholder="t('contacts.details.addLanguage')"
-              />
             </div>
-            <ul v-if="showLangDropdown && canEditContacts" class="lang-dropdown">
-              <li
-                v-for="lang in filteredLanguages"
-                :key="lang.value"
-                @mousedown.prevent="addLanguage(lang.value)"
-                :class="{ selected: selectedLanguages.includes(lang.value) }"
-              >
-                {{ lang.label }}
-              </li>
-            </ul>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.email') }}</span>
+              <span
+                class="info-value personal-field"
+                :class="{ 'personal-field--revealed': isFieldRevealed('email') }"
+                :title="getFieldTitle('email', contact.email)"
+                @click="toggleFieldReveal('email')"
+              >{{ getPersonalFieldDisplay('email', contact.email) }}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.telegram') }}</span>
+              <span
+                class="info-value personal-field"
+                :class="{ 'personal-field--revealed': isFieldRevealed('telegram') }"
+                :title="getFieldTitle('telegram', contact.telegram)"
+                @click="toggleFieldReveal('telegram')"
+              >{{ getPersonalFieldDisplay('telegram', contact.telegram) }}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.wallet') }}</span>
+              <span
+                class="info-value personal-field"
+                :class="{ 'personal-field--revealed': isFieldRevealed('wallet') }"
+                :title="getFieldTitle('wallet', contact.wallet)"
+                @click="toggleFieldReveal('wallet')"
+              >{{ getPersonalFieldDisplay('wallet', contact.wallet) }}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.language') }}</span>
+              <span class="info-value">
+                <div class="multi-select">
+                  <div class="selected-langs">
+                    <span v-for="lang in selectedLanguages" :key="lang" class="lang-tag">
+                      {{ getLanguageLabel(lang) }}
+                      <span v-if="canEditContacts" class="remove-tag" @click="removeLanguage(lang)">×</span>
+                    </span>
+                    <input
+                      v-if="canEditContacts"
+                      v-model="langInput"
+                      @focus="showLangDropdown = true"
+                      @input="showLangDropdown = true"
+                      @keydown.enter.prevent="addLanguageFromInput"
+                      class="lang-input"
+                      :placeholder="t('contacts.details.addLanguage')"
+                    />
+                  </div>
+                  <ul v-if="showLangDropdown && canEditContacts" class="lang-dropdown">
+                    <li
+                      v-for="lang in filteredLanguages"
+                      :key="lang.value"
+                      @mousedown.prevent="addLanguage(lang.value)"
+                      :class="{ selected: selectedLanguages.includes(lang.value) }"
+                    >
+                      {{ lang.label }}
+                    </li>
+                  </ul>
+                </div>
+                <span v-if="isSavingLangs" class="saving">{{ t('common.saving') }}</span>
+              </span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.createdAt') }}</span>
+              <span class="info-value">{{ formatDate(contact.created_at) }}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.lastMessageDate') }}</span>
+              <span class="info-value">{{ formatDate(lastMessageDate) }}</span>
+            </div>
+
+            <div class="info-row info-row--tags">
+              <span class="info-label">{{ t('contacts.details.userTags') }}</span>
+              <span class="info-value">
+                <span v-for="tag in userTags" :key="tag.id" class="user-tag">
+                  {{ tag.name }}
+                  <span v-if="canManageTags" class="remove-tag" @click="removeUserTag(tag.id)">×</span>
+                </span>
+                <el-button v-if="canManageTags" size="small" type="primary" plain @click="openTagModal">
+                  {{ t('contacts.details.addTag') }}
+                </el-button>
+              </span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">{{ t('contacts.details.blockStatus') }}</span>
+              <span class="info-value block-user-value">
+                <span v-if="contact.is_blocked" class="blocked-status">{{ t('contacts.details.blocked') }}</span>
+                <span v-else class="unblocked-status">{{ t('contacts.details.unblocked') }}</span>
+                <template v-if="canBlockUsers">
+                  <el-button v-if="!contact.is_blocked" type="danger" size="small" plain @click="blockUser">
+                    {{ t('contacts.details.block') }}
+                  </el-button>
+                  <el-button v-else type="success" size="small" plain @click="unblockUser">
+                    {{ t('contacts.details.unblock') }}
+                  </el-button>
+                </template>
+              </span>
+            </div>
           </div>
-          <span v-if="isSavingLangs" class="saving">{{ t('common.saving') }}</span>
+        </section>
+
+        <div v-if="canDeleteData" class="contact-actions">
+          <el-button type="warning" plain size="small" @click="deleteMessagesHistory">
+            {{ t('contacts.details.deleteHistory') }}
+          </el-button>
+          <el-button type="danger" plain size="small" @click="deleteContact">
+            {{ t('contacts.details.deleteContact') }}
+          </el-button>
         </div>
-        <div><strong>{{ t('contacts.details.createdAt') }}</strong> {{ formatDate(contact.created_at) }}</div>
-        <div><strong>{{ t('contacts.details.lastMessageDate') }}</strong> {{ formatDate(lastMessageDate) }}</div>
-        <div class="user-tags-block">
-          <strong>{{ t('contacts.details.userTags') }}</strong>
-          <span v-for="tag in userTags" :key="tag.id" class="user-tag">
-            {{ tag.name }}
-            <span v-if="canManageTags" class="remove-tag" @click="removeUserTag(tag.id)">×</span>
-          </span>
-          <button v-if="canManageTags" class="add-tag-btn" @click="openTagModal">{{ t('contacts.details.addTag') }}</button>
-        </div>
-        <div class="block-user-section">
-          <strong>{{ t('contacts.details.blockStatus') }}</strong>
-          <span v-if="contact.is_blocked" class="blocked-status">{{ t('contacts.details.blocked') }}</span>
-          <span v-else class="unblocked-status">{{ t('contacts.details.unblocked') }}</span>
-          <template v-if="canBlockUsers">
-            <el-button
-              v-if="!contact.is_blocked"
-              type="danger"
-              size="small"
-              @click="blockUser"
-              style="margin-left: 1em;"
-            >{{ t('contacts.details.block') }}</el-button>
-            <el-button
-              v-else
-              type="success"
-              size="small"
-              @click="unblockUser"
-              style="margin-left: 1em;"
-            >{{ t('contacts.details.unblock') }}</el-button>
-          </template>
-        </div>
-        <div class="delete-actions" v-if="canDeleteData">
-          <button class="delete-history-btn" @click="deleteMessagesHistory">{{ t('contacts.details.deleteHistory') }}</button>
-          <button class="delete-btn" @click="deleteContact">{{ t('contacts.details.deleteContact') }}</button>
-        </div>
-        </div>
-      </div>
-      <div class="messages-block">
-        <h3>{{ t('contacts.details.chatWithUser') }}</h3>
-        <ChatInterface
-          :messages="messages"
-          :isLoading="isLoadingMessages"
-          :attachments="chatAttachments"
-          :newMessage="chatNewMessage"
-          :canSend="canSendToUsers && !!address"
-          :canGenerateAI="canGenerateAI"
-          :canSelectMessages="canGenerateAI"
-          :currentUserId="currentUserId"
-          @send-message="handleSendMessage"
-          @update:newMessage="val => chatNewMessage = val"
-          @update:attachments="val => chatAttachments = val"
-          @ai-reply="handleAiReply"
-        />
-      </div>
-      <el-dialog v-if="canManageTags" v-model="showTagModal" :title="t('contacts.details.addTagTitle')">
-        <div v-if="allTags.length">
-          <el-select
-            v-model="selectedTags"
-            multiple
-            filterable
-            :placeholder="t('contacts.details.selectTags')"
-            @change="addTagsToUser"
-          >
-            <el-option
-              v-for="tag in allTags"
-              :key="tag.id"
-              :label="tag.name"
-              :value="tag.id"
-            />
-          </el-select>
-          <div style="margin-top: 1em; color: #888; font-size: 0.95em;">
-            <strong>{{ t('contacts.details.existingTags') }}</strong>
-            <span v-for="tag in allTags" :key="'list-' + tag.id" style="margin-right: 0.7em;">
-              {{ tag.name }}<span v-if="tag.description"> ({{ tag.description }})</span>
-            </span>
+
+        <section class="contact-chat-panel">
+          <ChatInterface
+            embedded
+            :messages="messages"
+            :isLoading="isLoadingMessages"
+            :attachments="chatAttachments"
+            :newMessage="chatNewMessage"
+            :canSend="canSendToUsers && !!address"
+            :canGenerateAI="canGenerateAI"
+            :canSelectMessages="canGenerateAI"
+            :currentUserId="currentUserId"
+            @send-message="handleSendMessage"
+            @update:newMessage="val => chatNewMessage = val"
+            @update:attachments="val => chatAttachments = val"
+            @ai-reply="handleAiReply"
+          />
+        </section>
+
+        <el-dialog v-if="canManageTags" v-model="showTagModal" :title="t('contacts.details.addTagTitle')">
+          <div v-if="allTags.length">
+            <el-select
+              v-model="selectedTags"
+              multiple
+              filterable
+              :placeholder="t('contacts.details.selectTags')"
+              class="tag-modal-select"
+              @change="addTagsToUser"
+            >
+              <el-option
+                v-for="tag in allTags"
+                :key="tag.id"
+                :label="tag.name"
+                :value="tag.id"
+              />
+            </el-select>
+            <div class="tag-modal-hint">
+              <strong>{{ t('contacts.details.existingTags') }}</strong>
+              <span v-for="tag in allTags" :key="'list-' + tag.id" class="tag-modal-tag-item">
+                {{ tag.name }}<span v-if="tag.description"> ({{ tag.description }})</span>
+              </span>
+            </div>
           </div>
-        </div>
-        <div style="margin-top: 1em;">
-          <el-input v-model="newTagName" :placeholder="t('contacts.details.newTag')" />
-          <el-input v-model="newTagDescription" :placeholder="t('contacts.details.tagDescription')" />
-          <el-button type="primary" @click="createTag">{{ t('contacts.details.createTag') }}</el-button>
-        </div>
-      </el-dialog>
+          <div class="tag-modal-create">
+            <el-input v-model="newTagName" :placeholder="t('contacts.details.newTag')" />
+            <el-input v-model="newTagDescription" :placeholder="t('contacts.details.tagDescription')" />
+            <el-button type="primary" @click="createTag">{{ t('contacts.details.createTag') }}</el-button>
+          </div>
+        </el-dialog>
+      </div>
     </div>
-  </div>
   </BaseLayout>
 </template>
 
@@ -161,18 +209,16 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
-import Message from '../../components/Message.vue';
 import ChatInterface from '../../components/ChatInterface.vue';
 import contactsService from '../../services/contactsService.js';
 import messagesService from '../../services/messagesService.js';
 import { getConversationByUserId, getMessagesByConversationId, sendMessage } from '../../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
-import { PERMISSIONS } from './permissions.js';
 import { useContactsAndMessagesWebSocket } from '@/composables/useContactsWebSocket';
 import websocketServiceModule from '@/services/websocketService';
 const { t } = useI18n();
-const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts, hasPermission } = usePermissions();
+const { canEditContacts, canDeleteData, canManageTags, canBlockUsers, canSendToUsers, canGenerateAI, canViewContacts } = usePermissions();
 const { address, userId: currentUserId } = useAuthContext();
 const { markContactAsRead } = useContactsAndMessagesWebSocket();
 const { websocketService } = websocketServiceModule;
@@ -194,7 +240,7 @@ onMounted(() => {
 import { ElMessageBox } from 'element-plus';
 import tablesService from '../../services/tablesService';
 import { useTagsWebSocket } from '../../composables/useTagsWebSocket';
-import { getClientTagsTableMeta } from '../../utils/clientTagsTable';
+import { getClientTagsTableMeta, findClientTagsTableInList, loadClientTagsList } from '../../utils/clientTagsTable';
 
 const route = useRoute();
 const router = useRouter();
@@ -217,6 +263,39 @@ const chatAttachments = ref([]);
 const chatNewMessage = ref('');
 const isAiLoading = ref(false);
 const conversationId = ref(null);
+const revealedFields = ref({});
+
+function isFieldRevealed(field) {
+  return Boolean(revealedFields.value[field]);
+}
+
+function toggleFieldReveal(field) {
+  if (revealedFields.value[field]) {
+    const next = { ...revealedFields.value };
+    delete next[field];
+    revealedFields.value = next;
+    return;
+  }
+  revealedFields.value = { ...revealedFields.value, [field]: true };
+}
+
+function getCompactMask(field, value) {
+  if (field === 'email') return '•••@•••';
+  if (field === 'telegram') return String(value).startsWith('@') ? '@•••' : '•••';
+  if (field === 'wallet') return String(value).startsWith('0x') ? '0x•••' : '•••';
+  return '••••';
+}
+
+function getPersonalFieldDisplay(field, value) {
+  if (!value || value === '-') return '-';
+  if (isFieldRevealed(field)) return value;
+  return getCompactMask(field, value);
+}
+
+function getFieldTitle(field, value) {
+  if (!value || value === '-') return '';
+  return isFieldRevealed(field) ? t('contacts.clickToHide') : t('contacts.clickToReveal');
+}
 
 // id таблицы тегов (будет найден или создан)
 const tagsTableId = ref(null);
@@ -232,24 +311,10 @@ const handleContactsUpdate = async () => {
   await loadUserTags();
 };
 
-// Функция маскировки персональных данных для читателей
-function maskPersonalData(data) {
-  if (!data || data === '-') return '-';
-  
-  // Если пользователь имеет права редактора, показываем полные данные
-  if (hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS)) {
-    return data;
-  }
-  
-  // Для читателей маскируем данные полностью звездочками
-  return '***';
-}
-
 async function ensureTagsTable() {
   const tagsMeta = getClientTagsTableMeta();
-  // Получаем все пользовательские таблицы
   const tables = await tablesService.getTables();
-  let tagsTable = tables.find(t => t.name === tagsMeta.name);
+  let tagsTable = findClientTagsTableInList(tables);
   
   if (!tagsTable) {
     // Если таблицы нет — создаём
@@ -285,32 +350,14 @@ async function ensureTagsTable() {
 }
 
 async function loadAllTags() {
-  // Убедимся, что таблица тегов есть
-  const tableId = await ensureTagsTable();
-  // Загружаем все строки из таблицы тегов
-  const table = await tablesService.getTable(tableId);
-  // Ожидаем, что первый столбец — название тега, второй — описание (если есть)
-  const nameCol = table.columns[0];
-  const descCol = table.columns[1];
-  allTags.value = table.rows.map(row => {
-    const nameCell = table.cellValues.find(c => c.row_id === row.id && c.column_id === nameCol.id);
-    const descCell = descCol ? table.cellValues.find(c => c.row_id === row.id && c.column_id === descCol.id) : null;
-    return {
-      id: row.id,
-      name: nameCell ? nameCell.value : '',
-      description: descCell ? descCell.value : ''
-    };
-  });
+  await ensureTagsTable();
+  allTags.value = await loadClientTagsList();
 }
 
 function openTagModal() {
   if (!canManageTags.value) return;
   showTagModal.value = true;
   loadAllTags();
-}
-
-function toggleSidebar() {
-  isSidebarOpen.value = !isSidebarOpen.value;
 }
 
 // --- Языки ---
@@ -486,7 +533,7 @@ function goBack() {
   if (window.history.length > 1) {
     router.back();
   } else {
-    router.push({ name: 'crm' });
+    router.push({ name: 'contacts-list' });
   }
 }
 
@@ -725,150 +772,221 @@ watch(userId, async () => {
 
 <style scoped>
 .contact-details-page {
-  padding: 20px;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+}
+
+.page-state {
+  padding: var(--spacing-lg);
+  color: var(--color-grey);
 }
 
 .contact-details-content {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.12);
-  padding: 24px;
-  width: 100%;
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--spacing-lg);
+  width: 100%;
 }
+
 .contact-details-header {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
+  gap: 12px 16px;
 }
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
+
+.header-main h1 {
+  margin: 0 0 4px;
+  font-size: var(--font-size-xxl);
+  font-weight: 600;
+  color: var(--color-dark);
 }
-.close-btn:hover {
-  color: #333;
+
+.header-subtitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-grey);
 }
-.contact-info-section {
-  flex-shrink: 0;
+
+.info-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-lg);
+}
+
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.info-grid {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
 }
 
-.contact-info-block {
-  font-size: 1.08rem;
-  line-height: 1.7;
+.info-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 12px 20px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-grey-light);
 }
-.edit-input {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 1rem;
-  margin-left: 8px;
-  min-width: 120px;
+
+.info-row:last-child {
+  border-bottom: none;
 }
-.saving {
-  color: #17a2b8;
-  font-size: 0.95rem;
-  margin-left: 8px;
+
+.info-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-grey);
 }
-.delete-actions {
+
+.info-value {
+  font-size: var(--font-size-md);
+  color: var(--color-dark);
+  word-break: break-word;
+}
+
+.info-row--tags .info-value {
   display: flex;
-  gap: 12px;
-  margin-top: 18px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.delete-history-btn {
-  background: #ff9800;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 7px 18px;
+.personal-field {
   cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
+  color: var(--color-grey);
+  display: inline-block;
+  user-select: none;
 }
 
-.delete-history-btn:hover {
-  background: #f57c00;
+.personal-field--revealed {
+  color: var(--color-dark);
+  user-select: text;
 }
 
-.delete-btn {
-  background: #dc3545;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 7px 18px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
+.personal-field:not(.personal-field--revealed):hover {
+  color: var(--color-primary-dark);
+  background: rgba(76, 175, 80, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  margin: 0 -4px;
 }
 
-.delete-btn:hover {
-  background: #b52a37;
+.edit-input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font-size: var(--font-size-md);
+  min-width: 160px;
+  max-width: 100%;
 }
+
+.saving {
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  margin-left: 8px;
+}
+
+.block-user-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.blocked-status {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.unblocked-status {
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.contact-chat-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--block-radius);
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  min-height: 480px;
+  max-height: calc(100vh - 200px);
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-chat-panel :deep(.chat-container) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
 .multi-select {
   position: relative;
-  display: inline-block;
-  min-width: 220px;
+  display: block;
+  max-width: 420px;
 }
+
 .selected-langs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
   min-height: 36px;
-  background: #f5f7fa;
-  border-radius: 6px;
+  background: var(--color-light);
+  border-radius: var(--radius-md);
   padding: 4px 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
 }
+
 .lang-tag {
-  background: #e6f7ff;
-  color: #138496;
-  border-radius: 4px;
+  background: #e8f5e9;
+  color: var(--color-primary-dark);
+  border-radius: var(--radius-sm);
   padding: 2px 8px;
-  font-size: 0.97rem;
+  font-size: var(--font-size-sm);
   display: flex;
   align-items: center;
 }
+
 .remove-tag {
   margin-left: 4px;
   cursor: pointer;
-  color: #888;
+  color: var(--color-grey);
   font-weight: bold;
 }
+
 .remove-tag:hover {
-  color: #dc3545;
+  color: var(--color-danger);
 }
+
 .lang-input {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   min-width: 80px;
   margin-left: 4px;
 }
+
 .lang-dropdown {
   position: absolute;
   left: 0;
   top: 100%;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   z-index: 10;
   min-width: 180px;
   max-height: 180px;
@@ -877,75 +995,72 @@ watch(userId, async () => {
   padding: 0;
   list-style: none;
 }
+
 .lang-dropdown li {
   padding: 7px 14px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
+
 .lang-dropdown li.selected {
-  background: #e6f7ff;
-  color: #138496;
+  background: #e8f5e9;
+  color: var(--color-primary-dark);
 }
+
 .lang-dropdown li:hover {
-  background: #f0f0f0;
+  background: var(--color-light);
 }
-.messages-block {
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 18px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  flex: 1;
+
+.user-tag {
+  display: inline-flex;
+  align-items: center;
+  background: #e8f5e9;
+  color: var(--color-primary-dark);
+  border-radius: var(--radius-md);
+  padding: 2px 10px;
+  font-size: var(--font-size-sm);
+}
+
+.tag-modal-select {
+  width: 100%;
+}
+
+.tag-modal-hint {
+  margin-top: 1em;
+  color: var(--color-grey);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.tag-modal-tag-item {
+  margin-right: 0.7em;
+}
+
+.tag-modal-create {
   display: flex;
   flex-direction: column;
-  min-height: 500px;
-  max-height: 70vh;
-}
-.messages-list {
-  max-height: 350px;
-  overflow-y: auto;
-  margin-top: 10px;
-}
-.loading, .empty {
-  color: #888;
-  text-align: center;
-  margin: 20px 0;
-}
-.user-tags-block {
-  margin: 1em 0;
-}
-.user-tag {
-  display: inline-block;
-  background: #e0f7fa;
-  color: #00796b;
-  border-radius: 6px;
-  padding: 0.2em 0.7em;
-  margin-right: 0.5em;
-  font-size: 0.95em;
-}
-.add-tag-btn {
-  margin-left: 1em;
-  background: #2ecc40;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.3em 1em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.add-tag-btn:hover {
-  background: #27ae38;
-}
-.block-user-section {
+  gap: 10px;
   margin-top: 1em;
-  margin-bottom: 1em;
 }
-.blocked-status {
-  color: #d32f2f;
-  font-weight: bold;
-}
-.unblocked-status {
-  color: #388e3c;
-  font-weight: bold;
+
+@media (max-width: 768px) {
+  .contact-details-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .back-btn {
+    align-self: flex-start;
+  }
+
+  .info-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .contact-chat-panel {
+    min-height: 360px;
+    max-height: calc(100vh - 160px);
+  }
 }
 </style> 

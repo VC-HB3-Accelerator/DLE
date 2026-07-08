@@ -12,27 +12,28 @@
 
 <template>
   <BaseLayout>
-    <div class="contacts-header">
-      <span>{{ t('contacts.title') }}</span>
-      <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
+    <div class="contacts-page">
+      <div class="contacts-page-header">
+        <h1>
+          {{ t('contacts.title') }}
+          <span v-if="newContacts.length" class="badge">+{{ newContacts.length }}</span>
+        </h1>
+      </div>
+      <ContactTable
+        :contacts="contacts"
+        :new-contacts="newContacts"
+        :new-messages="newMessages"
+        @markNewAsRead="markMessagesAsRead"
+        :markMessagesAsReadForUser="markMessagesAsReadForUser"
+        :markContactAsRead="markContactAsRead"
+      />
     </div>
-    <!-- Таблица контактов для всех пользователей -->
-    <ContactTable 
-      :contacts="contacts" 
-      :new-contacts="newContacts" 
-      :new-messages="newMessages" 
-      @markNewAsRead="markMessagesAsRead" 
-      :markMessagesAsReadForUser="markMessagesAsReadForUser" 
-      :markContactAsRead="markContactAsRead" 
-      @close="goBack" 
-    />
   </BaseLayout>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import BaseLayout from '../components/BaseLayout.vue';
 import ContactTable from '../components/ContactTable.vue';
 import { useContactsAndMessagesWebSocket } from '../composables/useContactsWebSocket';
@@ -44,7 +45,6 @@ const {
   contacts, newContacts, newMessages,
   markMessagesAsRead, markMessagesAsReadForUser, markContactAsRead, fetchContacts, clearContactsData
 } = useContactsAndMessagesWebSocket();
-const router = useRouter();
 const auth = useAuthContext();
 const { canViewContacts } = usePermissions();
 
@@ -69,51 +69,37 @@ watch(canViewContacts, (newValue, oldValue) => {
   }
 });
 
-function goBack() {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ name: 'crm' });
-  }
-}
 </script>
 
 <style scoped>
-.contacts-header {
+.contacts-page {
+  width: 100%;
+}
+
+.contacts-page-header h1 {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 1.2rem;
+  margin: 0 0 20px;
+  font-size: var(--font-size-xxl);
   font-weight: 600;
-  margin-bottom: 24px;
+  color: var(--color-dark);
 }
+
 .badge {
-  background: #dc3545;
-  color: #fff;
+  background: var(--color-danger);
+  color: var(--color-white);
   border-radius: 10px;
   padding: 2px 8px;
-  font-size: 0.95em;
-  margin-left: 7px;
+  font-size: 0.55em;
+  font-weight: 600;
+  vertical-align: middle;
 }
 
 @media (max-width: 768px) {
-  .contacts-header {
-    font-size: 1rem;
+  .contacts-page-header h1 {
+    font-size: var(--font-size-xl);
     margin-bottom: 16px;
-    padding: 0 10px;
-  }
-  
-  .badge {
-    font-size: 0.85em;
-    padding: 2px 6px;
   }
 }
-
-@media (max-width: 480px) {
-  .contacts-header {
-    font-size: 0.9rem;
-    margin-bottom: 12px;
-  }
-}
-
 </style> 

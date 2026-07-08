@@ -102,11 +102,60 @@ async function recordDelivery({
     await client.query('BEGIN');
 
     const existingDelivery = await client.query(
-      'SELECT id FROM broadcast_deliveries WHERE campaign_id = $1 AND recipient_user_id = $2',
+      `SELECT id, status
+       FROM broadcast_deliveries
+       WHERE campaign_id = $1 AND recipient_user_id = $2
+       FOR UPDATE`,
       [campaignId, recipientUserId]
     );
+
     if (existingDelivery.rows.length) {
-      await client.query('ROLLBACK');
+      const previousStatus = existingDelivery.rows[0].status;
+      const deliveryId = existingDelivery.rows[0].id;
+
+      if (previousStatus === 'sent' && status === 'error') {
+        await client.query('COMMIT');
+        return;
+      }
+
+      if (previousStatus === status) {
+        await client.query(
+          `UPDATE broadcast_deliveries
+           SET
+             channel_results = $2::jsonb,
+             error_message = $3,
+             sent_at = NOW()
+           WHERE id = $1`,
+          [deliveryId, JSON.stringify(channelResults), errorMessage]
+        );
+        await client.query('COMMIT');
+        return;
+      }
+
+      if (previousStatus === 'error' && status === 'sent') {
+        await client.query(
+          `UPDATE broadcast_deliveries
+           SET
+             status = 'sent',
+             channel_results = $2::jsonb,
+             error_message = NULL,
+             sent_at = NOW()
+           WHERE id = $1`,
+          [deliveryId, JSON.stringify(channelResults)]
+        );
+        await client.query(
+          `UPDATE broadcast_campaigns
+           SET
+             success_count = success_count + 1,
+             error_count = GREATEST(error_count - 1, 0)
+           WHERE id = $1`,
+          [campaignId]
+        );
+        await client.query('COMMIT');
+        return;
+      }
+
+      await client.query('COMMIT');
       return;
     }
 
@@ -127,7 +176,11 @@ async function recordDelivery({
       ]
     );
 
-    const counterField = status === 'sent' ? 'success_count' : 'error_count';
+    const counterField = status === 'sent'
+      ? 'success_count'
+      : status === 'bounced'
+        ? 'bounce_count'
+        : 'error_count';
     await client.query(
       `UPDATE broadcast_campaigns
        SET ${counterField} = ${counterField} + 1
@@ -158,9 +211,23 @@ async function completeCampaign({ campaignId, skippedCount = 0 }) {
   return rows[0] || null;
 }
 
-async function getHistory({ limit = 20, offset = 0 } = {}) {
+async function getHistory({ limit = 20, offset = 0, dateFrom = '', dateTo = '' } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
+  const where = [];
+  const params = [];
+  let idx = 1;
+
+  if (dateFrom) {
+    where.push(`DATE(c.started_at) >= $${idx++}`);
+    params.push(dateFrom);
+  }
+  if (dateTo) {
+    where.push(`DATE(c.started_at) <= $${idx++}`);
+    params.push(dateTo);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [itemsResult, totalResult] = await Promise.all([
     db.getQuery()(
@@ -173,6 +240,7 @@ async function getHistory({ limit = 20, offset = 0 } = {}) {
         c.planned_recipients,
         c.success_count,
         c.error_count,
+        c.bounce_count,
         c.skipped_count,
         c.warmup_mode,
         c.delay_seconds,
@@ -184,12 +252,16 @@ async function getHistory({ limit = 20, offset = 0 } = {}) {
         COUNT(t.id)::int AS tracked_emails
       FROM broadcast_campaigns c
       LEFT JOIN broadcast_email_tracking t ON t.campaign_id = c.id
+      ${whereSql}
       GROUP BY c.id
       ORDER BY c.started_at DESC
-      LIMIT $1 OFFSET $2`,
-      [safeLimit, safeOffset]
+      LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, safeLimit, safeOffset]
     ),
-    db.getQuery()('SELECT COUNT(*)::int AS total FROM broadcast_campaigns')
+    db.getQuery()(
+      `SELECT COUNT(*)::int AS total FROM broadcast_campaigns c ${whereSql}`,
+      params
+    )
   ]);
 
   return {
@@ -206,6 +278,9 @@ async function getCampaignDetails(campaignId) {
     return null;
   }
 
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+
   const deliveriesResult = await db.getQuery()(
     `SELECT
       d.id,
@@ -214,16 +289,27 @@ async function getCampaignDetails(campaignId) {
       d.channel_results,
       d.error_message,
       d.sent_at,
+      d.bounced_at,
       t.open_count,
       t.first_opened_at,
-      t.last_opened_at
+      t.last_opened_at,
+      COALESCE(
+        t.recipient_email,
+        (
+          SELECT decrypt_text(ui.provider_id_encrypted, $2)
+          FROM user_identities ui
+          WHERE ui.user_id = d.recipient_user_id
+            AND decrypt_text(ui.provider_encrypted, $2) = 'email'
+          LIMIT 1
+        )
+      ) AS recipient_email
     FROM broadcast_deliveries d
     LEFT JOIN broadcast_email_tracking t
       ON t.campaign_id = d.campaign_id
       AND t.recipient_user_id = d.recipient_user_id
     WHERE d.campaign_id = $1
     ORDER BY d.sent_at ASC`,
-    [campaignId]
+    [campaignId, encryptionKey]
   );
 
   const emailOpens = await emailTrackingService.getOpenStatsByCampaign(campaignId);
@@ -248,6 +334,7 @@ async function getAnalytics() {
         COUNT(*)::int AS total_campaigns,
         COALESCE(SUM(success_count), 0)::int AS total_success,
         COALESCE(SUM(error_count), 0)::int AS total_errors,
+        COALESCE(SUM(bounce_count), 0)::int AS total_bounces,
         COALESCE(SUM(planned_recipients), 0)::int AS total_planned,
         COALESCE(SUM(skipped_count), 0)::int AS total_skipped
       FROM broadcast_campaigns`
@@ -269,7 +356,8 @@ async function getAnalytics() {
         DATE(started_at) AS day,
         COUNT(*)::int AS campaigns_count,
         COALESCE(SUM(success_count), 0)::int AS success_count,
-        COALESCE(SUM(error_count), 0)::int AS error_count
+        COALESCE(SUM(error_count), 0)::int AS error_count,
+        COALESCE(SUM(bounce_count), 0)::int AS bounce_count
       FROM broadcast_campaigns
       WHERE started_at >= NOW() - INTERVAL '30 days'
       GROUP BY DATE(started_at)
@@ -281,6 +369,7 @@ async function getAnalytics() {
         c.subject,
         c.success_count,
         c.error_count,
+        c.bounce_count,
         c.planned_recipients,
         c.status,
         c.started_at,
@@ -296,7 +385,9 @@ async function getAnalytics() {
   ]);
 
   const totals = totalsResult.rows[0] || {};
-  const attempted = Number(totals.total_success || 0) + Number(totals.total_errors || 0);
+  const attempted = Number(totals.total_success || 0)
+    + Number(totals.total_errors || 0)
+    + Number(totals.total_bounces || 0);
   const successRate = attempted > 0
     ? Math.round((Number(totals.total_success || 0) / attempted) * 100)
     : 0;
@@ -306,6 +397,7 @@ async function getAnalytics() {
       campaigns: Number(totals.total_campaigns || 0),
       success: Number(totals.total_success || 0),
       errors: Number(totals.total_errors || 0),
+      bounces: Number(totals.total_bounces || 0),
       planned: Number(totals.total_planned || 0),
       skipped: Number(totals.total_skipped || 0),
       successRate
@@ -441,10 +533,153 @@ async function deleteTemplate(templateId) {
   return rowCount > 0;
 }
 
+async function deleteCampaigns(campaignIds = []) {
+  const uniqueIds = [...new Set(
+    campaignIds
+      .map(id => Number(id))
+      .filter(id => Number.isInteger(id) && id > 0)
+  )];
+
+  if (!uniqueIds.length) {
+    throw new Error('campaign_ids is empty');
+  }
+
+  const { rowCount } = await db.getQuery()(
+    'DELETE FROM broadcast_campaigns WHERE id = ANY($1::int[])',
+    [uniqueIds]
+  );
+
+  return { deleted: rowCount };
+}
+
+async function recordBounce({
+  recipientEmail,
+  diagnosticMessage = null,
+  bounceMessageId = null
+}) {
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+  const normalizedEmail = String(recipientEmail || '').trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    return { processed: false, reason: 'no_email' };
+  }
+
+  const userResult = await db.getQuery()(
+    `SELECT u.id
+     FROM users u
+     JOIN user_identities ui ON ui.user_id = u.id
+     WHERE decrypt_text(ui.provider_encrypted, $1) = 'email'
+       AND LOWER(decrypt_text(ui.provider_id_encrypted, $1)) = $2
+     LIMIT 1`,
+    [encryptionKey, normalizedEmail]
+  );
+
+  if (!userResult.rows.length) {
+    return { processed: false, reason: 'user_not_found', email: normalizedEmail };
+  }
+
+  const recipientUserId = userResult.rows[0].id;
+
+  const deliveryResult = await db.getQuery()(
+    `SELECT d.id, d.campaign_id, d.status
+     FROM broadcast_deliveries d
+     LEFT JOIN broadcast_email_tracking t
+       ON t.campaign_id = d.campaign_id
+       AND t.recipient_user_id = d.recipient_user_id
+     WHERE d.recipient_user_id = $1
+       AND d.status IN ('sent', 'bounced')
+     ORDER BY
+       CASE WHEN d.status = 'sent' THEN 0 ELSE 1 END,
+       d.sent_at DESC
+     LIMIT 1`,
+    [recipientUserId]
+  );
+
+  if (!deliveryResult.rows.length) {
+    return { processed: false, reason: 'no_delivery', email: normalizedEmail };
+  }
+
+  const delivery = deliveryResult.rows[0];
+  if (delivery.status === 'bounced') {
+    return {
+      processed: false,
+      reason: 'already_bounced',
+      deliveryId: delivery.id,
+      campaignId: delivery.campaign_id,
+      email: normalizedEmail
+    };
+  }
+
+  const pool = db.getPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const lockedDelivery = await client.query(
+      `SELECT id, campaign_id, status
+       FROM broadcast_deliveries
+       WHERE id = $1
+       FOR UPDATE`,
+      [delivery.id]
+    );
+
+    if (!lockedDelivery.rows.length || lockedDelivery.rows[0].status !== 'sent') {
+      await client.query('COMMIT');
+      return {
+        processed: false,
+        reason: 'already_updated',
+        deliveryId: delivery.id,
+        campaignId: delivery.campaign_id,
+        email: normalizedEmail
+      };
+    }
+
+    const bounceText = String(diagnosticMessage || '').trim() || 'Отказ доставки (bounce/NDR)';
+
+    await client.query(
+      `UPDATE broadcast_deliveries
+       SET
+         status = 'bounced',
+         error_message = $2,
+         bounced_at = NOW()
+       WHERE id = $1`,
+      [delivery.id, bounceText]
+    );
+
+    await client.query(
+      `UPDATE broadcast_campaigns
+       SET
+         success_count = GREATEST(success_count - 1, 0),
+         bounce_count = bounce_count + 1
+       WHERE id = $1`,
+      [delivery.campaign_id]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      processed: true,
+      deliveryId: delivery.id,
+      campaignId: delivery.campaign_id,
+      recipientUserId,
+      email: normalizedEmail,
+      bounceMessageId: bounceMessageId || null
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   createCampaign,
   getCampaignById,
   recordDelivery,
+  recordBounce,
   completeCampaign,
   getHistory,
   getCampaignDetails,
@@ -454,5 +689,6 @@ module.exports = {
   getTemplateById,
   createTemplate,
   updateTemplate,
-  deleteTemplate
+  deleteTemplate,
+  deleteCampaigns
 };

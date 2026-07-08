@@ -148,12 +148,12 @@ class WebSocketService {
         this.emit('tags-updated', data);
         break;
         
-      case 'table-updated':
-        // console.log('[WebSocket] table-updated:', data.tableId);
-        if (tableUpdateSubscribers[data.tableId]) {
-          tableUpdateSubscribers[data.tableId].forEach(cb => cb(data));
-        }
+      case 'table-updated': {
+        const tableId = String(data.tableId);
+        const subscribers = tableUpdateSubscribers[tableId] || tableUpdateSubscribers[data.tableId] || [];
+        subscribers.forEach(cb => cb(data));
         break;
+      }
         
       default:
         // console.log('❓ [WebSocket] Неизвестный тип сообщения:', data.type);
@@ -231,13 +231,14 @@ const websocketService = new WebSocketService();
 const tableUpdateSubscribers = {};
 
 function onTableUpdate(tableId, callback) {
-  if (!tableUpdateSubscribers[tableId]) {
-    tableUpdateSubscribers[tableId] = [];
+  const key = String(tableId);
+  if (!tableUpdateSubscribers[key]) {
+    tableUpdateSubscribers[key] = [];
   }
-  tableUpdateSubscribers[tableId].push(callback);
+  tableUpdateSubscribers[key].push(callback);
   // Возвращаем функцию для отписки
   return () => {
-    tableUpdateSubscribers[tableId] = tableUpdateSubscribers[tableId].filter(cb => cb !== callback);
+    tableUpdateSubscribers[key] = tableUpdateSubscribers[key].filter(cb => cb !== callback);
   };
 }
 

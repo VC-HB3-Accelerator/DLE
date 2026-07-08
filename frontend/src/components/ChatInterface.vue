@@ -11,12 +11,16 @@
 -->
 
 <template>
-  <div class="chat-container" :style="{ '--chat-input-height': chatInputHeight + 'px' }">
+  <div
+    class="chat-container"
+    :class="{ 'chat-container--embedded': embedded }"
+    :style="{ '--chat-input-height': chatInputHeight + 'px' }"
+  >
     <!-- Блок истории сообщений -->
-    <div 
-      ref="messagesContainer" 
-      class="chat-messages" 
-      :style="{ width: messagesWidth + '%' }"
+    <div
+      ref="messagesContainer"
+      class="chat-messages"
+      :style="panelWidthStyle(messagesWidth)"
       @scroll="handleScroll"
     >
       <div v-for="message in messages" :key="message.id" :class="['message-wrapper', { 'selected-message': selectedMessageIds.includes(message.id) }]">
@@ -32,18 +36,18 @@
       </div>
     </div>
 
-    <!-- Разделитель для изменения размера -->
-    <div 
+    <div
+      v-if="!embedded"
       class="resizer"
       @mousedown="startResize"
       @touchstart="startResize"
     ></div>
 
     <!-- Блок ввода сообщений -->
-    <div 
-      ref="chatInputRef" 
+    <div
+      ref="chatInputRef"
       class="chat-input"
-      :style="{ width: inputWidth + '%' }"
+      :style="panelWidthStyle(inputWidth)"
     >
       <div class="input-area">
         <textarea
@@ -166,7 +170,8 @@ const props = defineProps({
   
   // Props для приватного чата
   isPrivateChat: { type: Boolean, default: false },    // Это приватный чат
-  currentUserId: { type: [String, Number], default: null } // ID текущего пользователя
+  currentUserId: { type: [String, Number], default: null }, // ID текущего пользователя
+  embedded: { type: Boolean, default: false } // Встроенный режим: лента сверху, ввод снизу
 });
 
 const emit = defineEmits([
@@ -182,6 +187,11 @@ const messagesContainer = ref(null);
 const messageInputRef = ref(null);
 const chatInputRef = ref(null); // Ref для chat-input
 const chatInputHeight = ref(80); // Начальная высота (можно подобрать точнее)
+
+function panelWidthStyle(widthPercent) {
+  if (props.embedded) return undefined;
+  return { width: `${widthPercent}%` };
+}
 
 function handleConsentGranted(messageId) {
   // После подписания удаляем системное сообщение о необходимости согласия
@@ -429,6 +439,11 @@ const isMobile = ref(false);
 // Функция для проверки мобильного устройства
 const checkMobile = () => {
   isMobile.value = window.innerWidth <= 1024;
+  if (props.embedded) {
+    messagesWidth.value = 100;
+    inputWidth.value = 100;
+    return;
+  }
   if (isMobile.value) {
     // На мобильных устройствах устанавливаем ширину в 100%
     messagesWidth.value = 100;
@@ -655,6 +670,31 @@ async function handleAiReply() {
   position: relative;
   overflow: hidden;
   gap: 0;
+}
+
+.chat-container--embedded {
+  flex-direction: column !important;
+}
+
+.chat-container--embedded .chat-messages {
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.chat-container--embedded .chat-messages::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+
+.chat-container--embedded .chat-input {
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 80px;
+  max-height: 45%;
 }
 
 /* На мобильных устройствах возвращаем вертикальный layout */

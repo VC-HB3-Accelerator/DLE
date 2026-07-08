@@ -614,11 +614,38 @@ router.get('/broadcast/history', requireAuth, requirePermission(PERMISSIONS.BROA
   try {
     const limit = parseInt(req.query.limit, 10) || 20;
     const offset = parseInt(req.query.offset, 10) || 0;
-    const history = await broadcastService.getHistory({ limit, offset });
+    const dateFrom = String(req.query.dateFrom || '').trim();
+    const dateTo = String(req.query.dateTo || '').trim();
+    const history = await broadcastService.getHistory({ limit, offset, dateFrom, dateTo });
     res.json({ success: true, ...history });
   } catch (error) {
     logger.error('[Messages] Broadcast history error:', error);
     res.status(500).json({ error: 'Ошибка получения истории рассылок', details: error.message });
+  }
+});
+
+router.delete('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+
+  if (!campaignIds.length) {
+    return res.status(400).json({ error: 'ids обязателен' });
+  }
+
+  try {
+    const result = await broadcastService.deleteCampaigns(campaignIds);
+    if (!result.deleted) {
+      return res.status(404).json({ error: 'Рассылки не найдены' });
+    }
+
+    res.json({ success: true, deleted: result.deleted });
+  } catch (error) {
+    logger.error('[Messages] Broadcast campaigns delete error:', error);
+    res.status(500).json({ error: 'Ошибка удаления рассылок', details: error.message });
   }
 });
 
@@ -970,12 +997,16 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
     }
 
     if (campaignId && !Number.isNaN(campaignId)) {
-      await broadcastService.recordDelivery({
-        campaignId,
-        recipientUserId,
-        status: 'sent',
-        channelResults: results
-      });
+      try {
+        await broadcastService.recordDelivery({
+          campaignId,
+          recipientUserId,
+          status: 'sent',
+          channelResults: results
+        });
+      } catch (recordError) {
+        logger.error(`[messages.js] Broadcast delivery record error for user ${recipientUserId}:`, recordError);
+      }
     }
 
     try {
@@ -995,7 +1026,7 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
           recipientUserId,
           status: 'error',
           channelResults: [],
-          errorMessage: e.message
+          errorMessage: e.message || 'Ошибка рассылки'
         });
       } catch (recordError) {
         logger.error(`[messages.js] Broadcast delivery record error for user ${recipientUserId}:`, recordError);

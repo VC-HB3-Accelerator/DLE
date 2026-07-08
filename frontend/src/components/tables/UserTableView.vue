@@ -183,7 +183,7 @@ import TableCell from './TableCell.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { usePermissions } from '@/composables/usePermissions';
 import axios from 'axios';
-import { getClientTagsTableMeta } from '../../utils/clientTagsTable';
+import { getClientTagsTableMeta, findClientTagsTableInList } from '../../utils/clientTagsTable';
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
@@ -283,7 +283,7 @@ watch([newColType, selectedTagIds], async ([type, tagIds]) => {
     const tagsMeta = getClientTagsTableMeta();
     // Найти или создать таблицу тегов клиентов
     let tables = await tablesService.getTables();
-    let tagsTable = tables.find(t => t.name === tagsMeta.name);
+    let tagsTable = findClientTagsTableInList(tables);
     if (!tagsTable) {
       tagsTable = await tablesService.createTable({
         name: tagsMeta.name,

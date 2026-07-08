@@ -71,8 +71,10 @@ router.get('/', requireAuth, async (req, res, next) => {
   try {
     const {
       tagIds = '',
-      dateFrom = '',
-      dateTo = '',
+      createdDateFrom = '',
+      createdDateTo = '',
+      messageDateFrom = '',
+      messageDateTo = '',
       contactType = 'all',
       search = '',
       newMessages = '',
@@ -105,14 +107,28 @@ router.get('/', requireAuth, async (req, res, next) => {
       params.push(req.user.id);
     }
 
-    // Фильтр по дате
-    if (dateFrom) {
+    // Фильтр по дате создания контакта
+    if (createdDateFrom) {
       where.push(`DATE(u.created_at) >= $${idx++}`);
-      params.push(dateFrom);
+      params.push(createdDateFrom);
     }
-    if (dateTo) {
+    if (createdDateTo) {
       where.push(`DATE(u.created_at) <= $${idx++}`);
-      params.push(dateTo);
+      params.push(createdDateTo);
+    }
+
+    // Фильтр по дате исходящих сообщений (рассылка, ответы админа)
+    if (messageDateFrom || messageDateTo) {
+      const messageDateConditions = ['m.user_id = u.id', `m.direction = 'outgoing'`];
+      if (messageDateFrom) {
+        messageDateConditions.push(`DATE(m.created_at) >= $${idx++}`);
+        params.push(messageDateFrom);
+      }
+      if (messageDateTo) {
+        messageDateConditions.push(`DATE(m.created_at) <= $${idx++}`);
+        params.push(messageDateTo);
+      }
+      where.push(`EXISTS (SELECT 1 FROM messages m WHERE ${messageDateConditions.join(' AND ')})`);
     }
 
     // Фильтр по типу контакта
@@ -160,23 +176,23 @@ router.get('/', requireAuth, async (req, res, next) => {
       params.push(adminId);
     }
 
+    const tagIdArr = tagIds ? tagIds.split(',').map(Number).filter(Boolean) : [];
+    if (tagIdArr.length > 0) {
+      where.push(`u.id IN (
+        SELECT utl_inner.user_id
+        FROM user_tag_links utl_inner
+        WHERE utl_inner.tag_id = ANY($${idx++})
+        GROUP BY utl_inner.user_id
+        HAVING COUNT(DISTINCT utl_inner.tag_id) = $${idx++}
+      )`);
+      params.push(tagIdArr, tagIdArr.length);
+    }
+
     // --- COUNT для пагинации ---
     let countSql = 'SELECT COUNT(DISTINCT u.id) AS cnt FROM users u';
     const countParams = [...params];
-    const tagIdArr = tagIds ? tagIds.split(',').map(Number).filter(Boolean) : [];
 
-    if (tagIdArr.length > 0) {
-      countSql = `
-        SELECT COUNT(*) AS cnt FROM (
-          SELECT u.id FROM users u
-          JOIN user_tag_links utl ON utl.user_id = u.id
-          WHERE utl.tag_id = ANY($${countParams.length + 1})
-          GROUP BY u.id
-          HAVING COUNT(DISTINCT utl.tag_id) = $${countParams.length + 2}
-        ) tagged_users
-      `;
-      countParams.push(tagIdArr, tagIdArr.length);
-    } else if (where.length > 0) {
+    if (where.length > 0) {
       countSql += ` WHERE ${where.join(' AND ')} `;
     }
 
@@ -202,22 +218,21 @@ router.get('/', requireAuth, async (req, res, next) => {
         END as contact_type,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('email', $${idx++}) LIMIT 1) AS email,
         (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('telegram', $${idx++}) LIMIT 1) AS telegram,
-        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('wallet', $${idx++}) LIMIT 1) AS wallet
+        (SELECT decrypt_text(provider_id_encrypted, $${idx++}) FROM user_identities WHERE user_id = u.id AND provider_encrypted = encrypt_text('wallet', $${idx++}) LIMIT 1) AS wallet,
+        COALESCE(
+          (SELECT array_agg(utl.tag_id ORDER BY utl.tag_id)
+           FROM user_tag_links utl
+           WHERE utl.user_id = u.id),
+          ARRAY[]::int[]
+        ) AS tag_ids,
+        (SELECT MAX(m.created_at)
+         FROM messages m
+         WHERE m.user_id = u.id AND m.direction = 'outgoing') AS last_message_at
       FROM users u
     `;
     params.push(encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey, encryptionKey);
 
-    // Фильтрация по тегам
-    if (tagIdArr.length > 0) {
-      sql += `
-          JOIN user_tag_links utl ON utl.user_id = u.id
-          WHERE utl.tag_id = ANY($${idx++})
-          GROUP BY u.id
-          HAVING COUNT(DISTINCT utl.tag_id) = $${idx++}
-        `;
-      params.push(tagIdArr);
-      params.push(tagIdArr.length);
-    } else if (where.length > 0) {
+    if (where.length > 0) {
       sql += ` WHERE ${where.join(' AND ')} `;
     }
 
@@ -241,20 +256,26 @@ router.get('/', requireAuth, async (req, res, next) => {
       preferred_language: u.preferred_language || [],
       is_blocked: u.is_blocked || false,
       contact_type: u.contact_type || 'user',
-      role: u.role || 'user'
+      role: u.role || 'user',
+      tag_ids: Array.isArray(u.tag_ids) ? u.tag_ids : [],
+      last_message_at: u.last_message_at || null
     }));
 
-    // --- Добавляем гостевые контакты (только на первой странице без тегового фильтра) ---
+    // --- Гостевые контакты (на первой странице) + их количество в total на всех страницах ---
     let guestContacts = [];
-    const includeGuests = offset === 0
-      && tagIdArr.length === 0
+    let guestCount = 0;
+    const canIncludeGuests = tagIdArr.length === 0
       && !search
+      && !createdDateFrom
+      && !createdDateTo
+      && !messageDateFrom
+      && !messageDateTo
       && newMessages !== 'yes'
       && contactType === 'all'
       && blocked === 'all';
-    if (includeGuests) {
-    const guestContactsResult = await db.getQuery()(
-      `WITH decrypted_guests AS (
+
+    const guestGroupsCte = `
+      WITH decrypted_guests AS (
         SELECT 
           id,
           decrypt_text(identifier_encrypted, $1) as guest_identifier,
@@ -287,77 +308,92 @@ router.get('/', requireAuth, async (req, res, next) => {
         FROM first_messages fm
         JOIN decrypted_guests dg ON dg.guest_identifier = fm.guest_identifier AND dg.channel = fm.channel
         GROUP BY fm.guest_id, fm.guest_identifier, fm.channel, fm.metadata, fm.created_at
-      )
-      SELECT 
-        ROW_NUMBER() OVER (ORDER BY guest_id ASC) as guest_number,
-        guest_id,
-        guest_identifier,
-        channel,
-        created_at,
-        last_message_at,
-        message_count,
-        metadata
-      FROM guest_groups
-      ORDER BY guest_id ASC`,
-      [encryptionKey]
-    );
+      )`;
 
-    guestContacts = guestContactsResult.rows.map((g) => {
-      const channelMap = {
-        'web': '🌐',
-        'telegram': '📱',
-        'email': '✉️'
-      };
-      const icon = channelMap[g.channel] || '👤';
-      const rawId = g.guest_identifier.replace(`${g.channel}:`, '');
-      
-      // Проверяем, есть ли кастомное имя в metadata
-      let metadata = g.metadata || {};
-      if (typeof metadata === 'string') {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          metadata = {};
-        }
-      }
-      
-      // Формируем имя: сначала проверяем кастомное имя, затем генерируем автоматически
-      let displayName;
-      if (metadata.custom_name) {
-        displayName = metadata.custom_name;
-      } else if (g.channel === 'email') {
-        displayName = `${icon} ${rawId}`;
-      } else if (g.channel === 'telegram') {
-        displayName = `${icon} Telegram (${rawId})`;
+    if (canIncludeGuests) {
+      if (offset === 0) {
+        const guestContactsResult = await db.getQuery()(
+          `${guestGroupsCte}
+          SELECT 
+            ROW_NUMBER() OVER (ORDER BY guest_id ASC) as guest_number,
+            guest_id,
+            guest_identifier,
+            channel,
+            created_at,
+            last_message_at,
+            message_count,
+            metadata
+          FROM guest_groups
+          ORDER BY guest_id ASC`,
+          [encryptionKey]
+        );
+
+        guestCount = guestContactsResult.rows.length;
+
+        guestContacts = guestContactsResult.rows.map((g) => {
+          const channelMap = {
+            'web': '🌐',
+            'telegram': '📱',
+            'email': '✉️'
+          };
+          const icon = channelMap[g.channel] || '👤';
+          const rawId = g.guest_identifier.replace(`${g.channel}:`, '');
+          
+          let metadata = g.metadata || {};
+          if (typeof metadata === 'string') {
+            try {
+              metadata = JSON.parse(metadata);
+            } catch (e) {
+              metadata = {};
+            }
+          }
+          
+          let displayName;
+          if (metadata.custom_name) {
+            displayName = metadata.custom_name;
+          } else if (g.channel === 'email') {
+            displayName = `${icon} ${rawId}`;
+          } else if (g.channel === 'telegram') {
+            displayName = `${icon} Telegram (${rawId})`;
+          } else {
+            displayName = `${icon} Гость ${g.guest_number}`;
+          }
+          
+          return {
+            id: `guest_${g.guest_id}`,
+            guest_number: parseInt(g.guest_number),
+            guest_identifier: g.guest_identifier,
+            name: displayName,
+            email: g.channel === 'email' ? rawId : null,
+            telegram: g.channel === 'telegram' ? rawId : null,
+            wallet: null,
+            created_at: g.created_at,
+            preferred_language: [],
+            is_blocked: false,
+            contact_type: 'guest',
+            role: 'guest',
+            tag_ids: [],
+            last_message_at: g.last_message_at || null,
+            guest_info: {
+              channel: g.channel,
+              message_count: parseInt(g.message_count),
+              last_message_at: g.last_message_at
+            }
+          };
+        });
       } else {
-        displayName = `${icon} Гость ${g.guest_number}`;
+        const guestCountResult = await db.getQuery()(
+          `${guestGroupsCte}
+          SELECT COUNT(*)::int AS cnt FROM guest_groups`,
+          [encryptionKey]
+        );
+        guestCount = parseInt(guestCountResult.rows[0]?.cnt || 0, 10);
       }
-      
-      return {
-        id: `guest_${g.guest_id}`, // Используем внутренний ID для поиска
-        guest_number: parseInt(g.guest_number), // Порядковый номер для отображения
-        guest_identifier: g.guest_identifier, // Сохраняем для запросов
-        name: displayName,
-        email: g.channel === 'email' ? rawId : null,
-        telegram: g.channel === 'telegram' ? rawId : null,
-        wallet: null,
-        created_at: g.created_at,
-        preferred_language: [],
-        is_blocked: false,
-        contact_type: 'guest',
-        role: 'guest',
-        guest_info: {
-          channel: g.channel,
-          message_count: parseInt(g.message_count),
-          last_message_at: g.last_message_at
-        }
-      };
-    });
     }
 
     // Объединяем списки
     const allContacts = [...contacts, ...guestContacts];
-    const total = userTotal + (includeGuests ? guestContacts.length : 0);
+    const total = userTotal + guestCount;
 
     res.json({
       success: true,

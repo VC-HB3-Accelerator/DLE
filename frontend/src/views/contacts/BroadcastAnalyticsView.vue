@@ -35,6 +35,10 @@
         <div class="stat-label">{{ t('contacts.broadcast.analytics.failed') }}</div>
       </el-card>
       <el-card class="stat-card" shadow="never">
+        <div class="stat-value warning">{{ totals.bounces }}</div>
+        <div class="stat-label">{{ t('contacts.broadcast.analytics.bounces') }}</div>
+      </el-card>
+      <el-card class="stat-card" shadow="never">
         <div class="stat-value">{{ totals.successRate }}%</div>
         <div class="stat-label">{{ t('contacts.broadcast.analytics.successRate') }}</div>
       </el-card>
@@ -65,7 +69,7 @@
         <ul v-if="daily.length" class="daily-list">
           <li v-for="item in daily" :key="item.day">
             <span>{{ formatDay(item.day) }}</span>
-            <span>{{ t('contacts.broadcast.analytics.daySummary', { campaigns: item.campaigns_count, success: item.success_count, errors: item.error_count }) }}</span>
+            <span>{{ t('contacts.broadcast.analytics.daySummary', { campaigns: item.campaigns_count, success: item.success_count, errors: item.error_count, bounces: item.bounce_count || 0 }) }}</span>
           </li>
         </ul>
         <p v-else class="empty-state">{{ t('contacts.broadcast.analytics.noDailyData') }}</p>
@@ -87,6 +91,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="error_count" :label="t('common.errors')" width="90" align="center" />
+        <el-table-column prop="bounce_count" :label="t('contacts.broadcast.analytics.bounces')" width="90" align="center" />
         <el-table-column :label="t('contacts.broadcast.analytics.opens')" width="100" align="center">
           <template #default="{ row }">
             {{ row.opened_emails || 0 }}/{{ row.tracked_emails || 0 }}
@@ -112,6 +117,7 @@ const totals = reactive({
   campaigns: 0,
   success: 0,
   errors: 0,
+  bounces: 0,
   planned: 0,
   skipped: 0,
   successRate: 0
@@ -192,6 +198,10 @@ onMounted(loadAnalytics);
 
 .stat-value.danger {
   color: #f56c6c;
+}
+
+.stat-value.warning {
+  color: #e6a23c;
 }
 
 .stat-label {
