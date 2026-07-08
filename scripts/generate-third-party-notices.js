@@ -21,17 +21,102 @@ const RISKY = /GPL|AGPL|SSPL|LGPL|EUPL|MPL|WTFPL|UNKNOWN|UNLICENSED/i;
 
 const NOTES_RU = {
   default: 'Соблюдать условия лицензии',
-  lgpl: 'Weak copyleft; не модифицировать без публикации изменений',
+  lgpl: 'LGPL-3.0: см. раздел «Соответствие LGPL-3.0» ниже',
   eupl: 'Dual MIT/EUPL; при модификации — условия EUPL',
   mpl: 'File-level copyleft при изменении файлов библиотеки',
 };
 
 const NOTES_EN = {
   default: 'Comply with license terms',
-  lgpl: 'Weak copyleft; do not modify without publishing changes',
+  lgpl: 'LGPL-3.0: see “LGPL-3.0 Compliance” section below',
   eupl: 'Dual MIT/EUPL; if modified — EUPL terms apply',
   mpl: 'File-level copyleft if library files are modified',
 };
+
+function renderLgplCompliance(lang) {
+  if (lang === 'en') {
+    return `## LGPL-3.0 Compliance
+
+The backend production dependency tree includes **web3-utils** (LGPL-3.0), pulled
+transitively via **solidity-coverage** (Hardhat tooling). DLE does **not** import
+\`web3-utils\` directly; Ethereum interaction uses **ethers** and **viem** (MIT).
+
+**web3-utils in this distribution**
+
+| Field | Value |
+|-------|-------|
+| Package | web3-utils@1.10.4 |
+| License | GNU Lesser General Public License v3.0 (LGPL-3.0) |
+| Upstream | https://github.com/ethereum/web3.js/tree/1.x/packages/web3-utils |
+| In DLE | Unmodified npm package in \`backend/node_modules/web3-utils/\` |
+
+**DLE obligations when distributing the backend** (LGPL-3.0 Sections 4–6):
+
+1. Include this Third-Party Notices file with the distribution.
+2. Preserve all copyright and license notices in \`web3-utils\` source files.
+3. Provide the complete LGPL-3.0 license text (see links below).
+4. If **web3-utils** is distributed as part of the backend, the recipient must be
+   able to replace or re-link the library (standard Node.js \`node_modules\` layout
+   satisfies this).
+5. If **web3-utils** is **modified**, publish the corresponding source of the
+   modified version under LGPL-3.0. **DLE ships the unmodified upstream package.**
+
+**What LGPL-3.0 does not require**
+
+- Open-sourcing DLE proprietary application code that merely uses \`web3-utils\`
+  as a separate npm dependency without modification.
+- Relicensing DLE under LGPL, provided the obligations above are met.
+
+**Full license text**
+
+- GNU LGPL v3.0: https://www.gnu.org/licenses/lgpl-3.0.html
+- Copy in distribution: \`backend/node_modules/web3-utils/LICENSE\` (when backend
+  dependencies are included)
+
+`;
+  }
+
+  return `## Соответствие LGPL-3.0
+
+В production-дереве зависимостей backend присутствует **web3-utils** (LGPL-3.0),
+подключаемый транзитивно через **solidity-coverage** (инструментарий Hardhat).
+DLE **не импортирует** \`web3-utils\` напрямую; для работы с Ethereum используются
+**ethers** и **viem** (MIT).
+
+**web3-utils в данном дистрибутиве**
+
+| Поле | Значение |
+|------|----------|
+| Пакет | web3-utils@1.10.4 |
+| Лицензия | GNU Lesser General Public License v3.0 (LGPL-3.0) |
+| Upstream | https://github.com/ethereum/web3.js/tree/1.x/packages/web3-utils |
+| В DLE | Немодифицированный npm-пакет в \`backend/node_modules/web3-utils/\` |
+
+**Обязательства DLE при распространении backend** (LGPL-3.0, разделы 4–6):
+
+1. Включать данный файл Third-Party Notices в состав дистрибутива.
+2. Сохранять все copyright- и license-уведомления в исходных файлах \`web3-utils\`.
+3. Предоставлять полный текст лицензии LGPL-3.0 (см. ссылки ниже).
+4. Если **web3-utils** распространяется вместе с backend, получатель должен иметь
+   возможность заменить или перелинковать библиотеку (стандартная структура
+   Node.js \`node_modules\` этому соответствует).
+5. При **модификации** **web3-utils** — опубликовать соответствующий исходный код
+   изменённой версии под LGPL-3.0. **DLE поставляет немодифицированный upstream-пакет.**
+
+**Чего LGPL-3.0 не требует**
+
+- Раскрывать проприетарный код приложения DLE, который лишь использует
+  \`web3-utils\` как отдельную npm-зависимость без модификации.
+- Перелицензировать DLE под LGPL при соблюдении обязательств выше.
+
+**Полный текст лицензии**
+
+- GNU LGPL v3.0: https://www.gnu.org/licenses/lgpl-3.0.html
+- Копия в дистрибутиве: \`backend/node_modules/web3-utils/LICENSE\` (при включении
+  зависимостей backend)
+
+`;
+}
 
 function noteFor(license, lang) {
   const notes = lang === 'en' ? NOTES_EN : NOTES_RU;
@@ -124,8 +209,9 @@ When distributing DLE software:
 2. Do not remove copyright notices from third-party source code.
 3. Comply with the license terms of packages listed below.
 4. For Apache-2.0 — include NOTICE files where provided by the package.
+5. For LGPL-3.0 (**web3-utils**) — follow the [LGPL-3.0 Compliance](#lgpl-30-compliance) section.
 
-## Python: vector-search
+${renderLgplCompliance('en')}## Python: vector-search
 
 | Package | License | Note |
 |---------|---------|------|
@@ -142,7 +228,14 @@ ${renderSection('Frontend (Node.js, production)', frontend, 'en')}---
 
 ## Common license texts
 
-Full MIT, Apache-2.0, BSD, and ISC texts are in \`node_modules/<package>/\` and at https://opensource.org/licenses
+Full MIT, Apache-2.0, BSD, ISC, and LGPL texts are in \`node_modules/<package>/\` and at https://opensource.org/licenses and https://www.gnu.org/licenses/
+
+### LGPL-3.0 (summary)
+
+A weak copyleft library license. Permits use in proprietary applications when copyright
+notices are preserved, the LGPL text is provided, and the library can be replaced by
+the recipient. Modified versions of the library must be distributed under LGPL-3.0.
+Full text: https://www.gnu.org/licenses/lgpl-3.0.html
 
 **Licensing inquiries for DLE:** info@hb3-accelerator.com  
 **Website:** https://hb3-accelerator.com
@@ -168,8 +261,9 @@ Full MIT, Apache-2.0, BSD, and ISC texts are in \`node_modules/<package>/\` and 
 2. Не удалять copyright-уведомления из исходного кода сторонних библиотек.
 3. Соблюдать условия лицензий перечисленных ниже пакетов.
 4. Для Apache-2.0 — включать соответствующие NOTICE-файлы (если поставляются пакетом).
+5. Для LGPL-3.0 (**web3-utils**) — см. раздел [«Соответствие LGPL-3.0»](#соответствие-lgpl-30).
 
-## Python: vector-search
+${renderLgplCompliance('ru')}## Python: vector-search
 
 | Пакет | Лицензия | Примечание |
 |-------|----------|------------|
@@ -202,6 +296,13 @@ ${renderSection('Frontend (Node.js, production)', frontend, 'ru')}---
 
 Разрешается использование при условии сохранения copyright, текста лицензии и файлов NOTICE;
 предоставляется патентная лицензия; изменения должны быть помечены.
+
+### LGPL-3.0 (кратко)
+
+Слабая copyleft-лицензия для библиотек. Разрешает использование в проприетарных приложениях
+при условии сохранения уведомлений, предоставления текста LGPL и возможности замены библиотеки.
+Модифицированные версии библиотеки должны распространяться под LGPL-3.0.
+Полный текст: https://www.gnu.org/licenses/lgpl-3.0.html
 
 ---
 

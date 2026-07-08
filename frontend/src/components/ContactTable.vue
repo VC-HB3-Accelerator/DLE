@@ -24,6 +24,10 @@
         <el-button v-if="canViewContacts" :disabled="!hasSelectedEditor" @click="sendPrivateMessage">
           {{ t('contacts.privateMessage') }}
         </el-button>
+        <el-button v-if="canEditContacts" @click="goToCreateContact">{{ t('contacts.addContact') }}</el-button>
+        <el-button v-if="canEditContacts" :disabled="!hasSingleSelection" @click="editSelectedContact">
+          {{ t('contacts.editContact') }}
+        </el-button>
         <el-button v-if="canEditData" @click="showImportModal = true">{{ t('contacts.import') }}</el-button>
       </div>
     </div>
@@ -32,7 +36,7 @@
       <span class="selection-info">{{ t('common.selected', { count: selectedCount }) }}</span>
       <div class="toolbar-group-actions">
         <el-button v-if="canManageTags" type="primary" @click="openBulkTagsDialog">
-          {{ t('contacts.addTags') }}
+          {{ t('contacts.manageTags') }}
         </el-button>
         <el-button v-if="canBroadcast" @click="goToBroadcastPage">
           {{ t('contacts.broadcast.button') }}
@@ -369,10 +373,10 @@
 
     <el-dialog
       v-model="bulkTagsDialogVisible"
-      :title="t('contacts.bulkAddTagsTitle', { count: selectedCount })"
+      :title="t('contacts.bulkManageTagsTitle', { count: selectedRegisteredUserIds.length })"
       width="480px"
     >
-      <p class="bulk-tags-hint">{{ t('contacts.bulkAddTagsHint') }}</p>
+      <p class="bulk-tags-hint">{{ t('contacts.bulkManageTagsHint') }}</p>
       <el-select
         v-model="bulkSelectedTagIds"
         multiple
@@ -392,6 +396,15 @@
       </el-select>
       <template #footer>
         <el-button :disabled="bulkTagsLoading" @click="bulkTagsDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button
+          type="danger"
+          plain
+          :loading="bulkTagsLoading"
+          :disabled="!bulkSelectedTagIds.length"
+          @click="applyBulkRemoveTags"
+        >
+          {{ t('contacts.bulkRemoveTagsApply') }}
+        </el-button>
         <el-button
           type="primary"
           :loading="bulkTagsLoading"
@@ -473,7 +486,7 @@ const props = defineProps({
 const PAGE_SIZE_OPTIONS = [100, 500, 1000];
 const newIds = computed(() => props.newContacts.map(c => c.id));
 const router = useRouter();
-const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canBroadcast, canChatWithAdmins, canEditData, canManageTags } = usePermissions();
+const { canViewContacts, canSendToUsers, canDeleteData, canDeleteMessages, canBroadcast, canChatWithAdmins, canEditData, canEditContacts, canManageTags } = usePermissions();
 const { userAccessLevel, userId, isAuthenticated } = useAuthContext();
 const { getRoleDisplayName, getRoleClass, fetchRoles } = useRoles();
 const { onTagsUpdate } = useTagsWebSocket();
@@ -581,6 +594,8 @@ const selectedCount = computed(() => {
   const unique = new Set(selectedIds.value.map(normalizeContactId).filter(Boolean));
   return unique.size;
 });
+
+const hasSingleSelection = computed(() => selectedCount.value === 1);
 
 const selectedIdsForActions = computed(() => {
   const seen = new Set();
@@ -1041,6 +1056,21 @@ function onImported() {
   applyFilters(true);
 }
 
+function goToCreateContact() {
+  router.push({ name: 'contact-profile', params: { id: 'new' } });
+}
+
+function editSelectedContact() {
+  if (!hasSingleSelection.value) {
+    ElMessage.warning(t('contacts.selectOneToEdit'));
+    return;
+  }
+
+  const contactId = selectedIdsForActions.value[0];
+  if (!contactId) return;
+  router.push({ name: 'contact-profile', params: { id: contactId } });
+}
+
 async function openChatForSelected() {
   if (!selectedIdsForActions.value.length) return;
   
@@ -1173,8 +1203,47 @@ async function applyBulkTags() {
     }));
     bulkTagsDialogVisible.value = false;
     bulkSelectedTagIds.value = [];
+    await loadContactsPage();
   } catch (error) {
     ElMessage.error(error?.response?.data?.error || t('contacts.bulkAddTagsError'));
+  } finally {
+    bulkTagsLoading.value = false;
+  }
+}
+
+async function applyBulkRemoveTags() {
+  if (!selectedRegisteredUserIds.value.length || !bulkSelectedTagIds.value.length) {
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      t('contacts.bulkRemoveTagsConfirm', {
+        users: selectedRegisteredUserIds.value.length,
+        tags: bulkSelectedTagIds.value.length
+      }),
+      t('contacts.bulkRemoveTagsConfirmTitle'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+
+  bulkTagsLoading.value = true;
+  try {
+    await contactsService.removeTagsFromContactsBulk(
+      selectedRegisteredUserIds.value,
+      bulkSelectedTagIds.value
+    );
+    ElMessage.success(t('contacts.bulkRemoveTagsSuccess', {
+      users: selectedRegisteredUserIds.value.length,
+      tags: bulkSelectedTagIds.value.length
+    }));
+    bulkTagsDialogVisible.value = false;
+    bulkSelectedTagIds.value = [];
+    await loadContactsPage();
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.bulkRemoveTagsError'));
   } finally {
     bulkTagsLoading.value = false;
   }

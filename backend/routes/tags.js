@@ -101,6 +101,46 @@ router.post('/users/bulk-add', requireAuth, requirePermission(PERMISSIONS.MANAGE
   }
 });
 
+// POST /api/tags/users/bulk-remove — удалить теги у выбранных пользователей
+router.post('/users/bulk-remove', requireAuth, requirePermission(PERMISSIONS.MANAGE_TAGS), async (req, res) => {
+  const { userIds = [], tagIds = [] } = req.body;
+
+  const uniqueUserIds = [...new Set(
+    userIds.map(id => Number(id)).filter(id => Number.isInteger(id) && id > 0)
+  )];
+  const uniqueTagIds = [...new Set(
+    tagIds.map(id => Number(id)).filter(id => Number.isInteger(id) && id > 0)
+  )];
+
+  if (!uniqueUserIds.length) {
+    return res.status(400).json({ error: 'userIds обязателен' });
+  }
+
+  if (!uniqueTagIds.length) {
+    return res.status(400).json({ error: 'tagIds обязателен' });
+  }
+
+  try {
+    for (const userId of uniqueUserIds) {
+      for (const tagId of uniqueTagIds) {
+        await db.getQuery()(
+          'DELETE FROM user_tag_links WHERE user_id = $1 AND tag_id = $2',
+          [userId, tagId]
+        );
+      }
+      broadcastTagsUpdate(null, userId);
+    }
+
+    res.json({
+      success: true,
+      usersUpdated: uniqueUserIds.length,
+      tagsRemoved: uniqueTagIds.length
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/tags/user/:userId — получить все теги пользователя
 router.get('/user/:userId', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), async (req, res) => {
   const userIdParam = req.params.userId;

@@ -15,8 +15,18 @@
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
 const logger = require('../utils/logger');
+const encryptionUtils = require('../utils/encryptionUtils');
+const { ethers } = require('ethers');
 const { getLinkedWallet } = require('./wallet-service');
 const { broadcastContactsUpdate } = require('../wsHub');
+
+const CONTACT_IDENTITY_PROVIDERS = ['email', 'telegram', 'wallet'];
+
+const IDENTITY_PROVIDER_LABELS = {
+  email: 'email',
+  telegram: 'Telegram',
+  wallet: 'кошелёк',
+};
 
 /**
  * Сервис для работы с идентификаторами пользователей
@@ -33,19 +43,94 @@ class IdentityService {
       return { provider, providerId };
     }
 
-    // Приводим провайдер к нижнему регистру
     const normalizedProvider = provider.toLowerCase();
-
-    // Для email и wallet приводим значение к нижнему регистру
-    let normalizedProviderId = providerId;
-    if (normalizedProvider === 'wallet' || normalizedProvider === 'email') {
-      normalizedProviderId = providerId.toLowerCase();
-    }
+    const normalizedProviderId = this.normalizeContactIdentityValue(normalizedProvider, providerId);
 
     return {
       provider: normalizedProvider,
       providerId: normalizedProviderId,
     };
+  }
+
+  getIdentityProviderLabel(provider) {
+    return IDENTITY_PROVIDER_LABELS[provider?.toLowerCase()] || provider;
+  }
+
+  normalizeContactIdentityValue(provider, value) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    const trimmed = String(value).trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const normalizedProvider = provider.toLowerCase();
+
+    if (normalizedProvider === 'email') {
+      return trimmed.toLowerCase();
+    }
+
+    if (normalizedProvider === 'wallet') {
+      try {
+        return ethers.getAddress(trimmed).toLowerCase();
+      } catch {
+        return trimmed.toLowerCase();
+      }
+    }
+
+    if (normalizedProvider === 'telegram') {
+      return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+    }
+
+    return trimmed;
+  }
+
+  getIdentityLookupVariants(provider, value) {
+    const normalized = this.normalizeContactIdentityValue(provider, value);
+    if (!normalized) {
+      return [];
+    }
+
+    const normalizedProvider = provider.toLowerCase();
+    if (normalizedProvider === 'telegram') {
+      return [...new Set([normalized, `@${normalized}`])];
+    }
+
+    return [normalized];
+  }
+
+  validateContactIdentityValue(provider, value) {
+    const normalized = this.normalizeContactIdentityValue(provider, value);
+    if (!normalized) {
+      return { valid: false, error: 'Пустое значение идентификатора' };
+    }
+
+    const normalizedProvider = provider.toLowerCase();
+
+    if (normalizedProvider === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalized)) {
+        return { valid: false, error: 'Некорректный формат email' };
+      }
+    }
+
+    if (normalizedProvider === 'wallet') {
+      try {
+        ethers.getAddress(normalized);
+      } catch {
+        return { valid: false, error: 'Некорректный адрес кошелька' };
+      }
+    }
+
+    if (normalizedProvider === 'telegram') {
+      if (!/^[a-zA-Z0-9_]{3,}$/.test(normalized) && !/^\d+$/.test(normalized)) {
+        return { valid: false, error: 'Некорректный идентификатор Telegram' };
+      }
+    }
+
+    return { valid: true, value: normalized };
   }
 
   /**
@@ -109,7 +194,18 @@ class IdentityService {
         };
       }
 
-      // Проверяем, существует ли уже такой идентификатор
+      const existingOwnerId = await this.findUserIdByIdentity(
+        normalizedProvider,
+        normalizedProviderId
+      );
+      if (existingOwnerId !== null && Number(existingOwnerId) !== Number(userId)) {
+        return {
+          success: false,
+          error: `Идентификатор ${this.getIdentityProviderLabel(normalizedProvider)} уже используется другим контактом`,
+        };
+      }
+
+      // Проверяем, существует ли уже такой идентификатор у пользователя
       const existingIdentity = await this.findIdentity(userId, normalizedProvider);
       if (existingIdentity) {
         // Обновляем существующий идентификатор
@@ -205,6 +301,141 @@ class IdentityService {
   }
 
   /**
+   * Находит user_id по идентификатору (прямой SQL — надёжнее для зашифрованных полей)
+   */
+  async findUserIdByIdentity(provider, providerId) {
+    try {
+      const normalizedProvider = provider?.toLowerCase();
+      if (!normalizedProvider) {
+        return null;
+      }
+
+      const variants = this.getIdentityLookupVariants(normalizedProvider, providerId);
+      if (!variants.length) {
+        return null;
+      }
+
+      const encryptionKey = encryptionUtils.getEncryptionKey();
+
+      for (const variant of variants) {
+        const result = await db.getQuery()(
+          `SELECT user_id FROM user_identities
+           WHERE provider_encrypted = encrypt_text($1, $3)
+             AND provider_id_encrypted = encrypt_text($2, $3)
+           LIMIT 1`,
+          [normalizedProvider, variant, encryptionKey]
+        );
+
+        if (result.rows.length > 0) {
+          return result.rows[0].user_id;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('[IdentityService] Error finding user id by identity:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Проверяет, свободен ли идентификатор (или принадлежит excludeUserId)
+   */
+  async assertIdentityAvailable(provider, providerId, excludeUserId = null) {
+    let ownerId;
+    try {
+      ownerId = await this.findUserIdByIdentity(provider, providerId);
+    } catch (error) {
+      logger.error('[IdentityService] Duplicate check failed:', error);
+      return {
+        available: false,
+        error: 'Не удалось проверить уникальность идентификатора',
+      };
+    }
+
+    if (ownerId === null) {
+      return { available: true };
+    }
+    if (excludeUserId !== null && Number(ownerId) === Number(excludeUserId)) {
+      return { available: true };
+    }
+    const normalizedProvider = provider?.toLowerCase();
+    return {
+      available: false,
+      provider: normalizedProvider,
+      userId: ownerId,
+      error: `Идентификатор ${this.getIdentityProviderLabel(normalizedProvider)} уже используется другим контактом`,
+    };
+  }
+
+  /**
+   * Обновляет email / telegram / wallet контакта с проверкой уникальности
+   */
+  async updateContactIdentities(userId, updates = {}) {
+    const identities = await this.getUserIdentities(userId);
+    const current = {};
+    for (const identity of identities) {
+      if (CONTACT_IDENTITY_PROVIDERS.includes(identity.provider)) {
+        current[identity.provider] = identity.provider_id;
+      }
+    }
+
+    const next = {
+      email: updates.email !== undefined
+        ? this.normalizeContactIdentityValue('email', updates.email)
+        : (current.email || null),
+      telegram: updates.telegram !== undefined
+        ? this.normalizeContactIdentityValue('telegram', updates.telegram)
+        : (current.telegram || null),
+      wallet: updates.wallet !== undefined
+        ? this.normalizeContactIdentityValue('wallet', updates.wallet)
+        : (current.wallet || null),
+    };
+
+    if (!next.email && !next.telegram && !next.wallet) {
+      return {
+        success: false,
+        error: 'Укажите хотя бы один идентификатор: email, telegram или кошелёк',
+      };
+    }
+
+    for (const provider of CONTACT_IDENTITY_PROVIDERS) {
+      const newValue = next[provider];
+      const oldValue = current[provider] || null;
+      const normalizedOld = oldValue
+        ? this.normalizeContactIdentityValue(provider, oldValue)
+        : null;
+
+      if (newValue === normalizedOld) {
+        continue;
+      }
+
+      if (newValue) {
+        const validation = this.validateContactIdentityValue(provider, newValue);
+        if (!validation.valid) {
+          return { success: false, error: validation.error };
+        }
+
+        const availability = await this.assertIdentityAvailable(provider, validation.value, userId);
+        if (!availability.available) {
+          return { success: false, error: availability.error };
+        }
+        const saveResult = await this.saveIdentity(userId, provider, validation.value, true);
+        if (!saveResult.success) {
+          return saveResult;
+        }
+      } else if (oldValue) {
+        const deleteResult = await this.deleteIdentity(userId, provider, oldValue);
+        if (!deleteResult.success) {
+          return deleteResult;
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
+  /**
    * Находит пользователя по идентификатору
    * @param {string} provider - Тип провайдера
    * @param {string} providerId - Значение идентификатора
@@ -212,21 +443,12 @@ class IdentityService {
    */
   async findUserByIdentity(provider, providerId) {
     try {
-      const { provider: normalizedProvider, providerId: normalizedProviderId } =
-        this.normalizeIdentity(provider, providerId);
-
-      const identities = await encryptedDb.getData('user_identities', {
-        provider: normalizedProvider,
-        provider_id: normalizedProviderId
-      }, 1);
-
-      if (identities.length === 0) {
+      const userId = await this.findUserIdByIdentity(provider, providerId);
+      if (userId === null) {
         return null;
       }
 
-      const userId = identities[0].user_id;
       const users = await encryptedDb.getData('users', { id: userId }, 1);
-      
       return users.length > 0 ? users[0] : null;
     } catch (error) {
       logger.error(`[IdentityService] Error finding user by identity:`, error);

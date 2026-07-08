@@ -45,6 +45,10 @@ export default {
     const res = await api.patch(`/users/${id}`, data);
     return res.data;
   },
+  async createContact(data) {
+    const res = await api.post('/users/create', data);
+    return res.data;
+  },
   async deleteContact(id) {
     try {
       const res = await api.delete(`/users/${id}`);
@@ -85,6 +89,13 @@ export default {
   },
   async addTagsToContactsBulk(userIds = [], tagIds = []) {
     const res = await api.post('/tags/users/bulk-add', {
+      userIds,
+      tagIds
+    });
+    return res.data;
+  },
+  async removeTagsFromContactsBulk(userIds = [], tagIds = []) {
+    const res = await api.post('/tags/users/bulk-remove', {
       userIds,
       tagIds
     });

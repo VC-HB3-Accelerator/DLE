@@ -547,7 +547,7 @@ router.patch('/:id/unblock', requireAuth, requirePermission(PERMISSIONS.BLOCK_US
 router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   try {
     const userId = req.params.id;
-    const { first_name, last_name, name, preferred_language, language, is_blocked } = req.body;
+    const { first_name, last_name, name, preferred_language, language, is_blocked, email, telegram, wallet } = req.body;
     
     // Получаем ключ шифрования один раз
     const encryptionUtils = require('../utils/encryptionUtils');
@@ -662,6 +662,25 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
     const fields = [];
     const values = [];
     let idx = 1;
+    let identityUpdated = false;
+
+    const userIdNum = Number(userId);
+    if (isNaN(userIdNum)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID format' });
+    }
+
+    if (email !== undefined || telegram !== undefined || wallet !== undefined) {
+      const identityService = require('../services/identity-service');
+      const identityResult = await identityService.updateContactIdentities(userIdNum, {
+        email,
+        telegram,
+        wallet,
+      });
+      if (!identityResult.success) {
+        return res.status(400).json({ success: false, error: identityResult.error });
+      }
+      identityUpdated = true;
+    }
     
     // Обработка поля name - разбиваем на first_name и last_name
     if (name !== undefined) {
@@ -702,17 +721,16 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
         fields.push(`blocked_at = NULL`);
       }
     }
-    if (!fields.length) return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
-    
-    // Проверяем, что userId - это число
-    const userIdNum = Number(userId);
-    if (isNaN(userIdNum)) {
-      return res.status(400).json({ success: false, error: 'Invalid user ID format' });
+    if (!fields.length && !identityUpdated) {
+      return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
     }
     
-    const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`;
-    values.push(userIdNum);
-    await db.query(sql, values);
+    if (fields.length) {
+      const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx}`;
+      values.push(userIdNum);
+      await db.query(sql, values);
+    }
+
     broadcastContactsUpdate();
     res.json({ success: true, message: 'Пользователь обновлен' });
   } catch (e) {
@@ -825,6 +843,98 @@ router.get('/roles', requireAuth, async (req, res, next) => {
       error: 'Ошибка при получении ролей',
       details: error.message
     });
+  }
+});
+
+// POST /api/users/create — создать контакт вручную (редактор)
+router.post('/create', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const { name, email, telegram, wallet, language } = req.body;
+    const identityService = require('../services/identity-service');
+
+    const rawIdentities = [
+      email ? { provider: 'email', value: email } : null,
+      telegram ? { provider: 'telegram', value: telegram } : null,
+      wallet ? { provider: 'wallet', value: wallet } : null,
+    ].filter(Boolean);
+
+    const identities = [];
+    for (const item of rawIdentities) {
+      const validation = identityService.validateContactIdentityValue(item.provider, item.value);
+      if (!validation.valid) {
+        return res.status(400).json({ success: false, error: validation.error });
+      }
+      identities.push({ provider: item.provider, provider_id: validation.value });
+    }
+
+    if (!identities.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Укажите хотя бы один идентификатор: email, telegram или кошелёк',
+      });
+    }
+
+    const encryptionUtils = require('../utils/encryptionUtils');
+    const encryptionKey = encryptionUtils.getEncryptionKey();
+    const dbq = db.getQuery();
+
+    for (const idn of identities) {
+      const existingUserId = await identityService.findUserIdByIdentity(idn.provider, idn.provider_id);
+      if (existingUserId) {
+        return res.status(400).json({
+          success: false,
+          error: `Идентификатор ${identityService.getIdentityProviderLabel(idn.provider)} уже используется другим контактом`,
+        });
+      }
+    }
+
+    let first_name = '';
+    let last_name = '';
+    if (name?.trim()) {
+      const parts = name.trim().split(' ');
+      first_name = parts[0] || '';
+      last_name = parts.slice(1).join(' ') || '';
+    }
+
+    const preferredLanguage = Array.isArray(language) ? language : [];
+    const ins = await dbq(
+      `INSERT INTO users (first_name_encrypted, last_name_encrypted, preferred_language, role, created_at)
+       VALUES (encrypt_text($1, $5), encrypt_text($2, $5), $3, $4, NOW())
+       RETURNING id, created_at, preferred_language, is_blocked`,
+      [first_name, last_name, JSON.stringify(preferredLanguage), ROLES.USER, encryptionKey]
+    );
+    const userId = ins.rows[0].id;
+
+    for (const idn of identities) {
+      const saveResult = await identityService.saveIdentity(userId, idn.provider, idn.provider_id, true);
+      if (!saveResult.success) {
+        return res.status(500).json({
+          success: false,
+          error: saveResult.error || 'Не удалось сохранить идентификатор',
+        });
+      }
+    }
+
+    broadcastContactsUpdate();
+
+    const identityMap = Object.fromEntries(identities.map((idn) => [idn.provider, idn.provider_id]));
+    const fullName = [first_name, last_name].filter(Boolean).join(' ').trim() || null;
+    res.json({
+      success: true,
+      contact: {
+        id: userId,
+        name: fullName,
+        email: identityMap.email || null,
+        telegram: identityMap.telegram || null,
+        wallet: identityMap.wallet || null,
+        created_at: ins.rows[0].created_at,
+        preferred_language: preferredLanguage,
+        is_blocked: false,
+      },
+    });
+  } catch (e) {
+    logger.error('Ошибка создания контакта:', e);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

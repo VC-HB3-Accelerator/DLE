@@ -166,11 +166,25 @@ const routes = [
     props: true
   },
   {
+    path: '/contacts/new',
+    redirect: { name: 'contact-profile', params: { id: 'new' } },
+  },
+  {
     path: '/contacts/:id',
-    name: 'contact-details',
-    component: () => import('../views/contacts/ContactDetailsView.vue'),
+    component: () => import('../views/contacts/ContactDetailsLayout.vue'),
     props: true,
-    // meta: { permission: PERMISSIONS.VIEW_CONTACTS } // Временно убираем проверку прав
+    children: [
+      {
+        path: '',
+        name: 'contact-details',
+        component: () => import('../views/contacts/ContactChatView.vue'),
+      },
+      {
+        path: 'profile',
+        name: 'contact-profile',
+        component: () => import('../views/contacts/ContactProfileView.vue'),
+      },
+    ],
   },
   {
     path: '/contacts/:id/delete',
