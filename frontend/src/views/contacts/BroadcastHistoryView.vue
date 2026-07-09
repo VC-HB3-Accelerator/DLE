@@ -121,6 +121,17 @@
         <p v-if="selectedCampaign.message_preview"><strong>{{ t('contacts.broadcast.message') }}:</strong></p>
         <p v-if="selectedCampaign.message_preview" class="message-preview">{{ selectedCampaign.message_preview }}</p>
 
+        <h3>{{ t('contacts.broadcast.history.events') }}</h3>
+        <div v-if="detailsLoading" class="details-loading">{{ t('common.loading') }}</div>
+        <ul v-else-if="campaignEvents.length" class="events-list">
+          <li v-for="event in campaignEvents" :key="event.id">
+            <span class="event-time">{{ formatTime(event.created_at) }}</span>
+            <span class="event-type">{{ eventLabel(event.event_type) }}</span>
+            <span v-if="event.details?.reason" class="event-details">{{ event.details.reason }}</span>
+          </li>
+        </ul>
+        <p v-else class="empty-state">{{ t('contacts.broadcast.history.noEvents') }}</p>
+
         <h3>{{ t('contacts.broadcast.history.deliveries') }}</h3>
         <div v-if="detailsLoading" class="details-loading">{{ t('common.loading') }}</div>
         <ul v-else-if="deliveries.length" class="deliveries-list">
@@ -170,6 +181,7 @@ const detailsVisible = ref(false);
 const detailsLoading = ref(false);
 const selectedCampaign = ref(null);
 const deliveries = ref([]);
+const campaignEvents = ref([]);
 const emailOpens = ref(null);
 const selectedIds = ref([]);
 const tableRef = ref(null);
@@ -179,13 +191,32 @@ const filterDateTo = ref('');
 function statusTagType(status) {
   if (status === 'completed') return 'success';
   if (status === 'in_progress') return 'warning';
+  if (status === 'paused') return 'info';
+  if (status === 'interrupted') return 'danger';
+  if (status === 'queued') return 'info';
   return 'info';
 }
 
 function statusLabel(status) {
-  if (status === 'completed') return t('contacts.broadcast.history.statusCompleted');
-  if (status === 'in_progress') return t('contacts.broadcast.history.statusInProgress');
-  return status;
+  const map = {
+    completed: t('contacts.broadcast.history.statusCompleted'),
+    in_progress: t('contacts.broadcast.history.statusInProgress'),
+    queued: t('contacts.broadcast.history.statusQueued'),
+    paused: t('contacts.broadcast.history.statusPaused'),
+    interrupted: t('contacts.broadcast.history.statusInterrupted')
+  };
+  return map[status] || status;
+}
+
+function eventLabel(eventType) {
+  const map = {
+    started: t('contacts.broadcast.history.eventStarted'),
+    paused: t('contacts.broadcast.history.eventPaused'),
+    resumed: t('contacts.broadcast.history.eventResumed'),
+    completed: t('contacts.broadcast.history.eventCompleted'),
+    interrupted: t('contacts.broadcast.history.eventInterrupted')
+  };
+  return map[eventType] || eventType;
 }
 
 function formatRecipientLabel(delivery) {
@@ -280,6 +311,7 @@ async function deleteSelected() {
       detailsVisible.value = false;
       selectedCampaign.value = null;
       deliveries.value = [];
+      campaignEvents.value = [];
       emailOpens.value = null;
     }
 
@@ -302,13 +334,18 @@ async function openDetails(row) {
   detailsVisible.value = true;
   detailsLoading.value = true;
   deliveries.value = [];
+  campaignEvents.value = [];
   emailOpens.value = null;
 
   try {
-    const data = await messagesService.getBroadcastCampaignDetails(row.id);
-    selectedCampaign.value = data.campaign || row;
-    deliveries.value = data.deliveries || [];
-    emailOpens.value = data.emailOpens || null;
+    const [detailsData, eventsData] = await Promise.all([
+      messagesService.getBroadcastCampaignDetails(row.id),
+      messagesService.getBroadcastCampaignEvents(row.id, { limit: 50 })
+    ]);
+    selectedCampaign.value = detailsData.campaign || row;
+    deliveries.value = detailsData.deliveries || [];
+    emailOpens.value = detailsData.emailOpens || null;
+    campaignEvents.value = eventsData.events || [];
   } catch (error) {
     ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.history.detailsError'));
   } finally {
@@ -393,6 +430,35 @@ onMounted(loadHistory);
 .details-content h3 {
   margin: 20px 0 12px;
   font-size: 1rem;
+}
+
+.deliveries-list,
+.events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.events-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.event-time {
+  color: #909399;
+  font-size: 0.9rem;
+}
+
+.event-type {
+  font-weight: 600;
+}
+
+.event-details {
+  color: #606266;
+  font-size: 0.95rem;
 }
 
 .deliveries-list {

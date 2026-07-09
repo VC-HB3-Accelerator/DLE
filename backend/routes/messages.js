@@ -24,6 +24,8 @@ const { requirePermission } = require('../middleware/permissions');
 // НОВАЯ СИСТЕМА РОЛЕЙ: используем shared/permissions.js
 const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions');
 const broadcastService = require('../services/broadcastService');
+const broadcastQueueService = require('../services/broadcastQueueService');
+const broadcastSendService = require('../services/broadcastSendService');
 const emailTrackingService = require('../services/emailTrackingService');
 
 const broadcastUpload = multer({
@@ -688,7 +690,7 @@ router.get('/broadcast/campaigns/:id', requireAuth, requirePermission(PERMISSION
   }
 });
 
-router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.BROADCAST), broadcastUpload.array('attachments'), async (req, res) => {
   const access = ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
     return;
@@ -699,21 +701,20 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
     return res.status(401).json({ error: 'Не удалось определить отправителя' });
   }
 
-  const {
-    subject,
-    message,
-    recipient_ids: recipientIds = [],
-    warmup_mode: warmupMode = false,
-    delay_seconds: delaySeconds = 0,
-    max_recipients: maxRecipients = 0,
-    attachments_count: attachmentsCount = 0
-  } = req.body;
+  const recipientIds = broadcastService.parseRecipientIds(req.body?.recipient_ids);
+  const subject = String(req.body?.subject || '').trim();
+  const message = String(req.body?.message || '').trim();
+  const warmupMode = req.body?.warmup_mode === true || req.body?.warmup_mode === 'true';
+  const delaySeconds = Number(req.body?.delay_seconds) || 0;
+  const maxRecipients = Number(req.body?.max_recipients) || 0;
+  const autoStart = req.body?.auto_start !== false && req.body?.auto_start !== 'false';
+  const attachments = req.files || [];
 
-  if (!Array.isArray(recipientIds) || recipientIds.length === 0) {
+  if (!recipientIds.length) {
     return res.status(400).json({ error: 'recipient_ids обязателен' });
   }
 
-  if (!String(message || '').trim()) {
+  if (!message) {
     return res.status(400).json({ error: 'message обязателен' });
   }
 
@@ -726,13 +727,185 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
       warmupMode,
       delaySeconds,
       maxRecipients,
-      attachmentsCount
+      attachmentsCount: attachments.length
     });
 
-    res.status(201).json({ success: true, campaign });
+    if (attachments.length) {
+      await broadcastService.saveCampaignAttachments(campaign.id, attachments);
+    }
+
+    let startedCampaign = campaign;
+    if (autoStart) {
+      startedCampaign = await broadcastService.startCampaign({
+        campaignId: campaign.id,
+        actorId: senderId
+      });
+      broadcastQueueService.enqueue(campaign.id);
+    }
+
+    res.status(201).json({
+      success: true,
+      campaign: startedCampaign || campaign
+    });
   } catch (error) {
     logger.error('[Messages] Broadcast campaign create error:', error);
     res.status(500).json({ error: 'Ошибка создания рассылки', details: error.message });
+  }
+});
+
+router.get('/broadcast/campaigns/:id/status', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const status = await broadcastService.getCampaignProgress(campaignId);
+    if (!status) {
+      return res.status(404).json({ error: 'Рассылка не найдена' });
+    }
+
+    const events = await broadcastService.getCampaignEvents(campaignId, { limit: 20 });
+    res.json({
+      success: true,
+      ...status,
+      events
+    });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} status error:`, error);
+    res.status(500).json({ error: 'Ошибка получения статуса рассылки', details: error.message });
+  }
+});
+
+router.post('/broadcast/campaigns/:id/start', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  const actorId = req.user?.id || req.session?.userId;
+
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const campaign = await broadcastService.startCampaign({ campaignId, actorId });
+    broadcastQueueService.enqueue(campaignId);
+    res.json({ success: true, campaign });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} start error:`, error);
+    res.status(400).json({ error: 'Не удалось запустить рассылку', details: error.message });
+  }
+});
+
+router.post('/broadcast/campaigns/:id/pause', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  const actorId = req.user?.id || req.session?.userId;
+  const reason = String(req.body?.reason || '').trim();
+
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const campaign = await broadcastService.pauseCampaign({ campaignId, actorId, reason });
+    if (!campaign) {
+      return res.status(400).json({ error: 'Рассылка не находится в процессе отправки' });
+    }
+
+    res.json({ success: true, campaign });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} pause error:`, error);
+    res.status(500).json({ error: 'Ошибка паузы рассылки', details: error.message });
+  }
+});
+
+router.post('/broadcast/campaigns/:id/resume', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  const actorId = req.user?.id || req.session?.userId;
+
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const campaign = await broadcastService.startCampaign({ campaignId, actorId });
+    broadcastQueueService.enqueue(campaignId);
+    res.json({ success: true, campaign });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} resume error:`, error);
+    res.status(400).json({ error: 'Не удалось возобновить рассылку', details: error.message });
+  }
+});
+
+router.post('/broadcast/campaigns/:id/interrupt', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  const actorId = req.user?.id || req.session?.userId;
+  const reason = String(req.body?.reason || '').trim();
+
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const campaign = await broadcastService.interruptCampaign({ campaignId, actorId, reason });
+    if (!campaign) {
+      return res.status(400).json({ error: 'Рассылку нельзя остановить в текущем статусе' });
+    }
+
+    res.json({ success: true, campaign });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} interrupt error:`, error);
+    res.status(500).json({ error: 'Ошибка остановки рассылки', details: error.message });
+  }
+});
+
+router.get('/broadcast/campaigns/:id/events', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const campaign = await broadcastService.getCampaignById(campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Рассылка не найдена' });
+    }
+
+    const events = await broadcastService.getCampaignEvents(campaignId, {
+      limit: parseInt(req.query.limit, 10) || 50
+    });
+    res.json({ success: true, events });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} events error:`, error);
+    res.status(500).json({ error: 'Ошибка получения событий рассылки', details: error.message });
   }
 });
 
@@ -836,10 +1009,9 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
   }
 
   const encryptionUtils = require('../utils/encryptionUtils');
-  let encryptionKey;
 
   try {
-    encryptionKey = encryptionUtils.getEncryptionKey();
+    encryptionUtils.getEncryptionKey();
   } catch (keyError) {
     logger.error('[Messages] Broadcast: ключ шифрования недоступен:', keyError);
     return res.status(500).json({
@@ -854,168 +1026,28 @@ router.post('/broadcast', requireAuth, requirePermission(PERMISSIONS.BROADCAST),
       if (!campaign) {
         return res.status(404).json({ error: 'Рассылка не найдена' });
       }
-      if (campaign.status === 'completed') {
+      if (['completed', 'interrupted'].includes(campaign.status)) {
         return res.status(400).json({ error: 'Рассылка уже завершена' });
       }
     }
 
-    if (await isUserBlocked(recipientUserId)) {
-      const blockedError = 'Пользователь заблокирован. Рассылка невозможна.';
-      if (campaignId && !Number.isNaN(campaignId)) {
-        await broadcastService.recordDelivery({
-          campaignId,
-          recipientUserId,
-          status: 'error',
-          channelResults: [],
-          errorMessage: blockedError
-        });
-      }
-      return res.status(403).json({ error: blockedError });
+    const sendResult = await broadcastSendService.sendToRecipient({
+      recipientUserId,
+      senderId,
+      subject,
+      content,
+      attachments,
+      campaignId: Number.isNaN(campaignId) ? null : campaignId
+    });
+
+    if (!sendResult.success) {
+      return res.status(sendResult.statusCode || 400).json({
+        error: sendResult.error,
+        results: sendResult.results || []
+      });
     }
 
-    const identitiesRes = await db.getQuery()(
-      'SELECT decrypt_text(provider_encrypted, $2) as provider, decrypt_text(provider_id_encrypted, $2) as provider_id FROM user_identities WHERE user_id = $1',
-      [recipientUserId, encryptionKey]
-    );
-    const identities = identitiesRes.rows;
-    const conversation = await getOrCreateConversation(recipientUserId);
-    const results = [];
-    let sent = false;
-    const trimmedContent = String(content).trim();
-
-    const email = identities.find(i => i.provider === 'email')?.provider_id;
-    if (email) {
-      try {
-        const emailBot = botManager.getBot('email');
-        if (emailBot && emailBot.isInitialized) {
-          let trackingToken = null;
-          if (campaignId && !Number.isNaN(campaignId)) {
-            trackingToken = await emailTrackingService.createTracking({
-              campaignId,
-              recipientUserId,
-              recipientEmail: email
-            });
-          }
-
-          const publicBaseUrl = await emailTrackingService.getPublicBaseUrl();
-          const emailHtml = trackingToken
-            ? emailTrackingService.buildHtmlEmailBody(trimmedContent, trackingToken, publicBaseUrl)
-            : null;
-
-          if (trackingToken) {
-            logger.info(`[messages.js] Broadcast email tracking pixel for campaign ${campaignId}: ${publicBaseUrl}/api/email/track/[token].gif`);
-          }
-
-          await emailBot.sendEmail(email, subject, trimmedContent, attachments, { html: emailHtml });
-          await saveBroadcastOutgoingMessage({
-            conversationId: conversation.id,
-            senderId,
-            recipientUserId,
-            content: trimmedContent,
-            channel: 'email',
-            encryptionKey
-          });
-          results.push({ channel: 'email', status: 'sent' });
-          sent = true;
-        } else {
-          logger.warn('[messages.js] Email Bot не инициализирован');
-          results.push({ channel: 'email', status: 'error', error: 'Email-бот не инициализирован' });
-        }
-      } catch (err) {
-        logger.error(`[messages.js] Broadcast email error for user ${recipientUserId}:`, err);
-        results.push({ channel: 'email', status: 'error', error: err.message });
-      }
-    }
-
-    const telegram = identities.find(i => i.provider === 'telegram')?.provider_id;
-    if (telegram) {
-      try {
-        const telegramBot = botManager.getBot('telegram');
-        if (telegramBot && telegramBot.isInitialized) {
-          const bot = telegramBot.getBot();
-          await bot.telegram.sendMessage(telegram, trimmedContent);
-          await saveBroadcastOutgoingMessage({
-            conversationId: conversation.id,
-            senderId,
-            recipientUserId,
-            content: trimmedContent,
-            channel: 'telegram',
-            encryptionKey
-          });
-          results.push({ channel: 'telegram', status: 'sent' });
-          sent = true;
-        } else {
-          logger.warn('[messages.js] Telegram Bot не инициализирован');
-          results.push({ channel: 'telegram', status: 'error', error: 'Telegram-бот не инициализирован' });
-        }
-      } catch (err) {
-        logger.error(`[messages.js] Broadcast telegram error for user ${recipientUserId}:`, err);
-        results.push({ channel: 'telegram', status: 'error', error: err.message });
-      }
-    }
-
-    const wallet = identities.find(i => i.provider === 'wallet')?.provider_id;
-    if (wallet) {
-      try {
-        await saveBroadcastOutgoingMessage({
-          conversationId: conversation.id,
-          senderId,
-          recipientUserId,
-          content: trimmedContent,
-          channel: 'wallet',
-          encryptionKey
-        });
-        results.push({ channel: 'wallet', status: 'saved' });
-        sent = true;
-      } catch (err) {
-        logger.error(`[messages.js] Broadcast wallet save error for user ${recipientUserId}:`, err);
-        results.push({ channel: 'wallet', status: 'error', error: err.message });
-      }
-    }
-
-    if (!sent) {
-      const channelErrors = results.filter(item => item.status === 'error');
-      if (campaignId && !Number.isNaN(campaignId)) {
-        const errorMessage = channelErrors.length
-          ? channelErrors.map(item => `${item.channel}: ${item.error}`).join('; ')
-          : 'У пользователя нет ни одного канала для рассылки.';
-        await broadcastService.recordDelivery({
-          campaignId,
-          recipientUserId,
-          status: 'error',
-          channelResults: results,
-          errorMessage
-        });
-      }
-      if (channelErrors.length) {
-        return res.status(400).json({
-          error: 'Не удалось отправить сообщение ни по одному каналу',
-          results: channelErrors
-        });
-      }
-      return res.status(400).json({ error: 'У пользователя нет ни одного канала для рассылки.' });
-    }
-
-    if (campaignId && !Number.isNaN(campaignId)) {
-      try {
-        await broadcastService.recordDelivery({
-          campaignId,
-          recipientUserId,
-          status: 'sent',
-          channelResults: results
-        });
-      } catch (recordError) {
-        logger.error(`[messages.js] Broadcast delivery record error for user ${recipientUserId}:`, recordError);
-      }
-    }
-
-    try {
-      broadcastMessagesUpdate();
-    } catch (wsError) {
-      logger.warn('[messages.js] Broadcast WebSocket update failed:', wsError.message);
-    }
-
-    res.json({ success: true, results });
+    res.json({ success: true, results: sendResult.results });
   } catch (e) {
     logger.error(`[messages.js] Broadcast error for user ${recipientUserId}:`, e);
 

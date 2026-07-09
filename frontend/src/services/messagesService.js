@@ -97,17 +97,64 @@ export default {
     warmupMode = false,
     delaySeconds = 0,
     maxRecipients = 0,
-    attachmentsCount = 0
+    attachments = [],
+    autoStart = true
   }) {
-    const { data } = await api.post('/messages/broadcast/campaigns', {
-      subject,
-      message,
-      recipient_ids: recipientIds,
-      warmup_mode: warmupMode,
-      delay_seconds: delaySeconds,
-      max_recipients: maxRecipients,
-      attachments_count: attachmentsCount
+    const formData = new FormData();
+    formData.append('subject', subject);
+    formData.append('message', message);
+    formData.append('recipient_ids', JSON.stringify(recipientIds));
+    formData.append('warmup_mode', warmupMode ? 'true' : 'false');
+    formData.append('delay_seconds', String(delaySeconds));
+    formData.append('max_recipients', String(maxRecipients));
+    formData.append('auto_start', autoStart ? 'true' : 'false');
+    attachments.forEach(file => {
+      formData.append('attachments', file);
+    });
+
+    const { data } = await api.post('/messages/broadcast/campaigns', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastCampaignStatus(campaignId) {
+    const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}/status`, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async startBroadcastCampaign(campaignId) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/start`, {}, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async pauseBroadcastCampaign(campaignId, { reason = '' } = {}) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/pause`, {
+      reason
     }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async resumeBroadcastCampaign(campaignId) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/resume`, {}, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async interruptBroadcastCampaign(campaignId, { reason = '' } = {}) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/interrupt`, {
+      reason
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastCampaignEvents(campaignId, { limit = 50 } = {}) {
+    const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}/events`, {
+      params: { limit },
       withCredentials: true
     });
     return data;

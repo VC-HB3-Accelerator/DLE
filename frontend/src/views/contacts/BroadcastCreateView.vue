@@ -65,6 +65,18 @@
         </template>
       </el-alert>
 
+      <el-alert
+        v-if="userIds.length"
+        type="success"
+        :closable="false"
+        show-icon
+        class="broadcast-alert"
+      >
+        <template #title>
+          {{ t('contacts.broadcast.backendQueueAlert') }}
+        </template>
+      </el-alert>
+
       <el-form class="broadcast-form" label-position="top" @submit.prevent>
         <div class="template-toolbar">
           <el-button :disabled="loading" @click="templatesDialogVisible = true">
@@ -168,17 +180,43 @@
           </ul>
         </section>
 
-        <div v-if="loading" class="send-progress">
+        <div v-if="loading || activeCampaignId" class="send-progress">
           <div class="progress-text">
             {{ t('contacts.broadcast.sendingProgress', { current: sentAttempts, total: recipientsToSend.length }) }}
             <span v-if="currentUserId">{{ t('contacts.broadcast.currentId', { id: currentUserId }) }}</span>
           </div>
           <el-progress :percentage="progressPercentage" />
+          <p v-if="campaignStatus" class="status-line">
+            {{ t('contacts.broadcast.statusLabel', { status: statusLabel(campaignStatus) }) }}
+          </p>
         </div>
 
         <div class="form-actions">
-          <el-button :disabled="loading" @click="goBack">{{ t('common.cancel') }}</el-button>
-          <el-button type="primary" :disabled="!canSend" :loading="loading" @click="sendBroadcast">
+          <el-button :disabled="loading && !activeCampaignId" @click="goBack">{{ t('common.cancel') }}</el-button>
+          <el-button
+            v-if="activeCampaignId && campaignStatus === 'in_progress'"
+            :disabled="actionLoading"
+            @click="pauseCampaign"
+          >
+            {{ t('contacts.broadcast.pause') }}
+          </el-button>
+          <el-button
+            v-if="activeCampaignId && campaignStatus === 'paused'"
+            type="warning"
+            :disabled="actionLoading"
+            @click="resumeCampaign"
+          >
+            {{ t('contacts.broadcast.resume') }}
+          </el-button>
+          <el-button
+            v-if="activeCampaignId && ['in_progress', 'paused', 'queued'].includes(campaignStatus)"
+            type="danger"
+            :disabled="actionLoading"
+            @click="stopCampaign"
+          >
+            {{ t('contacts.broadcast.stop') }}
+          </el-button>
+          <el-button type="primary" :disabled="!canSend" :loading="loading && !activeCampaignId" @click="sendBroadcast">
             {{ t('contacts.broadcast.sendBroadcast') }}
           </el-button>
         </div>
@@ -187,15 +225,13 @@
       <el-card v-if="result" class="result-card" shadow="never">
         <template #header>{{ t('contacts.broadcast.resultTitle') }}</template>
         <p>{{ t('contacts.broadcast.successSent', { count: result.successCount, total: result.totalCount }) }}</p>
+        <p v-if="result.errorCount">{{ t('contacts.broadcast.errorsCount', { count: result.errorCount }) }}</p>
         <p v-if="result.skippedCount">{{ t('contacts.broadcast.skippedDueToLimit', { count: result.skippedCount }) }}</p>
-        <div v-if="result.errors.length" class="errors-list">
-          <p>{{ t('common.errors') }}</p>
-          <ul>
-            <li v-for="error in result.errors" :key="error.userId">
-              {{ t('common.userId', { id: error.userId, error: error.error }) }}
-            </li>
-          </ul>
-        </div>
+        <p v-if="result.campaignId">
+          <router-link :to="{ name: 'contacts-broadcast-history' }">
+            {{ t('contacts.broadcast.openHistory') }}
+          </router-link>
+        </p>
       </el-card>
 
       <BroadcastTemplatesDialog
@@ -208,10 +244,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import messagesService from '@/services/messagesService.js';
 import BroadcastTemplatesDialog from './BroadcastTemplatesDialog.vue';
 
@@ -223,6 +259,7 @@ const subject = ref('');
 const message = ref('');
 const attachments = ref([]);
 const loading = ref(false);
+const actionLoading = ref(false);
 const result = ref(null);
 const fileInputRef = ref(null);
 const warmupMode = ref(true);
@@ -232,6 +269,9 @@ const sentAttempts = ref(0);
 const currentUserId = ref(null);
 const templatesDialogVisible = ref(false);
 const recipientsSummary = ref(null);
+const activeCampaignId = ref(null);
+const campaignStatus = ref('');
+const pollTimer = ref(null);
 
 const userIds = computed(() => {
   const ids = String(route.query.ids || '')
@@ -266,7 +306,87 @@ const progressPercentage = computed(() => {
 });
 
 const canSend = computed(() => {
-  return recipientsToSend.value.length > 0 && subject.value.trim() && message.value.trim() && !loading.value;
+  return recipientsToSend.value.length > 0
+    && subject.value.trim()
+    && message.value.trim()
+    && !loading.value
+    && !activeCampaignId.value;
+});
+
+function statusLabel(status) {
+  const map = {
+    queued: t('contacts.broadcast.history.statusQueued'),
+    in_progress: t('contacts.broadcast.history.statusInProgress'),
+    paused: t('contacts.broadcast.history.statusPaused'),
+    completed: t('contacts.broadcast.history.statusCompleted'),
+    interrupted: t('contacts.broadcast.history.statusInterrupted')
+  };
+  return map[status] || status;
+}
+
+function stopPolling() {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value);
+    pollTimer.value = null;
+  }
+}
+
+function applyCampaignStatus(data) {
+  const campaign = data?.campaign;
+  const progress = data?.progress;
+  if (!campaign || !progress) {
+    return;
+  }
+
+  campaignStatus.value = campaign.status;
+  sentAttempts.value = progress.processed;
+  currentUserId.value = progress.currentRecipientId;
+
+  if (['completed', 'interrupted'].includes(campaign.status)) {
+    stopPolling();
+    loading.value = false;
+    activeCampaignId.value = null;
+    result.value = {
+      successCount: progress.successCount,
+      errorCount: progress.errorCount,
+      totalCount: progress.total,
+      skippedCount: Number(campaign.skipped_count || 0),
+      campaignId: campaign.id
+    };
+
+    if (campaign.status === 'completed' && progress.errorCount > 0) {
+      ElMessage.warning(t('contacts.broadcast.completedWithErrors', { count: progress.errorCount }));
+    } else if (campaign.status === 'completed') {
+      ElMessage.success(t('contacts.broadcast.successSentFull'));
+    } else {
+      ElMessage.info(t('contacts.broadcast.interruptedNotice'));
+    }
+  }
+}
+
+async function refreshCampaignStatus() {
+  if (!activeCampaignId.value) {
+    return;
+  }
+
+  try {
+    const data = await messagesService.getBroadcastCampaignStatus(activeCampaignId.value);
+    applyCampaignStatus(data);
+  } catch (error) {
+    console.error('[BroadcastCreateView] Failed to poll campaign status:', error);
+  }
+}
+
+function startPolling(campaignId) {
+  activeCampaignId.value = campaignId;
+  loading.value = true;
+  stopPolling();
+  refreshCampaignStatus();
+  pollTimer.value = setInterval(refreshCampaignStatus, 3000);
+}
+
+onBeforeUnmount(() => {
+  stopPolling();
 });
 
 watch(warmupMode, (enabled) => {
@@ -325,8 +445,56 @@ function formatFileSize(size) {
   return `${(size / (1024 * 1024)).toFixed(1)} ${t('common.fileSize.mb')}`;
 }
 
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+async function pauseCampaign() {
+  if (!activeCampaignId.value) return;
+  actionLoading.value = true;
+  try {
+    await messagesService.pauseBroadcastCampaign(activeCampaignId.value);
+    await refreshCampaignStatus();
+    ElMessage.success(t('contacts.broadcast.pausedNotice'));
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.pauseError'));
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function resumeCampaign() {
+  if (!activeCampaignId.value) return;
+  actionLoading.value = true;
+  try {
+    await messagesService.resumeBroadcastCampaign(activeCampaignId.value);
+    await refreshCampaignStatus();
+    ElMessage.success(t('contacts.broadcast.resumedNotice'));
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.resumeError'));
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function stopCampaign() {
+  if (!activeCampaignId.value) return;
+
+  try {
+    await ElMessageBox.confirm(
+      t('contacts.broadcast.confirmStop'),
+      t('contacts.broadcast.stop'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+
+  actionLoading.value = true;
+  try {
+    await messagesService.interruptBroadcastCampaign(activeCampaignId.value);
+    await refreshCampaignStatus();
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.stopError'));
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 async function sendBroadcast() {
@@ -336,11 +504,7 @@ async function sendBroadcast() {
   result.value = null;
   sentAttempts.value = 0;
   currentUserId.value = null;
-
-  const errors = [];
-  let successCount = 0;
-  const recipients = [...recipientsToSend.value];
-  let campaignId = null;
+  campaignStatus.value = 'queued';
 
   try {
     const campaignResponse = await messagesService.createBroadcastCampaign({
@@ -350,88 +514,21 @@ async function sendBroadcast() {
       warmupMode: warmupMode.value,
       delaySeconds: delaySeconds.value,
       maxRecipients: normalizedMaxRecipients.value,
-      attachmentsCount: attachments.value.length
+      attachments: attachments.value,
+      autoStart: true
     });
-    campaignId = campaignResponse?.campaign?.id || null;
+
+    const campaignId = campaignResponse?.campaign?.id;
+    if (!campaignId) {
+      throw new Error(t('contacts.broadcast.campaignCreateError'));
+    }
+
+    startPolling(campaignId);
+    ElMessage.success(t('contacts.broadcast.startedNotice'));
   } catch (error) {
     loading.value = false;
-    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.campaignCreateError'));
-    return;
-  }
-
-  for (const [index, userId] of recipients.entries()) {
-    currentUserId.value = userId;
-
-    try {
-      await messagesService.broadcastMessage({
-        userId,
-        subject: subject.value.trim(),
-        message: message.value.trim(),
-        attachments: attachments.value,
-        campaignId
-      });
-      successCount += 1;
-    } catch (error) {
-      const apiError = error?.response?.data?.error;
-      const apiDetails = error?.response?.data?.details;
-      const channelErrors = error?.response?.data?.results
-        ?.filter(item => item.status === 'error')
-        ?.map(item => `${item.channel}: ${item.error}`)
-        .join('; ');
-      const combinedError = [apiError, apiDetails, channelErrors].filter(Boolean).join(' — ')
-        || error?.message
-        || t('common.sendError');
-
-      if (campaignId) {
-        try {
-          await messagesService.recordBroadcastDeliveryError(campaignId, {
-            recipientUserId: userId,
-            errorMessage: combinedError,
-            channelResults: error?.response?.data?.results || []
-          });
-        } catch (recordError) {
-          console.error('[BroadcastCreateView] Failed to record delivery error:', recordError);
-        }
-      }
-
-      errors.push({
-        userId,
-        error: combinedError
-      });
-    } finally {
-      sentAttempts.value = index + 1;
-    }
-
-    if (index < recipients.length - 1 && delaySeconds.value > 0) {
-      await wait(Number(delaySeconds.value) * 1000);
-    }
-  }
-
-  const skippedCount = Math.max(eligibleUserIds.value.length - recipients.length, 0)
-    + Math.max(userIds.value.length - eligibleUserIds.value.length, 0);
-
-  if (campaignId) {
-    try {
-      await messagesService.completeBroadcastCampaign(campaignId, { skippedCount });
-    } catch (completeError) {
-      console.error('[BroadcastCreateView] Failed to complete campaign:', completeError);
-    }
-  }
-
-  result.value = {
-    successCount,
-    errors,
-    totalCount: recipients.length,
-    skippedCount,
-    campaignId
-  };
-  loading.value = false;
-  currentUserId.value = null;
-
-  if (errors.length) {
-    ElMessage.warning(t('contacts.broadcast.completedWithErrors', { count: errors.length }));
-  } else {
-    ElMessage.success(t('contacts.broadcast.successSentFull'));
+    campaignStatus.value = '';
+    ElMessage.error(error?.response?.data?.error || error?.message || t('contacts.broadcast.campaignCreateError'));
   }
 }
 </script>
@@ -547,6 +644,12 @@ async function sendBroadcast() {
 .progress-text {
   margin-bottom: 8px;
   color: #606266;
+}
+
+.status-line {
+  margin: 8px 0 0;
+  color: #909399;
+  font-size: 0.95rem;
 }
 
 .form-actions {

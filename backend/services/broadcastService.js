@@ -10,8 +10,46 @@
  * GitHub: https://github.com/VC-HB3-Accelerator
  */
 
+const fs = require('fs').promises;
+const path = require('path');
 const db = require('../db');
+const logger = require('../utils/logger');
 const emailTrackingService = require('./emailTrackingService');
+
+const BROADCAST_EVENT_TYPES = new Set([
+  'started',
+  'paused',
+  'resumed',
+  'completed',
+  'interrupted'
+]);
+
+function getAttachmentsDir(campaignId) {
+  return path.join(__dirname, '../uploads/broadcast', String(campaignId));
+}
+
+function parseRecipientIds(value) {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value
+        .map(id => Number(id))
+        .filter(id => Number.isInteger(id) && id > 0)
+    )];
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parseRecipientIds(parsed);
+    } catch (error) {
+      return parseRecipientIds(
+        value.split(',').map(id => Number(id.trim()))
+      );
+    }
+  }
+
+  return [];
+}
 
 function buildMessagePreview(message, maxLength = 500) {
   const normalized = String(message || '').trim();
@@ -51,23 +89,28 @@ async function createCampaign({
     uniqueRecipientIds.length
   );
 
+  const normalizedMessage = String(message || '').trim();
   const { rows } = await db.getQuery()(
     `INSERT INTO broadcast_campaigns (
       sender_id,
       subject,
       message_preview,
+      message_body,
+      recipient_ids,
       total_recipients,
       planned_recipients,
       warmup_mode,
       delay_seconds,
       attachments_count,
       status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'in_progress')
+    ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, 'queued')
     RETURNING *`,
     [
       senderId,
       String(subject || '').trim() || 'Новое сообщение',
-      buildMessagePreview(message),
+      buildMessagePreview(normalizedMessage),
+      normalizedMessage,
+      JSON.stringify(uniqueRecipientIds.slice(0, plannedRecipients)),
       uniqueRecipientIds.length,
       plannedRecipients,
       Boolean(warmupMode),
@@ -77,6 +120,264 @@ async function createCampaign({
   );
 
   return rows[0];
+}
+
+async function saveCampaignAttachments(campaignId, files = []) {
+  if (!files.length) {
+    return [];
+  }
+
+  const dir = getAttachmentsDir(campaignId);
+  await fs.mkdir(dir, { recursive: true });
+  const saved = [];
+
+  for (const file of files) {
+    const filename = path.basename(String(file.originalname || 'attachment'));
+    const storagePath = path.join(dir, filename);
+    await fs.writeFile(storagePath, file.buffer);
+
+    const { rows } = await db.getQuery()(
+      `INSERT INTO broadcast_campaign_attachments (
+        campaign_id,
+        filename,
+        content_type,
+        storage_path,
+        file_size
+      ) VALUES ($1, $2, $3, $4, $5)
+      RETURNING *`,
+      [
+        campaignId,
+        filename,
+        file.mimetype || null,
+        storagePath,
+        Number(file.size) || file.buffer?.length || 0
+      ]
+    );
+
+    saved.push(rows[0]);
+  }
+
+  return saved;
+}
+
+async function loadCampaignAttachments(campaignId) {
+  const { rows } = await db.getQuery()(
+    `SELECT filename, content_type, storage_path
+     FROM broadcast_campaign_attachments
+     WHERE campaign_id = $1
+     ORDER BY id ASC`,
+    [campaignId]
+  );
+
+  const attachments = [];
+  for (const row of rows) {
+    try {
+      const content = await fs.readFile(row.storage_path);
+      attachments.push({
+        filename: row.filename,
+        content,
+        contentType: row.content_type
+      });
+    } catch (error) {
+      logger.warn(`[broadcastService] Attachment read failed for campaign ${campaignId}: ${error.message}`);
+    }
+  }
+
+  return attachments;
+}
+
+async function recordEvent({
+  campaignId,
+  eventType,
+  actorId = null,
+  details = {}
+}) {
+  const normalizedType = String(eventType || '').trim();
+  if (!BROADCAST_EVENT_TYPES.has(normalizedType)) {
+    throw new Error(`Unsupported broadcast event type: ${normalizedType}`);
+  }
+
+  const { rows } = await db.getQuery()(
+    `INSERT INTO broadcast_campaign_events (campaign_id, event_type, actor_id, details)
+     VALUES ($1, $2, $3, $4::jsonb)
+     RETURNING *`,
+    [
+      campaignId,
+      normalizedType,
+      actorId || null,
+      JSON.stringify(details || {})
+    ]
+  );
+
+  logger.info(`[broadcastService] Campaign ${campaignId} event: ${normalizedType}`, details || {});
+  return rows[0];
+}
+
+async function getCampaignEvents(campaignId, { limit = 50 } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const { rows } = await db.getQuery()(
+    `SELECT id, campaign_id, event_type, actor_id, details, created_at
+     FROM broadcast_campaign_events
+     WHERE campaign_id = $1
+     ORDER BY created_at DESC, id DESC
+     LIMIT $2`,
+    [campaignId, safeLimit]
+  );
+
+  return rows;
+}
+
+async function getDeliveredRecipientIds(campaignId) {
+  const { rows } = await db.getQuery()(
+    `SELECT recipient_user_id
+     FROM broadcast_deliveries
+     WHERE campaign_id = $1`,
+    [campaignId]
+  );
+
+  return new Set(rows.map(row => row.recipient_user_id));
+}
+
+function getCampaignRecipientIds(campaign) {
+  return parseRecipientIds(campaign?.recipient_ids || []);
+}
+
+async function updateCurrentIndex(campaignId, currentIndex) {
+  await db.getQuery()(
+    `UPDATE broadcast_campaigns
+     SET current_index = $2
+     WHERE id = $1`,
+    [campaignId, Math.max(0, Number(currentIndex) || 0)]
+  );
+}
+
+async function startCampaign({ campaignId, actorId = null }) {
+  const campaign = await getCampaignById(campaignId);
+  if (!campaign) {
+    throw new Error('campaign_not_found');
+  }
+
+  if (!['queued', 'paused'].includes(campaign.status)) {
+    throw new Error(`campaign_cannot_start_from_${campaign.status}`);
+  }
+
+  const eventType = campaign.status === 'paused' ? 'resumed' : 'started';
+  const { rows } = await db.getQuery()(
+    `UPDATE broadcast_campaigns
+     SET
+       status = 'in_progress',
+       pause_reason = NULL,
+       completed_at = NULL
+     WHERE id = $1 AND status IN ('queued', 'paused')
+     RETURNING *`,
+    [campaignId]
+  );
+
+  if (!rows.length) {
+    throw new Error('campaign_start_failed');
+  }
+
+  await recordEvent({
+    campaignId,
+    eventType,
+    actorId,
+    details: {
+      planned_recipients: rows[0].planned_recipients,
+      delay_seconds: rows[0].delay_seconds
+    }
+  });
+
+  return rows[0];
+}
+
+async function pauseCampaign({ campaignId, actorId = null, reason = '' }) {
+  const pauseReason = String(reason || '').trim() || 'Остановлено вручную';
+  const { rows } = await db.getQuery()(
+    `UPDATE broadcast_campaigns
+     SET
+       status = 'paused',
+       pause_reason = $2
+     WHERE id = $1 AND status = 'in_progress'
+     RETURNING *`,
+    [campaignId, pauseReason]
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  await recordEvent({
+    campaignId,
+    eventType: 'paused',
+    actorId,
+    details: { reason: pauseReason }
+  });
+
+  return rows[0];
+}
+
+async function interruptCampaign({ campaignId, actorId = null, reason = '' }) {
+  const interruptReason = String(reason || '').trim() || 'Рассылка прервана';
+  const { rows } = await db.getQuery()(
+    `UPDATE broadcast_campaigns
+     SET
+       status = 'interrupted',
+       pause_reason = $2,
+       completed_at = NOW()
+     WHERE id = $1 AND status IN ('queued', 'in_progress', 'paused')
+     RETURNING *`,
+    [campaignId, interruptReason]
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  await recordEvent({
+    campaignId,
+    eventType: 'interrupted',
+    actorId,
+    details: { reason: interruptReason }
+  });
+
+  return rows[0];
+}
+
+async function getCampaignProgress(campaignId) {
+  const campaign = await getCampaignById(campaignId);
+  if (!campaign) {
+    return null;
+  }
+
+  const recipientIds = getCampaignRecipientIds(campaign);
+  const deliveredIds = await getDeliveredRecipientIds(campaignId);
+  const processedCount = deliveredIds.size;
+  const pendingIds = recipientIds.filter(id => !deliveredIds.has(id));
+  const currentRecipientId = pendingIds[0] || null;
+
+  return {
+    campaign,
+    progress: {
+      total: recipientIds.length,
+      processed: processedCount,
+      pending: pendingIds.length,
+      currentRecipientId,
+      successCount: Number(campaign.success_count || 0),
+      errorCount: Number(campaign.error_count || 0),
+      bounceCount: Number(campaign.bounce_count || 0)
+    }
+  };
+}
+
+async function listActiveCampaignIds() {
+  const { rows } = await db.getQuery()(
+    `SELECT id
+     FROM broadcast_campaigns
+     WHERE status = 'in_progress'
+     ORDER BY id ASC`
+  );
+
+  return rows.map(row => row.id);
 }
 
 async function getCampaignById(campaignId) {
@@ -196,17 +497,46 @@ async function recordDelivery({
   }
 }
 
-async function completeCampaign({ campaignId, skippedCount = 0 }) {
+async function completeCampaign({ campaignId, skippedCount = 0, actorId = null }) {
+  const campaign = await getCampaignById(campaignId);
+  if (!campaign) {
+    return null;
+  }
+
+  const recipientIds = getCampaignRecipientIds(campaign);
+  const deliveredIds = await getDeliveredRecipientIds(campaignId);
+  const pendingCount = recipientIds.filter(id => !deliveredIds.has(id)).length;
+  const limitSkipped = Math.max(Number(campaign.total_recipients || 0) - Number(campaign.planned_recipients || 0), 0);
+  const computedSkipped = Math.max(
+    Number(skippedCount) || 0,
+    limitSkipped + pendingCount
+  );
+
   const { rows } = await db.getQuery()(
     `UPDATE broadcast_campaigns
      SET
        skipped_count = $2,
        status = 'completed',
-       completed_at = NOW()
+       completed_at = NOW(),
+       current_index = planned_recipients
      WHERE id = $1 AND status = 'in_progress'
      RETURNING *`,
-    [campaignId, Math.max(0, Number(skippedCount) || 0)]
+    [campaignId, computedSkipped]
   );
+
+  if (rows[0]) {
+    await recordEvent({
+      campaignId,
+      eventType: 'completed',
+      actorId,
+      details: {
+        skipped_count: computedSkipped,
+        success_count: rows[0].success_count,
+        error_count: rows[0].error_count,
+        bounce_count: rows[0].bounce_count
+      }
+    });
+  }
 
   return rows[0] || null;
 }
@@ -690,5 +1020,18 @@ module.exports = {
   createTemplate,
   updateTemplate,
   deleteTemplate,
-  deleteCampaigns
+  deleteCampaigns,
+  saveCampaignAttachments,
+  loadCampaignAttachments,
+  recordEvent,
+  getCampaignEvents,
+  getDeliveredRecipientIds,
+  getCampaignRecipientIds,
+  updateCurrentIndex,
+  startCampaign,
+  pauseCampaign,
+  interruptCampaign,
+  getCampaignProgress,
+  listActiveCampaignIds,
+  parseRecipientIds
 };

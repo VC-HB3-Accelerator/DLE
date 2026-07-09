@@ -70,7 +70,8 @@ const ensureDirectoriesExist = () => {
     path.join(__dirname, 'temp'),
     path.join(__dirname, 'uploads'),
     path.join(__dirname, 'uploads/logos'),
-    path.join(__dirname, 'uploads/content')
+    path.join(__dirname, 'uploads/content'),
+    path.join(__dirname, 'uploads/broadcast')
   ];
   
   for (const dir of directories) {
@@ -544,6 +545,11 @@ if (process.env.NODE_ENV !== 'migration') {
   const { loadRpcFromDatabase } = require('./utils/loadRpcFromDatabase');
   loadRpcFromDatabase().catch(error => {
     logger.error('[App] Ошибка загрузки RPC URL из базы данных:', error);
+  });
+
+  const broadcastQueueService = require('./services/broadcastQueueService');
+  broadcastQueueService.initialize().catch(error => {
+    logger.error('[App] Ошибка инициализации очереди рассылок:', error);
   });
 }
 
