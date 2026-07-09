@@ -174,7 +174,7 @@ onMounted(() => {
 }
 
 .chat-container {
-  height: calc(100vh - 120px);
+  height: calc(100dvh - 120px);
   display: flex;
   flex-direction: column;
 }
@@ -197,7 +197,6 @@ onMounted(() => {
 }
 
 :deep(.chat-input) {
-  border-top: 1px solid #ddd;
   padding: 1rem;
   background: #f9f9f9;
 }
@@ -214,7 +213,7 @@ onMounted(() => {
   }
   
   .chat-container {
-    height: calc(100vh - 100px);
+    height: calc(100dvh - 100px);
   }
   
   :deep(.chat-messages) {
@@ -241,7 +240,7 @@ onMounted(() => {
   }
   
   .chat-container {
-    height: calc(100vh - 80px);
+    height: calc(100dvh - 80px);
   }
   
   :deep(.chat-messages) {

@@ -171,13 +171,14 @@ watch(() => contact.value?.id, (newId, oldId) => {
 
 <style scoped>
 .contact-chat-panel {
-  border: 1px solid var(--color-border);
+  border: none;
   border-radius: var(--block-radius);
   background: var(--color-white);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   overflow: hidden;
+  height: calc(100dvh - 200px);
   min-height: 480px;
-  max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
   display: flex;
   flex-direction: column;
 }
@@ -190,8 +191,11 @@ watch(() => contact.value?.id, (newId, oldId) => {
 
 @media (max-width: 768px) {
   .contact-chat-panel {
-    min-height: 360px;
-    max-height: calc(100vh - 160px);
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    border-radius: 0;
   }
 }
 </style>

@@ -144,6 +144,31 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  .contact-details-page {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - var(--header-height, 65px) - 16px);
+    overflow: hidden;
+  }
+
+  .contact-details-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .contact-details-content:has(.contact-chat-panel) {
+    overflow: hidden;
+  }
+
+  .contact-details-header {
+    flex-shrink: 0;
+    margin-bottom: 0;
+    gap: 10px;
+  }
+
   .header-top {
     flex-direction: column;
     align-items: stretch;

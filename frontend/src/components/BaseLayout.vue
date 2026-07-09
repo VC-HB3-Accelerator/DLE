@@ -285,7 +285,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .main-content {
     max-width: 100%;
-    padding-bottom: 10px; /* Уменьшаем отступ для мобильных устройств */
+    padding-bottom: 10px;
   }
   
   .main-content.no-right-sidebar {

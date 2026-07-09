@@ -186,7 +186,8 @@
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
-  height: calc(100vh - 40px);
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -233,8 +234,12 @@
   }
   
   .home-management {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(100dvh - var(--header-height, 65px) - 16px);
+    height: auto;
     padding: 16px;
-    height: calc(100vh - 32px);
+    padding-bottom: 0;
   }
   
   .chat-wrapper {
@@ -245,7 +250,7 @@
 @media (max-width: 480px) {
   .home-management {
     padding: 12px;
-    height: calc(100vh - 24px);
+    padding-bottom: 0;
   }
   
   .management-header {
