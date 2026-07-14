@@ -19,6 +19,11 @@ const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS, ROLES } = require('../shared/permissions');
 const { deleteUserById } = require('../services/userDeleteService');
 const { broadcastContactsUpdate } = require('../wsHub');
+const {
+  getPreference,
+  setPreference,
+  PreferenceValidationError
+} = require('../services/userPreferencesService');
 // const userService = require('../services/userService');
 
 // console.log('[users.js] ROUTER LOADED');
@@ -78,6 +83,7 @@ router.get('/', requireAuth, async (req, res, next) => {
       contactType = 'all',
       search = '',
       newMessages = '',
+      newMessagesDate = '',
       blocked = 'all',
       limit: limitParam = '1000',
       offset: offsetParam = '0'
@@ -163,17 +169,34 @@ router.get('/', requireAuth, async (req, res, next) => {
       where.push(`u.is_blocked = false`);
     }
 
-    // Фильтр по новым сообщениям (на сервере, до пагинации)
-    if (newMessages === 'yes' && adminId) {
-      where.push(`EXISTS (
-        SELECT 1 FROM messages m
-        WHERE m.user_id = u.id
-        AND m.created_at > COALESCE(
+    // Фильтр по новым (непрочитанным) сообщениям: yes | 24h | date
+    const newMessagesModes = new Set(['yes', '24h', 'date']);
+    const newMessagesDateOnly = String(newMessagesDate || '').trim();
+    const hasValidNewMessagesDate = /^\d{4}-\d{2}-\d{2}$/.test(newMessagesDateOnly);
+    const applyNewMessagesFilter = adminId && (
+      newMessages === 'yes'
+      || newMessages === '24h'
+      || (newMessages === 'date' && hasValidNewMessagesDate)
+    );
+
+    if (applyNewMessagesFilter) {
+      const unreadConditions = [
+        'm.user_id = u.id',
+        `m.created_at > COALESCE(
           (SELECT arm.last_read_at FROM admin_read_messages arm WHERE arm.admin_id = $${idx++} AND arm.user_id = u.id),
           '1970-01-01'::timestamptz
-        )
-      )`);
+        )`
+      ];
       params.push(adminId);
+
+      if (newMessages === '24h') {
+        unreadConditions.push(`m.created_at >= NOW() - INTERVAL '24 hours'`);
+      } else if (newMessages === 'date' && hasValidNewMessagesDate) {
+        unreadConditions.push(`DATE(m.created_at) = $${idx++}`);
+        params.push(newMessagesDateOnly);
+      }
+
+      where.push(`EXISTS (SELECT 1 FROM messages m WHERE ${unreadConditions.join(' AND ')})`);
     }
 
     const tagIdArr = tagIds ? tagIds.split(',').map(Number).filter(Boolean) : [];
@@ -270,7 +293,7 @@ router.get('/', requireAuth, async (req, res, next) => {
       && !createdDateTo
       && !messageDateFrom
       && !messageDateTo
-      && newMessages !== 'yes'
+      && !newMessagesModes.has(newMessages)
       && contactType === 'all'
       && blocked === 'all';
 
@@ -843,6 +866,62 @@ router.get('/roles', requireAuth, async (req, res, next) => {
       error: 'Ошибка при получении ролей',
       details: error.message
     });
+  }
+});
+
+// GET /api/users/me/preferences/:key — настройки текущего пользователя
+router.get('/me/preferences/:key', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const preference = await getPreference(userId, req.params.key);
+    return res.json({
+      success: true,
+      preference: preference
+        ? { key: preference.key, value: preference.value }
+        : { key: String(req.params.key || '').trim(), value: null }
+    });
+  } catch (error) {
+    if (error instanceof PreferenceValidationError) {
+      return res.status(error.status || 400).json({ success: false, error: error.message });
+    }
+    console.error('[users/me/preferences GET] Ошибка:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// PUT /api/users/me/preferences/:key — сохранить настройки текущего пользователя
+router.put('/me/preferences/:key', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(req.body || {}, 'value')) {
+      return res.status(400).json({ success: false, error: 'value is required' });
+    }
+
+    const preference = await setPreference(
+      userId,
+      req.params.key,
+      req.body.value,
+      req.body.metadata
+    );
+
+    return res.json({
+      success: true,
+      preference: { key: preference.key, value: preference.value }
+    });
+  } catch (error) {
+    if (error instanceof PreferenceValidationError) {
+      return res.status(error.status || 400).json({ success: false, error: error.message });
+    }
+    console.error('[users/me/preferences PUT] Ошибка:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

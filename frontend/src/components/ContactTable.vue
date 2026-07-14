@@ -90,11 +90,29 @@
         <el-form-item :label="t('contacts.messageDateTo')">
           <el-date-picker v-model="filterMessageDateTo" type="date" :placeholder="t('contacts.messageDateTo')" clearable class="filter-field" @change="() => applyFilters(true)" />
         </el-form-item>
-        <el-form-item :label="t('contacts.newMessagesOnly')">
-          <el-select v-model="filterNewMessages" :placeholder="t('common.no')" class="filter-field" @change="() => applyFilters(true)">
-            <el-option :label="t('common.no')" :value="''" />
-            <el-option :label="t('common.yes')" value="yes" />
-          </el-select>
+        <el-form-item :label="t('contacts.newMessagesOnly')" class="filter-new-messages">
+          <div class="filter-new-messages__group">
+            <el-select
+              v-model="filterNewMessages"
+              :placeholder="t('common.no')"
+              class="filter-field"
+              @change="onNewMessagesFilterChange"
+            >
+              <el-option :label="t('common.no')" :value="''" />
+              <el-option :label="t('contacts.newMessagesAllUnread')" value="yes" />
+              <el-option :label="t('contacts.newMessagesLast24h')" value="24h" />
+              <el-option :label="t('contacts.newMessagesOnDate')" value="date" />
+            </el-select>
+            <el-date-picker
+              v-if="filterNewMessages === 'date'"
+              v-model="filterNewMessagesDate"
+              type="date"
+              :placeholder="t('contacts.newMessagesDate')"
+              clearable
+              class="filter-field filter-new-messages__date"
+              @change="() => applyFilters(true)"
+            />
+          </div>
         </el-form-item>
         <el-form-item :label="t('contacts.blocked')">
           <el-select v-model="filterBlocked" :placeholder="t('common.all')" class="filter-field" @change="() => applyFilters(true)">
@@ -427,6 +445,11 @@ import ImportContactsModal from './ImportContactsModal.vue';
 import messagesService from '../services/messagesService';
 import { getContacts } from '../services/contactsService';
 import contactsService from '../services/contactsService';
+import {
+  CONTACTS_FILTERS_PREFERENCE_KEY,
+  getPreference,
+  setPreference
+} from '../services/userPreferencesService';
 import { usePermissions } from '@/composables/usePermissions';
 import { useAuthContext } from '@/composables/useAuth';
 import { getPrivateUnreadCount } from '../services/messagesService';
@@ -532,6 +555,7 @@ const filterCreatedDateTo = ref('');
 const filterMessageDateFrom = ref('');
 const filterMessageDateTo = ref('');
 const filterNewMessages = ref('');
+const filterNewMessagesDate = ref('');
 const filterBlocked = ref('all');
 
 // Уведомления для приватных сообщений
@@ -585,6 +609,8 @@ const selectAll = ref(false);
 const selectAllCheckboxRef = ref(null);
 const revealedFields = ref({});
 let searchDebounceTimer = null;
+let filtersSaveTimer = null;
+const filtersHydrated = ref(false);
 
 function normalizeContactId(id) {
   return id == null ? '' : String(id);
@@ -743,12 +769,109 @@ const hasAdvancedFilters = computed(() => Boolean(
   || filterMessageDateFrom.value
   || filterMessageDateTo.value
   || filterNewMessages.value
+  || filterNewMessagesDate.value
   || (filterBlocked.value && filterBlocked.value !== 'all')
   || selectedTagIds.value.length > 0
 ));
 
 function toggleAdvancedFilters() {
   showAdvancedFilters.value = !showAdvancedFilters.value;
+  scheduleSaveFilters();
+}
+
+function parseDateOnly(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const raw = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const parsed = new Date(`${raw}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed;
+}
+
+function buildFiltersSnapshot() {
+  return {
+    search: filterSearch.value || '',
+    contactType: filterContactType.value || 'all',
+    createdDateFrom: formatDateOnly(filterCreatedDateFrom.value) || null,
+    createdDateTo: formatDateOnly(filterCreatedDateTo.value) || null,
+    messageDateFrom: formatDateOnly(filterMessageDateFrom.value) || null,
+    messageDateTo: formatDateOnly(filterMessageDateTo.value) || null,
+    newMessages: filterNewMessages.value || '',
+    newMessagesDate: formatDateOnly(filterNewMessagesDate.value) || null,
+    blocked: filterBlocked.value || 'all',
+    tagIds: Array.isArray(selectedTagIds.value) ? [...selectedTagIds.value] : [],
+    pageSize: PAGE_SIZE_OPTIONS.includes(Number(pageSize.value))
+      ? Number(pageSize.value)
+      : 100,
+    showAdvancedFilters: Boolean(showAdvancedFilters.value)
+  };
+}
+
+function restoreFiltersSnapshot(saved) {
+  if (!saved || typeof saved !== 'object') return false;
+
+  filterSearch.value = typeof saved.search === 'string' ? saved.search : '';
+  filterContactType.value = saved.contactType || 'all';
+  filterCreatedDateFrom.value = parseDateOnly(saved.createdDateFrom);
+  filterCreatedDateTo.value = parseDateOnly(saved.createdDateTo);
+  filterMessageDateFrom.value = parseDateOnly(saved.messageDateFrom);
+  filterMessageDateTo.value = parseDateOnly(saved.messageDateTo);
+  filterNewMessages.value = ['yes', '24h', 'date'].includes(saved.newMessages)
+    ? saved.newMessages
+    : '';
+  filterNewMessagesDate.value = parseDateOnly(saved.newMessagesDate);
+  filterBlocked.value = saved.blocked || 'all';
+
+  const allowedTagIds = new Set(availableTags.value.map((tag) => tag.id));
+  const restoredTagIds = Array.isArray(saved.tagIds)
+    ? saved.tagIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0 && allowedTagIds.has(id))
+    : [];
+  selectedTagIds.value = restoredTagIds;
+
+  const nextPageSize = Number(saved.pageSize);
+  pageSize.value = PAGE_SIZE_OPTIONS.includes(nextPageSize) ? nextPageSize : 100;
+
+  if (typeof saved.showAdvancedFilters === 'boolean') {
+    showAdvancedFilters.value = saved.showAdvancedFilters;
+  } else if (
+    filterCreatedDateFrom.value
+    || filterCreatedDateTo.value
+    || filterMessageDateFrom.value
+    || filterMessageDateTo.value
+    || filterNewMessages.value
+    || filterNewMessagesDate.value
+    || (filterBlocked.value && filterBlocked.value !== 'all')
+    || selectedTagIds.value.length > 0
+  ) {
+    showAdvancedFilters.value = true;
+  }
+
+  return true;
+}
+
+async function loadSavedFilters() {
+  try {
+    const saved = await getPreference(CONTACTS_FILTERS_PREFERENCE_KEY);
+    restoreFiltersSnapshot(saved);
+  } catch (error) {
+    console.log('[ContactTable] Не удалось загрузить сохранённые фильтры:', error.message);
+  } finally {
+    filtersHydrated.value = true;
+  }
+}
+
+function scheduleSaveFilters() {
+  if (!filtersHydrated.value || !isAuthenticated.value) return;
+  if (filtersSaveTimer) clearTimeout(filtersSaveTimer);
+  filtersSaveTimer = setTimeout(async () => {
+    try {
+      await setPreference(CONTACTS_FILTERS_PREFERENCE_KEY, buildFiltersSnapshot(), { version: 1 });
+    } catch (error) {
+      console.log('[ContactTable] Не удалось сохранить фильтры:', error.message);
+    }
+  }, 400);
 }
 
 const isEditorRole = computed(() => userAccessLevel.value?.level === 'editor');
@@ -841,6 +964,9 @@ function buildFilterParams() {
   if (filterContactType.value && filterContactType.value !== 'all') params.contactType = filterContactType.value;
   if (filterSearch.value) params.search = filterSearch.value;
   if (filterNewMessages.value) params.newMessages = filterNewMessages.value;
+  if (filterNewMessages.value === 'date' && filterNewMessagesDate.value) {
+    params.newMessagesDate = formatDateOnly(filterNewMessagesDate.value);
+  }
   if (filterBlocked.value && filterBlocked.value !== 'all') params.blocked = filterBlocked.value;
   return params;
 }
@@ -887,11 +1013,19 @@ function updateSelectAllState() {
   selectAll.value = pageIds.every(id => selectedOnPage.includes(id));
 }
 
+function onNewMessagesFilterChange() {
+  if (filterNewMessages.value !== 'date') {
+    filterNewMessagesDate.value = '';
+  }
+  applyFilters(true);
+}
+
 function applyFilters(resetPage = true) {
   if (resetPage) currentPage.value = 1;
   clearSelection();
   clearRevealedFields();
   loadContactsPage();
+  scheduleSaveFilters();
 }
 
 function onSearchInput() {
@@ -910,6 +1044,7 @@ function onPageSizeChange(size) {
   pageSize.value = PAGE_SIZE_OPTIONS.includes(nextSize) ? nextSize : 100;
   currentPage.value = 1;
   loadContactsPage();
+  scheduleSaveFilters();
 }
 
 function updateSelectAllIndeterminate() {
@@ -971,8 +1106,9 @@ onMounted(async () => {
       await loadPrivateUnreadCount();
       await loadAvailableTags();
       await setupTagsTableWebSocket();
+      await loadSavedFilters();
       await loadContactsPage();
-      if (hasAdvancedFilters.value) {
+      if (!showAdvancedFilters.value && hasAdvancedFilters.value) {
         showAdvancedFilters.value = true;
       }
     } catch (error) {
@@ -985,14 +1121,17 @@ onMounted(async () => {
 watch(isAuthenticated, async (newValue) => {
   if (newValue) {
     try {
+      filtersHydrated.value = false;
       await fetchRoles();
       await loadAvailableTags();
       await setupTagsTableWebSocket();
+      await loadSavedFilters();
       await loadContactsPage();
     } catch (error) {
       console.log('[ContactTable] Ошибка загрузки после авторизации:', error.message);
     }
   } else {
+    filtersHydrated.value = false;
     pageContacts.value = [];
     totalContacts.value = 0;
     selectedIds.value = [];
@@ -1008,6 +1147,9 @@ onUnmounted(() => {
   if (searchDebounceTimer) {
     clearTimeout(searchDebounceTimer);
   }
+  if (filtersSaveTimer) {
+    clearTimeout(filtersSaveTimer);
+  }
   if (unsubscribeTagsTableUpdate) {
     unsubscribeTagsTableUpdate();
     unsubscribeTagsTableUpdate = null;
@@ -1022,6 +1164,7 @@ function resetFilters() {
   filterMessageDateFrom.value = '';
   filterMessageDateTo.value = '';
   filterNewMessages.value = '';
+  filterNewMessagesDate.value = '';
   filterBlocked.value = 'all';
   selectedTagIds.value = [];
   showAdvancedFilters.value = false;
@@ -1430,14 +1573,37 @@ async function deleteMessagesSelected() {
   justify-content: flex-end;
 }
 
+.filters-form :deep(.el-form-item__label) {
+  line-height: 1.3;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .filters-row--advanced {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px dashed var(--color-grey-light);
+  align-items: start;
 }
 
 .filter-field {
+  width: 100%;
+}
+
+.filter-field.filter-new-messages__date,
+.filters-form :deep(.filter-field.el-date-editor) {
+  width: 100%;
+}
+
+.filter-new-messages {
+  align-self: start;
+}
+
+.filter-new-messages__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
 }
 
