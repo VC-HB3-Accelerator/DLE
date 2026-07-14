@@ -73,25 +73,48 @@ export default {
   },
   async getBlogPageBySlug(slug) {
     console.log('[pagesService] getBlogPageBySlug:', slug);
-    const res = await api.get(`/pages/blog/${encodeURIComponent(slug)}`);
+    const res = await api.get(`/pages/blog/${encodeURIComponent(slug)}`, {
+      // Axios в Node follow'ит 301; в браузере без Location JSON ок.
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 301
+    });
     console.log('[pagesService] getBlogPageBySlug response:', {
       status: res.status,
       hasData: !!res.data,
       dataKeys: res.data ? Object.keys(res.data) : [],
-      id: res.data?.id,
-      title: res.data?.title
+      id: res.data?.id || res.data?.page?.id,
+      title: res.data?.title || res.data?.page?.title,
+      redirect: !!res.data?.redirect
     });
+    if (res.status === 301 || res.data?.redirect) {
+      return {
+        redirect: true,
+        redirectSlug: res.data.redirectSlug,
+        redirectPath: res.data.redirectPath || `/blog/${res.data.redirectSlug}`,
+        page: res.data.page || null
+      };
+    }
     return res.data;
   },
   async getPublishedPageBySlug(slug) {
     console.log('[pagesService] getPublishedPageBySlug:', slug);
-    const res = await api.get(`/pages/published/${encodeURIComponent(slug)}`);
+    const res = await api.get(`/pages/published/${encodeURIComponent(slug)}`, {
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 301
+    });
     console.log('[pagesService] getPublishedPageBySlug response:', {
       status: res.status,
       hasData: !!res.data,
-      id: res.data?.id,
-      title: res.data?.title
+      id: res.data?.id || res.data?.page?.id,
+      title: res.data?.title || res.data?.page?.title,
+      redirect: !!res.data?.redirect
     });
+    if (res.status === 301 || res.data?.redirect) {
+      return {
+        redirect: true,
+        redirectSlug: res.data.redirectSlug,
+        redirectPath: res.data.redirectPath || `/content/published/${res.data.redirectSlug}`,
+        page: res.data.page || null
+      };
+    }
     return res.data;
   },
   async getPublicPagesStructure() {

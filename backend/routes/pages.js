@@ -18,8 +18,60 @@ const path = require('path');
 const multer = require('multer');
 const vectorSearchClient = require('../services/vectorSearchClient');
 const logger = require('../utils/logger');
-const { preRenderBlog } = require('../scripts/pre-render-blog');
+const { preRenderBlog, publishSeoForPage, removeHtmlForSlug } = require('../scripts/pre-render-blog');
 
+const SEO_PUBLISH_TIMEOUT_MS = Number(process.env.SEO_PUBLISH_TIMEOUT_MS || 60000);
+
+async function withTimeout(promise, ms, label = 'operation') {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Гарантированный SEO HTML после Publish, либо cleanup если страница не для индекса.
+ */
+async function ensureSeoForPage(page) {
+  const slug = page?.slug && String(page.slug).trim();
+  const shouldIndex = page
+    && page.visibility === 'public'
+    && page.status === 'published'
+    && slug;
+
+  if (!shouldIndex) {
+    if (slug) {
+      try {
+        removeHtmlForSlug(slug);
+      } catch (e) {
+        console.warn('[pages] ensureSeoForPage cleanup:', e.message);
+      }
+    }
+    return { ready: false, skipped: true };
+  }
+
+  try {
+    return await withTimeout(
+      publishSeoForPage(page),
+      SEO_PUBLISH_TIMEOUT_MS,
+      'SEO prerender'
+    );
+  } catch (error) {
+    console.error('[pages] ensureSeoForPage error:', error);
+    return {
+      ready: false,
+      url: null,
+      error: error.message || String(error)
+    };
+  }
+}
 const FIELDS_TO_EXCLUDE = ['image', 'tags'];
 
 // Проверка и создание общей таблицы для всех админов
@@ -172,10 +224,15 @@ function stripHtml(html) {
  */
 function generateSlug(text, maxLength = 100) {
   if (!text) return '';
-  
-  return text
+
+  let normalized = String(text)
+    .normalize('NFKC')
+    // soft hyphen, zero-width chars, BOM
+    .replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '')
     .toLowerCase()
-    .trim()
+    .trim();
+
+  return normalized
     // Транслитерация кириллицы в латиницу
     .replace(/[а-яё]/g, (char) => {
       const map = {
@@ -189,11 +246,93 @@ function generateSlug(text, maxLength = 100) {
     })
     // Заменяем все не-латинские символы и цифры на дефисы
     .replace(/[^a-z0-9]+/g, '-')
+    // Схлопываем повторные дефисы
+    .replace(/-+/g, '-')
     // Убираем дефисы в начале и конце
     .replace(/^-+|-+$/g, '')
     // Ограничиваем длину
     .substring(0, maxLength)
     .replace(/-+$/, ''); // Убираем дефис в конце после обрезки
+}
+
+/**
+ * Сохраняет старый slug как alias на page_id (для редиректов).
+ */
+async function saveSlugAlias(pageId, oldSlug) {
+  const slug = String(oldSlug || '').trim();
+  const id = Number(pageId);
+  if (!slug || !Number.isInteger(id) || id <= 0) return;
+
+  // Alias не должен совпадать с каноническим slug другой/той же страницы
+  const { rows: conflict } = await db.getQuery()(
+    `SELECT id FROM admin_pages_simple WHERE slug = $1 LIMIT 1`,
+    [slug]
+  );
+  if (conflict.length) return;
+
+  await db.getQuery()(
+    `INSERT INTO admin_page_slug_aliases (slug, page_id)
+     VALUES ($1, $2)
+     ON CONFLICT (slug) DO UPDATE SET page_id = EXCLUDED.page_id`,
+    [slug, id]
+  );
+}
+
+/**
+ * Ищет каноническую страницу по alias-slug.
+ */
+async function findCanonicalSlugByAlias(aliasSlug) {
+  const slug = String(aliasSlug || '').trim();
+  if (!slug) return null;
+
+  const { rows } = await db.getQuery()(
+    `SELECT a.slug AS alias_slug, p.slug AS canonical_slug, p.id AS page_id
+     FROM admin_page_slug_aliases a
+     INNER JOIN admin_pages_simple p ON p.id = a.page_id
+     WHERE a.slug = $1
+     LIMIT 1`,
+    [slug]
+  );
+  return rows[0] || null;
+}
+
+async function removePreRenderHtmlForSlug(slug) {
+  try {
+    removeHtmlForSlug(slug);
+  } catch (err) {
+    console.warn('[pages] Не удалось удалить pre-render HTML для slug:', slug, err.message);
+  }
+}
+
+async function decryptPageRow(page) {
+  const encryptionUtils = require('../utils/encryptionUtils');
+  const encryptionKey = encryptionUtils.getEncryptionKey();
+  const decryptedPage = { ...page };
+  const fieldsToDecrypt = ['title', 'summary', 'content', 'seo', 'settings'];
+
+  for (const field of fieldsToDecrypt) {
+    const encryptedField = `${field}_encrypted`;
+    if (page[encryptedField]) {
+      try {
+        const decryptResult = await db.getQuery()(
+          `SELECT decrypt_text($1, $2) as ${field}`,
+          [page[encryptedField], encryptionKey]
+        );
+        if (decryptResult.rows[0] && decryptResult.rows[0][field] !== null) {
+          decryptedPage[field] = decryptResult.rows[0][field];
+        }
+      } catch (decryptError) {
+        console.warn(`[pages] ошибка расшифровки поля ${field}:`, decryptError.message);
+        if (page[field]) {
+          decryptedPage[field] = page[field];
+        }
+      }
+    } else if (page[field]) {
+      decryptedPage[field] = page[field];
+    }
+  }
+
+  return decryptedPage;
 }
 
 /**
@@ -213,7 +352,7 @@ async function generateUniqueSlug(title, pageId, tableName) {
   let slug = baseSlug;
   let counter = 1;
   
-  // Проверяем уникальность
+  // Проверяем уникальность (канонические slug + aliases)
   while (true) {
     let query = `SELECT id FROM ${tableName} WHERE slug = $1`;
     const params = [slug];
@@ -225,8 +364,21 @@ async function generateUniqueSlug(title, pageId, tableName) {
     }
     
     const result = await db.getQuery()(query, params);
+
+    let aliasTaken = false;
+    try {
+      const aliasParams = pageId ? [slug, pageId] : [slug];
+      const aliasSql = pageId
+        ? `SELECT id FROM admin_page_slug_aliases WHERE slug = $1 AND page_id != $2 LIMIT 1`
+        : `SELECT id FROM admin_page_slug_aliases WHERE slug = $1 LIMIT 1`;
+      const aliasResult = await db.getQuery()(aliasSql, aliasParams);
+      aliasTaken = aliasResult.rows.length > 0;
+    } catch (e) {
+      // таблица aliases может ещё не существовать на старых инстансах
+      aliasTaken = false;
+    }
     
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0 && !aliasTaken) {
       // Slug уникален
       return slug;
     }
@@ -387,8 +539,8 @@ router.post('/', conditionalUpload, async (req, res) => {
     });
 
     // Генерируем slug из заголовка (если не передан вручную)
-    let slug = bodyRaw.slug && bodyRaw.slug.trim() 
-      ? bodyRaw.slug.trim() 
+    let slug = bodyRaw.slug && bodyRaw.slug.trim()
+      ? await generateUniqueSlug(bodyRaw.slug.trim(), null, tableName)
       : await generateUniqueSlug(pageData.title, null, tableName);
     
     // Добавляем slug в pageData
@@ -442,24 +594,17 @@ router.post('/', conditionalUpload, async (req, res) => {
     // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
     // Автоматическая индексация при создании отключена
 
-    // Pre-render SEO HTML для публичных страниц с slug
+    // Pre-render SEO HTML синхронно до ответа Publish
+    let seo = { ready: false, skipped: true };
     if (created.visibility === 'public' &&
         created.status === 'published' &&
         created.slug &&
         typeof created.slug === 'string' &&
         created.slug.trim() !== '') {
-      preRenderBlog({
-        renderBlogList: !!created.show_in_blog,
-        renderBlogArticles: !!created.show_in_blog,
-        renderPublishedList: !created.show_in_blog,
-        renderPublishedArticles: !created.show_in_blog,
-        specificSlug: created.slug.trim(),
-      }).catch(err => {
-        console.error('[pages] Ошибка pre-rendering при создании страницы:', err);
-      });
+      seo = await ensureSeoForPage(created);
     }
 
-    res.json(created);
+    res.json({ ...created, seoHtml: seo });
   } catch (error) {
     console.error('[pages] Ошибка при создании страницы:', error);
     console.error('[pages] Стек ошибки:', error.stack);
@@ -1043,15 +1188,16 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
       continue;
     }
     
-    // Обрабатываем slug
+  // Обрабатываем slug
     if (k === 'slug') {
+      const currentPageId = parseInt(req.params.id, 10);
       if (v && String(v).trim()) {
         // Если slug передан, проверяем уникальность
-        const uniqueSlug = await generateUniqueSlug(v, pageId, tableName);
+        const uniqueSlug = await generateUniqueSlug(v, currentPageId, tableName);
         updateData[k] = uniqueSlug;
       } else if (incoming.title) {
         // Если slug не передан, но есть title, генерируем из title
-        const uniqueSlug = await generateUniqueSlug(incoming.title, pageId, tableName);
+        const uniqueSlug = await generateUniqueSlug(incoming.title, currentPageId, tableName);
         updateData[k] = uniqueSlug;
       }
       continue;
@@ -1126,6 +1272,20 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   }
   const entries = Object.entries(updateData);
   if (!entries.length) return res.status(400).json({ error: 'No fields to update' });
+
+  let previousSlug = null;
+  if (Object.prototype.hasOwnProperty.call(updateData, 'slug')) {
+    try {
+      const { rows: prevRows } = await db.getQuery()(
+        `SELECT slug FROM ${tableName} WHERE id = $1 LIMIT 1`,
+        [req.params.id]
+      );
+      previousSlug = prevRows[0]?.slug || null;
+    } catch (e) {
+      console.warn('[pages] PATCH: не удалось прочитать предыдущий slug:', e.message);
+    }
+  }
+
   const setClause = entries.map(([f], i) => `"${f}" = $${i + 1}`).join(', ');
   const values = entries.map(([, v]) => v);
   values.push(req.params.id);
@@ -1202,6 +1362,24 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
     required_permission: updated.required_permission
   });
 
+  if (
+    previousSlug &&
+    updated.slug &&
+    String(previousSlug).trim() !== String(updated.slug).trim()
+  ) {
+    try {
+      await saveSlugAlias(updated.id, previousSlug);
+      await removePreRenderHtmlForSlug(previousSlug);
+      // Удаляем alias нового slug у этой же страницы, если он был
+      await db.getQuery()(
+        `DELETE FROM admin_page_slug_aliases WHERE page_id = $1 AND slug = $2`,
+        [updated.id, updated.slug]
+      );
+    } catch (aliasErr) {
+      console.warn('[pages] PATCH: ошибка сохранения slug alias:', aliasErr.message);
+    }
+  }
+
   // Проверяем еще раз перед отправкой ответа
   if (res.headersSent || res.destroyed) {
     console.error('[pages] PATCH /:id: Ответ уже отправлен после запроса к БД');
@@ -1211,23 +1389,10 @@ router.patch('/:id', upload.single('file'), async (req, res) => {
   // Индексация выполняется ТОЛЬКО вручную через кнопку "Индекс" (POST /:id/reindex)
   // Автоматическая индексация при обновлении отключена
 
-  if (updated.visibility === 'public' &&
-      updated.status === 'published' &&
-      updated.slug &&
-      typeof updated.slug === 'string' &&
-      updated.slug.trim() !== '') {
-    preRenderBlog({
-      renderBlogList: !!updated.show_in_blog,
-      renderBlogArticles: !!updated.show_in_blog,
-      renderPublishedList: !updated.show_in_blog,
-      renderPublishedArticles: !updated.show_in_blog,
-      specificSlug: updated.slug.trim(),
-    }).catch(err => {
-      console.error('[pages] Ошибка pre-rendering при обновлении страницы:', err);
-    });
-  }
+  // Pre-render SEO HTML синхронно до ответа Publish (или cleanup)
+  const seo = await ensureSeoForPage(updated);
 
-  res.json(updated);
+  res.json({ ...updated, seoHtml: seo });
   } catch (error) {
     console.error('[pages] PATCH /:id: Ошибка при обновлении страницы:', error);
     console.error('[pages] PATCH /:id: Стек ошибки:', error.stack);
@@ -1354,6 +1519,14 @@ router.delete('/:id', async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: 'Page not found' });
   const deleted = rows[0];
+
+  if (deleted?.slug) {
+    try {
+      removeHtmlForSlug(String(deleted.slug).trim());
+    } catch (e) {
+      console.warn('[pages] DELETE: не удалось удалить SEO HTML:', e.message);
+    }
+  }
   
   // Удаляем из векторного поиска
   try {
@@ -1487,41 +1660,32 @@ router.get('/blog/all', async (req, res) => {
     
     console.log(`[pages] GET /blog/all: найдено ${rows.length} страниц блога`);
     
-    // Обрабатываем результаты: генерируем slug для страниц, у которых его нет
+    // Обрабатываем результаты: генерируем slug + расшифровываем title/summary для SEO и UI
     const processedRows = await Promise.all(rows.map(async (row) => {
+      try {
+        const decrypted = await decryptPageRow(row);
+        row.title = decrypted.title || row.title;
+        row.summary = decrypted.summary || row.summary;
+      } catch (decryptErr) {
+        console.warn(`[pages] GET /blog/all: decrypt failed for ${row.id}:`, decryptErr.message);
+      }
+
       // Если у страницы нет slug, генерируем его из title
       if (!row.slug || row.slug.trim() === '') {
         try {
-          // Получаем расшифрованный title для генерации slug
-          const encryptionUtils = require('../utils/encryptionUtils');
-          const encryptionKey = encryptionUtils.getEncryptionKey();
-          
-          // Расшифровываем title (если он зашифрован)
-          let title = row.title;
-          if (row.title_encrypted) {
-            const titleResult = await db.getQuery()(
-              `SELECT decrypt_text($1, $2) as title`,
-              [row.title_encrypted, encryptionKey]
-            );
-            title = titleResult.rows[0]?.title || row.title || `page-${row.id}`;
-          }
-          
-          // Генерируем slug
+          const title = row.title || `page-${row.id}`;
           const newSlug = await generateUniqueSlug(title, row.id, tableName);
           
-          // Обновляем slug в БД
           await db.getQuery()(
             `UPDATE ${tableName} SET slug = $1 WHERE id = $2`,
             [newSlug, row.id]
           );
           
-          // Обновляем slug в объекте row
           row.slug = newSlug;
           
           console.log(`[pages] GET /blog/all: сгенерирован slug "${newSlug}" для страницы ${row.id}`);
         } catch (error) {
           console.error(`[pages] GET /blog/all: ошибка генерации slug для страницы ${row.id}:`, error);
-          // Если не удалось сгенерировать slug, используем id как fallback
           row.slug = `page-${row.id}`;
         }
       }
@@ -1567,7 +1731,7 @@ router.get('/blog/:slug', async (req, res) => {
     }
     
     // Получаем страницу по slug
-    const { rows } = await db.getQuery()(
+    let { rows } = await db.getQuery()(
       `SELECT * FROM ${tableName} 
        WHERE slug = $1 
        AND visibility = 'public' 
@@ -1593,9 +1757,43 @@ router.get('/blog/:slug', async (req, res) => {
       
       if (rowsCaseInsensitive.length > 0) {
         console.log(`[pages] GET /blog/:slug: найдено с учетом регистра, slug в БД: "${rowsCaseInsensitive[0].slug}"`);
-        return res.json(rowsCaseInsensitive[0]);
+        rows.push(rowsCaseInsensitive[0]);
       }
-      
+    }
+
+    if (rows.length === 0) {
+      // Alias → канонический slug (SPA сделает router.replace; bots получают stub HTML)
+      try {
+        const alias = await findCanonicalSlugByAlias(slug);
+        if (alias?.canonical_slug && alias.canonical_slug !== slug) {
+          const { rows: aliasPages } = await db.getQuery()(
+            `SELECT * FROM ${tableName}
+             WHERE id = $1
+             AND visibility = 'public'
+             AND status = 'published'
+             AND show_in_blog = TRUE
+             LIMIT 1`,
+            [alias.page_id]
+          );
+          if (aliasPages.length > 0) {
+            const decrypted = await decryptPageRow(aliasPages[0]);
+            const redirectPath = `/blog/${encodeURIComponent(alias.canonical_slug)}`;
+            res.set('X-Canonical-Slug', alias.canonical_slug);
+            res.set('X-Redirected-From', slug);
+            res.set('Location', redirectPath);
+            // 301 для клиентов, которые не follow'ят на HTML; тело — для SPA/axios
+            return res.status(301).json({
+              redirect: true,
+              redirectSlug: alias.canonical_slug,
+              redirectPath,
+              page: decrypted
+            });
+          }
+        }
+      } catch (aliasError) {
+        console.warn('[pages] GET /blog/:slug: alias lookup failed:', aliasError.message);
+      }
+
       // Показываем все доступные slug для отладки (только в dev режиме)
       if (process.env.NODE_ENV !== 'production') {
         const { rows: allSlugs } = await db.getQuery()(
@@ -1613,40 +1811,7 @@ router.get('/blog/:slug', async (req, res) => {
     
     console.log(`[pages] GET /blog/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
     
-    // Расшифровываем зашифрованные поля
-    const page = rows[0];
-    const encryptionUtils = require('../utils/encryptionUtils');
-    const encryptionKey = encryptionUtils.getEncryptionKey();
-    
-    // Создаем объект с расшифрованными данными
-    const decryptedPage = { ...page };
-    
-    // Расшифровываем поля, если они зашифрованы
-    const fieldsToDecrypt = ['title', 'summary', 'content', 'seo', 'settings'];
-    for (const field of fieldsToDecrypt) {
-      const encryptedField = `${field}_encrypted`;
-      if (page[encryptedField]) {
-        try {
-          const decryptResult = await db.getQuery()(
-            `SELECT decrypt_text($1, $2) as ${field}`,
-            [page[encryptedField], encryptionKey]
-          );
-          if (decryptResult.rows[0] && decryptResult.rows[0][field] !== null) {
-            decryptedPage[field] = decryptResult.rows[0][field];
-          }
-        } catch (decryptError) {
-          console.warn(`[pages] GET /blog/:slug: ошибка расшифровки поля ${field}:`, decryptError.message);
-          // Если расшифровка не удалась, оставляем оригинальное значение или null
-          if (page[field]) {
-            decryptedPage[field] = page[field];
-          }
-        }
-      } else if (page[field]) {
-        // Если поле не зашифровано, используем его как есть
-        decryptedPage[field] = page[field];
-      }
-    }
-    
+    const decryptedPage = await decryptPageRow(rows[0]);
     res.json(decryptedPage);
   } catch (error) {
     console.error('Ошибка получения страницы блога по slug:', error);
@@ -1709,7 +1874,7 @@ router.get('/published/:slug', async (req, res) => {
     }
     
     // Получаем страницу по slug (без условия show_in_blog)
-    const { rows } = await db.getQuery()(
+    let { rows } = await db.getQuery()(
       `SELECT * FROM ${tableName} 
        WHERE slug = $1 
        AND visibility = 'public' 
@@ -1733,46 +1898,45 @@ router.get('/published/:slug', async (req, res) => {
       
       if (rowsCaseInsensitive.length > 0) {
         console.log(`[pages] GET /published/:slug: найдено с учетом регистра, slug в БД: "${rowsCaseInsensitive[0].slug}"`);
-        return res.json(rowsCaseInsensitive[0]);
+        rows.push(rowsCaseInsensitive[0]);
       }
-      
+    }
+
+    if (rows.length === 0) {
+      try {
+        const alias = await findCanonicalSlugByAlias(slug);
+        if (alias?.canonical_slug && alias.canonical_slug !== slug) {
+          const { rows: aliasPages } = await db.getQuery()(
+            `SELECT * FROM ${tableName}
+             WHERE id = $1
+             AND visibility = 'public'
+             AND status = 'published'
+             LIMIT 1`,
+            [alias.page_id]
+          );
+          if (aliasPages.length > 0) {
+            const decrypted = await decryptPageRow(aliasPages[0]);
+            const redirectPath = `/content/published/${encodeURIComponent(alias.canonical_slug)}`;
+            res.set('X-Canonical-Slug', alias.canonical_slug);
+            res.set('X-Redirected-From', slug);
+            res.set('Location', redirectPath);
+            return res.status(301).json({
+              redirect: true,
+              redirectSlug: alias.canonical_slug,
+              redirectPath,
+              page: decrypted
+            });
+          }
+        }
+      } catch (aliasError) {
+        console.warn('[pages] GET /published/:slug: alias lookup failed:', aliasError.message);
+      }
       return res.status(404).json({ error: 'Страница не найдена' });
     }
     
     console.log(`[pages] GET /published/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
     
-    // Расшифровываем зашифрованные поля
-    const page = rows[0];
-    const encryptionUtils = require('../utils/encryptionUtils');
-    const encryptionKey = encryptionUtils.getEncryptionKey();
-    
-    // Создаем объект с расшифрованными данными
-    const decryptedPage = { ...page };
-    
-    // Расшифровываем поля, если они зашифрованы
-    const fieldsToDecrypt = ['title', 'summary', 'content', 'seo', 'settings'];
-    for (const field of fieldsToDecrypt) {
-      const encryptedField = `${field}_encrypted`;
-      if (page[encryptedField]) {
-        try {
-          const decryptResult = await db.getQuery()(
-            `SELECT decrypt_text($1, $2) as ${field}`,
-            [page[encryptedField], encryptionKey]
-          );
-          if (decryptResult.rows[0] && decryptResult.rows[0][field] !== null) {
-            decryptedPage[field] = decryptResult.rows[0][field];
-          }
-        } catch (decryptError) {
-          console.warn(`[pages] GET /published/:slug: ошибка расшифровки поля ${field}:`, decryptError.message);
-          if (page[field]) {
-            decryptedPage[field] = page[field];
-          }
-        }
-      } else if (page[field]) {
-        decryptedPage[field] = page[field];
-      }
-    }
-    
+    const decryptedPage = await decryptPageRow(rows[0]);
     res.json(decryptedPage);
   } catch (error) {
     console.error('Ошибка получения публичной страницы по slug:', error);

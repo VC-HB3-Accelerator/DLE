@@ -535,8 +535,31 @@ async function handleSubmit() {
       throw new Error(isEditMode.value ? t('content.editor.notUpdated') : t('content.editor.notCreated'));
     }
 
-    // Перенаправляем на список страниц
-    router.push({ name: 'content-list' });
+    const seo = page.seoHtml || null;
+    const inBlog = form.value.visibility === 'public' && form.value.showInBlog;
+
+    if (seo && seo.ready && seo.url) {
+      const openBlog = inBlog && window.confirm(
+        `${t('content.editor.seoReady')}\n\n${t('content.editor.openInBlogConfirm')}`
+      );
+      if (openBlog) {
+        const path = inBlog
+          ? `/blog/${encodeURIComponent(page.slug)}`
+          : `/content/published/${encodeURIComponent(page.slug)}`;
+        window.open(path, '_blank');
+      }
+    } else if (page.visibility === 'public' && page.status === 'published' && page.slug && seo && !seo.skipped) {
+      alert(
+        `${t('content.editor.seoNotReady')}\n${seo.error ? seo.error : ''}\n\n${t('content.editor.seoNotReadyHint')}`
+      );
+    }
+
+    // Перенаправляем на список блога или страниц
+    if (inBlog && seo?.ready) {
+      router.push({ name: 'blog' });
+    } else {
+      router.push({ name: 'content-list' });
+    }
   } catch (error) {
     console.error('Ошибка при создании страницы:', error);
     alert(t('content.editor.createError') + (error?.message || error));

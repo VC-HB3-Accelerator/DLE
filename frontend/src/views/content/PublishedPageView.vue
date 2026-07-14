@@ -72,8 +72,13 @@ onMounted(async () => {
   if (pageSlug.value) {
     try {
       const page = await pagesService.getPublishedPageBySlug(pageSlug.value);
-      if (page && page.id) {
-        currentPageId.value = page.id;
+      if (page?.redirect && page.redirectSlug) {
+        await router.replace(page.redirectPath || `/content/published/${encodeURIComponent(page.redirectSlug)}`);
+        return;
+      }
+      const resolved = page?.page || page;
+      if (resolved && resolved.id) {
+        currentPageId.value = resolved.id;
       }
     } catch (error) {
       console.error('[PublishedPageView] Ошибка загрузки страницы:', error);

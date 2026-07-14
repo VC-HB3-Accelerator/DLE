@@ -130,6 +130,8 @@ function applySeoToAppShell(template, seo) {
     description = '',
     ogType = 'website',
     bodyHtml = '',
+    jsonLd = null,
+    robots = 'index, follow',
   } = seo;
 
   if (!template || typeof template !== 'string' || !template.includes('<div id="app')) {
@@ -157,7 +159,12 @@ function applySeoToAppShell(template, seo) {
     .replace(/<meta\s+property=["']og:title["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:description["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:type["'][^>]*>\s*/gi, '')
-    .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '');
+    .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '')
+    .replace(/<script\s+type=["']application\/ld\+json["'][\s\S]*?<\/script>\s*/gi, '');
+
+  const jsonLdBlock = jsonLd
+    ? `\n  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
+    : '';
 
   const ogBlock = `
   <link rel="canonical" href="${canonical}">
@@ -165,7 +172,7 @@ function applySeoToAppShell(template, seo) {
   <meta property="og:description" content="${safeDescription}">
   <meta property="og:url" content="${canonical}">
   <meta property="og:type" content="${ogType}">
-  <meta name="robots" content="index, follow">`;
+  <meta name="robots" content="${escapeHtml(robots)}">${jsonLdBlock}`;
 
   html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
 
@@ -316,6 +323,109 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+function formatArticleDate(date) {
+  if (!date) return '';
+  try {
+    return new Date(date).toLocaleDateString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch {
+    return String(date).slice(0, 10);
+  }
+}
+
+function sanitizeFileSlug(slug) {
+  return sanitizeSlug(slug);
+}
+
+/**
+ * Удаляет pre-render HTML для slug (blog + published), включая .bak.
+ */
+function removeHtmlForSlug(slug) {
+  const sanitized = sanitizeFileSlug(slug);
+  if (!sanitized) return;
+
+  const dirs = [OUTPUT_DIR, PUBLISHED_OUTPUT_DIR];
+  for (const dir of dirs) {
+    for (const name of [`${sanitized}.html`, `${sanitized}.html.bak`]) {
+      const filePath = path.join(dir, name);
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`[pre-render] Удалён orphan: ${filePath}`);
+        }
+      } catch (e) {
+        console.warn(`[pre-render] Не удалось удалить ${filePath}:`, e.message);
+      }
+    }
+  }
+}
+
+/**
+ * Stub HTML для старых slug (алиасы): meta refresh + canonical + noindex.
+ */
+function buildRedirectStubHtml({ canonicalUrl, targetPath }) {
+  const safeCanonical = escapeHtml(canonicalUrl);
+  const safeHref = escapeHtml(targetPath);
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirect</title>
+  <link rel="canonical" href="${safeCanonical}">
+  <meta name="robots" content="noindex, follow">
+  <meta http-equiv="refresh" content="0;url=${safeHref}">
+</head>
+<body>
+  <p><a href="${safeHref}">Перейти к актуальной странице</a></p>
+</body>
+</html>`;
+}
+
+async function getSlugAliases(pageId = null) {
+  try {
+    const params = [];
+    let sql = `
+      SELECT a.slug AS alias_slug, p.slug AS canonical_slug, p.id AS page_id, p.show_in_blog
+      FROM admin_page_slug_aliases a
+      INNER JOIN admin_pages_simple p ON p.id = a.page_id
+      WHERE p.visibility = 'public' AND p.status = 'published'
+    `;
+    if (pageId) {
+      params.push(pageId);
+      sql += ` AND a.page_id = $1`;
+    }
+    const { rows } = await getQuery()(sql, params);
+    return rows || [];
+  } catch (e) {
+    console.warn('[pre-render] Не удалось загрузить slug aliases:', e.message);
+    return [];
+  }
+}
+
+async function writeAliasRedirectStubs({ publicBaseUrl, pageId = null, onlyBlog = null }) {
+  const aliases = await getSlugAliases(pageId);
+  for (const row of aliases) {
+    if (!row.alias_slug || !row.canonical_slug) continue;
+    if (row.alias_slug === row.canonical_slug) continue;
+
+    const isBlog = !!row.show_in_blog;
+    if (onlyBlog === true && !isBlog) continue;
+    if (onlyBlog === false && isBlog) continue;
+
+    const pathPrefix = isBlog ? '/blog' : '/content/published';
+    const outputDir = isBlog ? OUTPUT_DIR : PUBLISHED_OUTPUT_DIR;
+    const canonicalUrl = `${publicBaseUrl}${pathPrefix}/${encodeURIComponent(row.canonical_slug)}`;
+    const targetPath = `${pathPrefix}/${encodeURIComponent(row.canonical_slug)}`;
+    const html = buildRedirectStubHtml({ canonicalUrl, targetPath });
+    const outPath = path.join(outputDir, `${sanitizeFileSlug(row.alias_slug)}.html`);
+    saveHtml(html, outPath, outputDir);
+  }
+}
+
 /**
  * Собирает HTML страницы статьи с абсолютным canonical
  * @param {string} pathPrefix - /blog или /content/published
@@ -326,16 +436,44 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   const title = article.title || 'Статья';
   const description = article.summary || title;
   const content = article.content != null ? String(article.content) : '';
+  const dateLabel = formatArticleDate(article.created_at);
+  const category = article.category ? String(article.category).trim() : '';
+
+  const metaParts = [];
+  if (dateLabel) {
+    metaParts.push(`<span class="meta-item">${escapeHtml(dateLabel)}</span>`);
+  }
+  if (category) {
+    metaParts.push(`<span class="meta-item">${escapeHtml(category)}</span>`);
+  }
+  const metaHtml = metaParts.length
+    ? `<div class="page-meta">${metaParts.join('\n')}</div>`
+    : '';
 
   const articleInnerHtml = `
   <article class="docs-content">
     <header class="page-header">
       <h1 class="page-title">${escapeHtml(title)}</h1>
       ${article.summary ? `<p class="page-summary">${escapeHtml(article.summary)}</p>` : ''}
+      ${metaHtml}
     </header>
     <div class="page-content">${content}</div>
   </article>
   `;
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: title,
+    description,
+    datePublished: article.created_at || undefined,
+    dateModified: article.updated_at || article.created_at || undefined,
+    mainEntityOfPage: canonical,
+    url: canonical
+  };
+  if (category) {
+    jsonLd.articleSection = category;
+  }
 
   const fromShell = applySeoToAppShell(appShellTemplate, {
     canonical,
@@ -343,6 +481,8 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
     description,
     ogType: 'article',
     bodyHtml: articleInnerHtml,
+    jsonLd,
+    robots: 'index, follow',
   });
 
   if (fromShell) return fromShell;
@@ -357,6 +497,7 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   <link rel="canonical" href="${canonical}">
   <meta property="og:url" content="${canonical}">
   <meta name="robots" content="index, follow">
+  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 </head>
 <body>${articleInnerHtml}</body>
 </html>`;
@@ -371,7 +512,17 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
     .filter((a) => a && a.slug)
     .map((a) => {
       const href = `${baseUrl}${pathPrefix}/${encodeURIComponent(String(a.slug).trim())}`;
-      return `<li><a href="${href}">${escapeHtml(a.title || a.slug)}</a></li>`;
+      const itemTitle = escapeHtml(a.title || a.slug);
+      const itemSummary = a.summary ? String(a.summary).trim() : '';
+      const summaryHtml = itemSummary
+        ? `<p class="article-summary">${escapeHtml(itemSummary)}</p>`
+        : '';
+      return `<li class="seo-list-item">
+  <article>
+    <h2 class="article-title"><a href="${href}">${itemTitle}</a></h2>
+    ${summaryHtml}
+  </article>
+</li>`;
     })
     .join('\n');
 
@@ -381,8 +532,36 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
       <h1 class="page-title">${escapeHtml(title)}</h1>
       <p class="page-summary">${escapeHtml(description)}</p>
     </header>
-    <nav aria-label="Список страниц"><ul>${listItems}</ul></nav>
+    <nav aria-label="Список страниц"><ul class="seo-article-list">${listItems}</ul></nav>
   </main>`;
+
+  const itemListElements = (items || [])
+    .filter((a) => a && a.slug)
+    .map((a, index) => {
+      const href = `${baseUrl}${pathPrefix}/${encodeURIComponent(String(a.slug).trim())}`;
+      const el = {
+        '@type': 'ListItem',
+        position: index + 1,
+        url: href,
+        name: a.title || a.slug
+      };
+      if (a.summary) {
+        el.description = String(a.summary).trim();
+      }
+      return el;
+    });
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    description,
+    url: canonical,
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: itemListElements
+    }
+  };
 
   return applySeoToAppShell(appShellTemplate, {
     canonical,
@@ -390,6 +569,8 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
     description,
     ogType: 'website',
     bodyHtml,
+    jsonLd,
+    robots: 'index, follow',
   });
 }
 
@@ -566,6 +747,9 @@ async function getBlogArticles() {
         id: a.id,
         slug: a.slug,
         title: a.title || a.slug,
+        summary: a.summary || '',
+        category: a.category || null,
+        created_at: a.created_at || null
       }));
   } catch (error) {
     console.error('[pre-render] Ошибка получения статей через API /api/pages/blog/all:', error.message || error);
@@ -583,6 +767,9 @@ async function getPublishedPages() {
         id: a.id,
         slug: a.slug,
         title: a.title || a.slug,
+        summary: a.summary || '',
+        category: a.category || null,
+        created_at: a.created_at || null
       }));
   } catch (error) {
     console.error('[pre-render] Ошибка /api/pages/published/all:', error.message || error);
@@ -654,6 +841,10 @@ async function preRenderBlog(options = {}) {
   if (!specificSlug) {
     archiveHtmlFilesInDir(OUTPUT_DIR);
     archiveHtmlFilesInDir(PUBLISHED_OUTPUT_DIR);
+  } else {
+    // При точечном prerender не оставляем старый HTML с тем же именем как «статью»,
+    // stub aliases перезапишутся ниже.
+    removeHtmlForSlug(specificSlug);
   }
 
   const publicBaseUrl = process.env.PUBLIC_SITE_URL ||
@@ -661,8 +852,9 @@ async function preRenderBlog(options = {}) {
 
   const appShellTemplate = await getAppShellTemplate();
   if (!appShellTemplate) {
-    console.warn('[pre-render] App-shell не найден — пропуск генерации');
-    return;
+    const message = '[pre-render] App-shell не найден — SEO HTML не собран';
+    console.error(message);
+    throw new Error(message);
   }
 
   const blogArticles = await getBlogArticles();
@@ -725,7 +917,100 @@ async function preRenderBlog(options = {}) {
     });
   }
 
+  // Redirect stubs для старых slug (после статей, чтобы не затереть канон)
+  try {
+    if (specificSlug) {
+      const all = [...blogArticles, ...publishedPages];
+      const matched = all.find((a) => a.slug && a.slug.trim() === specificSlug.trim());
+      if (matched?.id) {
+        await writeAliasRedirectStubs({ publicBaseUrl, pageId: matched.id });
+      }
+    } else {
+      await writeAliasRedirectStubs({ publicBaseUrl });
+    }
+  } catch (aliasErr) {
+    console.warn('[pre-render] Ошибка записи alias stubs:', aliasErr.message);
+  }
+
   console.log('[pre-render] Завершено успешно');
+  return {
+    ok: true,
+    specificSlug,
+    blogDir: OUTPUT_DIR,
+    publishedDir: PUBLISHED_OUTPUT_DIR,
+  };
+}
+
+/**
+ * Синхронная публикация SEO HTML для одной страницы (до ответа Publish).
+ * @param {object} page - строка страницы (slug, show_in_blog, title?, content?)
+ * @returns {Promise<{ready:boolean,url?:string,path?:string,pathPrefix?:string,error?:string,skipped?:boolean}>}
+ */
+async function publishSeoForPage(page) {
+  const slug = String(page?.slug || '').trim();
+  if (!slug) {
+    return { ready: false, skipped: true, error: 'slug missing' };
+  }
+
+  const showInBlog = page.show_in_blog === true
+    || page.show_in_blog === 'true'
+    || page.show_in_blog === 1
+    || page.show_in_blog === '1';
+  const pathPrefix = showInBlog ? '/blog' : '/content/published';
+  const outputDir = showInBlog ? OUTPUT_DIR : PUBLISHED_OUTPUT_DIR;
+  const publicBaseUrl = (process.env.PUBLIC_SITE_URL
+    || (BASE_URL.startsWith('https') ? BASE_URL.replace(/\/$/, '') : 'https://hb3-accelerator.com')
+  ).replace(/\/$/, '');
+  const publicUrl = `${publicBaseUrl}${pathPrefix}/${encodeURIComponent(slug)}`;
+  const filePath = path.join(outputDir, `${sanitizeSlug(slug)}.html`);
+
+  try {
+    await preRenderBlog({
+      renderBlogList: showInBlog,
+      renderBlogArticles: showInBlog,
+      renderPublishedList: !showInBlog,
+      renderPublishedArticles: !showInBlog,
+      specificSlug: slug,
+    });
+
+    if (!fs.existsSync(filePath)) {
+      return {
+        ready: false,
+        url: publicUrl,
+        path: filePath,
+        pathPrefix,
+        error: 'SEO HTML file not found after prerender'
+      };
+    }
+
+    const html = fs.readFileSync(filePath, 'utf8');
+    // title из БД может быть зашифрован — проверяем структуру без требования title
+    if (!isRenderableArticleHtml(html, {})) {
+      return {
+        ready: false,
+        url: publicUrl,
+        path: filePath,
+        pathPrefix,
+        error: 'SEO HTML failed validation'
+      };
+    }
+
+    return {
+      ready: true,
+      url: publicUrl,
+      path: filePath,
+      pathPrefix
+    };
+  } catch (error) {
+    console.error('[pre-render] publishSeoForPage error:', error);
+    return {
+      ready: false,
+      url: publicUrl,
+      path: filePath,
+      pathPrefix,
+      error: error.message || String(error)
+    };
+  }
 }
 
 // Если скрипт запущен напрямую
@@ -756,5 +1041,5 @@ if (require.main === module) {
   })();
 }
 
-module.exports = { preRenderBlog };
+module.exports = { preRenderBlog, removeHtmlForSlug, publishSeoForPage };
 

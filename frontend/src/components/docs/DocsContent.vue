@@ -407,12 +407,35 @@ async function loadPage() {
           keys: response ? Object.keys(response) : [],
           hasTitle: response?.title,
           hasContent: !!response?.content,
-          id: response?.id
+          id: response?.id,
+          redirect: !!response?.redirect
         });
+
+        if (response?.redirect && response.redirectSlug) {
+          const targetPath = response.redirectPath
+            || (isPublishedSlugRoute
+              ? `/content/published/${encodeURIComponent(response.redirectSlug)}`
+              : `/blog/${encodeURIComponent(response.redirectSlug)}`);
+          console.log('[DocsContent] Canonical redirect:', slug, '->', targetPath);
+          await router.replace(targetPath);
+          // Не выставляем noindex в finally — идёт переход на канон
+          page.value = response.page || page.value;
+          return;
+        }
         
         if (!response) {
           console.error('[DocsContent] API вернул пустой ответ');
           throw new Error(t('content.page.notFoundTitle'));
+        }
+
+        // Канонический slug в URL (на случай 200 без redirect-обёртки)
+        if (response.slug && String(response.slug).trim() !== String(slug).trim()) {
+          const targetPath = isPublishedSlugRoute
+            ? `/content/published/${encodeURIComponent(response.slug.trim())}`
+            : `/blog/${encodeURIComponent(response.slug.trim())}`;
+          page.value = response;
+          await router.replace(targetPath);
+          return;
         }
         
         // Устанавливаем page.value ДО любых других операций
