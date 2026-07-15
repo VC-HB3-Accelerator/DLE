@@ -94,6 +94,16 @@
       </div>
     </article>
 
+    <!-- Engagement: лайки, комментарии, share, подписка (сразу после текста статьи) -->
+    <BlogEngagementBar
+      v-if="page && isBlogPage"
+      ref="engagementBarRef"
+      :page-id="page.id"
+      :page-slug="page.slug"
+      :page-title="page.title"
+      :is-authenticated="isAuthenticated"
+    />
+
     <!-- Навигация: Предыдущая/Следующая -->
     <nav v-if="page && navigation" class="page-navigation">
       <div class="nav-section">
@@ -139,8 +149,8 @@
       </div>
     </nav>
 
-    <!-- Похожие статьи (только для блога) -->
-    <section v-if="page && isBlogPage && relatedArticles.length > 0" class="related-articles">
+    <!-- Похожие статьи: временно отключено (дублирующие запросы / шум в SPA) -->
+    <section v-if="false && page && isBlogPage && relatedArticles.length > 0" class="related-articles">
       <h3 class="related-title">
         <i class="fas fa-newspaper"></i>
         {{ $t('content.docsContent.readAlso') }}
@@ -189,6 +199,8 @@ import DOMPurify from 'dompurify';
 import pagesService from '../../services/pagesService';
 import api from '../../api/axios';
 import { usePermissions } from '../../composables/usePermissions';
+import { useAuthContext } from '../../composables/useAuth';
+import BlogEngagementBar from '../blog/BlogEngagementBar.vue';
 import { PERMISSIONS } from '../../composables/permissions';
 
 const props = defineProps({
@@ -211,6 +223,8 @@ const emit = defineEmits(['back']);
 const router = useRouter();
 const route = useRoute();
 const { hasPermission } = usePermissions();
+const auth = useAuthContext();
+const isAuthenticated = computed(() => auth.isAuthenticated.value);
 
 const canManageDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 
@@ -219,6 +233,7 @@ const navigation = ref(null);
 const breadcrumbs = ref([]);
 const isLoading = ref(false);
 const relatedArticles = ref([]);
+const engagementBarRef = ref(null);
 
 // Определяем, это страница блога
 const isBlogPage = computed(() => route.path.startsWith('/blog'));
@@ -313,6 +328,13 @@ function updateMetaTags(pageData) {
   updateOrCreateMeta('og:description', description, 'property');
   updateOrCreateMeta('og:type', 'article', 'property');
   updateOrCreateMeta('og:url', canonicalUrl, 'property');
+
+  if (pageData.cover_url) {
+    const coverUrl = pageData.cover_url.startsWith('http')
+      ? pageData.cover_url
+      : `${window.location.origin}${pageData.cover_url.startsWith('/') ? '' : '/'}${pageData.cover_url}`;
+    updateOrCreateMeta('og:image', coverUrl, 'property');
+  }
   
   // Robots meta
   setRobotsMeta('index, follow');
@@ -356,6 +378,13 @@ function addArticleJsonLd(pageData, canonicalUrl) {
       'name': 'Digital Legal Entity'
     }
   };
+
+  if (pageData.cover_url) {
+    const imageUrl = pageData.cover_url.startsWith('http')
+      ? pageData.cover_url
+      : `${window.location.origin}${pageData.cover_url.startsWith('/') ? '' : '/'}${pageData.cover_url}`;
+    articleJsonLd.image = imageUrl;
+  }
   
   if (pageData.category) {
     articleJsonLd.articleSection = pageData.category;
@@ -486,7 +515,11 @@ async function loadPage() {
       }
       
       // Загружаем похожие статьи для блога
-      if (isBlogPage.value) {
+      // «Читайте также» временно отключено
+      // if (isBlogPage.value) {
+      //   loadRelatedArticles();
+      // }
+      if (false && isBlogPage.value) {
         loadRelatedArticles();
       }
     } else {
@@ -546,6 +579,12 @@ async function loadPage() {
       isLoading: isLoading.value,
       pageId: props.pageId
     });
+
+    if (page.value && isBlogPage.value && route.query.scroll === 'comments') {
+      await nextTick();
+      engagementBarRef.value?.scrollToComments?.();
+      router.replace({ path: route.path, query: {} });
+    }
   }
 }
 
@@ -632,7 +671,16 @@ const formatContent = computed(() => {
   const isMarkdown = !isHtml && /^#{1,6}\s|^\*\s|^\-\s|^\d+\.\s|```|\[.+\]\(.+\)|!\[.+\]\(.+\)/m.test(content);
   
   if (isMarkdown) {
-    const rawHtml = marked.parse(content);
+    let rawHtml;
+    try {
+      rawHtml = marked.parse(content);
+    } catch (parseError) {
+      console.error('[DocsContent] marked.parse failed:', parseError);
+      rawHtml = `<pre class="content-fallback">${content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre>`;
+    }
     // Разрешаем теги video, source, img и их атрибуты для корректного отображения медиа
     let sanitizedHtml = DOMPurify.sanitize(rawHtml, sanitizeConfig);
     

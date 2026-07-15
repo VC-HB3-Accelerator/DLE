@@ -54,6 +54,7 @@
 
 <script setup>
   import { ref, onMounted, watch, onBeforeUnmount, defineProps, defineEmits } from 'vue';
+  import { useRouter, useRoute } from 'vue-router';
   import { useI18n } from 'vue-i18n';
   import { useAuthContext } from '../composables/useAuth';
   import { useChat } from '../composables/useChat';
@@ -81,6 +82,8 @@
 
   const { t } = useI18n();
   const auth = useAuthContext();
+  const router = useRouter();
+  const route = useRoute();
 
   // =====================================================================
   // 2. СОСТОЯНИЯ КОМПОНЕНТА
@@ -131,6 +134,18 @@
 
   onMounted(() => {
     updateHomeSeo();
+
+    if (route.query.ask) {
+      newMessage.value = String(route.query.ask);
+    }
+
+    if (route.query.pageId) {
+      console.log('[HomeView] Ask AI context pageId:', route.query.pageId);
+    }
+
+    if (route.query.ask || route.query.pageId) {
+      router.replace({ path: '/', query: {} });
+    }
 
     // Подписка на события авторизации
     unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);

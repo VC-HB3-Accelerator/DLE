@@ -238,6 +238,17 @@ async function getDeliveredRecipientIds(campaignId) {
   return new Set(rows.map(row => row.recipient_user_id));
 }
 
+async function getFinalizedRecipientIds(campaignId) {
+  const { rows } = await db.getQuery()(
+    `SELECT recipient_user_id
+     FROM broadcast_deliveries
+     WHERE campaign_id = $1 AND status IN ('sent', 'bounced')`,
+    [campaignId]
+  );
+
+  return new Set(rows.map(row => row.recipient_user_id));
+}
+
 function getCampaignRecipientIds(campaign) {
   return parseRecipientIds(campaign?.recipient_ids || []);
 }
@@ -1026,6 +1037,7 @@ module.exports = {
   recordEvent,
   getCampaignEvents,
   getDeliveredRecipientIds,
+  getFinalizedRecipientIds,
   getCampaignRecipientIds,
   updateCurrentIndex,
   startCampaign,

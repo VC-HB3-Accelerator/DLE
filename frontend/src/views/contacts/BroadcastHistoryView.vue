@@ -107,9 +107,45 @@
       size="480px"
     >
       <div v-if="selectedCampaign" class="details-content">
+        <div
+          v-if="['in_progress', 'paused', 'queued'].includes(selectedCampaign.status)"
+          class="details-actions"
+          @click.stop
+        >
+          <el-button
+            v-if="selectedCampaign.status === 'in_progress'"
+            :disabled="actionLoading"
+            @click.stop="pauseCampaign"
+          >
+            {{ t('contacts.broadcast.pause') }}
+          </el-button>
+          <el-button
+            v-if="['paused', 'queued'].includes(selectedCampaign.status)"
+            type="primary"
+            :disabled="actionLoading"
+            :loading="actionLoading"
+            @click.stop="resumeCampaign"
+          >
+            {{ t('contacts.broadcast.resume') }}
+          </el-button>
+          <el-button
+            type="danger"
+            :disabled="actionLoading"
+            @click.stop="stopCampaign"
+          >
+            {{ t('contacts.broadcast.stop') }}
+          </el-button>
+        </div>
+
         <p><strong>{{ t('contacts.broadcast.subject') }}:</strong> {{ selectedCampaign.subject }}</p>
         <p><strong>{{ t('contacts.broadcast.history.date') }}:</strong> {{ formatTime(selectedCampaign.started_at) }}</p>
         <p><strong>{{ t('contacts.broadcast.history.recipients') }}:</strong> {{ selectedCampaign.success_count }}/{{ selectedCampaign.planned_recipients }}</p>
+        <p>
+          <strong>{{ t('contacts.broadcast.history.status') }}:</strong>
+          <el-tag :type="statusTagType(selectedCampaign.status)" size="small">
+            {{ statusLabel(selectedCampaign.status) }}
+          </el-tag>
+        </p>
         <p v-if="selectedCampaign.bounce_count">
           <strong>{{ t('contacts.broadcast.history.bounces') }}:</strong> {{ selectedCampaign.bounce_count }}
         </p>
@@ -173,6 +209,7 @@ const { t } = useI18n();
 
 const loading = ref(false);
 const deleting = ref(false);
+const actionLoading = ref(false);
 const campaigns = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
@@ -329,27 +366,92 @@ async function deleteSelected() {
   }
 }
 
-async function openDetails(row) {
-  selectedCampaign.value = row;
-  detailsVisible.value = true;
-  detailsLoading.value = true;
-  deliveries.value = [];
-  campaignEvents.value = [];
-  emailOpens.value = null;
+async function reloadDetails() {
+  if (!selectedCampaign.value?.id) {
+    return;
+  }
 
+  detailsLoading.value = true;
   try {
     const [detailsData, eventsData] = await Promise.all([
-      messagesService.getBroadcastCampaignDetails(row.id),
-      messagesService.getBroadcastCampaignEvents(row.id, { limit: 50 })
+      messagesService.getBroadcastCampaignDetails(selectedCampaign.value.id),
+      messagesService.getBroadcastCampaignEvents(selectedCampaign.value.id, { limit: 50 })
     ]);
-    selectedCampaign.value = detailsData.campaign || row;
+    selectedCampaign.value = detailsData.campaign || selectedCampaign.value;
     deliveries.value = detailsData.deliveries || [];
     emailOpens.value = detailsData.emailOpens || null;
     campaignEvents.value = eventsData.events || [];
+
+    const index = campaigns.value.findIndex(item => item.id === selectedCampaign.value.id);
+    if (index !== -1) {
+      campaigns.value[index] = { ...campaigns.value[index], ...selectedCampaign.value };
+    }
   } catch (error) {
     ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.history.detailsError'));
   } finally {
     detailsLoading.value = false;
+  }
+}
+
+async function openDetails(row) {
+  selectedCampaign.value = row;
+  detailsVisible.value = true;
+  await reloadDetails();
+}
+
+async function pauseCampaign() {
+  if (!selectedCampaign.value?.id) return;
+  actionLoading.value = true;
+  try {
+    await messagesService.pauseBroadcastCampaign(selectedCampaign.value.id);
+    await reloadDetails();
+    await loadHistory();
+    ElMessage.success(t('contacts.broadcast.pausedNotice'));
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.pauseError'));
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function resumeCampaign() {
+  if (!selectedCampaign.value?.id) return;
+  actionLoading.value = true;
+  try {
+    await messagesService.resumeBroadcastCampaign(selectedCampaign.value.id);
+    await reloadDetails();
+    await loadHistory();
+    ElMessage.success(t('contacts.broadcast.resumedNotice'));
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.resumeError'));
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+async function stopCampaign() {
+  if (!selectedCampaign.value?.id) return;
+
+  try {
+    await ElMessageBox.confirm(
+      t('contacts.broadcast.confirmStop'),
+      t('contacts.broadcast.stop'),
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+
+  actionLoading.value = true;
+  try {
+    await messagesService.interruptBroadcastCampaign(selectedCampaign.value.id);
+    await reloadDetails();
+    await loadHistory();
+    ElMessage.info(t('contacts.broadcast.interruptedNotice'));
+  } catch (error) {
+    ElMessage.error(error?.response?.data?.error || t('contacts.broadcast.stopError'));
+  } finally {
+    actionLoading.value = false;
   }
 }
 
@@ -412,6 +514,13 @@ onMounted(loadHistory);
   display: flex;
   justify-content: center;
   margin-top: 16px;
+}
+
+.details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 .details-content p {

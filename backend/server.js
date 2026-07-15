@@ -108,9 +108,19 @@ async function startServer() {
       
       return botManager.initialize();
     })
-    .then(() => {
+    .then(async () => {
       console.log('[Server] ✅ botManager.initialize() завершен');
-      
+
+      const broadcastQueueService = require('./services/broadcastQueueService');
+      try {
+        await broadcastQueueService.initialize();
+        console.log('[Server] ✅ Очередь рассылок инициализирована');
+      } catch (error) {
+        console.error('[Server] ❌ Ошибка инициализации очереди рассылок:', error.message);
+        logger.error('[App] Ошибка инициализации очереди рассылок:', error);
+      }
+    })
+    .then(() => {
       // ✨ Запускаем AI Queue Worker после инициализации ботов
       if (process.env.USE_AI_QUEUE !== 'false') {
         const ragService = require('./services/ragService');

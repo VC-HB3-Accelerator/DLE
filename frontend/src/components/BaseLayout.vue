@@ -126,6 +126,11 @@ onMounted(() => {
     console.log('[BaseLayout] Refreshing base layout data');
     // BaseLayout не нуждается в обновлении данных
   });
+
+  eventBus.on('open-auth-sidebar', () => {
+    showWalletSidebar.value = true;
+    setToStorage('showWalletSidebar', true);
+  });
 });
 
 const {

@@ -18,7 +18,7 @@
     :is-loading-tokens="isLoadingTokens" 
     @auth-action-completed="$emit('auth-action-completed')"
   >
-    <div class="blog-page">
+    <div class="blog-page" :class="{ 'blog-page--article': currentPageId || currentSlug }">
       <!-- Если открыта отдельная статья, показываем только её -->
       <div v-if="currentPageId || currentSlug" class="article-view">
         <DocsContent :page-id="currentSlug || currentPageId" :hide-back-button="true" @back="goToIndex" />
@@ -39,36 +39,17 @@
           <p>{{ t('blog.emptyDescription') }}</p>
         </div>
 
-        <!-- Список статей -->
-        <div v-else class="blog-articles">
-          <article
+        <!-- Лента статей (feed) -->
+        <div v-else class="blog-feed">
+          <BlogFeedCard
             v-for="page in filteredPages"
             :key="page.id"
-            class="blog-article"
-            @click="openArticle(page)"
-          >
-            <div class="article-header">
-              <h2 class="article-title">{{ page.title }}</h2>
-              <div v-if="page.category" class="article-category">
-                <i class="fas fa-folder"></i>
-                {{ formatCategoryName(page.category) }}
-              </div>
-            </div>
-            
-            <div v-if="page.summary" class="article-summary">
-              {{ page.summary }}
-            </div>
-            
-            <div class="article-meta">
-              <span class="article-date">
-                <i class="fas fa-calendar"></i>
-                {{ formatDate(page.created_at) }}
-              </span>
-              <span class="article-read-more">
-                {{ t('blog.readMore') }}
-              </span>
-            </div>
-          </article>
+            :page="page"
+            :is-authenticated="isAuthenticated"
+            :article-url="getArticleUrl(page)"
+            @open-article="openArticleForEngagement"
+            @open-comments="(p) => openArticleForEngagement(p, 'comments')"
+          />
         </div>
       </template>
     </div>
@@ -81,6 +62,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import DocsContent from '../components/docs/DocsContent.vue';
+import BlogFeedCard from '../components/blog/BlogFeedCard.vue';
 import pagesService from '../services/pagesService';
 
 const props = defineProps({
@@ -124,22 +106,12 @@ const filteredPages = computed(() => {
   return pages.value;
 });
 
-function formatCategoryName(name) {
-  if (name === 'uncategorized') return t('blog.uncategorized');
-  if (!name || name.length === 0) return name;
-  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+function getArticleUrl(page) {
+  if (!page?.slug) return `${window.location.origin}/blog`;
+  return `${window.location.origin}/blog/${encodeURIComponent(page.slug.trim())}`;
 }
 
-function formatDate(date) {
-  if (!date) return '';
-  return new Date(date).toLocaleDateString('ru-RU', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-}
-
-function openArticle(page) {
+function openArticleForEngagement(page, scrollTo = null) {
   // Проверяем, что page - это объект
   if (!page || typeof page !== 'object') {
     console.error('[BlogView] openArticle: невалидный объект страницы');
@@ -148,7 +120,8 @@ function openArticle(page) {
   
   // Используем slug если есть, иначе fallback на id
   if (page.slug && typeof page.slug === 'string' && page.slug.trim() !== '') {
-    router.push({ name: 'blog-article', params: { slug: page.slug.trim() } }).catch(err => {
+    const query = scrollTo === 'comments' ? { scroll: 'comments' } : undefined;
+    router.push({ name: 'blog-article', params: { slug: page.slug.trim() }, query }).catch(err => {
       console.error('[BlogView] Ошибка навигации:', err);
     });
   } else if (page.id) {
@@ -287,6 +260,10 @@ watch(() => pages.value, () => {
 onMounted(async () => {
   await loadPages();
   
+  if (route.query.subscribed === '1') {
+    router.replace({ name: 'blog', query: {} });
+  }
+
   // Устанавливаем мета-теги только если не открыта отдельная статья
   if (!currentPageId.value && !currentSlug.value) {
     updateBlogMetaTags();
@@ -297,26 +274,31 @@ onMounted(async () => {
 
 <style scoped>
 .blog-page {
-  max-width: 1200px;
+  max-width: 640px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: var(--block-padding) var(--spacing-lg) 48px;
   min-height: calc(100vh - 200px);
+}
+
+.blog-page--article {
+  max-width: 920px;
+  padding-top: var(--spacing-xl);
 }
 
 .loading-state,
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 60px var(--spacing-lg);
 }
 
 .loading-spinner {
-  border: 3px solid var(--color-light, #f3f3f3);
+  border: 3px solid var(--color-light);
   border-top: 3px solid var(--color-primary);
   border-radius: 50%;
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
+  margin: 0 auto var(--spacing-lg);
 }
 
 @keyframes spin {
@@ -325,181 +307,39 @@ onMounted(async () => {
 }
 
 .empty-icon {
-  font-size: 3rem;
-  color: var(--color-grey, #6c757d);
-  margin-bottom: 16px;
-  opacity: 0.6;
+  font-size: 2.5rem;
+  color: var(--color-grey);
+  margin-bottom: var(--spacing-md);
+  opacity: 0.7;
 }
 
 .empty-state h3 {
-  color: var(--color-primary);
-  margin: 0 0 10px 0;
-  font-size: var(--font-size-xl, 18px);
-  font-weight: 600;
+  color: var(--color-dark);
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
 }
 
 .empty-state p {
-  color: var(--color-grey, #6c757d);
+  color: var(--color-grey);
   margin: 0;
-  font-size: var(--font-size-md, 14px);
+  font-size: var(--font-size-md);
 }
 
-.blog-articles {
+.blog-feed {
   display: flex;
   flex-direction: column;
-  gap: 30px;
-  margin-bottom: 40px;
-}
-
-.blog-article {
-  background: var(--color-white, #fff);
-  border: 1px solid var(--color-border, #e9ecef);
-  border-radius: 12px;
-  padding: 25px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.05));
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.blog-article:hover {
-  box-shadow: var(--shadow-lg, 0 8px 16px rgba(0, 0, 0, 0.1));
-  transform: translateY(-4px);
-  border-color: var(--color-primary);
-}
-
-.article-header {
-  margin-bottom: 15px;
-}
-
-.article-title {
-  margin: 0 0 10px 0;
-  color: var(--color-primary);
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.3;
-  transition: color 0.2s ease;
-}
-
-.blog-article:hover .article-title {
-  color: var(--color-primary-dark, #45a049);
-}
-
-.article-category {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--color-grey, #6c757d);
-  background: var(--color-light, #f8f9fa);
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.article-summary {
-  color: var(--color-text, #495057);
-  line-height: 1.6;
-  margin-bottom: 15px;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex-grow: 1;
-  font-size: var(--font-size-md, 14px);
-}
-
-.article-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.9rem;
-  color: var(--color-grey, #6c757d);
-  padding-top: 15px;
-  border-top: 1px solid var(--color-border, #e9ecef);
-  margin-top: auto;
-}
-
-.article-date {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.article-read-more {
-  color: var(--color-primary);
-  font-weight: 500;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.blog-article:hover .article-read-more {
-  color: var(--color-primary-dark, #45a049);
-  transform: translateX(4px);
+  gap: 0;
 }
 
 .article-view {
-  margin-top: 30px;
-}
-
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  margin-bottom: 20px;
-  background: var(--color-light, #f8f9fa);
-  border: 1px solid var(--color-border, #e9ecef);
-  border-radius: 6px;
-  color: var(--color-text, #495057);
-  text-decoration: none;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-}
-
-.back-btn:hover {
-  background: var(--color-grey-light, #e9ecef);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-@media (max-width: 768px) {
-  .blog-page {
-    padding: 20px 15px;
-  }
-
-  .blog-articles {
-    gap: 20px;
-  }
-
-  .article-title {
-    font-size: 1.25rem;
-  }
-
-  .article-summary {
-    -webkit-line-clamp: 2;
-  }
+  margin-top: 0;
+  max-width: 100%;
 }
 
 @media (max-width: 480px) {
   .blog-page {
-    padding: 15px 10px;
-  }
-
-  .blog-article {
-    padding: 20px;
-  }
-
-  .article-meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    padding: var(--block-padding-mobile) var(--spacing-sm) 40px;
   }
 }
 </style>

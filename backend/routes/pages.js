@@ -19,6 +19,7 @@ const multer = require('multer');
 const vectorSearchClient = require('../services/vectorSearchClient');
 const logger = require('../utils/logger');
 const { preRenderBlog, publishSeoForPage, removeHtmlForSlug } = require('../scripts/pre-render-blog');
+const { attachCoverToPage } = require('../utils/blogCoverUtils');
 
 const SEO_PUBLISH_TIMEOUT_MS = Number(process.env.SEO_PUBLISH_TIMEOUT_MS || 60000);
 
@@ -333,6 +334,100 @@ async function decryptPageRow(page) {
   }
 
   return decryptedPage;
+}
+
+function sanitizeBlogListItem(page) {
+  return {
+    id: page.id,
+    slug: page.slug,
+    title: page.title,
+    summary: page.summary,
+    category: page.category,
+    created_at: page.created_at,
+    updated_at: page.updated_at,
+    cover_url: page.cover_url || null,
+    cover_type: page.cover_type || null,
+    reactions: page.reactions || null,
+    likes_count: page.likes_count ?? page.reactions?.heart ?? 0,
+    comments_count: page.comments_count ?? 0,
+    views_count: page.views_count ?? 0,
+    preview_comments: page.preview_comments || [],
+  };
+}
+
+async function attachPreviewComments(rows) {
+  if (!rows.length) return rows;
+  try {
+    const blogEngagementService = require('../services/blogEngagementService');
+    const pageIds = rows.map((r) => r.id).filter(Boolean);
+    const byPage = await blogEngagementService.getPreviewCommentsByPageIds(pageIds, 2);
+    return rows.map((row) => ({
+      ...row,
+      preview_comments: byPage[row.id] || [],
+    }));
+  } catch (e) {
+    return rows.map((row) => ({ ...row, preview_comments: [] }));
+  }
+}
+
+async function attachEngagementCounts(rows) {
+  if (!rows.length) return rows;
+  try {
+    const pageIds = rows.map((r) => r.id).filter(Boolean);
+    if (!pageIds.length) return rows;
+
+    const {
+      emptyReactionCounts,
+      normalizeReactionType,
+    } = require('../utils/blogReactions');
+
+    const { rows: reactionRows } = await db.getQuery()(
+      `SELECT page_id, type, COUNT(*)::int AS cnt
+       FROM blog_reactions
+       WHERE page_id = ANY($1::int[])
+       GROUP BY page_id, type`,
+      [pageIds]
+    );
+    const { rows: commentRows } = await db.getQuery()(
+      `SELECT page_id, COUNT(*)::int AS cnt
+       FROM blog_comments
+       WHERE page_id = ANY($1::int[]) AND is_hidden = FALSE
+       GROUP BY page_id`,
+      [pageIds]
+    );
+
+    const reactionsByPage = {};
+    for (const row of reactionRows) {
+      const key = normalizeReactionType(row.type);
+      if (!key) continue;
+      if (!reactionsByPage[row.page_id]) {
+        reactionsByPage[row.page_id] = emptyReactionCounts();
+      }
+      reactionsByPage[row.page_id][key] += row.cnt;
+    }
+
+    const commentsMap = Object.fromEntries(commentRows.map((r) => [r.page_id, r.cnt]));
+
+    return rows.map((row) => {
+      const reactions = reactionsByPage[row.id] || emptyReactionCounts();
+      return {
+        ...row,
+        reactions,
+        likes_count: reactions.heart || 0,
+        comments_count: commentsMap[row.id] || 0,
+        views_count: row.views_count ?? 0,
+      };
+    });
+  } catch (e) {
+    const { emptyReactionCounts } = require('../utils/blogReactions');
+    return rows.map((row) => ({
+      ...row,
+      reactions: emptyReactionCounts(),
+      likes_count: 0,
+      comments_count: 0,
+      views_count: row.views_count ?? 0,
+    }));
+  }
 }
 
 /**
@@ -1666,6 +1761,8 @@ router.get('/blog/all', async (req, res) => {
         const decrypted = await decryptPageRow(row);
         row.title = decrypted.title || row.title;
         row.summary = decrypted.summary || row.summary;
+        // content только для извлечения cover_url; в API-ответ не попадает (sanitizeBlogListItem)
+        row.content = decrypted.content || row.content;
       } catch (decryptErr) {
         console.warn(`[pages] GET /blog/all: decrypt failed for ${row.id}:`, decryptErr.message);
       }
@@ -1690,10 +1787,13 @@ router.get('/blog/all', async (req, res) => {
         }
       }
       
-      return row;
+      const withCover = attachCoverToPage(row);
+      return sanitizeBlogListItem(withCover);
     }));
-    
-    res.json(processedRows);
+
+    const withCounts = await attachEngagementCounts(processedRows);
+    const withPreviews = await attachPreviewComments(withCounts);
+    res.json(withPreviews);
   } catch (error) {
     console.error('Ошибка получения страниц блога:', error);
     res.status(500).json([]);
@@ -1776,7 +1876,7 @@ router.get('/blog/:slug', async (req, res) => {
             [alias.page_id]
           );
           if (aliasPages.length > 0) {
-            const decrypted = await decryptPageRow(aliasPages[0]);
+            const decrypted = attachCoverToPage(await decryptPageRow(aliasPages[0]));
             const redirectPath = `/blog/${encodeURIComponent(alias.canonical_slug)}`;
             res.set('X-Canonical-Slug', alias.canonical_slug);
             res.set('X-Redirected-From', slug);
@@ -1811,7 +1911,7 @@ router.get('/blog/:slug', async (req, res) => {
     
     console.log(`[pages] GET /blog/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
     
-    const decryptedPage = await decryptPageRow(rows[0]);
+    const decryptedPage = attachCoverToPage(await decryptPageRow(rows[0]));
     res.json(decryptedPage);
   } catch (error) {
     console.error('Ошибка получения страницы блога по slug:', error);

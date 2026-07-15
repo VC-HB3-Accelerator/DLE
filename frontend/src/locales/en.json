@@ -525,7 +525,65 @@
     "readMore": "Read more →",
     "uncategorized": "Uncategorized",
     "title": "Blog",
-    "description": "Publications and articles"
+    "description": "Publications and articles",
+    "share": {
+      "title": "Share",
+      "action": "Share",
+      "native": "Share",
+      "copy": "Copy link",
+      "copied": "Copied"
+    },
+    "likes": {
+      "action": "Like"
+    },
+    "reactions": {
+      "title": "Reactions",
+      "heart": "Love",
+      "fire": "Fire",
+      "clap": "Applause",
+      "idea": "Insight",
+      "wow": "Wow"
+    },
+    "views": {
+      "label": "Views"
+    },
+    "comments": {
+      "title": "Comments ({count})",
+      "action": "Comments",
+      "loading": "Loading comments...",
+      "empty": "No comments yet. Be the first!",
+      "composeLabel": "Your comment",
+      "placeholder": "Write a comment...",
+      "replyPlaceholder": "Write a reply...",
+      "reply": "Reply",
+      "send": "Send",
+      "sending": "Sending...",
+      "submitError": "Could not post the comment. Please try again.",
+      "loginHint": "Comments require signing in — wallet, email, or Telegram.",
+      "login": "Sign in",
+      "loginToComment": "Sign in to comment"
+    },
+    "subscribe": {
+      "title": "Blog subscription",
+      "hint": "Get new articles by email. Confirm via the link in the message.",
+      "placeholder": "your{'@'}email.com",
+      "button": "Subscribe",
+      "sent": "Confirmation email has been sent.",
+      "already": "This email is already subscribed.",
+      "error": "Could not subscribe. Check the email address."
+    },
+    "askAi": {
+      "button": "Ask AI about this article",
+      "prompt": "Tell me more about the article \"{title}\"",
+      "promptDefault": "Tell me more about this blog article"
+    },
+    "feed": {
+      "login": "Sign in",
+      "readFull": "Read full article",
+      "moreComments": "{count} more comments",
+      "viewComments": "View {count} comments",
+      "you": "You"
+    }
   },
   "messages": {
     "newMessages": "New messages",

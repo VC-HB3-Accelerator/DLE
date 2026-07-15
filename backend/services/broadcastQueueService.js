@@ -18,6 +18,27 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function waitForEmailBot(maxWaitMs = 120000) {
+  const botManager = require('./botManager');
+  const stepMs = 2000;
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    const emailBot = botManager.getBot('email');
+    if (emailBot?.isInitialized) {
+      return true;
+    }
+    if (emailBot?.status === 'not_configured') {
+      logger.warn('[BroadcastQueue] Email-бот не настроен');
+      return false;
+    }
+    await sleep(stepMs);
+  }
+
+  logger.warn('[BroadcastQueue] Таймаут ожидания инициализации Email-бота');
+  return false;
+}
+
 class BroadcastQueueService {
   constructor() {
     this.activeCampaigns = new Set();
@@ -29,17 +50,23 @@ class BroadcastQueueService {
       return;
     }
 
-    this.initialized = true;
-    const campaignIds = await broadcastService.listActiveCampaignIds();
+    try {
+      await waitForEmailBot();
+      const campaignIds = await broadcastService.listActiveCampaignIds();
 
-    if (!campaignIds.length) {
-      logger.info('[BroadcastQueue] Нет активных рассылок для возобновления');
-      return;
-    }
+      if (!campaignIds.length) {
+        logger.info('[BroadcastQueue] Нет активных рассылок для возобновления');
+      } else {
+        logger.info(`[BroadcastQueue] Возобновление рассылок: ${campaignIds.join(', ')}`);
+        for (const campaignId of campaignIds) {
+          this.enqueue(campaignId);
+        }
+      }
 
-    logger.info(`[BroadcastQueue] Возобновление рассылок: ${campaignIds.join(', ')}`);
-    for (const campaignId of campaignIds) {
-      this.enqueue(campaignId);
+      this.initialized = true;
+    } catch (error) {
+      logger.error('[BroadcastQueue] Ошибка инициализации очереди:', error);
+      throw error;
     }
   }
 
@@ -102,6 +129,12 @@ class BroadcastQueueService {
         return;
       }
 
+      const emailReady = await waitForEmailBot();
+      if (!emailReady) {
+        logger.warn(`[BroadcastQueue] Кампания ${campaignId}: отправка отложена, Email-бот не готов`);
+        return;
+      }
+
       const recipientIds = broadcastService.getCampaignRecipientIds(campaign);
       if (!recipientIds.length) {
         await broadcastService.completeCampaign({ campaignId });
@@ -109,10 +142,16 @@ class BroadcastQueueService {
       }
 
       const attachments = await broadcastService.loadCampaignAttachments(campaignId);
-      const deliveredIds = await broadcastService.getDeliveredRecipientIds(campaignId);
-      const pendingRecipientIds = recipientIds.filter(id => !deliveredIds.has(id));
+      const finalizedIds = await broadcastService.getFinalizedRecipientIds(campaignId);
+      const pendingRecipientIds = recipientIds.filter(id => !finalizedIds.has(id));
       const subject = String(campaign.subject || '').trim() || 'Новое сообщение';
       const message = String(campaign.message_body || campaign.message_preview || '').trim();
+
+      if (!pendingRecipientIds.length) {
+        await broadcastService.completeCampaign({ campaignId });
+        logger.info(`[BroadcastQueue] Кампания ${campaignId} завершена, все получатели обработаны`);
+        return;
+      }
 
       for (let index = 0; index < pendingRecipientIds.length; index += 1) {
         campaign = await broadcastService.getCampaignById(campaignId);

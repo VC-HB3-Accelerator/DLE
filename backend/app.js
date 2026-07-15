@@ -56,6 +56,7 @@ const emailTrackingRoutes = require('./routes/emailTracking');
 const ragRoutes = require('./routes/rag'); // Новый роут для RAG-ассистента
 const monitoringRoutes = require('./routes/monitoring');
 const pagesRoutes = require('./routes/pages'); // Добавляем импорт роутера страниц
+const blogEngagementRoutes = require('./routes/blogEngagement');
 const uploadsRoutes = require('./routes/uploads');
 const ensRoutes = require('./routes/ens');
 const sshRoutes = require('./routes/ssh'); // SSH роуты
@@ -398,6 +399,7 @@ app.use('/api/identities', identitiesRoutes);
 app.use('/api/rag', ragRoutes); // Подключаем роут
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/pages', pagesRoutes); // Обработка favicon.ico - возвращаем 204 No Content чтобы избежать 404 в логах
+app.use('/api/blog', blogEngagementRoutes);
 app.get('/favicon.ico', (req, res) => {
   res.status(204).end();
 });
@@ -547,10 +549,6 @@ if (process.env.NODE_ENV !== 'migration') {
     logger.error('[App] Ошибка загрузки RPC URL из базы данных:', error);
   });
 
-  const broadcastQueueService = require('./services/broadcastQueueService');
-  broadcastQueueService.initialize().catch(error => {
-    logger.error('[App] Ошибка инициализации очереди рассылок:', error);
-  });
 }
 
 module.exports = { app, nonceStore };

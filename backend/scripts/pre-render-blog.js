@@ -15,6 +15,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const { initDbPool, getQuery } = require('../db');
+const { extractCoverFromHtml, buildCoverHtml } = require('../utils/blogCoverUtils');
 
 // URL бэкенда для запроса статей (тот же контейнер)
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
@@ -75,18 +76,11 @@ function fetchAppShellFromUrl(urlString) {
 }
 
 /**
- * Возвращает HTML app-shell: сначала из файла, при неудаче — по URL (PRERENDER_BASE_URL).
+ * Возвращает HTML app-shell.
+ * На prod сначала URL (живой nginx с актуальными hashed assets), иначе файл:
+ * иначе устаревший frontend/dist/index.html на VDS ломает SPA (404 на index-*.js).
  */
 async function getAppShellTemplate() {
-  try {
-    const html = fs.readFileSync(FRONTEND_INDEX_HTML, 'utf8');
-    if (html && html.includes('<div id="app')) {
-      console.log('[pre-render] App-shell взят из файла:', FRONTEND_INDEX_HTML);
-      return html;
-    }
-  } catch (e) {
-    // файла нет (на VDS часто нет frontend/dist в backend)
-  }
   const baseUrl = process.env.PRERENDER_BASE_URL || BASE_URL;
   if (baseUrl && (baseUrl.startsWith('http://') || baseUrl.startsWith('https://'))) {
     const shellUrl = baseUrl.replace(/\/$/, '') + '/';
@@ -99,6 +93,15 @@ async function getAppShellTemplate() {
     } catch (err) {
       console.warn('[pre-render] Не удалось загрузить app-shell по URL:', err.message);
     }
+  }
+  try {
+    const html = fs.readFileSync(FRONTEND_INDEX_HTML, 'utf8');
+    if (html && html.includes('<div id="app')) {
+      console.log('[pre-render] App-shell взят из файла:', FRONTEND_INDEX_HTML);
+      return html;
+    }
+  } catch (e) {
+    // файла нет (на VDS часто нет frontend/dist в backend)
   }
   return null;
 }
@@ -129,6 +132,7 @@ function applySeoToAppShell(template, seo) {
     title,
     description = '',
     ogType = 'website',
+    ogImage = '',
     bodyHtml = '',
     jsonLd = null,
     robots = 'index, follow',
@@ -159,6 +163,7 @@ function applySeoToAppShell(template, seo) {
     .replace(/<meta\s+property=["']og:title["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:description["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:type["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:image["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '')
     .replace(/<script\s+type=["']application\/ld\+json["'][\s\S]*?<\/script>\s*/gi, '');
 
@@ -166,12 +171,16 @@ function applySeoToAppShell(template, seo) {
     ? `\n  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
     : '';
 
+  const ogImageTag = ogImage
+    ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">`
+    : '';
+
   const ogBlock = `
   <link rel="canonical" href="${canonical}">
   <meta property="og:title" content="${safeTitle}">
   <meta property="og:description" content="${safeDescription}">
   <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="${ogType}">
+  <meta property="og:type" content="${ogType}">${ogImageTag}
   <meta name="robots" content="${escapeHtml(robots)}">${jsonLdBlock}`;
 
   html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
@@ -438,6 +447,15 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   const content = article.content != null ? String(article.content) : '';
   const dateLabel = formatArticleDate(article.created_at);
   const category = article.category ? String(article.category).trim() : '';
+  const cover = article.cover_url
+    ? { cover_url: article.cover_url, cover_type: article.cover_type || 'image' }
+    : extractCoverFromHtml(content);
+  const coverUrl = cover.cover_url
+    ? (cover.cover_url.startsWith('http') ? cover.cover_url : `${baseUrl}${cover.cover_url.startsWith('/') ? '' : '/'}${cover.cover_url}`)
+    : '';
+  const coverHtml = coverUrl
+    ? buildCoverHtml({ cover_url: coverUrl, cover_type: cover.cover_type }, title, escapeHtml)
+    : '';
 
   const metaParts = [];
   if (dateLabel) {
@@ -452,6 +470,7 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
 
   const articleInnerHtml = `
   <article class="docs-content">
+    ${coverHtml}
     <header class="page-header">
       <h1 class="page-title">${escapeHtml(title)}</h1>
       ${article.summary ? `<p class="page-summary">${escapeHtml(article.summary)}</p>` : ''}
@@ -474,12 +493,18 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   if (category) {
     jsonLd.articleSection = category;
   }
+  if (coverUrl && cover.cover_type !== 'video') {
+    jsonLd.image = coverUrl;
+  }
+
+  const ogImage = coverUrl && cover.cover_type !== 'video' ? coverUrl : undefined;
 
   const fromShell = applySeoToAppShell(appShellTemplate, {
     canonical,
     title,
     description,
     ogType: 'article',
+    ogImage,
     bodyHtml: articleInnerHtml,
     jsonLd,
     robots: 'index, follow',
@@ -495,7 +520,10 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${canonical}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonical}">
+  <meta property="og:type" content="article">${ogImage ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}
   <meta name="robots" content="index, follow">
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 </head>
@@ -514,11 +542,23 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
       const href = `${baseUrl}${pathPrefix}/${encodeURIComponent(String(a.slug).trim())}`;
       const itemTitle = escapeHtml(a.title || a.slug);
       const itemSummary = a.summary ? String(a.summary).trim() : '';
+      const cover = a.cover_url
+        ? { cover_url: a.cover_url, cover_type: a.cover_type || 'image' }
+        : extractCoverFromHtml(a.content || '');
+      const coverSrc = cover.cover_url
+        ? (cover.cover_url.startsWith('http')
+          ? cover.cover_url
+          : `${baseUrl}${cover.cover_url.startsWith('/') ? '' : '/'}${cover.cover_url}`)
+        : '';
+      const coverHtml = coverSrc
+        ? buildCoverHtml({ cover_url: coverSrc, cover_type: cover.cover_type }, a.title || a.slug, escapeHtml)
+        : '';
       const summaryHtml = itemSummary
         ? `<p class="article-summary">${escapeHtml(itemSummary)}</p>`
         : '';
       return `<li class="seo-list-item">
   <article>
+    ${coverHtml}
     <h2 class="article-title"><a href="${href}">${itemTitle}</a></h2>
     ${summaryHtml}
   </article>
@@ -749,7 +789,9 @@ async function getBlogArticles() {
         title: a.title || a.slug,
         summary: a.summary || '',
         category: a.category || null,
-        created_at: a.created_at || null
+        created_at: a.created_at || null,
+        cover_url: a.cover_url || null,
+        cover_type: a.cover_type || null,
       }));
   } catch (error) {
     console.error('[pre-render] Ошибка получения статей через API /api/pages/blog/all:', error.message || error);
