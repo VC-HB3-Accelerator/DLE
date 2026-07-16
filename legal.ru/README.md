@@ -14,9 +14,8 @@
 
 **Типовые документы:** LICENSE, service-terms и CONTRIBUTOR_LICENSE в репозитории —
  **базовые шаблоны**. Для клиентов в каждой стране авторизованный контрибьютор
- готовит **локализованную версию**; **юрист контрибьютора** по опорникам в
- [templates/](templates/) составляет **местный договор** (налоги, валюта,
- применимое право). **Исходный код** — автор; **обновления контрибьютора** —
+ использует готовые договоры в [templates/](templates/) (локализация: налоги,
+ валюта, применимое право). **Исходный код** — автор; **обновления контрибьютора** —
  контрибьютор (с преимущественным правом автора). Роялти 1 000 / 10 000 USDT —
  начисление с лицензии, выплата по письменному запросу.
 
@@ -30,8 +29,8 @@
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — лицензии сторонних npm/Python-пакетов
 
 **Лицензирование и условия:**
-- [templates/](templates/) — **опорники для юристов** (критические пункты и структура локального договора с клиентом)
-- [Условия приобретения и обслуживания](../docs.ru/service-terms.md) — подробные условия лицензирования
+- [templates/](templates/) — **готовые шаблоны** договора контрибьютор ↔ клиент (международные)
+- [Условия приобретения и обслуживания](service-terms.md) — подробные условия лицензирования
 - [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) — требования к атрибуции
 - [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) — уведомления об использовании
 
@@ -41,17 +40,18 @@
 |------|------------|
 | [AUTHORS.md](AUTHORS.md) | Сведения об авторах и контактная информация |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Правила участия для контрибьюторов проекта |
-| [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Продажа лицензий, роялти 1000/10000 USDT, модификация кода |
+| [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Модельный договор Автор ↔ Контрибьютор |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Шаблоны уведомлений об авторских правах |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Лицензии сторонних npm- и Python-зависимостей |
-| [service-terms.md](../docs.ru/service-terms.md) | Подробные условия лицензирования и обслуживания |
-| [templates/README.md](templates/README.md) | Опорники для юристов (любая страна) |
-| [templates/contributor-author-contract.md](templates/contributor-author-contract.md) | Автор ↔ контрибьютор: роялти, IP, Updates |
-| [templates/client-license-contract.md](templates/client-license-contract.md) | Контрибьютор ↔ клиент: токен, EULA |
+| [service-terms.md](service-terms.md) | Подробные условия лицензирования и обслуживания |
+| [templates/README.md](templates/README.md) | Шаблоны контрибьютор ↔ клиент (договор, спецификация, акт) |
+| [templates/contributor-client-agreement.md](templates/contributor-client-agreement.md) | Модельный договор поставки лицензии |
+| [templates/contributor-client-specification.md](templates/contributor-client-specification.md) | Спецификация / счёт |
+| [templates/contributor-client-acceptance-act.md](templates/contributor-client-acceptance-act.md) | Акт приёмки и фиксации Tx |
 | [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Форматы и примеры обязательной атрибуции |
 | [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Инструкция и шаблон уведомления об использовании |
 
-**Полные условия обслуживания:** [docs.ru/service-terms.md](../docs.ru/service-terms.md)
+**Полные условия обслуживания:** [legal.ru/service-terms.md](service-terms.md)
 - Лицензионная модель (Perpetual License)
 - Тарифы: Standard и Premium
 - Система голосования через смарт-контракт
@@ -68,7 +68,7 @@
 - **Цена для клиента:** устанавливается контрибьютором (может быть выше, напр. 1 500 / 15 000 USDT)
 - **Канал продаж:** [авторизованные контрибьюторы](CONTRIBUTOR_LICENSE.md)
 - **Срок:** бессрочный (без ограничения по времени)
-- **Обновления:** бесплатно 5 лет; после — право использования имеющихся версий (см. [docs.ru/service-terms.md](../docs.ru/service-terms.md) § 4.3)
+- **Обновления:** бесплатно 5 лет; после — право использования имеющихся версий (см. [legal.ru/service-terms.md](service-terms.md) § 4.3)
 - **Голосование:** блокчейн-голосование за развитие новых функций
 
 ### Управление через смарт-контракт DLE

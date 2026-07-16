@@ -1,209 +1,272 @@
 **English** | [Русский](LICENSE.ru)
 
-PROPRIETARY SOFTWARE LICENSE
-END USER LICENSE AGREEMENT (EULA)
+# PROPRIETARY SOFTWARE LICENSE  
+# END USER LICENSE AGREEMENT (EULA)  
+## Digital Legal Entity (DLE)
 
-Copyright (c) 2024-2026 Alexander Viktorovich Tarabanov
-All rights reserved.
+**Version:** 2026-07-16  
+**Version ID:** EULA-DLE-2026-07-16
 
-This software and associated documentation files (the "Software") include
- the **initial (baseline) source code** of DLE, copyrighted by **Alexander
- Viktorovich Tarabanov**, and **Updates** by Authorized Contributors — see
- [CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md) (Section 4).
+Copyright (c) 2024-2026 Aleksandr Viktorovich Tarabanov. All rights reserved.
 
 ---
 
-## RELATIONSHIP TO OTHER DOCUMENTS
+## 1. Parties
 
-This License applies to **End Users (Licensees)** who obtained the Software
-through purchase of a license token from an **Authorized Contributor** or
-directly from the Author.
-
-| Document | Audience | Purpose |
-|----------|----------|---------|
-| This LICENSE | End User | Core IP restrictions and permitted use |
-| [service-terms.md](docs.en/service-terms.md) | End User | Purchase, tokens, updates, support, liability |
-| [CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md) | Authorized Contributor | Sale, modification, royalty to Author |
-
-**Hierarchy:** For paying Licensees, if this License conflicts with
-[service-terms.md](docs.en/service-terms.md) on commercial terms (pricing,
-updates, tokens, support, refunds), **service-terms.md prevails**.
-This License prevails on copyright and unauthorized use of the Software.
-
-Sales and modification by third parties are permitted **only** for parties
- holding an [Authorized Contributor License](legal.en/CONTRIBUTOR_LICENSE.md).
-
----
-
-## TEMPLATE DOCUMENTS AND COUNTRY LOCALIZATION
-
-LICENSE, service-terms, and related files in the DLE repository are **standard
- template documents** of the copyright holder. They do not replace a mandatory
- purchase or license agreement in a specific country.
-
-**In each country:**
-
-- An **Authorized Contributor** adapts terms to local law (taxes, currency,
-  refunds, personal data, consumer protection, language, seller details).
-- The customer enters into a contract with the **Contributor in their
-  jurisdiction** (or with the Author if direct sale is explicitly offered).
-- **Governing law and disputes** are defined in the **local contract** with
-  the Contributor, unless otherwise agreed in writing with the Author.
-
-**Unchanged in all jurisdictions** (unless a local contract explicitly grants
- the customer additional rights):
-
-- copyright in the **initial (baseline) code** of DLE — **Alexander V. Tarabanov**
-  (or successor upon notice, see below);
-- copyright in **Contributor Updates** — the Contributor, with the **Author’s
-  right of first refusal** on disposal (CONTRIBUTOR_LICENSE § 4);
-- no resale of source code to third parties;
-- source code modification — Authorized Contributors only;
-- royalty to Author **1,000 / 10,000 USDT** per license, paid upon written
-  request (CONTRIBUTOR_LICENSE § 3).
-
-Localized service-terms may be published by Contributors on hb3-accelerator.com
- or in the data room for the relevant country.
-
----
-
-## SUCCESSION AND ASSIGNMENT BY THE AUTHOR
-
-The Author may **assign exclusive rights** to the **initial (baseline) source
- code** of DLE and/or the **right to receive royalty** to a third party
- (**successor**) in writing (see [CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md),
- Section 8).
-
-Upon notice to Contributors and customers:
-
-- this EULA may be granted by the **successor** if exclusive code rights were
-  assigned;
-- Contributors pay royalty to the **successor** if the right to receive royalty
-  was assigned.
-
-Notice is published on hb3-accelerator.com or sent in writing.
-
----
-
-## LICENSE ACCEPTANCE
-
-Acceptance of this License (EULA) occurs through **two linked mechanisms**:
-
-1. **Local contract with the Contributor.** The customer enters into a purchase
-   or license agreement in their jurisdiction with an **Authorized Contributor**.
-   **Mandatory appendices** to that contract are this LICENSE and
-   [service-terms.md](docs.en/service-terms.md) (or Contributor-localized versions
-   approved by the copyright holder). The local contract governs commercial terms:
-   price, payment, taxes, refunds, claims, governing law, and jurisdiction. It
-   **may not** restrict the copyright holder’s rights below this License,
-   **except** where applicable law explicitly improves the customer’s position.
-
-2. **Receipt of the license token.** Crediting a **license token** to the
-   customer’s wallet address on **Sepolia** (see service-terms) **constitutes
-   acceptance** of this License with the **copyright holder** (Author or
-   successor under “Succession and Assignment”). Date, wallet address, and token amount are recorded
-   on-chain.
-
-Both mechanisms **complement each other**: the local contract frames the sale
- with the seller in the customer’s country; token receipt confirms the EULA with
- the copyright holder and binds the license to the wallet.
-
----
-
-## TERMS AND CONDITIONS
-
-### 1. GRANT OF LICENSE
-
-Subject to compliance with this License and, for paying Licensees,
-[service-terms.md](docs.en/service-terms.md), **Alexander Viktorovich Tarabanov**
- or a **successor** identified in notice under “Succession and Assignment”
- grants you a **non-exclusive, perpetual** license to install and use the
-Software for your business operations on your own infrastructure.
-
-The license becomes effective upon **acceptance** of this License as described
- in the “License Acceptance” section: execution of a local contract with LICENSE
- and service-terms as appendices **and** receipt of a **license token** on
- **Sepolia** to the customer’s wallet.
-
-### 2. PERMITTED USE (END USER)
-
-You may:
-
-- Use the Software for your own business operations
-- Install and run the Software on systems you control
-- Use the Software to serve your own customers (not as multi-tenant SaaS)
-- Integrate the Software into your internal business processes
-- Modify **configuration** files and environment settings locally
-- Back up the Software and your data
-
-### 3. RESTRICTIONS (END USER)
-
-You may NOT:
-
-- Resell, redistribute, or sublicense the **source code** of the Software to
-  third parties
-- Publish or share the Software (source or deployable artifacts) except as
-  required for your licensed deployment
-- Modify **source code** of the Software (except configuration as in Section 2)
-- Reverse engineer, decompile, or disassemble the Software, except where
-  mandatory applicable law allows
-- Remove or alter copyright or license notices
-- Deploy the Software as **multi-tenant SaaS** for unrelated third parties
-- Use the Software in educational institutions without written permission
-
-**Note:** Modification and resale of license tokens are governed by
-service-terms (blockchain transfer). This does not grant rights to
-redistribute source code.
-
-### 4. AUTHORIZED CONTRIBUTORS
-
-Commercial distribution and code modification are permitted **only** for
-entities that have signed or accepted the
-[Contributor License Agreement](legal.en/CONTRIBUTOR_LICENSE.md) with the
-Author. All other parties remain subject to Sections 3 and 5.
-
-### 5. UPDATES
-
-Updates are provided according to [service-terms.md](docs.en/service-terms.md)
-(for token holders, typically 5 years from license transfer on-chain).
- **After 5 years**, the right to use **existing versions** of the Software
- remains; the obligation to provide updates, patches, and support **does not
- apply** (service-terms § 4.3). Updates do not expand redistribution rights
- beyond this License.
-
-### 6. TERMINATION
-
-This license terminates automatically upon material breach of its terms.
-Upon termination you must cease use and destroy copies, except backups
-required by law.
-
-### 7. DISCLAIMER OF WARRANTIES
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTIES OF ANY KIND.
-
-### 8. LIMITATION OF LIABILITY
-
-For paying Licensees, liability limits in
-[service-terms.md](docs.en/service-terms.md) Section 7 apply in addition
-to this License.
-
----
-
-Licensing inquiries: info@hb3-accelerator.com  
+**Rightsholder (Licensor):**  
+Aleksandr Viktorovich Tarabanov  
+Email: info@hb3-accelerator.com  
 Website: https://hb3-accelerator.com  
-GitHub: https://github.com/VC-HB3-Accelerator
 
-Full legal index: [legal.en/README.md](legal.en/README.md)
+or a **Successor** identified in a notice under Section 4.
 
-## 🔐 DIGITAL SIGNATURE
+**Licensee (Client):**  
+the person that has accepted this EULA by the methods in Section 5.
 
-This file is signed with a digital signature for copyright protection.
+**Seller:** an Authorized Contributor or the Author in a direct sale — the party to the local contract with the Client on price and delivery. The Seller is **not** the owner of the DLE source code and may not hold itself out as such.
 
-**Verify signature:**
+This EULA is intended for **B2B / organizations**. Mandatory consumer rights (if any) remain and are not limited by this EULA beyond what applicable law allows.
+
+---
+
+## 2. Definitions
+
+| Term | Meaning |
+|------|---------|
+| **Software / DLE** | Digital Legal Entity — the software and related documentation |
+| **Source Code** | The initial (baseline) DLE source code; copyright belongs to the Rightsholder |
+| **Updates** | Updates and modifications by Authorized Contributors; copyright in Updates belongs to the relevant Contributor, subject to a right of first refusal for the Author or Successor ([CONTRIBUTOR_LICENSE.md](legal.en/CONTRIBUTOR_LICENSE.md) § 6; see also [legal.ru/CONTRIBUTOR_LICENSE.md](legal.ru/CONTRIBUTOR_LICENSE.md)) |
+| **License Token** | ERC20 governance token (Standard — 1; Premium — 10) |
+| **Sepolia** | Network of primary token issuance to the Client |
+| **Service Terms** | [legal.en/service-terms.md](legal.en/service-terms.md) or a Rightsholder-approved localized version (Russian reference: [legal.ru/service-terms.md](legal.ru/service-terms.md)) |
+| **Third-Party Components** | Third-party libraries and materials in the delivery, licensed on their own rightsholders’ terms |
+
+The Software includes the Source Code and may include Updates and Third-Party Components.
+
+---
+
+## 3. Relationship to other documents
+
+| Document | Purpose |
+|----------|---------|
+| This EULA | IP, license scope, restrictions (Client ↔ Rightsholder) |
+| Service Terms | Tokens, updates, support, refunds, voting, liability |
+| Local contract with the Seller | Price, payment, taxes, disputes on the sale |
+| CONTRIBUTOR_LICENSE | Author ↔ Contributor only; does not govern the Client |
+
+On commercial terms for paying Licensees, Service Terms prevail (unless the local contract with the Seller improves the Client’s position).  
+On copyright and use restrictions, this EULA prevails.  
+The local contract shall not weaken EULA IP restrictions except where mandatory law expressly improves the Client’s position.
+
+Sale and modification of the Source Code by third parties are allowed only for parties under [CONTRIBUTOR_LICENSE](legal.en/CONTRIBUTOR_LICENSE.md).
+
+This EULA, as to Client ↔ Rightsholder IP relations, is the entire agreement on that subject and supersedes prior negotiations thereon. Changes to the EULA are made only in writing by the Rightsholder by publishing a new version; for a version already accepted by the Client, EULA IP terms are not worsened retroactively without the Client’s consent, except as required by law.
+
+---
+
+## 4. Succession
+
+The Rightsholder may assign in writing to a third party (**Successor**) the exclusive rights in the Source Code and/or other rights described in CONTRIBUTOR_LICENSE.
+
+From the time of notice (https://hb3-accelerator.com and/or in writing), the licensor under this EULA is the person named in the notice, if exclusive rights in the Source Code have been assigned to that person.
+
+---
+
+## 5. Acceptance of the EULA and version fixation
+
+5.1. Acceptance occurs through two linked methods:
+
+1. **Local contract with the Seller.** The Client enters into a purchase / license agreement with an Authorized Contributor (or with the Author in a direct sale). Appendices: this EULA and the Service Terms (or Rightsholder-approved localized versions), stating the EULA **version ID**.
+
+2. **License Token.** Crediting a license token to the Client’s wallet on Sepolia constitutes acceptance of this EULA with the Rightsholder. Date, wallet address, and token amount are recorded on-chain.
+
+5.2. The local contract is the deal with the Seller; the token is acceptance of the EULA with the Rightsholder and binds the license to the wallet.
+
+5.3. The Parties fix the accepted EULA text by one or more of: stating the version ID and date in the local contract; retaining a copy of the file; a cryptographic hash of the EULA text stated in the contract or in a token delivery act. Absent other fixation, the accepted version is the one with ID **EULA-DLE-2026-07-16** in force on the token credit date, unless the contract states otherwise.
+
+---
+
+## 6. Grant of license
+
+6.1. Subject to this EULA and, for paying Licensees, the Service Terms, the Rightsholder grants the Client a non-exclusive, perpetual license to install and use the Software for the Client’s business operations on the Client’s own (Client-controlled) infrastructure.
+
+6.2. The license takes effect upon acceptance under Section 5.
+
+6.3. Packages and token amounts follow the Service Terms (Standard — 1 token; Premium — 10 tokens; one license — one line of business, unless the Service Terms state otherwise).
+
+6.4. After acceptance of this EULA and installation of the instance delivered to the Client, that instance (installed copy, deployment artifacts, and related Client data) and the right to use it are the **Client’s asset**. The Rightsholder **may not unilaterally** revoke the license to use versions already delivered to the Client and may not require return or destruction of such instances except under Section 14 upon the Client’s material breach of this EULA. Copyright in the Source Code remains with the Rightsholder; copyright in Updates remains with the relevant Contributor (Section 10). The Client does not acquire exclusive rights in the Software.
+
+6.5. The perpetual right to use **versions already held by the Client** continues after the end of update obligations under the Service Terms. This EULA does not create an escrow obligation for source code unless separately agreed in writing.
+
+---
+
+## 7. Permitted use
+
+The Client may:
+
+- use the Software for its own business;
+- install and run the Software on systems it controls;
+- use the Software to serve its own customers (not as multi-tenant SaaS for unrelated third parties);
+- integrate the Software into internal business processes;
+- change configuration and environment settings locally;
+- create backups of the Software and data.
+
+---
+
+## 8. Restrictions
+
+The Client may not:
+
+- resell, redistribute, or sublicense the Source Code to third parties;
+- publish or transfer the Software (source or deployment artifacts) except as needed for licensed deployment;
+- modify the Source Code (except configuration under Section 7);
+- reverse engineer, decompile, or disassemble, except where mandatory applicable law requires;
+- remove or alter copyright notices;
+- deploy the Software as multi-tenant SaaS for unrelated third parties;
+- use the Software in educational institutions without the Rightsholder’s written permission;
+- use the Software in breach of sanctions, export-control, or other mandatory restrictions of applicable law (Section 9).
+
+Transfer of the license token is governed by the Service Terms and does not grant rights to distribute the Source Code.
+
+Assignment of the license by the Client to a third party is allowed only together with transfer of the license token under the Service Terms (governance) and provided the Client’s assignee accepts this EULA. Reorganization of the Client without change of control over the wallet/token does not require separate Rightsholder consent if other EULA and Service Terms conditions are met.
+
+---
+
+## 9. Sanctions, export control, and prohibited use
+
+9.1. The Client represents that it and its beneficial owners are not on sanctions lists applicable to the transaction and do not use the Software to evade sanctions or export controls.
+
+9.2. The Client may not supply, transfer, or use the Software in breach of applicable export-control and sanctions rules (including those of the Client’s country, the Seller’s country, and other regimes binding on the parties).
+
+9.3. Without the Rightsholder’s written consent, the Software is not used for development, production, or control of weapons of mass destruction or other activities expressly prohibited by applicable export law.
+
+9.4. Breach of Section 9 is a material breach of the EULA.
+
+---
+
+## 10. Updates and third-party components
+
+10.1. The Client may use Updates within its license.
+
+10.2. Copyright in Updates belongs to the Contributor that created them. The Client does not acquire exclusive rights in Updates or in the Source Code.
+
+10.3. Third-Party Components are provided under their own licenses. Such licenses do not expand the Client’s rights in the Rightsholder’s proprietary Source Code. The Client shall comply with [THIRD_PARTY_NOTICES.md](legal.en/THIRD_PARTY_NOTICES.md) and attribution requirements in the delivery.
+
+---
+
+## 11. Data, confidentiality, and personal data
+
+11.1. Hosting, processing, and protection of Client data on Client infrastructure are the Client’s responsibility unless otherwise agreed with the Seller separately (including a DPA).
+
+11.2. The DLE model does not place personal data on the public blockchain as the content of the license token; the token and on-chain records are used for licensing and governance, not as a personal-data registry. Processing of personal data in the application is governed by the local contract / policy / DPA with the Seller and applicable law (GDPR, 152-FZ, and equivalents).
+
+11.3. The Client shall not disclose the Source Code or non-public delivery materials to third parties except as needed for licensed use and as required by law.
+
+---
+
+## 12. Compliance and audit
+
+12.1. The Client uses the Software in accordance with applicable law of its jurisdiction.
+
+12.2. The Rightsholder may reasonably request confirmation from the Client of compliance with Sections 6–9 (without access to Client confidential data beyond what is necessary). Audit arrangements for regulated clients may be agreed further in the local contract with the Seller.
+
+---
+
+## 13. Updates and support
+
+The term of updates and support, post-term conditions, voting, token migration, and refunds are in the Service Terms.  
+Updates do not expand redistribution rights beyond this EULA.
+
+---
+
+## 14. Termination
+
+14.1. The Rightsholder **does not terminate** the license on its own initiative (including change of Successor, change of commercial policy, or end of support). The license terminates **only** upon the Client’s material breach of this EULA (in particular Sections 8–10).
+
+14.2. After termination under clause 14.1, the Client shall cease use and destroy copies, except backups required by law.
+
+14.3. Provisions on IP, restrictions, sanctions, data, disclaimer of warranties, liability, injunctive relief, governing law, and disputes survive termination to the extent necessary.
+
+---
+
+## 15. Disclaimer of warranties
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTIES OF ANY KIND, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.
+
+---
+
+## 16. Limitation of liability
+
+For paying Licensees, liability limits in the Service Terms apply, unless mandatory law provides otherwise in favor of the Client.
+
+---
+
+## 17. Injunctive relief
+
+The Rightsholder may seek injunctive relief (including interim measures) for breaches of Sections 6–10 without proving the amount of damages to the extent permitted by applicable law and the rules of the chosen forum.
+
+---
+
+## 18. Notices
+
+Notices to the Rightsholder are sent to info@hb3-accelerator.com and are deemed received on the next business day of sending in UTC unless proven otherwise.  
+Notices to the Client — to the address in the local contract with the Seller and/or a wallet-linked contact method agreed with the Seller.  
+Publication on https://hb3-accelerator.com is sufficient for notices of Successor and new versions of standard documents unless the local contract requires otherwise.
+
+---
+
+## 19. Governing law and disputes under this EULA
+
+19.1. Disputes arising from the **deal with the Seller** (price, payment, delivery of the distribution) are governed by the Client’s local contract with the Seller.
+
+19.2. Disputes arising from **this EULA** (license scope, IP, restrictions, sanctions) are governed by the law of:  
+`[specify: e.g. England and Wales / Switzerland / Rightsholder’s country / other]`.
+
+19.3. Such disputes shall be resolved by:  
+`[specify: ICC / LCIA / SIAC arbitration / courts of ________; seat ________; language ________]`.
+
+19.4. Until clauses 19.2–19.3 are completed in a signed copy / local contract (incorporating the EULA), the following applies: law of **England and Wales**; **LCIA** arbitration, one arbitrator, seat London, language English; provided that mandatory Client-protection rules at the Client’s place of incorporation remain to the extent they cannot be waived.
+
+19.5. Applications for injunctive relief under Section 17 may be brought in any competent court where protection is needed, without waiving arbitration on the merits.
+
+---
+
+## 20. Language
+
+The authentic text of this EULA is **Russian** ([LICENSE.ru](LICENSE.ru)). Translations into other languages are for convenience. In case of conflict, the Russian text prevails unless the local contract with the Seller for the relevant delivery expressly states otherwise (for example, priority of an English translation approved by the Rightsholder).
+
+---
+
+## 21. Miscellaneous
+
+21.1. Invalidity of any provision does not affect the remaining provisions of the EULA.
+
+21.2. Failure to exercise a right is not a waiver.
+
+21.3. The Client may not assign rights under the EULA other than under Section 8 (token / governance).
+
+---
+
+## 22. Contacts
+
+info@hb3-accelerator.com  
+https://hb3-accelerator.com  
+https://github.com/VC-HB3-Accelerator  
+
+---
+
+## Digital signature
+
 ```bash
 gpg --verify LICENSE.asc LICENSE
 ```
 
-**GPG Key ID:** 4603583F81054FEECE7E821E026FD26F71D70B17
-**Signature date:** 2026-07-01
-**Author:** Alexander Viktorovich Tarabanov
+**GPG Key ID:** 4603583F81054FEECE7E821E026FD26F71D70B17  
+
+After a material amendment of the text, the signature is renewed.
+
+---
+
+**© 2024-2026 Aleksandr Viktorovich Tarabanov. All rights reserved.**
+
+**Last updated:** 2026-07-16

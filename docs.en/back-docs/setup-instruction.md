@@ -152,6 +152,9 @@ After these steps the application is fully configured.
 - [Security](../security.md)
 - [Blockchain technical docs](./blockchain-integration-technical.md)
 - [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md)
-- [Application description](../application-description.md)
+- [Product README](../../README.md) — install and product overview
+- [AI agents](../ai-assistant.md)
+- [Blockchain for business](../blockchain-for-business.md)
+- [Security](../security.md)
 
 **Support:** https://hb3-accelerator.com/ | info@hb3-accelerator.com

@@ -22,12 +22,15 @@
 
 | Document | Description |
 |----------|-------------|
-| [application-description.md](docs.en/application-description.md) | Platform overview, main benefits, and economic impact. |
-| [ai-assistant.md](docs.en/ai-assistant.md) | AI agents: architecture, creating agents for business processes, examples, and economics. |
-| [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Business case and use cases for blockchain in DLE. |
-| [security.md](docs.en/security.md) | Security model, access control, and safeguards. |
-| [service-terms.md](docs.en/service-terms.md) | Terms of purchase and service for the license. |
-| [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) | Frequently asked questions. |
+| [LICENSE](LICENSE) | EULA — license, IP, non-revocation |
+| [service-terms.md](legal.en/service-terms.md) | Terms of purchase and service |
+| [contributor-client-agreement.md](legal.en/templates/contributor-client-agreement.md) | Contributor ↔ client agreement template |
+| [contributor-client-specification.md](legal.en/templates/contributor-client-specification.md) | Specification / invoice |
+| [contributor-client-acceptance-act.md](legal.en/templates/contributor-client-acceptance-act.md) | Acceptance act and token Tx record |
+| [ai-assistant.md](docs.en/ai-assistant.md) | AI agents: architecture, examples, setup |
+| [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Blockchain for business and practical cases |
+| [security.md](docs.en/security.md) | Security and regulatory compliance |
+| [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) | Frequently asked questions |
 
 ### Technical and backend docs
 

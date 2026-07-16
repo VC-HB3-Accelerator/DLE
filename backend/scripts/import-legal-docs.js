@@ -169,9 +169,12 @@ function markdownToHtml(markdown) {
 async function importLegalDocument(filename, metadata) {
   // Пробуем разные пути в зависимости от окружения
   const possiblePaths = [
-    path.join('/legal', filename),                         // Docker окружение
-    path.join(__dirname, '..', '..', 'legal', filename),  // Локальное окружение
-    path.join(process.cwd(), '..', 'legal', filename)     // Альтернативный путь
+    path.join('/legal', filename),                         // Docker окружение (legacy flat)
+    path.join('/legal.ru', filename),                      // Docker: legal.ru
+    path.join(__dirname, '..', '..', 'legal.ru', filename),  // Локально: legal.ru
+    path.join(__dirname, '..', '..', 'legal', filename),  // Локальное окружение (legacy)
+    path.join(process.cwd(), '..', 'legal.ru', filename),
+    path.join(process.cwd(), '..', 'legal', filename)
   ];
   
   let filePath = null;

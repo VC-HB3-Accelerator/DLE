@@ -1,63 +1,60 @@
-**English** | [Русский](../../legal.ru/templates/README.md)
+[English](README.md) | **[Русский](../../legal.ru/templates/README.md)**
 
-# Lawyer Templates (DLE)
+# DLE contract templates (contributor)
 
 ## Purpose
 
-Files in this folder are **not final contracts** and are **not tied to any single
- country**. They are **reference materials for lawyers**: mandatory clauses and
- recommended structure used to draft **local contracts**:
+Ready **model documents** for an authorized contributor selling a DLE license to a client in **any jurisdiction**. Fill in `[…]`; do not weaken the EULA or service-terms.
 
-- **Author ↔ Contributor** — partnership, royalty, IP, territory;
-- **Contributor ↔ customer** — B2B, regulators (see [client-license-contract.md](client-license-contract.md)).
-
-**The lawyer determines locally** (for each party and jurisdiction):
-
-- governing law and jurisdiction;
-- taxes, currency, payment method;
-- party details, signatures, public procurement (if any);
-- privacy and sector-specific regulation;
-- wording for customer type (company, government body).
-
-**Global non-negotiables** (unless local law improves the customer’s position):
- see [CONTRIBUTOR_LICENSE.md](../CONTRIBUTOR_LICENSE.md), [LICENSE](../../LICENSE),
- [service-terms.md](../../docs.en/service-terms.md).
-
----
-
-## Documents
-
-| File | Audience | Content |
-|------|----------|---------|
-| [contributor-author-contract.md](contributor-author-contract.md) | **Author ↔ Contributor** lawyer | Royalty, IP, Updates, territory, successor |
-| [client-license-contract.md](client-license-contract.md) | Contributor’s lawyer ↔ **customer** | Token, EULA, Sepolia, B2B/regulator |
-| [../CONTRIBUTOR_LICENSE.md](../CONTRIBUTOR_LICENSE.md) | Base template text | Contributor agreement (contract appendix) |
-
----
-
-## Contract hierarchy
+| Layer | Document |
+|-------|----------|
+| Author ↔ Contributor | [CONTRIBUTOR_LICENSE.md](../CONTRIBUTOR_LICENSE.md) |
+| Contributor ↔ Client | templates below |
+| Client ↔ Rightsholder (IP) | [LICENSE](../../LICENSE) / [LICENSE.ru](../../LICENSE.ru) + on-chain token |
+| Product commercial terms | [service-terms](../service-terms.md) (or approved localized version) |
 
 ```
-Author ←—— contributor-author-contract
-              │
-              ▼
-        Contributor ←—— client-license-contract
-              │              ├── Appendix: LICENSE (EULA)
-              │              └── Appendix: service-terms
-              ▼
-        Sepolia token = EULA acceptance with rights holder / successor
+Author ── CONTRIBUTOR_LICENSE ──► Contributor
+                                       │
+                                       ├── Agreement + Specification + Act
+                                       │         ├── Annex EULA
+                                       │         └── Annex service-terms
+                                       ▼
+                                  Client + Sepolia token = EULA acceptance
 ```
 
 ---
 
-## Customer audience
+## Contributor ↔ Client documents
 
-Typical DLE customers are **B2B** and **regulated organizations**. Lawyers add
- sector appendices (security, audit, DPA, SLA, data residency) per customer and
- **local** law requirements.
+| File | Purpose |
+|------|---------|
+| [contributor-client-agreement.md](contributor-client-agreement.md) | Model license supply agreement |
+| [contributor-client-specification.md](contributor-client-specification.md) | Specification / order / invoice |
+| [contributor-client-acceptance-act.md](contributor-client-acceptance-act.md) | Acceptance act and Tx record |
+
+IDs: **CCA / CCS / CAA-DLE-2026-07-16**.
 
 ---
 
-**© 2024-2026 Alexander Viktorovich Tarabanov**
+## Fill in locally
 
-**Last updated:** July 2026
+- Party details, currency, taxes, payment method  
+- Governing law and court / arbitration (Agreement § 10)  
+- Privacy / DPA documents  
+- If needed: SLA, security, public procurement  
+
+**Do not weaken (unless mandatory law favors the client):** self-hosted; seller ≠ source-code owner; Sepolia for EULA acceptance; non-revocation / instance as asset per EULA §§ 6.4, 14; 70% refund debtor = author.
+
+---
+
+## Superseded
+
+Removed (2026-07-16): `client-license-contract.md`, `contributor-author-contract.md`.  
+Author ↔ Contributor → [CONTRIBUTOR_LICENSE.md](../CONTRIBUTOR_LICENSE.md).  
+Contributor ↔ Client → `contributor-client-*` files above.
+
+---
+
+**© 2024-2026 Aleksandr Viktorovich Tarabanov**  
+**Updated:** 2026-07-16

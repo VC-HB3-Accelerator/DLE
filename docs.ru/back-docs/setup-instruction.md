@@ -190,7 +190,10 @@
 ### Техническая информация
 - 🔗 **[Техническая документация по блокчейну](./blockchain-integration-technical.md)** - для разработчиков
 - 📋 **[FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)** — часто задаваемые вопросы
-- 📝 **[Описание приложения](../application-description.md)** - обзор функциональности
+- 📝 **[README](../../README.ru.md)** — установка и обзор продукта
+- 📝 **[ИИ-агенты](../ai-assistant.md)** — функциональность агентов
+- 📝 **[Блокчейн для бизнеса](../blockchain-for-business.md)** — кейсы и токенизация
+- 📝 **[Безопасность](../security.md)** — модель защиты
 
 ### Поддержка
 - 💬 **Чат поддержки**: https://hb3-accelerator.com/

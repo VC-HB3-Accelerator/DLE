@@ -65,4 +65,4 @@
 
 ## 12. Deliverables
 
-Backend: routes, controllers, service, migration. Frontend: pages, service, updated routes, HomeView, ContentListView. Docs: README, application-description or tables-system if schemas change, this spec.
+Backend: routes, controllers, service, migration. Frontend: pages, service, updated routes, HomeView, ContentListView. Docs: README, tables-system if schemas change, this spec.

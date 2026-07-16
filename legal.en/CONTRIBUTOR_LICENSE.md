@@ -15,10 +15,11 @@ This agreement governs the relationship between the **Author** (copyright holder
  right to sell licenses and modify DLE code.
 
 End customers are governed by the [LICENSE](../LICENSE) and
- [service-terms.md](../docs.en/service-terms.md) (template versions) or
+ [service-terms.md](service-terms.md) (template versions) or
  **localized documents** from the Contributor in the customer’s country.
- The customer contract is drafted by the **Contributor’s lawyer** using
- [templates/client-license-contract.md](templates/client-license-contract.md).
+ The customer contract is drafted from
+ [templates/contributor-client-agreement.md](templates/contributor-client-agreement.md)
+ (plus Specification and Acceptance Act).
 
 ### 1.1. Country localization
 
@@ -42,9 +43,8 @@ Templates in the DLE repository are the **reference**; if a local customer
 
 Upon acceptance of this agreement (in writing or as part of a contract with
  the Author), the Author grants the Contributor a **non-exclusive** right.
- An individual contract is drafted by **lawyers** using
- [templates/contributor-author-contract.md](templates/contributor-author-contract.md);
- this CONTRIBUTOR_LICENSE is the template text (contract appendix).
+ This CONTRIBUTOR_LICENSE is the **model agreement** Author ↔ Contributor
+ (see also the Russian text [../legal.ru/CONTRIBUTOR_LICENSE.md](../legal.ru/CONTRIBUTOR_LICENSE.md)).
 
 **The Contributor may:**
 
@@ -147,7 +147,7 @@ Selling a **license token** to a customer is the permitted channel for
 1. Ensure customers receive the [LICENSE](../LICENSE) terms
 2. Enter into a **local purchase or license contract** with each customer;
    **appendices** to the contract — [LICENSE](../LICENSE) and
-   [service-terms.md](../docs.en/service-terms.md) (or localized versions)
+   [service-terms.md](service-terms.md) (or localized versions)
 3. Comply with [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md)
 4. Include [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) in distributions
 5. Not remove copyright or proprietary notices
@@ -178,7 +178,7 @@ After termination the Contributor stops selling new licenses and modifying code,
 |----------|------------|
 | [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Contributor ↔ Author |
 | [LICENSE](../LICENSE) | Contributor ↔ customer (via token) |
-| [service-terms.md](../docs.en/service-terms.md) | Customer commercial terms |
+| [service-terms.md](service-terms.md) | Customer commercial terms |
 
 If this agreement conflicts with an individual **written contract** with the
  Author, the individual contract prevails.
@@ -218,7 +218,7 @@ If this agreement conflicts with an individual **written contract** with the
 **Website:** https://hb3-accelerator.com
 
 **Example Authorized Contributor (Russia):** LLC "ERAITI" — see
- [service-terms.md § 11](../docs.en/service-terms.md#11-payment-and-contributors)
+ [service-terms.md § 11](service-terms.md#11-payment-and-contributors)
 
 ---
 

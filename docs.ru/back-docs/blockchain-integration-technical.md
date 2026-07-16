@@ -1034,7 +1034,7 @@ function vote(uint256 _proposalId, bool _support) external {
 - 📖 [Основной README](../../README.md)
 - 📋 [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md)
 - 🔧 [Инструкция по установке](./setup-instruction.md)
-- 📝 [Условия обслуживания](../service-terms.md)
+- 📝 [Условия обслуживания](../../legal.ru/service-terms.md)
 - ⚖️ [Юридическая документация](../../legal.ru/README.md)
 
 ### Контакты и поддержка
