@@ -70,7 +70,7 @@ Consistency with the EULA: the perpetual right to use versions already delivered
 
 ### 1.2. License and Tokens
 
-Each DLE license is linked to a **governance token on the blockchain**. The token evidences the right to use the platform and grants a vote in product development.
+Each DLE license is linked to a **governance token on the blockchain**. The token evidences the right to use the operating system and grants a vote in product development.
 
 | Parameter | 1 token | 10 tokens |
 |-----------|---------|-----------|
@@ -119,7 +119,7 @@ Taxes and charges — as agreed with the seller; the parties’ liability
 
 ### 2.2. What Is Included in Both Licenses
 
-- Perpetual right to use the platform; the installed instance — a Client asset (EULA § 6.4)
+- Perpetual right to use the operating system; the installed instance — a Client asset (EULA § 6.4)
 - Full source code with documentation
 - Free updates and support for 5 years (for token holders); thereafter — right to use versions already obtained (§ 4.3)
 - Technical support (SLA by issue priority)
@@ -146,7 +146,7 @@ All fees for transfers, conversion, and payment processing are borne by the buye
 3. Obtain payment details
 4. Pay the Contributor or the Author
 5. Confirmation and payment document
-6. Receive the **license token** on the **Sepolia** test network and access to the platform
+6. Receive the **license token** on the **Sepolia** test network and access to the operating system
 7. The Contributor **accrues** to the Author royalty of 1,000 / 10,000 USDT per license;
    **payment** — upon the Author’s written request (see [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) § 5)
 
@@ -215,7 +215,7 @@ For all holders of license tokens from the token-transfer date recorded on the b
 | Regular Updates | Weekly (Wednesdays) |
 | Major Features | Per voting results |
 
-### 4.2. Updates Platform
+### 4.2. OS updates contour
 
 **Address:** https://hb3-accelerator.com/
 
@@ -239,7 +239,7 @@ For **5 years** from the on-chain token-transfer date, all license holders recei
 
 After expiry of the 5-year term, the support and training obligation **does not apply** (see [§ 4.3](#43-after-5-years)).
 
-Detailed support terms, training, online sessions, and platform setup — within the [accelerator program](https://github.com/VC-HB3-Accelerator/.github/blob/main/%D0%92%D0%B5%D1%80%D1%81%D0%B8%D1%8F%20%D0%BD%D0%B0%20%D1%80%D1%83%D1%81%D1%81%D0%BA%D0%BE%D0%BC/accelerator-program.md).
+Detailed support terms, training, online sessions, and OS setup — within the [accelerator program](https://github.com/VC-HB3-Accelerator/.github/blob/main/%D0%92%D0%B5%D1%80%D1%81%D0%B8%D1%8F%20%D0%BD%D0%B0%20%D1%80%D1%83%D1%81%D1%81%D0%BA%D0%BE%D0%BC/accelerator-program.md).
 
 ---
 
@@ -327,7 +327,7 @@ The user is responsible for:
 - Removal of copyright and license notices
 - Shared use between independent organizations
 - Use for educational purposes without permission
-- Deployment of SaaS based on the platform
+- Deployment of SaaS based on the operating system
 
 A material breach of the prohibitions of this Section and [LICENSE](../LICENSE)
  may result in **license termination** only under EULA § 14 (not on the

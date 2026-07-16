@@ -1,6 +1,6 @@
 **English** | [Русский](../docs.ru/case-coca-cola-on-dle.md)
 
-# Case: Coca-Cola on the DLE platform
+# Case: Coca-Cola on the DLE operating system
 
 ## Essence
 
@@ -32,7 +32,7 @@ Buyer
 
 Each stage is a separate contract, separate accounting, separate bookkeeping. Quality control — sampling checks. Counterfeiting is a real problem (fake plants in Mexico and elsewhere).
 
-### On the DLE platform
+### On the DLE operating system
 
 ```
 Coca-Cola Company (concentrate + brand smart contract)
@@ -159,7 +159,7 @@ Beyond banking costs, DLE replaces dozens of corporate products with paid subscr
 - Product accounting — automatic, from the production line
 - Buyer verifies authenticity in a second
 - FX losses ~$960M/year — disappear
-- Dozens of corporate subscriptions (ERP, CRM, WMS, audit, data, reconciliation) — replaced by the platform
+- Dozens of corporate subscriptions (ERP, CRM, WMS, audit, data, reconciliation) — replaced by the DLE operating system
 
 ---
 

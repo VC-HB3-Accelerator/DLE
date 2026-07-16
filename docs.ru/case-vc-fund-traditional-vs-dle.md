@@ -1,6 +1,6 @@
 [English](../docs.en/case-vc-fund-traditional-vs-dle.md) | **Русский**
 
-# Кейс: OpenAI на платформе DLE
+# Кейс: OpenAI на операционной системе DLE
 
 ## Суть
 

@@ -6,7 +6,7 @@
 
 There are two ways to organize a business. The traditional path — registration, bank, accountant, CRM, subscriptions, intermediaries. Each process is a separate service, a separate contract, a separate dependency.
 
-The DLE platform is a different approach. The smart contract becomes the company’s digital core. It selectively replaces individual products from various corporations that businesses pay for by subscription: a bank current account, outsourced accounting, CRM, cloud storage, messengers, AI services. Business assets and products (goods, services) are tokenized. Tokens become receipts, product passports, access rights. Smart contracts connect to production lines and keep precise accounting. Taxes are calculated automatically from operations. Deals run online.
+The DLE operating system is a different approach. The smart contract becomes the company’s digital core. It selectively replaces individual products from various corporations that businesses pay for by subscription: a bank current account, outsourced accounting, CRM, cloud storage, messengers, AI services. Business assets and products (goods, services) are tokenized. Tokens become receipts, product passports, access rights. Smart contracts connect to production lines and keep precise accounting. Taxes are calculated automatically from operations. Deals run online.
 
 All of this — on your server, under your control.
 
@@ -16,13 +16,13 @@ Below is a comparison by concrete parameters.
 
 ## 1. Registration and launch
 
-| Parameter | Traditional path | DLE platform |
+| Parameter | Traditional path | DLE operating system |
 |----------|------------------|---------------|
-| Legal entity registration | 1–4 weeks, state fee 4,000 ₽, notary, lawyer, qualified e-signature — from 9,000 ₽ turnkey | Deploy a smart contract with governance tokens — minutes. The legal entity is registered in parallel; the platform does not depend on it |
+| Legal entity registration | 1–4 weeks, state fee 4,000 ₽, notary, lawyer, qualified e-signature — from 9,000 ₽ turnkey | Deploy a smart contract with governance tokens — minutes. The legal entity is registered in parallel; the OS does not depend on it |
 | Legal address | Rent from 20,000 ₽/month or address purchase 40,000–70,000 ₽/year | Company address — a record in the smart contract (after ELR — from the regulator API) |
 | Current account | Opening 0–3,000 ₽, servicing 500–3,000 ₽/month, bank dependency | Not needed — smart contract wallet. Settlements in stablecoins / regulator digital currency |
 | Contacts (phone, email) | Operator contracts, monthly fees | A smart contract module replaces phone number and email as contact points |
-| Seal, documents | Seal ~1,000 ₽, constitutional documents, minutes | Governance via tokens and on-chain voting. Documents are generated on the platform |
+| Seal, documents | Seal ~1,000 ₽, constitutional documents, minutes | Governance via tokens and on-chain voting. Documents are generated in the OS |
 | **Launch total** | **30,000–100,000 ₽ + 2–4 weeks** | **$1,000 (license) + 1 day to install** |
 
 ---
@@ -47,7 +47,7 @@ Over 5 years: **480,000–2,280,000 ₽** traditional path vs **60,000–180,000
 
 ## 3. Governance and control
 
-| Parameter | Traditional path | DLE platform |
+| Parameter | Traditional path | DLE operating system |
 |----------|------------------|---------------|
 | Decision-making | Meeting minutes, paper documents | On-chain voting: 1 token = 1 vote, result on the blockchain |
 | Transparency for partners | Depends on willingness to disclose | All decisions and transactions on-chain, available for verification |
@@ -59,7 +59,7 @@ Over 5 years: **480,000–2,280,000 ₽** traditional path vs **60,000–180,000
 
 ## 4. Tokenization of assets and products
 
-| Parameter | Traditional path | DLE platform |
+| Parameter | Traditional path | DLE operating system |
 |----------|------------------|---------------|
 | Company asset accounting | Balance sheet, depreciation, inventory — manually or via 1C | Assets tokenized: equipment, IP, licenses — digital on-chain records |
 | Goods/production accounting | Warehouse systems, barcodes, manual reconciliation | Token = product passport. Bound to the production line; precise tracking from creation to sale |
@@ -72,7 +72,7 @@ Over 5 years: **480,000–2,280,000 ₽** traditional path vs **60,000–180,000
 
 ## 5. Raising investment
 
-| Parameter | Traditional path | DLE platform |
+| Parameter | Traditional path | DLE operating system |
 |----------|------------------|---------------|
 | Round preparation | Data room, financials, due diligence — 1–6 months, $5,000–$50,000 for lawyers | Metrics, operation history, governance structure — on-chain. Investor sees everything in real time |
 | Deal documentation | Term sheet, SHA, corporate documents — lawyers, weeks | Transfer of company governance tokens to the investor via smart contract |
@@ -83,21 +83,21 @@ Over 5 years: **480,000–2,280,000 ₽** traditional path vs **60,000–180,000
 
 ## 6. Scaling to other countries
 
-| Parameter | Traditional path | DLE platform |
+| Parameter | Traditional path | DLE operating system |
 |----------|------------------|---------------|
-| Entering a new country | Legal entity, bank account, accountant, lawyer — $5,000–$50,000 per country, 1–3 months | Install a new platform instance and transfer governance tokens to holders of the main company |
+| Entering a new country | Legal entity, bank account, accountant, lawyer — $5,000–$50,000 per country, 1–3 months | Install a new OS instance and transfer governance tokens to holders of the main company |
 | Regulatory compliance | Separate compliance per jurisdiction | Smart contract with local regulator markup (within ELR) |
 | Reporting | Separate accounting in each country | Automatic reporting from smart contract operations |
-| Governance | Separate legal entities, separate systems | Single platform, multichain architecture |
+| Governance | Separate legal entities, separate systems | Single OS, multichain architecture |
 
 ---
 
 ## 7. Security and independence
 
-| Parameter | Traditional path | DLE platform |
+| Parameter | Traditional path | DLE operating system |
 |----------|------------------|---------------|
 | Data | At providers (CRM, email, cloud). Account lock = data loss | On your server. Open source. You control everything |
-| Service dependency | Provider changes prices, terms, or shuts down — you rebuild | Platform runs autonomously. License is perpetual |
+| Service dependency | Provider changes prices, terms, or shuts down — you rebuild | The OS runs autonomously. License is perpetual |
 | AI and confidentiality | Data goes to OpenAI / Google / Microsoft servers | Local model (Ollama); data does not leave your server |
 | Audit | Depends on the accountant and goodwill | Blockchain — immutable operation history, available for verification |
 
@@ -122,7 +122,7 @@ Over 5 years: **480,000–2,280,000 ₽** traditional path vs **60,000–180,000
 
 ## Summary
 
-| | Traditional path | DLE platform |
+| | Traditional path | DLE operating system |
 |-|-------------------|---------------|
 | **Launch** | 2–4 weeks, 30,000–100,000 ₽ | 1 day, $1,000 (~100,000 ₽) |
 | **5-year costs** | 480,000–2,280,000 ₽ on services and accounting | 60,000–180,000 ₽ (VPS) |
@@ -132,7 +132,7 @@ Over 5 years: **480,000–2,280,000 ₽** traditional path vs **60,000–180,000
 | **Bank** | Current account, fees, bank dependency | Not needed — smart contract wallet |
 | **Governance** | Paper minutes, notary | On-chain voting, instant token transfer |
 | **Investment** | $5K–$50K for lawyers, 3–12 months | Automatic access via accelerator |
-| **Scaling** | Separate legal entity per country | Single platform, contributors in jurisdictions |
+| **Scaling** | Separate legal entity per country | Single OS, contributors in jurisdictions |
 | **Outlook** | Same processes in 5 years | Regulator markup → legally significant digital identification |
 
 ---

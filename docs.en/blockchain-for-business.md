@@ -178,7 +178,7 @@ Key principle: **the web app can be lost or compromised — treasury and voting 
 
 1. **Layer 1 (products and logistics)** — counterfeits and grey volume are cut off by missing chain identifiers; recalls rely on line facts, not trust in a middleman’s report.
 2. **Layer 2 (treasury and shares)** — funds and shares are not controlled by an “admin password”: withdrawals and rule changes require an on-chain procedure; conflicts of interest show in token ownership.
-3. **Platform feature access** — rights can be bound to token ownership (token-gating): no token / no threshold — no action right; checks run on-chain.
+3. **Operating system feature access** — rights can be bound to token ownership (token-gating): no token / no threshold — no action right; checks run on-chain.
 
 ### What blockchain does not replace
 
