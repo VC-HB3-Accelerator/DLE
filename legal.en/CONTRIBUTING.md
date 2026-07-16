@@ -1,16 +1,23 @@
-**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/CONTRIBUTING.md)
+**English** | [Русский](../legal.ru/CONTRIBUTING.md)
 
-# Contributor Guide
+# Contributor Guidelines
 
 ## Licensing
 
-By contributing to the DLE (Digital Legal Entity) project, you agree that your code will be distributed under the **Proprietary Software License**.
+**Code development (CONTRIBUTING):** by submitting changes to the repository you
+ agree to the **Proprietary Software License**; rights in the contribution are
+ assigned to the project Author (see below).
+
+**Commercial activity (license sales, modification for customers):**
+ is governed separately — [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md).
+ Without accepting CONTRIBUTOR_LICENSE, selling licenses and modifying code for
+ third parties is **not permitted**.
 
 ## Copyright
 
 All contributors must:
 - Include their name in commits
-- Agree to transfer rights to the code to the project author
+- Agree to assign rights in the code to the project Author
 - Not infringe third-party copyrights
 
 ## Contribution Process
@@ -21,8 +28,8 @@ All contributors must:
 - Create a feature branch for your changes
 
 ### 2. Development
-- Follow the project's coding standards
-- Add code comments in English (or the project's primary language)
+- Follow the project coding standards
+- Add code comments in Russian
 - Test your changes
 
 ### 3. Commits
@@ -31,11 +38,11 @@ All contributors must:
 - Split large changes into logical parts
 
 ### 4. Pull Request
-- Create a Pull Request with a description of changes
-- Explain what issues your code addresses
-- Wait for review from the project author
+- Create a Pull Request with a description of the changes
+- State which problems your code solves
+- Wait for review by the project Author
 
-## Code Standards
+## Coding Standards
 
 ### Naming
 - Files and folders: kebab-case
@@ -44,7 +51,6 @@ All contributors must:
 - Classes: PascalCase
 
 ### Comments
-
 ```javascript
 /**
  * @copyright 2024-2026 Alexander Viktorovich Tarabanov
@@ -54,10 +60,9 @@ All contributors must:
 ```
 
 ### Git messages
-
 ```
-feat: add new authentication function
-fix: fix data validation error
+feat: add new authentication feature
+fix: fix data validation bug
 docs: update API documentation
 style: code formatting
 refactor: refactor user module
@@ -66,11 +71,11 @@ test: add tests for new functionality
 
 ## Contacts
 
-### For contribution questions:
+### For questions about participating in the project:
 - **Email:** info@hb3-accelerator.com
-- **GitHub Issues:** [Create issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
+- **GitHub Issues:** [Create an issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 
-### Project author:
+### Project Author:
 **Alexander Viktorovich Tarabanov**  
 Email: info@hb3-accelerator.com
 

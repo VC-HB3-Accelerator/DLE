@@ -1,6 +1,6 @@
-**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/AUTHORS.md)
+**English** | [Русский](../legal.ru/AUTHORS.md)
 
-# DLE (Digital Legal Entity) Project Authors
+# Authors of the DLE (Digital Legal Entity) Project
 
 ## Lead Developer
 
@@ -12,16 +12,17 @@
 
 ## Contributors
 
-- **LLC "ERAYTI" (ООО "ЭРАЙТИ")**  
-  - **Role:** Official seller and licensing partner for clients in the Russian Federation  
+- **Limited Liability Company "ERAYTI" (LLC "ERAYTI")**  
+  - **Role:** Official seller and licensing partner for customers in the Russian Federation  
   - **Contacts:** 18900@эрайти.рф, +7 (968) 269-92-64
 
 ## Contact Information
 
-### For copyright and licensing inquiries:
+### For copyright and licensing questions:
 - **Email:** info@hb3-accelerator.com
 - **GitHub Issues:** [Create an issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 - **Website:** [hb3-accelerator.com](https://hb3-accelerator.com)
+
 
 ## Project History
 
@@ -32,4 +33,4 @@
 
 ---
 
-**All rights reserved.** See [LICENSE](../LICENSE) for details.
+**All rights reserved.** See the [LICENSE](../LICENSE) file for details.

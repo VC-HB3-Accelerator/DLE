@@ -6,66 +6,71 @@
 **Copyright (c) 2024-2026 Alexander Viktorovich Tarabanov**  
 **Project license:** Proprietary — see [LICENSE](../LICENSE)
 
-Generated from installed npm dependencies (`license-checker --production`).  
+This document was generated automatically from installed npm dependencies (`license-checker --production`).  
 Generated: 2026-07-08
 
 ## Obligations
 
-When distributing DLE software:
+When distributing DLE software you must:
 
 1. Include this file with the distribution.
-2. Do not remove copyright notices from third-party source code.
-3. Comply with the license terms of packages listed below.
-4. For Apache-2.0 — include NOTICE files where provided by the package.
-5. For LGPL-3.0 (**web3-utils**) — follow the [LGPL-3.0 Compliance](#lgpl-30-compliance) section.
+2. Do not remove copyright notices from third-party library source code.
+3. Comply with the license terms of the packages listed below.
+4. For Apache-2.0 — include the corresponding NOTICE files (if supplied by the package).
+5. For LGPL-3.0 (**web3-utils**) — see the [LGPL-3.0 Compliance](#lgpl-30-compliance) section.
 
 ## LGPL-3.0 Compliance
 
-The backend production dependency tree includes **web3-utils** (LGPL-3.0), pulled
-transitively via **solidity-coverage** (Hardhat tooling). DLE does **not** import
-`web3-utils` directly; Ethereum interaction uses **ethers** and **viem** (MIT).
+The backend production dependency tree includes **web3-utils** (LGPL-3.0),
+pulled in transitively via **solidity-coverage** (Hardhat tooling).
+DLE does **not** import `web3-utils` directly; Ethereum interaction uses
+**ethers** and **viem** (MIT).
 
 **web3-utils in this distribution**
 
 | Field | Value |
-|-------|-------|
+|------|----------|
 | Package | web3-utils@1.10.4 |
 | License | GNU Lesser General Public License v3.0 (LGPL-3.0) |
 | Upstream | https://github.com/ethereum/web3.js/tree/1.x/packages/web3-utils |
 | In DLE | Unmodified npm package in `backend/node_modules/web3-utils/` |
 
-**DLE obligations when distributing the backend** (LGPL-3.0 Sections 4–6):
+**DLE obligations when distributing the backend** (LGPL-3.0, Sections 4–6):
 
 1. Include this Third-Party Notices file with the distribution.
 2. Preserve all copyright and license notices in `web3-utils` source files.
-3. Provide the complete LGPL-3.0 license text (see links below).
-4. If **web3-utils** is distributed as part of the backend, the recipient must be
-   able to replace or re-link the library (standard Node.js `node_modules` layout
-   satisfies this).
-5. If **web3-utils** is **modified**, publish the corresponding source of the
-   modified version under LGPL-3.0. **DLE ships the unmodified upstream package.**
+3. Provide the full LGPL-3.0 license text (see links below).
+4. If **web3-utils** is distributed together with the backend, the recipient must be
+   able to replace or re-link the library (the standard Node.js
+   `node_modules` layout satisfies this).
+5. If **web3-utils** is **modified** — publish the corresponding source code
+   of the modified version under LGPL-3.0. **DLE ships the unmodified upstream package.**
 
 **What LGPL-3.0 does not require**
 
-- Open-sourcing DLE proprietary application code that merely uses `web3-utils`
-  as a separate npm dependency without modification.
+- Open-sourcing DLE proprietary application code that merely uses
+  `web3-utils` as a separate unmodified npm dependency.
 - Relicensing DLE under LGPL, provided the obligations above are met.
 
 **Full license text**
 
 - GNU LGPL v3.0: https://www.gnu.org/licenses/lgpl-3.0.html
-- Copy in distribution: `backend/node_modules/web3-utils/LICENSE` (when backend
-  dependencies are included)
+- Copy in the distribution: `backend/node_modules/web3-utils/LICENSE` (when
+  backend dependencies are included)
 
 ## Python: vector-search
 
 | Package | License | Note |
-|---------|---------|------|
+|-------|----------|------------|
 | fastapi | MIT | https://github.com/fastapi/fastapi |
 | uvicorn | BSD-3-Clause | https://github.com/encode/uvicorn |
 | faiss-cpu | MIT | https://github.com/facebookresearch/faiss |
 | requests | Apache-2.0 | https://github.com/psf/requests |
 | pydantic | MIT | https://github.com/pydantic/pydantic |
+
+## Python: runtime (backend Docker)
+
+System packages are installed via apt in the backend Docker image (python3, curl, and others) — licenses correspond to the Debian distribution.
 
 ---
 
@@ -99,7 +104,7 @@ Total packages: **909**
 | MIT* | 1 |
 | LGPL-3.0 | 1 |
 
-### Requires attention
+### Requires Attention
 
 | Package | License | Note |
 |-------|----------|------------|
@@ -112,7 +117,7 @@ Total packages: **909**
 | ethereumjs-util@7.1.5 | MPL-2.0 | File-level copyleft if library files are modified |
 | rlp@2.2.7 | MPL-2.0 | File-level copyleft if library files are modified |
 | string-format@2.0.0 | WTFPL OR MIT | Comply with license terms |
-| web3-utils@1.10.4 | LGPL-3.0 | LGPL-3.0: see “LGPL-3.0 Compliance” section below |
+| web3-utils@1.10.4 | LGPL-3.0 | LGPL-3.0: see the “LGPL-3.0 Compliance” section below |
 
 <details>
 <summary>Full package list</summary>
@@ -1048,7 +1053,7 @@ Total packages: **180**
 | 0BSD | 1 |
 | MIT* | 1 |
 
-### Requires attention
+### Requires Attention
 
 | Package | License | Note |
 |-------|----------|------------|
@@ -1244,16 +1249,29 @@ Total packages: **180**
 
 ---
 
-## Common license texts
+## Common License Texts
 
-Full MIT, Apache-2.0, BSD, ISC, and LGPL texts are in `node_modules/<package>/` and at https://opensource.org/licenses and https://www.gnu.org/licenses/
+Full texts of MIT, Apache-2.0, BSD, and ISC are available in each component’s `node_modules/<package>/` directories
+and at https://opensource.org/licenses
+
+### MIT (summary)
+
+Permission is granted to use, copy, modify, merge, publish, distribute, sublicense,
+and sell copies provided the copyright notice and license text are included in all copies or substantial portions of the Software.
+
+### Apache-2.0 (summary)
+
+Use is permitted provided copyright, license text, and NOTICE files are preserved;
+a patent license is granted; modifications must be marked.
 
 ### LGPL-3.0 (summary)
 
-A weak copyleft library license. Permits use in proprietary applications when copyright
-notices are preserved, the LGPL text is provided, and the library can be replaced by
-the recipient. Modified versions of the library must be distributed under LGPL-3.0.
+A weak copyleft license for libraries. Permits use in proprietary applications
+provided notices are preserved, the LGPL text is provided, and the library can be replaced.
+Modified versions of the library must be distributed under LGPL-3.0.
 Full text: https://www.gnu.org/licenses/lgpl-3.0.html
 
-**Licensing inquiries for DLE:** info@hb3-accelerator.com  
+---
+
+**DLE licensing contacts:** info@hb3-accelerator.com  
 **Website:** https://hb3-accelerator.com

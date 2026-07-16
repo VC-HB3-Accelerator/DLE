@@ -1,4 +1,4 @@
-[English](../legal.en/templates/README.md) | **Русский**
+[English](../../legal.en/templates/README.md) | **Русский**
 
 # Шаблоны договоров DLE (контрибьютор)
 

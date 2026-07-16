@@ -1,4 +1,4 @@
-**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/README.md)
+**English** | [Русский](../legal.ru/README.md)
 
 # DLE Legal Documentation
 ## Project Intellectual Property Protection
@@ -9,9 +9,15 @@
 
 ## Document Overview
 
-This section contains legal documentation for the protection of the DLE (Digital Legal Entity) project's intellectual property.
+This section contains legal documentation for the protection of the
+ intellectual property of the DLE (Digital Legal Entity) project.
 
-**Template documents:** LICENSE, service-terms, and CONTRIBUTOR_LICENSE in the repository are **base templates**. For customers in each country, an Authorized Contributor uses the ready contracts in [templates/](templates/) (localize taxes, currency, governing law). **Baseline code** — Author; **Contributor Updates** — Contributor (Author’s right of first refusal). Royalty 1,000 / 10,000 USDT accrues per license; payment upon written request.
+**Template documents:** LICENSE, service-terms, and CONTRIBUTOR_LICENSE in the repository are
+ **base templates**. For customers in each country, an Authorized Contributor
+ uses the ready contracts in [templates/](templates/) (localization: taxes,
+ currency, governing law). **Baseline source code** — Author; **Contributor Updates** —
+ Contributor (with the Author’s right of first refusal). Royalty 1,000 / 10,000 USDT —
+ accrues per license; payment upon written request.
 
 ### Public Documents
 
@@ -20,7 +26,7 @@ This section contains legal documentation for the protection of the DLE (Digital
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor guidelines
 - [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) — Authorized Contributor license (sales, royalty, modification)
 - [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) — copyright notice templates
-- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — third-party npm/Python dependency licenses
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — third-party npm/Python package licenses
 
 **Licensing and terms:**
 - [templates/](templates/) — **ready templates** for Contributor ↔ Client agreements (international)
@@ -31,23 +37,23 @@ This section contains legal documentation for the protection of the DLE (Digital
 **File overview**
 
 | File | Purpose |
-|------|----------|
-| [AUTHORS.md](AUTHORS.md) | Author information and contacts |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines for project contributors |
+|------|---------|
+| [AUTHORS.md](AUTHORS.md) | Author details and contact information |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Participation rules for project contributors |
 | [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Model Author ↔ Contributor agreement |
 | [COPYRIGHT_NOTICE.md](COPYRIGHT_NOTICE.md) | Copyright notice templates |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party npm and Python dependency licenses |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Licenses of third-party npm and Python dependencies |
 | [service-terms.md](service-terms.md) | Detailed licensing and service terms |
 | [templates/README.md](templates/README.md) | Contributor ↔ Client templates (agreement, specification, act) |
 | [templates/contributor-client-agreement.md](templates/contributor-client-agreement.md) | Model license supply agreement |
 | [templates/contributor-client-specification.md](templates/contributor-client-specification.md) | Specification / invoice |
 | [templates/contributor-client-acceptance-act.md](templates/contributor-client-acceptance-act.md) | Acceptance act and Tx record |
-| [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Required attribution formats and examples |
-| [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Usage notification instructions and template |
+| [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md) | Formats and examples of mandatory attribution |
+| [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md) | Instructions and template for usage notification |
 
-**Full terms of service:** [legal.en/service-terms.md](service-terms.md)
+**Full service terms:** [legal.en/service-terms.md](service-terms.md)
 - Licensing model (Perpetual License)
-- Pricing: Standard and Premium
+- Plans: Standard and Premium
 - Voting system via smart contract
 - 70% refund program
 - Technical support: https://hb3-accelerator.com/
@@ -59,20 +65,20 @@ This section contains legal documentation for the protection of the DLE (Digital
 ### Perpetual License
 
 - **Royalty to Author:** 1,000 USDT (Standard) or 10,000 USDT (Premium) — fixed per license
-- **Customer price:** set by Contributor (may be higher, e.g. 1,500 / 15,000 USDT)
+- **Customer price:** set by the Contributor (may be higher, e.g. 1,500 / 15,000 USDT)
 - **Sales channel:** [Authorized Contributors](CONTRIBUTOR_LICENSE.md)
 - **Term:** perpetual (no time limit)
-- **Updates:** free for 5 years for license token holders (see [legal.en/service-terms.md](service-terms.md))
-- **Voting:** blockchain voting for new feature development
+- **Updates:** free for 5 years; thereafter — right to use versions already obtained (see [legal.en/service-terms.md](service-terms.md) § 4.3)
+- **Voting:** blockchain voting on development of new features
 
-### DLE Smart Contract Governance
+### Governance via the DLE Smart Contract
 
-Application development is governed via an on-chain smart contract:
+Application development is governed via a blockchain smart contract:
 
 - 1 token = 1 vote
 - 51%+ for majority decisions
-- Multichain voting and execution support
-- Transparency — all decisions on blockchain
+- Multichain support for voting and execution
+- Transparency — all decisions on-chain
 
 ### Licensee Portal
 
@@ -86,7 +92,7 @@ Application development is governed via an on-chain smart contract:
 legal/
 ├── AUTHORS.md                  — Project authors
 ├── CONTRIBUTING.md             — Contribution guidelines
-├── COPYRIGHT_NOTICE.md         — Copyright notice templates
+├── COPYRIGHT_NOTICE.md         — Copyright templates
 ├── ATTRIBUTION_REQUIREMENTS.md — Attribution requirements
 ├── USAGE_NOTIFICATION.md       — Usage notifications
 └── README.md                   — This file
@@ -97,24 +103,24 @@ docs/
 
 ### Protection Mechanisms
 
-**1. Copyright:** All files contain the copyright of Alexander V. Tarabanov. Proprietary license applies. Copying without permission is prohibited.
+**1. Copyright:** All files contain the copyright of A.V. Tarabanov. A proprietary license is used. Copying without permission is prohibited.
 
-**2. Patent protection:** Confidential documents in the `patents/` folder. Folder in `.gitignore`. Documents are not published in repositories.
+**2. Patent protection:** Confidential documents in the `patents/` folder. The folder is in `.gitignore`. Documents are not published in repositories.
 
-**3. Licensing:** Strict proprietary license. Attribution required when using the software.
+**3. Licensing:** Strict proprietary license. Mandatory attribution when using.
 
-**4. Monitoring:** Code usage notifications. Attribution requirements.
+**4. Monitoring:** Notifications of code use. Attribution requirements.
 
 ### Usage Recommendations
 
 **For developers:**
-1. Read [LICENSE](../LICENSE) before use
+1. Review the [LICENSE](../LICENSE) before use
 2. Comply with [ATTRIBUTION_REQUIREMENTS.md](ATTRIBUTION_REQUIREMENTS.md)
-3. Notify the author per [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md)
+3. Notify the Author per [USAGE_NOTIFICATION.md](USAGE_NOTIFICATION.md)
 
 **For use:**
 1. Respect copyright
-2. Cite the source when using
+2. Credit the source when using
 3. Do not transfer to third parties
 
 ---
@@ -128,12 +134,12 @@ docs/
 
 ---
 
-## Legal Notice
+## Legal Information
 
 All documents in this section are protected by copyright. Unauthorized use, copying, or distribution is prohibited.
 
-For permission to use, contact the author at the above addresses.
+For permissions to use, contact the Author using the contacts above.
 
 ---
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-07-01

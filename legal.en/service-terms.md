@@ -10,44 +10,47 @@
 4. [Updates and Maintenance](#4-updates-and-maintenance)
 5. [Technical Support and Training](#5-technical-support-and-training)
 6. [Refunds and Warranties](#6-refunds-and-warranties)
-7. [Liability](#7-liability)
+7. [Liability of the Parties](#7-liability-of-the-parties)
 8. [Terms of Use](#8-terms-of-use)
 9. [Security and Privacy](#9-security-and-privacy)
 10. [Governance Smart Contract](#10-governance-smart-contract)
 11. [Payment and Contributors](#11-payment-and-contributors)
-12. [Changes to Terms](#12-changes-to-terms)
+12. [Policy on Changes to Terms](#12-policy-on-changes-to-terms)
 13. [Contacts](#13-contacts)
 
 **Legal documents:** [legal.en/README.md](README.md) — license, copyright, attribution requirements.
 
-### Document hierarchy (End User)
+### Document Hierarchy (End User)
 
 | Document | Purpose |
 |----------|---------|
-| [LICENSE](../LICENSE) | Copyright, restrictions, EULA |
+| [LICENSE](../LICENSE) | EULA: IP, license scope, prohibitions, non-revocation / termination (§ 6.4, § 14) |
 | **service-terms.md** (this file) | Purchase, token, updates, support, refunds, liability |
 | [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) | Authorized Contributors only (sales, royalty, modification) |
 
-If LICENSE conflicts with this document on **commercial terms** for paying
- Licensees, **service-terms.md prevails**, **unless a local contract** with
- the Authorized Contributor in your country states otherwise.
+In case of conflict on **commercial terms** for paying licensees,
+ **service-terms.md prevails**, **unless otherwise stated in a local agreement**
+ with an Authorized Contributor.
 
-### Template nature and localization
+On **copyright, license scope, non-revocation, and termination of the right of use**,
+ [LICENSE](../LICENSE) prevails (EULA § 6.4, § 14).
 
-This file is a **standard terms template** (base version). For customers in a
- **specific country**, the version adapted by that country’s **Authorized
- Contributor** applies, together with the **purchase / license agreement**
- signed with that Contributor.
+### Template Nature and Localization
 
-The local contract governs: currency and payment method, taxes, timelines,
- claims, governing law, and jurisdiction — as required by local law.
+This file is the rightsholder’s **standard terms** (base version).
+ For customers in a **specific country**, the version adapted by that country’s
+ **Authorized Contributor** applies, together with the **purchase /
+ license agreement** concluded with that Contributor.
 
-Core license terms (perpetual use, token, 5 years of updates, Author royalty
- 1,000 / 10,000 USDT, SaaS and code resale bans) remain in effect unless the
- local contract grants the customer additional rights.
+The local agreement governs: currency and payment method, taxes, timelines,
+ claims, governing law, and jurisdiction — within local legislation.
 
-**Example contributor (Russia):** LLC "ERAYTI" — see [§ 11](#11-payment-and-contributors).  
-**Contributor ↔ Client contract templates** (international): [legal.en/templates/](templates/).
+Core license terms (perpetuity, token, 5 years of updates, Author royalty
+ 1,000 / 10,000 USDT, ban on SaaS and code resale) remain in effect,
+ unless the local agreement improves the customer’s position.
+
+**Example contributor:** for the Russian Federation — LLC “ERAYTI” (see [§ 11](#11-payment-and-contributors)).  
+**Contributor ↔ Client agreement templates** (international): [legal.en/templates/](templates/).
 
 ---
 
@@ -57,14 +60,17 @@ Core license terms (perpetual use, token, 5 years of updates, Author royalty
 
 | Parameter | Value |
 |-----------|-------|
-| License type | Perpetual |
+| License type | Perpetual License |
 | Term | Unlimited |
-| Updates and support | Free for 5 years; thereafter — right to use existing versions only (§ 4.3) |
-| Revocation | License cannot be revoked by the company |
+| Updates and support | Free for 5 years; thereafter — only the right to use versions already obtained (§ 4.3) |
+| Software instance | After installation — a **Client asset** (copy, deployment artifacts, Client data); exclusive rights in the code — with the rightsholder / contributor per the EULA |
+| Revocation / termination | The rightsholder does **not** revoke the license unilaterally and does **not** terminate it on its own initiative (change of successor, policy, end of support). Termination — **only** upon a material breach of the EULA by the Client ([LICENSE](../LICENSE) § 6.4, § 14) |
+
+Consistency with the EULA: the perpetual right to use versions already delivered and the status of the instance as a Client asset are governed by [LICENSE](../LICENSE) § 6.4 and § 14; this document does not narrow them.
 
 ### 1.2. License and Tokens
 
-Each DLE license is tied to a **governance token on the blockchain**. The token confirms the right to use the platform and grants a vote in product development.
+Each DLE license is linked to a **governance token on the blockchain**. The token evidences the right to use the platform and grants a vote in product development.
 
 | Parameter | 1 token | 10 tokens |
 |-----------|---------|-----------|
@@ -73,14 +79,14 @@ Each DLE license is tied to a **governance token on the blockchain**. The token 
 | Votes in voting | 1 | 10 |
 | Service terms | Same | Same |
 
-**Voting:** 1 token = 1 vote. Decisions are made by majority (51%+) via smart contract on the blockchain.
+**Voting:** 1 token = 1 vote. Decisions are made by majority (51%+) via a blockchain smart contract.
 
-On purchase, the token is issued on **Sepolia**; after the Contributor deploys the national network, it may be exchanged 1:1 through governance (see [§ 10.5](#105-token-migration-sepolia--national-network)).
+Upon purchase the token is issued on the **Sepolia** network; after the Contributor deploys the national network it may be exchanged 1:1 via governance (see [§ 10.5](#105-token-migration-sepolia--country-network)).
 
 ### 1.3. Line of Business
 
-- One license — one line of business.
-- Separate licenses required for multiple lines of business.
+- One license — one line of business
+- Separate licenses are required for multiple lines of business
 
 ---
 
@@ -88,80 +94,80 @@ On purchase, the token is issued on **Sepolia**; after the Contributor deploys t
 
 ### 2.1. Licenses
 
-**Base royalty to Author** (fixed per license sold, regardless of Contributor’s
- customer price):
+**Baseline royalty to the Author** (fixed amount per license, independent of
+ the price charged by the Contributor):
 
 | Package | Royalty to Author | Tokens | Votes |
 |---------|-------------------|--------|-------|
 | Standard | **1,000 USDT** | 1 | 1 |
 | Premium | **10,000 USDT** | 10 | 10 |
 
-**Customer price** is set by the **Authorized Contributor** and may be **higher**
- than royalty. The customer price may include fees, taxes, and the Contributor’s
- margin.
+**Customer price** is set by the **Authorized Contributor** and may
+ be **higher** than the royalty amount. In the customer price the Contributor includes fees,
+ taxes, and its margin.
 
 | Package | Example customer price |
 |---------|------------------------|
 | Standard | from 1,500 USDT (example) |
 | Premium | from 15,000 USDT (example) |
 
-Recommended reference price (excluding taxes and fees): **1,000 / 10,000 USDT**
- when purchasing directly from the Author.
+Recommended indicative price (excluding taxes and fees): **1,000 /
+ 10,000 USDT** — for direct sale by the Author.
 
-Taxes and duties are as agreed with the seller; liability is defined in the
- purchase contract with the Contributor.
+Taxes and charges — as agreed with the seller; the parties’ liability
+ is determined by the purchase agreement with the Contributor.
 
-### 2.2. What’s Included in Both Licenses
+### 2.2. What Is Included in Both Licenses
 
-- Perpetual right to use the platform
-- Full source code and documentation
-- Free updates and support for 5 years (for token holders); thereafter — right to use existing versions (§ 4.3)
+- Perpetual right to use the platform; the installed instance — a Client asset (EULA § 6.4)
+- Full source code with documentation
+- Free updates and support for 5 years (for token holders); thereafter — right to use versions already obtained (§ 4.3)
 - Technical support (SLA by issue priority)
 - Governance tokens on the blockchain
-- Vote in product development
+- Right to vote on product development
 - Access to online training sessions
 - Ready document pack for the regulator
 
-The only difference between packages is the number of tokens and thus votes.
+The only difference between packages is the number of tokens and, accordingly, votes.
 
 ### 2.3. Payment Methods
 
-- **Cryptocurrency (USDT)** — directly or via authorized partners
-- **Bank transfer** — in local currency via authorized dealers
-- **Credit cards** — via partners’ payment systems
+- **Cryptocurrency (USDT)** — directly or through authorized partners
+- **Bank transfer** — in local currency through authorized dealers
+- **Credit cards** — through partners’ payment systems
 
-All transfer, conversion, and payment processing fees are borne by the buyer.
+All fees for transfers, conversion, and payment processing are borne by the buyer.
 
 ### 2.4. Purchase Process
 
 1. Choose an **Authorized Contributor** (see [§ 11](#11-payment-and-contributors))
    or direct purchase from the Author
-2. Agree **customer price** (may exceed base royalty)
-3. Receive payment details
-4. Pay the Contributor or Author
+2. Agree the **customer price** (may be above the baseline royalty)
+3. Obtain payment details
+4. Pay the Contributor or the Author
 5. Confirmation and payment document
-6. Receive **license token** on the **Sepolia** testnet and platform access
-7. The Contributor **accrues** Author royalty of 1,000 / 10,000 USDT per license;
-   **payment** is upon the Author’s **written request** (see
-   [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) § 3)
+6. Receive the **license token** on the **Sepolia** test network and access to the platform
+7. The Contributor **accrues** to the Author royalty of 1,000 / 10,000 USDT per license;
+   **payment** — upon the Author’s written request (see [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md) § 5)
 
 ### 2.5. Acceptance of Terms and License
 
-A DLE license purchase involves **two linked steps**:
+Purchase of a DLE license is effected by **two related actions**:
 
-1. A **local contract** with an Authorized Contributor in your country
-   (purchase or license agreement). **Appendices** to that contract are
-   [LICENSE](../LICENSE) and this service-terms (or localized versions).
-   The contract defines price, payment, taxes, refunds, and governing law.
+1. A **local agreement** with an Authorized Contributor in your country
+   (purchase / license agreement). **Appendices** to the agreement
+   are [LICENSE](../LICENSE) and this service-terms (or their
+   localized versions). The agreement defines price, payment, taxes, refunds,
+   and governing law.
 
-2. **Receipt of a license token** on your wallet on **Sepolia** —
-   this **constitutes acceptance of the EULA** (LICENSE) with the copyright
-   holder. Wallet address and credit date are recorded on-chain.
+2. **Receipt of the license token** to your wallet on the **Sepolia** network —
+   this is **acceptance of the EULA** (LICENSE) in relation to the rightsholder.
+   The address and date of credit are recorded on the blockchain.
 
-The local contract and LICENSE **do not conflict**: the contract covers
- commercial terms with the seller; the token confirms software use rights
- with the Author. The local contract may not weaken LICENSE IP restrictions,
- except where law explicitly improves your position.
+The local agreement and LICENSE do **not** contradict each other: the agreement — commerce
+ with the seller; the token — confirmation of rights to use the Software from the Author.
+ The local agreement may not worsen the IP restrictions of LICENSE, except where
+ the law expressly improves your position.
 
 ---
 
@@ -169,24 +175,24 @@ The local contract and LICENSE **do not conflict**: the contract covers
 
 ### 3.1. Process
 
-1. **Proposal** — community proposes a new feature
-2. **Registration** — vote is created in the smart contract on the blockchain
-3. **Voting** — each token = 1 vote, For or Against
-4. **Decision** — with 51%+ For, the feature is taken into development
+1. **Proposal** — the community proposes a new feature
+2. **Registration** — a vote is created in the blockchain smart contract
+3. **Voting** — each token = 1 vote, “For” or “Against”
+4. **Decision** — at 51%+ “For” votes the feature is taken into development
 
-### 3.2. Frequency
+### 3.2. Cadence
 
 - Voting is open continuously (asynchronous)
-- Quarterly review of results
-- Development by priority (vote count)
+- Quarterly analysis of results
+- Development by priority (number of votes)
 
 ### 3.3. Voting Portal
 
-**URL:** https://hb3-accelerator.com/
+**Address:** https://hb3-accelerator.com/
 
 Available: create proposals, vote, view results, track development status, voting history.
 
-**Requirements:** wallet with tokens (MetaMask, WalletConnect, etc.).
+**Requirements:** a wallet with tokens (MetaMask, WalletConnect, etc.).
 
 ---
 
@@ -194,7 +200,7 @@ Available: create proposals, vote, view results, track development status, votin
 
 ### 4.1. Free Updates (5 Years)
 
-For all license token holders from the token transfer date recorded on the blockchain:
+For all holders of license tokens from the token-transfer date recorded on the blockchain:
 
 - Bug fixes
 - Performance improvements
@@ -203,119 +209,129 @@ For all license token holders from the token transfer date recorded on the block
 
 **Frequency:**
 
-| Type | Frequency |
-|------|------------|
-| Security patches | As soon as found |
-| Regular updates | Weekly (Wednesdays) |
-| Major features | Per voting results |
+| Type | Cadence |
+|------|---------|
+| Security Patches | Immediately upon discovery |
+| Regular Updates | Weekly (Wednesdays) |
+| Major Features | Per voting results |
 
-### 4.2. Update Platform
+### 4.2. Updates Platform
 
-**URL:** https://hb3-accelerator.com/
+**Address:** https://hb3-accelerator.com/
 
-License holders can: download all versions, read release notes, get new version notifications, read migration documentation.
+License holders may: download all versions, read Release Notes, receive notifications of new versions, study migration documentation.
 
-**Access requirement:** license token on wallet at request time.
+**Access requirements:** a license token on the wallet at the time of the request.
 
 ### 4.3. After 5 Years
 
-After **5 years** from the on-chain license token transfer date:
+Upon expiry of **5 years** from the on-chain transfer date of the license token:
 
-- The **perpetual right to use versions** of the Software received during the update obligation period (including the latest version available at the end of the 5-year term) **remains in effect**.
-- The rights holder’s obligation to provide new updates, fixes, security patches, and basic technical support under these terms **ends**.
-- The **right to vote** via the token **remains** (unless changed by governance).
+- The perpetual right to use **Software versions** obtained during the update-obligation period (including the latest available at the end of the 5-year term) is **preserved**. Expiry of the update period does **not** give the rightsholder the right to revoke the license or demand destruction of the instance ([LICENSE](../LICENSE) § 6.4, § 14).
+- The rightsholder’s obligation to provide new updates, fixes, security patches, and basic technical support under these terms is **terminated**.
+- The right to vote via the token is **preserved** (unless otherwise changed by governance).
 
 ---
 
 ## 5. Technical Support and Training
 
-For **5 years** from the on-chain token transfer date, all license holders get access to support and training via the portal: https://hb3-accelerator.com/
+For **5 years** from the on-chain token-transfer date, all license holders receive access to support and training via the portal: https://hb3-accelerator.com/
 
-After the 5-year term, support and training obligations **do not apply** (see [§ 4.3](#43-after-5-years)).
+After expiry of the 5-year term, the support and training obligation **does not apply** (see [§ 4.3](#43-after-5-years)).
 
-Detailed support terms, training, online sessions, and platform setup are in the [accelerator program](https://github.com/VC-HB3-Accelerator/.github/blob/main/Версия%20на%20русском/accelerator-program.md).
+Detailed support terms, training, online sessions, and platform setup — within the [accelerator program](https://github.com/VC-HB3-Accelerator/.github/blob/main/%D0%92%D0%B5%D1%80%D1%81%D0%B8%D1%8F%20%D0%BD%D0%B0%20%D1%80%D1%83%D1%81%D1%81%D0%BA%D0%BE%D0%BC/accelerator-program.md).
 
 ---
 
 ## 6. Refunds and Warranties
 
-### 6.1. General
+### 6.1. General Principle
 
-License is perpetual — standard refund is not provided.
+The license is perpetual — a standard refund is not provided.
 
 ### 6.2. 70% Refund Program
 
-**Debtor:** the **Author** (copyright holder) or **successor** under [LICENSE](../LICENSE).
+**Debtor:** the **Author** (rightsholder) or **Successor** under [LICENSE](../LICENSE).
 
-**Calculation base:** **70% of the amount actually paid by the customer to the Authorized Contributor** for the license (excluding taxes and payment processing fees, unless otherwise stated in the local contract with the Contributor).
+**Calculation base:** **70% of the amount actually paid by the client to the Authorized Contributor** for the license (excluding taxes and payment-system fees, unless otherwise stated in the local agreement with the Contributor).
 
-Refund may be made within **5 years** of purchase if all of the following are met:
+A refund is possible within **5 years** from purchase if all of the following conditions are met simultaneously:
 
-1. More than **51% negative votes** in token holder voting
-2. Complaints concern **lack of update releases**
-3. Voting is conducted **via smart contract on the blockchain**
-4. Request is submitted **within 5 years** of the license date
+1. More than **51% negative votes** in a token-holder vote
+2. Complaints concern **absence of update releases**
+3. The vote was conducted **via a blockchain smart contract**
+4. The request was filed **within 5 years** of the licensing date
 
-**Process:** request at hb3-accelerator.com → confirmation on smart contract → **Author** pays 70% within 30 days.
+**Process:** request on hb3-accelerator.com → confirmation on the smart contract → payment by the **Author** of 70% within 30 days.
 
-### 6.3. Payment Dispute
+### 6.3. Payment Claim
 
-Within 30 days of payment — in case of calculation error, double payment, or other justified reasons.
+Within 30 days of payment — for calculation error, double payment, or other justified reasons.
 
 ---
 
-## 7. Liability
+## 7. Liability of the Parties
 
-### 7.1. Author’s Warranties
+### 7.1. Author Warranties
 
-- License is perpetual (right to use not limited in time)
-- Updates, patches, and basic maintenance free **for 5 years** from on-chain token transfer
-- After 5 years — right to use **existing versions** of the Software with no obligation for new updates or support (see [§ 4.3](#43-after-5-years))
-- Core functionality of existing versions remains available
-- Vote in product development
+- The license is perpetual (right of use is not time-limited)
+- The installed instance and the right to use it — a **Client asset**; the rightsholder does not revoke the license unilaterally ([LICENSE](../LICENSE) § 6.4, § 14)
+- Updates, patches, and basic maintenance free of charge **for 5 years** from the on-chain token-transfer date
+- After 5 years — right to use **existing versions** of the Software without obligation for new updates and support (see [§ 4.3](#43-after-5-years))
+- Baseline functionality of existing versions remains available
+- Right to vote on product development
 
-### 7.2. Not Guaranteed
+### 7.2. What Is Not Guaranteed
 
-- Specific new features (depend on voting)
-- Specific release schedule
-- Updates, patches, and support **after the 5-year term**
-- Support when modifying source code
-- Performance beyond recommended limits
+- Specific new features (depends on voting)
+- A definite release schedule
+- Updates, patches, and support **after expiry of the 5-year term**
+- Support when the source code is modified
+- Performance when recommended limits are exceeded
 
-### 7.3. Limitation of Author’s Liability
+### 7.3. Limitation of the Author’s Liability
 
-Author is not liable for: lost profit, indirect damages, data loss, business interruption, reputational harm, fines, or sanctions.
+The Author is not liable for: lost profit, indirect damages, data loss, business interruption, reputational harm, fines and sanctions.
 
-**Maximum liability:** not more than the license fee paid. Only direct damages from direct breach of contract are covered.
+**Maximum liability:** not more than the amount of the paid license. Only direct damages for a direct breach of contract are covered.
 
-### 7.4. User Responsibility
+### 7.4. User Liability
 
-User is responsible for: data backup, use in accordance with the license, protecting wallet private keys, compliance with applicable law, timely application updates.
+The user is responsible for:
+- Data backup
+- Use in accordance with the license terms
+- Protection of the wallet’s private keys
+- Compliance with applicable laws
+- Timely updating of the application
 
 ---
 
 ## 8. Terms of Use
 
-### Allowed
+### Permitted
 
-- Use for managing own business
-- Deployment on own infrastructure
+- Use to manage one’s own business
+- Deployment on one’s own infrastructure
 - Data backup
-- Local **configuration** changes (not source code)
+- Local modification of **configuration** (not source code)
 - Voting on product development
-- License transfer via **license token** (blockchain, see § 10.4),
+- Transfer of the license via the **license token** (blockchain, see § 10.4),
   including to heirs
 
 ### Prohibited
 
-- Resale or sublicensing of **source code**
-- Using one license for more than one line of business
-- Reverse engineering and **source code** modification (code changes —
+- Resale or sublicensing of the **source code**
+- Use of more than one line of business under one license
+- Reverse engineering and modification of the **source code** (code modification —
   only by [Authorized Contributors](CONTRIBUTOR_LICENSE.md))
 - Removal of copyright and license notices
-- Sharing between independent organizations
-- Educational use without permission
-- Deploying SaaS based on the platform
+- Shared use between independent organizations
+- Use for educational purposes without permission
+- Deployment of SaaS based on the platform
+
+A material breach of the prohibitions of this Section and [LICENSE](../LICENSE)
+ may result in **license termination** only under EULA § 14 (not on the
+ rightsholder’s initiative without such breach).
 
 ---
 
@@ -323,12 +339,12 @@ User is responsible for: data backup, use in accordance with the license, protec
 
 | Mechanism | Description |
 |-----------|-------------|
-| TLS 1.3 | All connections encrypted |
-| AES-256 | Critical data encrypted at rest |
-| Key management | User controls encryption keys |
+| TLS 1.3 | Encryption of all connections |
+| AES-256 | Encryption of critical data at rest |
+| Key management | The user controls encryption keys |
 | GDPR | Compliance (with DPA) |
 
-More: [DLE Security](../docs.en/security.md)
+Details: [DLE Security](../docs.en/security.md)
 
 ---
 
@@ -336,50 +352,50 @@ More: [DLE Security](../docs.en/security.md)
 
 ### 10.1. Architecture
 
-DLE uses an on-chain smart contract for licenses and voting:
+DLE uses a blockchain smart contract to manage licenses and voting:
 
 - **ERC20** — each license is represented by governance tokens (1 or 10)
-- **ERC20Votes** — built-in voting
-- **ERC20Permit** — signatures for gasless transfers
-- **Multichain** — voting supported across multiple networks
+- **ERC20Votes** — built-in voting system
+- **ERC20Permit** — signatures for transfers without gas fees
+- **Multichain** — support for voting on multiple networks simultaneously
 
 ### 10.2. Voting via Smart Contract
 
-**Creating proposals:** token holders only. Voting duration: 1 hour to 30 days.
+**Creating a proposal:** token holders only. Voting duration: from 1 hour to 30 days.
 
 **Process:** proposal → voting (1 token = 1 vote) → quorum 51%+ → execution.
 
-**Execution:** via direct call on the voting chain or via signatures on other chains.
+**Execution:** via a direct call in the voting chain or via signatures on other networks.
 
 ### 10.3. Contract Security
 
-- ReentrancyGuard
-- Tokens transfer only through governance
-- Vote snapshots vs flash-loans
+- Reentrancy protection (ReentrancyGuard)
+- Tokens are transferred only via governance
+- Vote snapshots to protect against flash loans
 - EIP-712 signatures for contract wallets
-- All parameters validated before execution
+- Validation of all parameters before execution
 
 ### 10.4. License Transfer
 
-License = tokens tied to wallet address. Transfer = moving tokens to a new address through governance. New owner automatically gets voting rights.
+License = tokens bound to a wallet address. Transfer — sending tokens to a new address via governance. The new owner automatically receives the right to vote.
 
-### 10.5. Token Migration: Sepolia → National Network
+### 10.5. Token Migration: Sepolia → Country Network
 
-**Global phase.** On purchase, the customer receives a governance token on the **Sepolia** testnet. The token confirms the right to use DLE and grants a vote in product development until the national network is deployed.
+**Global stage.** Upon license purchase the client receives a governance token on the **Sepolia** test network. The token evidences the right to use DLE and grants a vote in product development until the national network is deployed.
 
-**National phase.** Each **Authorized Contributor** deploys a DLE blockchain instance in their country (national network with its own chainId and governance smart contract).
+**National stage.** Each **Authorized Contributor** deploys an instance of the DLE blockchain contour in its country (national network with its own chainId and governance smart contract).
 
-**1:1 exchange after deployment.** After the Contributor deploys the national network, the Sepolia token holder may exchange it for a token on the national network **at a 1:1 ratio** (1 Standard token → 1 token; 10 Premium tokens → 10 tokens).
+**1:1 exchange after deploy.** After the Contributor deploys the national network, a Sepolia-token holder may exchange it for a token on the country network **at a 1:1 ratio** (1 Standard token → 1 token; 10 Premium tokens → 10 tokens).
 
-**Exchange process** — exclusively through governance:
+**Exchange process** — exclusively via governance:
 
-1. The Contributor or token holder creates a **migration proposal** in the national network smart contract.
-2. **Voting** by token holders with **quorum** reached (51%+ For).
-3. **Execution:** national-network token is issued to the holder’s address; the Sepolia token is locked or burned (one Sepolia token — one national-network token).
+1. The Contributor or holder creates a **migration proposal** in the national-network smart contract.
+2. **Voting** by token holders with achievement of **quorum** (51%+ “For”).
+3. **Execution** of the proposal: issuance of the token on the country network to the holder’s address; the Sepolia token is locked or burned (one Sepolia token — one token on the country network).
 
-**Loss protection.** Direct transfers (`transfer`, `transferFrom`) are disabled in the DLE contract. Any token movement — including migration and license transfer — is possible **only through quorum-governed voting**. Accidental or unauthorized transfer to third parties is excluded.
+**Loss protection.** Direct transfers (`transfer`, `transferFrom`) are blocked in the DLE contract. Any movement of tokens — including migration and license transfer — is possible **only through a vote with quorum**. Accidental or unauthorized transfer to third parties is excluded.
 
-**Timing.** The Contributor notifies holders when the national network is ready and how to migrate. Until migration is complete, the Sepolia token retains license validity and update rights (see § 4).
+**Timelines.** The Contributor notifies holders of national-network readiness and the migration procedure. Until migration is complete, the Sepolia token retains license force and update rights (see § 4).
 
 ---
 
@@ -387,29 +403,31 @@ License = tokens tied to wallet address. Transfer = moving tokens to a new addre
 
 ### 11.1. Authorized Contributors
 
-Licenses are sold through **Authorized Contributors** who have accepted
+Licenses are sold **through Authorized Contributors** who have accepted
  [CONTRIBUTOR_LICENSE.md](CONTRIBUTOR_LICENSE.md).
 
-**Contributor rights:** sell license tokens, full code modification,
- customer deployment, implementation and support services.
+**Contributor rights:** sale of license tokens, full code modification,
+ deployment at clients, implementation and support services.
 
-**Obligations:** accrue fixed royalty **1,000 / 10,000 USDT** per license sold
- and **pay upon written request** (Author may request at least once per year);
- no resale of source code to third parties; provide LICENSE and
- service-terms to customers; deploy the national DLE network and facilitate
- Sepolia → national network token migration (see [§ 10.5](#105-token-migration-sepolia--national-network)).
+**Obligations:** accrual to the Author of a fixed royalty of **1,000 / 10,000 USDT**
+ per each sold license and **payment upon written request** (the Author may request
+ at least once a year); ban on resale of source code to third parties;
+ delivery to the client of LICENSE and service-terms; deployment of the DLE national network
+ and organization of Sepolia → country-network token migration (see [§ 10.5](#105-token-migration-sepolia--country-network)).
 
 **Requirements:** legal entity or individual, acceptance of CONTRIBUTOR_LICENSE,
- listing on hb3-accelerator.com (when published).
+ inclusion in the list on hb3-accelerator.com (when published).
 
-### 11.2. Seller for Russian Federation
+### 11.2. Seller for the Russian Federation
 
 **LLC "ERAYTI"**
 - OGRN: 1222600014383
 - INN: 2636220809
-- Address: 355007, Stavropol Krai, Stavropol, ul. Burmistrova, 65B, premises 2
+- Address: 355007, Stavropol Territory, Stavropol, Burmistrova St., 65B, premises 2
 - Contacts: 18900@эрайти.рф, +7 (968) 269-92-64
-- Contributor ↔ Client contract templates: [legal.en/templates/](templates/)
+- Client agreement templates: [legal.en/templates/](templates/)
+
+### 11.3. Direct Purchase from the Author
 
 - Email: info@hb3-accelerator.com
 - Website: https://hb3-accelerator.com
@@ -417,18 +435,20 @@ Licenses are sold through **Authorized Contributors** who have accepted
 
 ---
 
-## 12. Changes to Terms
+## 12. Policy on Changes to Terms
 
 ### For New Licenses
 
 - Terms may change for new purchases
-- 60 days’ notice before changes take effect
-- Applies only to licenses purchased after the change date
+- Notice 60 days before effective date
+- Apply only to licenses purchased after the change date
 
 ### For Existing Licenses
 
-- Your license terms **do not change** after purchase
+- The terms of your license **do not change** after purchase
 - Fixed rights apply perpetually
+- The right to use versions already delivered is **not revoked** by a change
+  to these terms or the rightsholder’s policy ([LICENSE](../LICENSE) § 6.4, § 14)
 - Backward compatibility is maintained
 
 ---
@@ -445,11 +465,11 @@ Licenses are sold through **Authorized Contributors** who have accepted
 
 ## Additional Documentation
 
-- [AI Agents](../docs.en/ai-assistant.md) — specialized agent system
+- [AI Agents](../docs.en/ai-assistant.md) — system for creating specialized agents
 - [Blockchain for Business](../docs.en/blockchain-for-business.md) — digital asset registration and practical cases
 - [DLE Security](../docs.en/security.md) — multi-layer protection
-- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/en/FAQ.md) — frequently asked questions
-- [Product README](../README.md) — install and entry to DLE
+- [FAQ](https://github.com/VC-HB3-Accelerator/.github/blob/main/ru/FAQ.md) — frequently asked questions
+- [Product README](../README.md) — installation and login to DLE
 
 ---
 

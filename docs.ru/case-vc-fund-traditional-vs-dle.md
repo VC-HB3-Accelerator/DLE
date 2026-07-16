@@ -1,3 +1,5 @@
+[English](../docs.en/case-vc-fund-traditional-vs-dle.md) | **Русский**
+
 # Кейс: OpenAI на платформе DLE
 
 ## Суть
@@ -127,7 +129,7 @@ OpenAI — 900 млн пользователей в неделю, 50 млн пл
 ## Дополнительные материалы
 
 - [Кейс: два пути организации бизнеса](case-traditional-vs-dle.md) — общее сравнение
-- [Для предпринимателей](for-entrepreneurs.md) — как начать
+- [README.ru.md](../README.ru.md) — как начать
 
 ---
 

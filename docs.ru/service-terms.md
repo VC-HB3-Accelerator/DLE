@@ -1,4 +1,4 @@
-[English](../legal.en/service-terms.md) | **Русский**
+[English](../docs.en/service-terms.md) | **Русский**
 
 # Перенесено
 

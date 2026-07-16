@@ -1,7 +1,7 @@
-[English](contributor-client-acceptance-act.md) | **[Русский](../../legal.ru/templates/contributor-client-acceptance-act.md)**
+**English** | [Русский](../../legal.ru/templates/contributor-client-acceptance-act.md)
 
-# ACCEPTANCE ACT  
-## Delivery of Digital Legal Entity (DLE) License
+# ACT  
+## of acceptance of Digital Legal Entity (DLE) license delivery
 
 **Template:** CAA-DLE-2026-07-16  
 To Agreement No. `[number]` dated `[date]`  
@@ -13,52 +13,52 @@ Specification / Invoice No. `[…]` dated `[date]`
 ## 1. Parties
 
 **Contractor:**  
-`[full legal name, registration ID, tax ID, address]`
+`[full legal name, reg. number, tax ID, address]`
 
 **Customer:**  
-`[full legal name, registration ID, tax ID, address]`
+`[full legal name, reg. number, tax ID, address]`
 
 ---
 
-## 2. On-chain license transfer record
+## 2. Record of license transfer (on-chain)
 
 | Field | Value |
 |-------|-------|
 | Network | Sepolia (chainId 11155111) `[or other per Specification]` |
 | Customer wallet address | `0x[…]` |
 | Package | `[Standard / Premium]` |
-| Token amount | `[1 / 10]` |
+| Number of tokens | `[1 / 10]` |
 | Tx / Hash of license-token transfer | `0x[…]` |
 | Date/time (UTC), block | `[…]` |
 | EULA (accepted version) | `[EULA-DLE-… / hash]` |
 
-The Parties confirm: credit of the token to the stated address is the Customer’s **acceptance of the EULA** with the Rightsholder (LICENSE). The Contractor is not the owner of the DLE source code.
+The Parties confirm: crediting the token to the stated address constitutes **acceptance of the EULA** by the Customer in relation to the Rightsholder (LICENSE). The Contractor is not the owner of the DLE source code.
 
 ---
 
-## 3. Work / services performed
+## 3. List of work performed / services rendered
 
-- Transfer of the license token (§ 2)  
-- Access to the distribution / repository for the package  
-- Delivery / fixation of EULA and service-terms versions  
+- Transfer of the license token (clause 2)  
+- Provision of access to the distribution / repository within the package scope  
+- Delivery / record of EULA and service-terms versions  
 - `[other per Specification]`  
 - `[…]`
 
 **Period of one-off services under this Act:**  
-from `[…]` `[month]` 20`[…]` to `[…]` `[month]` 20`[…]`.
+from “`[…]`” `[month]` 20`[…]` to “`[…]`” `[month]` 20`[…]`.
 
 ---
 
-## 4. Amount
+## 4. Price
 
-Amount under Agreement No. `[…]` dated `[date]`:  
-`[amount]` (`[amount in words]`) `[currency]`, `[tax-inclusive / tax-exclusive]`.
+Price under Agreement No. `[…]` dated `[date]`:  
+`[amount]` (`[amount in words]`) `[currency]`, `[with tax / without tax]`.
 
-Paid by Customer: `[in full / partially: …]`.
+Paid by the Customer: `[in full / partially: …]`.
 
 ---
 
-## 5. Customer comments
+## 5. Customer remarks
 
 `[ ] none`  `[ ] set out in an annex to this Act`
 
@@ -66,23 +66,23 @@ Paid by Customer: `[in full / partially: …]`.
 
 ## 6. Confirmation
 
-6.1. The Parties confirm that the **license delivery and one-off services** listed in § 3 have been performed as agreed.
+6.1. The Parties confirm that the **license delivery and one-off services** listed in § 3 have been performed in the agreed scope.
 
-6.2. Acceptance and on-chain fixation also follow “Purchase and Service Terms for Digital Legal Entity” (service-terms). The wallet address and Tx/Hash above identify the token transfer.
+6.2. The acceptance procedure and on-chain record are also governed by the document “Digital Legal Entity Terms of Purchase and Service” (service-terms). The wallet address and Tx/Hash above identify the fact of token transfer.
 
-6.3. This Act does **not** terminate update and support obligations for the period in the service-terms (baseline: 5 years from the on-chain transfer date) and does **not** revoke the perpetual right to use the delivered instance (EULA §§ 6.4, 14).
+6.3. This Act does **not** terminate obligations for updates and support for the term set by service-terms (baseline 5 years from the on-chain transfer date) and does **not** revoke the perpetual right to use the delivered instance (EULA § 6.4, § 14).
 
-6.4. After installation, the software instance and the right to use it are the **Customer’s asset** within the EULA.
+6.4. The software instance after installation and the right to use it are a **Customer asset** within the limits of the EULA.
 
 ---
 
 ## Signatures
 
 | | Contractor | Customer |
-|---|------------|----------|
+|---|-------------|----------|
 | Signature | _________________ | _________________ |
 | Name | | |
 | Date | | |
-| Seal (if any) | | |
+| Seal (if applicable) | | |
 
-**© 2024-2026 Aleksandr Viktorovich Tarabanov**
+**© 2024-2026 Alexander Viktorovich Tarabanov**

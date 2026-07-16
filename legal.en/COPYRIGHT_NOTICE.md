@@ -1,12 +1,10 @@
-**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/COPYRIGHT_NOTICE.md)
+**English** | [Русский](../legal.ru/COPYRIGHT_NOTICE.md)
 
 # Copyright Notice
 
-## For use in code file headers
+## For use in source file headers
 
-Add the following header at the top of each source file:
-
-### JavaScript
+Add the following header at the beginning of each source code file:
 
 ```javascript
 /**
@@ -18,7 +16,7 @@ Add the following header at the top of each source file:
  */
 ```
 
-### Python
+## For Python files
 
 ```python
 """
@@ -30,7 +28,7 @@ Add the following header at the top of each source file:
 """
 ```
 
-### Vue
+## For Vue files
 
 ```vue
 <!--
@@ -42,7 +40,7 @@ Add the following header at the top of each source file:
 -->
 ```
 
-### CSS/SCSS
+## For CSS/SCSS files
 
 ```css
 /*
@@ -54,7 +52,7 @@ Add the following header at the top of each source file:
 */
 ```
 
-### HTML
+## For HTML files
 
 ```html
 <!--
@@ -66,7 +64,7 @@ Add the following header at the top of each source file:
 -->
 ```
 
-### Configuration files
+## For configuration files
 
 ```json
 {
@@ -78,7 +76,7 @@ Add the following header at the top of each source file:
 }
 ```
 
-## Key files for adding headers
+## Important files for adding headers
 
 ### Frontend
 - `frontend/src/main.js`
@@ -97,8 +95,8 @@ Add the following header at the top of each source file:
 
 ## Automation
 
-Consider using pre-commit hooks to automatically add copyright headers to new files.
+It is recommended to configure pre-commit hooks to automatically add copyright headers to new files.
 
 ---
 
-**All rights reserved.** See [LICENSE](../LICENSE) for details.
+**All rights reserved.** See the [LICENSE](../LICENSE) file for details.

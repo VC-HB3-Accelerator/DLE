@@ -1,15 +1,14 @@
-**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/ATTRIBUTION_REQUIREMENTS.md)
+**English** | [Русский](../legal.ru/ATTRIBUTION_REQUIREMENTS.md)
 
 # Attribution Requirements
 
 ## Mandatory Attribution
 
-When using any code from the DLE (Digital Legal Entity) project, including individual functions, modules, or algorithms, the source must be cited.
+When using any code from the DLE (Digital Legal Entity) project, including individual functions, modules, or algorithms, you must credit the source.
 
 ## Attribution Formats
 
 ### In code comments
-
 ```javascript
 /**
  * Source: DLE (Digital Legal Entity)
@@ -20,9 +19,8 @@ When using any code from the DLE (Digital Legal Entity) project, including indiv
 ```
 
 ### In documentation
-
 ```markdown
-## Used Components
+## Components Used
 
 - **DLE Authentication Module** - Alexander Viktorovich Tarabanov
   - License: Proprietary
@@ -30,7 +28,6 @@ When using any code from the DLE (Digital Legal Entity) project, including indiv
 ```
 
 ### In configuration files
-
 ```json
 {
   "attributions": {
@@ -46,12 +43,12 @@ When using any code from the DLE (Digital Legal Entity) project, including indiv
 
 ## What Requires Attribution
 
-### Source must be cited for:
+### You must credit the source for:
 - Any functions or methods
 - Algorithms and logic
 - Data structures
 - Configuration files
-- UI styles and components
+- Styles and UI components
 - Documentation and comments
 
 ### Does not require attribution:
@@ -61,20 +58,19 @@ When using any code from the DLE (Digital Legal Entity) project, including indiv
 
 ## Attribution Violations
 
-### Considered a violation:
-- Using code without citing the source
+### Constitutes a violation:
+- Using code without crediting the source
 - Removing or modifying attribution
-- Incorrect author attribution
+- Incorrectly naming the author
 
 ### Consequences:
-- Automatic license termination
+- Automatic termination of the license
 - Possibility of legal action
 - Demand for immediate cessation of use
 
 ## Examples of Correct Attribution
 
 ### In a JavaScript file
-
 ```javascript
 // Document validation function
 // Source: DLE (Digital Legal Entity) - Alexander Viktorovich Tarabanov
@@ -85,7 +81,6 @@ function validateDocument(doc) {
 ```
 
 ### In a Python file
-
 ```python
 # Blockchain transaction processing module
 # Source: DLE (Digital Legal Entity) - Alexander Viktorovich Tarabanov
@@ -95,9 +90,8 @@ class BlockchainProcessor:
 ```
 
 ### In a README file
-
 ```markdown
-## Used Components
+## Components Used
 
 This project uses components from DLE (Digital Legal Entity):
 
@@ -106,10 +100,10 @@ This project uses components from DLE (Digital Legal Entity):
 - **Blockchain Integration** - Alexander Viktorovich Tarabanov
 
 **License:** Proprietary  
-**Contact:** info@hb3-accelerator.com
+**Contacts:** info@hb3-accelerator.com
 ```
 
-## Contact for Questions
+## Contacts for Questions
 
 **Alexander Viktorovich Tarabanov**  
 Email: info@hb3-accelerator.com  

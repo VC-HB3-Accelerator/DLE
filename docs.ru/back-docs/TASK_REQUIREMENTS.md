@@ -1,4 +1,4 @@
-[English](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.en/back-docs/TASK_REQUIREMENTS.md) | **Русский**
+[English](../../docs.en/back-docs/TASK_REQUIREMENTS.md) | **Русский**
 
 # Задание: Реализация мульти-чейн governance системы для DLE
 

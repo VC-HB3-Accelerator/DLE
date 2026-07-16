@@ -1,4 +1,4 @@
-[English](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/README.md) | **Русский**
+[English](README.md) | **Русский**
 
 ---
 
@@ -11,6 +11,7 @@
 ## Автоматическая установка (рекомендуется)
 
 **Для Linux/macOS/WSL:**
+Минимальные требования к серверу: 4 ядра CPU, 16 GB RAM, 100 GB SSD, 
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash

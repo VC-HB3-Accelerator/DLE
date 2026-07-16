@@ -1,4 +1,4 @@
-**English** | [Русский](../legal.ru/service-terms.md)
+**English** | [Русский](../docs.ru/service-terms.md)
 
 # Moved
 

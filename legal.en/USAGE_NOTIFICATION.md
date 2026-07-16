@@ -1,34 +1,33 @@
-**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/legal.ru/USAGE_NOTIFICATION.md)
+**English** | [Русский](../legal.ru/USAGE_NOTIFICATION.md)
 
 # Usage Notification Requirements
 
 ## Mandatory Notifications
 
-When using code from the DLE (Digital Legal Entity) project in any form, including private repositories, the author must be notified.
+When using code from the DLE (Digital Legal Entity) project in any form, including private repositories, you must notify the Author.
 
 ## When Notification Is Required
 
-### Notification required:
+### You must notify:
 - Use in private repositories
 - Integration into existing systems
 - Creation of derivative works
 - Use for educational purposes
 
-### Notification not required:
-- Personal code study
-- Functional testing
+### Does not require notification:
+- Personal study of the code
+- Functionality testing
 - Demonstration of capabilities
 
-## Notification Format
+## Notification Form
 
 ### Email notification
-
 ```
 Subject: DLE Usage Notification
 
 Dear Alexander Viktorovich Tarabanov,
 
-We are notifying you of the use of code from the DLE (Digital Legal Entity) project:
+We hereby notify you of the use of code from the DLE (Digital Legal Entity) project:
 
 ## Project information:
 - Project name: [NAME]
@@ -36,14 +35,14 @@ We are notifying you of the use of code from the DLE (Digital Legal Entity) proj
 - Type of use: [EDUCATIONAL/PERSONAL]
 
 ## Components used:
-- [LIST OF USED MODULES/FUNCTIONS]
+- [LIST OF MODULES/FUNCTIONS USED]
 
 ## Contact information:
 - Name: [FULL NAME]
 - Email: [EMAIL]
 - Organization: [ORGANIZATION]
 
-## Intended use:
+## Planned use:
 - [DESCRIPTION OF PLANS]
 
 Sincerely,
@@ -52,12 +51,11 @@ Sincerely,
 ```
 
 ### GitHub Issue
-
-Create an issue in the repository with the `usage-notification` label:
+Create an issue in the repository with the tag `usage-notification`:
 - Project description
 - List of components used
 - Contact information
-- Intended use
+- Planned use
 
 ## Notification Deadlines
 
@@ -68,8 +66,8 @@ Create an issue in the repository with the `usage-notification` label:
 ## Consequences of Failure to Notify
 
 ### License violation:
-- Automatic termination of rights to use
-- Possibility of demand to cease use
+- Automatic termination of usage rights
+- Possibility of a demand to cease use
 - Potential legal consequences
 
 ### Exceptions:
@@ -81,52 +79,49 @@ Create an issue in the repository with the `usage-notification` label:
 
 ### Automated monitoring:
 - Tracking repository forks
-- Monitoring code mentions
-- Analysis of npm/pip dependencies
+- Monitoring mentions in code
+- Analyzing npm/pip dependencies
 
 ### Manual monitoring:
-- Search on GitHub/GitLab
-- Technical blog monitoring
-- Conference and presentation tracking
+- Searching GitHub/GitLab
+- Monitoring technical blogs
+- Tracking conferences and presentations
 
-## Notification Contacts
+## Contacts for Notifications
 
 **Alexander Viktorovich Tarabanov**  
 - **Email:** info@hb3-accelerator.com
-- **GitHub Issues:** [Create issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
+- **GitHub Issues:** [Create an issue](https://github.com/VC-HB3-Accelerator/DLE/issues)
 - **Subject:** "DLE Usage Notification"
 
 ## Notification Templates
 
 ### For commercial use
-
 ```
 Subject: Commercial DLE Usage Notification
 
-We are notifying you of commercial use of DLE in the project [NAME].
+We hereby notify you of commercial use of DLE in project [NAME].
 Licensing is required to continue use.
 
 Project details are attached.
 ```
 
 ### For educational use
-
 ```
 Subject: Educational DLE Usage Notification
 
-We are notifying you of the use of DLE for educational purposes.
+We hereby notify you of the use of DLE for educational purposes.
 Project: [NAME]
-Institution: [NAME]
+Educational institution: [NAME]
 
 Permission is required for use in courses.
 ```
 
 ### For personal use
-
 ```
 Subject: Personal DLE Usage Notification
 
-We are notifying you of personal use of DLE in the project [NAME].
+We hereby notify you of personal use of DLE in project [NAME].
 Use: [DESCRIPTION]
 
 Thank you for creating an excellent tool!

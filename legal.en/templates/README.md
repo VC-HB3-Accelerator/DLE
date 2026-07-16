@@ -1,31 +1,31 @@
-[English](README.md) | **[Русский](../../legal.ru/templates/README.md)**
+**English** | [Русский](../../legal.ru/templates/README.md)
 
-# DLE contract templates (contributor)
+# DLE Contract Templates (Contributor)
 
 ## Purpose
 
-Ready **model documents** for an authorized contributor selling a DLE license to a client in **any jurisdiction**. Fill in `[…]`; do not weaken the EULA or service-terms.
+Ready **model documents** for an Authorized Contributor when selling a DLE license to a client in **any jurisdiction**. Fill in the `[…]` fields; do not weaken the EULA or service-terms.
 
 | Layer | Document |
 |-------|----------|
 | Author ↔ Contributor | [CONTRIBUTOR_LICENSE.md](../CONTRIBUTOR_LICENSE.md) |
 | Contributor ↔ Client | templates below |
-| Client ↔ Rightsholder (IP) | [LICENSE](../../LICENSE) / [LICENSE.ru](../../LICENSE.ru) + on-chain token |
-| Product commercial terms | [service-terms](../service-terms.md) (or approved localized version) |
+| Client ↔ Rightsholder (IP) | [LICENSE](../../LICENSE) + on-chain token |
+| Product commercial terms | [service-terms.md](../service-terms.md) |
 
 ```
 Author ── CONTRIBUTOR_LICENSE ──► Contributor
-                                       │
-                                       ├── Agreement + Specification + Act
-                                       │         ├── Annex EULA
-                                       │         └── Annex service-terms
-                                       ▼
-                                  Client + Sepolia token = EULA acceptance
+                                      │
+                                      ├── Agreement + Specification + Act (templates)
+                                      │         ├── App. EULA
+                                      │         └── App. service-terms
+                                      ▼
+                                 Client + Sepolia token = EULA acceptance
 ```
 
 ---
 
-## Contributor ↔ Client documents
+## Contributor ↔ Client Documents
 
 | File | Purpose |
 |------|---------|
@@ -33,28 +33,28 @@ Author ── CONTRIBUTOR_LICENSE ──► Contributor
 | [contributor-client-specification.md](contributor-client-specification.md) | Specification / order / invoice |
 | [contributor-client-acceptance-act.md](contributor-client-acceptance-act.md) | Acceptance act and Tx record |
 
-IDs: **CCA / CCS / CAA-DLE-2026-07-16**.
+Identifiers: **CCA / CCS / CAA-DLE-2026-07-16**.
 
 ---
 
-## Fill in locally
+## What Is Filled Locally
 
 - Party details, currency, taxes, payment method  
-- Governing law and court / arbitration (Agreement § 10)  
-- Privacy / DPA documents  
-- If needed: SLA, security, public procurement  
+- Governing law and court / arbitration (clause 10 of the agreement)  
+- Personal data / DPA documents  
+- As needed: SLA, information security, public procurement  
 
-**Do not weaken (unless mandatory law favors the client):** self-hosted; seller ≠ source-code owner; Sepolia for EULA acceptance; non-revocation / instance as asset per EULA §§ 6.4, 14; 70% refund debtor = author.
+**Unchanged (unless law improves the client’s position):** self-hosted; seller ≠ source-code rightsholder; Sepolia for EULA acceptance; non-revocation / instance-as-asset under EULA § 6.4, § 14; 70% refund — debtor is the Author.
 
 ---
 
-## Superseded
+## Obsolete Files
 
 Removed (2026-07-16): `client-license-contract.md`, `contributor-author-contract.md`.  
 Author ↔ Contributor → [CONTRIBUTOR_LICENSE.md](../CONTRIBUTOR_LICENSE.md).  
-Contributor ↔ Client → `contributor-client-*` files above.
+Contributor ↔ Client → the `contributor-client-*` files above.
 
 ---
 
-**© 2024-2026 Aleksandr Viktorovich Tarabanov**  
+**© 2024-2026 Alexander Viktorovich Tarabanov**  
 **Updated:** 2026-07-16

@@ -1,3 +1,5 @@
+[English](../docs.en/case-coca-cola-on-dle.md) | **Русский**
+
 # Кейс: Coca-Cola на платформе DLE
 
 ## Суть
@@ -164,7 +166,7 @@ Coca-Cola продаёт 2.2 млрд порций в день. И не знае
 ## Дополнительные материалы
 
 - [Кейс: два пути организации бизнеса](case-traditional-vs-dle.md) — общее сравнение
-- [Для предпринимателей](for-entrepreneurs.md) — как начать
+- [README.ru.md](../README.ru.md) — как начать
 
 ---
 
