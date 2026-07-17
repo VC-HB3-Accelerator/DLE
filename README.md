@@ -22,7 +22,7 @@ Next: [releases, run, access](#releases-and-artifacts).
 
 ## What it is
 
-**DLE** is a personal operating system template for a legal entity: install on your own infrastructure; the technology core is EVM and AI. Perpetual license; the installed instance and the right to use it are your asset (see [LICENSE](LICENSE)).
+**DLE** is a personal operating system template for a legal entity: install on your own infrastructure (including a local device **in the country of activity**); the technology core is EVM and AI. Perpetual license; the installed instance and the right to use it are your asset (see [LICENSE](LICENSE)). The template includes mechanisms for depersonalization, encryption, processing, and storage of personal data — aligned with the applicable data-protection regulator’s requirements in the country where you operate, including the ability to keep personal data localized on your own site (see [security.md — personal data](docs.en/security.md#personal-data-regulatory-alignment)).
 
 ## Why
 

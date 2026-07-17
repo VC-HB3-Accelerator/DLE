@@ -14,6 +14,8 @@
 8. [Audit and Monitoring](#audit-and-monitoring)
 9. [Security Recommendations](#security-recommendations)
 10. [Attack Scenarios and Mitigation](#attack-scenarios-and-mitigation)
+11. [Personal Data Regulatory Alignment](#personal-data-regulatory-alignment)
+12. [Conclusion](#conclusion)
 
 ---
 
@@ -1245,6 +1247,82 @@ function signMessage(message) {
 
 ---
 
+## Personal Data Regulatory Alignment
+
+The DLE template provides **technical and organizational means** for depersonalization, encryption, processing, and storage of personal data. Specific obligations are set by the **applicable regulator** in the country where the instance operator conducts business (GDPR, local data-protection acts, PIPL, and equivalents — by jurisdiction). Legal completeness of local compliance remains with the operator: document templates are adapted to local law.
+
+### Instance placement in the country of activity
+
+A widespread data-protection requirement is **localization**: processing and storing personal data on infrastructure **within the country** (or another territory defined by applicable law), not with a foreign SaaS vendor.
+
+DLE is designed for that model: the instance is installed on the **operator’s own infrastructure** — a server, VPS, or local device **in the jurisdiction of activity**. Data and the encryption key stay under the operator’s control; the template rightsholder does not take personal data as a mandatory cloud host.
+
+The operator chooses the hosting site so that it meets localization rules (and, where applicable, cross-border transfer restrictions) in their country.
+
+Other mechanisms built into the product:
+
+### 1. Wallet signature (SIWE) and consent
+
+Authentication uses **Sign-In with Ethereum** (EIP-4361). The message statement records review of documents listed in `Resources` and consent to personal data processing (`shared/siweStatements.json`).
+
+`Resources` include URLs of the instance’s published consent documents. A wallet signature is cryptographic confirmation of consent without sending the private key to the server.
+
+Nonces and wallet identifiers in the `nonces` table are stored via PostgreSQL `encrypt_text` (see below). Consent journal: `consent_logs` (API: `/consent/documents`, `/consent/grant`, `/consent/revoke`).
+
+### 2. Legal document package
+
+UI: `/content/templates` (templates) and `/content/published` (published pages). Seed: `backend/scripts/seed/legalTemplatesSeed.js`.
+
+**Public** (for data subjects):
+
+| Document | Purpose |
+| --- | --- |
+| Personal data processing policy | Public PD processing policy |
+| Privacy policy | Service privacy policy |
+| Consent to personal data processing | End-user consent |
+| Cookie consent | Cookies by category |
+| Consent to cross-border PD transfer | Cross-border transfer |
+| Consent to biometric PD processing | Biometrics (when needed) |
+| Data subject rights and consent withdrawal | Rights and withdrawal |
+
+**Internal** (`view_legal_docs`): appointment order and job description for the PD officer, processing and protection policy, request-handling procedures, retention and destruction policy, access segregation, authorized persons list and NDA, DPA template, processing operations register, PD information systems inventory, threat model and security plan, incident response, training, regulator notification template, cross-border transfer procedures, parental/guardian consent, cookie and third-party services policy.
+
+The operator fills placeholders (`{{company_name}}`, `{{privacy_email}}`, etc.), publishes the required documents, and binds them to SIWE / consent flow.
+
+### 3. PostgreSQL: encryption and storage
+
+Sensitive fields are encrypted at the database layer with `encrypt_text` / `decrypt_text` (`pgcrypto`, AES-CBC). The key is held by the operator (`ENCRYPTION_KEY` or the instance key file); data stays on the **operator’s infrastructure in the chosen jurisdiction** (see [instance placement](#instance-placement-in-the-country-of-activity)).
+
+Typical encrypted categories:
+
+| Area | Examples |
+| --- | --- |
+| Profile / CRM | `users.first_name_encrypted`, `last_name_encrypted` |
+| Identities | `user_identities` — email, telegram, wallet (`*_encrypted`) |
+| Auth | `nonces` — address and nonce |
+| Messages | content and related channel fields |
+| User tables | names, cells (`user_tables` / `user_cell_values`) |
+
+Depersonalization and data minimization are supported by the data model (separate identity providers, PII encryption at rest) and access rights; retention and destruction are defined by the operator in the published policy and internal procedures.
+
+### 4. CRM and contacts
+
+CRM surface (`/crm`, `/contacts-list`): contacts are `users` + `user_identities` records, decrypted by the service when the key and permissions are present. Deleting a contact cascades related user data (including guest messages — per the API deletion policy).
+
+Client and staff personal data are processed **on the operator’s infrastructure in the country (jurisdiction) of activity**, without mandatory handover to a SaaS vendor.
+
+### Responsibility boundaries
+
+| Layer | DLE (template) | Instance operator |
+| --- | --- | --- |
+| Placement in the country of activity (PD localization) | On‑prem / own-host install | ✅ Choosing a site in the jurisdiction |
+| Encryption at rest, SIWE, consent log, document package | ✅ | Key setup, publishing docs |
+| Selecting and adapting texts to local law | Starter templates | ✅ Required |
+| Regulator notification, DPAs with processors, retention | Templates | ✅ By jurisdiction |
+| Hosting and encryption-key custody | Guidance | ✅ Operator control |
+
+---
+
 ## Conclusion
 
 ### Multi-Layer DLE Protection
@@ -1319,4 +1397,4 @@ function signMessage(message) {
 
 **© 2024-2026 Tarabanov Aleksandr Viktorovich. All rights reserved.**
 
-**Last updated**: February 2026
+**Last updated**: July 2026
