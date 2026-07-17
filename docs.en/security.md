@@ -1,4 +1,4 @@
-**English** | [Русский](../docs.ru/security.md)
+**English** | [Русский](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/docs.ru/security.md)
 
 # Digital Legal Entity (DLE) Security
 
@@ -21,17 +21,17 @@
 
 Digital Legal Entity (DLE) is built with a focus on **security at every layer**:
 - Access control via blockchain tokens
-- Smart contract protection from compromise
+- Smart contract protection against compromise
 - Tokens cannot be stolen even if a wallet is compromised
 - Governance only through voting with quorum
 
 ### Key Security Principles
 
-1. **Secure by default** — all actions are denied until explicitly allowed
-2. **Least privilege** — each party gets only the rights they need
-3. **Transparency** — all actions are recorded on the blockchain
-4. **Immutability** — history cannot be forged
-5. **Collective control** — critical operations only through voting
+1. **Secure by default** - all actions are denied until explicitly allowed
+2. **Least privilege** - everyone receives only the rights they need
+3. **Transparency** - all actions are recorded on the blockchain
+4. **Immutability** - history cannot be forged
+5. **Collective control** - critical operations only through voting
 
 ---
 
@@ -41,77 +41,84 @@ Digital Legal Entity (DLE) is built with a focus on **security at every layer**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    DLE Protection Layers                     │
+│                    DLE Protection Layers                    │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Layer 1: Blockchain (Immutable Base)                      │
+│  Layer 1: Blockchain (Immutable Base)                       │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │ • DLE smart contract (audited, immutable)             │  │
-│  │ • Governance tokens (ERC20Votes)                       │  │
-│  │ • Full operation history on the blockchain            │  │
+│  │ • Governance tokens (ERC20Votes)                      │  │
+│  │ • History of all operations on-chain                  │  │
 │  │ • Rules cannot change without voting                  │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                           ↑                                 │
+│  Layer 2: Web Application (Backend)                         │
+│  � voting                  │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                           ↑                                 │
 │  Layer 2: Web Application (Backend)                         │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │ • Real-time token checks                              │  │
 │  │ • Wallet authentication (SIWE)                        │  │
-│  │ • Data encryption (AES-256)                            │  │
+│  │ • Data encryption (AES-256)                           │  │
 │  │ • Rate limiting and DDoS protection                   │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                           ↑                                 │
 │  Layer 3: Frontend (Vue.js)                                 │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │ • Wallet connection                                    │  │
-│  │ • Transaction signing                                  │  │
+│  │ • Wallet connection                                   │  │
+│  │ • Transaction signing                                 │  │
 │  │ • XSS protection (DOMPurify)                          │  │
-│  │ • CSRF tokens                                          │  │
+│  │ • CSRF tokens                                         │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                           ↑                                 │
 │  Layer 4: User                                              │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │ • Wallet private key (MetaMask, WalletConnect)        │  │
-│  │ • Confirmation for each operation                      │  │
+│  │ • Confirmation of every operation                     │  │
+│  └───────────────────────────────────────────────────────�
+│  │ • Wallet private key (MetaMask, WalletConnect)        │  │
+│  │ • Confirmation of every operation                     │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Threat Model
 
-| Threat | Risk Level | Mitigation |
+| Threat | Risk Level | Protection |
 |--------|------------|------------|
 | **Wallet compromise** | Medium | Tokens cannot be transferred without voting |
-| **Web application compromise** | Low | All rights are checked on the blockchain; governance via blockchain explorers |
+| **Web application compromise** | Low | All rights checked on-chain; governance via block explorers |
 | **Smart contract compromise** | Low | Audit, OpenZeppelin, immutability |
 | **DDoS attack** | Medium | Rate limiting, CDN, backup servers |
 | **Phishing** | High | User education, domain verification |
 | **Insider threat** | Low | All actions through voting |
 
-### Critical: The Web Application Is Only an Interface
+### Critically important: the web application is only an interface
 
-**Key DLE architecture characteristic:**
+**Key feature of the DLE architecture:**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              Web Application (Interface)                │
+│              Web application (interface)                │
 │                                                         │
-│  Frontend + Backend = CONVENIENCE of use               │
-│  • Polished UI                                         │
-│  • Convenient navigation                               │
-│  • Fast access to features                             │
+│  Frontend + Backend = CONVENIENCE of use                │
+│  • Polished UI                                          │
+│  • Convenient navigation                                │
+│  • Fast access to features                              │
 │                                                         │
-│  May be compromised / unavailable                      │
+│  Can be compromised / unavailable                       │
 │  ✅ BUT! Business assets remain protected               │
 └─────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────┐
-│               Blockchain (Real Authority)               │
+│               Blockchain (real authority)               │
 │                                                         │
-│  Smart contracts = REAL asset control                  │
-│  • Governance tokens                                   │
-│  • Treasury with assets                                │
-│  • Voting rules                                        │
-│  • History of all decisions                            │
+│  Smart contracts = REAL asset control                   │
+│  • Governance tokens                                    │
+│  • Treasury with assets                                 │
+│  • Voting rules                                         │
+│  • History of all decisions                             │
 │                                                         │
 │  Protected by cryptography                              │
 │  ✅ Works independently of the web application          │
@@ -124,25 +131,25 @@ Digital Legal Entity (DLE) is built with a focus on **security at every layer**:
 Web application compromised / unavailable:
 ├── ❌ Web interface does not work
 ├── ❌ Backend may show incorrect information
-├── ❌ Frontend may be replaced
+├── ❌ Frontend may be substituted
 │
 BUT:
 ├── ✅ All business assets remain on the blockchain
-├── ✅ Smart contracts continue to operate
+├── ✅ Smart contracts continue to work
 ├── ✅ Tokens cannot be stolen
-├── ✅ Governance is possible via Etherscan/Polygonscan/etc.
-└── ✅ You can deploy a new frontend and connect it to the same contracts
+├── ✅ Governance via Etherscan/Polygonscan/etc. is possible
+└── ✅ A new frontend can be built and connected to the same contracts
 ```
 
 **Real-world example:**
 
-1. An attacker compromises your server that hosts the web application
-2. They try to display fake token balances
+1. An attacker compromises your web application server
+2. Tries to show forged token balances
 3. **But**: Real balances on the blockchain remain unchanged
 4. You open Etherscan and see the truth
-5. You create a recovery proposal via Etherscan
-6. You vote and execute the proposal
-7. You restore the web application
+5. Create a recovery proposal via Etherscan
+6. Vote and execute the proposal
+7. Restore the web application
 8. **Result**: Not a single token is lost ✅
 
 ---
@@ -154,7 +161,7 @@ BUT:
 **Without tokens, access to the application is IMPOSSIBLE.**
 
 ```
-DLE access attempt:
+Attempt to access DLE:
 ├── 1. User connects a wallet
 ├── 2. Backend checks token balance in the smart contract
 ├── 3. If there are NO tokens → Access DENIED
@@ -163,33 +170,33 @@ DLE access attempt:
 
 ### Access Levels
 
-| Token Balance | Access Level | Rights |
-|---------------|--------------|--------|
-| **0 tokens** | ❌ No access | "No access" page only |
+| Tokens on balance | Access level | Rights |
+|-------------------|--------------|--------|
+| **0 tokens** | ❌ No access | Only the "No access" page |
 | **1+ tokens** | ✅ ReadOnly | View data |
 | **100+ tokens** | ✅ Editor | Edit, create |
 | **Any amount** | 🗳️ Voting | 1 token = 1 vote |
 
 ### Real-Time Token Checks
 
-**Backend** continuously checks token balances:
+The **Backend** continuously checks token balances:
 
 ```javascript
-// Every request checks tokens
+// Каждый запрос проверяет токены
 async function checkAccess(req, res, next) {
     const address = req.session.address;
     
-    // Get token balance from the smart contract
+    // Получаем баланс токенов из смарт-контракта
     const dleContract = new ethers.Contract(dleAddress, dleAbi, provider);
     const balance = await dleContract.balanceOf(address);
     
     if (balance === 0n) {
         return res.status(403).json({ 
-            error: 'Access denied: no tokens' 
+            error: 'Доступ запрещен: нет токенов' 
         });
     }
     
-    // Determine access level
+    // Определяем уровень доступа
     const accessLevel = determineAccessLevel(balance);
     req.user = { address, balance, accessLevel };
     
@@ -198,20 +205,20 @@ async function checkAccess(req, res, next) {
 ```
 
 **Important**: The check runs on **every request**, therefore:
-- ✅ If tokens are transferred away → access is lost immediately
-- ✅ If tokens are received → access appears immediately
+- ✅ If tokens are transferred → access is lost instantly
+- ✅ If tokens are received → access appears instantly
 - ✅ The check cannot be bypassed
 
 ### Initial Token Distribution
 
-**Tokens are distributed by the owner at smart contract deployment:**
+**Tokens are distributed by the owner at smart contract deploy time:**
 
 ```solidity
 constructor(DLEConfig memory config) {
-    // Mint tokens
+    // Создаем токены
     _mint(address(this), totalSupply);
     
-    // Distribute among partners
+    // Распределяем среди партнеров
     for (uint i = 0; i < config.initialPartners.length; i++) {
         _transfer(
             address(this), 
@@ -224,22 +231,22 @@ constructor(DLEConfig memory config) {
 
 **Process**:
 1. The wallet owner deploys the DLE smart contract
-2. Specifies partner addresses and the token amount for each
-3. Tokens are automatically distributed at deploy time
-4. After that, all changes are only through voting
+2. Specifies partner addresses and token amounts for each
+3. Tokens are distributed automatically at deploy
+4. After that, all changes only through voting
 
 **Distribution example**:
 ```javascript
 const config = {
     initialPartners: [
-        '0xAlice...', // Founder 1
-        '0xBob...',   // Founder 2
-        '0xCarol...'  // Investor
+        '0xAlice...', // Основатель 1
+        '0xBob...',   // Основатель 2
+        '0xCarol...'  // Инвестор
     ],
     initialAmounts: [
-        500000,  // 50% for Alice
-        300000,  // 30% for Bob
-        200000   // 20% for Carol
+        500000,  // 50% для Alice
+        300000,  // 30% для Bob
+        200000   // 20% для Carol
     ]
 };
 ```
@@ -253,7 +260,7 @@ const config = {
 **CRITICAL**: Governance tokens **CANNOT** be transferred by ordinary means!
 
 ```solidity
-// Transfers are BLOCKED
+// Переводы ЗАБЛОКИРОВАНЫ
 function transfer(address to, uint256 amount) 
     public 
     pure 
@@ -263,7 +270,7 @@ function transfer(address to, uint256 amount)
     revert ErrTransfersDisabled();
 }
 
-// Approvals are BLOCKED
+// Одобрения ЗАБЛОКИРОВАНЫ
 function approve(address spender, uint256 amount) 
     public 
     pure 
@@ -273,7 +280,7 @@ function approve(address spender, uint256 amount)
     revert ErrApprovalsDisabled();
 }
 
-// TransferFrom is BLOCKED
+// TransferFrom ЗАБЛОКИРОВАН
 function transferFrom(address from, address to, uint256 amount) 
     public 
     pure 
@@ -295,7 +302,7 @@ function transferFrom(address from, address to, uint256 amount)
 **Only through voting with quorum:**
 
 ```solidity
-// Token transfer (only through governance)
+// Перевод токенов (только через голосование)
 function _transferTokens(address recipient, uint256 amount) internal {
     require(msg.sender == address(this), "Only through governance");
     _transfer(address(this), recipient, amount);
@@ -318,16 +325,16 @@ function _transferTokens(address recipient, uint256 amount) internal {
    └── → Proposal approved
 
 4. Execution
-   ├── The smart contract automatically transfers tokens
-   └── The event is recorded on the blockchain forever
+   ├── Smart contract transfers tokens automatically
+   └── Event recorded on-chain forever
 ```
 
 ### Quorum Configuration
 
-**Quorum is set at deploy time** and can be changed only through voting:
+**Quorum is set at deploy** and can be changed only through voting:
 
 ```solidity
-uint256 public quorumPercentage; // e.g., 10%
+uint256 public quorumPercentage; // Например, 10%
 
 function _hasQuorum(uint256 forVotes, uint256 againstVotes) 
     internal 
@@ -341,10 +348,10 @@ function _hasQuorum(uint256 forVotes, uint256 againstVotes)
 ```
 
 **Quorum examples**:
-- 5% — easy to reach (for active organizations)
-- 10% — standard (recommended)
-- 20% — strict (for critical decisions)
-- 51% — absolute majority
+- 5% - easy to reach (for active organizations)
+- 10% - standard (recommended)
+- 20% - strict (for critical decisions)
+- 51% - absolute majority
 
 ### Reentrancy Protection
 
@@ -354,58 +361,58 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 contract DLE is ReentrancyGuard {
     function execute(uint256 proposalId) 
         external 
-        nonReentrant  // Reentrancy protection
+        nonReentrant  // Защита от реентерабельности
     {
-        // Proposal execution
+        // Исполнение предложения
     }
 }
 ```
 
 ### Flash-Loan Protection
 
-**Vote snapshots** prevent attacks that temporarily borrow tokens:
+**Vote snapshots** prevent attacks with temporary token borrowing:
 
 ```solidity
-// Votes are taken from a PAST block
+// Голоса берутся из ПРОШЛОГО блока
 uint256 public snapshotTimepoint = block.number - 1;
 
 function vote(uint256 proposalId, bool support) external {
-    // Use balance from the past block
+    // Используем баланс из прошлого блока
     uint256 votingPower = getPastVotes(msg.sender, snapshotTimepoint);
     require(votingPower > 0, "No voting power");
     
-    // Voting
+    // Голосование
 }
 ```
 
 **Why this is safe**:
-1. An attacker takes a flash loan of 1,000,000 tokens
+1. Attacker takes a flash-loan of 1,000,000 tokens
 2. Tries to vote
-3. The smart contract checks the balance in the **past block**
-4. In the past block the attacker had 0 tokens
-5. The vote is rejected ❌
+3. Smart contract checks balance in the **previous block**
+4. In the previous block the attacker had 0 tokens
+5. Vote rejected ❌
 
 ### Validation of All Parameters
 
 ```solidity
-// Address checks
+// Проверка адресов
 if (address == address(0)) revert ErrZeroAddress();
 
-// Token holding check
+// Проверка наличия токенов
 if (balanceOf(msg.sender) == 0) revert ErrNotHolder();
 
-// Voting duration checks
+// Проверка длительности голосования
 if (duration < minVotingDuration) revert ErrTooShort();
 if (duration > maxVotingDuration) revert ErrTooLong();
 
-// Supported networks check
+// Проверка поддерживаемых сетей
 if (!supportedChains[chainId]) revert ErrUnsupportedChain();
 ```
 
 ### Custom Errors for Gas Savings
 
 ```solidity
-// Gas savings: custom errors instead of require
+// Экономия gas: custom errors вместо require
 error ErrZeroAddress();
 error ErrNotHolder();
 error ErrAlreadyVoted();
@@ -419,14 +426,14 @@ error ErrWrongChain();
 
 ## Wallet Compromise Protection
 
-### Scenario: An Attacker Obtained the Private Key
+### Scenario: Attacker Obtained the Private Key
 
 **What the attacker can do:**
 
 ```
 Attacker attempts:
 
-1. ❌ Send tokens to their own address
+1. ❌ Send tokens to their address
    └── BLOCKED: transfer() is disabled
 
 2. ❌ Sell tokens on a DEX (Uniswap, etc.)
@@ -438,7 +445,7 @@ Attacker attempts:
 4. ❓ Create a proposal "Transfer tokens to me"
    └── Requires voting by other token holders
    └── Quorum: 10%+ must vote "For"
-   └── WILL MOST LIKELY FAIL
+   └── MOST LIKELY FAILS
 ```
 
 ### Real Attack Example
@@ -467,11 +474,11 @@ PROBLEM: If Alice holds a majority of tokens!
 **Solution 1: Timelock Module**
 
 ```solidity
-// Delayed execution (e.g., 3 days)
+// Отложенное исполнение (например, 3 дня)
 uint256 public constant TIMELOCK_DELAY = 3 days;
 
 function scheduleProposal(uint256 proposalId) external {
-    // Proposal approved, but executes only after 3 days
+    // Предложение одобрено, но исполнится только через 3 дня
     executionTime = block.timestamp + TIMELOCK_DELAY;
 }
 ```
@@ -479,12 +486,12 @@ function scheduleProposal(uint256 proposalId) external {
 **Advantage**: Other token holders see the dangerous proposal and can:
 - Vote "Against"
 - Create a counter-proposal
-- Take action (e.g., go to court)
+- Take measures (e.g., go to court)
 
 **Solution 2: Multisignature**
 
 ```solidity
-// Multiple signatures required for critical operations
+// Требуется несколько подписей для критичных операций
 mapping(uint256 => mapping(address => bool)) public approvals;
 
 function executeWithApprovals(
@@ -492,35 +499,35 @@ function executeWithApprovals(
     address[] calldata signers,
     bytes[] calldata signatures
 ) external {
-    // Verify signatures of several token holders
+    // Проверяем подписи нескольких токен-холдеров
     require(signers.length >= minSigners, "Not enough signers");
     
     for (uint i = 0; i < signers.length; i++) {
-        // Signature verification
+        // Проверка подписи
         verifySignature(proposalId, signers[i], signatures[i]);
     }
     
-    // Execution
+    // Исполнение
 }
 ```
 
-**Solution 3: Cold Wallet for Large Holders**
+**Solution 3: Cold wallet for large holders**
 
 It is recommended to keep tokens on:
-- 🥶 **Hardware wallet** (Ledger, Trezor) — maximum protection
+- 🥶 **Hardware wallet** (Ledger, Trezor) - maximum protection
 - **Multisig** (Gnosis Safe) — multiple signatures required
-- ❄️ **Cold storage** — offline, not connected to the internet
+- ❄️ **Cold storage** - offline, not connected to the internet
 
 ### Monitoring Suspicious Proposals
 
 **Backend automatically detects dangerous proposals:**
 
 ```javascript
-// Suspicious proposal detector
+// Детектор подозрительных предложений
 function detectSuspiciousProposal(proposal) {
     const alerts = [];
     
-    // Check 1: Transfer of a large amount of tokens
+    // Проверка 1: Перевод большого количества токенов
     if (proposal.operation.includes('_transferTokens')) {
         const amount = decodeAmount(proposal.operation);
         const percentage = (amount / totalSupply) * 100;
@@ -528,28 +535,28 @@ function detectSuspiciousProposal(proposal) {
         if (percentage > 10) {
             alerts.push({
                 level: 'HIGH',
-                message: `Proposal transfers ${percentage}% of all tokens!`
+                message: `Предложение переводит ${percentage}% всех токенов!`
             });
         }
     }
     
-    // Check 2: Initiator votes only with their own tokens
+    // Проверка 2: Инициатор голосует своими токенами
     if (proposal.forVotes === proposal.initiatorBalance) {
         alerts.push({
             level: 'MEDIUM',
-            message: 'Initiator is voting only with their own tokens'
+            message: 'Инициатор голосует только своими токенами'
         });
     }
     
-    // Check 3: Fast voting (< 24 hours)
+    // Проверка 3: Быстрое голосование (< 24 часов)
     if (proposal.duration < 86400) {
         alerts.push({
             level: 'MEDIUM',
-            message: 'Voting lasts less than 24 hours — little time to review'
+            message: 'Голосование менее 24 часов - мало времени на проверку'
         });
     }
     
-    // Send notifications to all token holders
+    // Отправляем уведомления всем токен-холдерам
     if (alerts.length > 0) {
         notifyAllTokenHolders(proposal, alerts);
     }
@@ -562,19 +569,19 @@ function detectSuspiciousProposal(proposal) {
 
 ### Authentication via SIWE
 
-**Sign-In with Ethereum** — a standard for secure authentication:
+**Sign-In with Ethereum** - a standard for secure authentication:
 
 ```javascript
-// Generate nonce (one-time)
+// Генерация nonce (одноразовый)
 const nonce = crypto.randomBytes(32).toString('hex');
 
-// Store in DB with encryption
+// Сохранение в БД с шифрованием
 await db.query(
     'INSERT INTO nonces (address_encrypted, nonce_encrypted, expires_at) VALUES ($1, $2, $3)',
     [encrypt(address), encrypt(nonce), expiresAt]
 );
 
-// Signature verification
+// Проверка подписи
 const message = new SiweMessage({
     domain: req.get('host'),
     address: ethers.getAddress(address),
@@ -598,7 +605,7 @@ const isValid = await verifySignature(
 ### Data Encryption
 
 ```javascript
-// AES-256 encryption
+// AES-256 шифрование
 const crypto = require('crypto');
 
 function encrypt(text, key) {
@@ -626,7 +633,7 @@ function decrypt(encrypted, key) {
 
 **What is encrypted**:
 - Wallet addresses in the DB
-- Authentication nonces
+- Nonces for authentication
 - Session data
 - Private messages
 
@@ -635,17 +642,17 @@ function decrypt(encrypted, key) {
 ```javascript
 const rateLimit = require('express-rate-limit');
 
-// Request limiting
+// Ограничение запросов
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // maximum 100 requests
-    message: 'Too many requests, please try again later'
+    windowMs: 15 * 60 * 1000, // 15 минут
+    max: 100, // максимум 100 запросов
+    message: 'Слишком много запросов, попробуйте позже'
 });
 
-// Auth limiting (stricter)
+// Ограничение для аутентификации (более строгое)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5, // maximum 5 authentication attempts
+    max: 5, // максимум 5 попыток аутентификации
     skipSuccessfulRequests: true
 });
 
@@ -658,11 +665,11 @@ app.use('/api/auth/', authLimiter);
 ```javascript
 const csrf = require('csurf');
 
-// CSRF tokens for all forms
+// CSRF токены для всех форм
 const csrfProtection = csrf({ cookie: true });
 
 app.post('/api/action', csrfProtection, async (req, res) => {
-    // CSRF token check is automatic
+    // Проверка CSRF токена автоматическая
 });
 ```
 
@@ -671,7 +678,7 @@ app.post('/api/action', csrfProtection, async (req, res) => {
 ```javascript
 import DOMPurify from 'dompurify';
 
-// Sanitize HTML from dangerous code
+// Очистка HTML от опасного кода
 function sanitizeHTML(html) {
     return DOMPurify.sanitize(html, {
         ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p'],
@@ -679,7 +686,7 @@ function sanitizeHTML(html) {
     });
 }
 
-// Usage
+// Использование
 const userInput = req.body.comment;
 const safeHTML = sanitizeHTML(userInput);
 ```
@@ -713,12 +720,12 @@ app.use(helmet({
 ```javascript
 function cleanLogs() {
     const sensitivePatterns = [
-        /0x[a-fA-F0-9]{40}/g,  // Wallet addresses
-        /pk_[a-zA-Z0-9]{64}/g,  // Private keys (if accidentally logged)
+        /0x[a-fA-F0-9]{40}/g,  // Адреса кошельков
+        /pk_[a-zA-Z0-9]{64}/g,  // Приватные ключи (если случайно залогированы)
         /nonce:\s*[a-f0-9]{64}/gi,  // Nonces
     ];
     
-    // Replace sensitive data with ***
+    // Замена чувствительных данных на ***
     let cleanedLog = logContent;
     sensitivePatterns.forEach(pattern => {
         cleanedLog = cleanedLog.replace(pattern, '[REDACTED]');
@@ -732,12 +739,12 @@ function cleanLogs() {
 
 ## Module Management
 
-### Only the DLE Smart Contract Manages Modules
+### Only the DLE Smart Contract Controls Modules
 
-The **`onlyDLE` modifier** ensures that only the DLE smart contract can call module functions:
+The **`onlyDLE` modifier** guarantees that only the DLE smart contract can call module functions:
 
 ```solidity
-// Module: TreasuryModule
+// Модуль: TreasuryModule
 contract TreasuryModule {
     address public immutable dleContract;
     
@@ -746,7 +753,7 @@ contract TreasuryModule {
         _;
     }
     
-    // Only DLE can transfer tokens from the treasury
+    // Только DLE может переводить токены из казны
     function transferTokens(
         address token,
         address recipient,
@@ -758,9 +765,9 @@ contract TreasuryModule {
 ```
 
 **What this means**:
-- ❌ The wallet owner **CANNOT** call module functions directly
-- ❌ Backend **CANNOT** call module functions
-- ❌ An attacker **CANNOT** interact with the module
+- ❌ The wallet owner **cannot** call module functions directly
+- ❌ The Backend **cannot** call module functions
+- ❌ An attacker **cannot** interact with the module
 - ✅ **Only** the DLE smart contract through voting
 
 ### Module Usage Process
@@ -769,7 +776,7 @@ contract TreasuryModule {
 1. Token holder creates a proposal
    └── "Transfer 1000 USDC from Treasury to marketing"
 
-2. The proposal contains an encoded module function call
+2. Proposal contains an encoded module function call
    └── operation = treasuryModule.transferTokens(USDC, marketing, 1000)
 
 3. Voting
@@ -778,7 +785,7 @@ contract TreasuryModule {
    └── TreasuryModule.transferTokens() ✅
    └── msg.sender = DLE contract ✅
    
-5. The module checks msg.sender and executes
+5. Module checks msg.sender and executes
 ```
 
 ### Adding a New Module
@@ -786,7 +793,7 @@ contract TreasuryModule {
 **Only through voting:**
 
 ```solidity
-// Add-module operation
+// Операция добавления модуля
 function _addModule(bytes32 moduleId, address moduleAddress) internal {
     require(msg.sender == address(this), "Only through voting");
     require(moduleAddress != address(0), "Invalid address");
@@ -803,8 +810,8 @@ function _addModule(bytes32 moduleId, address moduleAddress) internal {
 1. Deploy the new module
 2. Create a proposal: "Add module X at address 0x..."
 3. Voting
-4. If approved → the module is added
-5. The module can be used
+4. If approved → module is added
+5. Module can be used
 
 ### Removing a Compromised Module
 
@@ -825,12 +832,12 @@ If a module turns out to be vulnerable:
 
 ## Audit and Monitoring
 
-### Transparency on the Blockchain
+### On-Chain Transparency
 
 **All actions are recorded forever:**
 
 ```solidity
-// Events for audit
+// События для аудита
 event ProposalCreated(uint256 proposalId, address initiator);
 event ProposalVoted(uint256 proposalId, address voter, bool support);
 event ProposalExecuted(uint256 proposalId, bytes operation);
@@ -838,7 +845,7 @@ event ModuleAdded(bytes32 moduleId, address moduleAddress);
 event TokensTransferred(address recipient, uint256 amount);
 ```
 
-**Verification in a blockchain explorer:**
+**Check in a block explorer:**
 ```
 https://etherscan.io/address/0xDLE_CONTRACT_ADDRESS
 └── All transactions are publicly visible
@@ -850,17 +857,17 @@ https://etherscan.io/address/0xDLE_CONTRACT_ADDRESS
 **Backend tracks all events:**
 
 ```javascript
-// Subscribe to smart contract events
+// Подписка на события смарт-контракта
 dleContract.on('ProposalCreated', async (proposalId, initiator, event) => {
-    logger.info(`New proposal #${proposalId} from ${initiator}`);
+    logger.info(`Новое предложение #${proposalId} от ${initiator}`);
     
-    // Get proposal details
+    // Получаем детали предложения
     const proposal = await dleContract.proposals(proposalId);
     
-    // Security analysis
+    // Анализ безопасности
     const risks = analyzeProposalRisks(proposal);
     
-    // Notify token holders
+    // Уведомление токен-холдеров
     if (risks.level === 'HIGH') {
         await notifyAllTokenHolders({
             type: 'SECURITY_ALERT',
@@ -874,28 +881,28 @@ dleContract.on('ProposalCreated', async (proposalId, initiator, event) => {
 ### Alert System
 
 ```javascript
-// Critical events require immediate notification
+// Критичные события требуют немедленного уведомления
 const criticalEvents = [
-    'ProposalCreated',     // New proposal
-    'ModuleAdded',         // Module added
-    'TokensTransferred'    // Tokens transferred
+    'ProposalCreated',     // Новое предложение
+    'ModuleAdded',         // Добавлен модуль
+    'TokensTransferred'    // Переведены токены
 ];
 
 async function sendAlert(event, data) {
-    // Email notifications
+    // Email уведомления
     await sendEmail({
         to: allTokenHolders,
         subject: `[DLE Alert] ${event}`,
         body: formatAlert(data)
     });
     
-    // Telegram notifications
+    // Telegram уведомления
     await sendTelegram({
         chat: dleNotificationsChat,
         message: formatAlert(data)
     });
     
-    // Write to logs
+    // Запись в логи
     logger.warn(`ALERT: ${event}`, data);
 }
 ```
@@ -907,45 +914,45 @@ async function sendAlert(event, data) {
 ### For Token Holders
 
 1. **Use a hardware wallet** (Ledger, Trezor)
-   - The private key never leaves the device
-   - Every operation is confirmed on a physical device
+   - Private key never leaves the device
+   - Every operation confirmed on a physical device
 
 2. **Store the seed phrase securely**
-   - Write it on paper; do not store it digitally
+   - Write it on paper; do not store digitally
    - Use metal plates for durability
-   - Keep it in a safe or bank safe-deposit box
+   - Keep in a safe or bank vault
 
 3. **Enable notifications**
    - Email alerts for new proposals
    - Telegram bots for critical events
 
-4. **Review every proposal**
+4. **Review all proposals**
    - Read the description before voting
    - Verify recipient addresses
    - Use timelock for critical operations
 
 5. **Split your tokens**
-   - Hot wallet: 10–20% for everyday use
+   - Hot wallet: 10–20% for day-to-day use
    - Cold wallet: 80–90% for long-term storage
 
 ### For Administrators
 
 1. **Regular updates**
    ```bash
-   # Weekly update
+   # Еженедельное обновление
    docker-compose pull
    docker-compose up -d
    ```
 
 2. **Backups**
    ```bash
-   # Daily database backup
+   # Ежедневный бэкап базы данных
    docker exec dapp-postgres pg_dump -U user db > backup.sql
    ```
 
 3. **Log monitoring**
    ```bash
-   # Check logs for suspicious activity
+   # Проверка логов на подозрительную активность
    docker logs dapp-backend | grep -i "error\|warning\|failed"
    ```
 
@@ -955,7 +962,7 @@ async function sendAlert(event, data) {
 
 5. **Firewall configuration**
    ```bash
-   # Allow only necessary ports
+   # Разрешить только необходимые порты
    ufw allow 80/tcp   # HTTP
    ufw allow 443/tcp  # HTTPS
    ufw enable
@@ -970,11 +977,11 @@ async function sendAlert(event, data) {
 
 2. **Testing**
    ```bash
-   # Run tests
+   # Запуск тестов
    cd backend
    yarn test
    
-   # Code coverage
+   # Покрытие кода
    yarn coverage
    ```
 
@@ -984,7 +991,7 @@ async function sendAlert(event, data) {
 
 4. **Secure dependencies**
    ```bash
-   # Vulnerability check
+   # Проверка уязвимостей
    yarn audit
    npm audit fix
    ```
@@ -1002,21 +1009,21 @@ async function sendAlert(event, data) {
 3. Asks them to connect a wallet and sign a transaction
 ```
 
-**Mitigation:**
+**Protection:**
 ```javascript
-// Backend checks the domain in the SIWE message
+// Backend проверяет домен в SIWE сообщении
 const message = new SiweMessage({
-    domain: req.get('host'), // Must be the correct domain
+    domain: req.get('host'), // Должен быть правильный домен
     uri: req.get('origin')
 });
 
-// Frontend shows a warning
+// Frontend показывает предупреждение
 if (window.location.hostname !== 'dle.app') {
-    alert('WARNING: This is NOT the official DLE website!');
+    alert('ВНИМАНИЕ: Это НЕ официальный сайт DLE!');
 }
 ```
 
-**Recommendations for users:**
+**User recommendations:**
 - ✅ Always check the URL before connecting a wallet
 - ✅ Use browser bookmarks
 - ✅ Verify the SSL certificate (green lock)
@@ -1030,28 +1037,28 @@ if (window.location.hostname !== 'dle.app') {
 3. Or takes the web application completely offline
 ```
 
-**Mitigation:**
+**Protection:**
 ```
 ✅ Token checks happen on the blockchain (immutable)
-✅ Backend may be compromised, but:
+✅ Backend can be compromised, but:
    ├── Impossible to change token balances in the smart contract
-   ├── Impossible to create fake tokens
+   ├── Impossible to mint forged tokens
    ├── Impossible to change smart contract rules
-   └── Users will see discrepancies between backend and blockchain
+   └── Users will see a mismatch between backend and blockchain
 ```
 
 **Critical: The web application is only an interface!**
 
 Even with a **full compromise** of the web application:
-- ✅ **All business assets remain protected** on the blockchain
-- ✅ **Smart contracts continue to operate** independently of the web application
-- ✅ **Governance is possible via blockchain explorers** (Etherscan, Polygonscan, etc.)
+- ✅ **All business assets are protected** on the blockchain
+- ✅ **Smart contracts continue to work** independently of the web application
+- ✅ **Governance via block explorers is possible** (Etherscan, Polygonscan, etc.)
 
-### Governance via Blockchain Explorers
+### Governance via Block Explorers
 
-**If the web application is unavailable, use blockchain explorers:**
+**If the web application is unavailable, use block explorers:**
 
-#### 1. Checking Token Balance
+#### 1. Checking token balance
 
 ```
 1. Open Etherscan: https://etherscan.io
@@ -1059,7 +1066,7 @@ Even with a **full compromise** of the web application:
 3. Go to the "Read Contract" tab
 4. Call the balanceOf(address) function
 5. Enter your wallet address
-6. Click "Query" — you will see the token balance ✅
+6. Click "Query" - you will see the token balance ✅
 ```
 
 **Example**:
@@ -1070,15 +1077,15 @@ Address: 0xYourWallet...
 Result: 500000 (your token balance)
 ```
 
-#### 2. Creating a Proposal via Etherscan
+#### 2. Creating a proposal via Etherscan
 
 ```
 1. Open Etherscan and find the DLE smart contract
 2. Go to the "Write Contract" tab
-3. Connect your MetaMask wallet
+3. Connect MetaMask
 4. Find the createProposal function
-5. Fill in the parameters:
-   - description: "Restore the web application"
+5. Fill in parameters:
+   - description: "Restore web application"
    - operation: encoded function call
    - votingDuration: 86400 (1 day in seconds)
 6. Click "Write" and confirm the transaction ✅
@@ -1086,11 +1093,11 @@ Result: 500000 (your token balance)
 
 **Proposal creation example**:
 ```solidity
-// Via Etherscan Write Contract
+// Через Etherscan Write Contract
 createProposal(
-    "Transfer 10,000 USDT for infrastructure recovery",
-    0x..., // encoded transferTokens call
-    86400  // 1 day
+    "Перевести 10,000 USDT на восстановление инфраструктуры",
+    0x..., // закодированный вызов transferTokens
+    86400  // 1 день
 )
 ```
 
@@ -1099,19 +1106,19 @@ createProposal(
 ```
 1. Open the DLE smart contract on Etherscan
 2. "Write Contract" tab
-3. Connect your wallet
+3. Connect wallet
 4. Function vote(uint256 proposalId, bool support)
    - proposalId: proposal number (e.g., 5)
    - support: true (for) or false (against)
 5. Click "Write" ✅
 ```
 
-#### 4. Checking Proposal State
+#### 4. Checking proposal state
 
 ```
 1. "Read Contract" tab on Etherscan
 2. Function proposals(uint256)
-3. Enter the proposal ID
+3. Enter proposal ID
 4. You will see all details:
    - Description
    - "For" and "Against" votes
@@ -1119,20 +1126,20 @@ createProposal(
    - Voting end time
 ```
 
-#### 5. Executing an Approved Proposal
+#### 5. Executing an approved proposal
 
 ```
-1. If the proposal is approved and the time has expired
+1. If the proposal is approved and time has expired
 2. Open "Write Contract"
 3. Function execute(uint256 proposalId)
-4. Enter the proposal ID
-5. Click "Write" — the proposal will execute ✅
+4. Enter proposal ID
+5. Click "Write" - the proposal will execute ✅
 ```
 
-### Popular Blockchain Explorers for DLE
+### Popular Block Explorers for DLE
 
-| Network | Blockchain Explorer | URL |
-|---------|---------------------|-----|
+| Network | Block Explorer | URL |
+|---------|----------------|-----|
 | **Ethereum Mainnet** | Etherscan | https://etherscan.io |
 | **Polygon** | Polygonscan | https://polygonscan.com |
 | **Binance Smart Chain** | BscScan | https://bscscan.com |
@@ -1141,35 +1148,35 @@ createProposal(
 | **Avalanche** | SnowTrace | https://snowtrace.io |
 | **Base** | BaseScan | https://basescan.org |
 
-### Advantages of Governance via Blockchain Explorers
+### Advantages of Governance via Block Explorers
 
 **1. Full independence from the web application**
 ```
 Web application compromised → Blockchain works ✅
 Backend server down → Smart contracts work ✅
-Frontend unavailable → Manage via Etherscan ✅
+Frontend unavailable → Governance via Etherscan ✅
 ```
 
 **2. Data cannot be forged**
 ```
-Attacker on backend → Blockchain explorer shows the truth
-Fake frontend → Etherscan shows real tokens
+Attacker on backend → Block explorer shows the truth
+Forged frontend → Etherscan shows real tokens
 Altered logic → Smart contract works as designed
 ```
 
 **3. 24/7 access from anywhere in the world**
 ```
-No access to the server → Etherscan is always available
-Application under maintenance → Governance via blockchain
-DDoS attack on the site → Blockchain is not available for DDoS
+No server access → Etherscan always available
+App under maintenance → Governance via blockchain
+DDoS on the site → Blockchain is not DDoS-able that way
 ```
 
 **Response to a compromise:**
 1. Users notice strange web application behavior
 2. Check token balances directly via Etherscan ✅
 3. Create a recovery proposal via Etherscan
-4. Vote to restore infrastructure
-5. Administrators restore the backend from a backup
+4. Vote for infrastructure restoration
+5. Administrators restore backend from backup
 6. **No tokens or assets are lost** ✅
 
 **Conclusion**: The web application is only a convenient interface. Real authority and assets live on the blockchain, where they are protected by cryptography and cannot be changed or stolen through a web application compromise.
@@ -1184,16 +1191,16 @@ DDoS attack on the site → Blockchain is not available for DDoS
 4. Proposal approved
 ```
 
-**Mitigation:**
+**Protection:**
 ```javascript
-// Timelock Module gives time to react
+// Timelock Module дает время на реакцию
 const TIMELOCK = 7 days;
 
-// Other token holders can:
-1. Vote "Against" (if they still hold 49%)
-2. Create a counter-proposal
-3. Contact law enforcement
-4. Cancel the proposal via an emergency function (if configured)
+// Другие токен-холдеры могут:
+1. Проголосовать "Против" (если у них еще 49%)
+2. Создать контр-предложение
+3. Обратиться в правоохранительные органы
+4. Отменить предложение через emergency функцию (если настроена)
 ```
 
 **Long-term protection:**
@@ -1205,28 +1212,28 @@ const TIMELOCK = 7 days;
 
 **Attack:**
 ```
-1. Attacker poses as DLE support
-2. Asks a token holder to sign a message "for verification"
+1. Attacker impersonates DLE support
+2. Asks the token holder to sign a message "for verification"
 3. The message is actually an approval to transfer tokens
 ```
 
-**Mitigation:**
+**Protection:**
 ```javascript
-// Frontend always shows WHAT is being signed
+// Frontend всегда показывает ЧТО подписывается
 function signMessage(message) {
-    // Show the user the exact content
+    // Показываем пользователю точное содержимое
     const confirmation = confirm(`
-        You are about to sign:
+        Вы собираетесь подписать:
         ${message}
         
-        NEVER sign messages at the request of "support"!
+        НИКОГДА не подписывайте сообщения по просьбе «поддержки»!
         
-        Continue?
+        Продолжить?
     `);
     
     if (!confirmation) return;
     
-    // Sign
+    // Подпись
 }
 ```
 
@@ -1247,25 +1254,30 @@ function signMessage(message) {
 │           DLE Security Layers                       │
 ├─────────────────────────────────────────────────────┤
 │  1️⃣ Blockchain                                       │
-│     └── Tokens cannot be stolen even with a breach  │
+│     └── Tokens cannot be stolen even if wallet is   │
+│         compromised                                 │
 │                                                     │
-│  2️⃣ Smart Contracts                                 │
+│  2️⃣ Smart contracts                                 │
 │     └── Audit, OpenZeppelin, immutability           │
 │                                                     │
-│  3️⃣ Quorum Voting                                   │
+│  3️⃣ Voting with quorum                              │
 │     └── Unilateral decisions are impossible         │
 │                                                     │
 │  4️⃣ Timelock                                        │
 │     └── Time to react during an attack              │
 │                                                     │
-│  5️⃣ Backend Checks                                  │
+│  5️⃣ Backend checks                                  │
 │     └── Real-time token verification                │
 │                                                     │
-│  6️⃣ Frontend Protection                             │
+│  6️⃣ Frontend protection                             │
 │     └── XSS, CSRF, rate limiting                    │
 │                                                     │
-│  7️⃣ Monitoring and Alerts                           │
-│     └── Detection of suspicious actions             │
+│  7️⃣ Monitoring and alerts                           │
+│     └── Detection of suspicious activity            │
+└─────────────────────────────────────────────────────� limiting                    │
+│                                                     │
+│  7️⃣ Monitoring and alerts                           │
+│     └── Detection of suspicious activity            │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -1277,13 +1289,13 @@ function signMessage(message) {
 
 2. **Protection against token theft**
    - Impossible to transfer without voting
-   - Even if a wallet is compromised, tokens remain protected
+   - Even if a wallet is compromised, tokens are protected
 
 3. **🌐 Independence from the web application**
-   - Even if the web application is compromised, business assets remain protected on the blockchain
-   - Governance is possible via blockchain explorers (Etherscan, Polygonscan, etc.)
-   - Smart contracts operate independently of frontend/backend
-   - The web application is only a convenient interface; real authority is on the blockchain
+   - Even if the web application is compromised, business assets are protected on-chain
+   - Governance via block explorers (Etherscan, Polygonscan, etc.) is possible
+   - Smart contracts work independently of frontend/backend
+   - The web application is only a convenient interface; real authority is on-chain
 
 4. **Collective governance**
    - Critical decisions only through voting
@@ -1305,6 +1317,6 @@ function signMessage(message) {
 4. [Get support](https://hb3-accelerator.com/)
 ---
 
-**© 2024-2026 Alexander Viktorovich Tarabanov. All rights reserved.**
+**© 2024-2026 Tarabanov Aleksandr Viktorovich. All rights reserved.**
 
 **Last updated**: February 2026
