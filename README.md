@@ -26,7 +26,7 @@ Next: [releases, run, access](#releases-and-artifacts).
 
 ## Why
 
-The usual path after registering a business is paid subscriptions for automation, control, accounting, and payments. In practice that means vendor lock-in, manual data hopping between services, rising costs, and no full control over digital assets.
+The usual path — after registering a business you start taking out paid subscriptions to services for automation, control, accounting, and payments. In practice that means vendor dependency, manual data transfer between services, rising costs, and no full control over your own assets.
 
 If you need a business on **one OS you own** for automation — a system that becomes a **digital asset**, not a stack of subscriptions — download the template and sign an agreement with an authorized contributor to get the license, updates, and support (baseline 5 years under the service terms).
 
