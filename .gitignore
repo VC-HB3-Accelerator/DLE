@@ -210,6 +210,7 @@ dle-template.tar.gz.join.sh
 
 # Локальные скрипты разработки
 sync-to-vds.sh
+push-to-mirrors.sh
 
 # Database initialization helper script
 scripts/internal/db/db_init_helper.sh
