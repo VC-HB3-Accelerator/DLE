@@ -150,6 +150,7 @@ function isPublicSeoEndpoint(url = '', method = 'GET') {
   return (
     path.startsWith('/api/pages/blog/') ||
     path === '/api/pages/blog/all' ||
+    path === '/api/blog/feed-filters' ||
     path.startsWith('/api/pages/published/') ||
     path === '/api/settings/footer-dle' ||
     path === '/api/settings/region-urls' ||

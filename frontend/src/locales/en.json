@@ -14,7 +14,7 @@
   },
   "nav": {
     "chat": "Chat",
-    "blog": "Blog",
+    "blog": "Feed",
     "crm": "CRM",
     "settings": "Settings",
     "repositories": "Repositories",
@@ -583,6 +583,41 @@
       "moreComments": "{count} more comments",
       "viewComments": "View {count} comments",
       "you": "You"
+    },
+    "filter": {
+      "button": "Filter"
+    },
+    "feedSettings": {
+      "open": "Feed settings",
+      "title": "Feed settings",
+      "intro": "Create sort filters and pin articles to the top of the feed.",
+      "noPermission": "Insufficient permissions. Editors only.",
+      "filtersTitle": "Filters",
+      "addFilter": "Add filter",
+      "filterN": "Filter {n}",
+      "labelRu": "Label (RU)",
+      "labelEn": "Label (EN)",
+      "slug": "Filter code",
+      "sortBy": "Sort by",
+      "active": "Active",
+      "default": "Default",
+      "pinsTitle": "Pinned articles",
+      "pinsHint": "Pinned articles always appear above the rest, in the chosen order.",
+      "addPin": "Add article",
+      "selectArticle": "Select an article…",
+      "noPins": "No pinned articles",
+      "pinnedBadge": "pinned",
+      "labelRequired": "Enter a filter label (RU or EN)",
+      "loadError": "Failed to load feed settings",
+      "saveError": "Failed to save feed settings",
+      "saveSuccess": "Feed settings saved",
+      "sortOptions": {
+        "new": "New",
+        "views": "By views",
+        "likes": "By likes",
+        "comments": "By comments",
+        "popular": "Popular (sum)"
+      }
     }
   },
   "messages": {

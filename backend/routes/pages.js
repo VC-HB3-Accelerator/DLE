@@ -352,6 +352,8 @@ function sanitizeBlogListItem(page) {
     comments_count: page.comments_count ?? 0,
     views_count: page.views_count ?? 0,
     preview_comments: page.preview_comments || [],
+    is_pinned: Boolean(page.is_pinned),
+    pin_position: page.pin_position ?? null,
   };
 }
 
@@ -1726,8 +1728,8 @@ router.get('/blog/all', async (req, res) => {
       return res.json([]);
     }
     
-    // Поддержка фильтрации по категории и поиску
-    const { category, search } = req.query;
+    // Поддержка фильтрации по категории, поиску и режиму сортировки ленты
+    const { category, search, filter: filterSlug } = req.query;
     let whereClause = `WHERE visibility = 'public' AND status = 'published' AND show_in_blog = TRUE`;
     const params = [];
     let paramIndex = 1;
@@ -1744,7 +1746,7 @@ router.get('/blog/all', async (req, res) => {
       paramIndex++;
     }
     
-    // Сортировка: сначала по дате создания (новые первыми), затем по order_index
+    // Базовый порядок; финальная сортировка — после engagement + pins
     const { rows } = await db.getQuery()(`
       SELECT * FROM ${tableName} 
       ${whereClause}
@@ -1793,7 +1795,27 @@ router.get('/blog/all', async (req, res) => {
 
     const withCounts = await attachEngagementCounts(processedRows);
     const withPreviews = await attachPreviewComments(withCounts);
-    res.json(withPreviews);
+
+    let sorted = withPreviews;
+    try {
+      const blogFeedService = require('../services/blogFeedService');
+      const activeFilter = await blogFeedService.getFilterBySlug(
+        typeof filterSlug === 'string' ? filterSlug : null
+      );
+      const pinnedMap = await blogFeedService.getPinnedMap();
+      sorted = blogFeedService.sortFeedPages(withPreviews, {
+        sortBy: activeFilter?.sort_by || 'new',
+        pinnedMap,
+      }).map((page) => ({
+        ...page,
+        is_pinned: pinnedMap.has(page.id),
+        pin_position: pinnedMap.has(page.id) ? pinnedMap.get(page.id) : null,
+      }));
+    } catch (sortErr) {
+      console.warn('[pages] GET /blog/all: feed sort fallback:', sortErr.message);
+    }
+
+    res.json(sorted);
   } catch (error) {
     console.error('Ошибка получения страниц блога:', error);
     res.status(500).json([]);

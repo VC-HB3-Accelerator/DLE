@@ -35,6 +35,13 @@ const routes = [
     component: () => import('../views/BlogView.vue'),
   },
   {
+    // Не /blog/settings — иначе конфликт со slug статьи «settings»
+    path: '/blog/feed-settings',
+    name: 'blog-feed-settings',
+    component: () => import('../views/BlogFeedSettingsView.vue'),
+    meta: { permission: PERMISSIONS.MANAGE_LEGAL_DOCS, permissionFallback: 'blog' },
+  },
+  {
     path: '/blog/:slug',
     name: 'blog-article',
     component: () => import('../views/BlogView.vue'),

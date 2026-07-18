@@ -26,6 +26,13 @@
 
       <!-- Иначе показываем список статей -->
       <template v-else>
+        <BlogFeedToolbar
+          v-model="activeFilter"
+          :filters="feedFilters"
+          :can-manage="canManageFeed"
+          @open-settings="openFeedSettings"
+        />
+
         <!-- Загрузка -->
         <div v-if="isLoading" class="loading-state">
           <div class="loading-spinner"></div>
@@ -63,7 +70,11 @@ import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import DocsContent from '../components/docs/DocsContent.vue';
 import BlogFeedCard from '../components/blog/BlogFeedCard.vue';
+import BlogFeedToolbar from '../components/blog/BlogFeedToolbar.vue';
 import pagesService from '../services/pagesService';
+import blogFeedService from '../services/blogFeedService';
+import { usePermissions } from '../composables/usePermissions';
+import { PERMISSIONS } from '../composables/permissions.js';
 
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
@@ -77,9 +88,14 @@ const emit = defineEmits(['auth-action-completed']);
 const router = useRouter();
 const route = useRoute();
 const { t } = useI18n();
+const { hasPermission } = usePermissions();
 
 const pages = ref([]);
 const isLoading = ref(false);
+const feedFilters = ref([]);
+const activeFilter = ref('');
+const loadPagesRequestId = ref(0);
+const canManageFeed = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS));
 
 const currentSlug = computed(() => {
   return route.params.slug || null;
@@ -105,6 +121,10 @@ const currentPageId = computed(() => {
 const filteredPages = computed(() => {
   return pages.value;
 });
+
+function openFeedSettings() {
+  router.push({ name: 'blog-feed-settings' });
+}
 
 function getArticleUrl(page) {
   if (!page?.slug) return `${window.location.origin}/blog`;
@@ -139,10 +159,35 @@ function goToIndex() {
 }
 
 
+async function loadFeedFilters() {
+  try {
+    const filters = await blogFeedService.getFeedFilters();
+    feedFilters.value = Array.isArray(filters) ? filters : [];
+    if (!activeFilter.value) {
+      const defaultFilter = feedFilters.value.find((f) => f.is_default) || feedFilters.value[0];
+      activeFilter.value = defaultFilter?.slug || 'new';
+    } else if (!feedFilters.value.some((f) => f.slug === activeFilter.value)) {
+      const defaultFilter = feedFilters.value.find((f) => f.is_default) || feedFilters.value[0];
+      activeFilter.value = defaultFilter?.slug || 'new';
+    }
+  } catch (e) {
+    console.error('[BlogView] Ошибка загрузки фильтров:', e);
+    feedFilters.value = [];
+    if (!activeFilter.value) {
+      activeFilter.value = 'new';
+    }
+  }
+}
+
 async function loadPages() {
+  const requestId = ++loadPagesRequestId.value;
   try {
     isLoading.value = true;
-    const loadedPages = await pagesService.getBlogPages();
+    const loadedPages = await pagesService.getBlogPages({
+      filter: activeFilter.value || undefined,
+    });
+
+    if (requestId !== loadPagesRequestId.value) return;
     
     if (!Array.isArray(loadedPages)) {
       console.error('[BlogView] loadedPages не является массивом:', typeof loadedPages, loadedPages);
@@ -152,10 +197,13 @@ async function loadPages() {
     
     pages.value = loadedPages;
   } catch (e) {
+    if (requestId !== loadPagesRequestId.value) return;
     console.error('[BlogView] Ошибка загрузки страниц:', e);
     pages.value = [];
   } finally {
-    isLoading.value = false;
+    if (requestId === loadPagesRequestId.value) {
+      isLoading.value = false;
+    }
   }
 }
 
@@ -257,7 +305,14 @@ watch(() => pages.value, () => {
   }
 }, { immediate: true });
 
+watch(activeFilter, async (slug, prev) => {
+  if (!slug || !prev || slug === prev) return;
+  if (currentPageId.value || currentSlug.value) return;
+  await loadPages();
+});
+
 onMounted(async () => {
+  await loadFeedFilters();
   await loadPages();
   
   if (route.query.subscribed === '1') {

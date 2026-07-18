@@ -8,6 +8,7 @@ const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const { hasPermission, PERMISSIONS } = require('/app/shared/permissions');
 const blogEngagementService = require('../services/blogEngagementService');
+const blogFeedService = require('../services/blogFeedService');
 const db = require('../db');
 
 function getSessionUserId(req) {
@@ -166,6 +167,50 @@ router.get('/subscribers', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('[blogEngagement] GET subscribers:', error);
     res.status(500).json({ error: 'Ошибка загрузки подписчиков' });
+  }
+});
+
+/** Публичный список активных фильтров ленты */
+router.get('/feed-filters', async (req, res) => {
+  try {
+    const filters = await blogFeedService.listActiveFilters();
+    res.json({ filters });
+  } catch (error) {
+    console.error('[blogEngagement] GET feed-filters:', error);
+    res.status(500).json({ error: 'Ошибка загрузки фильтров ленты' });
+  }
+});
+
+/** Настройки ленты (фильтры + закрепления) — только editor */
+router.get('/feed-settings', requireAuth, async (req, res) => {
+  try {
+    const isEditor = await userIsEditor(req);
+    if (!isEditor) {
+      return res.status(403).json({ error: 'Нет прав' });
+    }
+    const settings = await blogFeedService.getFeedSettings();
+    res.json(settings);
+  } catch (error) {
+    console.error('[blogEngagement] GET feed-settings:', error);
+    res.status(500).json({ error: 'Ошибка загрузки настроек ленты' });
+  }
+});
+
+router.put('/feed-settings', requireAuth, async (req, res) => {
+  try {
+    const isEditor = await userIsEditor(req);
+    if (!isEditor) {
+      return res.status(403).json({ error: 'Нет прав' });
+    }
+    const settings = await blogFeedService.saveFeedSettings({
+      filters: req.body?.filters,
+      pins: req.body?.pins,
+    });
+    res.json(settings);
+  } catch (error) {
+    console.error('[blogEngagement] PUT feed-settings:', error);
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message || 'Ошибка сохранения настроек ленты' });
   }
 });
 

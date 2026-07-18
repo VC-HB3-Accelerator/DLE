@@ -98,6 +98,9 @@
     <!-- Текст: описание + «Читать полностью» -->
     <div class="blog-feed-card__body">
       <h2 class="blog-feed-card__title" role="button" tabindex="0" @click.stop="openArticle" @keydown.enter.stop="openArticle">
+        <span v-if="page.is_pinned" class="blog-feed-card__pin" :title="t('blog.feedSettings.pinnedBadge')">
+          <i class="fas fa-thumbtack" aria-hidden="true" />
+        </span>
         {{ page.title }}
       </h2>
       <p class="blog-feed-card__summary">
@@ -572,6 +575,14 @@ async function submitFeedComment() {
 
 .blog-feed-card__body {
   padding: 4px 16px 8px;
+}
+
+.blog-feed-card__pin {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  color: var(--color-primary);
+  font-size: 0.85em;
 }
 
 .blog-feed-card__title {

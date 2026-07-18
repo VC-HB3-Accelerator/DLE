@@ -42,6 +42,9 @@
           </div>
         </div>
 
+        <!-- Язык и локации -->
+        <LocaleControls />
+
         <!-- Навигационные кнопки -->
         <div class="navigation-buttons">
           <router-link to="/" class="nav-link-btn" active-class="active">
@@ -145,19 +148,17 @@
         </div>
 
         <!-- Блок с информацией об авторских правах -->
-        <div class="copyright-section sidebar-section">
-          <h3>{{ t('common.copyrightTitle') }}</h3>
-          <div class="copyright-info">
-            <p class="copyright-text">
-              <strong>Тарабанов Александр Викторович</strong><br>
-              {{ t('common.allRightsReserved') }}
-            </p>
-            <div class="copyright-links">
-              <a href="https://github.com/VC-HB3-Accelerator" target="_blank" class="copyright-link" title="GitHub">
-                GitHub
-              </a>
-            </div>
-          </div>
+        <div class="copyright-section">
+          <p class="copyright-text">
+            © Тарабанов А. В. · {{ t('common.allRightsReserved') }}
+            <a
+              href="https://github.com/VC-HB3-Accelerator"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="copyright-link"
+              title="GitHub"
+            >GitHub</a>
+          </p>
         </div>
 
       </div>
@@ -171,6 +172,7 @@ import { useRouter } from 'vue-router';
 import eventBus from '../utils/eventBus';
 import EmailConnect from './identity/EmailConnect.vue';
 import TelegramConnect from './identity/TelegramConnect.vue';
+import LocaleControls from './LocaleControls.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { useI18n } from 'vue-i18n';
 
@@ -191,11 +193,11 @@ const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet
 
 const { deleteIdentity } = useAuthContext();
 
-// URL страницы репозитория Docs (readme): локально — порт 3001; на продакшене — /gitea/
+// URL страницы организации VC-HB3-Accelerator: локально — порт 3001; на продакшене — /gitea/
 const giteaUrl = computed(() => {
   if (typeof window === 'undefined') return '#';
   const { hostname, protocol } = window.location;
-  const path = 'VC-HB3-Accelerator/Docs#readme';
+  const path = 'VC-HB3-Accelerator';
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
   if (isLocal) {
     const port = import.meta.env.VITE_GITEA_PORT || '3001';
@@ -381,7 +383,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 20px;
 }
 
 .nav-link-btn {
@@ -634,68 +635,39 @@ h3 {
   background: #ffeaea;
 }
 
-/* Стили для блока авторских прав */
+/* Компактный приглушённый футер авторских прав */
 .copyright-section {
   margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-}
-
-.copyright-info {
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-grey-light, #eee);
 }
 
 .copyright-text {
-  margin: 0 0 0.5rem 0;
-  line-height: 1.4;
-  color: #333;
-}
-
-.copyright-status {
-  margin: 0 0 1rem 0;
-  color: var(--color-primary);
-  font-weight: 500;
-  font-size: 0.8rem;
-}
-
-.copyright-links {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  margin: 0;
+  line-height: 1.35;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-light, #999);
 }
 
 .copyright-link {
-  color: var(--color-primary);
+  color: inherit;
   text-decoration: none;
-  font-size: 0.8rem;
-  padding: 0.3rem 0;
-  transition: color 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
+  margin-left: 0.35rem;
+  opacity: 0.85;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
 .copyright-link:hover {
-  color: var(--color-primary-dark);
+  color: var(--color-grey, #777);
+  opacity: 1;
   text-decoration: underline;
 }
 
 @media screen and (max-width: 768px) {
   .copyright-section {
-    margin-top: 1rem;
-  }
-  
-  .copyright-info {
-    padding: 0.8rem;
-  }
-  
-  .copyright-links {
-    flex-direction: row;
-    justify-content: space-around;
-    gap: 0.3rem;
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
   }
 }
 </style> 

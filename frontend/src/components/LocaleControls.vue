@@ -5,18 +5,43 @@
 
 <template>
   <div class="locale-controls">
-    <div class="locale-controls__group" :title="t('locale.language')">
+    <div ref="localeDropdownRef" class="locale-controls__dropdown">
       <button
-        v-for="loc in locales"
-        :key="loc"
         type="button"
-        class="locale-controls__btn"
-        :class="{ 'locale-controls__btn--active': currentLocale === loc }"
-        :aria-label="t(`locale.${loc}`)"
-        @click="setLocale(loc)"
+        class="locale-controls__dropdown-trigger"
+        :class="{ 'locale-controls__dropdown-trigger--open': localeMenuOpen }"
+        :aria-expanded="localeMenuOpen"
+        :aria-haspopup="true"
+        :title="t('locale.language')"
+        @click="toggleLocaleMenu"
       >
-        {{ t(`locale.${loc}`) }}
+        <span class="locale-controls__dropdown-label">
+          {{ t('locale.language') }}: {{ t(`locale.${currentLocale}`) }}
+        </span>
+        <span class="locale-controls__dropdown-chevron" aria-hidden="true">▾</span>
       </button>
+
+      <ul
+        v-if="localeMenuOpen"
+        class="locale-controls__dropdown-menu"
+        role="menu"
+      >
+        <li
+          v-for="loc in locales"
+          :key="loc"
+          role="none"
+        >
+          <button
+            type="button"
+            class="locale-controls__dropdown-item"
+            :class="{ 'locale-controls__dropdown-item--active': currentLocale === loc }"
+            role="menuitem"
+            @click="selectLocale(loc)"
+          >
+            <span class="locale-controls__dropdown-item-label">{{ t(`locale.${loc}`) }}</span>
+          </button>
+        </li>
+      </ul>
     </div>
 
     <div
@@ -80,7 +105,9 @@ import { fetchRegionUrls } from '../services/regionUrlsService';
 const { currentLocale, setLocale, t } = useLocale();
 
 const locales = ['ru', 'en'];
+const localeMenuOpen = ref(false);
 const serverMenuOpen = ref(false);
+const localeDropdownRef = ref(null);
 const serverDropdownRef = ref(null);
 
 const serverList = computed(() => getRegionSwitcherList());
@@ -91,19 +118,33 @@ const currentServerLabel = computed(() => {
   return current?.label || t('locale.servers');
 });
 
-function closeServerMenu() {
+function closeMenus() {
+  localeMenuOpen.value = false;
   serverMenuOpen.value = false;
+}
+
+function toggleLocaleMenu() {
+  const next = !localeMenuOpen.value;
+  closeMenus();
+  localeMenuOpen.value = next;
 }
 
 function toggleServerMenu() {
   if (serverList.value.length <= 1) {
     return;
   }
-  serverMenuOpen.value = !serverMenuOpen.value;
+  const next = !serverMenuOpen.value;
+  closeMenus();
+  serverMenuOpen.value = next;
+}
+
+function selectLocale(loc) {
+  closeMenus();
+  setLocale(loc);
 }
 
 function selectServer(serverId) {
-  closeServerMenu();
+  closeMenus();
   switchServer(serverId);
 }
 
@@ -122,18 +163,21 @@ function switchServer(serverId) {
 }
 
 function handleDocumentClick(event) {
-  if (!serverMenuOpen.value) {
+  if (!localeMenuOpen.value && !serverMenuOpen.value) {
     return;
   }
-  const root = serverDropdownRef.value;
-  if (root && !root.contains(event.target)) {
-    closeServerMenu();
+  const localeRoot = localeDropdownRef.value;
+  const serverRoot = serverDropdownRef.value;
+  const inLocale = localeRoot && localeRoot.contains(event.target);
+  const inServer = serverRoot && serverRoot.contains(event.target);
+  if (!inLocale && !inServer) {
+    closeMenus();
   }
 }
 
 function handleDocumentKeydown(event) {
   if (event.key === 'Escape') {
-    closeServerMenu();
+    closeMenus();
   }
 }
 
@@ -152,75 +196,46 @@ onBeforeUnmount(() => {
 <style scoped>
 .locale-controls {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.locale-controls__group {
-  display: flex;
-  align-items: center;
-  background: var(--color-light, #f5f7fa);
-  border-radius: var(--radius-lg, 8px);
-  padding: 2px;
-}
-
-.locale-controls__btn {
-  border: none;
-  background: transparent;
-  color: var(--color-grey-dark, #606266);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.locale-controls__btn:hover {
-  color: var(--color-primary);
-}
-
-.locale-controls__btn--active {
-  background: var(--color-white, #fff);
-  color: var(--color-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
 .locale-controls__dropdown {
   position: relative;
+  width: 100%;
 }
 
 .locale-controls__dropdown-trigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  border: none;
-  background: var(--color-light, #f5f7fa);
-  color: var(--color-grey-dark, #606266);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 6px 10px;
-  border-radius: var(--radius-lg, 8px);
+  justify-content: space-between;
+  width: 100%;
+  height: 48px;
+  border: 1px solid var(--color-grey-light);
+  background: var(--color-light);
+  color: var(--color-dark);
+  font-size: var(--font-size-md);
+  padding: 0 15px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-  line-height: 1;
-  max-width: 140px;
+  transition: all var(--transition-normal);
+  box-sizing: border-box;
+  gap: 8px;
+  text-align: left;
 }
 
 .locale-controls__dropdown-trigger:hover,
 .locale-controls__dropdown-trigger--open {
-  color: var(--color-primary);
-  background: var(--color-white, #fff);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--color-grey-light);
 }
 
 .locale-controls__dropdown-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .locale-controls__dropdown-chevron {
@@ -237,16 +252,15 @@ onBeforeUnmount(() => {
 .locale-controls__dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
+  left: 0;
   right: 0;
-  z-index: 200;
-  min-width: 220px;
-  max-width: min(320px, 80vw);
+  z-index: 1100;
   margin: 0;
   padding: 4px;
   list-style: none;
   background: var(--color-white, #fff);
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
@@ -259,10 +273,11 @@ onBeforeUnmount(() => {
   border: none;
   background: transparent;
   text-align: left;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 6px);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
+  color: var(--color-dark);
 }
 
 .locale-controls__dropdown-item:hover {
@@ -275,7 +290,7 @@ onBeforeUnmount(() => {
 }
 
 .locale-controls__dropdown-item-label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm, 0.875rem);
   font-weight: 600;
   line-height: 1.2;
 }
@@ -292,14 +307,18 @@ onBeforeUnmount(() => {
   opacity: 0.75;
 }
 
-@media (max-width: 480px) {
+@media screen and (max-width: 480px) {
   .locale-controls__dropdown-trigger {
-    max-width: 100px;
-    padding: 6px 8px;
+    height: 42px;
+    padding: 0 12px;
+    font-size: var(--font-size-sm);
   }
+}
 
-  .locale-controls__dropdown-menu {
-    min-width: 200px;
+@media screen and (max-width: 360px) {
+  .locale-controls__dropdown-trigger {
+    height: 36px;
+    padding: 0 10px;
   }
 }
 </style>
