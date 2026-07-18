@@ -26,7 +26,17 @@ print_red() {
 
 # Версия релиза для установки (обновляется при выходе нового релиза)
 ARCHIVE_VERSION="v1.0.3"
-ARCHIVE_BASE_URL="https://github.com/VC-HB3-Accelerator/DLE/releases/download/${ARCHIVE_VERSION}"
+
+# Базовый URL репозитория DLE на выбранном зеркале (без завершающего /).
+# Примеры:
+#   https://github.com/VC-HB3-Accelerator/DLE
+#   https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
+#   https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE
+# Задаётся через --base-url=... или DLE_BASE_URL; по умолчанию — GitHub.
+DLE_BASE_URL_DEFAULT="https://github.com/VC-HB3-Accelerator/DLE"
+DLE_BASE_URL="${DLE_BASE_URL:-}"
+ARCHIVE_BASE_URL=""
+CLONE_URL=""
 
 # Список частей архива (стандартные части для релиза v1.0.2+)
 ARCHIVE_PARTS=(
@@ -40,6 +50,65 @@ ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-ah"
   "dle-template.tar.gz.part-ai"
 )
+
+# Нормализация и применение базового URL зеркала
+apply_dle_base_url() {
+  local base="${1:-}"
+  base="${base%/}"
+  if [ -z "$base" ]; then
+    print_red "❌ Пустой --base-url / DLE_BASE_URL"
+    exit 1
+  fi
+  DLE_BASE_URL="$base"
+  ARCHIVE_BASE_URL="${DLE_BASE_URL}/releases/download/${ARCHIVE_VERSION}"
+  CLONE_URL="${DLE_BASE_URL}.git"
+}
+
+# Разбор аргументов: --base-url=URL | --base-url URL
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --base-url=*)
+        DLE_BASE_URL="${1#--base-url=}"
+        shift
+        ;;
+      --base-url)
+        if [ -z "${2:-}" ]; then
+          print_red "❌ Для --base-url нужно указать URL"
+          exit 1
+        fi
+        DLE_BASE_URL="$2"
+        shift 2
+        ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: setup.sh [--base-url=URL]
+
+  --base-url   Базовый URL репозитория DLE на зеркале
+               (релизы и git clone берутся оттуда же).
+  DLE_BASE_URL То же через переменную окружения.
+
+Примеры:
+  curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \\
+    | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
+
+  BASE=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
+  curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
+EOF
+        exit 0
+        ;;
+      *)
+        print_yellow "⚠️  Неизвестный аргумент: $1 (игнорируется)"
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$DLE_BASE_URL" ]; then
+    DLE_BASE_URL="$DLE_BASE_URL_DEFAULT"
+  fi
+  apply_dle_base_url "$DLE_BASE_URL"
+}
 
 # Проверка curl
 check_curl() {
@@ -132,7 +201,8 @@ download_repo() {
     fi
   fi
   
-  git clone https://github.com/VC-HB3-Accelerator/DLE.git
+  print_blue "Клонирование: ${CLONE_URL}"
+  git clone "${CLONE_URL}"
   cd DLE
   print_green "✅ Репозиторий скачан"
 }
@@ -492,8 +562,12 @@ check_status() {
 
 # Основная функция
 main() {
+  parse_args "$@"
+
   print_blue "🚀 Установка шаблона приложения Digital Legal Entity"
   print_blue "=================================================="
+  print_blue "🪞 Зеркало: ${DLE_BASE_URL}"
+  print_blue "📦 Релиз:   ${ARCHIVE_BASE_URL}"
   
   # Проверки
   check_docker
