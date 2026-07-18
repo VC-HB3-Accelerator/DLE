@@ -13,27 +13,14 @@
 **Для Linux/macOS/WSL.**  
 Минимальные требования к серверу: 4 ядра CPU, 16 GB RAM, 100 GB SSD.
 
-Устанавливайте **с того зеркала**, с которого открыли эту страницу: `setup.sh` клонирует репозиторий и скачивает артефакты релиза **из того же хранилища**.
+Команда ставит ОС с **этого** репозитория и его релиза (clone + артефакты из того же хранилища).
 
-**GitHub**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
-**HB3 Gitea** ([hb3-accelerator.com](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE))
-```bash
-BASE=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
-curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
-```
-
-**Эрайти Gitea** ([эрайти.рф](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE))
-```bash
-BASE=https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE
-curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
-```
-
-Скрипт скачивает артефакты выбранного зеркала и разворачивает `docker-data`.  
+Скрипт скачивает артефакты релиза и разворачивает `docker-data`.  
 Дальше: [релизы, запуск, доступ](#релизы-и-артефакты).
 
 ## Что это
@@ -82,17 +69,16 @@ curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
 | [ai-assistant.md](docs.ru/ai-assistant.md) | ИИ-агенты: архитектура, примеры, настройка |
 | [blockchain-for-business.md](docs.ru/blockchain-for-business.md) | Блокчейн для бизнеса и практические кейсы |
 | [security.md](docs.ru/security.md) | Безопасность и соответствие регуляторам |
-| [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/ru/FAQ.md) ([HB3](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/ru/FAQ.md) · [Эрайти](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/Docs/src/branch/main/ru/FAQ.md)) | Частые вопросы |
+| [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/ru/FAQ.md) | Частые вопросы |
 
 ### Релизы и артефакты
 
-Latest **v1.0.3** — полный шаблон с Docker-образами, томами и ключом шифрования; архив разделён на части (`dle-template.tar.gz.part-*`). Берите релиз **с того же зеркала**, с которого ставите ОС:
+Latest **v1.0.3** — полный шаблон с Docker-образами, томами и ключом шифрования; архив разделён на части (`dle-template.tar.gz.part-*`).
 
-| Зеркало | v1.0.3 (Latest) | Предыдущие |
-| --- | --- | --- |
-| GitHub | [v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) | [v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) · [v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) · [v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) |
-| HB3 Gitea | [v1.0.3](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) | [v1.0.2](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) · [v1.0.1](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) · [v1.0.0](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) |
-| Эрайти Gitea | [v1.0.3](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) | [v1.0.2](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) · [v1.0.1](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) · [v1.0.0](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) |
+- [Релиз v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) (Latest)
+- [Релиз v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — предыдущая версия
+- [Релиз v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — предыдущая версия
+- [Релиз v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — предыдущая версия
 
 ### Команда для запуска ОС
 ```bash

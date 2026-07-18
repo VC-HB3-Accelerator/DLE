@@ -13,27 +13,14 @@ An operating system for online registration of a digital legal entity profile in
 **For Linux/macOS/WSL.**  
 Minimum server requirements: 4 CPU cores, 16 GB RAM, 100 GB SSD.
 
-Install from **the same mirror** you opened this page on: `setup.sh` clones the repo and downloads release artifacts **from that mirror’s storage**.
+This command installs the OS from **this** repository and its release (clone + artifacts from the same storage).
 
-**GitHub**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
-**HB3 Gitea** ([hb3-accelerator.com](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE))
-```bash
-BASE=https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE
-curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
-```
-
-**Erayti Gitea** ([эрайти.рф](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE))
-```bash
-BASE=https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE
-curl -fsSL "$BASE/raw/branch/main/setup.sh" | bash -s -- --base-url="$BASE"
-```
-
-The script downloads artifacts from the chosen mirror and unpacks `docker-data`.  
+The script downloads release artifacts and unpacks `docker-data`.  
 Next: [releases, run, access](#releases-and-artifacts).
 
 ## What it is
@@ -82,17 +69,16 @@ Illustrative DLE application scenarios. Mentions of well-known companies and bra
 | [ai-assistant.md](docs.en/ai-assistant.md) | AI agents: architecture, examples, setup |
 | [blockchain-for-business.md](docs.en/blockchain-for-business.md) | Blockchain for business and practical cases |
 | [security.md](docs.en/security.md) | Security and regulatory alignment |
-| [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/en/FAQ.md) ([HB3](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/Docs/src/branch/main/en/FAQ.md) · [Erayti](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/Docs/src/branch/main/en/FAQ.md)) | Frequently asked questions |
+| [FAQ](https://github.com/VC-HB3-Accelerator/Docs/blob/main/en/FAQ.md) | Frequently asked questions |
 
 ### Releases and artifacts
 
-Latest **v1.0.3** — full application template with Docker images, volumes, and encryption key; archive is split into parts (`dle-template.tar.gz.part-*`). Use the release on **the same mirror** you install from:
+Latest **v1.0.3** — full application template with Docker images, volumes, and encryption key; archive is split into parts (`dle-template.tar.gz.part-*`).
 
-| Mirror | v1.0.3 (Latest) | Previous |
-| --- | --- | --- |
-| GitHub | [v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) | [v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) · [v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) · [v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) |
-| HB3 Gitea | [v1.0.3](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) | [v1.0.2](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) · [v1.0.1](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) · [v1.0.0](https://hb3-accelerator.com/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) |
-| Erayti Gitea | [v1.0.3](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) | [v1.0.2](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) · [v1.0.1](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) · [v1.0.0](https://xn--80aqc0am6d.xn--p1ai/gitea/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) |
+- [Release v1.0.3](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.3) (Latest)
+- [Release v1.0.2](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.2) — previous version
+- [Release v1.0.1](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.1) — previous version
+- [Release v1.0.0](https://github.com/VC-HB3-Accelerator/DLE/releases/tag/v1.0.0) — previous version
 
 ### Command to run the OS
 ```bash
