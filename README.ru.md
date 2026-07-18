@@ -20,8 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
-Скрипт скачивает артефакты релиза и разворачивает `docker-data`.  
-Дальше: [релизы, запуск, доступ](#релизы-и-артефакты).
+Скрипт скачивает артефакты релиза и разворачивает `docker-data`.
 
 ## Что это
 

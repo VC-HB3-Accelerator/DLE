@@ -20,8 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
-The script downloads release artifacts and unpacks `docker-data`.  
-Next: [releases, run, access](#releases-and-artifacts).
+The script downloads release artifacts and unpacks `docker-data`.
 
 ## What it is
 
