@@ -60,17 +60,27 @@ class AICache {
   }
 
   /**
-   * Генерация ключа кэша на основе запроса
-   * Использует параметры LLM из настроек для генерации ключа
+   * Генерация ключа кэша на основе запроса.
+   * Учитывает model / format / tools — иначе ложные HIT между чатом и structured-задачами.
    */
   async generateKey(messages, options = {}) {
-    // Загружаем актуальные параметры LLM для ключа
     const llmParams = await aiConfigService.getLLMParameters();
-    
+
+    const toolNames = Array.isArray(options.tools)
+      ? options.tools
+        .map((t) => t?.function?.name || t?.name || null)
+        .filter(Boolean)
+        .sort()
+      : null;
+
     const content = JSON.stringify({
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
-      temperature: options.temperature || llmParams.temperature,
-      maxTokens: options.num_predict || llmParams.maxTokens
+      messages: (messages || []).map((m) => ({ role: m.role, content: m.content })),
+      model: options.model || null,
+      temperature: options.temperature ?? llmParams.temperature,
+      maxTokens: options.maxTokens ?? options.num_predict ?? llmParams.maxTokens,
+      format: options.format !== undefined ? options.format : null,
+      tool_choice: options.tool_choice || null,
+      tools: toolNames
     });
     return crypto.createHash('md5').update(content).digest('hex');
   }

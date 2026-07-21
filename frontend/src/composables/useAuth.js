@@ -237,33 +237,29 @@ const updateAuth = async ({
     // Централизованная очистка данных при отключении
     if (!isAuthenticated.value && wasAuthenticated) {
       console.log('[useAuth] User logged out, clearing application data');
-      // Очищаем глобальные данные приложения
       const event = new CustomEvent('clear-application-data');
-      console.log('[useAuth] Dispatching clear-application-data event:', event);
       window.dispatchEvent(event);
     }
-    
-    // Централизованное обновление данных при подключении
+
+    // Сначала перенос гостя, потом события UI — иначе history/refresh без migrate
+    if (authenticated && (!wasAuthenticated || (previousUserId && previousUserId !== newUserId))) {
+      console.log('Auth change detected, linking guest messages before UI refresh');
+      await linkMessages();
+    }
+
     if (isAuthenticated.value && !wasAuthenticated) {
       console.log('[useAuth] User logged in, refreshing application data');
       window.dispatchEvent(new CustomEvent('refresh-application-data'));
     }
-    
-    // Отправляем событие через eventBus (централизованный подход)
+
     eventBus.emit('auth-state-changed', {
+      isAuthenticated: isAuthenticated.value,
       authenticated: isAuthenticated.value,
       authType: authType.value,
       userId: userId.value,
       address: address.value,
       userAccessLevel: userAccessLevel.value
     });
-  }
-
-  // Если пользователь только что аутентифицировался или сменил аккаунт,
-  // пробуем связать сообщения
-  if (authenticated && (!wasAuthenticated || (previousUserId && previousUserId !== newUserId))) {
-    console.log('Auth change detected, linking messages');
-    linkMessages();
   }
 };
 
@@ -297,62 +293,34 @@ const linkMessages = async () => {
       if (email.value) identifiersData.email = email.value;
       if (telegramId.value) identifiersData.telegramId = telegramId.value;
 
-      console.log('Sending link-guest-messages request with data:', identifiersData);
+      console.log('Sending process-guest request with data:', identifiersData);
 
-      /* Удаляем ненужный вызов
       try {
-        // Отправляем запрос на связывание сообщений
-        const response = await axios.post('/auth/link-guest-messages', identifiersData);
+        // Перенос unified_guest_messages → messages для текущего userId
+        const response = await axios.post('/chat/process-guest', { guestId: localGuestId });
 
         if (response.data.success) {
-          console.log('Messages linked successfully:', response.data);
-
-          // Обновляем список обработанных guestIds из ответа сервера
-          if (response.data.processedIds && Array.isArray(response.data.processedIds)) {
-            processedGuestIds.value = [...response.data.processedIds];
-            console.log('Updated processed guest IDs from server:', processedGuestIds.value);
-          }
-          // В качестве запасного варианта также обрабатываем старый формат ответа
-          else if (response.data.results && Array.isArray(response.data.results)) {
-            const newProcessedIds = response.data.results
-              .filter((result) => result.guestId)
-              .map((result) => result.guestId);
-
-            if (newProcessedIds.length > 0) {
-              processedGuestIds.value = [
-                ...new Set([...processedGuestIds.value, ...newProcessedIds]),
-              ];
-              console.log('Updated processed guest IDs from results:', processedGuestIds.value);
-            }
-          }
-
-          // Очищаем гостевые сообщения из localStorage после успешного связывания
+          console.log('Guest messages linked successfully:', response.data);
+          updateProcessedGuestIds([localGuestId]);
           localStorage.removeItem('guestMessages');
           localStorage.removeItem('guestId');
-
           return {
             success: true,
+            migratedMessages: response.data.migratedMessages || 0,
+            conversationId: response.data.conversationId || null,
             processedIds: processedGuestIds.value,
           };
         }
+
+        console.warn('process-guest returned unsuccessful:', response.data);
+        return { success: false, error: response.data?.error || 'Migration failed' };
       } catch (error) {
-        console.error('Error linking messages:', error);
+        console.error('Error linking guest messages:', error);
         return {
           success: false,
           error: error.message,
         };
       }
-      */
-      // Предполагаем, что бэкенд автоматически связывает сообщения
-      // Очищаем данные гостя локально
-      console.log('Assuming backend handles message linking. Clearing local guest data.');
-      localStorage.removeItem('guestMessages');
-      localStorage.removeItem('guestId');
-      // Добавляем текущий guestId в обработанные, чтобы не пытаться отправить его снова
-      if(localGuestId) {
-        updateProcessedGuestIds([localGuestId]);
-      }
-      return { success: true, message: 'Local guest data cleared.' };
 
     }
 

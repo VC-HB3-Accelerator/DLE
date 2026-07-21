@@ -14,6 +14,8 @@ const db = require('../db');
 const ollamaConfig = require('./ollamaConfig');
 const aiProviderSettingsService = require('./aiProviderSettingsService');
 const userContactFilesService = require('./userContactFilesService');
+const aiQueue = require('./ai-queue');
+const { PRIORITY } = require('./ai-queue');
 
 /** Дефолты-примеры для UI и для пустой БД (не «жёсткий runtime-хардкод»). */
 const DEFAULTS = {
@@ -281,125 +283,47 @@ async function callOllama({
   maxTokens,
   timeoutMs
 }) {
-  const ollamaUrl = await ollamaConfig.getBaseUrlAsync();
   const predict = Math.max(1, Number(maxTokens) || DEFAULTS.max_tokens);
   const timeout = clampNumber(timeoutMs, LIMITS.timeoutMsMin, LIMITS.timeoutMsMax, DEFAULTS.timeout_ms);
-  const controller = new AbortController();
-  let settled = false;
-  let streamRef = null;
-
-  const hardTimer = setTimeout(() => {
-    try {
-      controller.abort();
-    } catch (_) {
-      // ignore
-    }
-    try {
-      streamRef?.destroy?.();
-    } catch (_) {
-      // ignore
-    }
-  }, timeout);
 
   try {
-    // stream:true + abort закрывает TCP → Ollama обычно останавливает генерацию,
-    // в отличие от stream:false, где после timeout процесс может продолжать «жрать» CPU.
-    const response = await axios.post(`${ollamaUrl}/api/chat`, {
-      model,
+    const content = await aiQueue.addTask({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      format: 'json',
-      stream: true,
-      keep_alive: '2m',
-      options: {
+      model,
+      llmParameters: {
         temperature: Number.isFinite(Number(temperature)) ? Number(temperature) : DEFAULTS.temperature,
-        num_predict: predict
-      }
-    }, {
-      // Не полагаемся на axios timeout для stream (после headers он часто бесполезен).
-      signal: controller.signal,
-      responseType: 'stream',
-      timeout: 0
+        maxTokens: predict
+      },
+      qwenParameters: { format: 'json' },
+      returnFullResponse: false,
+      priority: PRIORITY.BROADCAST,
+      timeoutMs: timeout
     });
-
-    let content = '';
-    let buffer = '';
-
-    await new Promise((resolve, reject) => {
-      const stream = response.data;
-      streamRef = stream;
-
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        try {
-          controller.signal.removeEventListener('abort', onAbort);
-        } catch (_) {
-          // ignore
-        }
-        fn(value);
-      };
-
-      const onAbort = () => {
-        try {
-          stream.destroy?.();
-        } catch (_) {
-          // ignore
-        }
-        finish(reject, new Error('aborted'));
-      };
-
-      if (controller.signal.aborted) {
-        onAbort();
-        return;
-      }
-      controller.signal.addEventListener('abort', onAbort, { once: true });
-
-      stream.on('data', (chunk) => {
-        if (settled) return;
-        buffer += chunk.toString('utf8');
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const parsed = JSON.parse(trimmed);
-            const piece = parsed?.message?.content;
-            if (piece) content += piece;
-            if (parsed?.done) {
-              finish(resolve);
-            }
-          } catch (_) {
-            // partial json line — skip
-          }
-        }
-      });
-
-      stream.on('end', () => finish(resolve));
-      stream.on('error', (err) => finish(reject, err));
-    });
-
-    return content;
+    return content || '';
   } catch (error) {
-    const aborted = error?.code === 'ERR_CANCELED'
-      || error?.name === 'CanceledError'
-      || error?.message === 'aborted'
-      || controller.signal.aborted
-      || /timeout|aborted/i.test(String(error?.message || ''));
-    if (aborted) {
-      // Иначе Ollama продолжает генерацию минутами и блокирует следующих получателей
+    const { classifyBroadcastLlmError } = require('../utils/broadcastOllamaErrors');
+    const { isQueueWaitTimeout, isPreemptAbort, isOllamaTimeout } =
+      classifyBroadcastLlmError(error);
+    // Unload только при реальном timeout Ollama — не при preempt CHAT (message=aborted)
+    if (isOllamaTimeout) {
       await forceUnloadOllamaModel(model);
       throw new Error(
         `Ollama не ответила за ${Math.round(timeout / 1000)}с (модель ${model}). `
         + 'Увеличьте таймаут в настройках агента или выберите более лёгкую модель.'
       );
     }
+    if (isQueueWaitTimeout) {
+      throw new Error(
+        `Очередь AI перегружена: не дождались слота за ${Math.round(timeout / 1000)}с. Повторите позже.`
+      );
+    }
+    if (isPreemptAbort) {
+      throw new Error('Broadcast LLM прерван приоритетным чатом');
+    }
     throw error;
-  } finally {
-    clearTimeout(hardTimer);
   }
 }
 
@@ -441,25 +365,25 @@ async function callAnthropic({ providerSettings, model, systemPrompt, userPrompt
 }
 
 async function generateWithLlm({ settings, profile, subject, body }) {
-  return enqueueLlmTask(async () => {
-    const provider = settings.provider || DEFAULTS.provider;
-    const model = settings.model || (provider === 'ollama' ? await ollamaConfig.getDefaultModelAsync() : null);
-    if (!model) {
-      throw new Error('Модель не выбрана');
-    }
+  const provider = settings.provider || DEFAULTS.provider;
+  const model = settings.model || (provider === 'ollama' ? await ollamaConfig.getDefaultModelAsync() : null);
+  if (!model) {
+    throw new Error('Модель не выбрана');
+  }
 
-    const systemPrompt = settings.system_prompt || DEFAULTS.system_prompt;
-    const userPrompt = buildUserPrompt({ profile, subject, body });
-    const temperature = Number.isFinite(Number(settings.temperature))
-      ? Number(settings.temperature)
-      : DEFAULTS.temperature;
-    const maxTokens = Number(settings.max_tokens) > 0
-      ? Number(settings.max_tokens)
-      : DEFAULTS.max_tokens;
-    const timeoutMs = Number(settings.timeout_ms) > 0
-      ? Number(settings.timeout_ms)
-      : DEFAULTS.timeout_ms;
+  const systemPrompt = settings.system_prompt || DEFAULTS.system_prompt;
+  const userPrompt = buildUserPrompt({ profile, subject, body });
+  const temperature = Number.isFinite(Number(settings.temperature))
+    ? Number(settings.temperature)
+    : DEFAULTS.temperature;
+  const maxTokens = Number(settings.max_tokens) > 0
+    ? Number(settings.max_tokens)
+    : DEFAULTS.max_tokens;
+  const timeoutMs = Number(settings.timeout_ms) > 0
+    ? Number(settings.timeout_ms)
+    : DEFAULTS.timeout_ms;
 
+  const run = async () => {
     let raw = '';
     if (provider === 'ollama') {
       raw = await callOllama({
@@ -503,7 +427,13 @@ async function generateWithLlm({ settings, profile, subject, body }) {
     }
 
     return parseJsonResponse(raw);
-  });
+  };
+
+  // Ollama уже сериализуется глобальной AIQueue; внешние API — локальной цепочкой
+  if (provider === 'ollama') {
+    return run();
+  }
+  return enqueueLlmTask(run);
 }
 
 async function personalizeForRecipient({

@@ -109,13 +109,12 @@ export function useChat(auth) {
              try {
                 // Получаем количество личных сообщений с ИИ
                 const personalCountResponse = await api.get('/chat/history', { params: { count_only: true } });
-                const personalCount = personalCountResponse.data.success ? (personalCountResponse.data.total || 0) : 0;
-                
-                // Получаем количество публичных сообщений
-                const publicCountResponse = await api.get('/messages/public', { params: { count_only: true } });
-                const publicCount = publicCountResponse.data.success ? (publicCountResponse.data.total || 0) : 0;
-                
-                totalMessages = personalCount + publicCount;
+                // Offset только по личному /chat/history — нельзя складывать с public
+                // (иначе offset «перепрыгивает» личные сообщения и главная пустая)
+                const personalCount = personalCountResponse.data.success
+                  ? (personalCountResponse.data.total ?? personalCountResponse.data.count ?? 0)
+                  : 0;
+                totalMessages = personalCount;
                 // console.log(`[useChat] Всего сообщений в истории: ${totalMessages} (личные: ${personalCount}, публичные: ${publicCount})`);
              } catch(countError) {
                  // console.error('[useChat] Ошибка получения количества сообщений:', countError);
@@ -123,12 +122,8 @@ export function useChat(auth) {
              }
         }
 
-        let effectiveOffset = messageLoading.value.offset;
-        // Если это первая загрузка и мы знаем total, рассчитаем смещение для последних сообщений
-        if (initial && totalMessages > 0 && totalMessages > messageLoading.value.limit) {
-            effectiveOffset = Math.max(0, totalMessages - messageLoading.value.limit);
-            // console.log(`[useChat] Рассчитано начальное смещение: ${effectiveOffset}`);
-        }
+        // API отдаёт newest-first (ORDER BY created_at DESC). Первая загрузка — offset 0.
+        let effectiveOffset = initial ? 0 : messageLoading.value.offset;
 
         // Загружаем личные сообщения с ИИ
         const personalResponse = await api.get('/chat/history', { 
@@ -178,11 +173,9 @@ export function useChat(auth) {
                 messageLoading.value.hasMoreMessages = false;
             }
 
-            // Очищаем гостевые данные после успешной аутентификации и загрузки
+            // guestId чистим только после process-guest (linkGuestMessagesAfterAuth / useAuth.linkMessages)
             if (authType) {
                 removeFromStorage('guestMessages');
-                // removeFromStorage('guestId'); // Удаление guestId теперь только после успешного связывания
-                guestId.value = '';
             }
 
             // Считаем, что пользователь отправлял сообщение, если история не пуста
@@ -295,20 +288,40 @@ export function useChat(auth) {
 
             // Добавляем ответ ИИ, если есть
             // Системное сообщение о согласиях уже включено в ответ ИИ
+            let guestAiForStorage = null;
             if (response.data.aiResponse) {
-                messages.value.push({
+                const suggestWalletLogin = Boolean(
+                    response.data.suggestWalletLogin
+                    || response.data.aiResponse.suggestWalletLogin
+                );
+                const aiMessage = {
                     id: `ai_${Date.now()}`,
                     content: response.data.aiResponse.response || response.data.aiResponse,
                     sender_type: 'assistant',
                     role: 'assistant',
                     timestamp: new Date().toISOString(),
                     isLocal: false,
+                    isGuest: isGuestMessage,
+                    suggestWalletLogin,
                     // Добавляем информацию о согласиях, если есть
                     consentRequired: response.data.consentRequired || false,
                     missingConsents: response.data.missingConsents || [],
                     consentDocuments: response.data.consentDocuments || [],
                     autoConsentOnReply: response.data.autoConsentOnReply || false
-                });
+                };
+                messages.value.push(aiMessage);
+
+                if (isGuestMessage) {
+                    guestAiForStorage = {
+                        id: aiMessage.id,
+                        content: aiMessage.content,
+                        sender_type: 'assistant',
+                        role: 'assistant',
+                        isGuest: true,
+                        suggestWalletLogin,
+                        timestamp: aiMessage.timestamp
+                    };
+                }
             }
 
             // Добавляем системное сообщение для гостя (только если нет согласия, чтобы не дублировать)
@@ -325,11 +338,10 @@ export function useChat(auth) {
                 });
             }
 
-            // Сохраняем гостевое сообщение (если нужно)
-            if (isGuestMessage) {
+            // Сохраняем гостевые сообщения (user → ai) в localStorage
+            if (isGuestMessage && userMsgIndex !== -1) {
                 try {
                     const storedMessages = getFromStorage('guestMessages', []);
-                    // Добавляем сообщение пользователя (с серверным ID)
                     storedMessages.push({
                         id: messages.value[userMsgIndex].id,
                         content: userMessageContent,
@@ -337,8 +349,11 @@ export function useChat(auth) {
                         role: 'user',
                         isGuest: true,
                         timestamp: messages.value[userMsgIndex].timestamp,
-                        attachmentsInfo: messages.value[userMsgIndex].attachments // Сохраняем инфо о файлах
+                        attachmentsInfo: messages.value[userMsgIndex].attachments
                     });
+                    if (guestAiForStorage) {
+                        storedMessages.push(guestAiForStorage);
+                    }
                     setToStorage('guestMessages', storedMessages);
                 } catch (storageError) {
                     // console.error('[useChat] Ошибка сохранения гостевого сообщения в localStorage:', storageError);
@@ -394,19 +409,24 @@ export function useChat(auth) {
 
   // --- Связывание гостевых сообщений после аутентификации ---
   const linkGuestMessagesAfterAuth = async () => {
-    if (!guestId.value) return;
+    const id = guestId.value || getFromStorage('guestId', '');
+    if (!id) return { success: false, skipped: true };
     try {
-      const response = await api.post('/chat/process-guest', { guestId: guestId.value });
-      if (response.data.success && response.data.conversationId) {
-        // Можно сразу загрузить историю по этому диалогу, если нужно
-        await loadMessages({ initial: true });
-        // Удаляем guestId только после успешного связывания
+      const response = await api.post('/chat/process-guest', { guestId: id });
+      if (response.data.success) {
         removeFromStorage('guestId');
+        removeFromStorage('guestMessages');
         guestId.value = '';
+        return {
+          success: true,
+          migratedMessages: response.data.migratedMessages || 0,
+          conversationId: response.data.conversationId || null
+        };
       }
+      return { success: false, error: response.data?.error };
     } catch (error) {
-      // console.error('[useChat] Ошибка связывания гостевых сообщений:', error);
-      }
+      return { success: false, error: error?.message || 'process-guest failed' };
+    }
   };
 
   // --- Watchers --- 
@@ -443,57 +463,62 @@ export function useChat(auth) {
      }
  });
 
- // Отслеживаем загрузку данных пользователя для подключения WebSocket
- watch(() => auth.user?.value, (newUser, oldUser) => {
-     if (newUser && newUser.id && auth.isAuthenticated.value) {
-         // console.log('[useChat] Данные пользователя загружены, подключаем WebSocket:', newUser.id);
+ // userId появляется после checkAuth — тогда и цепляем WS
+ watch(() => auth.userId?.value, (uid) => {
+     if (uid && auth.isAuthenticated.value) {
          setupChatWebSocket();
      }
  }, { immediate: false });
 
   // --- WebSocket для real-time сообщений ---
   function setupChatWebSocket() {
-    // Подключаемся к WebSocket только если пользователь аутентифицирован
-    if (auth.isAuthenticated.value && auth.user && auth.user.value && auth.user.value.id) {
-      // console.log('[useChat] Подключение к WebSocket для пользователя:', auth.user.value.id);
-      websocketService.connect(auth.user.value.id);
-      
-      // Создаем и сохраняем callback функции
-      wsCallbacks.chatMessage = (message) => {
-        // console.log('[useChat] Получено новое сообщение через WebSocket:', message);
-        // Проверяем, что сообщение не дублируется
-        const existingMessage = messages.value.find(m => m.id === message.id);
-        if (!existingMessage) {
-          messages.value.push(message);
-        }
-      };
-      
-      wsCallbacks.conversationUpdated = (conversationId) => {
-        // console.log('[useChat] Обновление диалога через WebSocket:', conversationId);
-        // Можно добавить логику обновления списка диалогов
-      };
-      
-      wsCallbacks.connected = () => {
-        // console.log('[useChat] WebSocket подключен');
-      };
-      
-      wsCallbacks.disconnected = () => {
-        // console.log('[useChat] WebSocket отключен');
-      };
-      
-      wsCallbacks.error = (error) => {
-        // console.error('[useChat] WebSocket ошибка:', error);
-      };
-      
-      // Подписываемся на события
-      websocketService.on('chat-message', wsCallbacks.chatMessage);
-      websocketService.on('conversation-updated', wsCallbacks.conversationUpdated);
-      websocketService.on('connected', wsCallbacks.connected);
-      websocketService.on('disconnected', wsCallbacks.disconnected);
-      websocketService.on('error', wsCallbacks.error);
-    } else {
-      // console.log('[useChat] WebSocket не подключен: пользователь не аутентифицирован или данные не загружены');
+    const uid = auth.userId?.value ?? auth.user?.value?.id ?? null;
+    if (!auth.isAuthenticated.value || !uid) return;
+
+    // Снять прошлые handlers — иначе при повторном setup дубли в ленте
+    if (wsCallbacks.chatMessage) {
+      websocketService.off('chat-message', wsCallbacks.chatMessage);
     }
+    if (wsCallbacks.conversationUpdated) {
+      websocketService.off('conversation-updated', wsCallbacks.conversationUpdated);
+    }
+    if (wsCallbacks.connected) {
+      websocketService.off('connected', wsCallbacks.connected);
+    }
+    if (wsCallbacks.disconnected) {
+      websocketService.off('disconnected', wsCallbacks.disconnected);
+    }
+    if (wsCallbacks.error) {
+      websocketService.off('error', wsCallbacks.error);
+    }
+    if (wsCallbacks.messagesUpdated) {
+      websocketService.off('messages-updated', wsCallbacks.messagesUpdated);
+    }
+
+    websocketService.connect(uid);
+
+    wsCallbacks.chatMessage = (message) => {
+      const existingMessage = messages.value.find((m) => m.id === message.id);
+      if (!existingMessage) {
+        messages.value.push(message);
+      }
+    };
+    wsCallbacks.conversationUpdated = () => {};
+    wsCallbacks.connected = () => {};
+    wsCallbacks.disconnected = () => {};
+    wsCallbacks.error = () => {};
+    wsCallbacks.messagesUpdated = () => {
+      if (!messages.value.length) {
+        loadMessages({ initial: true });
+      }
+    };
+
+    websocketService.on('chat-message', wsCallbacks.chatMessage);
+    websocketService.on('conversation-updated', wsCallbacks.conversationUpdated);
+    websocketService.on('connected', wsCallbacks.connected);
+    websocketService.on('disconnected', wsCallbacks.disconnected);
+    websocketService.on('error', wsCallbacks.error);
+    websocketService.on('messages-updated', wsCallbacks.messagesUpdated);
   }
   
   function cleanupWebSocket() {
@@ -513,6 +538,9 @@ export function useChat(auth) {
       }
       if (wsCallbacks.error) {
         websocketService.off('error', wsCallbacks.error);
+      }
+      if (wsCallbacks.messagesUpdated) {
+        websocketService.off('messages-updated', wsCallbacks.messagesUpdated);
       }
       websocketService.disconnect();
       

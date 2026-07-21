@@ -36,11 +36,10 @@ router.get('/stats', requireAuth, async (req, res) => {
 // Добавление задачи в очередь
 router.post('/task', requireAuth, async (req, res) => {
   try {
+    const { ROLES } = require('/app/shared/permissions');
     const { message, language, history, systemPrompt, rules, type = 'chat' } = req.body;
     const userId = req.session.userId;
     const userAccessLevel = req.session.userAccessLevel || { level: ROLES.USER, tokenCount: 0, hasAccess: false };
-    const { ROLES } = require('/app/shared/permissions');
-    // Используем роль из userAccessLevel, которая уже правильно определена с учетом порогов
     const userRole = userAccessLevel.level;
 
     if (!message) {
@@ -50,25 +49,35 @@ router.post('/task', requireAuth, async (req, res) => {
       });
     }
 
-    const taskData = {
-      message,
-      history: history || null,
-      systemPrompt: systemPrompt || '',
-      rules: rules || null,
+    const messages = [];
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    if (Array.isArray(history)) {
+      for (const h of history.slice(-8)) {
+        if (h?.role && h?.content) messages.push({ role: h.role, content: h.content });
+      }
+    }
+    messages.push({ role: 'user', content: message });
+
+    const { PRIORITY } = require('../services/ai-queue');
+    const responseText = await aiQueueService.addTask({
+      messages,
       type,
       userId,
       userRole,
-      requestId: req.body.requestId || null
-    };
-
-    const result = await aiQueueService.addTask(taskData);
+      language: language || null,
+      rules: rules || null,
+      returnFullResponse: false,
+      priority: PRIORITY.CHAT
+    });
 
     res.json({
       success: true,
       data: {
-        taskId: result.taskId,
-        status: 'queued',
-        estimatedWaitTime: aiQueueService.getStats().currentQueueSize * 30 // Примерное время ожидания
+        response: responseText,
+        status: 'completed',
+        estimatedWaitTime: aiQueueService.getStats().currentQueueSize * 30
       }
     });
 

@@ -252,6 +252,7 @@ export const connectWallet = async () => {
       nonce,
       issuedAt: issuedAt,
       siweLocale: getSiweLocale(),
+      guestId: localStorage.getItem('guestId') || undefined,
     };
     
     const verifyResponse = await api.post('/auth/verify', requestData, {

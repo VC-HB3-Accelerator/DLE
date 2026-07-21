@@ -377,17 +377,17 @@ class UniversalGuestService {
         return;
       }
 
-      // Используем существующий сервис для извлечения имени
-      const profileAnalysisService = require('./profileAnalysisService');
-      const nameResult = await profileAnalysisService.extractName(content);
-
-      // Проверяем результат извлечения имени
-      if (!nameResult || !nameResult.name || !nameResult.should_update_name) {
-        logger.info(`[UniversalGuestService] Имя не найдено в сообщении гостя ${identifier} (confidence: ${nameResult?.confidence || 0})`);
+      // Для гостя — только явные «меня зовут …» без LLM (не блокируем чат и не ловим FP)
+      const { detectNameHint, normalizePersonName } = require('../utils/assistantTextSanitizer');
+      const hint = detectNameHint(content);
+      if (!hint.strong) {
         return;
       }
-
-      const extractedName = nameResult.name;
+      const extractedName = normalizePersonName(hint.candidate);
+      if (!extractedName) {
+        logger.info(`[UniversalGuestService] Имя не найдено в сообщении гостя ${identifier}`);
+        return;
+      }
 
       // Разбиваем имя на части
       const nameParts = extractedName.split(' ');
@@ -494,9 +494,8 @@ class UniversalGuestService {
       const saveResult = await this.saveMessage(messageData);
       const processedContent = saveResult.processedContent;
 
-      // 1.5. Извлекаем имя из текста сообщения через ИИ (если это первое сообщение гостя)
-      await this.extractAndSaveGuestName(identifier, content, channel).catch(error => {
-        // Не критично, если не удалось извлечь имя - просто логируем
+      // 1.5. Имя гостя — в фоне, не блокируем первый ответ ИИ
+      this.extractAndSaveGuestName(identifier, content, channel).catch(error => {
         logger.warn(`[UniversalGuestService] Ошибка извлечения имени гостя:`, error);
       });
 
@@ -547,11 +546,18 @@ class UniversalGuestService {
 
       // 4. Сохраняем AI ответ
       let finalAiResponse = aiResponse.response;
+      // Первый ответ ассистента гостю в web — мягко предложить вход через кошелёк
+      const hadAiReply = previousHistory.some((m) => m.role === 'assistant');
+      const suggestWalletLogin = channel === 'web' && !hadAiReply;
+
       await this.saveAiResponse({
         identifier,
         content: finalAiResponse,
         channel,
-        metadata: messageData.metadata || {}
+        metadata: {
+          ...(messageData.metadata || {}),
+          ...(suggestWalletLogin ? { suggestWalletLogin: true } : {})
+        }
       });
 
       logger.info(`[UniversalGuestService] Сообщение гостя ${identifier} обработано успешно`);
@@ -559,9 +565,11 @@ class UniversalGuestService {
       const result = {
         success: true,
         identifier,
+        suggestWalletLogin,
         aiResponse: {
           response: finalAiResponse,
-          ragData: aiResponse.ragData
+          ragData: aiResponse.ragData,
+          suggestWalletLogin
         }
       };
 
@@ -613,7 +621,7 @@ class UniversalGuestService {
 
       if (messages.length === 0) {
         logger.info(`[UniversalGuestService] Нет сообщений для миграции`);
-        return { migrated: 0, skipped: 0, conversationId: null };
+        return { success: true, migrated: 0, skipped: 0, conversationId: null };
       }
 
       // 2. Создаем беседу для пользователя

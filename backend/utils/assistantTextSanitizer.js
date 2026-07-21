@@ -30,6 +30,23 @@ const LATIN_LOOKALIKES = {
   y: 'у'
 };
 
+/** Слова, которые нельзя принимать как личное имя */
+const NAME_STOPWORDS = new Set([
+  'я', 'ты', 'он', 'она', 'мы', 'вы', 'они',
+  'привет', 'здравствуйте', 'здравствуй', 'добрый', 'день', 'вечер', 'утро',
+  'спасибо', 'пожалуйста', 'хорошо', 'ладно', 'понял', 'поняла', 'ок', 'окей',
+  'да', 'нет', 'неа', 'ага', 'угу',
+  'думаю', 'хочу', 'могу', 'нужно', 'надо', 'ищу', 'работаю', 'живу', 'зовут', 'завут', 'звать',
+  'сегодня', 'завтра', 'вчера', 'сейчас', 'просто', 'тоже', 'ещё', 'еще', 'очень',
+  'только', 'уже', 'снова', 'опять', 'всегда', 'никогда', 'может', 'буду', 'была', 'было',
+  'здесь', 'тут', 'там', 'сюда', 'туда', 'кто', 'что', 'как', 'где', 'куда',
+  'компания', 'продукт', 'помощь', 'вопрос', 'ответ', 'менеджер', 'директор',
+  'главный', 'уважением', 'уважение', 'подпись', 'команда', 'клиент', 'пользователь'
+]);
+
+/** Capture: одно-два кириллических слова (имя / имя+фамилия) */
+const NAME_CAPTURE = '([А-ЯЁа-яё-]{2,30}(?:\\s+[А-ЯЁа-яё-]{2,30})?)';
+
 function replaceLatinLookalikesInCyrillicWords(text) {
   return String(text).replace(/[A-Za-zА-Яа-яЁё]+/g, (word) => {
     const hasCyr = /[А-Яа-яЁё]/.test(word);
@@ -57,24 +74,18 @@ function unwrapJsonishAssistantPayload(text) {
           return parsed[key].trim();
         }
       }
-      // Только служебные поля вроде {"name":"..."} — не отдаём пользователю как ответ
       const keys = Object.keys(parsed);
       if (keys.every((k) => ['name', 'should_update_name', 'confidence', 'tagNames', 'tags'].includes(k))) {
         return '';
       }
     }
   } catch (_) {
-    // не JSON — оставляем как есть
+    // не JSON
   }
 
   return trimmed;
 }
 
-/**
- * Нормализует ответ ассистента для показа пользователю.
- * @param {string} raw
- * @returns {string}
- */
 function sanitizeAssistantText(raw) {
   if (raw == null) return '';
   let text = typeof raw === 'string' ? raw : String(raw);
@@ -91,43 +102,89 @@ function sanitizeAssistantText(raw) {
   return text;
 }
 
-/**
- * Быстрая эвристика: похоже ли сообщение на представление с именем.
- * @param {string} message
- * @returns {{ likely: boolean, candidate: string|null }}
- */
-function detectNameHint(message) {
-  const text = String(message || '').trim();
-  if (!text || text.length > 120) {
-    return { likely: false, candidate: null };
+function looksLikePersonNameToken(token) {
+  const raw = String(token || '').trim();
+  if (!raw) return false;
+  const lower = raw.toLowerCase().replace(/ё/g, 'е');
+  if (NAME_STOPWORDS.has(lower)) return false;
+  if (lower.length < 2 || lower.length > 20) return false;
+  // Отсекаем глаголы/прилагательные по типичным окончаниям (грубо, но снижает FP)
+  if (/(ую|ю|ешь|ет|ем|ете|ут|ют|ал|ала|или|ить|ать|ять|юсь|ится)$/i.test(lower)) {
+    return false;
   }
+  if (!/^[А-ЯЁа-яё-]+$/u.test(raw)) return false;
+  return true;
+}
 
-  const patterns = [
-    /(?:меня\s+зовут|зови(?:те)?\s+меня|мо[её]\s+имя(?:\s*[-—:]|\s+)?)\s+([А-ЯЁа-яёA-Za-z-]{2,30})/i,
-    /(?:^|\b)я\s+(?:это\s+)?([А-ЯЁа-яёA-Za-z-]{2,30})(?:\s*[,!.]|$)/i,
-    /(?:^|\b)это\s+([А-ЯЁа-яёA-Za-z-]{2,30})(?:\s*[,!.]|$)/i
-  ];
-
-  for (const re of patterns) {
-    const m = text.match(re);
-    if (m && m[1]) {
-      return { likely: true, candidate: m[1] };
-    }
-  }
-
-  // Короткое сообщение только из одного «имени»
-  if (/^[А-ЯЁа-яёA-Za-z-]{2,20}$/.test(text) && /[А-ЯЁа-яё]/.test(text)) {
-    return { likely: true, candidate: text };
-  }
-
-  return { likely: false, candidate: null };
+function candidateFromMatch(m) {
+  if (!m || !m[1]) return null;
+  const raw = m[1].trim();
+  const first = raw.split(/\s+/)[0];
+  if (!looksLikePersonNameToken(first)) return null;
+  if (raw.includes(' ') && !looksLikePersonNameToken(raw.split(/\s+/)[1])) return null;
+  return raw;
 }
 
 /**
- * Нормализация имени: кириллица, без кавычек, Title Case.
- * @param {string} name
- * @returns {string|null}
+ * Быстрая эвристика: похоже ли сообщение на представление с именем.
+ * Покрывает частые формы и опечатки; strong = можно писать в профиль без LLM.
+ * @returns {{ likely: boolean, candidate: string|null, strong: boolean }}
  */
+function detectNameHint(message) {
+  const text = String(message || '').trim();
+  if (!text || text.length > 200) {
+    return { likely: false, candidate: null, strong: false };
+  }
+
+  // Явные шаблоны — auto-accept
+  const strongPatterns = [
+    // меня зовут / завут / зовуть / звать / кличут
+    new RegExp(`(?:меня\\s+(?:з[ао]вут[ь]?|звать|кличут)|зовут\\s+меня)\\s+${NAME_CAPTURE}`, 'i'),
+    // зови(те) меня X / можете звать меня X / называйте меня X
+    new RegExp(`(?:зови(?:те)?\\s+меня|можете\\s+звать\\s+меня|называй(?:те)?\\s+меня)\\s+${NAME_CAPTURE}`, 'i'),
+    // моё имя X / мое имя: X / имя — X
+    new RegExp(`(?:мо[её]\\s+имя|мое\\s+имя|имя)\\s*[-—:]\\s*${NAME_CAPTURE}`, 'i'),
+    new RegExp(`мо[её]\\s+имя\\s+${NAME_CAPTURE}`, 'i'),
+    // представлюсь / я — X / я есть X (короткие явные)
+    new RegExp(`(?:представлю(?:сь)?|представляюсь|знакомь(?:те)?сь)\\s*[,:\\-—]?\\s*${NAME_CAPTURE}`, 'i'),
+    // подпись: с уважением[,.] Имя  |  Имя, с уважением
+    new RegExp(`с\\s+уважением\\s*[,.]?\\s*${NAME_CAPTURE}\\s*$`, 'i'),
+    new RegExp(`^${NAME_CAPTURE}\\s*[,.]?\\s*с\\s+уважением\\b`, 'i'),
+    // всё сообщение целиком: «я Алекс» / «я алекс.»
+    new RegExp(`^я\\s+${NAME_CAPTURE}\\s*[.!,]?$`, 'i')
+  ];
+  for (const re of strongPatterns) {
+    const candidate = candidateFromMatch(text.match(re));
+    if (candidate) {
+      return { likely: true, candidate, strong: true };
+    }
+  }
+
+  // Мягкие — только hint для LLM (не auto-accept)
+  const softPatterns = [
+    // я это Анна / я Алекс в середине фразы (заглавная снижает FP)
+    new RegExp(`(?:^|\\s)я\\s+(?:это\\s+)?([А-ЯЁ][а-яё-]{1,29})(?:\\s*[,!.]|\\s+|$)`),
+    new RegExp(`(?:^|\\s)это\\s+([А-ЯЁ][а-яё-]{1,29})(?:\\s*[,!.]|\\s+|$)`),
+    // меня зовут вперемешку с шумом: «ну меня типо зовут алекс»
+    new RegExp(`(?:зовут|завут|звать)\\s+${NAME_CAPTURE}`, 'i'),
+    // «я по имени Алекс» / «меня по имени …»
+    new RegExp(`(?:по\\s+имени|мое\\s+имя|мо[её]\\s+имя)\\s+${NAME_CAPTURE}`, 'i')
+  ];
+  for (const re of softPatterns) {
+    const candidate = candidateFromMatch(text.match(re));
+    if (candidate) {
+      return { likely: true, candidate, strong: false };
+    }
+  }
+
+  // Одно слово-имя целиком — soft для LLM
+  if (/^[А-ЯЁ][а-яё-]{1,19}$/u.test(text) && looksLikePersonNameToken(text)) {
+    return { likely: true, candidate: text, strong: false };
+  }
+
+  return { likely: false, candidate: null, strong: false };
+}
+
 function normalizePersonName(name) {
   let value = String(name || '').trim();
   if (!value) return null;
@@ -136,15 +193,11 @@ function normalizePersonName(name) {
   value = replaceLatinLookalikesInCyrillicWords(value);
   value = value.replace(CJK_REGEX, '').replace(/\s+/g, ' ').trim();
 
-  // Имя должно быть преимущественно кириллическим
-  const letters = value.replace(/[^A-Za-zА-Яа-яЁё]/g, '');
-  if (letters.length < 2) return null;
-  const cyrCount = (letters.match(/[А-Яа-яЁё]/g) || []).length;
-  if (cyrCount / letters.length < 0.6) return null;
+  const parts = value.split(' ').filter(Boolean);
+  if (!parts.length || parts.length > 2) return null;
+  if (!parts.every((p) => looksLikePersonNameToken(p))) return null;
 
-  value = value
-    .split(' ')
-    .filter(Boolean)
+  value = parts
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ');
 
@@ -156,5 +209,6 @@ module.exports = {
   sanitizeAssistantText,
   detectNameHint,
   normalizePersonName,
+  looksLikePersonNameToken,
   replaceLatinLookalikesInCyrillicWords
 };

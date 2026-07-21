@@ -20,6 +20,26 @@
       
       <label>{{ t('ai.rules.description') }}</label>
       <textarea v-model="description" rows="2" :placeholder="t('ai.rules.descriptionPlaceholder')" />
+
+      <div class="rules-section">
+        <h4>{{ t('ai.rules.bindTags') }}</h4>
+        <p class="hint">{{ t('ai.rules.bindTagsHint') }}</p>
+        <div v-if="availableTags.length" class="tags-checklist">
+          <label
+            v-for="tag in availableTags"
+            :key="tag.id"
+            class="tag-check"
+          >
+            <input
+              type="checkbox"
+              :value="tag.id"
+              v-model="selectedTagIds"
+            />
+            <span>{{ tag.name }}<template v-if="tag.description"> — {{ tag.description }}</template></span>
+          </label>
+        </div>
+        <p v-else class="hint">{{ t('ai.rules.noTags') }}</p>
+      </div>
       
       <div class="rules-section">
         <h4>{{ t('ai.rules.systemPrompt') }}</h4>
@@ -108,9 +128,10 @@
   </div>
 </template>
 <script setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import axios from 'axios';
+import { loadClientTagsList } from '@/utils/clientTagsTable.js';
 
 const { t } = useI18n();
 
@@ -121,6 +142,12 @@ const name = ref(props.rule ? props.rule.name : '');
 const description = ref(props.rule ? props.rule.description : '');
 const error = ref('');
 const showJsonPreview = ref(false);
+const availableTags = ref([]);
+const selectedTagIds = ref(
+  Array.isArray(props.rule?.tag_ids)
+    ? [...props.rule.tag_ids]
+    : (Array.isArray(props.rule?.rules?.tag_ids) ? [...props.rule.rules.tag_ids] : [])
+);
 
 const ruleFields = ref({
   system_prompt: props.rule?.rules?.system_prompt || '',
@@ -145,6 +172,7 @@ const generatedJson = computed(() => {
     system_prompt: ruleFields.value.system_prompt || undefined,
     temperature: ruleFields.value.temperature,
     max_tokens: ruleFields.value.max_tokens,
+    tag_ids: selectedTagIds.value.map((id) => Number(id)).filter((id) => id > 0),
     rules: {
       checkUserTags: ruleFields.value.checkUserTags,
       searchRagFirst: ruleFields.value.searchRagFirst,
@@ -167,10 +195,22 @@ const generatedJson = computed(() => {
   return JSON.stringify(rules, null, 2);
 });
 
+onMounted(async () => {
+  try {
+    availableTags.value = await loadClientTagsList();
+  } catch (e) {
+    console.warn('[RuleEditor] Не удалось загрузить теги:', e);
+    availableTags.value = [];
+  }
+});
+
 watch(() => props.rule, (newRule) => {
   if (newRule) {
     name.value = newRule.name || '';
     description.value = newRule.description || '';
+    selectedTagIds.value = Array.isArray(newRule.tag_ids)
+      ? [...newRule.tag_ids]
+      : (Array.isArray(newRule.rules?.tag_ids) ? [...newRule.rules.tag_ids] : []);
     
     ruleFields.value = {
       system_prompt: newRule.rules?.system_prompt || '',
@@ -188,6 +228,7 @@ watch(() => props.rule, (newRule) => {
   } else {
     name.value = '';
     description.value = '';
+    selectedTagIds.value = [];
     ruleFields.value = {
       system_prompt: '',
       temperature: 0.7,
@@ -217,13 +258,15 @@ async function save() {
       await axios.put(`/settings/ai-assistant-rules/${props.rule.id}`, { 
         name: name.value, 
         description: description.value, 
-        rules 
+        rules,
+        tag_ids: rules.tag_ids
       });
     } else {
       await axios.post('/settings/ai-assistant-rules', { 
         name: name.value, 
         description: description.value, 
-        rules 
+        rules,
+        tag_ids: rules.tag_ids
       });
     }
     emit('close', true);
@@ -409,5 +452,39 @@ button:last-child:hover {
   border-radius: 6px;
   border: 1px solid #ffcccc;
   font-size: 0.9rem;
+}
+
+.hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.tags-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.tag-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: normal;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.tag-check input {
+  width: auto;
+  margin-top: 0.2rem;
 }
 </style>

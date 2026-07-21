@@ -123,6 +123,10 @@
         "email": "Email"
       },
       "systemPrompt": "System prompt",
+      "systemPromptPlaceholder": "General assistant frame. Tag rules and profile are injected separately and override canned replies.",
+      "systemPromptHelp": "Do not force one canned reply for every message — that ignores name, tags and rules. For client segments create a rule set and bind tags.",
+      "applyRecommendedPrompt": "Insert recommended prompt",
+      "recommendedSystemPrompt": "You are the VC HB3 Accelerator support assistant.\n\nPriority (top to bottom):\n1) Blocks \"Tag rules\" and \"Base rules\" are mandatory.\n2) \"User info\" (name, tags, CRM comment, link) and dialog memory are facts — use them in every reply.\n3) This system prompt is the general frame only. Do not override tag rules or profile data.\n4) Reply in Russian only, correctly, without CJK or Latin letters inside Russian words. Do not invent product/company facts.\n\nBehavior:\n- If the name is known, address the user by name in the first sentence. If unknown, ask once how to address them.\n- Respect tags and CRM comments.\n- Follow tag-specific rules first when present.\n- For follow-ups, use dialog memory.\n- For product/terms questions: answer briefly and point to Public documents (CRM → Content) on hb3-accelerator.com when needed.\n- Do not reuse one canned paragraph for every message when profile/memory already has context.\n\nStyle: short, respectful, to the point. No JSON in the user-facing reply.",
       "placeholdersTitle": "User table placeholders",
       "noPlaceholders": "No user placeholders",
       "placeholderCol": "Placeholder",
@@ -152,6 +156,7 @@
       "ragTables": "Selected RAG tables",
       "selectTable": "Select table",
       "rulesSet": "Rule set",
+      "boundTags": "Bound tag ids:",
       "selectRules": "Select rule set",
       "telegramBot": "Telegram bot",
       "contactEmail": "Contact email",

@@ -742,6 +742,9 @@
       "namePlaceholder": "e.g. VIP Rule",
       "description": "Description",
       "descriptionPlaceholder": "Describe the rule in free form",
+      "bindTags": "Client tags",
+      "bindTagsHint": "If the user has any of the selected tags, this rule set is injected into the system prompt (higher priority than the general prompt).",
+      "noTags": "Tags table is empty or missing. Create tags in CRM.",
       "systemPrompt": "System prompt",
       "systemPromptPlaceholder": "Additional system prompt for this rule. E.g.: 'You work with VIP clients. Be polite and professional.'",
       "llmParams": "LLM parameters",
@@ -1065,7 +1068,8 @@
       "received": "Received",
       "sending": "Sending...",
       "sendError": "Send error",
-      "consentSignError": "Failed to sign documents. Please try again."
+      "consentSignError": "Failed to sign documents. Please try again.",
+      "guestWalletInvite": "If you like, sign in with your wallet — this chat will be saved, and more features will unlock."
     }
   },
   "consent": {

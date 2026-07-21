@@ -12,7 +12,8 @@
 
 const ollamaConfig = require('./ollamaConfig');
 const logger = require('../utils/logger');
-const axios = require('axios');
+const aiQueue = require('./ai-queue');
+const { PRIORITY } = require('./ai-queue');
 
 /**
  * Сервис для интеллектуальной разбивки документов на смысловые части (Semantic Chunking)
@@ -87,7 +88,6 @@ class SemanticChunkingService {
     try {
       // Получаем конфигурацию Ollama
       const ollamaConfig_data = await ollamaConfig.getConfigAsync();
-      const baseUrl = ollamaConfig_data.baseUrl || 'http://ollama:11434';
       const model = ollamaConfig_data.defaultModel || 'qwen2.5:1.5b';
 
       // Если текст очень большой, анализируем первые 10000 символов для определения структуры
@@ -116,24 +116,25 @@ ${analysisText}${text.length > 10000 ? '\n\n[Документ продолжае
 - Не обрезай предложения посередине
 - Если не можешь определить структуру, верни один раздел с title: "Документ"`;
 
-      const response = await axios.post(`${baseUrl}/api/chat`, {
-        model: model,
+      const responseContent = await aiQueue.addTask({
         messages: [
           {
             role: 'user',
             content: prompt
           }
         ],
-        format: 'json',
-        options: {
-          temperature: 0.1, // Низкая температура для точности
-          num_predict: 2000
-        }
-      }, {
-        timeout: 30000
+        model,
+        llmParameters: {
+          temperature: 0.1,
+          maxTokens: 2000
+        },
+        qwenParameters: { format: 'json' },
+        returnFullResponse: false,
+        priority: PRIORITY.CHUNKING,
+        timeoutMs: 30000
       });
 
-      const content = response.data.message?.content || response.data.response || '';
+      const content = responseContent || '';
       let structure;
 
       try {

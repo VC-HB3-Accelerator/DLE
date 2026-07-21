@@ -81,6 +81,17 @@
       </div>
     </div>
 
+    <!-- Мягкое приглашение гостю войти через кошелёк (первый ответ ИИ) -->
+    <div
+      v-if="showWalletInvite"
+      class="wallet-login-invite"
+    >
+      <p class="wallet-login-invite__text">{{ t('chat.message.guestWalletInvite') }}</p>
+      <button type="button" class="system-btn primary" @click="requestWalletLogin">
+        {{ t('auth.connectWallet') }}
+      </button>
+    </div>
+
     <!-- Кнопки для системного сообщения -->
     <div v-if="message.sender_type === 'system' && (message.telegramBotUrl || message.supportEmail) && !message.consentRequired" class="system-actions">
       <button v-if="message.telegramBotUrl" @click="openTelegram(message.telegramBotUrl)" class="system-btn">{{ t('chat.message.goToTelegram') }}</button>
@@ -137,8 +148,11 @@ import { defineProps, computed, ref, watch, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import eventBus from '../utils/eventBus';
+import { useAuthContext } from '../composables/useAuth';
 
 const { t } = useI18n();
+const auth = useAuthContext();
 
 const props = defineProps({
   message: {
@@ -156,6 +170,16 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['consent-granted']);
+
+const showWalletInvite = computed(() => (
+  Boolean(props.message?.suggestWalletLogin) && !auth.isAuthenticated.value
+));
+
+function requestWalletLogin() {
+  if (auth.isAuthenticated.value) return;
+  // request-wallet-auth уже открывает сайдбар и стартует MetaMask
+  eventBus.emit('request-wallet-auth');
+}
 
 // Состояние для выбранных документов и отправки согласия
 const selectedConsentDocuments = ref([]);
@@ -565,6 +589,25 @@ function copyEmail(email) {
   display: flex;
   gap: 10px;
 }
+
+.wallet-login-invite {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.wallet-login-invite__text {
+  margin: 0;
+  font-size: 0.92em;
+  line-height: 1.45;
+  color: var(--color-grey, #666);
+  font-style: normal;
+}
+
 .system-btn {
   background: var(--color-primary, #3b82f6);
   color: #fff;

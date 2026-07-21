@@ -14,8 +14,8 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const db = require('../db');
-const aiAssistant = require('../services/ai-assistant');
 const aiCache = require('../services/ai-cache');
+const aiQueue = require('../services/ai-queue');
 const logger = require('../utils/logger');
 const ollamaConfig = require('../services/ollamaConfig');
 
@@ -69,10 +69,9 @@ router.get('/', async (req, res) => {
     results.aiCache = { status: 'error', error: e.message };
   }
 
-  // ✨ НОВОЕ: AI Queue статистика
+  // AI Queue статистика
   try {
-    const ragService = require('../services/ragService');
-    const queueStats = ragService.getQueueStats();
+    const queueStats = aiQueue.getStats();
     results.aiQueue = {
       status: 'ok',
       currentSize: queueStats.currentQueueSize,
@@ -143,7 +142,7 @@ router.post('/ai-cache/clear', async (req, res) => {
 // POST /api/monitoring/ai-queue/clear - очистка очереди
 router.post('/ai-queue/clear', async (req, res) => {
   try {
-    aiAssistant.aiQueue.clearQueue();
+    aiQueue.clearQueue();
     res.json({
       status: 'ok',
       message: 'AI queue cleared successfully'

@@ -111,7 +111,10 @@ class SessionService {
 
         // Обрабатываем сообщения для каждого гостевого ID (используем UniversalGuestService)
         for (const guestId of guestIdsToProcess) {
-          const identifier = `web:${guestId}`; // Старые гости всегда из web
+          // guestId уже вида guest_xxx или сырой hex из старых сессий
+          const identifier = String(guestId).includes(':')
+            ? guestId
+            : `web:${guestId}`;
           await universalGuestService.migrateToUser(identifier, userId);
         }
         

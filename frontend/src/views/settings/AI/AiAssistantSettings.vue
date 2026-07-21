@@ -52,7 +52,17 @@
       <div class="ai-assistant-settings settings-panel">
         <form @submit.prevent="saveSettings">
           <label>{{ $t('settings.ai.assistant.systemPrompt') }}</label>
-          <textarea v-model="settings.system_prompt" rows="3" />
+          <div class="prompt-actions">
+            <button type="button" class="linkish" @click="applyRecommendedPrompt">
+              {{ $t('settings.ai.assistant.applyRecommendedPrompt') }}
+            </button>
+          </div>
+          <textarea
+            v-model="settings.system_prompt"
+            rows="12"
+            :placeholder="$t('settings.ai.assistant.systemPromptPlaceholder')"
+          />
+          <small class="field-hint">{{ $t('settings.ai.assistant.systemPromptHelp') }}</small>
           <!-- Блок плейсхолдеров -->
           <div class="placeholders-block">
             <h4>{{ $t('settings.ai.assistant.placeholdersTitle') }}</h4>
@@ -168,6 +178,9 @@
           </div>
           <div v-if="selectedRule">
             <p><b>{{ $t('settings.ai.assistant.descriptionLabel') }}</b> {{ selectedRule.description }}</p>
+            <p v-if="selectedRule.tag_ids?.length">
+              <b>{{ $t('settings.ai.assistant.boundTags') }}</b> {{ selectedRule.tag_ids.join(', ') }}
+            </p>
             <pre class="rules-json">{{ JSON.stringify(selectedRule.rules, null, 2) }}</pre>
           </div>
           <label>{{ $t('settings.ai.assistant.telegramBot') }}</label>
@@ -1016,6 +1029,12 @@ function openRuleEditor(ruleId = null) {
   }
   showRuleEditor.value = true;
 }
+
+function applyRecommendedPrompt() {
+  const text = t('settings.ai.assistant.recommendedSystemPrompt');
+  if (!text || text === 'settings.ai.assistant.recommendedSystemPrompt') return;
+  settings.value.system_prompt = text;
+}
 async function deleteRule(ruleId) {
   if (!confirm(t('settings.ai.assistant.confirmDeleteRules'))) return;
       await axios.delete(`/settings/ai-assistant-rules/${ruleId}`);
@@ -1170,6 +1189,25 @@ select[multiple] {
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 0.5rem;
+}
+.prompt-actions {
+  margin: 0.25rem 0 0.5rem;
+}
+.prompt-actions .linkish {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #007bff);
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+.field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: #666;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 .rules-json {
   background: #f7f7f7;

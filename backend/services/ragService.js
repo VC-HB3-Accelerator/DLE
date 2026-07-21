@@ -16,12 +16,14 @@ const { getProviderSettings } = require('./aiProviderSettingsService');
 const axios = require('axios');
 const ollamaConfig = require('./ollamaConfig');
 const aiCache = require('./ai-cache');
-const AIQueue = require('./ai-queue');
+const aiQueue = require('./ai-queue');
+const { PRIORITY: AI_QUEUE_PRIORITY } = require('./ai-queue');
 const aiConfigService = require('./aiConfigService');
 const userContextService = require('./userContextService');
 const profileAnalysisService = require('./profileAnalysisService');
 const { buildOllamaRequest } = require('../utils/ollamaRequestBuilder');
 const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
+const { toOllamaToolMessage } = require('../utils/ollamaToolMessages');
 const logger = require('../utils/logger');
 const db = require('../db');
 
@@ -88,8 +90,7 @@ let RAG_BEHAVIOR = null;
 const USE_AI_CACHE = process.env.USE_AI_CACHE !== 'false'; // default: true
 const USE_AI_QUEUE = process.env.USE_AI_QUEUE !== 'false'; // default: true
 
-// Создаем экземпляр очереди
-const aiQueue = new AIQueue();
+// Глобальный singleton очереди (см. ai-queue.js)
 
 // Загружаем RAG поведение из настроек
 async function getRAGBehavior() {
@@ -665,18 +666,18 @@ async function generateLLMResponse({
       date
     }, 'generateLLMResponse');
     
-    const conversationSummary = buildConversationSummary(history, {
-      maxMessages: 12,
-      maxChars: 700,
-      snippetLength: 160
-    });
+    // Одна «память» в промпте: либо долговременная из БД, либо краткий срез history.
+    // Не дублируем оба блока — экономим токены на CPU-моделях.
+    const memoryText = conversationMemory
+      ? String(conversationMemory).trim()
+      : buildConversationSummary(history, {
+          maxMessages: 12,
+          maxChars: 700,
+          snippetLength: 160
+        });
 
-    const summaryPrefix = conversationSummary
-      ? `Краткая сводка предыдущего диалога:\n${conversationSummary}\n\n`
-      : '';
-
-    const memoryBlock = conversationMemory
-      ? `Память диалога (обновляемая):\n${String(conversationMemory).trim()}\n\n`
+    const memoryBlock = memoryText
+      ? `Память диалога:\n${memoryText}\n\n`
       : '';
 
     // Формируем улучшенный промпт для LLM с учетом найденной информации
@@ -701,14 +702,14 @@ async function generateLLMResponse({
         })
         .join('\n\n---\n\n');
       
-      prompt = `${memoryBlock}${summaryPrefix}База знаний содержит следующую информацию из разных источников:\n\n${sourcesInfo}\n\nВопрос пользователя: ${userQuestion}\n\nПроанализируй информацию из всех источников и дай пользователю полный и точный ответ.`;
+      prompt = `${memoryBlock}База знаний содержит следующую информацию из разных источников:\n\n${sourcesInfo}\n\nВопрос пользователя: ${userQuestion}\n\nПроанализируй информацию из всех источников и дай пользователю полный и точный ответ.`;
     } else if (answer) {
       // Формат: делаем RAG ответ главным, вопрос - контекстом
-      prompt = `${memoryBlock}${summaryPrefix}База знаний содержит ответ:\n"${answer}"\n\nВопрос пользователя: ${userQuestion}\n\nДай пользователю этот ответ из базы знаний.`;
+      prompt = `${memoryBlock}База знаний содержит ответ:\n"${answer}"\n\nВопрос пользователя: ${userQuestion}\n\nДай пользователю этот ответ из базы знаний.`;
     }
     
     if (!prompt) {
-      prompt = `${memoryBlock}${summaryPrefix}Вопрос пользователя: ${userQuestion}`;
+      prompt = `${memoryBlock}Вопрос пользователя: ${userQuestion}`;
     }
 
     // Без RAG — не выдумывать факты; обычный текст, не JSON
@@ -750,6 +751,19 @@ async function generateLLMResponse({
       console.log(`[RAG] Подставлены плейсхолдеры таблиц и столбцов в системный промпт`);
     }
     // --- КОНЕЦ ДОБАВЛЕНИЯ ---
+
+    // Правила (по тегам + базовый набор) — выше профиля и важнее шаблонов в system prompt
+    try {
+      const { formatRulesForSystemPrompt } = require('./aiAssistantRulesService');
+      const rulesBlock = formatRulesForSystemPrompt(rules);
+      if (rulesBlock) {
+        finalSystemPrompt = finalSystemPrompt
+          ? `${finalSystemPrompt}\n\n${rulesBlock}`
+          : rulesBlock;
+      }
+    } catch (rulesFmtErr) {
+      console.warn('[RAG] Не удалось сформировать блок правил:', rulesFmtErr.message);
+    }
 
     if (userProfile) {
       const profileLines = [];
@@ -843,7 +857,8 @@ async function generateLLMResponse({
             qwenParameters,
             tools: requestBody.tools || null,
             tool_choice: requestBody.tool_choice || null,
-            returnFullResponse: true
+            returnFullResponse: true,
+            priority: AI_QUEUE_PRIORITY.CHAT
           });
 
           const queuedMessage = queuedResult.message || {};
@@ -853,12 +868,7 @@ async function generateLLMResponse({
             const toolResults = [];
             for (const toolCall of queuedMessage.tool_calls) {
               const result = await executeToolCall(toolCall, userId);
-              toolResults.push({
-                tool_call_id: toolCall.id,
-                role: 'tool',
-                name: toolCall.function.name,
-                content: JSON.stringify(result)
-              });
+              toolResults.push(toOllamaToolMessage(toolCall, result));
             }
 
             const finalMessages = [...messages, queuedMessage, ...toolResults];
@@ -867,7 +877,8 @@ async function generateLLMResponse({
               model: requestBody.model,
               llmParameters,
               qwenParameters,
-              returnFullResponse: false
+              returnFullResponse: false,
+              priority: AI_QUEUE_PRIORITY.CHAT
             });
           } else {
             llmResponse = queuedResult.response;
@@ -970,12 +981,7 @@ async function generateLLMResponse({
         // Выполняем все function calls
         for (const toolCall of response.data.message.tool_calls) {
           const result = await executeToolCall(toolCall, userId);
-          toolResults.push({
-            tool_call_id: toolCall.id,
-            role: 'tool',
-            name: toolCall.function.name,
-            content: JSON.stringify(result)
-          });
+          toolResults.push(toOllamaToolMessage(toolCall, result));
         }
         
         // Добавляем результаты в историю сообщений
@@ -1176,7 +1182,8 @@ async function ragAnswerWithConversation({
   threshold = null,
   history = [],
   conversationId = null,
-  forceReindex = false
+  forceReindex = false,
+  userId = null
 }) {
   // Загружаем настройки RAG для threshold
   const ragConfig = await aiConfigService.getRAGConfig();

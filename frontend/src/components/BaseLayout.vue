@@ -126,11 +126,6 @@ onMounted(() => {
     console.log('[BaseLayout] Refreshing base layout data');
     // BaseLayout не нуждается в обновлении данных
   });
-
-  eventBus.on('open-auth-sidebar', () => {
-    showWalletSidebar.value = true;
-    setToStorage('showWalletSidebar', true);
-  });
 });
 
 const {
@@ -240,6 +235,13 @@ const toggleWalletSidebar = () => {
 // 4. ЖИЗНЕННЫЙ ЦИКЛ
 // =====================================================================
 
+// =====================================================================
+// 4. ЖИЗНЕННЫЙ ЦИКЛ
+// =====================================================================
+
+let unsubscribeOpenAuth = null;
+let unsubscribeWalletAuth = null;
+
 onMounted(() => {
   // console.log('[BaseLayout] Компонент загружен');
 
@@ -251,6 +253,24 @@ onMounted(() => {
     showWalletSidebar.value = false; // по умолчанию закрыт
     setToStorage('showWalletSidebar', false);
   }
+
+  unsubscribeOpenAuth = eventBus.on('open-auth-sidebar', () => {
+    showWalletSidebar.value = true;
+    setToStorage('showWalletSidebar', true);
+  });
+
+  unsubscribeWalletAuth = eventBus.on('request-wallet-auth', () => {
+    showWalletSidebar.value = true;
+    setToStorage('showWalletSidebar', true);
+    handleWalletAuth();
+  });
+});
+
+onBeforeUnmount(() => {
+  unsubscribeOpenAuth?.();
+  unsubscribeWalletAuth?.();
+  unsubscribeOpenAuth = null;
+  unsubscribeWalletAuth = null;
 });
 </script>
 

@@ -179,10 +179,22 @@ class AIAssistant {
         };
       }
       
-      let rules = null;
-      if (aiSettings && aiSettings.rules_id) {
-        logger.info(`[AIAssistant] Загрузка правил по ID: ${aiSettings.rules_id}`);
-        rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
+      // Правила: по тегам пользователя + опциональный базовый набор из настроек
+      let rules = { byTags: [], global: null };
+      try {
+        let userTagIds = [];
+        if (userId && !userContextService.isGuestId(userId)) {
+          userTagIds = await userContextService.getUserTags(userId);
+        }
+        rules = await aiAssistantRulesService.resolveRulesForUser({
+          rulesId: aiSettings?.rules_id || null,
+          tagIds: userTagIds
+        });
+        logger.info(
+          `[AIAssistant] Правила: по тегам=${rules.byTags?.length || 0}, базовый=${rules.global ? rules.global.name : 'нет'}`
+        );
+      } catch (rulesErr) {
+        logger.warn(`[AIAssistant] Не удалось загрузить правила: ${rulesErr.message}`);
       }
 
       // 3. Определяем tableIds для RAG (может быть несколько таблиц)
@@ -317,7 +329,7 @@ class AIAssistant {
       };
 
       const normalizedQuestion = String(userQuestion || '').toLowerCase();
-      const needsProfileTools = /меня зовут|мое имя|моё имя|как меня зовут|как меня звать|мой профиль|профиль|мои теги|какие у меня теги|комментар|кто я|переимен|тег|лиценз|vip|клиент|холдер|держател/i.test(normalizedQuestion);
+      const needsProfileTools = /меня\s+з[ао]вут|меня\s+звать|зовут\s+меня|зови(?:те)?\s+меня|по\s+имени|мо[её]\s+имя|мое\s+имя|с\s+уважением|представлю|представляюсь|как меня зовут|как меня звать|мой профиль|профиль|мои теги|какие у меня теги|комментар|кто я|переимен|тег|лиценз|vip|клиент|холдер|держател|^я\s+[а-яёа-я-]{2,20}\s*[.!,]?$/i.test(normalizedQuestion);
 
       const conversationMemoryService = require('./conversationMemoryService');
       const memoryKey = conversationMemoryService.buildMemoryKey({
@@ -336,7 +348,7 @@ class AIAssistant {
         systemPrompt: aiSettings ? aiSettings.system_prompt : '',
         history: conversationHistory,
         model: aiSettings ? aiSettings.model : undefined,
-        rules: rules ? rules.rules : null,
+        rules,
         selectedRagTables: aiSettings ? aiSettings.selected_rag_tables : [],
         userId: userId,
         multiSourceResults: searchResults,
@@ -356,7 +368,6 @@ class AIAssistant {
       if (memoryKey && typeof aiResponse === 'string') {
         conversationMemoryService.scheduleUpdate({
           memoryKey,
-          previousSummary: conversationMemory,
           userMessage: userQuestion,
           assistantMessage: aiResponse
         });

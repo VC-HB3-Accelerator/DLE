@@ -159,7 +159,8 @@
     
     window.addEventListener('refresh-application-data', () => {
       console.log('[HomeView] Refreshing chat data');
-      loadMessages(); // Обновляем данные при входе в систему
+      // initial: true — иначе append к гостевым в UI / неверный offset
+      loadMessages({ initial: true });
     });
   });
 
@@ -176,15 +177,13 @@
 
   // Функция обновления сообщений после авторизации
   const handleAuthEvent = async (eventData) => {
-    // console.log('[HomeView] Получено событие изменения авторизации:', eventData);
-    if (eventData.isAuthenticated) {
-      // Сначала связываем гостевые сообщения, если есть
+    const loggedIn = eventData?.isAuthenticated ?? eventData?.authenticated;
+    if (loggedIn) {
+      // Сначала перенос гостя → messages, потом история на главной
       await linkGuestMessagesAfterAuth();
-      // Затем загружаем сообщения (если не было гостя, просто загрузка)
-      loadMessages({ initial: true, authType: eventData.authType || 'wallet' });
+      await loadMessages({ initial: true, authType: eventData.authType || 'wallet' });
     } else {
-      // Пользователь вышел из системы - можно очистить или обновить данные
-      loadMessages({ initial: true });
+      await loadMessages({ initial: true });
     }
   };
 

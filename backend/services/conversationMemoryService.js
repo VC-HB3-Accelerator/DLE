@@ -2,20 +2,25 @@
  * Copyright (c) 2024-2026 Тарабанов Александр Викторович
  * All rights reserved.
  *
- * Самообновляемая память диалога: краткая сводка на ключ user:/guest:,
- * читается перед ответом и обновляется после ответа ассистента (в фоне).
+ * Самообновляемая память диалога.
+ * Каждый ход: быстрая эвристическая склейка (без обхода AIQueue).
+ * Каждые COMPRESS_EVERY ходов: сжатие через AIQueue (низкий приоритет по факту FIFO после чата).
  */
 
-const axios = require('axios');
 const logger = require('../utils/logger');
 const ollamaConfig = require('./ollamaConfig');
 const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
 
 const MAX_SUMMARY_CHARS = 900;
-const UPDATE_TIMEOUT_MS = 25000;
+const COMPRESS_EVERY = 4;
 
 let schemaReady = false;
-const pendingUpdates = new Set();
+/** @type {Map<string, Array<{userMessage: string, assistantMessage: string}>>} */
+const turnBuffers = new Map();
+/** @type {Set<string>} */
+const processingKeys = new Set();
+/** @type {Set<string>} */
+const compressingKeys = new Set();
 
 function buildMemoryKey({ userId = null, guestIdentifier = null } = {}) {
   if (userId != null && Number.isFinite(Number(userId))) {
@@ -53,15 +58,23 @@ async function getSummary(memoryKey) {
     const db = require('../db');
     const query = db.getQuery();
     const { rows } = await query(
-      'SELECT summary_text FROM conversation_memory WHERE memory_key = $1',
+      'SELECT summary_text, turn_count FROM conversation_memory WHERE memory_key = $1',
       [memoryKey]
     );
-    const text = rows[0]?.summary_text ? String(rows[0].summary_text).trim() : '';
-    return text || null;
+    if (!rows[0]) return null;
+    const text = rows[0].summary_text ? String(rows[0].summary_text).trim() : '';
+    return text
+      ? { text, turnCount: Number(rows[0].turn_count) || 0 }
+      : { text: null, turnCount: Number(rows[0].turn_count) || 0 };
   } catch (error) {
     logger.warn('[conversationMemory] Ошибка чтения памяти:', error.message);
     return null;
   }
+}
+
+async function getSummaryText(memoryKey) {
+  const row = await getSummary(memoryKey);
+  return row?.text || null;
 }
 
 function heuristicMerge({ previousSummary, userMessage, assistantMessage }) {
@@ -82,102 +95,164 @@ function heuristicMerge({ previousSummary, userMessage, assistantMessage }) {
   return merged.trim();
 }
 
-async function summarizeWithLlm({ previousSummary, userMessage, assistantMessage }) {
-  const ollamaUrl = await ollamaConfig.getBaseUrlAsync();
-  let model = await ollamaConfig.getDefaultModelAsync();
-  if (!model || model === 'qwen2.5' || !String(model).includes(':')) {
-    model = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
-  }
-
-  const prompt = `Обнови краткую память диалога на русском языке (не больше ${MAX_SUMMARY_CHARS} символов).
-
-Предыдущая память:
-${previousSummary || '(пусто)'}
-
-Новый обмен:
-Пользователь: ${String(userMessage || '').slice(0, 500)}
-Ассистент: ${String(assistantMessage || '').slice(0, 700)}
-
-Правила:
-- Сохрани важные факты: имя, цели, договорённости, открытые вопросы, предпочтения.
-- Убери шум, повторы и служебный JSON.
-- Не выдумывай факты, которых не было в памяти или в новом обмене.
-- Ответ — только текст обновлённой памяти, без кавычек и без JSON.`;
-
-  const response = await axios.post(`${ollamaUrl}/api/chat`, {
-    model,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.1,
-    num_predict: 280,
-    stream: false
-  }, { timeout: UPDATE_TIMEOUT_MS });
-
-  const raw = response.data?.message?.content || '';
-  let text = sanitizeAssistantText(raw);
-  if (!text) {
-    throw new Error('empty summary from LLM');
-  }
-  if (text.length > MAX_SUMMARY_CHARS) {
-    text = text.slice(0, MAX_SUMMARY_CHARS).trim();
-  }
-  return text;
-}
-
 async function saveSummary(memoryKey, summaryText, incrementTurn = true) {
   await ensureSchema();
   const db = require('../db');
   const query = db.getQuery();
   const text = String(summaryText || '').trim();
-  if (!text) return;
+  if (!text) return null;
 
-  await query(
+  const { rows } = await query(
     `INSERT INTO conversation_memory (memory_key, summary_text, turn_count, updated_at)
      VALUES ($1, $2, 1, NOW())
      ON CONFLICT (memory_key) DO UPDATE SET
        summary_text = EXCLUDED.summary_text,
        turn_count = conversation_memory.turn_count + CASE WHEN $3 THEN 1 ELSE 0 END,
-       updated_at = NOW()`,
+       updated_at = NOW()
+     RETURNING turn_count`,
     [memoryKey, text, incrementTurn]
   );
+  return Number(rows[0]?.turn_count) || 0;
+}
+
+async function saveSummaryIfTurnUnchanged(memoryKey, summaryText, expectedTurnCount) {
+  await ensureSchema();
+  const db = require('../db');
+  const query = db.getQuery();
+  const text = String(summaryText || '').trim();
+  if (!text || !Number.isFinite(Number(expectedTurnCount))) return null;
+
+  const { rows } = await query(
+    `UPDATE conversation_memory
+     SET summary_text = $2, updated_at = NOW()
+     WHERE memory_key = $1 AND turn_count = $3
+     RETURNING turn_count`,
+    [memoryKey, text, Number(expectedTurnCount)]
+  );
+  return rows[0] ? Number(rows[0].turn_count) : null;
+}
+
+async function compressViaQueue(memoryKey, currentSummary, expectedTurnCount) {
+  if (!currentSummary) return null;
+  if (compressingKeys.has(memoryKey)) {
+    logger.info(`[conversationMemory] Сжатие уже идёт для ${memoryKey}, пропуск`);
+    return null;
+  }
+  compressingKeys.add(memoryKey);
+
+  const aiQueue = require('./ai-queue');
+  const { PRIORITY } = require('./ai-queue');
+  let model = await ollamaConfig.getDefaultModelAsync();
+  if (!model || model === 'qwen2.5' || !String(model).includes(':')) {
+    model = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
+  }
+
+  const prompt = `Сожми память диалога до ${MAX_SUMMARY_CHARS} символов на русском.
+Сохрани факты: имя, цели, договорённости, открытые вопросы. Убери повторы и шум.
+Не выдумывай. Ответ — только текст памяти, без JSON и кавычек.
+
+Память:
+${currentSummary}`;
+
+  try {
+    const result = await aiQueue.addTask({
+      messages: [{ role: 'user', content: prompt }],
+      model,
+      llmParameters: {
+        temperature: 0.1,
+        maxTokens: 280,
+        top_p: 0.9,
+        top_k: 40,
+        repeat_penalty: 1.1
+      },
+      qwenParameters: { format: null },
+      returnFullResponse: false,
+      priority: PRIORITY.MEMORY
+    });
+
+    let text = sanitizeAssistantText(typeof result === 'string' ? result : result?.response);
+    if (!text) return null;
+    if (text.length > MAX_SUMMARY_CHARS) {
+      text = text.slice(0, MAX_SUMMARY_CHARS).trim();
+    }
+
+    const savedTurn = await saveSummaryIfTurnUnchanged(memoryKey, text, expectedTurnCount);
+    if (!savedTurn) {
+      logger.info(
+        `[conversationMemory] Сжатие отброшено (память уже обновилась): ${memoryKey}, ожидали turn=${expectedTurnCount}`
+      );
+      return null;
+    }
+    logger.info(`[conversationMemory] Сжатие через AIQueue: ${memoryKey}, ${text.length} симв.`);
+    return text;
+  } catch (error) {
+    logger.warn(`[conversationMemory] Сжатие через очередь пропущено: ${error.message}`);
+    return null;
+  } finally {
+    compressingKeys.delete(memoryKey);
+  }
+}
+
+async function processBuffer(memoryKey) {
+  if (processingKeys.has(memoryKey)) return;
+  processingKeys.add(memoryKey);
+
+  try {
+    while (true) {
+      const buffer = turnBuffers.get(memoryKey) || [];
+      if (!buffer.length) break;
+      const turn = buffer.shift();
+      turnBuffers.set(memoryKey, buffer);
+
+      // Всегда свежая память из БД — без устаревшего snapshot
+      const current = await getSummary(memoryKey);
+      const previousText = current?.text || null;
+      const nextSummary = heuristicMerge({
+        previousSummary: previousText,
+        userMessage: turn.userMessage,
+        assistantMessage: turn.assistantMessage
+      });
+
+      const turnCount = await saveSummary(memoryKey, nextSummary, true);
+      logger.info(`[conversationMemory] Память обновлена (эвристика): ${memoryKey}, ход ${turnCount}, ${nextSummary.length} симв.`);
+
+      if (turnCount > 0 && turnCount % COMPRESS_EVERY === 0) {
+        // Не ждём сжатие; пишем только если turn_count не ушёл вперёд
+        compressViaQueue(memoryKey, nextSummary, turnCount).catch((error) => {
+          logger.warn(`[conversationMemory] Фоновое сжатие: ${error.message}`);
+        });
+      }
+    }
+  } catch (error) {
+    logger.warn('[conversationMemory] Ошибка обработки буфера:', error.message);
+  } finally {
+    processingKeys.delete(memoryKey);
+    // Если за время обработки добавили ещё ходы
+    if ((turnBuffers.get(memoryKey) || []).length > 0) {
+      setImmediate(() => processBuffer(memoryKey));
+    }
+  }
 }
 
 /**
- * Фоново обновляет память после ответа ассистента (не блокирует ответ пользователю).
+ * Фоново обновляет память после ответа ассистента.
+ * Ходы не теряются при быстрых сообщениях — складываются в буфер.
  */
-function scheduleUpdate({ memoryKey, previousSummary, userMessage, assistantMessage }) {
+function scheduleUpdate({ memoryKey, userMessage, assistantMessage }) {
   if (!memoryKey || !userMessage || !assistantMessage) return;
-  if (pendingUpdates.has(memoryKey)) {
-    logger.debug(`[conversationMemory] Пропуск: уже идёт обновление для ${memoryKey}`);
-    return;
-  }
 
-  pendingUpdates.add(memoryKey);
-  setImmediate(async () => {
-    try {
-      let nextSummary;
-      try {
-        nextSummary = await summarizeWithLlm({
-          previousSummary,
-          userMessage,
-          assistantMessage
-        });
-      } catch (llmError) {
-        logger.warn(`[conversationMemory] LLM-сводка не удалась (${llmError.message}), эвристика`);
-        nextSummary = heuristicMerge({
-          previousSummary,
-          userMessage,
-          assistantMessage
-        });
-      }
-
-      await saveSummary(memoryKey, nextSummary, true);
-      logger.info(`[conversationMemory] Память обновлена: ${memoryKey}, ${nextSummary.length} симв.`);
-    } catch (error) {
-      logger.warn('[conversationMemory] Ошибка фонового обновления:', error.message);
-    } finally {
-      pendingUpdates.delete(memoryKey);
-    }
+  const buffer = turnBuffers.get(memoryKey) || [];
+  buffer.push({
+    userMessage: String(userMessage),
+    assistantMessage: String(assistantMessage)
   });
+  // Ограничиваем хвост, чтобы не раздувать при спаме
+  if (buffer.length > 20) {
+    buffer.splice(0, buffer.length - 20);
+  }
+  turnBuffers.set(memoryKey, buffer);
+
+  setImmediate(() => processBuffer(memoryKey));
 }
 
 async function migrateGuestToUser(guestIdentifier, userId) {
@@ -202,7 +277,7 @@ async function migrateGuestToUser(guestIdentifier, userId) {
          summary_text = CASE
            WHEN conversation_memory.summary_text IS NULL OR conversation_memory.summary_text = ''
            THEN EXCLUDED.summary_text
-           ELSE conversation_memory.summary_text || E'\\n' || EXCLUDED.summary_text
+           ELSE left(conversation_memory.summary_text || E'\\n' || EXCLUDED.summary_text, ${MAX_SUMMARY_CHARS})
          END,
          turn_count = conversation_memory.turn_count + EXCLUDED.turn_count,
          updated_at = NOW()`,
@@ -217,7 +292,7 @@ async function migrateGuestToUser(guestIdentifier, userId) {
 
 module.exports = {
   buildMemoryKey,
-  getSummary,
+  getSummary: getSummaryText,
   scheduleUpdate,
   migrateGuestToUser,
   ensureSchema

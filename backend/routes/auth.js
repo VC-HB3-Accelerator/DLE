@@ -151,9 +151,12 @@ router.post('/verify', async (req, res) => {
     logger.info(`[verify] Address from request: ${address}`);
     logger.info(`[verify] Signature from request: ${signature}`);
 
-    // Сохраняем гостевые ID до проверки
-    const guestId = req.session.guestId;
+    // Сохраняем гостевые ID до проверки (body.guestId — из localStorage фронта, приоритетнее сессии)
+    const guestId = req.body.guestId || req.session.guestId;
     const previousGuestId = req.session.previousGuestId;
+    if (guestId) {
+      req.session.guestId = guestId;
+    }
 
     // Нормализуем адрес для использования в запросах
     const normalizedAddress = ethers.getAddress(address);

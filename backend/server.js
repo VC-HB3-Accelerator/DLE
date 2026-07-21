@@ -121,10 +121,10 @@ async function startServer() {
       }
     })
     .then(() => {
-      // ✨ Запускаем AI Queue Worker после инициализации ботов
+      // Запускаем AI Queue Worker после инициализации ботов
       if (process.env.USE_AI_QUEUE !== 'false') {
-        const ragService = require('./services/ragService');
-        ragService.startQueueWorker();
+        const aiQueue = require('./services/ai-queue');
+        aiQueue.startWorker();
         console.log('[Server] ✅ AI Queue Worker запущен');
       }
       

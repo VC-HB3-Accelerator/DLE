@@ -95,6 +95,17 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
     const webGuestId = guestId || universalGuestService.generateWebGuestId();
     const identifier = universalGuestService.createIdentifier('web', webGuestId);
 
+    // Синхронизируем session.guestId с localStorage guestId — иначе /verify мигрирует не тот id
+    if (req.session && webGuestId) {
+      req.session.guestId = webGuestId;
+      try {
+        const sessionService = require('../services/session-service');
+        await sessionService.saveSession(req.session, 'guest-message');
+      } catch (sessionErr) {
+        logger.warn('[Chat] Не удалось сохранить guestId в сессию:', sessionErr.message);
+      }
+    }
+
     // Обработка вложений через медиа-процессор
     let contentData = null;
     if (files && files.length > 0) {
@@ -197,9 +208,14 @@ router.post('/guest-message', upload.array('attachments'), async (req, res) => {
       success: true,
       guestId: webGuestId,
       aiResponse: result.aiResponse ? {
-        response: result.aiResponse.response
+        response: result.aiResponse.response,
+        suggestWalletLogin: Boolean(result.aiResponse.suggestWalletLogin || result.suggestWalletLogin)
       } : null
     };
+
+    if (result.suggestWalletLogin || result.aiResponse?.suggestWalletLogin) {
+      response.suggestWalletLogin = true;
+    }
 
     // Добавляем информацию о согласиях из результата (если есть)
     if (result.consentRequired) {
@@ -394,40 +410,43 @@ router.get('/models', async (req, res) => {
 // Получение истории сообщений
 router.get('/history', requireAuth, async (req, res) => {
   const userId = req.session.userId;
-  // Параметры пагинации
   const limit = parseInt(req.query.limit, 10) || 30;
   const offset = parseInt(req.query.offset, 10) || 0;
-  // Флаг для запроса только количества
   const countOnly = req.query.count_only === 'true';
-  // Опциональный ID диалога
   const conversationId = req.query.conversation_id;
 
-  // Получаем ключ шифрования
-  const fs = require('fs');
-  const path = require('path');
-  // Получаем ключ шифрования через унифицированную утилиту
   const encryptionUtils = require('../utils/encryptionUtils');
+  const {
+    buildPersonalHistoryWhere,
+    buildDecryptSelectParams
+  } = require('../utils/chatHistoryQuery');
   const encryptionKey = encryptionUtils.getEncryptionKey();
 
   try {
-    // Если нужен только подсчет
+    const { whereSql, params: filterParams } = buildPersonalHistoryWhere(
+      { userId, conversationId },
+      { tableAlias: '' }
+    );
+
     if (countOnly) {
-      let countQuery = 'SELECT COUNT(*) FROM messages WHERE user_id = $1 AND (message_type = $2 OR message_type = $3)';
-      let countParams = [userId, 'user_chat', 'public'];
-      if (conversationId) {
-        countQuery += ' AND conversation_id = $4';
-        countParams.push(conversationId);
-      }
-      const countResult = await db.getQuery()(countQuery, countParams);
+      const countResult = await db.getQuery()(
+        `SELECT COUNT(*) FROM messages ${whereSql}`,
+        filterParams
+      );
       const totalCount = parseInt(countResult.rows[0].count, 10);
-      return res.json({ success: true, count: totalCount });
+      // count + total: фронт historically читает data.total
+      return res.json({ success: true, count: totalCount, total: totalCount });
     }
 
-    // Загружаем сообщения: ИИ сообщения + публичные сообщения от других пользователей
-    // Используем SQL запрос для правильной фильтрации
-    const encryptionUtils = require('../utils/encryptionUtils');
-    const encryptionKey = encryptionUtils.getEncryptionKey();
-    
+    const { whereSql: listWhere, params: pageParams, limitSql, limit: safeLimit, offset: safeOffset } =
+      buildDecryptSelectParams({
+        userId,
+        conversationId,
+        encryptionKey,
+        limit,
+        offset
+      });
+
     const result = await db.getQuery()(
       `SELECT m.id, m.user_id, m.sender_id, m.conversation_id,
               decrypt_text(m.sender_type_encrypted, $2) as sender_type,
@@ -437,38 +456,33 @@ router.get('/history', requireAuth, async (req, res) => {
               decrypt_text(m.direction_encrypted, $2) as direction,
               m.message_type, m.created_at
        FROM messages m
-       WHERE m.user_id = $1 
-         AND (m.message_type = 'user_chat' OR m.message_type = 'public')
+       ${listWhere}
        ORDER BY m.created_at DESC
-       LIMIT $3`,
-      [userId, encryptionKey, limit]
+       ${limitSql}`,
+      pageParams
     );
-    
+
     const messages = result.rows;
-    // Переворачиваем массив для правильного порядка
     messages.reverse();
 
-    // Обрабатываем результаты для фронтенда
     const formattedMessages = messages.map(msg => {
       const formatted = {
         id: msg.id,
         conversation_id: msg.conversation_id,
         user_id: msg.user_id,
-        content: msg.content, // content уже расшифрован encryptedDb
-        sender_type: msg.sender_type, // sender_type уже расшифрован encryptedDb
-        role: msg.role, // role уже расшифрован encryptedDb
-        channel: msg.channel, // channel уже расшифрован encryptedDb
+        content: msg.content,
+        sender_type: msg.sender_type,
+        role: msg.role,
+        channel: msg.channel,
         created_at: msg.created_at,
-        attachments: null // Инициализируем
+        attachments: null
       };
 
-      // Если есть данные файла, добавляем их в attachments
       if (msg.attachment_data) {
         formatted.attachments = [{
-          originalname: msg.attachment_filename, // attachment_filename уже расшифрован encryptedDb
-          mimetype: msg.attachment_mimetype, // attachment_mimetype уже расшифрован encryptedDb
+          originalname: msg.attachment_filename,
+          mimetype: msg.attachment_mimetype,
           size: msg.attachment_size,
-          // Кодируем Buffer в Base64 для передачи на фронтенд
           data_base64: msg.attachment_data.toString('base64')
         }];
       }
@@ -476,24 +490,26 @@ router.get('/history', requireAuth, async (req, res) => {
       return formatted;
     });
 
-    // Получаем общее количество сообщений для пагинации (если не запрашивали только количество)
-    let totalCountQuery = 'SELECT COUNT(*) FROM messages WHERE user_id = $1';
-    let totalCountParams = [userId];
-    if (conversationId) {
-      totalCountQuery += ' AND conversation_id = $2';
-      totalCountParams.push(conversationId);
-    }
-    const totalCountResult = await db.getQuery()(totalCountQuery, totalCountParams);
+    const totalCountResult = await db.getQuery()(
+      `SELECT COUNT(*) FROM messages ${whereSql}`,
+      filterParams
+    );
     const totalMessages = parseInt(totalCountResult.rows[0].count, 10);
 
-    logger.info(`Returning message history for user ${userId}`, { count: formattedMessages.length, offset, limit, total: totalMessages });
+    logger.info(`Returning message history for user ${userId}`, {
+      count: formattedMessages.length,
+      offset: safeOffset,
+      limit: safeLimit,
+      total: totalMessages
+    });
 
     res.json({
       success: true,
       messages: formattedMessages,
-      offset: offset,
-      limit: limit,
-      total: totalMessages
+      offset: safeOffset,
+      limit: safeLimit,
+      total: totalMessages,
+      count: totalMessages
     });
 
   } catch (error) {
@@ -501,7 +517,6 @@ router.get('/history', requireAuth, async (req, res) => {
     res.status(500).json({ success: false, error: 'Ошибка получения истории сообщений' });
   }
 });
-
 // --- Новый роут для связывания гостя после аутентификации ---
 router.post('/process-guest', requireAuth, async (req, res) => {
   const userId = req.session.userId;
@@ -513,18 +528,16 @@ router.post('/process-guest', requireAuth, async (req, res) => {
     const universalGuestService = require('../services/UniversalGuestService');
     const identifier = `web:${guestId}`; // Старые гости всегда из web
     const result = await universalGuestService.migrateToUser(identifier, userId);
-    
-    if (result && result.success) {
-      return res.json({ 
-        success: true, 
-        conversationId: result.conversationId,
-        migratedMessages: result.migratedCount 
-      });
-    } else {
-      return res.json({ success: false, error: result.error || 'Migration failed' });
-    }
+
+    // Успех даже при 0 сообщений (гость без истории / уже мигрирован)
+    return res.json({
+      success: true,
+      conversationId: result?.conversationId || null,
+      migratedMessages: result?.migrated || 0,
+      skipped: result?.skipped || 0
+    });
   } catch (error) {
-    logger.error('Error in /migrate-guest-messages:', error);
+    logger.error('Error in /chat/process-guest:', error);
     return res.status(500).json({ success: false, error: 'Internal error' });
   }
 });
@@ -547,9 +560,12 @@ router.post('/ai-draft', requireAuth, requirePermission(PERMISSIONS.GENERATE_AI_
   try {
     // Получаем настройки ассистента
     const aiSettings = await aiAssistantSettingsService.getSettings();
-    let rules = null;
-    if (aiSettings && aiSettings.rules_id) {
-      rules = await aiAssistantRulesService.getRuleById(aiSettings.rules_id);
+    let rules = { byTags: [], global: null };
+    if (aiSettings) {
+      rules = await aiAssistantRulesService.resolveRulesForUser({
+        rulesId: aiSettings.rules_id || null,
+        tagIds: []
+      });
     }
     // Формируем prompt из выбранных сообщений
     const promptText = messages.map(m => m.content).join('\n\n');
@@ -584,7 +600,7 @@ router.post('/ai-draft', requireAuth, requirePermission(PERMISSIONS.GENERATE_AI_
       systemPrompt: aiSettings ? aiSettings.system_prompt : '',
       history,
       model: aiSettings ? aiSettings.model : undefined,
-      rules: rules ? rules.rules : null
+      rules
     });
     res.json({ success: true, aiMessage: aiResponseContent });
   } catch (error) {
