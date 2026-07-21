@@ -142,9 +142,29 @@ async function sendToRecipient({
         }
 
         const publicBaseUrl = await emailTrackingService.getPublicBaseUrl();
+        let legalFooter = '';
+        if (normalizedCampaignId) {
+          try {
+            const campaign = await broadcastService.getCampaignById(normalizedCampaignId);
+            legalFooter = String(campaign?.legal_footer || '').trim();
+          } catch (_) {
+            // ignore — HTML всё равно соберётся с fingerprint-эвристикой
+          }
+        }
+
         const emailHtml = trackingToken
-          ? emailTrackingService.buildHtmlEmailBody(trimmedContent, trackingToken, publicBaseUrl)
-          : null;
+          ? emailTrackingService.buildHtmlEmailBody(
+            trimmedContent,
+            trackingToken,
+            publicBaseUrl,
+            { legalFooter }
+          )
+          : emailTrackingService.buildHtmlEmailBody(
+            trimmedContent,
+            null,
+            publicBaseUrl,
+            { legalFooter }
+          );
 
         await emailBot.sendEmail(email, subject, trimmedContent, attachments, { html: emailHtml });
         await saveBroadcastOutgoingMessage({

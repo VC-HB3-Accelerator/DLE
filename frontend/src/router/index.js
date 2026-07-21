@@ -207,6 +207,18 @@ const routes = [
     // meta: { permission: PERMISSIONS.VIEW_CONTACTS } // Временно убираем проверку прав
   },
   {
+    path: '/contacts-list/parser',
+    component: () => import('../views/contacts/ContactSiteParserLayout.vue'),
+    meta: { permission: PERMISSIONS.EDIT_CONTACTS },
+    children: [
+      {
+        path: '',
+        name: 'contacts-site-parser',
+        component: () => import('../views/contacts/ContactSiteParserView.vue'),
+      },
+    ],
+  },
+  {
     path: '/contacts-list/broadcast',
     component: () => import('../views/contacts/BroadcastLayout.vue'),
     meta: { permission: PERMISSIONS.BROADCAST },

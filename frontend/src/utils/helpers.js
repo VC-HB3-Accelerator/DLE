@@ -34,6 +34,14 @@ export const truncateAddress = (address) => {
   return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
 };
 
+/** Убирает legacy-маркеры парсера сайтов из comment для отображения/редактирования. */
+export function stripAutoEnrichMarkers(comment) {
+  return String(comment || '')
+    .replace(/=== AUTO ENRICH[^\n]*===\s*/g, '')
+    .replace(/\s*=== END AUTO ENRICH ===\s*/g, '')
+    .trim();
+}
+
 /**
  * Форматирует время в человекочитаемый вид
  * @param {string | number | Date} timestamp - Метка времени

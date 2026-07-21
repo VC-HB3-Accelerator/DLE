@@ -582,20 +582,26 @@ router.post('/broadcast/ai-agent/preview', requireAuth, requirePermission(PERMIS
 
   const userId = Number(req.body?.userId);
   const subject = String(req.body?.subject || '').trim();
+  const greeting = String(req.body?.greeting || '').trim();
   const body = String(req.body?.body || '').trim();
+  const signature = String(req.body?.signature || '').trim();
+  const legalFooter = String(req.body?.legal_footer || '').trim();
 
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(400).json({ error: 'userId обязателен' });
   }
-  if (!subject && !body) {
-    return res.status(400).json({ error: 'subject или body обязательны' });
+  if (!subject && !body && !greeting) {
+    return res.status(400).json({ error: 'subject, greeting или body обязательны' });
   }
 
   try {
     const result = await broadcastAiAgentService.personalizeForRecipient({
       userId,
       subject,
+      greeting,
       body,
+      signature,
+      legalFooter,
       fallbackOnError: false
     });
     res.json({ success: true, result });
@@ -630,6 +636,9 @@ router.post('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.B
   const name = String(req.body?.name || '').trim();
   const subject = String(req.body?.subject || '').trim();
   const body = String(req.body?.body || '').trim();
+  const greeting = String(req.body?.greeting || '').trim();
+  const signature = String(req.body?.signature || '').trim();
+  const legalFooter = String(req.body?.legal_footer || '').trim();
 
   if (!name) {
     return res.status(400).json({ error: 'name обязателен' });
@@ -644,6 +653,9 @@ router.post('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.B
       name,
       subject,
       body,
+      greeting,
+      signature,
+      legalFooter,
       createdBy: senderId
     });
     res.status(201).json({ success: true, template });
@@ -667,13 +679,23 @@ router.put('/broadcast/templates/:id', requireAuth, requirePermission(PERMISSION
   const name = String(req.body?.name || '').trim();
   const subject = String(req.body?.subject || '').trim();
   const body = String(req.body?.body || '').trim();
+  const greeting = String(req.body?.greeting || '').trim();
+  const signature = String(req.body?.signature || '').trim();
+  const legalFooter = String(req.body?.legal_footer || '').trim();
 
   if (!name || !subject || !body) {
     return res.status(400).json({ error: 'name, subject и body обязательны' });
   }
 
   try {
-    const template = await broadcastService.updateTemplate(templateId, { name, subject, body });
+    const template = await broadcastService.updateTemplate(templateId, {
+      name,
+      subject,
+      body,
+      greeting,
+      signature,
+      legalFooter
+    });
     if (!template) {
       return res.status(404).json({ error: 'Шаблон не найден' });
     }
@@ -806,6 +828,9 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
   const recipientIds = broadcastService.parseRecipientIds(req.body?.recipient_ids);
   const subject = String(req.body?.subject || '').trim();
   const message = String(req.body?.message || '').trim();
+  const greeting = String(req.body?.greeting || '').trim();
+  const signature = String(req.body?.signature || '').trim();
+  const legalFooter = String(req.body?.legal_footer || '').trim();
   const warmupMode = req.body?.warmup_mode === true || req.body?.warmup_mode === 'true';
   const delaySeconds = Number(req.body?.delay_seconds) || 0;
   const maxRecipients = Number(req.body?.max_recipients) || 0;
@@ -834,6 +859,9 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
       senderId,
       subject,
       message,
+      greeting,
+      signature,
+      legalFooter,
       recipientIds,
       warmupMode,
       delaySeconds,

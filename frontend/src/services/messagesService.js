@@ -92,7 +92,10 @@ export default {
   },
   async createBroadcastCampaign({
     subject,
+    greeting = '',
     message,
+    signature = '',
+    legalFooter = '',
     recipientIds,
     warmupMode = false,
     delaySeconds = 0,
@@ -107,7 +110,10 @@ export default {
   }) {
     const formData = new FormData();
     formData.append('subject', subject);
+    formData.append('greeting', greeting);
     formData.append('message', message);
+    formData.append('signature', signature);
+    formData.append('legal_footer', legalFooter);
     formData.append('recipient_ids', JSON.stringify(recipientIds));
     formData.append('warmup_mode', warmupMode ? 'true' : 'false');
     formData.append('delay_seconds', String(delaySeconds));
@@ -188,11 +194,21 @@ export default {
     });
     return data;
   },
-  async previewBroadcastAiAgent({ userId, subject, body }) {
+  async previewBroadcastAiAgent({
+    userId,
+    subject,
+    greeting = '',
+    body,
+    signature = '',
+    legalFooter = ''
+  }) {
     const { data } = await api.post('/messages/broadcast/ai-agent/preview', {
       userId,
       subject,
-      body
+      greeting,
+      body,
+      signature,
+      legal_footer: legalFooter
     }, {
       withCredentials: true
     });
@@ -301,21 +317,41 @@ export default {
     });
     return data;
   },
-  async createBroadcastTemplate({ name, subject, body }) {
+  async createBroadcastTemplate({
+    name,
+    subject,
+    greeting = '',
+    body,
+    signature = '',
+    legalFooter = ''
+  }) {
     const { data } = await api.post('/messages/broadcast/templates', {
       name,
       subject,
-      body
+      greeting,
+      body,
+      signature,
+      legal_footer: legalFooter
     }, {
       withCredentials: true
     });
     return data;
   },
-  async updateBroadcastTemplate(templateId, { name, subject, body }) {
+  async updateBroadcastTemplate(templateId, {
+    name,
+    subject,
+    greeting = '',
+    body,
+    signature = '',
+    legalFooter = ''
+  }) {
     const { data } = await api.put(`/messages/broadcast/templates/${templateId}`, {
       name,
       subject,
-      body
+      greeting,
+      body,
+      signature,
+      legal_footer: legalFooter
     }, {
       withCredentials: true
     });

@@ -106,6 +106,7 @@ db.setPoolChangeCallback(sessionConfig.reloadSessionMiddleware);
 // Импорт маршрутов
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
+const contactSiteParserRoutes = require('./routes/contactSiteParser');
 const identitiesRoutes = require('./routes/identities');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
@@ -369,6 +370,7 @@ app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
 // app.use('/api', identitiesRoutes);
 app.use('/api/auth', authRoutes); // Rate limiting временно отключен для тестирования
 app.use('/api/users', usersRoutes);
+app.use('/api/contact-site-parser', contactSiteParserRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);

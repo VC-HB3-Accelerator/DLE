@@ -3,8 +3,7 @@
  * All rights reserved.
  *
  * ИИ-агент персонализации рассылки:
- * шаблон + профиль контакта (без сайта и без RAG).
- * Все рабочие параметры — из настроек (UI / БД), с дефолтами-примерами.
+ * меняет ТОЛЬКО subject + greeting; body / signature / legal_footer склеиваются вне LLM.
  */
 
 const axios = require('axios');
@@ -16,6 +15,11 @@ const aiProviderSettingsService = require('./aiProviderSettingsService');
 const userContactFilesService = require('./userContactFilesService');
 const aiQueue = require('./ai-queue');
 const { PRIORITY } = require('./ai-queue');
+const {
+  composeEmailBody,
+  resolveGreeting,
+  DEFAULT_GREETING
+} = require('../utils/broadcastEmailCompose');
 
 /** Дефолты-примеры для UI и для пустой БД (не «жёсткий runtime-хардкод»). */
 const DEFAULTS = {
@@ -23,25 +27,22 @@ const DEFAULTS = {
   provider: 'ollama',
   model: null,
   temperature: 0.3,
-  max_tokens: 800,
+  max_tokens: 400,
   // 7 минут — середина рекомендуемого окна 6–8 мин на CPU
   timeout_ms: 420000,
   system_prompt: `Ты — агент персонализации B2B email-рассылки.
-Твоя задача: адаптировать готовый шаблон письма под конкретного получателя.
+Письмо состоит из блоков: subject, greeting, body, signature, legal_footer.
+Ты меняешь ТОЛЬКО subject и greeting. Body, signature и legal_footer тебе запрещено переписывать или возвращать.
 
 Правила (строго):
-1. Используй ТОЛЬКО факты из блока PROFILE. Ничего не выдумывай.
-2. Не добавляй факты о компании, рынке, цифрах, услугах получателя, которых нет в PROFILE.
-3. Сохрани смысл, оффер и CTA шаблона. Можно перефразировать приветствие и 1–2 предложения.
-4. Если в PROFILE есть name:
-   - вставь name ДОСЛОВНО (без замены АО↔ООО и без сокращений) и в subject, и в body;
-   - в body — в приветствии или первом абзаце (например: «Добрый день, команда <name>!»);
-   - в subject — кратко упомяни name или начни с обращения к name, сохранив смысл исходной темы.
-5. Если есть link — можно упомянуть сайт из link в body (без выдуманных деталей о сайте).
-6. Не оставляй голое «Добрый день!» в body, если name заполнен. Не переноси приветствие только в subject.
-7. Если name и link пусты — верни шаблон почти без изменений, с нейтральным обращением.
-8. Язык ответа = язык шаблона.
-9. Верни строго JSON одной строкой: {"subject":"...","body":"..."} без markdown.`
+1. Используй ТОЛЬКО факты из PROFILE / RECIPIENT_NAME. Ничего не выдумывай.
+2. RECIPIENT_NAME — единственное обращение к получателю. Вставь его ДОСЛОВНО в greeting (и желательно кратко в subject).
+3. Не делай subject из одного приветствия («Здравствуйте, …»). Сохрани смысл TEMPLATE_SUBJECT.
+4. Greeting — одна короткая строка/абзац приветствия (например: «Здравствуйте, команда <name>!»).
+5. OFFER_BODY дан только как контекст темы — не копируй его в ответ.
+6. Если RECIPIENT_NAME пуст — нейтральное «Здравствуйте!» и тема почти без изменений.
+7. Язык = язык шаблона.
+8. Верни строго JSON одной строкой: {"subject":"...","greeting":"..."} без markdown.`
 };
 
 const DEFAULT_SYSTEM_PROMPT = DEFAULTS.system_prompt;
@@ -212,7 +213,119 @@ async function getContactProfile(userId) {
   };
 }
 
-function buildUserPrompt({ profile, subject, body }) {
+const ORG_PREFIXES = new Set(['ооо', 'ао', 'зао', 'пао', 'ип', 'оао', 'нко']);
+
+function normalizeRecipientName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[«»""„“]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function recipientNameTokens(name) {
+  return normalizeRecipientName(name)
+    .split(/[\s.,/|]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2 && !ORG_PREFIXES.has(t));
+}
+
+/** Проверка: в тексте есть имя/название получателя из профиля. */
+function textIncludesRecipientName(text, name) {
+  if (!name) return true;
+  const hay = normalizeRecipientName(text);
+  const needle = normalizeRecipientName(name);
+  if (!needle) return true;
+  if (hay.includes(needle)) return true;
+  const tokens = recipientNameTokens(name);
+  if (!tokens.length) return hay.includes(needle);
+  // Для «ООО "ГЭК"» достаточно значимого токена «гэк»
+  return tokens.every((tok) => hay.includes(tok));
+}
+
+/**
+ * Детерминированная правка только subject + greeting (без LLM).
+ */
+function applyDeterministicSubjectGreeting({ profile, subject, greeting }) {
+  const name = String(profile?.name || '').trim();
+  let nextSubject = String(subject || '').trim() || 'Новое сообщение';
+  let nextGreeting = resolveGreeting(greeting);
+
+  if (!name) {
+    return { subject: nextSubject, greeting: nextGreeting };
+  }
+
+  if (!textIncludesRecipientName(nextSubject, name)) {
+    nextSubject = `${name}: ${nextSubject}`.slice(0, 180).trim();
+  }
+
+  const greetingRe = /^(здравствуйте|добрый день|доброе утро|добрый вечер)([!,.\s]*)$/i;
+  if (greetingRe.test(nextGreeting.trim())) {
+    const greet = nextGreeting.trim().match(greetingRe)[1];
+    nextGreeting = `${greet}, ${name}!`;
+  } else if (!textIncludesRecipientName(nextGreeting, name)) {
+    nextGreeting = `Здравствуйте, ${name}!`;
+  }
+
+  return { subject: nextSubject, greeting: nextGreeting };
+}
+
+/** @deprecated совместимость со старыми тестами — делегирует в subject/greeting */
+function applyDeterministicPersonalization({ profile, subject, body, greeting }) {
+  const baseGreeting = greeting != null ? greeting : (body || DEFAULT_GREETING);
+  const { subject: s, greeting: g } = applyDeterministicSubjectGreeting({
+    profile,
+    subject,
+    greeting: baseGreeting
+  });
+  return { subject: s, greeting: g, body: g };
+}
+
+/**
+ * Отбраковка ответа LLM по subject + greeting.
+ */
+function validatePersonalizedOutput({
+  subject,
+  greeting,
+  body,
+  profile,
+  templateSubject
+}) {
+  const name = String(profile?.name || '').trim();
+  const outSubject = String(subject || '').trim();
+  const outGreeting = String(greeting != null ? greeting : body || '').trim();
+
+  if (!outSubject || !outGreeting) {
+    return { ok: false, reason: 'empty_output' };
+  }
+
+  if (/^(здравствуйте|добрый день|доброе утро|добрый вечер)\b/i.test(outSubject)
+      && outSubject.length < 48) {
+    return { ok: false, reason: 'subject_is_greeting' };
+  }
+
+  if (name && !textIncludesRecipientName(outSubject, name)
+      && !textIncludesRecipientName(outGreeting, name)) {
+    return { ok: false, reason: 'missing_recipient_name' };
+  }
+
+  const tplSub = String(templateSubject || '').trim();
+  if (tplSub.length >= 12) {
+    const tplTokens = normalizeRecipientName(tplSub)
+      .split(/[\s:,\-–—]+/)
+      .filter((t) => t.length >= 4)
+      .slice(0, 4);
+    const subNorm = normalizeRecipientName(outSubject);
+    const kept = tplTokens.filter((t) => subNorm.includes(t)).length;
+    if (tplTokens.length >= 2 && kept === 0 && !textIncludesRecipientName(outSubject, name)) {
+      return { ok: false, reason: 'subject_unrelated' };
+    }
+  }
+
+  return { ok: true, reason: 'ok' };
+}
+
+function buildUserPrompt({ profile, subject, greeting, body }) {
   const compactProfile = {
     id: profile.id,
     name: profile.name,
@@ -224,11 +337,15 @@ function buildUserPrompt({ profile, subject, body }) {
     lang: profile.preferred_language
   };
 
+  const recipientName = profile.name || '(пусто — нейтральное обращение)';
+
   return [
+    `RECIPIENT_NAME: ${recipientName}`,
     `TEMPLATE_SUBJECT: ${subject}`,
-    `TEMPLATE_BODY: ${body}`,
+    `TEMPLATE_GREETING: ${resolveGreeting(greeting)}`,
+    `OFFER_BODY (context only, do not rewrite): ${String(body || '').slice(0, 1200)}`,
     `PROFILE: ${JSON.stringify(compactProfile)}`,
-    'Верни только JSON {"subject":"...","body":"..."}.'
+    'Верни только JSON {"subject":"...","greeting":"..."}.'
   ].join('\n');
 }
 
@@ -240,11 +357,13 @@ function parseJsonResponse(raw) {
   }
   const parsed = JSON.parse(text);
   const subject = String(parsed.subject || '').trim();
-  const body = String(parsed.body || '').trim();
-  if (!subject || !body) {
-    throw new Error('LLM JSON missing subject/body');
+  // greeting предпочтителен; legacy body как greeting — на случай старого промпта в БД
+  const greeting = String(parsed.greeting || parsed.body || '').trim();
+  if (!subject || !greeting) {
+    throw new Error('LLM JSON missing subject/greeting');
   }
-  return { subject, body };
+  // Если модель вернула огромный «greeting» (= весь letter) — отбракуем выше по validate / fallback
+  return { subject, greeting };
 }
 
 /** Очередь LLM: превью и prepare не должны бить Ollama параллельно. */
@@ -364,7 +483,7 @@ async function callAnthropic({ providerSettings, model, systemPrompt, userPrompt
   return textBlock?.text || '';
 }
 
-async function generateWithLlm({ settings, profile, subject, body }) {
+async function generateWithLlm({ settings, profile, subject, greeting, body }) {
   const provider = settings.provider || DEFAULTS.provider;
   const model = settings.model || (provider === 'ollama' ? await ollamaConfig.getDefaultModelAsync() : null);
   if (!model) {
@@ -372,7 +491,7 @@ async function generateWithLlm({ settings, profile, subject, body }) {
   }
 
   const systemPrompt = settings.system_prompt || DEFAULTS.system_prompt;
-  const userPrompt = buildUserPrompt({ profile, subject, body });
+  const userPrompt = buildUserPrompt({ profile, subject, greeting, body });
   const temperature = Number.isFinite(Number(settings.temperature))
     ? Number(settings.temperature)
     : DEFAULTS.temperature;
@@ -429,47 +548,98 @@ async function generateWithLlm({ settings, profile, subject, body }) {
     return parseJsonResponse(raw);
   };
 
-  // Ollama уже сериализуется глобальной AIQueue; внешние API — локальной цепочкой
   if (provider === 'ollama') {
     return run();
   }
   return enqueueLlmTask(run);
 }
 
+function buildPersonalizedResult({
+  subject,
+  greeting,
+  offerBody,
+  signature,
+  legalFooter,
+  fingerprint = '',
+  personalized,
+  reason,
+  profile,
+  extra = {}
+}) {
+  const finalGreeting = resolveGreeting(greeting);
+  const token = String(fingerprint || '').trim();
+  const composed = composeEmailBody({
+    greeting: finalGreeting,
+    body: offerBody,
+    signature,
+    legalFooter,
+    fingerprint: token
+  });
+  return {
+    subject,
+    greeting: finalGreeting,
+    body: composed,
+    fingerprint: token || null,
+    parts: {
+      greeting: finalGreeting,
+      body: String(offerBody || '').trim(),
+      signature: String(signature || '').trim(),
+      legal_footer: String(legalFooter || '').trim(),
+      fingerprint: token || null
+    },
+    personalized,
+    reason,
+    profile,
+    ...extra
+  };
+}
+
 async function personalizeForRecipient({
   userId,
   subject,
+  greeting = DEFAULT_GREETING,
   body,
+  signature = '',
+  legalFooter = '',
+  fingerprint = '',
   settings: settingsOverride = null,
   fallbackOnError = true
 }) {
   const templateSubject = String(subject || '').trim() || 'Новое сообщение';
-  const templateBody = String(body || '').trim();
-  if (!templateBody) {
-    throw new Error('Пустой шаблон сообщения');
+  const templateGreeting = resolveGreeting(greeting);
+  const offerBody = String(body || '').trim();
+  const templateSignature = String(signature || '').trim();
+  const templateLegal = String(legalFooter || '').trim();
+  const {
+    generateUniqueToken
+  } = require('../utils/broadcastEmailCompose');
+  const uniqueToken = String(fingerprint || '').trim() || generateUniqueToken();
+
+  if (!offerBody) {
+    throw new Error('Пустой шаблон сообщения (тело письма)');
   }
 
   const settings = settingsOverride || await getSettings();
   const profile = await getContactProfile(userId);
 
+  const asTemplate = (reason) => buildPersonalizedResult({
+    subject: templateSubject,
+    greeting: templateGreeting,
+    offerBody,
+    signature: templateSignature,
+    legalFooter: templateLegal,
+    fingerprint: uniqueToken,
+    personalized: false,
+    reason,
+    profile
+  });
+
   if (profile.is_blocked) {
-    return {
-      subject: templateSubject,
-      body: templateBody,
-      personalized: false,
-      reason: 'blocked',
-      profile
-    };
+    return asTemplate('blocked');
   }
 
   if (!settings.enabled) {
-    return {
-      subject: templateSubject,
-      body: templateBody,
-      personalized: false,
-      reason: 'agent_disabled',
-      profile
-    };
+    return asTemplate('agent_disabled');
   }
 
   try {
@@ -477,28 +647,80 @@ async function personalizeForRecipient({
       settings,
       profile,
       subject: templateSubject,
-      body: templateBody
+      greeting: templateGreeting,
+      body: offerBody
     });
-    return {
-      subject: generated.subject,
-      body: generated.body,
+
+    // Отсекаем «greeting = целое письмо»
+    const greetingTooLong = generated.greeting.length > Math.max(280, templateGreeting.length * 4);
+    const check = greetingTooLong
+      ? { ok: false, reason: 'greeting_too_long' }
+      : validatePersonalizedOutput({
+        subject: generated.subject,
+        greeting: generated.greeting,
+        profile,
+        templateSubject
+      });
+
+    if (check.ok) {
+      return buildPersonalizedResult({
+        subject: generated.subject,
+        greeting: generated.greeting,
+        offerBody,
+        signature: templateSignature,
+        legalFooter: templateLegal,
+        fingerprint: uniqueToken,
+        personalized: true,
+        reason: 'ok',
+        profile
+      });
+    }
+
+    logger.warn(
+      `[BroadcastAiAgent] LLM output rejected for user ${userId}: ${check.reason}; `
+      + 'using deterministic subject/greeting'
+    );
+    const fallback = applyDeterministicSubjectGreeting({
+      profile,
+      subject: templateSubject,
+      greeting: templateGreeting
+    });
+    return buildPersonalizedResult({
+      subject: fallback.subject,
+      greeting: fallback.greeting,
+      offerBody,
+      signature: templateSignature,
+      legalFooter: templateLegal,
+      fingerprint: uniqueToken,
       personalized: true,
-      reason: 'ok',
-      profile
-    };
+      reason: `fallback_${check.reason}`,
+      profile,
+      extra: { llm_rejected: check.reason }
+    });
   } catch (error) {
     logger.warn(`[BroadcastAiAgent] Personalize failed for user ${userId}: ${error.message}`);
     if (!fallbackOnError) {
       throw error;
     }
-    return {
+    const fallback = applyDeterministicSubjectGreeting({
+      profile,
       subject: templateSubject,
-      body: templateBody,
-      personalized: false,
-      reason: 'llm_error',
-      error: error.message,
-      profile
-    };
+      greeting: templateGreeting
+    });
+    const usedDeterministic = Boolean(profile?.name)
+      && (fallback.subject !== templateSubject || fallback.greeting !== templateGreeting);
+    return buildPersonalizedResult({
+      subject: fallback.subject,
+      greeting: fallback.greeting,
+      offerBody,
+      signature: templateSignature,
+      legalFooter: templateLegal,
+      fingerprint: uniqueToken,
+      personalized: usedDeterministic,
+      reason: usedDeterministic ? 'fallback_llm_error' : 'llm_error',
+      profile,
+      extra: { error: error.message }
+    });
   }
 }
 
@@ -524,5 +746,12 @@ module.exports = {
   saveSettings,
   getContactProfile,
   personalizeForRecipient,
-  listAvailableModels
+  listAvailableModels,
+  textIncludesRecipientName,
+  validatePersonalizedOutput,
+  applyDeterministicPersonalization,
+  applyDeterministicSubjectGreeting,
+  buildUserPrompt,
+  composeEmailBody,
+  resolveGreeting
 };

@@ -439,9 +439,15 @@ async function prepareCampaignDrafts({ campaignId, useAi = true }) {
   prepareCampaignDrafts._inflight.add(campaignId);
 
   try {
+  const { composeEmailBody, resolveGreeting, ensureBroadcastComposeSchema, generateUniqueToken } = require('../utils/broadcastEmailCompose');
+  await ensureBroadcastComposeSchema(db.getQuery());
+
   const recipientIds = broadcastService.getCampaignRecipientIds(campaign);
   const templateSubject = String(campaign.subject || '').trim() || 'Новое сообщение';
+  const templateGreeting = resolveGreeting(campaign.greeting);
   const templateBody = String(campaign.message_body || campaign.message_preview || '').trim();
+  const templateSignature = String(campaign.signature || '').trim();
+  const templateLegal = String(campaign.legal_footer || '').trim();
   if (!templateBody) {
     await failPrepare(campaignId, 'Пустой шаблон сообщения');
     throw new Error('Пустой шаблон сообщения');
@@ -492,8 +498,15 @@ async function prepareCampaignDrafts({ campaignId, useAi = true }) {
     try {
       logger.info(`[BroadcastDraft] prepare campaign ${campaignId} → user ${recipientUserId}`);
       const conversation = await broadcastSendService.getOrCreateConversation(recipientUserId);
+      const fingerprint = generateUniqueToken();
       let subject = templateSubject;
-      let body = templateBody;
+      let body = composeEmailBody({
+        greeting: templateGreeting,
+        body: templateBody,
+        signature: templateSignature,
+        legalFooter: templateLegal,
+        fingerprint
+      });
       let personalized = false;
       let personalizeReason = 'template';
 
@@ -501,7 +514,11 @@ async function prepareCampaignDrafts({ campaignId, useAi = true }) {
         const result = await broadcastAiAgentService.personalizeForRecipient({
           userId: recipientUserId,
           subject: templateSubject,
+          greeting: templateGreeting,
           body: templateBody,
+          signature: templateSignature,
+          legalFooter: templateLegal,
+          fingerprint,
           settings: aiSettings,
           fallbackOnError: true
         });

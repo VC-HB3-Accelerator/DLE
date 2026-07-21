@@ -119,6 +119,15 @@ async function startServer() {
         console.error('[Server] ❌ Ошибка инициализации очереди рассылок:', error.message);
         logger.error('[App] Ошибка инициализации очереди рассылок:', error);
       }
+
+      try {
+        const contactSiteParserService = require('./services/contactSiteParserService');
+        contactSiteParserService.startScheduler();
+        console.log('[Server] ✅ Планировщик парсера сайтов контактов запущен');
+      } catch (error) {
+        console.error('[Server] ❌ Ошибка запуска планировщика парсера сайтов:', error.message);
+        logger.error('[App] Ошибка планировщика парсера сайтов:', error);
+      }
     })
     .then(() => {
       // Запускаем AI Queue Worker после инициализации ботов

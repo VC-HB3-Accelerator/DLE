@@ -125,7 +125,19 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  greeting: {
+    type: String,
+    default: ''
+  },
   message: {
+    type: String,
+    default: ''
+  },
+  signature: {
+    type: String,
+    default: ''
+  },
+  legalFooter: {
     type: String,
     default: ''
   }
@@ -147,7 +159,10 @@ const selectedTemplateId = ref(null);
 const templateName = ref('');
 
 const trimmedSubject = computed(() => String(props.subject || '').trim());
+const trimmedGreeting = computed(() => String(props.greeting || '').trim());
 const trimmedMessage = computed(() => String(props.message || '').trim());
+const trimmedSignature = computed(() => String(props.signature || '').trim());
+const trimmedLegalFooter = computed(() => String(props.legalFooter || '').trim());
 
 const missingFields = computed(() => {
   const fields = [];
@@ -209,7 +224,10 @@ function applySelectedTemplate() {
 
   emit('apply', {
     subject: template.subject,
-    message: template.body
+    greeting: template.greeting || 'Здравствуйте!',
+    message: template.body,
+    signature: template.signature || '',
+    legalFooter: template.legal_footer || ''
   });
   templateName.value = template.name;
   ElMessage.success(t('contacts.broadcast.templates.applied'));
@@ -229,7 +247,10 @@ async function saveTemplate() {
     const data = await messagesService.createBroadcastTemplate({
       name: templateName.value.trim(),
       subject: trimmedSubject.value,
-      body: trimmedMessage.value
+      greeting: trimmedGreeting.value,
+      body: trimmedMessage.value,
+      signature: trimmedSignature.value,
+      legalFooter: trimmedLegalFooter.value
     });
     const template = data?.template;
     if (!template?.id) {
@@ -261,7 +282,10 @@ async function updateSelectedTemplate() {
     const data = await messagesService.updateBroadcastTemplate(selectedTemplateId.value, {
       name: templateName.value.trim(),
       subject: trimmedSubject.value,
-      body: trimmedMessage.value
+      greeting: trimmedGreeting.value,
+      body: trimmedMessage.value,
+      signature: trimmedSignature.value,
+      legalFooter: trimmedLegalFooter.value
     });
     const template = data?.template;
     if (!template?.id) {

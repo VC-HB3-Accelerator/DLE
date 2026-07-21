@@ -88,13 +88,44 @@
           <el-input v-model="subject" :placeholder="t('contacts.broadcast.subjectPlaceholder')" maxlength="200" show-word-limit />
         </el-form-item>
 
+        <el-form-item :label="t('contacts.broadcast.greeting')" required>
+          <el-input
+            v-model="greeting"
+            type="textarea"
+            :rows="2"
+            :placeholder="t('contacts.broadcast.greetingPlaceholder')"
+          />
+          <div class="field-hint">{{ t('contacts.broadcast.greetingHint') }}</div>
+        </el-form-item>
+
         <el-form-item :label="t('contacts.broadcast.message')" required>
           <el-input
             v-model="message"
             type="textarea"
-            :rows="12"
+            :rows="10"
             :placeholder="t('contacts.broadcast.messagePlaceholder')"
           />
+          <div class="field-hint">{{ t('contacts.broadcast.messageHint') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="t('contacts.broadcast.signature')">
+          <el-input
+            v-model="signature"
+            type="textarea"
+            :rows="4"
+            :placeholder="t('contacts.broadcast.signaturePlaceholder')"
+          />
+          <div class="field-hint">{{ t('contacts.broadcast.signatureHint') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="t('contacts.broadcast.legalFooter')">
+          <el-input
+            v-model="legalFooter"
+            type="textarea"
+            :rows="4"
+            :placeholder="t('contacts.broadcast.legalFooterPlaceholder')"
+          />
+          <div class="field-hint">{{ t('contacts.broadcast.legalFooterHint') }}</div>
         </el-form-item>
 
         <el-form-item :label="t('contacts.broadcast.attachments')">
@@ -390,7 +421,10 @@
       <BroadcastTemplatesDialog
         v-model="templatesDialogVisible"
         :subject="subject"
+        :greeting="greeting"
         :message="message"
+        :signature="signature"
+        :legal-footer="legalFooter"
         @apply="applyTemplate"
       />
   </div>
@@ -409,7 +443,10 @@ const route = useRoute();
 const router = useRouter();
 
 const subject = ref('');
+const greeting = ref('Здравствуйте!');
 const message = ref('');
+const signature = ref('');
+const legalFooter = ref('');
 const attachments = ref([]);
 const loading = ref(false);
 const actionLoading = ref(false);
@@ -920,9 +957,12 @@ watch(warmupMode, (enabled) => {
   }
 });
 
-watch([subject, message], () => {
+watch([subject, greeting, message, signature, legalFooter], () => {
   sessionStorage.setItem('broadcastTemplateSubject', subject.value || '');
+  sessionStorage.setItem('broadcastTemplateGreeting', greeting.value || '');
   sessionStorage.setItem('broadcastTemplateBody', message.value || '');
+  sessionStorage.setItem('broadcastTemplateSignature', signature.value || '');
+  sessionStorage.setItem('broadcastTemplateLegalFooter', legalFooter.value || '');
 });
 
 watch(activeCampaignId, (id) => {
@@ -985,9 +1025,18 @@ function hydrateFormFromCampaign(campaign) {
   if (campaign.subject) {
     subject.value = String(campaign.subject);
   }
+  if (campaign.greeting != null && String(campaign.greeting).trim()) {
+    greeting.value = String(campaign.greeting);
+  }
   const body = campaign.message_body || campaign.message_preview;
   if (body) {
     message.value = String(body);
+  }
+  if (campaign.signature != null) {
+    signature.value = String(campaign.signature || '');
+  }
+  if (campaign.legal_footer != null) {
+    legalFooter.value = String(campaign.legal_footer || '');
   }
   if (Array.isArray(campaign.schedule_days) && campaign.schedule_days.length) {
     scheduleDays.value = campaign.schedule_days.map((d) => Number(d)).filter((d) => d >= 1 && d <= 7);
@@ -1022,9 +1071,15 @@ function hydrateFormFromCampaign(campaign) {
 
 function loadTemplateFromStorage() {
   const storedSubject = sessionStorage.getItem('broadcastTemplateSubject');
+  const storedGreeting = sessionStorage.getItem('broadcastTemplateGreeting');
   const storedBody = sessionStorage.getItem('broadcastTemplateBody');
+  const storedSignature = sessionStorage.getItem('broadcastTemplateSignature');
+  const storedLegal = sessionStorage.getItem('broadcastTemplateLegalFooter');
   if (storedSubject != null && !subject.value) subject.value = storedSubject;
+  if (storedGreeting != null && storedGreeting.trim()) greeting.value = storedGreeting;
   if (storedBody != null && !message.value) message.value = storedBody;
+  if (storedSignature != null && !signature.value) signature.value = storedSignature;
+  if (storedLegal != null && !legalFooter.value) legalFooter.value = storedLegal;
 }
 
 async function loadAiAgentState() {
@@ -1068,9 +1123,18 @@ function goBack() {
   router.push({ name: 'contacts-list' });
 }
 
-function applyTemplate({ subject: nextSubject, message: nextMessage }) {
+function applyTemplate({
+  subject: nextSubject,
+  greeting: nextGreeting,
+  message: nextMessage,
+  signature: nextSignature,
+  legalFooter: nextLegal
+}) {
   subject.value = nextSubject;
+  if (nextGreeting != null) greeting.value = nextGreeting;
   message.value = nextMessage;
+  if (nextSignature != null) signature.value = nextSignature;
+  if (nextLegal != null) legalFooter.value = nextLegal;
 }
 
 function openFilePicker() {
@@ -1173,7 +1237,10 @@ async function prepareDrafts() {
   try {
     const campaignResponse = await messagesService.createBroadcastCampaign({
       subject: subject.value.trim(),
+      greeting: greeting.value.trim(),
       message: message.value.trim(),
+      signature: signature.value.trim(),
+      legalFooter: legalFooter.value.trim(),
       recipientIds: eligibleUserIds.value,
       warmupMode: warmupMode.value,
       delaySeconds: delaySeconds.value,

@@ -56,20 +56,21 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function buildHtmlEmailBody(text, trackingToken, baseUrl) {
-  const resolvedBaseUrl = String(baseUrl || '').replace(/\/$/, '');
-  const pixelUrl = `${resolvedBaseUrl}/api/email/track/${trackingToken}.gif`;
-  const bodyHtml = escapeHtml(text).replace(/\r?\n/g, '<br>');
+function buildHtmlEmailBody(text, trackingToken, baseUrl, options = {}) {
+  const {
+    composeEmailHtml
+  } = require('../utils/broadcastEmailCompose');
 
-  return [
-    '<!DOCTYPE html>',
-    '<html><body style="margin:0;padding:0;">',
-    '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#333;">',
-    bodyHtml,
-    `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`,
-    '</div>',
-    '</body></html>'
-  ].join('');
+  const resolvedBaseUrl = String(baseUrl || '').replace(/\/$/, '');
+  const pixelUrl = trackingToken
+    ? `${resolvedBaseUrl}/api/email/track/${trackingToken}.gif`
+    : null;
+
+  return composeEmailHtml({
+    plainText: text,
+    legalFooter: options.legalFooter || '',
+    trackingPixelUrl: pixelUrl
+  });
 }
 
 async function createTracking({ campaignId, recipientUserId, recipientEmail = null }) {

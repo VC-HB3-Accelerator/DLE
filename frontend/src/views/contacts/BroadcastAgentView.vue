@@ -181,8 +181,20 @@
           <el-input v-model="preview.subject" maxlength="200" show-word-limit />
         </el-form-item>
 
+        <el-form-item :label="t('contacts.broadcast.greeting')" required>
+          <el-input v-model="preview.greeting" type="textarea" :rows="2" />
+        </el-form-item>
+
         <el-form-item :label="t('contacts.broadcast.message')" required>
           <el-input v-model="preview.body" type="textarea" :rows="8" />
+        </el-form-item>
+
+        <el-form-item :label="t('contacts.broadcast.signature')">
+          <el-input v-model="preview.signature" type="textarea" :rows="3" />
+        </el-form-item>
+
+        <el-form-item :label="t('contacts.broadcast.legalFooter')">
+          <el-input v-model="preview.legalFooter" type="textarea" :rows="3" />
         </el-form-item>
 
         <el-button type="primary" :loading="previewLoading" :disabled="!canPreview" @click="runPreview">
@@ -201,6 +213,10 @@
         <div class="preview-block">
           <strong>{{ t('contacts.broadcast.subject') }}:</strong>
           <div>{{ previewResult.subject }}</div>
+        </div>
+        <div v-if="previewResult.greeting" class="preview-block">
+          <strong>{{ t('contacts.broadcast.greeting') }}:</strong>
+          <div>{{ previewResult.greeting }}</div>
         </div>
         <div class="preview-block">
           <strong>{{ t('contacts.broadcast.message') }}:</strong>
@@ -229,7 +245,10 @@ import BroadcastAgentOllamaModels from './BroadcastAgentOllamaModels.vue';
 
 const BROADCAST_IDS_STORAGE_KEY = 'broadcastRecipientIds';
 const TEMPLATE_SUBJECT_KEY = 'broadcastTemplateSubject';
+const TEMPLATE_GREETING_KEY = 'broadcastTemplateGreeting';
 const TEMPLATE_BODY_KEY = 'broadcastTemplateBody';
+const TEMPLATE_SIGNATURE_KEY = 'broadcastTemplateSignature';
+const TEMPLATE_LEGAL_KEY = 'broadcastTemplateLegalFooter';
 const CAMPAIGN_ID_KEY = 'broadcastActiveCampaignId';
 const PREVIEW_HISTORY_KEY = 'broadcastPreviewHistory';
 
@@ -279,7 +298,10 @@ const timeoutMinutesMax = computed(() => Math.max(timeoutMinutesMin.value, Math.
 const preview = reactive({
   userId: null,
   subject: '',
-  body: ''
+  greeting: 'Здравствуйте!',
+  body: '',
+  signature: '',
+  legalFooter: ''
 });
 
 const providerOptions = [
@@ -335,6 +357,7 @@ function onUseOllamaModel({ provider, model }) {
 const canPreview = computed(() => {
   return Number(preview.userId) > 0
     && preview.subject.trim()
+    && preview.greeting.trim()
     && preview.body.trim()
     && !previewLoading.value;
 });
@@ -414,7 +437,10 @@ function resetAllDefaults() {
 
 function loadTemplateFromStorage() {
   preview.subject = sessionStorage.getItem(TEMPLATE_SUBJECT_KEY) || preview.subject;
+  preview.greeting = sessionStorage.getItem(TEMPLATE_GREETING_KEY) || preview.greeting;
   preview.body = sessionStorage.getItem(TEMPLATE_BODY_KEY) || preview.body;
+  preview.signature = sessionStorage.getItem(TEMPLATE_SIGNATURE_KEY) || preview.signature;
+  preview.legalFooter = sessionStorage.getItem(TEMPLATE_LEGAL_KEY) || preview.legalFooter;
   const campaignId = Number(sessionStorage.getItem(CAMPAIGN_ID_KEY));
   activeCampaignId.value = Number.isInteger(campaignId) && campaignId > 0 ? campaignId : null;
 
@@ -502,7 +528,10 @@ async function runPreview() {
     const response = await messagesService.previewBroadcastAiAgent({
       userId: Number(preview.userId),
       subject: preview.subject.trim(),
-      body: preview.body.trim()
+      greeting: preview.greeting.trim(),
+      body: preview.body.trim(),
+      signature: preview.signature.trim(),
+      legalFooter: preview.legalFooter.trim()
     });
     previewResult.value = response?.result || null;
 

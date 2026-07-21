@@ -70,6 +70,9 @@ async function createCampaign({
   senderId,
   subject,
   message,
+  greeting = '',
+  signature = '',
+  legalFooter = '',
   recipientIds = [],
   warmupMode = false,
   delaySeconds = 0,
@@ -82,6 +85,15 @@ async function createCampaign({
   scheduleTimezone = 'Europe/Moscow'
 }) {
   const broadcastDraftService = require('./broadcastDraftService');
+  const {
+    ensureBroadcastComposeSchema,
+    composeEmailBody,
+    resolveGreeting,
+    normalizePart
+  } = require('../utils/broadcastEmailCompose');
+
+  await ensureBroadcastComposeSchema(db.getQuery());
+
   const uniqueRecipientIds = [...new Set(
     recipientIds
       .map(id => Number(id))
@@ -98,6 +110,15 @@ async function createCampaign({
   );
 
   const normalizedMessage = String(message || '').trim();
+  const normalizedGreeting = resolveGreeting(greeting);
+  const normalizedSignature = normalizePart(signature);
+  const normalizedLegal = normalizePart(legalFooter);
+  const composedPreview = composeEmailBody({
+    greeting: normalizedGreeting,
+    body: normalizedMessage,
+    signature: normalizedSignature,
+    legalFooter: normalizedLegal
+  });
   const days = broadcastDraftService.normalizeScheduleDays(scheduleDays);
   const hourStart = broadcastDraftService.normalizeHour(scheduleHourStart, 10);
   const hourEnd = broadcastDraftService.normalizeHour(scheduleHourEnd, 18);
@@ -109,6 +130,9 @@ async function createCampaign({
       subject,
       message_preview,
       message_body,
+      greeting,
+      signature,
+      legal_footer,
       recipient_ids,
       total_recipients,
       planned_recipients,
@@ -123,13 +147,16 @@ async function createCampaign({
       drafts_total,
       drafts_ready_count,
       status
-    ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12::int[], $13, $14, $15, $16, 0, 'preparing')
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15::int[], $16, $17, $18, $19, 0, 'preparing')
     RETURNING *`,
     [
       senderId,
       String(subject || '').trim() || 'Новое сообщение',
-      buildMessagePreview(normalizedMessage),
+      buildMessagePreview(composedPreview || normalizedMessage),
       normalizedMessage,
+      normalizedGreeting,
+      normalizedSignature || null,
+      normalizedLegal || null,
       JSON.stringify(uniqueRecipientIds.slice(0, plannedRecipients)),
       uniqueRecipientIds.length,
       plannedRecipients,
@@ -947,12 +974,18 @@ async function getRecipientsSummary(recipientIds = []) {
 }
 
 async function listTemplates() {
+  const { ensureBroadcastComposeSchema } = require('../utils/broadcastEmailCompose');
+  await ensureBroadcastComposeSchema(db.getQuery());
+
   const { rows } = await db.getQuery()(
     `SELECT
       id,
       name,
       subject,
       body,
+      greeting,
+      signature,
+      legal_footer,
       created_by,
       created_at,
       updated_at
@@ -964,6 +997,9 @@ async function listTemplates() {
 }
 
 async function getTemplateById(templateId) {
+  const { ensureBroadcastComposeSchema } = require('../utils/broadcastEmailCompose');
+  await ensureBroadcastComposeSchema(db.getQuery());
+
   const { rows } = await db.getQuery()(
     'SELECT * FROM broadcast_templates WHERE id = $1',
     [templateId]
@@ -972,25 +1008,60 @@ async function getTemplateById(templateId) {
   return rows[0] || null;
 }
 
-async function createTemplate({ name, subject, body, createdBy }) {
+async function createTemplate({
+  name,
+  subject,
+  body,
+  greeting = '',
+  signature = '',
+  legalFooter = '',
+  createdBy
+}) {
+  const { ensureBroadcastComposeSchema, resolveGreeting, normalizePart } = require('../utils/broadcastEmailCompose');
+  await ensureBroadcastComposeSchema(db.getQuery());
+
   const normalizedName = String(name || '').trim();
   const normalizedSubject = String(subject || '').trim();
   const normalizedBody = String(body || '').trim();
+  const normalizedGreeting = resolveGreeting(greeting);
+  const normalizedSignature = normalizePart(signature) || null;
+  const normalizedLegal = normalizePart(legalFooter) || null;
 
   const { rows } = await db.getQuery()(
-    `INSERT INTO broadcast_templates (name, subject, body, created_by)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO broadcast_templates (name, subject, body, greeting, signature, legal_footer, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [normalizedName, normalizedSubject, normalizedBody, createdBy || null]
+    [
+      normalizedName,
+      normalizedSubject,
+      normalizedBody,
+      normalizedGreeting,
+      normalizedSignature,
+      normalizedLegal,
+      createdBy || null
+    ]
   );
 
   return rows[0];
 }
 
-async function updateTemplate(templateId, { name, subject, body }) {
+async function updateTemplate(templateId, {
+  name,
+  subject,
+  body,
+  greeting = '',
+  signature = '',
+  legalFooter = ''
+}) {
+  const { ensureBroadcastComposeSchema, resolveGreeting, normalizePart } = require('../utils/broadcastEmailCompose');
+  await ensureBroadcastComposeSchema(db.getQuery());
+
   const normalizedName = String(name || '').trim();
   const normalizedSubject = String(subject || '').trim();
   const normalizedBody = String(body || '').trim();
+  const normalizedGreeting = resolveGreeting(greeting);
+  const normalizedSignature = normalizePart(signature) || null;
+  const normalizedLegal = normalizePart(legalFooter) || null;
 
   const { rows } = await db.getQuery()(
     `UPDATE broadcast_templates
@@ -998,10 +1069,21 @@ async function updateTemplate(templateId, { name, subject, body }) {
        name = $2,
        subject = $3,
        body = $4,
+       greeting = $5,
+       signature = $6,
+       legal_footer = $7,
        updated_at = NOW()
      WHERE id = $1
      RETURNING *`,
-    [templateId, normalizedName, normalizedSubject, normalizedBody]
+    [
+      templateId,
+      normalizedName,
+      normalizedSubject,
+      normalizedBody,
+      normalizedGreeting,
+      normalizedSignature,
+      normalizedLegal
+    ]
   );
 
   return rows[0] || null;

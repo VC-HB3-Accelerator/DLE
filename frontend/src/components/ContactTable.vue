@@ -41,6 +41,9 @@
         <el-button v-if="canBroadcast" @click="goToBroadcastPage">
           {{ t('contacts.broadcast.button') }}
         </el-button>
+        <el-button v-if="canEditContacts" @click="goToSiteParserPage">
+          {{ t('contacts.parser.button') }}
+        </el-button>
         <el-button v-if="canDeleteMessages" type="danger" plain @click="deleteMessagesSelected">
           {{ t('contacts.deleteMessages') }}
         </el-button>
@@ -407,7 +410,7 @@
               <td v-if="isColumnVisible('blocked')" class="col-blocked">{{ formatContactBlocked(contact) }}</td>
               <td v-if="isColumnVisible('languages')" class="col-languages">{{ formatContactLanguages(contact) }}</td>
               <td v-if="isColumnVisible('lastMessageAt')" class="col-last-message">{{ formatContactLastMessageAt(contact) }}</td>
-              <td v-if="isColumnVisible('comment')" class="col-comment" :title="contact.crm_comment || ''">
+              <td v-if="isColumnVisible('comment')" class="col-comment" :title="stripAutoEnrichMarkers(contact.crm_comment || '')">
                 {{ formatContactComment(contact) }}
               </td>
               <td v-if="isColumnVisible('link')" class="col-link" @click.stop>
@@ -509,6 +512,7 @@ import websocketServiceModule from '../services/websocketService';
 import { useTagsWebSocket } from '../composables/useTagsWebSocket';
 import { useResizableColumns } from '@/composables/useResizableColumns';
 import { useContactTableColumns, CONTACT_TABLE_COLUMNS } from '@/composables/useContactTableColumns';
+import { stripAutoEnrichMarkers } from '@/utils/helpers';
 
 const CONTACT_TABLE_COLUMN_WIDTHS = {
   checkbox: 44,
@@ -812,7 +816,7 @@ const hasSelectedEditor = computed(() => (
   selectedIdsForActions.value.some(id => getContactByIdLocal(id)?.role === 'editor')
 ));
 
-const hasBulkActions = computed(() => canManageTags.value || canBroadcast.value || canDeleteMessages.value || canDeleteData.value);
+const hasBulkActions = computed(() => canManageTags.value || canBroadcast.value || canEditContacts.value || canDeleteMessages.value || canDeleteData.value);
 
 const showAdvancedFilters = ref(false);
 
@@ -970,7 +974,7 @@ function formatContactLanguages(contact) {
 }
 
 function formatContactComment(contact) {
-  const value = (contact.crm_comment || '').trim();
+  const value = stripAutoEnrichMarkers(contact.crm_comment || '').trim();
   if (!value) return '-';
   return value.length > 60 ? `${value.slice(0, 60)}…` : value;
 }
@@ -1372,6 +1376,24 @@ function goToBroadcastPage() {
   }
   router.push({
     name: 'contacts-broadcast',
+    query: { ids: selectedRegisteredUserIds.value.join(',') }
+  });
+}
+
+function goToSiteParserPage() {
+  if (!selectedRegisteredUserIds.value.length) {
+    if (selectedGuestCount.value > 0) {
+      ElMessage.warning(t('contacts.parser.guestsExcluded'));
+    } else {
+      ElMessage.warning(t('contacts.parser.selectForParser'));
+    }
+    return;
+  }
+  if (selectedGuestCount.value > 0) {
+    ElMessage.info(t('contacts.parser.guestsExcluded'));
+  }
+  router.push({
+    name: 'contacts-site-parser',
     query: { ids: selectedRegisteredUserIds.value.join(',') }
   });
 }

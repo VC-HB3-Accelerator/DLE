@@ -156,7 +156,7 @@
               rows="3"
               @blur="saveContactExtras"
             />
-            <template v-else>{{ contact.crm_comment || '-' }}</template>
+            <template v-else>{{ stripAutoEnrichMarkers(contact.crm_comment) || '-' }}</template>
           </span>
         </div>
 
@@ -288,6 +288,7 @@ import { useContactDetailsContext } from '@/composables/useContactDetails';
 import tablesService from '@/services/tablesService';
 import { useTagsWebSocket } from '@/composables/useTagsWebSocket';
 import { getClientTagsTableMeta, findClientTagsTableInList, loadClientTagsList } from '@/utils/clientTagsTable';
+import { stripAutoEnrichMarkers } from '@/utils/helpers';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -354,7 +355,7 @@ function syncFormFromContact() {
   draftEmail.value = contact.value.email || '';
   draftTelegram.value = contact.value.telegram || '';
   draftWallet.value = contact.value.wallet || '';
-  draftComment.value = contact.value.crm_comment || '';
+  draftComment.value = stripAutoEnrichMarkers(contact.value.crm_comment || '');
   draftLink.value = contact.value.crm_link || '';
   contactFiles.value = Array.isArray(contact.value.crm_files) ? contact.value.crm_files : [];
   selectedLanguages.value = Array.isArray(contact.value.preferred_language)
@@ -520,7 +521,10 @@ async function saveContactExtras() {
     return;
   }
 
-  if (draftComment.value === (contact.value.crm_comment || '') && nextLink === (contact.value.crm_link || '')) {
+  if (
+    draftComment.value === stripAutoEnrichMarkers(contact.value.crm_comment || '')
+    && nextLink === (contact.value.crm_link || '')
+  ) {
     return;
   }
 
