@@ -55,8 +55,8 @@ preload_models() {
     success "Ollama готов!"
     
     # Загружаем основные модели
-    log "Загрузка qwen2.5:7b..."
-    docker exec dapp-ollama ollama run qwen2.5:7b "Инициализация" > /dev/null 2>&1 &
+    log "Загрузка qwen2.5:1.5b..."
+    docker exec dapp-ollama ollama run qwen2.5:1.5b "Инициализация" > /dev/null 2>&1 &
     
     log "Загрузка mxbai-embed-large:latest..."
     docker exec dapp-ollama ollama run mxbai-embed-large:latest "Инициализация" > /dev/null 2>&1 &
@@ -125,14 +125,14 @@ test_performance() {
     # Тест с холодным стартом
     log "Тест холодного старта..."
     start_time=$(date +%s.%N)
-    docker exec dapp-ollama ollama run qwen2.5:7b "Тест" > /dev/null 2>&1
+    docker exec dapp-ollama ollama run qwen2.5:1.5b "Тест" > /dev/null 2>&1
     end_time=$(date +%s.%N)
     cold_time=$(echo "$end_time - $start_time" | bc)
     
     # Тест с горячим стартом
     log "Тест горячего старта..."
     start_time=$(date +%s.%N)
-    docker exec dapp-ollama ollama run qwen2.5:7b "Тест" > /dev/null 2>&1
+    docker exec dapp-ollama ollama run qwen2.5:1.5b "Тест" > /dev/null 2>&1
     end_time=$(date +%s.%N)
     hot_time=$(echo "$end_time - $start_time" | bc)
     

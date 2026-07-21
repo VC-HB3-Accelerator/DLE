@@ -36,6 +36,7 @@ const route = useRoute();
 
 const navItems = [
   { name: 'contacts-broadcast', labelKey: 'contacts.broadcast.nav.create' },
+  { name: 'contacts-broadcast-agent', labelKey: 'contacts.broadcast.nav.agent' },
   { name: 'contacts-broadcast-analytics', labelKey: 'contacts.broadcast.nav.analytics' },
   { name: 'contacts-broadcast-history', labelKey: 'contacts.broadcast.nav.history' },
 ];

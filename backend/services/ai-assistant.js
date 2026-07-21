@@ -266,6 +266,8 @@ class AIAssistant {
       // 5. Генерируем LLM ответ
       const { generateLLMResponse } = require('./ragService');
       // Получаем актуальную информацию о пользователе для LLM
+      let profileComment = null;
+      let profileLink = null;
       if (!userNameForProfile && userId && !userContextService.isGuestId(userId)) {
         try {
           const userContext = await userContextService.getUserContext(userId);
@@ -274,6 +276,8 @@ class AIAssistant {
             if (!userTags && userContext.tagNames && userContext.tagNames.length > 0) {
               userTags = userContext.tagNames;
             }
+            profileComment = userContext.comment || null;
+            profileLink = userContext.link || null;
             if (!userNameForProfile) {
               shouldAskForName = true;
             }
@@ -284,6 +288,22 @@ class AIAssistant {
             stack: contextError.stack
           });
         }
+      } else if (userId && !userContextService.isGuestId(userId)) {
+        try {
+          const userContext = await userContextService.getUserContext(userId);
+          if (userContext) {
+            profileComment = userContext.comment || null;
+            profileLink = userContext.link || null;
+            if (!userTags && userContext.tagNames?.length) {
+              userTags = userContext.tagNames;
+            }
+            if (!userNameForProfile && userContext.name) {
+              userNameForProfile = userContext.name;
+            }
+          }
+        } catch (_) {
+          // ignore
+        }
       }
 
       const userProfile = {
@@ -291,11 +311,22 @@ class AIAssistant {
         name: userNameForProfile || null,
         tags: Array.isArray(userTags) ? userTags : [],
         nameMissing: shouldAskForName,
-        suggestedTags: profileAnalysis?.suggestedTags || []
+        suggestedTags: profileAnalysis?.suggestedTags || [],
+        comment: profileComment,
+        link: profileLink
       };
 
       const normalizedQuestion = String(userQuestion || '').toLowerCase();
-      const mentionsProfileChange = /меня зовут|мое имя|моё имя|переимен|тег|лиценз|vip|клиент|холдер|держател/i.test(normalizedQuestion);
+      const needsProfileTools = /меня зовут|мое имя|моё имя|как меня зовут|как меня звать|мой профиль|профиль|мои теги|какие у меня теги|комментар|кто я|переимен|тег|лиценз|vip|клиент|холдер|держател/i.test(normalizedQuestion);
+
+      const conversationMemoryService = require('./conversationMemoryService');
+      const memoryKey = conversationMemoryService.buildMemoryKey({
+        userId: userId && !userContextService.isGuestId(userId) ? userId : null,
+        guestIdentifier: metadata?.guestIdentifier || null
+      });
+      const conversationMemory = memoryKey
+        ? await conversationMemoryService.getSummary(memoryKey)
+        : null;
 
       logger.info(`[AIAssistant] Вызов generateLLMResponse для пользователя ${userId}...`);
       const aiResponse = await generateLLMResponse({
@@ -311,7 +342,8 @@ class AIAssistant {
         multiSourceResults: searchResults,
         userTags: userTags,
         userProfile,
-        enableTools: mentionsProfileChange
+        enableTools: needsProfileTools && userId && !userContextService.isGuestId(userId),
+        conversationMemory
       });
 
       logger.info(`[AIAssistant] generateLLMResponse вернул ответ типа: ${typeof aiResponse}, длина: ${aiResponse ? (typeof aiResponse === 'string' ? aiResponse.length : JSON.stringify(aiResponse).length) : 0}`);
@@ -319,6 +351,15 @@ class AIAssistant {
       if (!aiResponse) {
         logger.warn(`[AIAssistant] Пустой ответ от AI для пользователя ${userId}`);
         return { success: false, reason: 'empty_response' };
+      }
+
+      if (memoryKey && typeof aiResponse === 'string') {
+        conversationMemoryService.scheduleUpdate({
+          memoryKey,
+          previousSummary: conversationMemory,
+          userMessage: userQuestion,
+          assistantMessage: aiResponse
+        });
       }
 
       logger.info(`[AIAssistant] AI ответ успешно сгенерирован для пользователя ${userId}, длина: ${typeof aiResponse === 'string' ? aiResponse.length : JSON.stringify(aiResponse).length} символов`);

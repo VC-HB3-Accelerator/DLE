@@ -26,7 +26,25 @@
 
     <!-- Установленные модели -->
     <div class="installed-models" v-if="isConnected">
-      <h4>{{ t('ai.ollama.installedModels') }}</h4>
+      <div class="memory-header">
+        <h4>{{ t('ai.ollama.installedModels') }}</h4>
+        <button
+          type="button"
+          class="clear-memory-btn"
+          :disabled="!loadedInMemory.length || clearingMemory"
+          @click="unloadAllMemory"
+        >
+          {{ clearingMemory ? t('ai.ollama.clearingMemory') : t('ai.ollama.clearAllMemory') }}
+        </button>
+      </div>
+      <p v-if="preloadModel" class="preload-hint">
+        {{ t('ai.ollama.preloadOnRestart', { model: preloadModel }) }}
+      </p>
+      <p v-if="actionError" class="action-error">{{ actionError }}</p>
+      <div v-if="loadedInMemory.length" class="memory-loaded-list">
+        <span class="memory-loaded-label">{{ t('ai.ollama.inMemoryNow') }}:</span>
+        <span v-for="m in loadedInMemory" :key="m.name" class="memory-chip">{{ m.name }}</span>
+      </div>
       <div v-if="installedModels.length === 0" class="no-models">
         {{ t('ai.ollama.noModels') }}
       </div>
@@ -38,8 +56,24 @@
             <div class="model-modified">{{ formatDate(model.modified) }}</div>
           </div>
           <div class="model-actions">
+            <button
+              type="button"
+              @click="loadIntoMemory(model.name)"
+              :disabled="memoryAction === model.name || isInMemory(model.name)"
+              class="load-memory-btn"
+            >
+              {{ memoryAction === model.name ? t('ai.ollama.loadingMemory') : t('ai.ollama.loadIntoMemory') }}
+            </button>
+            <button
+              type="button"
+              @click="unloadFromMemory(model.name)"
+              :disabled="memoryAction === model.name || !isInMemory(model.name)"
+              class="unload-memory-btn"
+            >
+              {{ memoryAction === model.name ? t('ai.ollama.unloadingMemory') : t('ai.ollama.unloadFromMemory') }}
+            </button>
             <button @click="removeModel(model.name)" :disabled="removing === model.name" class="remove-btn">
-              {{ removing === model.name ? t('ai.ollama.removing') : t('ai.ollama.remove') }}
+              {{ removing === model.name ? t('ai.ollama.removing') : t('ai.ollama.removeFromDisk') }}
             </button>
           </div>
         </div>
@@ -55,10 +89,28 @@
           :placeholder="t('ai.ollama.modelPlaceholder')"
           @keyup.enter="searchModels"
         />
-        <button @click="searchModels" :disabled="searching || !searchQuery">
+        <button @click="searchModels" :disabled="searching || searchQuery.trim().length < 2">
           {{ searching ? t('ai.ollama.searching') : t('ai.ollama.find') }}
         </button>
       </div>
+      <div v-if="searchResults.length" class="search-results">
+        <h5>{{ t('ai.ollama.searchResults') }}</h5>
+        <div class="popular-list">
+          <button
+            v-for="model in searchResults"
+            :key="model"
+            type="button"
+            class="popular-model-btn"
+            @click="installModel(model)"
+            :disabled="installing === model"
+          >
+            {{ installing === model ? t('ai.ollama.installing') : model }}
+          </button>
+        </div>
+      </div>
+      <p v-else-if="searchAttempted && !searching" class="search-empty">
+        {{ t('ai.ollama.searchNoResults') }}
+      </p>
       
       <!-- Популярные модели -->
       <div class="popular-models">
@@ -93,7 +145,7 @@
         </div>
         <div class="step">
           <strong>{{ t('ai.ollama.step3') }}</strong>
-          <code>ollama pull qwen2.5:7b</code>
+          <code>ollama pull qwen2.5:1.5b</code>
         </div>
         <div class="step">
           <strong>{{ t('ai.ollama.step4') }}</strong>
@@ -118,9 +170,27 @@ const searchQuery = ref('');
 const searching = ref(false);
 const installing = ref('');
 const removing = ref('');
+const memoryAction = ref('');
+const clearingMemory = ref(false);
+const loadedInMemory = ref([]);
+const preloadModel = ref('');
+const actionError = ref('');
+const searchResults = ref([]);
+const searchAttempted = ref(false);
+
+function setActionError(message) {
+  actionError.value = message || '';
+}
+
+function extractErrorMessage(error) {
+  return error?.response?.data?.error
+    || error?.response?.data?.message
+    || error?.message
+    || t('ai.ollama.actionFailed');
+}
 
 const popularModels = [
-  'qwen2.5:7b',
+  'qwen2.5:1.5b',
   'llama2:7b',
   'mistral:7b',
   'codellama:7b',
@@ -135,11 +205,74 @@ async function checkConnection() {
     isConnected.value = response.data.connected;
     if (isConnected.value) {
       await loadInstalledModels();
+      await loadMemoryStatus();
     }
   } catch (error) {
     isConnected.value = false;
   } finally {
     checking.value = false;
+  }
+}
+
+async function loadMemoryStatus() {
+  try {
+    const response = await axios.get('/ollama/memory/loaded');
+    loadedInMemory.value = response.data.loaded || [];
+    preloadModel.value = response.data.preloadModel || '';
+  } catch (error) {
+    loadedInMemory.value = [];
+    preloadModel.value = '';
+  }
+}
+
+function isInMemory(modelName) {
+  return loadedInMemory.value.some((m) => {
+    const loaded = m.name || '';
+    if (loaded === modelName) return true;
+    if (loaded.startsWith(`${modelName}:`)) return true;
+    if (modelName.startsWith(`${loaded}:`)) return true;
+    return false;
+  });
+}
+
+async function loadIntoMemory(modelName) {
+  memoryAction.value = modelName;
+  setActionError('');
+  try {
+    const { data } = await axios.post('/ollama/memory/load', { model: modelName });
+    loadedInMemory.value = data.loaded || [];
+    preloadModel.value = data.preloadModel || modelName;
+  } catch (error) {
+    setActionError(extractErrorMessage(error));
+  } finally {
+    memoryAction.value = '';
+  }
+}
+
+async function unloadFromMemory(modelName) {
+  memoryAction.value = modelName;
+  setActionError('');
+  try {
+    const { data } = await axios.post('/ollama/memory/unload', { model: modelName });
+    loadedInMemory.value = data.loaded || [];
+    await loadMemoryStatus();
+  } catch (error) {
+    setActionError(extractErrorMessage(error));
+  } finally {
+    memoryAction.value = '';
+  }
+}
+
+async function unloadAllMemory() {
+  clearingMemory.value = true;
+  setActionError('');
+  try {
+    const { data } = await axios.post('/ollama/memory/unload-all');
+    loadedInMemory.value = data.loaded || [];
+  } catch (error) {
+    setActionError(extractErrorMessage(error));
+  } finally {
+    clearingMemory.value = false;
   }
 }
 
@@ -153,26 +286,40 @@ async function loadInstalledModels() {
 }
 
 async function searchModels() {
-  if (!searchQuery.value.trim()) return;
-  
+  const q = searchQuery.value.trim();
+  if (q.length < 2) return;
+
   searching.value = true;
+  searchAttempted.value = true;
+  setActionError('');
   try {
-    await installModel(searchQuery.value.trim());
+    const { data } = await axios.get('/ollama/search', { params: { query: q } });
+    searchResults.value = data.models || [];
   } catch (error) {
-    // ignore
+    searchResults.value = [];
+    setActionError(extractErrorMessage(error));
   } finally {
     searching.value = false;
   }
 }
 
 async function installModel(modelName) {
-  installing.value = modelName;
+  const name = String(modelName || '').trim();
+  if (!name || name.length < 3) {
+    setActionError(t('ai.ollama.invalidModelName'));
+    return;
+  }
+
+  installing.value = name;
+  setActionError('');
   try {
-    await axios.post('/ollama/install', { model: modelName });
+    await axios.post('/ollama/install', { model: name });
     await loadInstalledModels();
     searchQuery.value = '';
+    searchResults.value = [];
+    searchAttempted.value = false;
   } catch (error) {
-    // ignore
+    setActionError(extractErrorMessage(error));
   } finally {
     installing.value = '';
   }
@@ -180,11 +327,13 @@ async function installModel(modelName) {
 
 async function removeModel(modelName) {
   removing.value = modelName;
+  setActionError('');
   try {
     await axios.delete(`/ollama/models/${encodeURIComponent(modelName)}`);
     await loadInstalledModels();
+    await loadMemoryStatus();
   } catch (error) {
-    // ignore
+    setActionError(extractErrorMessage(error));
   } finally {
     removing.value = '';
   }
@@ -262,6 +411,104 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.action-error {
+  color: #b71c1c;
+  font-size: 0.9rem;
+  margin: 0 0 12px;
+}
+
+.search-empty {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 8px 0 16px;
+}
+
+.search-results {
+  margin-bottom: 16px;
+}
+
+.memory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.memory-header h4 {
+  margin-bottom: 0;
+}
+
+.preload-hint {
+  font-size: 0.9em;
+  color: #495057;
+  margin-bottom: 10px;
+}
+
+.memory-loaded-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #e8f4fd;
+  border-radius: var(--radius-md);
+}
+
+.memory-loaded-label {
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.memory-chip {
+  background: #fff;
+  border: 1px solid #b8daff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.85em;
+}
+
+.load-memory-btn,
+.unload-memory-btn,
+.clear-memory-btn {
+  border: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.load-memory-btn {
+  background: #28a745;
+  color: #fff;
+}
+
+.unload-memory-btn {
+  background: #6c757d;
+  color: #fff;
+}
+
+.clear-memory-btn {
+  background: #f8f9fa;
+  border: 1px solid #ced4da;
+  color: #212529;
+}
+
+.load-memory-btn:disabled,
+.unload-memory-btn:disabled,
+.clear-memory-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .model-item {

@@ -171,7 +171,9 @@ async function getUserContext(userId) {
         tags: [],
         tagNames: [],
         language: 'ru',
-        role: 'guest'
+        role: 'guest',
+        comment: null,
+        link: null
       };
     }
 
@@ -185,7 +187,11 @@ async function getUserContext(userId) {
         decrypt_text(u.first_name_encrypted, $1) as first_name,
         decrypt_text(u.last_name_encrypted, $1) as last_name,
         u.preferred_language,
-        u.role
+        u.role,
+        CASE WHEN u.comment_encrypted IS NULL OR u.comment_encrypted = '' THEN NULL
+             ELSE decrypt_text(u.comment_encrypted, $1) END AS comment,
+        CASE WHEN u.link_encrypted IS NULL OR u.link_encrypted = '' THEN NULL
+             ELSE decrypt_text(u.link_encrypted, $1) END AS link
       FROM users u
       WHERE u.id = $2
     `, [encryptionKey, userId]);
@@ -211,7 +217,9 @@ async function getUserContext(userId) {
       tags: tagIds,
       tagNames,
       language: user.preferred_language || 'ru',
-      role: user.role || 'user'
+      role: user.role || 'user',
+      comment: user.comment || null,
+      link: user.link || null
     };
 
     // Сохраняем в кэш

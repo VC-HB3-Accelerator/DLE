@@ -236,7 +236,7 @@ async function waitForOllamaModel(modelName) {
 }
 
 async function seedAIAssistantSettings() {
-  const modelName = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
+  const modelName = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
   await waitForOllamaModel(modelName);
   const res = await pool.query('SELECT COUNT(*) FROM ai_assistant_settings');
   if (parseInt(res.rows[0].count, 10) === 0) {

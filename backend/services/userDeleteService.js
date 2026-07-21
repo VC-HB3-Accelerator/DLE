@@ -11,6 +11,7 @@
  */
 
 const db = require('../db');
+const userContactFilesService = require('./userContactFilesService');
 
 async function deleteUserById(userId) {
   console.log('[DELETE] Вызван deleteUserById для userId:', userId);
@@ -90,6 +91,9 @@ async function deleteUserById(userId) {
     console.log('[DELETE] Удалено user_tag_links:', resTagLinks.rows.length);
     
     // 9. global_read_status - таблица не существует, пропускаем
+
+    // 9.1. Удаляем файлы контакта
+    await userContactFilesService.deleteAllFilesForUser(userId);
     
     // 10. Удаляем самого пользователя
     console.log('[DELETE] Начинаем удаление пользователя из users:', userId);

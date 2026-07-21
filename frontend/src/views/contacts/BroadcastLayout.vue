@@ -48,6 +48,7 @@ watch(
 
 function goBack() {
   sessionStorage.removeItem(BROADCAST_IDS_STORAGE_KEY);
+  sessionStorage.removeItem('broadcastActiveCampaignId');
   router.push({ name: 'contacts-list' });
 }
 </script>

@@ -226,3 +226,6 @@ docs/back-docs/
 
 # Local data and drafts
 data/
+
+# Ollama: выбранная пользователем модель для предзагрузки (генерируется backend)
+shared/ollama_preload_model.txt

@@ -84,7 +84,9 @@ const fields = computed(() => [
   { label: t('contacts.name'), value: 'name' },
   { label: t('contacts.email'), value: 'email' },
   { label: t('contacts.telegram'), value: 'telegram' },
-  { label: t('contacts.wallet'), value: 'wallet' }
+  { label: t('contacts.wallet'), value: 'wallet' },
+  { label: t('contacts.comment'), value: 'crm_comment' },
+  { label: t('contacts.link'), value: 'crm_link' }
 ]);
 
 function handleFileChange(e) {
@@ -122,6 +124,8 @@ function handleFileChange(e) {
       if (lower.includes('mail')) mapping[col] = 'email';
       else if (lower.includes('tele')) mapping[col] = 'telegram';
       else if (lower.includes('wallet')) mapping[col] = 'wallet';
+      else if (lower.includes('comment') || lower.includes('коммент')) mapping[col] = 'crm_comment';
+      else if (lower.includes('link') || lower.includes('url') || lower.includes('site') || lower.includes('ссыл')) mapping[col] = 'crm_link';
       else if (lower.includes('name')) mapping[col] = 'name';
       else mapping[col] = '';
     }

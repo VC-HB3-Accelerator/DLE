@@ -677,8 +677,8 @@ NODE_ENV=production
 PORT=8000
 
 # Настройки Ollama
-OLLAMA_MODEL=qwen2.5:7b
-OLLAMA_EMBEDDINGS_MODEL=qwen2.5:7b
+OLLAMA_MODEL=qwen2.5:1.5b
+OLLAMA_EMBEDDINGS_MODEL=mxbai-embed-large:latest
 
 # Настройки безопасности
 SSL_CERT_PATH=/etc/ssl/certs

@@ -12,12 +12,16 @@
 
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS, ROLES } = require('../shared/permissions');
 const { deleteUserById } = require('../services/userDeleteService');
+const userContactFilesService = require('../services/userContactFilesService');
 const { broadcastContactsUpdate } = require('../wsHub');
 const {
   getPreference,
@@ -27,6 +31,29 @@ const {
 // const userService = require('../services/userService');
 
 // console.log('[users.js] ROUTER LOADED');
+
+const contactFilesUpload = multer({
+  storage: multer.diskStorage({
+    destination(req, file, cb) {
+      const uid = Number(req.params.id);
+      if (!Number.isInteger(uid) || uid <= 0) {
+        return cb(new Error('Invalid user ID'));
+      }
+      const dir = userContactFilesService.userUploadDir(uid);
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch {
+        // ignore
+      }
+      cb(null, dir);
+    },
+    filename(req, file, cb) {
+      const ext = path.extname(file.originalname || '').slice(0, 20);
+      cb(null, `contact_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+    }
+  }),
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
 
 router.use((req, res, next) => {
   // console.log('[users.js] ROUTER REQUEST:', req.method, req.originalUrl);
@@ -283,6 +310,18 @@ router.get('/', requireAuth, async (req, res, next) => {
       tag_ids: Array.isArray(u.tag_ids) ? u.tag_ids : [],
       last_message_at: u.last_message_at || null
     }));
+
+    const contactExtrasMap = await userContactFilesService.getContactExtrasMapForUserIds(
+      contacts.map((contact) => contact.id),
+      encryptionKey
+    );
+
+    for (const contact of contacts) {
+      const extras = contactExtrasMap[contact.id];
+      contact.crm_comment = extras?.comment ?? null;
+      contact.crm_link = extras?.link ?? null;
+      contact.crm_files = extras?.files ?? [];
+    }
 
     // --- Гостевые контакты (на первой странице) + их количество в total на всех страницах ---
     let guestContacts = [];
@@ -570,7 +609,7 @@ router.patch('/:id/unblock', requireAuth, requirePermission(PERMISSIONS.BLOCK_US
 router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
   try {
     const userId = req.params.id;
-    const { first_name, last_name, name, preferred_language, language, is_blocked, email, telegram, wallet } = req.body;
+    const { first_name, last_name, name, preferred_language, language, is_blocked, email, telegram, wallet, comment, link } = req.body;
     
     // Получаем ключ шифрования один раз
     const encryptionUtils = require('../utils/encryptionUtils');
@@ -744,7 +783,11 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
         fields.push(`blocked_at = NULL`);
       }
     }
-    if (!fields.length && !identityUpdated) {
+    if (comment !== undefined || link !== undefined) {
+      await userContactFilesService.updateContactExtras(userIdNum, { comment, link }, encryptionKey);
+    }
+
+    if (!fields.length && !identityUpdated && comment === undefined && link === undefined) {
       return res.status(400).json({ success: false, error: 'Нет данных для обновления' });
     }
     
@@ -759,6 +802,46 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
   } catch (e) {
     logger.error('Ошибка обновления пользователя:', e);
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/:id/files', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), (req, res, next) => {
+  contactFilesUpload.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Файл не получен' });
+    }
+
+    const file = await userContactFilesService.addFile(userId, req.file);
+    broadcastContactsUpdate();
+    return res.json({ success: true, file });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.delete('/:id/files/:fileId', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const fileId = Number(req.params.fileId);
+    const deleted = await userContactFilesService.deleteFile(userId, fileId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Файл не найден' });
+    }
+    broadcastContactsUpdate();
+    return res.json({ success: true });
+  } catch (e) {
+    return res.status(400).json({ success: false, error: e.message });
   }
 });
 
@@ -1153,7 +1236,16 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
       wallet: identityMap.wallet || null,
       created_at: user.created_at,
       preferred_language: user.preferred_language || [],
-      is_blocked: user.is_blocked || false
+      is_blocked: user.is_blocked || false,
+      ...(await (async () => {
+        const extrasMap = await userContactFilesService.getContactExtrasMapForUserIds([Number(userId)], encryptionKey);
+        const extras = extrasMap[Number(userId)] || { comment: null, link: null, files: [] };
+        return {
+          crm_comment: extras.comment,
+          crm_link: extras.link,
+          crm_files: extras.files
+        };
+      })())
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1236,6 +1328,13 @@ router.post('/import', requireAuth, async (req, res) => {
           userId = ins.rows[0].id;
           added++;
         }
+        if (c.crm_comment !== undefined || c.crm_link !== undefined) {
+          await userContactFilesService.updateContactExtras(userId, {
+            comment: c.crm_comment,
+            link: c.crm_link
+          }, encryptionKey);
+        }
+
         // Добавляем идентификаторы (email, telegram, wallet)
         const identities = [
           c.email ? { provider: 'email', provider_id: c.email.toLowerCase() } : null,

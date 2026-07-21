@@ -88,7 +88,7 @@ class SemanticChunkingService {
       // Получаем конфигурацию Ollama
       const ollamaConfig_data = await ollamaConfig.getConfigAsync();
       const baseUrl = ollamaConfig_data.baseUrl || 'http://ollama:11434';
-      const model = ollamaConfig_data.defaultModel || 'qwen2.5:7b';
+      const model = ollamaConfig_data.defaultModel || 'qwen2.5:1.5b';
 
       // Если текст очень большой, анализируем первые 10000 символов для определения структуры
       const analysisText = text.length > 10000 ? text.substring(0, 10000) : text;

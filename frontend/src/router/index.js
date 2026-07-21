@@ -217,6 +217,11 @@ const routes = [
         component: () => import('../views/contacts/BroadcastCreateView.vue'),
       },
       {
+        path: 'agent',
+        name: 'contacts-broadcast-agent',
+        component: () => import('../views/contacts/BroadcastAgentView.vue'),
+      },
+      {
         path: 'analytics',
         name: 'contacts-broadcast-analytics',
         component: () => import('../views/contacts/BroadcastAnalyticsView.vue'),

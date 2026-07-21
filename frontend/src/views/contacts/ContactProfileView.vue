@@ -146,6 +146,63 @@
           </span>
         </div>
 
+        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row">
+          <span class="info-label">{{ t('contacts.comment') }}</span>
+          <span class="info-value">
+            <textarea
+              v-if="canEditContacts"
+              v-model="draftComment"
+              class="edit-textarea"
+              rows="3"
+              @blur="saveContactExtras"
+            />
+            <template v-else>{{ contact.crm_comment || '-' }}</template>
+          </span>
+        </div>
+
+        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row">
+          <span class="info-label">{{ t('contacts.link') }}</span>
+          <span class="info-value">
+            <input
+              v-if="canEditContacts"
+              v-model="draftLink"
+              class="edit-input"
+              type="url"
+              @blur="saveContactExtras"
+              @keyup.enter="saveContactExtras"
+            />
+            <a
+              v-else-if="contact.crm_link"
+              :href="contact.crm_link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ contact.crm_link }}</a>
+            <template v-else>-</template>
+          </span>
+        </div>
+
+        <div v-if="!isCreateMode && !String(contact.id).startsWith('guest_')" class="info-row">
+          <span class="info-label">{{ t('contacts.file') }}</span>
+          <span class="info-value contact-files">
+            <div v-if="contactFiles.length" class="contact-files__list">
+              <div v-for="file in contactFiles" :key="file.id" class="contact-files__item">
+                <a :href="file.url" target="_blank" rel="noopener noreferrer">{{ file.originalName }}</a>
+                <button
+                  v-if="canEditContacts"
+                  type="button"
+                  class="contact-files__remove"
+                  @click="removeContactFile(file.id)"
+                >×</button>
+              </div>
+            </div>
+            <span v-else>-</span>
+            <label v-if="canEditContacts" class="contact-files__upload">
+              <input type="file" class="contact-files__input" @change="onContactFileSelected" />
+              {{ isUploadingFile ? t('common.saving') : t('contacts.file') }}
+            </label>
+          </span>
+        </div>
+
         <div v-if="!isCreateMode" class="info-row">
           <span class="info-label">{{ t('contacts.details.blockStatus') }}</span>
           <span class="info-value block-user-value">
@@ -221,7 +278,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAddress } from 'ethers';
 import contactsService from '@/services/contactsService.js';
 import messagesService from '@/services/messagesService.js';
@@ -242,10 +299,14 @@ const editableName = ref('');
 const draftEmail = ref('');
 const draftTelegram = ref('');
 const draftWallet = ref('');
+const draftComment = ref('');
+const draftLink = ref('');
 const isSavingCreate = ref(false);
 const isSavingName = ref(false);
 const isSavingIdentity = ref(null);
 const isSavingLangs = ref(false);
+const isSavingExtras = ref(false);
+const isUploadingFile = ref(false);
 const userTags = ref([]);
 const allTags = ref([]);
 const selectedTags = ref([]);
@@ -254,6 +315,7 @@ const newTagName = ref('');
 const newTagDescription = ref('');
 const revealedFields = ref({});
 const tagsTableId = ref(null);
+const contactFiles = ref([]);
 
 const { onTagsUpdate } = useTagsWebSocket();
 let unsubscribeFromTags = null;
@@ -292,6 +354,9 @@ function syncFormFromContact() {
   draftEmail.value = contact.value.email || '';
   draftTelegram.value = contact.value.telegram || '';
   draftWallet.value = contact.value.wallet || '';
+  draftComment.value = contact.value.crm_comment || '';
+  draftLink.value = contact.value.crm_link || '';
+  contactFiles.value = Array.isArray(contact.value.crm_files) ? contact.value.crm_files : [];
   selectedLanguages.value = Array.isArray(contact.value.preferred_language)
     ? contact.value.preferred_language
     : (contact.value.preferred_language ? [contact.value.preferred_language] : []);
@@ -441,6 +506,67 @@ function saveLanguages() {
   contactsService.updateContact(contact.value.id, { language: selectedLanguages.value })
     .then(() => reloadContact())
     .finally(() => { isSavingLangs.value = false; });
+}
+
+async function saveContactExtras() {
+  if (!canEditContacts.value || isCreateMode.value || !contact.value?.id) return;
+  if (String(contact.value.id).startsWith('guest_')) return;
+  if (isSavingExtras.value) return;
+
+  const nextLink = (draftLink.value || '').trim();
+  if (nextLink && !/^https?:\/\//i.test(nextLink)) {
+    ElMessage.warning(t('contacts.invalidLink'));
+    syncFormFromContact();
+    return;
+  }
+
+  if (draftComment.value === (contact.value.crm_comment || '') && nextLink === (contact.value.crm_link || '')) {
+    return;
+  }
+
+  isSavingExtras.value = true;
+  try {
+    await contactsService.updateContact(contact.value.id, {
+      comment: draftComment.value,
+      link: nextLink || null
+    });
+    await reloadContact();
+  } catch (e) {
+    ElMessageBox.alert(
+      e?.response?.data?.error || e?.message || t('common.unknownError'),
+      t('common.error'),
+      { type: 'error' }
+    );
+    syncFormFromContact();
+  } finally {
+    isSavingExtras.value = false;
+  }
+}
+
+async function onContactFileSelected(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || !contact.value?.id || isCreateMode.value) return;
+  isUploadingFile.value = true;
+  try {
+    await contactsService.uploadContactFile(contact.value.id, file);
+    await reloadContact();
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.fileUploadError'));
+  } finally {
+    isUploadingFile.value = false;
+  }
+}
+
+async function removeContactFile(fileId) {
+  if (!contact.value?.id) return;
+  try {
+    await contactsService.deleteContactFile(contact.value.id, fileId);
+    await reloadContact();
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.fileDeleteError'));
+  }
 }
 
 function normalizeIdentityDraft(field, value) {
@@ -991,6 +1117,53 @@ watch(contact, () => {
   flex-direction: column;
   gap: 10px;
   margin-top: 1em;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  resize: vertical;
+  font: inherit;
+}
+
+.contact-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.contact-files__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contact-files__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contact-files__remove {
+  border: none;
+  background: transparent;
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.contact-files__upload {
+  cursor: pointer;
+  color: var(--color-primary);
+}
+
+.contact-files__input {
+  display: none;
 }
 
 @media (max-width: 768px) {

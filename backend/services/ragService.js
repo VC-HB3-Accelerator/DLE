@@ -21,8 +21,16 @@ const aiConfigService = require('./aiConfigService');
 const userContextService = require('./userContextService');
 const profileAnalysisService = require('./profileAnalysisService');
 const { buildOllamaRequest } = require('../utils/ollamaRequestBuilder');
+const { sanitizeAssistantText } = require('../utils/assistantTextSanitizer');
 const logger = require('../utils/logger');
 const db = require('../db');
+
+function finalizeAssistantReply(raw, fallback = null) {
+  const cleaned = sanitizeAssistantText(raw);
+  if (cleaned) return cleaned;
+  if (fallback) return sanitizeAssistantText(fallback) || fallback;
+  return 'Извините, не удалось сформировать корректный ответ. Пожалуйста, повторите вопрос.';
+}
 
 // Кэш для плейсхолдеров таблиц
 const tablePlaceholdersCache = {
@@ -475,9 +483,8 @@ function parseIfArray(val) {
 
 /**
  * Выполнить function call (tool call) от ИИ
- * Только функции для обновления имени и тегов пользователя
  * @param {Object} toolCall - Вызов функции от ИИ
- * @param {number} userId - ID пользователя (для функций обновления профиля)
+ * @param {number} userId - ID пользователя
  * @returns {Promise<Object>} Результат выполнения функции
  */
 async function executeToolCall(toolCall, userId) {
@@ -491,30 +498,56 @@ async function executeToolCall(toolCall, userId) {
     }
     
     switch (name) {
+      case 'get_user_profile': {
+        const ctx = await userContextService.getUserContext(userId);
+        if (!ctx) {
+          return { success: false, error: 'Профиль пользователя не найден' };
+        }
+        return {
+          success: true,
+          profile: {
+            id: ctx.id,
+            name: ctx.name || null,
+            tags: Array.isArray(ctx.tagNames) ? ctx.tagNames : [],
+            language: ctx.language || 'ru',
+            role: ctx.role || 'user',
+            comment: ctx.comment || null,
+            link: ctx.link || null
+          },
+          message: [
+            ctx.name ? `имя «${ctx.name}»` : 'имя не указано',
+            `теги: ${(ctx.tagNames || []).join(', ') || 'нет'}`,
+            ctx.comment ? `комментарий: ${ctx.comment}` : 'комментарий: нет',
+            ctx.link ? `ссылка: ${ctx.link}` : null
+          ].filter(Boolean).join('; ')
+        };
+      }
+
       case 'update_user_name':
         // Обновление имени пользователя
-        const resultName = await profileAnalysisService.updateUserNameInternal(userId, args.name);
+        await profileAnalysisService.updateUserNameInternal(userId, args.name);
         return { 
           success: true, 
           message: `Имя пользователя обновлено: ${args.name}`,
           name: args.name
         };
         
-      case 'update_user_tags':
+      case 'update_user_tags': {
         // Обновление тегов пользователя
         // args.tagNames - массив названий тегов
         const tagIds = await profileAnalysisService.getTagIdsByNames(args.tagNames || []);
-        const resultTags = await profileAnalysisService.updateUserTagsInternal(userId, tagIds);
+        await profileAnalysisService.updateUserTagsInternal(userId, tagIds);
         return { 
           success: true, 
           message: `Теги пользователя обновлены: ${args.tagNames.join(', ')}`,
           tagNames: args.tagNames,
           tagIds: tagIds
         };
+      }
         
       default:
         logger.warn(`[RAG] Unknown function call: ${name}`);
-        return { error: `Unknown function: ${name}. Available functions: update_user_name, update_user_tags` };
+        return { error: `Unknown function: ${name}. Available: get_user_profile, update_user_name, update_user_tags` };
     }
   } catch (error) {
     logger.error(`[RAG] Ошибка выполнения function call ${name}:`, error.message);
@@ -524,12 +557,23 @@ async function executeToolCall(toolCall, userId) {
 
 /**
  * Получить определения функций для Function Calling
- * Только функции для обновления имени и тегов пользователя
- * @param {number} userId - ID пользователя (для функций обновления профиля)
+ * @param {number} userId - ID пользователя
  * @returns {Array} Массив определений функций
  */
 function getFunctionDefinitions(userId) {
   return [
+    {
+      type: "function",
+      function: {
+        name: "get_user_profile",
+        description: "Прочитать профиль текущего пользователя из базы: имя, теги, CRM-комментарий, ссылка, язык, роль. Используй когда пользователь или оператор спрашивает о профиле, имени, тегах, комментарии в карточке контакта.",
+        parameters: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        }
+      }
+    },
     {
       type: "function",
       function: {
@@ -586,7 +630,8 @@ async function generateLLMResponse({
   userId = null, // Добавляем userId для function calling
   multiSourceResults = null, // Результаты мульти-источникового поиска
   userProfile = null,
-  enableTools = false
+  enableTools = false,
+  conversationMemory = null
 }) {
   console.log(`[RAG] generateLLMResponse called with:`, {
     userQuestion,
@@ -630,6 +675,10 @@ async function generateLLMResponse({
       ? `Краткая сводка предыдущего диалога:\n${conversationSummary}\n\n`
       : '';
 
+    const memoryBlock = conversationMemory
+      ? `Память диалога (обновляемая):\n${String(conversationMemory).trim()}\n\n`
+      : '';
+
     // Формируем улучшенный промпт для LLM с учетом найденной информации
     let prompt = '';
     
@@ -652,14 +701,19 @@ async function generateLLMResponse({
         })
         .join('\n\n---\n\n');
       
-      prompt = `${summaryPrefix}База знаний содержит следующую информацию из разных источников:\n\n${sourcesInfo}\n\nВопрос пользователя: ${userQuestion}\n\nПроанализируй информацию из всех источников и дай пользователю полный и точный ответ.`;
+      prompt = `${memoryBlock}${summaryPrefix}База знаний содержит следующую информацию из разных источников:\n\n${sourcesInfo}\n\nВопрос пользователя: ${userQuestion}\n\nПроанализируй информацию из всех источников и дай пользователю полный и точный ответ.`;
     } else if (answer) {
       // Формат: делаем RAG ответ главным, вопрос - контекстом
-      prompt = `${summaryPrefix}База знаний содержит ответ:\n"${answer}"\n\nВопрос пользователя: ${userQuestion}\n\nДай пользователю этот ответ из базы знаний.`;
+      prompt = `${memoryBlock}${summaryPrefix}База знаний содержит ответ:\n"${answer}"\n\nВопрос пользователя: ${userQuestion}\n\nДай пользователю этот ответ из базы знаний.`;
     }
     
     if (!prompt) {
-      prompt = `${summaryPrefix}Вопрос пользователя: ${userQuestion}`;
+      prompt = `${memoryBlock}${summaryPrefix}Вопрос пользователя: ${userQuestion}`;
+    }
+
+    // Без RAG — не выдумывать факты; обычный текст, не JSON
+    if (!answer && !(multiSourceResults && multiSourceResults.results && multiSourceResults.results.length > 0)) {
+      prompt += `\n\nДополнительно: если в контексте нет фактов по вопросу — не придумывай. Ответь обычным связным текстом на русском по системным инструкциям, без JSON, без кавычек вокруг всего ответа, без иероглифов и латиницы внутри русских слов.`;
     }
     
     if (context && !multiSourceResults) {
@@ -709,6 +763,14 @@ async function generateLLMResponse({
         profileLines.push(`Активные теги пользователя: ${userProfile.tags.join(', ')}`);
       }
 
+      if (userProfile.comment) {
+        profileLines.push(`Комментарий в CRM-профиле: ${userProfile.comment}`);
+      }
+
+      if (userProfile.link) {
+        profileLines.push(`Ссылка в CRM-профиле: ${userProfile.link}`);
+      }
+
       if (profileLines.length > 0) {
         const profileBlock = `Информация о пользователе:\n${profileLines.join('\n')}`;
         finalSystemPrompt = finalSystemPrompt
@@ -741,7 +803,10 @@ async function generateLLMResponse({
 
     // Загружаем параметры LLM и qwen из настроек
     const llmParameters = await aiConfigService.getLLMParameters();
-    const qwenParameters = await aiConfigService.getQwenSpecificParameters();
+    const qwenParametersRaw = await aiConfigService.getQwenSpecificParameters();
+    // format:json нужен только для structured-задач (extractName, broadcast).
+    // Для пользовательского чата JSON ломает ответ («{"name":"Иван"}»).
+    const qwenParameters = { ...(qwenParametersRaw || {}), format: null };
     const ollamaConfig_data = await ollamaConfig.getConfigAsync();
     
     // Формируем тело запроса для Ollama API (используем утилиту)
@@ -809,7 +874,7 @@ async function generateLLMResponse({
           }
 
           console.log('[RAG] LLM response from queue:', llmResponse ? llmResponse.substring(0, 100) + '...' : 'null');
-          return llmResponse;
+          return finalizeAssistantReply(llmResponse, answer);
         } catch (queueError) {
           logger.error('[RAG] Queue error:', queueError.message);
           if (queueError.message.includes('переполнена') && answer) {
@@ -1007,7 +1072,7 @@ async function generateLLMResponse({
     }
 
     console.log(`[RAG] LLM response generated:`, llmResponse ? (typeof llmResponse === 'string' ? llmResponse.substring(0, 100) + '...' : JSON.stringify(llmResponse).substring(0, 100) + '...') : 'null');
-    return llmResponse;
+    return finalizeAssistantReply(llmResponse, answer);
   } catch (error) {
     console.error(`[RAG] Error generating LLM response:`, error);
     return 'Извините, произошла ошибка при генерации ответа.';

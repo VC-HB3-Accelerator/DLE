@@ -12,18 +12,43 @@
 
 <template>
   <section class="contact-chat-panel">
+    <el-alert
+      v-if="broadcastDraftMode"
+      type="info"
+      :closable="false"
+      show-icon
+      class="broadcast-draft-alert"
+    >
+      <template #title>
+        {{ t('contacts.broadcast.drafts.chatHint') }}
+      </template>
+    </el-alert>
+
+    <div v-if="broadcastDraftMode" class="broadcast-draft-subject">
+      <label>{{ t('contacts.broadcast.subject') }}</label>
+      <el-input
+        v-model="draftSubject"
+        maxlength="200"
+        show-word-limit
+        @input="saveDraftSoon"
+        @change="saveDraftSoon"
+      />
+    </div>
+
     <ChatInterface
       embedded
       :messages="messages"
       :isLoading="isLoadingMessages"
       :attachments="chatAttachments"
       :newMessage="chatNewMessage"
-      :canSend="canSendToUsers && !!address"
-      :canGenerateAI="canGenerateAI"
-      :canSelectMessages="canGenerateAI"
+      :canSend="broadcastDraftMode ? true : (canSendToUsers && !!address)"
+      :canAttach="!broadcastDraftMode"
+      :canGenerateAI="canGenerateAI && !broadcastDraftMode"
+      :canSelectMessages="canGenerateAI && !broadcastDraftMode"
+      :clearOnSend="!broadcastDraftMode"
       :currentUserId="currentUserId"
       @send-message="handleSendMessage"
-      @update:newMessage="val => chatNewMessage = val"
+      @update:newMessage="onNewMessageUpdate"
       @update:attachments="val => chatAttachments = val"
       @ai-reply="handleAiReply"
     />
@@ -31,10 +56,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { computed, onBeforeUnmount, ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
-import { ElMessageBox } from 'element-plus';
+import { useRoute, useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import ChatInterface from '@/components/ChatInterface.vue';
 import messagesService from '@/services/messagesService.js';
 import { getConversationByUserId, getMessagesByConversationId, sendMessage } from '@/services/messagesService.js';
@@ -43,6 +68,7 @@ import { usePermissions } from '@/composables/usePermissions';
 import { useContactDetailsContext } from '@/composables/useContactDetails';
 
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 const { canSendToUsers, canGenerateAI } = usePermissions();
 const { address, userId: currentUserId } = useAuthContext();
@@ -54,7 +80,48 @@ const chatAttachments = ref([]);
 const chatNewMessage = ref('');
 const isAiLoading = ref(false);
 const conversationId = ref(null);
+const draftSubject = ref('');
+const draftDirty = ref(false);
+const draftSaving = ref(false);
+let draftSaveTimer = null;
+let draftSaveQueued = false;
 
+const broadcastCampaignId = computed(() => {
+  const raw = Number(route.query.broadcastCampaignId);
+  return Number.isInteger(raw) && raw > 0 ? raw : null;
+});
+
+const broadcastDraftMode = computed(() => Boolean(broadcastCampaignId.value && contact.value?.id));
+
+async function saveBroadcastDraft() {
+  if (!broadcastDraftMode.value) return;
+  if (draftSaving.value) {
+    draftSaveQueued = true;
+    return;
+  }
+  if (!String(chatNewMessage.value || '').trim()) return;
+
+  draftSaving.value = true;
+  try {
+    await messagesService.saveBroadcastDraft(
+      broadcastCampaignId.value,
+      contact.value.id,
+      {
+        subject: draftSubject.value,
+        body: chatNewMessage.value
+      }
+    );
+    draftDirty.value = false;
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.broadcast.drafts.saveError'));
+  } finally {
+    draftSaving.value = false;
+    if (draftSaveQueued) {
+      draftSaveQueued = false;
+      saveBroadcastDraft();
+    }
+  }
+}
 async function loadMessages() {
   if (!contact.value?.id) return;
 
@@ -86,8 +153,76 @@ async function loadMessages() {
   }
 }
 
+async function loadBroadcastDraft() {
+  if (!broadcastDraftMode.value) {
+    return;
+  }
+
+  try {
+    const response = await messagesService.getBroadcastDraft(
+      broadcastCampaignId.value,
+      contact.value.id
+    );
+    const draft = response?.draft;
+    if (draft && draft.status === 'draft' && String(draft.body || '').trim()) {
+      draftSubject.value = draft.subject || '';
+      chatNewMessage.value = draft.body || '';
+      draftDirty.value = false;
+      return;
+    }
+  } catch (e) {
+    // черновика ещё нет — попробуем локальную историю превью
+  }
+
+  // Fallback: текст из истории превью AI-агента (если DB-черновик ещё не создан)
+  try {
+    const raw = sessionStorage.getItem('broadcastPreviewHistory');
+    const list = raw ? JSON.parse(raw) : [];
+    const match = Array.isArray(list)
+      ? list.find((item) => Number(item.userId) === Number(contact.value.id)
+        && (!item.campaignId || Number(item.campaignId) === Number(broadcastCampaignId.value)))
+      : null;
+    if (match?.body) {
+      draftSubject.value = match.subject || '';
+      chatNewMessage.value = match.body || '';
+      draftDirty.value = true;
+      saveDraftSoon();
+    }
+  } catch (e) {
+    console.error('[ContactChatView] Ошибка загрузки черновика рассылки:', e);
+  }
+}
+
+function onNewMessageUpdate(val) {
+  chatNewMessage.value = val;
+  if (broadcastDraftMode.value) {
+    draftDirty.value = true;
+    saveDraftSoon();
+  }
+}
+
+function saveDraftSoon() {
+  if (!broadcastDraftMode.value) return;
+  draftDirty.value = true;
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer);
+  }
+  draftSaveTimer = setTimeout(() => {
+    saveBroadcastDraft();
+  }, 600);
+}
+
 async function handleSendMessage({ message }) {
   if (!contact.value?.id) return;
+
+  if (broadcastDraftMode.value) {
+    const text = String(message || '').trim();
+    chatNewMessage.value = text;
+    await saveBroadcastDraft();
+    chatNewMessage.value = text;
+    ElMessage.success(t('contacts.broadcast.drafts.savedInChat'));
+    return;
+  }
 
   if (contact.value.is_blocked) {
     ElMessageBox.alert(t('contacts.details.userBlocked'), t('common.error'), { type: 'error' });
@@ -124,7 +259,7 @@ async function handleSendMessage({ message }) {
 }
 
 async function handleAiReply(selectedMessages = []) {
-  if (isAiLoading.value) return;
+  if (isAiLoading.value || broadcastDraftMode.value) return;
 
   if (!Array.isArray(selectedMessages) || selectedMessages.length === 0) {
     alert(t('contacts.details.selectMessageForAi'));
@@ -146,26 +281,46 @@ async function handleAiReply(selectedMessages = []) {
   }
 }
 
-onMounted(() => {
+async function bootstrap() {
   if (isCreateMode.value) {
     router.replace({ name: 'contact-profile', params: { id: 'new' } });
     return;
   }
-  loadMessages();
+  await loadMessages();
+  await loadBroadcastDraft();
+}
+
+onMounted(bootstrap);
+
+onBeforeUnmount(async () => {
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+  }
+  if (broadcastDraftMode.value && draftDirty.value) {
+    await saveBroadcastDraft();
+  }
 });
 
-watch(userId, () => {
+watch(userId, async () => {
   messages.value = [];
   conversationId.value = null;
   chatNewMessage.value = '';
   chatAttachments.value = [];
-  loadMessages();
+  draftSubject.value = '';
+  await loadMessages();
+  await loadBroadcastDraft();
 });
 
-watch(() => contact.value?.id, (newId, oldId) => {
+watch(() => contact.value?.id, async (newId, oldId) => {
   if (newId && newId !== oldId) {
-    loadMessages();
+    await loadMessages();
+    await loadBroadcastDraft();
   }
+});
+
+watch(broadcastCampaignId, async () => {
+  await loadBroadcastDraft();
 });
 </script>
 
@@ -181,6 +336,22 @@ watch(() => contact.value?.id, (newId, oldId) => {
   max-height: calc(100dvh - 200px);
   display: flex;
   flex-direction: column;
+}
+
+.broadcast-draft-alert {
+  margin: 12px 12px 0;
+}
+
+.broadcast-draft-subject {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 12px 0;
+}
+
+.broadcast-draft-subject label {
+  font-size: 0.9rem;
+  color: #606266;
 }
 
 .contact-chat-panel :deep(.chat-container) {

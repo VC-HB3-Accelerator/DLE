@@ -72,7 +72,8 @@ const ensureDirectoriesExist = () => {
     path.join(__dirname, 'uploads'),
     path.join(__dirname, 'uploads/logos'),
     path.join(__dirname, 'uploads/content'),
-    path.join(__dirname, 'uploads/broadcast')
+    path.join(__dirname, 'uploads/broadcast'),
+    path.join(__dirname, 'uploads/contact-files')
   ];
   
   for (const dir of directories) {

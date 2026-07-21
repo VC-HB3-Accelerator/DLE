@@ -26,6 +26,8 @@ const { hasPermission, ROLES, PERMISSIONS } = require('/app/shared/permissions')
 const broadcastService = require('../services/broadcastService');
 const broadcastQueueService = require('../services/broadcastQueueService');
 const broadcastSendService = require('../services/broadcastSendService');
+const broadcastAiAgentService = require('../services/broadcastAiAgentService');
+const broadcastDraftService = require('../services/broadcastDraftService');
 const emailTrackingService = require('../services/emailTrackingService');
 
 const broadcastUpload = multer({
@@ -503,6 +505,106 @@ router.get('/broadcast/recipients-summary', requireAuth, requirePermission(PERMI
   }
 });
 
+router.get('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  try {
+    const settings = await broadcastAiAgentService.getSettings();
+    const defaults = broadcastAiAgentService.getDefaults();
+    res.json({ success: true, settings, defaults });
+  } catch (error) {
+    logger.error('[Messages] Broadcast AI agent settings get error:', error);
+    res.status(500).json({ error: 'Ошибка получения настроек AI-агента', details: error.message });
+  }
+});
+
+router.get('/broadcast/ai-agent/history', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  try {
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const drafts = await broadcastDraftService.listRecentGeneratedDrafts({ limit });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, drafts });
+  } catch (error) {
+    logger.error('[Messages] Broadcast AI agent history error:', error);
+    res.status(500).json({ error: 'Ошибка получения истории генераций', details: error.message });
+  }
+});
+
+router.put('/broadcast/ai-agent/settings', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  try {
+    const actorId = req.user?.id || req.session?.userId || null;
+    const settings = await broadcastAiAgentService.saveSettings(req.body || {}, actorId);
+    const defaults = broadcastAiAgentService.getDefaults();
+    res.json({ success: true, settings, defaults });
+  } catch (error) {
+    logger.error('[Messages] Broadcast AI agent settings save error:', error);
+    res.status(400).json({ error: error.message || 'Ошибка сохранения настроек AI-агента' });
+  }
+});
+
+router.get('/broadcast/ai-agent/models', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  try {
+    const models = await broadcastAiAgentService.listAvailableModels();
+    const provider = String(req.query?.provider || '').trim().toLowerCase();
+    const filtered = provider
+      ? models.filter((item) => String(item.provider || '').toLowerCase() === provider)
+      : models;
+    res.json({ success: true, models: filtered });
+  } catch (error) {
+    logger.error('[Messages] Broadcast AI agent models error:', error);
+    res.status(500).json({ error: 'Ошибка получения моделей', details: error.message });
+  }
+});
+
+router.post('/broadcast/ai-agent/preview', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const userId = Number(req.body?.userId);
+  const subject = String(req.body?.subject || '').trim();
+  const body = String(req.body?.body || '').trim();
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'userId обязателен' });
+  }
+  if (!subject && !body) {
+    return res.status(400).json({ error: 'subject или body обязательны' });
+  }
+
+  try {
+    const result = await broadcastAiAgentService.personalizeForRecipient({
+      userId,
+      subject,
+      body,
+      fallbackOnError: false
+    });
+    res.json({ success: true, result });
+  } catch (error) {
+    logger.error('[Messages] Broadcast AI agent preview error:', error);
+    res.status(400).json({ error: error.message || 'Ошибка персонализации' });
+  }
+});
+
 router.get('/broadcast/templates', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
   const access = ensureBroadcastEditorAccess(req, res);
   if (!access.allowed) {
@@ -707,7 +809,16 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
   const warmupMode = req.body?.warmup_mode === true || req.body?.warmup_mode === 'true';
   const delaySeconds = Number(req.body?.delay_seconds) || 0;
   const maxRecipients = Number(req.body?.max_recipients) || 0;
-  const autoStart = req.body?.auto_start !== false && req.body?.auto_start !== 'false';
+  const autoPrepare = req.body?.auto_prepare !== false && req.body?.auto_prepare !== 'false';
+  const aiPersonalize = req.body?.ai_personalize === true || req.body?.ai_personalize === 'true';
+  const scheduleDays = broadcastDraftService.normalizeScheduleDays(
+    typeof req.body?.schedule_days === 'string'
+      ? (() => { try { return JSON.parse(req.body.schedule_days); } catch { return []; } })()
+      : req.body?.schedule_days
+  );
+  const scheduleHourStart = Number(req.body?.schedule_hour_start);
+  const scheduleHourEnd = Number(req.body?.schedule_hour_end);
+  const scheduleTimezone = String(req.body?.schedule_timezone || 'Europe/Moscow').trim();
   const attachments = req.files || [];
 
   if (!recipientIds.length) {
@@ -719,7 +830,7 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
   }
 
   try {
-    const campaign = await broadcastService.createCampaign({
+    let campaign = await broadcastService.createCampaign({
       senderId,
       subject,
       message,
@@ -727,29 +838,196 @@ router.post('/broadcast/campaigns', requireAuth, requirePermission(PERMISSIONS.B
       warmupMode,
       delaySeconds,
       maxRecipients,
-      attachmentsCount: attachments.length
+      attachmentsCount: attachments.length,
+      aiPersonalize,
+      scheduleDays,
+      scheduleHourStart,
+      scheduleHourEnd,
+      scheduleTimezone
     });
 
     if (attachments.length) {
       await broadcastService.saveCampaignAttachments(campaign.id, attachments);
     }
 
-    let startedCampaign = campaign;
-    if (autoStart) {
-      startedCampaign = await broadcastService.startCampaign({
-        campaignId: campaign.id,
-        actorId: senderId
+    let prepareResult = null;
+    if (autoPrepare) {
+      // Важно: prepare не держим в HTTP-запросе.
+      // Иначе браузер/nginx рвут соединение (499), а Ollama продолжает работу впустую.
+      const campaignId = campaign.id;
+      const useAi = aiPersonalize;
+      setImmediate(() => {
+        broadcastDraftService.prepareCampaignDrafts({
+          campaignId,
+          useAi
+        }).then((result) => {
+          logger.info(
+            `[Messages] Broadcast campaign ${campaignId} drafts prepared async: `
+            + `${result.prepared}/${result.total}, errors=${result.errors?.length || 0}`
+          );
+        }).catch(async (error) => {
+          logger.error(`[Messages] Broadcast campaign ${campaignId} async prepare failed:`, error);
+          try {
+            await broadcastService.interruptCampaign({
+              campaignId,
+              reason: error?.message || 'Ошибка подготовки черновиков'
+            });
+          } catch (interruptError) {
+            logger.error(
+              `[Messages] Failed to interrupt campaign ${campaignId} after prepare error:`,
+              interruptError
+            );
+          }
+        });
       });
-      broadcastQueueService.enqueue(campaign.id);
+      prepareResult = {
+        async: true,
+        prepared: 0,
+        total: Number(campaign.planned_recipients || recipientIds.length) || 0,
+        errors: []
+      };
     }
 
     res.status(201).json({
       success: true,
-      campaign: startedCampaign || campaign
+      campaign,
+      prepare: prepareResult
     });
   } catch (error) {
     logger.error('[Messages] Broadcast campaign create error:', error);
     res.status(500).json({ error: 'Ошибка создания рассылки', details: error.message });
+  }
+});
+
+router.post('/broadcast/campaigns/:id/prepare', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  const useAi = req.body?.use_ai !== false && req.body?.use_ai !== 'false';
+  const wait = req.body?.wait === true || req.body?.wait === 'true';
+
+  try {
+    if (!wait) {
+      setImmediate(() => {
+        broadcastDraftService.prepareCampaignDrafts({
+          campaignId,
+          useAi
+        }).then((result) => {
+          logger.info(
+            `[Messages] Broadcast campaign ${campaignId} drafts prepared async: `
+            + `${result.prepared}/${result.total}, errors=${result.errors?.length || 0}`
+          );
+        }).catch(async (error) => {
+          logger.error(`[Messages] Broadcast campaign ${campaignId} async prepare failed:`, error);
+          try {
+            await broadcastService.interruptCampaign({
+              campaignId,
+              reason: error?.message || 'Ошибка подготовки черновиков'
+            });
+          } catch (interruptError) {
+            logger.error(
+              `[Messages] Failed to interrupt campaign ${campaignId} after prepare error:`,
+              interruptError
+            );
+          }
+        });
+      });
+      const campaign = await broadcastService.getCampaignById(campaignId);
+      return res.json({
+        success: true,
+        async: true,
+        prepare: { async: true },
+        campaign
+      });
+    }
+
+    const result = await broadcastDraftService.prepareCampaignDrafts({
+      campaignId,
+      useAi
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} prepare error:`, error);
+    res.status(400).json({ error: error.message || 'Ошибка подготовки черновиков' });
+  }
+});
+
+router.get('/broadcast/campaigns/:id/drafts', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  if (!campaignId || Number.isNaN(campaignId)) {
+    return res.status(400).json({ error: 'Некорректный ID рассылки' });
+  }
+
+  try {
+    const drafts = await broadcastDraftService.listDrafts(campaignId);
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, drafts });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast campaign ${campaignId} drafts error:`, error);
+    res.status(500).json({ error: 'Ошибка получения черновиков', details: error.message });
+  }
+});
+
+router.get('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  const userId = parseInt(req.params.userId, 10);
+  if (!campaignId || Number.isNaN(campaignId) || !userId || Number.isNaN(userId)) {
+    return res.status(400).json({ error: 'Некорректные параметры' });
+  }
+
+  try {
+    const draft = await broadcastDraftService.getDraft({ campaignId, recipientUserId: userId });
+    if (!draft) {
+      return res.status(404).json({ error: 'Черновик не найден' });
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, draft });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast draft get error:`, error);
+    res.status(500).json({ error: 'Ошибка получения черновика', details: error.message });
+  }
+});
+
+router.put('/broadcast/campaigns/:id/drafts/:userId', requireAuth, requirePermission(PERMISSIONS.BROADCAST), async (req, res) => {
+  const access = ensureBroadcastEditorAccess(req, res);
+  if (!access.allowed) {
+    return;
+  }
+
+  const campaignId = parseInt(req.params.id, 10);
+  const userId = parseInt(req.params.userId, 10);
+  if (!campaignId || Number.isNaN(campaignId) || !userId || Number.isNaN(userId)) {
+    return res.status(400).json({ error: 'Некорректные параметры' });
+  }
+
+  try {
+    const draft = await broadcastDraftService.updateDraftContent({
+      campaignId,
+      recipientUserId: userId,
+      subject: req.body?.subject,
+      body: req.body?.body
+    });
+    res.json({ success: true, draft });
+  } catch (error) {
+    logger.error(`[Messages] Broadcast draft update error:`, error);
+    res.status(400).json({ error: error.message || 'Ошибка сохранения черновика' });
   }
 });
 
@@ -771,6 +1049,7 @@ router.get('/broadcast/campaigns/:id/status', requireAuth, requirePermission(PER
     }
 
     const events = await broadcastService.getCampaignEvents(campaignId, { limit: 20 });
+    res.set('Cache-Control', 'no-store');
     res.json({
       success: true,
       ...status,

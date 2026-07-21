@@ -191,7 +191,7 @@
       "format": "Format",
       "formatAuto": "Автоматически (null)",
       "formatJson": "JSON",
-      "formatHelp": "Формат ответа (json для структурированных ответов)",
+      "formatHelp": "Для обычного чата оставьте «Авто». JSON ломает текст ответа пользователю; structured JSON используется только служебными задачами (имя, рассылка).",
       "embeddingParamsTitle": "Параметры Embedding модели",
       "batchSize": "Batch Size",
       "batchSizeHelp": "Размер батча для обработки",

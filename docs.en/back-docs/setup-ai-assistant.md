@@ -58,7 +58,7 @@ Refresh the page and check the status again.
 
 1. In the **Ollama** section click **"Install model"**
 2. Choose a model:
-   - **qwen2.5:7b** (recommended) — for Russian language, 4.7 GB
+   - **qwen2.5:1.5b** (recommended) — for Russian language, ~1.0 GB
    - **llama2:7b** — for English, 3.8 GB
    - **mistral:7b** — universal, 4.1 GB
 3. Click **"Install"**
@@ -198,7 +198,7 @@ Add typical questions and answers:
 ### 3.3 Select a model
 
 1. In the **"Model (LLM)"** field select the installed model:
-   - `qwen2.5:7b` (recommended for Russian)
+   - `qwen2.5:1.5b` (recommended for Russian)
 2. In the **"Embeddings model"** field select:
    - `mxbai-embed-large:latest`
 3. Click **"Save"**
@@ -256,13 +256,13 @@ Always end with: "How else can I help? 😊"
 
 ### 4.3 Select models
 
-1. **LLM model**: Select `qwen2.5:7b (ollama)`
+1. **LLM model**: Select `qwen2.5:1.5b (ollama)`
 2. **Embedding model**: Select `mxbai-embed-large:latest (ollama)`
 
 > 💡 **Tip**: Models are pulled automatically from Ollama settings
 
 > 📊 **Context window size**: 
-> - **Qwen2.5:7b**: Base context = **32,768 tokens** (~24,000 Russian words)
+> - **Qwen2.5:1.5b**: Base context = **32,768 tokens** (~24,000 Russian words)
 > - Total data sent to the model:
 >   - System prompt: ~500–2000 characters (~300–1200 tokens)
 >   - Dialog history: up to 20 messages (~100–500 tokens per message = ~2000–10000 tokens)
@@ -717,7 +717,7 @@ docker-compose logs ollama
 
 **Solution**:
 1. Change the system prompt, adding at the start: `ALWAYS reply in Russian.`
-2. Use the `qwen2.5:7b` model instead of `llama2:7b`
+2. Use the `qwen2.5:1.5b` model instead of `llama2:7b`
 3. In AI rules set `"language": "ru"`
 
 ### Problem: Slow replies

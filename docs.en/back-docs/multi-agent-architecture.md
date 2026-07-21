@@ -23,7 +23,7 @@
 ### Core principles
 
 1. **One model, many agents**
-   - All agents use one local Ollama model (qwen2.5:7b)
+   - All agents use one local Ollama model (qwen2.5:1.5b)
    - The difference between agents is in system prompts and rules
    - Each agent has its own specialization and role
 
@@ -120,7 +120,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │              Shared Ollama model                         │
-│              (qwen2.5:7b)                               │
+│              (qwen2.5:1.5b)                               │
 └────────────────┬────────────────────────────────────────┘
                  │
                  ├─────────────────┬───────────────────────┐

@@ -15,7 +15,7 @@
     <router-link
       v-for="item in navItems"
       :key="item.name"
-      :to="{ name: item.name, params: { id: contactId } }"
+      :to="navTarget(item.name)"
       class="contact-details-nav-link"
       active-class="is-active"
     >
@@ -38,6 +38,19 @@ const navItems = [
   { name: 'contact-details', labelKey: 'contacts.details.nav.chat' },
   { name: 'contact-profile', labelKey: 'contacts.details.nav.profile' },
 ];
+
+function navTarget(name) {
+  const query = {};
+  // Режим правки черновика рассылки не должен сбрасываться при переключении Чат/Профиль
+  if (route.query.broadcastCampaignId) {
+    query.broadcastCampaignId = route.query.broadcastCampaignId;
+  }
+  return {
+    name,
+    params: { id: contactId.value },
+    query
+  };
+}
 </script>
 
 <style scoped>

@@ -33,7 +33,8 @@ class AIConfigService {
     // Дефолтные значения (fallback)
     this.defaults = {
       ollama_base_url: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-      ollama_llm_model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+      ollama_llm_model: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
+      ollama_preload_model: null,
       ollama_embedding_model: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest',
       vector_search_url: process.env.VECTOR_SEARCH_URL || 'http://vector-search:8001',
       embedding_parameters: {
@@ -295,6 +296,7 @@ class AIConfigService {
     return {
       baseUrl: config.ollama_base_url || this.defaults.ollama_base_url,
       llmModel: config.ollama_llm_model || this.defaults.ollama_llm_model,
+      preloadModel: config.ollama_preload_model || null,
       embeddingModel: config.ollama_embedding_model || this.defaults.ollama_embedding_model
     };
   }

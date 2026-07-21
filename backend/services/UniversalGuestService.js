@@ -583,6 +583,13 @@ class UniversalGuestService {
     try {
       logger.info(`[UniversalGuestService] Миграция истории ${identifier} → user ${userId}`);
 
+      try {
+        const conversationMemoryService = require('./conversationMemoryService');
+        await conversationMemoryService.migrateGuestToUser(identifier, userId);
+      } catch (memErr) {
+        logger.warn('[UniversalGuestService] Миграция памяти диалога:', memErr.message);
+      }
+
       const encryptionKey = encryptionUtils.getEncryptionKey();
 
       // 1. Получаем все сообщения гостя

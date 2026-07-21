@@ -104,7 +104,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label>{{ $t('settings.ai.assistant.llmModelDefault') }}</label>
-                <input type="text" v-model="ollamaConfig.llmModel" placeholder="qwen2.5:7b" />
+                <input type="text" v-model="ollamaConfig.llmModel" placeholder="qwen2.5:1.5b" />
                 <small>{{ $t('settings.ai.assistant.llmModelDefaultHelp') }}</small>
               </div>
               <div class="form-group">
@@ -620,7 +620,7 @@ const ragBehavior = ref({
 // Ollama настройки
 const ollamaConfig = ref({
   baseUrl: 'http://ollama:11434',
-  llmModel: 'qwen2.5:7b',
+  llmModel: 'qwen2.5:1.5b',
   embeddingModel: 'mxbai-embed-large:latest'
 });
 

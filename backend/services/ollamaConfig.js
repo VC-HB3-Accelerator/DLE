@@ -43,7 +43,7 @@ async function _updateSyncCache() {
     // Используем дефолты
     syncCache = {
       baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-      defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+      defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
       embeddingModel: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest'
     };
   }
@@ -68,7 +68,7 @@ function _getFromSyncCache(key) {
   // Иначе используем дефолты
   const defaults = {
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-    defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+    defaultModel: process.env.OLLAMA_MODEL || 'qwen2.5:1.5b',
     embeddingModel: process.env.OLLAMA_EMBED_MODEL || process.env.OLLAMA_EMBEDDINGS_MODEL || 'mxbai-embed-large:latest'
   };
   
@@ -335,7 +335,8 @@ async function checkHealth() {
     }
 
     const data = await response.json();
-    const defaultModel = await getDefaultModelAsync();
+    const ollamaMemoryService = require('./ollamaMemoryService');
+    const defaultModel = await ollamaMemoryService.getPreloadModelName();
     
     return { 
       status: 'ok', 

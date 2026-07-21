@@ -191,7 +191,7 @@
       "format": "Format",
       "formatAuto": "Automatic (null)",
       "formatJson": "JSON",
-      "formatHelp": "Response format (json for structured responses)",
+      "formatHelp": "For normal chat leave Auto. JSON breaks user-facing replies; structured JSON is only for internal tasks (name extraction, broadcast).",
       "embeddingParamsTitle": "Embedding model parameters",
       "batchSize": "Batch Size",
       "batchSizeHelp": "Batch processing size",

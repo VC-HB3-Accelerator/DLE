@@ -65,6 +65,7 @@
       <div class="chat-compose-row">
         <div class="input-shell" :class="{ 'input-shell--multiline': isMultilineInput }">
           <button
+            v-if="props.canAttach"
             type="button"
             class="attach-btn"
             :title="t('chat.attachFile')"
@@ -82,7 +83,8 @@
             :placeholder="t('chat.inputPlaceholder')"
             :disabled="isLoading || !props.canSend"
             autofocus
-            @keydown.enter.prevent="sendMessage"
+            rows="1"
+            @keydown.enter="onEnterKey"
             @focus="handleFocus"
             @blur="handleBlur"
           />
@@ -163,11 +165,13 @@ const props = defineProps({
   canSend: { type: Boolean, default: true },           // Может отправлять сообщения
   canGenerateAI: { type: Boolean, default: false },    // Может генерировать AI-ответы
   canSelectMessages: { type: Boolean, default: false }, // Может выбирать сообщения
+  canAttach: { type: Boolean, default: true },         // Может прикреплять файлы
   
   // Props для приватного чата
   isPrivateChat: { type: Boolean, default: false },    // Это приватный чат
   currentUserId: { type: [String, Number], default: null }, // ID текущего пользователя
-  embedded: { type: Boolean, default: false } // Встроенный режим: лента сверху, ввод снизу
+  embedded: { type: Boolean, default: false }, // Встроенный режим: лента сверху, ввод снизу
+  clearOnSend: { type: Boolean, default: true } // очищать поле после emit send-message
 });
 
 const emit = defineEmits([
@@ -340,6 +344,7 @@ const stopVideoRecording = async () => {
 
 // --- Логика загрузки файлов --- 
 const handleFileUpload = () => {
+  if (!props.canAttach || !props.canSend) return;
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.multiple = true;
@@ -501,9 +506,10 @@ const sendMessage = () => {
       message: props.newMessage, 
       attachments: localAttachments.value.map(att => att.file) // Отправляем только сами файлы
   });
-  // Очищаем поле ввода и превью после отправки
-  clearInput();
-  nextTick(adjustTextareaHeight); // Сбросить высоту textarea после отправки
+  if (props.clearOnSend) {
+    clearInput();
+    nextTick(adjustTextareaHeight);
+  }
 };
 
 // --- Изменение размера блоков ---
@@ -632,6 +638,7 @@ const formatFileSize = (bytes) => {
 
 // --- Автоматическое изменение высоты textarea ---
 const INPUT_SINGLE_LINE_HEIGHT = 36;
+const INPUT_MAX_HEIGHT = 280;
 
 const isMultilineInput = ref(false);
 
@@ -639,23 +646,42 @@ const adjustTextareaHeight = () => {
   const textarea = messageInputRef.value;
   if (!textarea) return;
 
-  textarea.style.height = `${INPUT_SINGLE_LINE_HEIGHT}px`;
+  const value = String(textarea.value || props.newMessage || '');
+  // Сначала сбрасываем высоту, чтобы scrollHeight отражал полный текст
+  textarea.style.height = 'auto';
+  const measured = Math.max(textarea.scrollHeight, INPUT_SINGLE_LINE_HEIGHT);
   const shouldExpand =
-    textarea.scrollHeight > INPUT_SINGLE_LINE_HEIGHT + 2 || textarea.value.includes('\n');
+    measured > INPUT_SINGLE_LINE_HEIGHT + 2
+    || value.includes('\n')
+    || value.length > 48;
 
   isMultilineInput.value = shouldExpand;
 
   nextTick(() => {
-    if (!messageInputRef.value) return;
     const el = messageInputRef.value;
+    if (!el) return;
     if (!shouldExpand) {
       el.style.height = `${INPUT_SINGLE_LINE_HEIGHT}px`;
       return;
     }
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, INPUT_SINGLE_LINE_HEIGHT), INPUT_MAX_HEIGHT)}px`;
   });
 };
+
+watch(() => props.newMessage, () => {
+  // Черновик рассылки / AI подставляют текст снаружи — без этого поле остаётся в 1 строку
+  nextTick(adjustTextareaHeight);
+});
+
+function onEnterKey(event) {
+  // Shift+Enter — новая строка; Enter — отправка
+  if (event.shiftKey) {
+    return;
+  }
+  event.preventDefault();
+  sendMessage();
+}
 
 // Вызываем при изменении текста
 const handleInput = (event) => {
@@ -837,7 +863,7 @@ async function handleAiReply() {
   min-width: 0;
   height: 36px;
   min-height: 36px;
-  max-height: 120px;
+  max-height: 280px;
   border: none;
   background: transparent;
   border-radius: 0;
@@ -851,20 +877,22 @@ async function handleAiReply() {
   overflow-y: hidden;
   box-sizing: border-box;
   vertical-align: middle;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .input-shell--multiline textarea {
   line-height: 20px;
   padding: 8px 4px;
   overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
 }
 
 .input-shell--multiline textarea::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  display: block;
+  width: 4px;
 }
 
 .input-shell textarea:focus {

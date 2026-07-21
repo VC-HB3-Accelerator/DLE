@@ -47,6 +47,7 @@ services:
         max-file: "3"
     volumes:
       - ollama_data:/root/.ollama
+      - ./shared:/preload-shared:ro
     deploy:
       resources:
         limits:
@@ -62,7 +63,9 @@ services:
       - OLLAMA_NUM_GPU=0
       - OLLAMA_KEEP_ALIVE=86400
       - OLLAMA_MODEL_TIMEOUT=0
-      # 1 модель в RAM: при 2 моделях free≈4.1 GiB, qwen2.5:7b нужно 4.5 GiB → Load failed
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
+      - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
+      # 1 модель в RAM: qwen2.5:1.5b ~1.4 GiB на типичном VDS
       - OLLAMA_MAX_LOADED_MODELS=1
       - OLLAMA_FLASH_ATTENTION=0
       - OLLAMA_LLM_LIBRARY=auto
@@ -132,7 +135,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
-      - ./shared:/app/shared:ro
+      - ./shared:/app/shared
       - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl:ro
       # Доступ к Docker socket для управления контейнерами на VDS
@@ -165,7 +168,8 @@ services:
       - DATABASE_URL=postgresql://${DB_USER:-dapp_user}:${DB_PASSWORD:-dapp_password}@dapp-postgres:5432/${DB_NAME:-dapp_db}?sslmode=prefer
       # 🆕 Исправленный URL для Ollama
       - OLLAMA_BASE_URL=http://dapp-ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - OLLAMA_PRELOAD_FILE=/app/shared/ollama_preload_model.txt
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
       - OLLAMA_EMBEDDINGS_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # Backend читает OLLAMA_EMBED_MODEL, не OLLAMA_EMBEDDINGS_MODEL — передаём то же значение
       - OLLAMA_EMBED_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}

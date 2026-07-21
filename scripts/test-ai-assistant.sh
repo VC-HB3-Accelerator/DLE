@@ -81,10 +81,10 @@ test_ollama() {
     
     # Проверка моделей
     models=$(curl -s http://localhost:11434/api/tags | jq -r '.models[].name' 2>/dev/null || echo "")
-    if echo "$models" | grep -q "qwen2.5:7b"; then
-        success "Модель qwen2.5:7b загружена"
+    if echo "$models" | grep -q "qwen2.5:1.5b"; then
+        success "Модель qwen2.5:1.5b загружена"
     else
-        error "Модель qwen2.5:7b не найдена"
+        error "Модель qwen2.5:1.5b не найдена"
     fi
     
     if echo "$models" | grep -q "mxbai-embed-large:latest"; then
@@ -98,7 +98,7 @@ test_ollama() {
     response=$(curl -s -X POST http://localhost:11434/api/generate \
         -H "Content-Type: application/json" \
         -d '{
-            "model": "qwen2.5:7b",
+            "model": "qwen2.5:1.5b",
             "prompt": "Привет! Как дела?",
             "stream": false
         }')

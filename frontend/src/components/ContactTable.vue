@@ -189,6 +189,9 @@
             <col v-if="isColumnVisible('blocked')" :style="columnWidthStyle('blocked')" />
             <col v-if="isColumnVisible('languages')" :style="columnWidthStyle('languages')" />
             <col v-if="isColumnVisible('lastMessageAt')" :style="columnWidthStyle('lastMessageAt')" />
+            <col v-if="isColumnVisible('comment')" :style="columnWidthStyle('comment')" />
+            <col v-if="isColumnVisible('link')" :style="columnWidthStyle('link')" />
+            <col v-if="isColumnVisible('file')" :style="columnWidthStyle('file')" />
             <col v-if="isEditorRole" :style="columnWidthStyle('settings')" />
           </colgroup>
           <thead>
@@ -296,6 +299,30 @@
                   @mousedown="startResize('lastMessageAt', $event)"
                 />
               </th>
+              <th v-if="isColumnVisible('comment')" class="col-comment resizable-th">
+                <span class="th-label">{{ t('contacts.comment') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('comment', $event)"
+                />
+              </th>
+              <th v-if="isColumnVisible('link')" class="col-link resizable-th">
+                <span class="th-label">{{ t('contacts.link') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('link', $event)"
+                />
+              </th>
+              <th v-if="isColumnVisible('file')" class="col-file resizable-th">
+                <span class="th-label">{{ t('contacts.file') }}</span>
+                <span
+                  class="col-resize-handle"
+                  :title="t('contacts.resizeColumn')"
+                  @mousedown="startResize('file', $event)"
+                />
+              </th>
               <th v-if="isEditorRole" class="col-settings">
                 <el-popover placement="bottom-end" :width="240" trigger="click">
                   <template #reference>
@@ -380,6 +407,29 @@
               <td v-if="isColumnVisible('blocked')" class="col-blocked">{{ formatContactBlocked(contact) }}</td>
               <td v-if="isColumnVisible('languages')" class="col-languages">{{ formatContactLanguages(contact) }}</td>
               <td v-if="isColumnVisible('lastMessageAt')" class="col-last-message">{{ formatContactLastMessageAt(contact) }}</td>
+              <td v-if="isColumnVisible('comment')" class="col-comment" :title="contact.crm_comment || ''">
+                {{ formatContactComment(contact) }}
+              </td>
+              <td v-if="isColumnVisible('link')" class="col-link" @click.stop>
+                <a
+                  v-if="contact.crm_link"
+                  :href="contact.crm_link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="contact-link"
+                >{{ formatContactLink(contact.crm_link) }}</a>
+                <span v-else>-</span>
+              </td>
+              <td v-if="isColumnVisible('file')" class="col-file" @click.stop>
+                <a
+                  v-if="getPrimaryContactFile(contact)"
+                  :href="getPrimaryContactFile(contact).url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="contact-link"
+                >{{ getPrimaryContactFile(contact).originalName }}</a>
+                <span v-else>-</span>
+              </td>
               <td v-if="isEditorRole" class="col-settings" />
             </tr>
           </tbody>
@@ -473,6 +523,9 @@ const CONTACT_TABLE_COLUMN_WIDTHS = {
   blocked: 120,
   languages: 140,
   lastMessageAt: 168,
+  comment: 220,
+  link: 180,
+  file: 160,
   settings: 120
 };
 
@@ -914,6 +967,21 @@ function formatContactBlocked(contact) {
 function formatContactLanguages(contact) {
   const languages = Array.isArray(contact.preferred_language) ? contact.preferred_language : [];
   return languages.length ? languages.join(', ') : '-';
+}
+
+function formatContactComment(contact) {
+  const value = (contact.crm_comment || '').trim();
+  if (!value) return '-';
+  return value.length > 60 ? `${value.slice(0, 60)}…` : value;
+}
+
+function formatContactLink(value) {
+  if (!value) return '-';
+  return value.length > 40 ? `${value.slice(0, 40)}…` : value;
+}
+
+function getPrimaryContactFile(contact) {
+  return Array.isArray(contact.crm_files) && contact.crm_files.length ? contact.crm_files[0] : null;
 }
 
 function formatContactLastMessageAt(contact) {

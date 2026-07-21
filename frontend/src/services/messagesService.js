@@ -98,7 +98,12 @@ export default {
     delaySeconds = 0,
     maxRecipients = 0,
     attachments = [],
-    autoStart = true
+    autoPrepare = true,
+    aiPersonalize = false,
+    scheduleDays = [1, 2, 3, 4, 5],
+    scheduleHourStart = 10,
+    scheduleHourEnd = 18,
+    scheduleTimezone = 'Europe/Moscow'
   }) {
     const formData = new FormData();
     formData.append('subject', subject);
@@ -107,7 +112,12 @@ export default {
     formData.append('warmup_mode', warmupMode ? 'true' : 'false');
     formData.append('delay_seconds', String(delaySeconds));
     formData.append('max_recipients', String(maxRecipients));
-    formData.append('auto_start', autoStart ? 'true' : 'false');
+    formData.append('auto_prepare', autoPrepare ? 'true' : 'false');
+    formData.append('ai_personalize', aiPersonalize ? 'true' : 'false');
+    formData.append('schedule_days', JSON.stringify(scheduleDays));
+    formData.append('schedule_hour_start', String(scheduleHourStart));
+    formData.append('schedule_hour_end', String(scheduleHourEnd));
+    formData.append('schedule_timezone', scheduleTimezone);
     attachments.forEach(file => {
       formData.append('attachments', file);
     });
@@ -118,9 +128,81 @@ export default {
     });
     return data;
   },
+  async prepareBroadcastCampaign(campaignId, { useAi = true } = {}) {
+    const { data } = await api.post(`/messages/broadcast/campaigns/${campaignId}/prepare`, {
+      use_ai: useAi
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastDrafts(campaignId) {
+    const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}/drafts`, {
+      withCredentials: true,
+      params: { _ts: Date.now() },
+      headers: { 'Cache-Control': 'no-cache' }
+    });
+    return data;
+  },
+  async getBroadcastDraft(campaignId, userId) {
+    const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}/drafts/${userId}`, {
+      withCredentials: true,
+      params: { _ts: Date.now() },
+      headers: { 'Cache-Control': 'no-cache' }
+    });
+    return data;
+  },
+  async saveBroadcastDraft(campaignId, userId, { subject, body }) {
+    const { data } = await api.put(`/messages/broadcast/campaigns/${campaignId}/drafts/${userId}`, {
+      subject,
+      body
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastAiAgentSettings() {
+    const { data } = await api.get('/messages/broadcast/ai-agent/settings', {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastAiAgentHistory({ limit = 50 } = {}) {
+    const { data } = await api.get('/messages/broadcast/ai-agent/history', {
+      params: { limit, _ts: Date.now() },
+      withCredentials: true,
+      headers: { 'Cache-Control': 'no-cache' }
+    });
+    return data;
+  },
+  async saveBroadcastAiAgentSettings(payload = {}) {
+    const { data } = await api.put('/messages/broadcast/ai-agent/settings', payload, {
+      withCredentials: true
+    });
+    return data;
+  },
+  async getBroadcastAiAgentModels(provider) {
+    const { data } = await api.get('/messages/broadcast/ai-agent/models', {
+      params: provider ? { provider } : undefined,
+      withCredentials: true
+    });
+    return data;
+  },
+  async previewBroadcastAiAgent({ userId, subject, body }) {
+    const { data } = await api.post('/messages/broadcast/ai-agent/preview', {
+      userId,
+      subject,
+      body
+    }, {
+      withCredentials: true
+    });
+    return data;
+  },
   async getBroadcastCampaignStatus(campaignId) {
     const { data } = await api.get(`/messages/broadcast/campaigns/${campaignId}/status`, {
-      withCredentials: true
+      withCredentials: true,
+      params: { _ts: Date.now() },
+      headers: { 'Cache-Control': 'no-cache' }
     });
     return data;
   },

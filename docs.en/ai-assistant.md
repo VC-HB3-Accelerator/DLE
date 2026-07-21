@@ -39,7 +39,7 @@ All agents use **one local Ollama model** on your server. The difference between
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│            Local Ollama model (qwen2.5:7b)           │
+│            Local Ollama model (qwen2.5:1.5b)           │
 │            Shared by all agents                      │
 └───────────┬──────────────┬───────────────┬───────────┘
             │              │               │
@@ -264,7 +264,7 @@ The number of agents is unlimited. Each new agent is a new combination of prompt
 
 | Component | Technology | Purpose |
 |-----------|------------|------------|
-| LLM | Ollama (qwen2.5:7b or any other) | Response generation, dialogue |
+| LLM | Ollama (qwen2.5:1.5b or any other) | Response generation, dialogue |
 | Embedding | mxbai-embed-large | Text vectorization for search |
 | Vector DB | FAISS | Fast semantic search |
 | Primary DB | PostgreSQL | Storing agent settings, knowledge bases, history |

@@ -100,6 +100,18 @@ export default {
       tagIds
     });
     return res.data;
+  },
+  async uploadContactFile(contactId, file) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await api.post(`/users/${contactId}/files`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return res.data;
+  },
+  async deleteContactFile(contactId, fileId) {
+    const res = await api.delete(`/users/${contactId}/files/${fileId}`);
+    return res.data;
   }
 };
 

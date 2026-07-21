@@ -21,7 +21,9 @@ const BROADCAST_EVENT_TYPES = new Set([
   'paused',
   'resumed',
   'completed',
-  'interrupted'
+  'interrupted',
+  'drafts_prepared',
+  'prepare_partial'
 ]);
 
 function getAttachmentsDir(campaignId) {
@@ -72,8 +74,14 @@ async function createCampaign({
   warmupMode = false,
   delaySeconds = 0,
   maxRecipients = 0,
-  attachmentsCount = 0
+  attachmentsCount = 0,
+  aiPersonalize = false,
+  scheduleDays = [1, 2, 3, 4, 5],
+  scheduleHourStart = 10,
+  scheduleHourEnd = 18,
+  scheduleTimezone = 'Europe/Moscow'
 }) {
+  const broadcastDraftService = require('./broadcastDraftService');
   const uniqueRecipientIds = [...new Set(
     recipientIds
       .map(id => Number(id))
@@ -90,6 +98,11 @@ async function createCampaign({
   );
 
   const normalizedMessage = String(message || '').trim();
+  const days = broadcastDraftService.normalizeScheduleDays(scheduleDays);
+  const hourStart = broadcastDraftService.normalizeHour(scheduleHourStart, 10);
+  const hourEnd = broadcastDraftService.normalizeHour(scheduleHourEnd, 18);
+  const timezone = String(scheduleTimezone || 'Europe/Moscow').trim() || 'Europe/Moscow';
+
   const { rows } = await db.getQuery()(
     `INSERT INTO broadcast_campaigns (
       sender_id,
@@ -102,8 +115,15 @@ async function createCampaign({
       warmup_mode,
       delay_seconds,
       attachments_count,
+      ai_personalize,
+      schedule_days,
+      schedule_hour_start,
+      schedule_hour_end,
+      schedule_timezone,
+      drafts_total,
+      drafts_ready_count,
       status
-    ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, 'queued')
+    ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12::int[], $13, $14, $15, $16, 0, 'preparing')
     RETURNING *`,
     [
       senderId,
@@ -115,7 +135,13 @@ async function createCampaign({
       plannedRecipients,
       Boolean(warmupMode),
       Math.max(0, Number(delaySeconds) || 0),
-      Math.max(0, Number(attachmentsCount) || 0)
+      Math.max(0, Number(attachmentsCount) || 0),
+      Boolean(aiPersonalize),
+      days,
+      hourStart,
+      hourEnd,
+      timezone,
+      plannedRecipients
     ]
   );
 
@@ -231,7 +257,7 @@ async function getDeliveredRecipientIds(campaignId) {
   const { rows } = await db.getQuery()(
     `SELECT recipient_user_id
      FROM broadcast_deliveries
-     WHERE campaign_id = $1`,
+     WHERE campaign_id = $1 AND status IN ('sent', 'bounced', 'error')`,
     [campaignId]
   );
 
@@ -239,10 +265,12 @@ async function getDeliveredRecipientIds(campaignId) {
 }
 
 async function getFinalizedRecipientIds(campaignId) {
+  // error тоже финальный статус попытки: иначе очередь бесконечно
+  // ретраит «Черновик не готов» / постоянные сбои отправки.
   const { rows } = await db.getQuery()(
     `SELECT recipient_user_id
      FROM broadcast_deliveries
-     WHERE campaign_id = $1 AND status IN ('sent', 'bounced')`,
+     WHERE campaign_id = $1 AND status IN ('sent', 'bounced', 'error')`,
     [campaignId]
   );
 
@@ -268,8 +296,34 @@ async function startCampaign({ campaignId, actorId = null }) {
     throw new Error('campaign_not_found');
   }
 
-  if (!['queued', 'paused'].includes(campaign.status)) {
+  // Нельзя стартовать, пока async prepare ещё крутит LLM
+  const draftSvc = require('./broadcastDraftService');
+  if (typeof draftSvc.isPrepareInflight === 'function' && draftSvc.isPrepareInflight(campaignId)) {
+    throw new Error('campaign_still_preparing');
+  }
+  if (campaign.status === 'preparing') {
+    throw new Error('campaign_still_preparing');
+  }
+
+  if (!['queued', 'paused', 'ready'].includes(campaign.status)) {
     throw new Error(`campaign_cannot_start_from_${campaign.status}`);
+  }
+
+  if (campaign.status === 'ready') {
+    const draftsReady = Number(campaign.drafts_ready_count || 0);
+    const draftsTotal = Number(campaign.drafts_total || 0) || getCampaignRecipientIds(campaign).length;
+    if (!draftsTotal || draftsReady < draftsTotal) {
+      throw new Error('campaign_drafts_not_ready');
+    }
+  }
+
+  // paused после частичного prepare тоже нельзя стартовать без полного набора черновиков
+  if (campaign.status === 'paused') {
+    const draftsReady = Number(campaign.drafts_ready_count || 0);
+    const draftsTotal = Number(campaign.drafts_total || 0) || getCampaignRecipientIds(campaign).length;
+    if (!draftsTotal || draftsReady < draftsTotal) {
+      throw new Error('campaign_drafts_not_ready');
+    }
   }
 
   const eventType = campaign.status === 'paused' ? 'resumed' : 'started';
@@ -278,8 +332,9 @@ async function startCampaign({ campaignId, actorId = null }) {
      SET
        status = 'in_progress',
        pause_reason = NULL,
-       completed_at = NULL
-     WHERE id = $1 AND status IN ('queued', 'paused')
+       completed_at = NULL,
+       started_at = COALESCE(started_at, NOW())
+     WHERE id = $1 AND status IN ('queued', 'paused', 'ready')
      RETURNING *`,
     [campaignId]
   );
@@ -294,10 +349,14 @@ async function startCampaign({ campaignId, actorId = null }) {
     actorId,
     details: {
       planned_recipients: rows[0].planned_recipients,
-      delay_seconds: rows[0].delay_seconds
+      delay_seconds: rows[0].delay_seconds,
+      schedule_days: rows[0].schedule_days,
+      schedule_hour_start: rows[0].schedule_hour_start,
+      schedule_hour_end: rows[0].schedule_hour_end
     }
   });
 
+  await emitCampaignWsUpdate(campaignId, { event: eventType });
   return rows[0];
 }
 
@@ -324,6 +383,7 @@ async function pauseCampaign({ campaignId, actorId = null, reason = '' }) {
     details: { reason: pauseReason }
   });
 
+  await emitCampaignWsUpdate(campaignId, { event: 'paused' });
   return rows[0];
 }
 
@@ -335,7 +395,7 @@ async function interruptCampaign({ campaignId, actorId = null, reason = '' }) {
        status = 'interrupted',
        pause_reason = $2,
        completed_at = NOW()
-     WHERE id = $1 AND status IN ('queued', 'in_progress', 'paused')
+     WHERE id = $1 AND status IN ('queued', 'in_progress', 'paused', 'preparing', 'ready')
      RETURNING *`,
     [campaignId, interruptReason]
   );
@@ -351,6 +411,7 @@ async function interruptCampaign({ campaignId, actorId = null, reason = '' }) {
     details: { reason: interruptReason }
   });
 
+  await emitCampaignWsUpdate(campaignId, { event: 'interrupted' });
   return rows[0];
 }
 
@@ -375,9 +436,59 @@ async function getCampaignProgress(campaignId) {
       currentRecipientId,
       successCount: Number(campaign.success_count || 0),
       errorCount: Number(campaign.error_count || 0),
-      bounceCount: Number(campaign.bounce_count || 0)
+      bounceCount: Number(campaign.bounce_count || 0),
+      draftsReady: Number(campaign.drafts_ready_count || 0),
+      draftsTotal: Number(campaign.drafts_total || recipientIds.length || 0)
     }
   };
+}
+
+async function emitCampaignWsUpdate(campaignId, { draft = null, event = 'progress' } = {}) {
+  try {
+    const { broadcastCampaignUpdate } = require('../wsHub');
+    const data = await getCampaignProgress(campaignId);
+    if (!data) return null;
+
+    const c = data.campaign || {};
+    const safeCampaign = {
+      id: c.id,
+      status: c.status,
+      ai_personalize: c.ai_personalize,
+      planned_recipients: c.planned_recipients,
+      drafts_ready_count: c.drafts_ready_count,
+      drafts_total: c.drafts_total,
+      pause_reason: c.pause_reason,
+      skipped_count: c.skipped_count,
+      success_count: c.success_count,
+      error_count: c.error_count,
+      bounce_count: c.bounce_count
+    };
+
+    let safeDraft = null;
+    if (draft) {
+      const body = String(draft.body || '');
+      safeDraft = {
+        recipient_user_id: draft.recipient_user_id,
+        status: draft.status || 'draft',
+        subject: draft.subject || '',
+        bodyPreview: body.length > 160 ? `${body.slice(0, 160)}…` : body,
+        personalized: draft.personalized,
+        personalize_reason: draft.personalize_reason,
+        updated_at: draft.updated_at || new Date().toISOString()
+      };
+    }
+
+    broadcastCampaignUpdate({
+      campaign: safeCampaign,
+      progress: data.progress,
+      draft: safeDraft,
+      event
+    });
+    return data;
+  } catch (error) {
+    logger.warn(`[broadcastService] WS campaign update failed #${campaignId}: ${error.message}`);
+    return null;
+  }
 }
 
 async function listActiveCampaignIds() {
@@ -436,9 +547,38 @@ async function recordDelivery({
            SET
              channel_results = $2::jsonb,
              error_message = $3,
-             sent_at = NOW()
+             sent_at = NOW(),
+             updated_at = NOW()
            WHERE id = $1`,
           [deliveryId, JSON.stringify(channelResults), errorMessage]
+        );
+        await client.query('COMMIT');
+        return;
+      }
+
+      if (previousStatus === 'draft' && (status === 'sent' || status === 'error' || status === 'bounced')) {
+        await client.query(
+          `UPDATE broadcast_deliveries
+           SET
+             status = $2,
+             channel_results = $3::jsonb,
+             error_message = $4,
+             sent_at = NOW(),
+             updated_at = NOW()
+           WHERE id = $1`,
+          [deliveryId, status, JSON.stringify(channelResults), errorMessage]
+        );
+
+        const counterField = status === 'sent'
+          ? 'success_count'
+          : status === 'bounced'
+            ? 'bounce_count'
+            : 'error_count';
+        await client.query(
+          `UPDATE broadcast_campaigns
+           SET ${counterField} = ${counterField} + 1
+           WHERE id = $1`,
+          [campaignId]
         );
         await client.query('COMMIT');
         return;
@@ -451,7 +591,8 @@ async function recordDelivery({
              status = 'sent',
              channel_results = $2::jsonb,
              error_message = NULL,
-             sent_at = NOW()
+             sent_at = NOW(),
+             updated_at = NOW()
            WHERE id = $1`,
           [deliveryId, JSON.stringify(channelResults)]
         );
@@ -547,6 +688,7 @@ async function completeCampaign({ campaignId, skippedCount = 0, actorId = null }
         bounce_count: rows[0].bounce_count
       }
     });
+    await emitCampaignWsUpdate(campaignId, { event: 'completed' });
   }
 
   return rows[0] || null;
@@ -1044,6 +1186,7 @@ module.exports = {
   pauseCampaign,
   interruptCampaign,
   getCampaignProgress,
+  emitCampaignWsUpdate,
   listActiveCampaignIds,
   parseRecipientIds
 };

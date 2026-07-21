@@ -22,52 +22,71 @@ const aiConfigService = require('./aiConfigService');
 const userContextService = require('./userContextService');
 const encryptedDb = require('./encryptedDatabaseService');
 const db = require('../db');
+const {
+  detectNameHint,
+  normalizePersonName
+} = require('../utils/assistantTextSanitizer');
 
 /**
- * Извлечь имя пользователя из сообщения через LLM (JSON mode)
+ * Извлечь имя пользователя из сообщения.
+ * Сначала эвристика (без LLM); LLM только если есть явный намёк на имя.
  * @param {string} message - Сообщение пользователя
- * @returns {Promise<Object>} { name: string|null, should_update_name: boolean }
+ * @returns {Promise<Object>} { name: string|null, should_update_name: boolean, confidence: number }
  */
 async function extractName(message) {
   try {
     logger.info(`[ProfileAnalysis] Начало извлечения имени из сообщения: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
 
+    const hint = detectNameHint(message);
+    if (!hint.likely) {
+      logger.info('[ProfileAnalysis] Признаков имени в сообщении нет — LLM не вызываем');
+      return { name: null, should_update_name: false, confidence: 0 };
+    }
+
+    const heuristicName = normalizePersonName(hint.candidate);
+    if (heuristicName) {
+      // Явные шаблоны «меня зовут …» / короткое имя — без второго прогона LLM
+      const strongPattern = /меня\s+зовут|зови(?:те)?\s+меня|мо[её]\s+имя|^[А-ЯЁа-яё-]{2,20}$/i.test(
+        String(message || '').trim()
+      );
+      if (strongPattern) {
+        logger.info(`[ProfileAnalysis] Имя извлечено эвристикой без LLM: ${heuristicName}`);
+        return { name: heuristicName, should_update_name: true, confidence: 0.92 };
+      }
+    }
+
     const ollamaUrl = await ollamaConfig.getBaseUrlAsync();
-    const llmModel = await ollamaConfig.getDefaultModelAsync();
-    const llmParameters = await aiConfigService.getLLMParameters();
+    let llmModel = await ollamaConfig.getDefaultModelAsync();
+    // На части VDS в БД ещё лежит короткий тег «qwen2.5» без размера — нормализуем
+    if (!llmModel || llmModel === 'qwen2.5' || !String(llmModel).includes(':')) {
+      llmModel = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
+    }
     const timeouts = await aiConfigService.getTimeouts();
+    const nameExtractionTimeout = Math.min(timeouts.ollamaChat || 60000, 45000);
 
-    const nameExtractionTimeout = Math.min(timeouts.ollamaChat || 60000, 60000);
-    logger.info(`[ProfileAnalysis] Параметры для извлечения имени: model=${llmModel}, timeout=${nameExtractionTimeout/1000}с`);
+    logger.info(`[ProfileAnalysis] Параметры для извлечения имени: model=${llmModel}, timeout=${nameExtractionTimeout / 1000}с`);
 
-    const prompt = `Определи, указал ли пользователь своё имя в сообщении.
+    const prompt = `Определи, указал ли пользователь своё личное имя в сообщении.
 
-Сообщение: "${message}"
+Сообщение: ${JSON.stringify(String(message || ''))}
 
-Требования:
-- Пользователь пишет по-русски, возможны формулировки вроде "я Алекс", "меня зовут Анна", "это Иван".
-- Если явно видишь имя, нормализуй его (первая буква прописная, без лишних слов) и установи "should_update_name": true.
-- Если имя не указано или есть сомнения, верни name=null и should_update_name=false.
-- Если уверенность ниже 0.7, не обновляй имя.
-- Верни строго JSON-объект одной строкой: {"name":string|null,"should_update_name":boolean,"confidence":number}.`;
+Правила:
+- Имя только если пользователь явно представился (например «меня зовут Анна», «я Алекс»).
+- Не путай имя с ролями, компаниями, вопросами («кто главный», «расскажи о компании»).
+- Имя только кириллицей, одно или два слова, без кавычек и титулов.
+- Если сомневаешься — name=null, should_update_name=false, confidence ниже 0.7.
+- Ответ строго JSON одной строкой: {"name":string|null,"should_update_name":boolean,"confidence":number}`;
 
     const extractStartTime = Date.now();
-    logger.info(`[ProfileAnalysis] Отправка запроса к Ollama для извлечения имени...`);
-    
+    logger.info('[ProfileAnalysis] Отправка запроса к Ollama для извлечения имени...');
+
     const response = await axios.post(`${ollamaUrl}/api/chat`, {
       model: llmModel,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: llmParameters.temperature,
-      num_predict: llmParameters.maxTokens,
-      top_p: llmParameters.top_p,
-      top_k: llmParameters.top_k,
-      repeat_penalty: llmParameters.repeat_penalty,
-      format: 'json', // Используем JSON mode для structured output
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      num_predict: 64,
+      top_p: 0.9,
+      format: 'json',
       stream: false
     }, {
       timeout: nameExtractionTimeout
@@ -75,8 +94,7 @@ async function extractName(message) {
 
     const extractDuration = Date.now() - extractStartTime;
     logger.info(`[ProfileAnalysis] Получен ответ от Ollama для извлечения имени за ${extractDuration}ms, статус: ${response.status}`);
-    
-    // Приводим ответ к объекту (учитываем возможную строку при потоковом ответе)
+
     let payload = response.data;
     if (!payload) {
       logger.error('[ProfileAnalysis] Ответ от Ollama не содержит data:', response);
@@ -100,41 +118,37 @@ async function extractName(message) {
     if (Array.isArray(payload)) {
       payload = payload[payload.length - 1] || {};
     }
-    
+
     const messagePayload = payload.message || payload.response || null;
     if (!messagePayload || !messagePayload.content) {
       logger.error('[ProfileAnalysis] Ответ от Ollama не содержит message.content:', payload);
       return { name: null, should_update_name: false, confidence: 0 };
     }
-    
+
     let result;
     try {
-      result = JSON.parse(messagePayload.content);
+      result = typeof messagePayload.content === 'string'
+        ? JSON.parse(messagePayload.content)
+        : messagePayload.content;
     } catch (parseError) {
       logger.error('[ProfileAnalysis] Ошибка парсинга JSON из ответа Ollama:', {
         content: messagePayload.content,
         error: parseError.message
       });
+      // Fallback на эвристику, если LLM вернул мусор
+      if (heuristicName) {
+        return { name: heuristicName, should_update_name: true, confidence: 0.75 };
+      }
       return { name: null, should_update_name: false, confidence: 0 };
     }
-    
-    logger.info(`[ProfileAnalysis] Результат извлечения имени: name=${result.name || 'null'}, should_update=${result.should_update_name}, confidence=${result.confidence || 'N/A'}`);
 
-    let normalizedName = typeof result.name === 'string' ? result.name.trim() : '';
-    if (normalizedName) {
-      normalizedName = normalizedName.replace(/\s+/g, ' ');
-      normalizedName = normalizedName.replace(/^["'«»]+|["'«»]+$/g, '');
-      if (normalizedName.length === 1) {
-        normalizedName = normalizedName.toUpperCase();
-      } else {
-        normalizedName = normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1);
-      }
-    }
-
-    const rawConfidence = Number(result.confidence);
+    const normalizedName = normalizePersonName(result?.name);
+    const rawConfidence = Number(result?.confidence);
     const confidence = Number.isFinite(rawConfidence)
       ? Math.max(0, Math.min(1, rawConfidence))
-      : (normalizedName ? 1 : 0);
+      : (normalizedName ? 0.8 : 0);
+
+    logger.info(`[ProfileAnalysis] Результат извлечения имени: name=${normalizedName || 'null'}, should_update=${result?.should_update_name}, confidence=${confidence}`);
 
     if (confidence < 0.7 || !normalizedName) {
       if (normalizedName && confidence < 0.7) {
@@ -145,16 +159,13 @@ async function extractName(message) {
 
     const shouldUpdate = typeof result.should_update_name === 'boolean'
       ? result.should_update_name
-      : !!normalizedName;
+      : true;
 
-    const finalResult = {
-      name: normalizedName || null,
+    return {
+      name: normalizedName,
       should_update_name: shouldUpdate,
       confidence
     };
-    
-    logger.debug(`[ProfileAnalysis] Финальный результат извлечения имени:`, finalResult);
-    return finalResult;
   } catch (error) {
     logger.error('[ProfileAnalysis] Ошибка извлечения имени:', {
       message: error.message,

@@ -13,6 +13,7 @@
 const logger = require('../utils/logger');
 const broadcastService = require('./broadcastService');
 const broadcastSendService = require('./broadcastSendService');
+const broadcastDraftService = require('./broadcastDraftService');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -108,6 +109,35 @@ class BroadcastQueueService {
     return true;
   }
 
+  async waitForScheduleWindow(campaignId) {
+    let loggedOutside = false;
+
+    while (true) {
+      const campaign = await broadcastService.getCampaignById(campaignId);
+      if (!campaign || campaign.status !== 'in_progress') {
+        return false;
+      }
+
+      if (broadcastDraftService.isWithinSchedule(campaign)) {
+        if (loggedOutside) {
+          logger.info(`[BroadcastQueue] Campaign ${campaignId}: окно отправки открыто`);
+        }
+        return true;
+      }
+
+      if (!loggedOutside) {
+        logger.info(
+          `[BroadcastQueue] Campaign ${campaignId}: вне окна расписания `
+          + `(days=${JSON.stringify(campaign.schedule_days)}, `
+          + `${campaign.schedule_hour_start}-${campaign.schedule_hour_end} ${campaign.schedule_timezone})`
+        );
+        loggedOutside = true;
+      }
+
+      await sleep(30000);
+    }
+  }
+
   async processCampaign(campaignId) {
     if (this.activeCampaigns.has(campaignId)) {
       return;
@@ -121,7 +151,7 @@ class BroadcastQueueService {
         return;
       }
 
-      if (campaign.status === 'queued') {
+      if (campaign.status === 'queued' || campaign.status === 'ready') {
         campaign = await broadcastService.startCampaign({ campaignId });
       }
 
@@ -131,7 +161,13 @@ class BroadcastQueueService {
 
       const emailReady = await waitForEmailBot();
       if (!emailReady) {
-        logger.warn(`[BroadcastQueue] Кампания ${campaignId}: отправка отложена, Email-бот не готов`);
+        logger.warn(`[BroadcastQueue] Кампания ${campaignId}: Email-бот не готов — ставим на паузу`);
+        await broadcastService.pauseCampaign({
+          campaignId,
+          reason: 'Email-бот не готов, отправка отложена'
+        }).catch((error) => {
+          logger.error(`[BroadcastQueue] Не удалось поставить кампанию ${campaignId} на паузу: ${error.message}`);
+        });
         return;
       }
 
@@ -144,8 +180,6 @@ class BroadcastQueueService {
       const attachments = await broadcastService.loadCampaignAttachments(campaignId);
       const finalizedIds = await broadcastService.getFinalizedRecipientIds(campaignId);
       const pendingRecipientIds = recipientIds.filter(id => !finalizedIds.has(id));
-      const subject = String(campaign.subject || '').trim() || 'Новое сообщение';
-      const message = String(campaign.message_body || campaign.message_preview || '').trim();
 
       if (!pendingRecipientIds.length) {
         await broadcastService.completeCampaign({ campaignId });
@@ -160,6 +194,11 @@ class BroadcastQueueService {
           return;
         }
 
+        const withinWindow = await this.waitForScheduleWindow(campaignId);
+        if (!withinWindow) {
+          return;
+        }
+
         const recipientUserId = pendingRecipientIds[index];
         await broadcastService.updateCurrentIndex(
           campaignId,
@@ -167,11 +206,23 @@ class BroadcastQueueService {
         );
 
         try {
+          const draft = await broadcastDraftService.getDraft({
+            campaignId,
+            recipientUserId
+          });
+
+          if (!draft || draft.status !== 'draft' || !String(draft.body || '').trim()) {
+            throw new Error('Черновик не готов');
+          }
+
+          const sendSubject = String(draft.subject || campaign.subject || '').trim() || 'Новое сообщение';
+          const sendContent = String(draft.body || '').trim();
+
           const result = await broadcastSendService.sendToRecipient({
             recipientUserId,
             senderId: campaign.sender_id,
-            subject,
-            content: message,
+            subject: sendSubject,
+            content: sendContent,
             attachments,
             campaignId
           });
@@ -195,7 +246,8 @@ class BroadcastQueueService {
         }
 
         if (index < pendingRecipientIds.length - 1) {
-          const canContinue = await this.interruptibleDelay(campaignId, campaign.delay_seconds);
+          campaign = await broadcastService.getCampaignById(campaignId);
+          const canContinue = await this.interruptibleDelay(campaignId, campaign?.delay_seconds);
           if (!canContinue) {
             return;
           }

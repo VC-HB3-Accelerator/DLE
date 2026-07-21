@@ -527,6 +527,23 @@ function broadcastDeploymentUpdate(data) {
   logger.debug('📡 [WebSocket] Отправлено deployment update: deployment_update');
 }
 
+/**
+ * Прогресс / статус кампании рассылки (prepare + send).
+ * Клиент слушает type: broadcast-campaign-updated вместо частого HTTP poll.
+ */
+function broadcastCampaignUpdate(payload = {}) {
+  const message = JSON.stringify({
+    type: 'broadcast-campaign-updated',
+    campaign: payload.campaign || null,
+    progress: payload.progress || null,
+    draft: payload.draft || null,
+    event: payload.event || 'progress',
+    timestamp: Date.now()
+  });
+
+  broadcastToAllClients(message);
+}
+
 // broadcastModulesUpdate удалена - используем deploymentWebSocketService.broadcastToDLE
 
 module.exports = { 
@@ -548,6 +565,7 @@ module.exports = {
   broadcastTokenBalancesUpdate,
   broadcastTokenBalanceChanged,
   broadcastDeploymentUpdate,
+  broadcastCampaignUpdate,
   getConnectedUsers,
   getStats
 };
