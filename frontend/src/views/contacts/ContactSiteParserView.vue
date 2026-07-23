@@ -346,8 +346,12 @@ const fetchTimeoutSecMin = 3;
 const fetchTimeoutSecMax = 30;
 
 const selectedContactIds = computed(() => {
-  const raw = route.query.ids || sessionStorage.getItem(PARSER_IDS_STORAGE_KEY) || '';
-  return [...new Set(String(raw).split(',').map((id) => Number(id.trim())).filter((id) => Number.isInteger(id) && id > 0))];
+  const parseIds = (raw) => [...new Set(String(raw || '').split(',').map((id) => Number(id.trim())).filter((id) => Number.isInteger(id) && id > 0))];
+  const fromQuery = parseIds(route.query.ids);
+  const fromStorage = parseIds(sessionStorage.getItem(PARSER_IDS_STORAGE_KEY));
+  // sessionStorage надёжнее длинного ?ids= (URL может обрезаться)
+  if (fromStorage.length >= fromQuery.length && fromStorage.length > 0) return fromStorage;
+  return fromQuery;
 });
 
 const filteredModels = computed(() => {

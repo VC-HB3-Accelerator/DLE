@@ -1,0 +1,10 @@
+# Sitemap URL для поисковиков (Google / Yandex) — отправлять ПОСЛЕ sync + rebuild frontend-nginx + backend + prerender
+
+## VDS 185.221.214.77
+https://hb3-accelerator.com/sitemap.xml
+https://hb3-accelerator.com/robots.txt
+
+## VDS 185.26.121.127
+https://xn--80aqc0am6d.xn--p1ai/sitemap.xml
+https://эрайти.рф/sitemap.xml
+https://xn--80aqc0am6d.xn--p1ai/robots.txt

@@ -20,8 +20,14 @@ const vectorSearchClient = require('../services/vectorSearchClient');
 const logger = require('../utils/logger');
 const { preRenderBlog, publishSeoForPage, removeHtmlForSlug } = require('../scripts/pre-render-blog');
 const { attachCoverToPage } = require('../utils/blogCoverUtils');
+const axios = require('axios');
 
 const SEO_PUBLISH_TIMEOUT_MS = Number(process.env.SEO_PUBLISH_TIMEOUT_MS || 60000);
+const GITEA_SITEMAP_OWNER = process.env.GITEA_SITEMAP_OWNER || 'VC-HB3-Accelerator';
+const GITEA_SITEMAP_REPO = process.env.GITEA_SITEMAP_REPO || 'Docs';
+const GITEA_SITEMAP_BRANCH = process.env.GITEA_SITEMAP_BRANCH || 'main';
+const GITEA_INTERNAL_URL = (process.env.GITEA_INTERNAL_URL || 'http://dapp-gitea:3000').replace(/\/$/, '');
+
 
 async function withTimeout(promise, ms, label = 'operation') {
   let timer;
@@ -506,6 +512,64 @@ async function generateUniqueSlug(title, pageId, tableName) {
   }
   
   return slug;
+}
+
+/**
+ * Проставляет уникальный slug страницам без slug (нужно для SEO URL и prerender).
+ */
+async function ensureMissingSlugs(rows, tableName) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  for (const row of rows) {
+    if (!row || row.id == null) continue;
+    if (row.slug && typeof row.slug === 'string' && row.slug.trim() !== '') {
+      row.slug = row.slug.trim();
+      continue;
+    }
+    try {
+      let title = row.title;
+      if ((!title || !String(title).trim()) && (row.title_encrypted || row.content_encrypted)) {
+        try {
+          const decrypted = await decryptPageRow(row);
+          title = decrypted.title || title;
+        } catch (_) { /* keep title */ }
+      }
+      title = title || `page-${row.id}`;
+      const newSlug = await generateUniqueSlug(title, row.id, tableName);
+      await db.getQuery()(
+        `UPDATE ${tableName} SET slug = $1 WHERE id = $2 AND (slug IS NULL OR TRIM(COALESCE(slug, '')) = '')`,
+        [newSlug, row.id]
+      );
+      row.slug = newSlug;
+      console.log(`[pages] ensureMissingSlugs: id=${row.id} → "${newSlug}"`);
+    } catch (err) {
+      console.warn(`[pages] ensureMissingSlugs: id=${row.id}:`, err.message);
+      row.slug = `page-${row.id}`;
+    }
+  }
+  return rows;
+}
+
+/**
+ * Публичные .md из Gitea Docs для sitemap (src/branch URL).
+ */
+async function fetchGiteaDocsMarkdownPaths() {
+  const owner = GITEA_SITEMAP_OWNER;
+  const repo = GITEA_SITEMAP_REPO;
+  const branch = GITEA_SITEMAP_BRANCH;
+  const url = `${GITEA_INTERNAL_URL}/api/v1/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
+  try {
+    const { data } = await axios.get(url, { timeout: 15000, validateStatus: () => true });
+    if (!data || !Array.isArray(data.tree)) {
+      console.warn('[pages] Gitea Docs tree: неожиданный ответ', data && data.message);
+      return [];
+    }
+    return data.tree
+      .filter((t) => t && t.type === 'blob' && typeof t.path === 'string' && /\.md$/i.test(t.path))
+      .map((t) => t.path);
+  } catch (err) {
+    console.warn('[pages] Gitea Docs tree fetch failed:', err.message);
+    return [];
+  }
 }
 
 // Middleware для условной обработки multer (только для multipart/form-data)
@@ -1718,7 +1782,8 @@ router.get('/public/all', async (req, res) => {
     if (rows.length > 0) {
       console.log(`[pages] Примеры документов:`, rows.slice(0, 3).map(r => ({ id: r.id, title: r.title, category: r.category })));
     }
-    
+
+    await ensureMissingSlugs(rows, tableName);
     res.json(rows);
   } catch (error) {
     console.error('Ошибка получения публичных страниц:', error);
@@ -1971,10 +2036,10 @@ router.get('/published/all', async (req, res) => {
       FROM ${tableName}
       WHERE status = 'published' AND visibility = 'public'
         AND (show_in_blog IS NULL OR show_in_blog = FALSE)
-        AND slug IS NOT NULL AND TRIM(slug) <> ''
       ORDER BY created_at DESC
     `);
-    res.json(rows);
+    await ensureMissingSlugs(rows, tableName);
+    res.json(rows.filter((r) => r.slug && String(r.slug).trim()));
   } catch (error) {
     console.error('Ошибка получения списка published:', error);
     res.status(500).json([]);
@@ -2447,6 +2512,12 @@ Allow: /blog/
 Allow: /content/published
 Allow: /content/published/
 
+# Gitea: ботам только markdown-файлы
+Disallow: /gitea/
+Allow: /gitea/*/src/branch/*.md
+Allow: /gitea/*/raw/branch/*.md
+Allow: /*.md$
+
 # Разрешаем Googlebot публичные API для рендера/проверки индексации
 Allow: /api/pages/blog/all
 Allow: /api/pages/blog/
@@ -2498,17 +2569,17 @@ router.get('/public/sitemap.xml', async (req, res) => {
     // Генерируем XML sitemap (каждый <url> в одну строку — удобно для grep и без переносов внутри <loc>)
     let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
     sitemap += `  <url><loc>${escapeXml(baseUrl + '/')}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
-    sitemap += `  <url><loc>${escapeXml(baseUrl + '/blog')}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
-    sitemap += `  <url><loc>${escapeXml(baseUrl + '/content/published')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
-    sitemap += `  <url><loc>${escapeXml(baseUrl + '/gitea')}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/blog/')}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/content/published/')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
 
     if (existsRes.rows[0].exists) {
       const { rows: blogPages } = await db.getQuery()(`
-        SELECT id, slug, updated_at, created_at 
+        SELECT id, slug, title, updated_at, created_at 
         FROM ${tableName} 
         WHERE status = 'published' AND visibility = 'public' AND show_in_blog = TRUE
         ORDER BY created_at DESC
       `);
+      await ensureMissingSlugs(blogPages, tableName);
 
       for (const page of blogPages) {
         if (!page.slug || typeof page.slug !== 'string' || page.slug.trim() === '') {
@@ -2521,11 +2592,12 @@ router.get('/public/sitemap.xml', async (req, res) => {
       }
 
       const { rows: otherPages } = await db.getQuery()(`
-        SELECT id, slug, updated_at, created_at 
+        SELECT id, slug, title, updated_at, created_at 
         FROM ${tableName} 
         WHERE status = 'published' AND visibility = 'public' AND (show_in_blog IS NULL OR show_in_blog = FALSE)
         ORDER BY created_at DESC
       `);
+      await ensureMissingSlugs(otherPages, tableName);
 
       for (const page of otherPages) {
         if (!page.slug || typeof page.slug !== 'string' || page.slug.trim() === '') {
@@ -2536,6 +2608,13 @@ router.get('/public/sitemap.xml', async (req, res) => {
         const pageUrl = `${baseUrl}/content/published/${encodeURIComponent(page.slug.trim())}`;
         sitemap += `  <url><loc>${escapeXml(pageUrl)}</loc><lastmod>${lastmod.split('T')[0]}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>\n`;
       }
+    }
+
+    // Markdown из публичного репозитория Docs в Gitea
+    const mdPaths = await fetchGiteaDocsMarkdownPaths();
+    for (const mdPath of mdPaths) {
+      const pageUrl = `${baseUrl}/gitea/${GITEA_SITEMAP_OWNER}/${GITEA_SITEMAP_REPO}/src/branch/${GITEA_SITEMAP_BRANCH}/${mdPath.split('/').map(encodeURIComponent).join('/')}`;
+      sitemap += `  <url><loc>${escapeXml(pageUrl)}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>\n`;
     }
 
     sitemap += `</urlset>`;

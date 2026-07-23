@@ -73,9 +73,6 @@ router.post('/jobs', requireAuth, requirePermission(PERMISSIONS.EDIT_CONTACTS), 
   if (!userIds.length) {
     return res.status(400).json({ error: 'userIds обязателен' });
   }
-  if (userIds.length > 500) {
-    return res.status(400).json({ error: 'Слишком много контактов за раз (макс. 500)' });
-  }
 
   try {
     const actorId = req.user?.id || req.session?.userId || null;

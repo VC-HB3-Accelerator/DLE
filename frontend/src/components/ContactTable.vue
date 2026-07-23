@@ -1423,9 +1423,12 @@ function goToSiteParserPage() {
   if (selectedGuestCount.value > 0) {
     ElMessage.info(t('contacts.parser.guestsExcluded'));
   }
+  // ids в sessionStorage: длинный ?ids= в URL обрезается браузером при больших выборках
+  const ids = selectedRegisteredUserIds.value;
+  sessionStorage.setItem('contactSiteParserIds', ids.join(','));
   router.push({
     name: 'contacts-site-parser',
-    query: { ids: selectedRegisteredUserIds.value.join(',') }
+    query: ids.length <= 80 ? { ids: ids.join(',') } : {}
   });
 }
 
