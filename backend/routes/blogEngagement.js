@@ -131,15 +131,27 @@ router.delete('/comments/:commentId', requireAuth, async (req, res) => {
 
 router.post('/subscribe', async (req, res) => {
   try {
-    const { email, source_page_id: sourcePageId } = req.body || {};
+    const {
+      email,
+      source_page_id: sourcePageId,
+      privacy_consent: privacyConsent,
+      privacy_consent_url: privacyConsentUrl
+    } = req.body || {};
     const result = await blogEngagementService.subscribe(
       email,
-      sourcePageId ? parseInt(sourcePageId, 10) : null
+      sourcePageId ? parseInt(sourcePageId, 10) : null,
+      {
+        privacyConsent,
+        privacyConsentUrl
+      }
     );
     res.json(result);
   } catch (error) {
     console.error('[blogEngagement] POST subscribe:', error);
-    res.status(400).json({ error: error.message || 'Ошибка подписки' });
+    res.status(400).json({
+      error: error.message || 'Ошибка подписки',
+      code: error.code || null
+    });
   }
 });
 

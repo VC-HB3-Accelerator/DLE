@@ -66,10 +66,22 @@
           :placeholder="t('blog.subscribe.placeholder')"
           required
         />
+        <label class="blog-engagement__consent">
+          <input v-model="privacyConsent" type="checkbox" required />
+          <span>
+            {{ t('blog.subscribe.consentPrefix') }}
+            <a
+              :href="privacyDocsUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              @click.stop
+            >{{ t('blog.subscribe.consentLink') }}</a>
+          </span>
+        </label>
         <button
           type="submit"
           class="blog-engagement__subscribe-btn"
-          :disabled="isSubscribing"
+          :disabled="isSubscribing || !privacyConsent"
         >
           {{ t('blog.subscribe.button') }}
         </button>
@@ -91,6 +103,7 @@ import { useI18n } from 'vue-i18n';
 import eventBus from '../../utils/eventBus';
 import blogEngagementService from '../../services/blogEngagementService';
 import { emptyReactionCounts } from '../../constants/blogReactions';
+import { getPrivacyDocsUrl } from '../../constants/publishedDocs';
 import BlogShareBar from './BlogShareBar.vue';
 import BlogComments from './BlogComments.vue';
 import BlogReactions from './BlogReactions.vue';
@@ -116,6 +129,8 @@ const isLoading = ref(false);
 const subscribeEmail = ref('');
 const subscribeMessage = ref('');
 const isSubscribing = ref(false);
+const privacyConsent = ref(false);
+const privacyDocsUrl = getPrivacyDocsUrl();
 const rootEl = ref(null);
 
 const shareUrl = computed(() => {
@@ -181,15 +196,27 @@ function requestLogin() {
 
 async function handleSubscribe() {
   if (!subscribeEmail.value.trim()) return;
+  if (!privacyConsent.value) {
+    subscribeMessage.value = t('blog.subscribe.consentRequired');
+    return;
+  }
   isSubscribing.value = true;
   subscribeMessage.value = '';
   try {
-    const result = await blogEngagementService.subscribe(subscribeEmail.value.trim(), props.pageId);
+    const result = await blogEngagementService.subscribe(
+      subscribeEmail.value.trim(),
+      props.pageId,
+      {
+        privacyConsent: true,
+        privacyConsentUrl: privacyDocsUrl,
+      }
+    );
     if (result.alreadyConfirmed) {
       subscribeMessage.value = t('blog.subscribe.already');
     } else {
       subscribeMessage.value = t('blog.subscribe.sent');
       subscribeEmail.value = '';
+      privacyConsent.value = false;
     }
   } catch (e) {
     subscribeMessage.value = e?.response?.data?.error || t('blog.subscribe.error');
@@ -355,12 +382,33 @@ watch(() => props.isAuthenticated, loadEngagement);
 
 .blog-engagement__subscribe-form {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.blog-engagement__consent {
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-grey, #606266);
+  cursor: pointer;
+}
+
+.blog-engagement__consent input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.blog-engagement__consent a {
+  color: var(--color-primary, #2d72d9);
+  text-decoration: underline;
 }
 
 .blog-engagement__subscribe-input {
-  flex: 1 1 200px;
+  width: 100%;
+  box-sizing: border-box;
   height: 40px;
   padding: 0 14px;
   border: 1px solid rgba(0, 0, 0, 0.12);

@@ -17,16 +17,34 @@
           {{ t('blog.subscribe.button') }}
         </button>
         <form v-else class="blog-feed-card__subscribe-inline" @submit.prevent="handleSubscribe" @click.stop>
-          <input
-            v-model="subscribeEmail"
-            type="email"
-            class="blog-feed-card__subscribe-input"
-            :placeholder="t('blog.subscribe.placeholder')"
-            required
-          />
-          <button type="submit" class="blog-feed-card__header-btn blog-feed-card__header-btn--primary" :disabled="isSubscribing">
-            OK
-          </button>
+          <div class="blog-feed-card__subscribe-row">
+            <input
+              v-model="subscribeEmail"
+              type="email"
+              class="blog-feed-card__subscribe-input"
+              :placeholder="t('blog.subscribe.placeholder')"
+              required
+            />
+            <button
+              type="submit"
+              class="blog-feed-card__header-btn blog-feed-card__header-btn--primary"
+              :disabled="isSubscribing || !privacyConsent"
+            >
+              OK
+            </button>
+          </div>
+          <label class="blog-feed-card__consent">
+            <input v-model="privacyConsent" type="checkbox" required />
+            <span>
+              {{ t('blog.subscribe.consentPrefix') }}
+              <a
+                :href="privacyDocsUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                @click.stop
+              >{{ t('blog.subscribe.consentLink') }}</a>
+            </span>
+          </label>
         </form>
         <button
           v-if="!isAuthenticated"
@@ -166,6 +184,7 @@ import { useI18n } from 'vue-i18n';
 import eventBus from '../../utils/eventBus';
 import blogEngagementService from '../../services/blogEngagementService';
 import { emptyReactionCounts } from '../../constants/blogReactions';
+import { getPrivacyDocsUrl } from '../../constants/publishedDocs';
 import BlogReactions from './BlogReactions.vue';
 
 const props = defineProps({
@@ -189,6 +208,8 @@ const showSubscribeForm = ref(false);
 const subscribeEmail = ref('');
 const subscribeMessage = ref('');
 const isSubscribing = ref(false);
+const privacyConsent = ref(false);
+const privacyDocsUrl = getPrivacyDocsUrl();
 const draftComment = ref('');
 const isCommenting = ref(false);
 const commentError = ref('');
@@ -304,15 +325,23 @@ async function sharePost() {
 
 async function handleSubscribe() {
   if (!subscribeEmail.value.trim()) return;
+  if (!privacyConsent.value) {
+    subscribeMessage.value = t('blog.subscribe.consentRequired');
+    return;
+  }
   isSubscribing.value = true;
   subscribeMessage.value = '';
   try {
-    const result = await blogEngagementService.subscribe(subscribeEmail.value.trim(), props.page.id);
+    const result = await blogEngagementService.subscribe(subscribeEmail.value.trim(), props.page.id, {
+      privacyConsent: true,
+      privacyConsentUrl: privacyDocsUrl,
+    });
     if (result.alreadyConfirmed) {
       subscribeMessage.value = t('blog.subscribe.already');
     } else {
       subscribeMessage.value = t('blog.subscribe.sent');
       subscribeEmail.value = '';
+      privacyConsent.value = false;
       showSubscribeForm.value = false;
     }
   } catch (e) {
@@ -416,9 +445,36 @@ async function submitFeedComment() {
 
 .blog-feed-card__subscribe-inline {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   flex: 1;
   min-width: 200px;
+}
+
+.blog-feed-card__subscribe-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.blog-feed-card__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #606266;
+  cursor: pointer;
+}
+
+.blog-feed-card__consent input {
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.blog-feed-card__consent a {
+  color: var(--color-primary, #2d72d9);
+  text-decoration: underline;
 }
 
 .blog-feed-card__subscribe-input {

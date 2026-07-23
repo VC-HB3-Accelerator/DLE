@@ -41,6 +41,9 @@
         <el-button v-if="canBroadcast" @click="goToBroadcastPage">
           {{ t('contacts.broadcast.button') }}
         </el-button>
+        <el-button v-if="canEditContacts" @click="goToConferenceFromSelection">
+          {{ t('contacts.conference.button') }}
+        </el-button>
         <el-button v-if="canEditContacts" @click="goToSiteParserPage">
           {{ t('contacts.parser.button') }}
         </el-button>
@@ -54,22 +57,20 @@
       </div>
     </div>
 
-    <el-form class="filters-form" label-position="top" @submit.prevent>
-      <div class="filters-row filters-row--primary" :class="{ 'filters-row--compact': !isEditorRole }">
-        <template v-if="isEditorRole">
-          <el-form-item :label="t('contacts.search')" class="filter-search">
-            <el-input v-model="filterSearch" :placeholder="t('contacts.searchPlaceholder')" clearable @input="onSearchInput" />
-          </el-form-item>
-          <el-form-item :label="t('contacts.contactType')">
-            <el-select v-model="filterContactType" :placeholder="t('common.all')" class="filter-field" @change="() => applyFilters(true)">
-              <el-option :label="t('common.all')" value="all" />
-              <el-option :label="t('contacts.email')" value="email" />
-              <el-option :label="t('contacts.telegram')" value="telegram" />
-              <el-option :label="t('contacts.wallet')" value="wallet" />
-            </el-select>
-          </el-form-item>
-        </template>
-        <el-form-item v-if="isEditorRole" class="filters-actions" :label="'\u00a0'">
+    <el-form v-if="isEditorRole" class="filters-form" label-position="top" @submit.prevent>
+      <div class="filters-row filters-row--primary">
+        <el-form-item :label="t('contacts.search')" class="filter-search">
+          <el-input v-model="filterSearch" :placeholder="t('contacts.searchPlaceholder')" clearable @input="onSearchInput" />
+        </el-form-item>
+        <el-form-item :label="t('contacts.contactType')">
+          <el-select v-model="filterContactType" :placeholder="t('common.all')" class="filter-field" @change="() => applyFilters(true)">
+            <el-option :label="t('common.all')" value="all" />
+            <el-option :label="t('contacts.email')" value="email" />
+            <el-option :label="t('contacts.telegram')" value="telegram" />
+            <el-option :label="t('contacts.wallet')" value="wallet" />
+          </el-select>
+        </el-form-item>
+        <el-form-item class="filters-actions" :label="'\u00a0'">
           <div class="filters-actions-buttons">
             <el-button :type="showAdvancedFilters ? 'primary' : 'default'" plain @click="toggleAdvancedFilters">
               {{ showAdvancedFilters ? t('contacts.lessFilters') : t('contacts.moreFilters') }}
@@ -80,7 +81,7 @@
         </el-form-item>
       </div>
 
-      <div v-if="isEditorRole && showAdvancedFilters" class="filters-row filters-row--advanced">
+      <div v-if="showAdvancedFilters" class="filters-row filters-row--advanced">
         <el-form-item :label="t('contacts.createdDateFrom')">
           <el-date-picker v-model="filterCreatedDateFrom" type="date" :placeholder="t('contacts.createdDateFrom')" clearable class="filter-field" @change="() => applyFilters(true)" />
         </el-form-item>
@@ -1377,6 +1378,36 @@ function goToBroadcastPage() {
   router.push({
     name: 'contacts-broadcast',
     query: { ids: selectedRegisteredUserIds.value.join(',') }
+  });
+}
+
+/**
+ * CRM bulk: только multi (2–3). 1:1 — со страницы контакта.
+ */
+function goToConferenceFromSelection() {
+  const ids = selectedRegisteredUserIds.value;
+  if (!ids.length) {
+    if (selectedGuestCount.value > 0) {
+      ElMessage.warning(t('contacts.conference.bulk.guestsExcluded'));
+    } else {
+      ElMessage.warning(t('contacts.conference.bulk.selectRegistered'));
+    }
+    return;
+  }
+  if (ids.length === 1) {
+    ElMessage.warning(t('contacts.conference.bulk.needMulti'));
+    return;
+  }
+  if (ids.length > 3) {
+    ElMessage.warning(t('contacts.conference.bulk.maxThree'));
+    return;
+  }
+  if (selectedGuestCount.value > 0) {
+    ElMessage.info(t('contacts.conference.bulk.guestsExcluded'));
+  }
+  router.push({
+    name: 'hub-conferences',
+    query: { ids: ids.join(',') }
   });
 }
 

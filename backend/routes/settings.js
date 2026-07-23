@@ -54,6 +54,7 @@ const botsSettings = require('../services/botsSettings');
 const dbSettingsService = require('../services/dbSettingsService');
 const footerDleService = require('../services/footerDleService');
 const regionUrlsService = require('../services/regionUrlsService');
+const sidebarNoticeService = require('../services/sidebarNoticeService');
 const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
 
 // Логируем версию ethers для отладки
@@ -118,6 +119,37 @@ router.delete('/footer-dle', requireAdmin, async (req, res) => {
 });
 
 // === REGION SERVER URLS (RU / International switcher) =======================
+
+router.get('/sidebar-notice', async (req, res) => {
+  try {
+    const data = await sidebarNoticeService.getNotice();
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] Ошибка получения sidebar-notice:', error);
+    res.status(500).json({ success: false, error: 'Не удалось получить текст сайдбара' });
+  }
+});
+
+router.put('/sidebar-notice', requireAdmin, async (req, res) => {
+  try {
+    const { body } = req.body || {};
+    const sessionUserId = req.session?.userId;
+    const updatedBy = sessionUserId != null && Number.isFinite(Number(sessionUserId))
+      ? Number(sessionUserId)
+      : null;
+    const data = await sidebarNoticeService.setNotice({
+      body,
+      updatedBy,
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] Ошибка сохранения sidebar-notice:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Не удалось сохранить текст сайдбара',
+    });
+  }
+});
 
 router.get('/region-urls', async (req, res) => {
   try {
@@ -426,7 +458,10 @@ router.get('/ai-settings/:provider', async (req, res, next) => {
     if (userAccessLevel.hasAccess) {
       const { provider } = req.params;
       const settings = await aiProviderSettingsService.getProviderSettings(provider);
-      res.json({ success: true, settings });
+      const blanc = provider === 'openai'
+        ? require('../services/blancVpnService').readMeta()
+        : null;
+      res.json({ success: true, settings, blanc });
     } else {
       // Для обычных пользователей и гостей возвращаем пустые настройки
       res.json({ success: true, settings: null });
@@ -441,9 +476,19 @@ router.get('/ai-settings/:provider', async (req, res, next) => {
 router.put('/ai-settings/:provider', requireAdmin, async (req, res, next) => {
   try {
     const { provider } = req.params;
-    const { api_key, base_url, selected_model, embedding_model } = req.body;
-    const updated = await aiProviderSettingsService.upsertProviderSettings({ provider, api_key, base_url, selected_model, embedding_model });
-    res.json({ success: true, settings: updated });
+    const { api_key, base_url, selected_model, embedding_model, proxy_url, proxy_enabled, blanc_subscription_url } = req.body;
+    const updated = await aiProviderSettingsService.upsertProviderSettings({
+      provider,
+      api_key,
+      base_url,
+      selected_model,
+      embedding_model,
+      proxy_url,
+      proxy_enabled,
+      blanc_subscription_url
+    });
+    const meta = provider === 'openai' ? require('../services/blancVpnService').readMeta() : null;
+    res.json({ success: true, settings: updated, blanc: meta });
   } catch (error) {
     logger.error('Ошибка при сохранении AI-настроек:', error);
     next(error);
@@ -484,10 +529,25 @@ router.get('/ai-settings/:provider/models', requireAdmin, async (req, res, next)
 router.post('/ai-settings/:provider/verify', requireAdmin, async (req, res, next) => {
   try {
     const { provider } = req.params;
-    const { api_key, base_url } = req.body;
-    const result = await aiProviderSettingsService.verifyProviderKey(provider, { api_key, base_url });
+    const { api_key, base_url, proxy_url, proxy_enabled, blanc_subscription_url } = req.body;
+    if (provider === 'openai' && proxy_enabled && blanc_subscription_url) {
+      const blancVpnService = require('../services/blancVpnService');
+      await blancVpnService.applySubscription(blanc_subscription_url);
+      // Даём Xray ~2с на reload
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+    const result = await aiProviderSettingsService.verifyProviderKey(provider, {
+      api_key,
+      base_url,
+      proxy_url,
+      proxy_enabled,
+      blanc_subscription_url
+    });
     if (result.success) {
-      res.json({ success: true });
+      res.json({
+        success: true,
+        blanc: provider === 'openai' ? require('../services/blancVpnService').readMeta() : null
+      });
     } else {
       res.status(400).json({ success: false, error: result.error });
     }

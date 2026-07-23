@@ -17,12 +17,33 @@
       <span v-if="newMessagesCount > 0" class="badge">+{{ newMessagesCount }}</span>
       <button class="close-btn" @click="goBack">×</button>
     </div>
+
+    <div v-if="conferenceInvites.length" class="conference-invites">
+      <div
+        v-for="inv in conferenceInvites"
+        :key="inv.id"
+        class="conference-invite-card"
+      >
+        <div class="conference-invite-text">
+          <strong>{{ t('contacts.conference.participant.inviteTitle') }}</strong>
+          <span>{{ inv.title || t('contacts.conference.live.untitled') }} (#{{ inv.id }})</span>
+        </div>
+        <el-button
+          type="primary"
+          size="small"
+          :loading="joiningId === inv.id"
+          @click="openConferenceInvite(inv)"
+        >
+          {{ t('contacts.conference.participant.start') }}
+        </el-button>
+      </div>
+    </div>
     
     <div v-if="isLoading" class="loading-container">
       <div class="loading">{{ t('chat.loadingConversations') }}</div>
     </div>
     
-    <div v-else-if="personalMessages.length === 0" class="empty-state">
+    <div v-else-if="personalMessages.length === 0 && !conferenceInvites.length" class="empty-state">
       <p>{{ t('chat.noConversations') }}</p>
     </div>
     
@@ -49,10 +70,12 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import BaseLayout from '../components/BaseLayout.vue';
 import adminChatService from '../services/adminChatService.js';
 import { usePermissions } from '@/composables/usePermissions';
 import { getPrivateConversations } from '../services/messagesService';
+import conferenceService from '@/services/conferenceService';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -62,8 +85,35 @@ const { canChatWithAdmins } = usePermissions();
 const isLoading = ref(true);
 const personalMessages = ref([]);
 const newMessagesCount = ref(0);
+const conferenceInvites = ref([]);
+const joiningId = ref(null);
 
 let ws = null;
+
+async function loadConferenceInvites() {
+  try {
+    const data = await conferenceService.listMyInvites();
+    conferenceInvites.value = data.invites || [];
+  } catch {
+    conferenceInvites.value = [];
+  }
+}
+
+async function openConferenceInvite(inv) {
+  joiningId.value = inv.id;
+  try {
+    // «Старт» сразу в live (join), не только открытие чата с host
+    const data = await conferenceService.joinSession(inv.id);
+    await router.push({
+      name: 'conference-participant-live',
+      params: { sessionId: String(data.session.id) }
+    });
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.conference.participant.startError'));
+  } finally {
+    joiningId.value = null;
+  }
+}
 
 async function fetchPersonalMessages() {
   try {
@@ -193,13 +243,13 @@ const formatDate = (dateString) => {
 watch(() => route.path, async (newPath) => {
   if (newPath === '/personal-messages' && canChatWithAdmins.value) {
     console.log('[PersonalMessagesView] Возврат на страницу, обновляем список');
-    await fetchPersonalMessages();
+    await Promise.all([fetchPersonalMessages(), loadConferenceInvites()]);
   }
 });
 
 onMounted(async () => {
   if (canChatWithAdmins.value) {
-    await fetchPersonalMessages();
+    await Promise.all([fetchPersonalMessages(), loadConferenceInvites()]);
     connectWebSocket();
   }
 });
@@ -210,6 +260,36 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.conference-invites {
+  padding: 12px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.conference-invite-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-primary, #409eff);
+  border-radius: 8px;
+  background: #ecf5ff;
+}
+
+.conference-invite-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.conference-invite-text span {
+  font-size: 0.9rem;
+  color: #606266;
+}
+
 .personal-messages-header {
   display: flex;
   justify-content: space-between;

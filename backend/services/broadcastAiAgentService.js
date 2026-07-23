@@ -7,7 +7,6 @@
  */
 
 const axios = require('axios');
-const OpenAI = require('openai');
 const logger = require('../utils/logger');
 const db = require('../db');
 const ollamaConfig = require('./ollamaConfig');
@@ -36,9 +35,9 @@ const DEFAULTS = {
 
 Правила (строго):
 1. Используй ТОЛЬКО факты из PROFILE / RECIPIENT_NAME. Ничего не выдумывай.
-2. RECIPIENT_NAME — единственное обращение к получателю. Вставь его ДОСЛОВНО в greeting (и желательно кратко в subject).
+2. Если RECIPIENT_NAME не пуст — ОБЯЗАТЕЛЬНО вставь его ДОСЛОВНО в greeting (не только в subject). Subject тоже желательно персонализировать кратко.
 3. Не делай subject из одного приветствия («Здравствуйте, …»). Сохрани смысл TEMPLATE_SUBJECT.
-4. Greeting — одна короткая строка/абзац приветствия (например: «Здравствуйте, команда <name>!»).
+4. Greeting — одна короткая строка приветствия с именем, например: «Здравствуйте, команда <RECIPIENT_NAME>!» или «Добрый день, <RECIPIENT_NAME>!». Не оставляй шаблонное «Здравствуйте!» без имени.
 5. OFFER_BODY дан только как контекст темы — не копируй его в ответ.
 6. Если RECIPIENT_NAME пуст — нейтральное «Здравствуйте!» и тема почти без изменений.
 7. Язык = язык шаблона.
@@ -309,6 +308,11 @@ function validatePersonalizedOutput({
     return { ok: false, reason: 'missing_recipient_name' };
   }
 
+  // Имя только в теме — недостаточно: приветствие тоже должно быть персонализировано
+  if (name && !textIncludesRecipientName(outGreeting, name)) {
+    return { ok: false, reason: 'greeting_missing_recipient_name' };
+  }
+
   const tplSub = String(templateSubject || '').trim();
   if (tplSub.length >= 12) {
     const tplTokens = normalizeRecipientName(tplSub)
@@ -345,7 +349,8 @@ function buildUserPrompt({ profile, subject, greeting, body }) {
     `TEMPLATE_GREETING: ${resolveGreeting(greeting)}`,
     `OFFER_BODY (context only, do not rewrite): ${String(body || '').slice(0, 1200)}`,
     `PROFILE: ${JSON.stringify(compactProfile)}`,
-    'Верни только JSON {"subject":"...","greeting":"..."}.'
+    'Верни только JSON {"subject":"...","greeting":"..."}.',
+    'greeting обязан содержать RECIPIENT_NAME, если он не пуст.'
   ].join('\n');
 }
 
@@ -447,9 +452,8 @@ async function callOllama({
 }
 
 async function callOpenAICompatible({ providerSettings, model, systemPrompt, userPrompt, temperature, maxTokens, timeoutMs }) {
-  const client = new OpenAI({
-    apiKey: providerSettings.api_key,
-    baseURL: providerSettings.base_url || undefined,
+  const openaiProxy = require('./openaiProxy');
+  const client = openaiProxy.createOpenAIClient(providerSettings, {
     timeout: clampNumber(timeoutMs, LIMITS.timeoutMsMin, LIMITS.timeoutMsMax, DEFAULTS.timeout_ms)
   });
   const response = await client.chat.completions.create({
@@ -663,9 +667,15 @@ async function personalizeForRecipient({
       });
 
     if (check.ok) {
-      return buildPersonalizedResult({
+      // LLM часто меняет только subject — дожимаем greeting с именем детерминированно
+      const polished = applyDeterministicSubjectGreeting({
+        profile,
         subject: generated.subject,
-        greeting: generated.greeting,
+        greeting: generated.greeting
+      });
+      return buildPersonalizedResult({
+        subject: polished.subject,
+        greeting: polished.greeting,
         offerBody,
         signature: templateSignature,
         legalFooter: templateLegal,

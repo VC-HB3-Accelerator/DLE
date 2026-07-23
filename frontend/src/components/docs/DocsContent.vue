@@ -333,7 +333,19 @@ function updateMetaTags(pageData) {
     const coverUrl = pageData.cover_url.startsWith('http')
       ? pageData.cover_url
       : `${window.location.origin}${pageData.cover_url.startsWith('/') ? '' : '/'}${pageData.cover_url}`;
-    updateOrCreateMeta('og:image', coverUrl, 'property');
+    if (pageData.cover_type !== 'video') {
+      updateOrCreateMeta('og:image', coverUrl, 'property');
+    }
+  }
+
+  const seoImage = seoData?.og_image || seoData?.image;
+  if (seoImage) {
+    const abs = String(seoImage).startsWith('http')
+      ? seoImage
+      : `${window.location.origin}${String(seoImage).startsWith('/') ? '' : '/'}${seoImage}`;
+    updateOrCreateMeta('og:image', abs, 'property');
+  } else if (!pageData.cover_url || pageData.cover_type === 'video') {
+    updateOrCreateMeta('og:image', `${window.location.origin}/og-default.png`, 'property');
   }
   
   // Robots meta

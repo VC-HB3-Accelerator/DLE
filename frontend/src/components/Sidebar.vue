@@ -69,6 +69,20 @@
             <span>{{ t('nav.repositories') }}</span>
           </a>
         </div>
+
+        <!-- Текст редактора + Политика и согласия -->
+        <div class="sidebar-notice">
+          <p v-if="sidebarNoticeText" class="sidebar-notice__text">{{ sidebarNoticeText }}</p>
+          <a
+            class="sidebar-notice__privacy"
+            :href="privacyDocsUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            @click="closeSidebar"
+          >
+            {{ t('settings.sidebarNotice.privacyLink') }}
+          </a>
+        </div>
         
         <!-- Блок информации о пользователе или формы подключения -->
         <template v-if="isAuthenticated">
@@ -175,6 +189,8 @@ import TelegramConnect from './identity/TelegramConnect.vue';
 import LocaleControls from './LocaleControls.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { useI18n } from 'vue-i18n';
+import { fetchSidebarNotice } from '@/services/sidebarNoticeService';
+import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -192,6 +208,18 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth', 'cancel-email-auth']);
 
 const { deleteIdentity } = useAuthContext();
+const sidebarNoticeText = ref('');
+const privacyDocsUrl = getPrivacyDocsUrl();
+
+async function loadSidebarNotice() {
+  try {
+    const data = await fetchSidebarNotice();
+    sidebarNoticeText.value = String(data?.body || '').trim();
+  } catch (error) {
+    console.warn('[Sidebar] sidebar notice load failed:', error);
+    sidebarNoticeText.value = '';
+  }
+}
 
 // URL страницы организации VC-HB3-Accelerator: локально — порт 3001; на продакшене — /gitea/
 const giteaUrl = computed(() => {
@@ -208,6 +236,8 @@ const giteaUrl = computed(() => {
 
 // Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
+  loadSidebarNotice();
+
   window.addEventListener('clear-application-data', () => {
     console.log('[Sidebar] Clearing sidebar data');
     // Очищаем данные при выходе из системы
@@ -216,9 +246,16 @@ onMounted(() => {
   
   window.addEventListener('refresh-application-data', () => {
     console.log('[Sidebar] Refreshing sidebar data');
-    // Sidebar не нуждается в обновлении данных
+    loadSidebarNotice();
   });
 });
+
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) loadSidebarNotice();
+  }
+);
 
 // Обработчики событий
 const handleWalletAuth = () => {
@@ -409,6 +446,37 @@ onMounted(() => {
 
 .nav-link-btn:hover:not(.active) {
   background-color: var(--color-grey-light);
+}
+
+.sidebar-notice {
+  margin-top: 12px;
+  padding: 0;
+}
+
+.sidebar-notice__text {
+  margin: 0 0 4px;
+  line-height: 1.35;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-light, #999);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sidebar-notice__privacy {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-light, #999);
+  text-decoration: none;
+  opacity: 0.85;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.sidebar-notice__privacy:hover {
+  color: var(--color-grey, #777);
+  opacity: 1;
+  text-decoration: underline;
 }
 
 /* Стили для общих кнопок аутентификации/действий в сайдбаре */

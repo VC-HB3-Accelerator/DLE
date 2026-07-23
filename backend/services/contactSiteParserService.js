@@ -8,7 +8,6 @@
 
 const crypto = require('crypto');
 const axios = require('axios');
-const OpenAI = require('openai');
 const logger = require('../utils/logger');
 const db = require('../db');
 const ollamaConfig = require('./ollamaConfig');
@@ -366,9 +365,8 @@ async function callOllama({ model, systemPrompt, userPrompt, temperature, maxTok
 }
 
 async function callOpenAICompatible({ providerSettings, model, systemPrompt, userPrompt, temperature, maxTokens, timeoutMs }) {
-  const client = new OpenAI({
-    apiKey: providerSettings.api_key,
-    baseURL: providerSettings.base_url || undefined,
+  const openaiProxy = require('./openaiProxy');
+  const client = openaiProxy.createOpenAIClient(providerSettings, {
     timeout: clampNumber(timeoutMs, LIMITS.timeoutMsMin, LIMITS.timeoutMsMax, DEFAULTS.timeout_ms)
   });
   const response = await client.chat.completions.create({

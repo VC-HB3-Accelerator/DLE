@@ -80,6 +80,8 @@ export function usePermissions() {
   const canManageTags = computed(() => hasPermission(PERMISSIONS.MANAGE_TAGS));
   const canBlockUsers = computed(() => hasPermission(PERMISSIONS.BLOCK_USERS));
   const canManageSettings = computed(() => hasPermission(PERMISSIONS.MANAGE_SETTINGS));
+
+  const isEditor = computed(() => currentRole.value === ROLES.EDITOR);
   
   const currentLevel = computed(() => currentRole.value);
   
@@ -138,6 +140,7 @@ export function usePermissions() {
     canManageTags,
     canBlockUsers,
     canManageSettings,
+    isEditor,
     
     // Утилиты
     getLevelDescription,

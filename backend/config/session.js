@@ -25,7 +25,7 @@ let sessionMiddleware = createSessionMiddleware();
 
 function createSessionMiddleware() {
   const isProduction = process.env.NODE_ENV === 'production';
-  
+
   return session({
     store: new pgSession({
       pool: db.getPool(),
@@ -43,13 +43,16 @@ function createSessionMiddleware() {
     }),
     secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     name: 'sessionId',
-    resave: true,
+    // false: иначе параллельный GET /auth/check (гость) перезаписывает сессию после magic login
+    resave: false,
+    rolling: true,
     saveUninitialized: false,
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: false,  // false для локального Docker (HTTP)
-      sameSite: 'lax',  // lax для локального Docker
+      // На VDS сайт по HTTPS — Secure обязателен для стабильных cookie в Chrome/Android
+      secure: isProduction,
+      sameSite: 'lax',
       path: '/',
     },
   });

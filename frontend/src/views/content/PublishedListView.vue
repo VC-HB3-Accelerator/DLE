@@ -1,121 +1,95 @@
 <!--
   Copyright (c) 2024-2026 Тарабанов Александр Викторович
   All rights reserved.
-  
-  This software is proprietary and confidential.
-  Unauthorized copying, modification, or distribution is prohibited.
-  
-  For licensing inquiries: info@hb3-accelerator.com
-  Website: https://hb3-accelerator.com
-  GitHub: https://github.com/VC-HB3-Accelerator
 -->
 
-<!--
-  Copyright (c) 2024-2026
--->
 <template>
-  <BaseLayout :is-authenticated="isAuthenticated" :identities="identities" :token-balances="tokenBalances" :is-loading-tokens="isLoadingTokens" @auth-action-completed="$emit('auth-action-completed')">
-    <div class="docs-page">
-      <div class="docs-header">
-        <button class="close-btn" @click="goBack" :title="t('common.close')">×</button>
+  <BaseLayout
+    :is-authenticated="isAuthenticated"
+    :identities="identities"
+    :token-balances="tokenBalances"
+    :is-loading-tokens="isLoadingTokens"
+    @auth-action-completed="$emit('auth-action-completed')"
+  >
+    <div class="published-page">
+      <div class="published-page__toolbar">
+        <button class="published-page__close" type="button" :title="t('common.close')" @click="goBack">×</button>
       </div>
 
-      <!-- Основной контент: сайдбар + контент -->
-      <div class="docs-layout" :class="{ 'has-content': currentPageId }">
-        <!-- Сайдбар навигации -->
-        <DocsSidebar :current-page-id="currentPageId" />
+      <!-- Просмотр одного документа -->
+      <div v-if="currentPageId" class="published-page__reader">
+        <DocsContent :page-id="currentPageId" @back="goToIndex" />
+      </div>
 
-        <!-- Основной контент -->
-        <div class="docs-main">
-          <!-- Если выбран документ - показываем его -->
-          <DocsContent v-if="currentPageId" :page-id="currentPageId" @back="goToIndex" />
+      <!-- Список документов -->
+      <div v-else class="published-page__list-wrap">
+        <BlogFeedToolbar v-model="activeFilter" :filters="sectionFilters" />
 
-          <!-- Иначе показываем список документов по категориям -->
-          <div v-else class="docs-index">
-            <div v-if="isLoading" class="loading-state">
-              <div class="loading-spinner"></div>
-              <p>{{ t('content.publishedList.loading') }}</p>
-            </div>
-
-            <div v-else-if="groupedPages.length === 0" class="empty-state">
-              <div class="empty-icon"><i class="fas fa-file-alt"></i></div>
-              <h3>{{ t('content.publishedList.emptyTitle') }}</h3>
-            </div>
-
-            <div v-else class="categories-view">
-              <div
-                v-for="category in groupedPages"
-                :key="category.name"
-                class="category-section"
-              >
-                <h2 class="category-title">
-                  <i class="fas fa-folder"></i>
-                  {{ formatCategoryName(category.name) }}
-                </h2>
-                <div class="pages-grid">
-                  <div
-                    v-for="page in category.pages"
-                    :key="page.id"
-                    class="page-card"
-                    @click="openPublic(page.id)"
-                  >
-                    <div class="page-card-header">
-                      <h3>{{ page.title }}</h3>
-                      <div class="page-card-badges">
-                        <span v-if="page.is_index_page" class="index-badge">{{ t('content.publishedList.indexBadge') }}</span>
-                        <div v-if="canManageDocs" class="page-card-actions">
-                          <button
-                            class="page-action-btn page-edit-btn"
-                            @click.stop="editPage(page.id)"
-                            :title="t('content.publishedList.editDocument')"
-                          >
-                            <i class="fas fa-edit"></i>
-                          </button>
-                          <button
-                            class="page-action-btn page-structure-btn"
-                            @click.stop="editPageStructure(page)"
-                            :title="t('content.publishedList.editStructure')"
-                          >
-                            <i class="fas fa-cog"></i>
-                          </button>
-                          <button
-                            class="page-action-btn page-delete-btn"
-                            @click.stop="confirmDeletePage(page)"
-                            :title="t('content.publishedList.deleteDocument')"
-                          >
-                            <i class="fas fa-trash"></i>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="page-card-content">
-                      <p class="page-summary">{{ page.summary || t('common.noDescription') }}</p>
-                      <div class="page-meta">
-                        <span class="page-date">
-                          <i class="fas fa-calendar"></i>
-                          {{ formatDate(page.created_at) }}
-                        </span>
-                        <span v-if="page.category" class="page-category">
-                          <i class="fas fa-folder"></i>
-                          {{ formatCategoryName(page.category) }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div v-if="isLoading" class="published-page__state">
+          <div class="published-page__spinner" />
+          <p>{{ t('content.publishedList.loading') }}</p>
         </div>
+
+        <div v-else-if="filteredPages.length === 0" class="published-page__state">
+          <div class="published-page__empty-icon"><i class="fas fa-file-alt" /></div>
+          <h3>{{ t('content.publishedList.emptyTitle') }}</h3>
+        </div>
+
+        <ul v-else class="published-page__list">
+          <li
+            v-for="page in filteredPages"
+            :key="page.id"
+            class="published-page__item"
+          >
+            <button type="button" class="published-page__item-main" @click="openPublic(page.id)">
+              <span class="published-page__item-title">{{ page.title }}</span>
+              <span v-if="page.summary" class="published-page__item-summary">{{ page.summary }}</span>
+              <span class="published-page__item-meta">
+                <span v-if="page.category" class="published-page__item-cat">
+                  {{ formatCategoryName(page.category) }}
+                </span>
+                <span v-if="page.created_at" class="published-page__item-date">
+                  {{ formatDate(page.created_at) }}
+                </span>
+              </span>
+            </button>
+
+            <div v-if="canManageDocs" class="published-page__item-actions">
+              <button
+                type="button"
+                class="published-page__action"
+                :title="t('content.publishedList.editDocument')"
+                @click="editPage(page.id)"
+              >
+                <i class="fas fa-edit" />
+              </button>
+              <button
+                type="button"
+                class="published-page__action"
+                :title="t('content.publishedList.editStructure')"
+                @click="editPageStructure(page)"
+              >
+                <i class="fas fa-cog" />
+              </button>
+              <button
+                type="button"
+                class="published-page__action published-page__action--danger"
+                :title="t('content.publishedList.deleteDocument')"
+                @click="confirmDeletePage(page)"
+              >
+                <i class="fas fa-trash" />
+              </button>
+            </div>
+          </li>
+        </ul>
       </div>
     </div>
 
-    <!-- Модальное окно редактирования структуры документа -->
     <div v-if="showEditPageModal && editingPage" class="modal-overlay" @click="showEditPageModal = false">
       <div class="modal-content modal-large" @click.stop>
         <div class="modal-header">
           <h3>{{ t('content.publishedList.structureModalTitle') }}</h3>
-          <button class="modal-close" @click="showEditPageModal = false">×</button>
+          <button class="modal-close" type="button" @click="showEditPageModal = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
@@ -143,14 +117,10 @@
               type="text"
               class="form-input"
               :placeholder="t('content.publishedList.categoryPlaceholder')"
-              list="categories-list"
+              list="published-categories-list"
             />
-            <datalist id="categories-list">
-              <option
-                v-for="cat in allCategories"
-                :key="cat"
-                :value="cat"
-              >
+            <datalist id="published-categories-list">
+              <option v-for="cat in allCategories" :key="cat" :value="cat">
                 {{ formatCategoryName(cat) }}
               </option>
             </datalist>
@@ -169,19 +139,17 @@
           </div>
           <div class="form-group">
             <label class="checkbox-label">
-              <input
-                v-model="editingPage.is_index_page"
-                type="checkbox"
-                class="form-checkbox"
-              />
+              <input v-model="editingPage.is_index_page" type="checkbox" class="form-checkbox" />
               {{ t('content.publishedList.indexPageCheckbox') }}
             </label>
             <small class="form-hint">{{ t('content.publishedList.indexPageHint') }}</small>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showEditPageModal = false">{{ t('common.cancel') }}</button>
-          <button class="btn btn-primary" @click="savePageStructure" :disabled="isSaving">
+          <button class="btn btn-secondary" type="button" @click="showEditPageModal = false">
+            {{ t('common.cancel') }}
+          </button>
+          <button class="btn btn-primary" type="button" :disabled="isSaving" @click="savePageStructure">
             {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
@@ -191,22 +159,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import BaseLayout from '../../components/BaseLayout.vue';
-import DocsSidebar from '../../components/docs/DocsSidebar.vue';
 import DocsContent from '../../components/docs/DocsContent.vue';
+import BlogFeedToolbar from '../../components/blog/BlogFeedToolbar.vue';
 import pagesService from '../../services/pagesService';
 import { usePermissions } from '../../composables/usePermissions';
 import { PERMISSIONS } from '../../composables/permissions';
 
+const ALL_FILTER = 'all';
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
   identities: { type: Array, default: () => [] },
   tokenBalances: { type: Object, default: () => ({}) },
   isLoadingTokens: { type: Boolean, default: false },
 });
+
+defineEmits(['auth-action-completed']);
 
 const router = useRouter();
 const route = useRoute();
@@ -217,26 +188,135 @@ const canManageDocs = computed(() => hasPermission(PERMISSIONS.MANAGE_LEGAL_DOCS
 
 const pages = ref([]);
 const isLoading = ref(false);
+const activeFilter = ref(ALL_FILTER);
 const showEditPageModal = ref(false);
 const editingPage = ref(null);
 const isSaving = ref(false);
 const allCategories = ref([]);
+
 const currentPageId = computed(() => {
-  // Получаем ID из query параметра или из маршрута
   const queryPage = route.query.page;
   if (queryPage) {
     const pageId = typeof queryPage === 'string' ? parseInt(queryPage, 10) : queryPage;
-    if (!isNaN(pageId)) {
-      return pageId;
-    }
+    if (!Number.isNaN(pageId)) return pageId;
   }
   if (route.name === 'public-page-view' && route.params.id) {
     const pageId = typeof route.params.id === 'string' ? parseInt(route.params.id, 10) : route.params.id;
-    if (!isNaN(pageId)) {
-      return pageId;
-    }
+    if (!Number.isNaN(pageId)) return pageId;
   }
   return null;
+});
+
+function normalizeCategory(page) {
+  const raw = String(page?.category || '').trim().toLowerCase();
+  return raw || 'uncategorized';
+}
+
+function isBlogPage(page) {
+  if (page?.show_in_blog === true || page?.show_in_blog === 'true') return true;
+  const cat = normalizeCategory(page);
+  return cat === 'блог' || cat === 'blog';
+}
+
+const documentPages = computed(() => {
+  if (!Array.isArray(pages.value)) return [];
+  return pages.value.filter((page) => !isBlogPage(page));
+});
+
+const sectionFilters = computed(() => {
+  const labels = {
+    [ALL_FILTER]: {
+      label_ru: t('content.publishedList.filterAll'),
+      label_en: t('content.publishedList.filterAll'),
+    },
+  };
+  const seen = new Set();
+  const filters = [{
+    slug: ALL_FILTER,
+    label_ru: labels[ALL_FILTER].label_ru,
+    label_en: labels[ALL_FILTER].label_en,
+    is_default: true,
+  }];
+
+  documentPages.value.forEach((page) => {
+    const cat = normalizeCategory(page);
+    if (seen.has(cat)) return;
+    seen.add(cat);
+    const label = formatCategoryName(cat);
+    filters.push({
+      slug: cat,
+      label_ru: label,
+      label_en: label,
+      is_default: false,
+    });
+  });
+
+  return filters;
+});
+
+const filteredPages = computed(() => {
+  let list = [...documentPages.value];
+  if (activeFilter.value && activeFilter.value !== ALL_FILTER) {
+    list = list.filter((page) => normalizeCategory(page) === activeFilter.value);
+  }
+
+  return list.sort((a, b) => {
+    const catCmp = normalizeCategory(a).localeCompare(normalizeCategory(b), 'ru');
+    if (catCmp !== 0) return catCmp;
+    const orderCmp = (a.order_index || 0) - (b.order_index || 0);
+    if (orderCmp !== 0) return orderCmp;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+});
+
+watch(sectionFilters, (filters) => {
+  if (isLoading.value) return;
+  if (filters.some((f) => f.slug === activeFilter.value)) return;
+  const fromRoute = typeof route.query.section === 'string'
+    ? route.query.section.trim().toLowerCase()
+    : '';
+  // Не сбрасываем раздел из URL, пока категории ещё не подтянулись
+  if (fromRoute && activeFilter.value === fromRoute) return;
+  activeFilter.value = ALL_FILTER;
+});
+
+function applySectionFromRoute() {
+  const raw = route.query.section;
+  if (typeof raw === 'string' && raw.trim()) {
+    activeFilter.value = raw.trim().toLowerCase();
+    return;
+  }
+  if (!route.query.section) {
+    // не сбрасываем, если пользователь уже выбрал фильтр без query
+  }
+}
+
+function syncSectionToRoute(slug) {
+  if (currentPageId.value) return;
+  const nextQuery = { ...route.query };
+  delete nextQuery.page;
+  if (!slug || slug === ALL_FILTER) {
+    delete nextQuery.section;
+  } else {
+    nextQuery.section = slug;
+  }
+  const curSection = typeof route.query.section === 'string' ? route.query.section : undefined;
+  const nextSection = nextQuery.section;
+  if (curSection === nextSection || (!curSection && !nextSection)) {
+    return;
+  }
+  router.replace({ name: 'content-published', query: nextQuery }).catch(() => {});
+}
+
+watch(
+  () => route.query.section,
+  () => {
+    applySectionFromRoute();
+  }
+);
+
+watch(activeFilter, (slug) => {
+  syncSectionToRoute(slug);
 });
 
 function goBack() {
@@ -244,37 +324,35 @@ function goBack() {
 }
 
 function openPublic(id) {
-  router.push({ name: 'content-published', query: { page: id } }).catch(() => {});
+  const query = { page: id };
+  if (activeFilter.value && activeFilter.value !== ALL_FILTER) {
+    query.section = activeFilter.value;
+  }
+  router.push({ name: 'content-published', query }).catch(() => {});
 }
 
 function goToIndex() {
-  router.push({ name: 'content-published' });
+  const query = {};
+  if (activeFilter.value && activeFilter.value !== ALL_FILTER) {
+    query.section = activeFilter.value;
+  } else if (typeof route.query.section === 'string' && route.query.section.trim()) {
+    query.section = route.query.section.trim().toLowerCase();
+  }
+  router.push({ name: 'content-published', query });
 }
 
-// Редактирование документа
 function editPage(id) {
   router.push({ name: 'content-create', query: { edit: id } });
 }
 
-// Подтверждение удаления документа
 async function confirmDeletePage(page) {
-  if (!confirm(t('content.publishedList.confirmDelete', { title: page.title }))) {
-    return;
-  }
-  
+  if (!confirm(t('content.publishedList.confirmDelete', { title: page.title }))) return;
+
   try {
     await pagesService.deletePage(page.id);
-    
-    // Перезагружаем страницы
     await loadPages();
-    
-    // Обновляем структуру в сайдбаре
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
-    
-    // Если удалили текущий открытый документ, возвращаемся к списку
-    if (currentPageId.value === page.id) {
-      goToIndex();
-    }
+    if (currentPageId.value === page.id) goToIndex();
   } catch (error) {
     alert(t('content.publishedList.deleteError') + (error.response?.data?.error || error.message || t('common.unknownError')));
   }
@@ -282,9 +360,8 @@ async function confirmDeletePage(page) {
 
 function formatCategoryName(name) {
   if (name === 'uncategorized') return t('content.publishedList.uncategorized');
-  // Преобразуем только первую букву в заглавную, остальные оставляем как есть
   if (!name || name.length === 0) return name;
-  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 function formatDate(date) {
@@ -292,61 +369,10 @@ function formatDate(date) {
   return new Date(date).toLocaleDateString('ru-RU', {
     year: 'numeric',
     month: 'short',
-    day: 'numeric'
+    day: 'numeric',
   });
 }
 
-// Группировка страниц по категориям
-const groupedPages = computed(() => {
-  const groups = {};
-  
-  if (!Array.isArray(pages.value)) {
-    return [];
-  }
-  
-  if (pages.value.length === 0) {
-    return [];
-  }
-  
-  pages.value.forEach(page => {
-    // Нормализуем категорию: приводим к нижнему регистру для консистентности
-    let category = 'uncategorized';
-    if (page.category && page.category.trim()) {
-      category = page.category.trim().toLowerCase();
-    }
-    
-    if (!groups[category]) {
-      groups[category] = {
-        name: category,
-        pages: []
-      };
-    }
-    groups[category].pages.push(page);
-  });
-
-  // Сортируем страницы в каждой категории: сначала родительские (с детьми), потом остальные
-  Object.values(groups).forEach(group => {
-    group.pages.sort((a, b) => {
-      // Сначала документы с детьми (родительские)
-      const aHasChildren = a.children && Array.isArray(a.children) && a.children.length > 0;
-      const bHasChildren = b.children && Array.isArray(b.children) && b.children.length > 0;
-      
-      if (aHasChildren && !bHasChildren) return -1;
-      if (!aHasChildren && bHasChildren) return 1;
-      
-      // Если оба с детьми или оба без детей, сортируем по order_index и created_at
-      if (a.order_index !== b.order_index) {
-        return (a.order_index || 0) - (b.order_index || 0);
-      }
-      return new Date(a.created_at) - new Date(b.created_at);
-    });
-  });
-
-  const result = Object.values(groups);
-  return result;
-});
-
-// Редактирование структуры документа
 function editPageStructure(page) {
   editingPage.value = {
     id: page.id,
@@ -354,77 +380,57 @@ function editPageStructure(page) {
     category: page.category || null,
     parent_id: page.parent_id || null,
     order_index: page.order_index || 0,
-    is_index_page: page.is_index_page || false
+    is_index_page: page.is_index_page || false,
   };
-  
-  // Загружаем список категорий
   loadCategories();
   showEditPageModal.value = true;
 }
 
-// Загрузка категорий
 async function loadCategories() {
   try {
-    // Используем новый endpoint для получения списка категорий
     const categories = await pagesService.getCategories();
-    allCategories.value = Array.isArray(categories) ? categories : [];
-  } catch (error) {
-    // Fallback: пытаемся получить категории из структуры
-    try {
-      const structure = await pagesService.getPublicPagesStructure();
-      allCategories.value = structure.categories ? structure.categories.map(cat => cat.name) : [];
-    } catch (fallbackError) {
-      allCategories.value = [];
-    }
+    allCategories.value = Array.isArray(categories)
+      ? categories.filter((cat) => {
+        const n = String(cat || '').trim().toLowerCase();
+        return n && n !== 'блог' && n !== 'blog';
+      })
+      : [];
+  } catch {
+    allCategories.value = [];
   }
 }
 
-// Доступные родительские документы
 const availableParents = computed(() => {
   if (!editingPage.value) return [];
-  return pages.value.filter(page => 
-    page.id !== editingPage.value.id && 
-    page.category === editingPage.value.category &&
-    page.visibility === 'public' &&
-    page.status === 'published'
+  return documentPages.value.filter((page) =>
+    page.id !== editingPage.value.id
+    && page.category === editingPage.value.category
   );
 });
 
-// Сохранение структуры документа
 async function savePageStructure() {
   if (!editingPage.value) return;
-  
+
   try {
     isSaving.value = true;
-    
-    // Нормализуем категорию (приводим к нижнему регистру)
-    const category = editingPage.value.category 
-      ? editingPage.value.category.trim().toLowerCase() 
+    const category = editingPage.value.category
+      ? editingPage.value.category.trim().toLowerCase()
       : null;
-    
-    const updateData = {
-      category: category,
+
+    await pagesService.updatePage(editingPage.value.id, {
+      category,
       parent_id: editingPage.value.parent_id || null,
       order_index: editingPage.value.order_index || 0,
-      is_index_page: editingPage.value.is_index_page || false
-    };
-    
-    await pagesService.updatePage(editingPage.value.id, updateData);
-    
+      is_index_page: editingPage.value.is_index_page || false,
+    });
+
     showEditPageModal.value = false;
     editingPage.value = null;
-    isSaving.value = false;
-    
-    Promise.all([
-      loadPages(),
-      loadCategories()
-    ]).catch(() => {});
-    
+    await Promise.all([loadPages(), loadCategories()]);
     window.dispatchEvent(new CustomEvent('docs-structure-updated'));
-    
   } catch (error) {
     alert(t('content.publishedList.saveError') + (error.response?.data?.error || error.message || t('common.unknownError')));
-    // НЕ очищаем pages.value при ошибке - оставляем текущие данные
+  } finally {
     isSaving.value = false;
   }
 }
@@ -433,30 +439,20 @@ async function loadPages() {
   try {
     isLoading.value = true;
     const loadedPages = await pagesService.getPublicPages();
-    
-    if (!Array.isArray(loadedPages)) {
-      return;
-    }
-    
-    if (loadedPages.length > 0) {
-      pages.value = loadedPages;
-    } else {
-      pages.value = [];
-    }
-  } catch (e) {
-    // keep previous data on error
+    pages.value = Array.isArray(loadedPages) ? loadedPages : [];
+  } catch {
+    // keep previous
   } finally {
     isLoading.value = false;
   }
 }
 
 onMounted(async () => {
+  applySectionFromRoute();
   await loadPages();
-  if (canManageDocs.value) {
-    await loadCategories();
-  }
-  
-  // Слушаем обновления структуры
+  if (canManageDocs.value) await loadCategories();
+  // если в URL раздел «политика…», а фильтр ещё all — применить снова после загрузки
+  applySectionFromRoute();
   window.addEventListener('docs-structure-updated', loadPages);
 });
 
@@ -466,407 +462,261 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.docs-page {
+.published-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 40px);
-  overflow: hidden;
+  min-height: calc(100vh - 40px);
+  background: #fafafa;
 }
 
-.docs-header {
+.published-page__toolbar {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 20px;
-  border-bottom: 2px solid #e9ecef;
-  background: #fff;
-  flex-shrink: 0;
+  justify-content: flex-end;
+  padding: 12px 16px 0;
 }
 
-.header-content h1 {
-  color: var(--color-primary);
-  font-size: 2rem;
-  margin: 0 0 8px 0;
-  font-weight: 700;
-}
-
-.header-content p {
-  color: #6c757d;
-  margin: 0;
-  font-size: 1rem;
-}
-
-.close-btn {
-  background: none;
+.published-page__close {
   border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
+  background: transparent;
   color: #888;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
   padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
+  border-radius: 6px;
 }
 
-.close-btn:hover {
+.published-page__close:hover {
   background: #f0f0f0;
   color: #333;
 }
 
-.docs-layout {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  background: #fff;
-}
-
-.docs-main {
-  flex: 1;
-  overflow-y: auto;
-  background: #fafafa;
-}
-
-.docs-index {
-  padding: 40px;
-  max-width: 1200px;
+.published-page__list-wrap {
+  padding: 8px 24px 32px;
+  max-width: 920px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
 }
 
-.loading-state,
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.loading-spinner {
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid var(--color-primary);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.empty-icon {
-  font-size: 3rem;
-  color: #6c757d;
-  margin-bottom: 16px;
-}
-
-.empty-state h3 {
-  color: var(--color-primary);
-  margin: 0;
-}
-
-.categories-view {
-  display: flex;
-  flex-direction: column;
-  gap: 40px;
-}
-
-.category-section {
-  margin-bottom: 32px;
-}
-
-.category-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--color-primary);
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0 0 20px 0;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.category-title i {
-  font-size: 1.25rem;
-}
-
-.pages-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
-}
-
-.page-card {
-  background: #fff;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.page-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-  border-color: var(--color-primary);
-}
-
-.page-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.page-card-header h3 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 1.2rem;
-  font-weight: 600;
+.published-page__reader {
   flex: 1;
+  overflow: auto;
+  background: #fff;
 }
 
-.index-badge {
-  font-size: 0.75rem;
-  background: var(--color-primary);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-  margin-left: 8px;
+.published-page__state {
+  text-align: center;
+  padding: 64px 16px;
+  color: #6c757d;
 }
 
-.page-card-content {
+.published-page__spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 12px;
+  border: 3px solid #e9ecef;
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: published-spin 0.8s linear infinite;
+}
+
+@keyframes published-spin {
+  to { transform: rotate(360deg); }
+}
+
+.published-page__empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  color: #adb5bd;
+}
+
+.published-page__list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.page-summary {
-  color: #6c757d;
-  margin: 0;
-  line-height: 1.5;
-  font-size: 0.95rem;
-}
-
-.page-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 0.85rem;
-  color: #6c757d;
-  align-items: center;
-}
-
-.page-date {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.page-date i {
-  font-size: 0.8rem;
-}
-
-@media (max-width: 1024px) {
-  .docs-layout {
-    flex-direction: column;
-  }
-
-  .docs-main {
-    overflow-y: auto;
-    min-height: 0;
-  }
-}
-
-.page-card-badges {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.page-card-actions {
+.published-page__item {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.published-page__item:hover {
+  border-color: rgba(45, 114, 217, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.published-page__item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.published-page__item-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #262626;
+  line-height: 1.35;
+}
+
+.published-page__item-summary {
+  font-size: 0.9rem;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.published-page__item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #909399;
+}
+
+.published-page__item-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 8px 10px;
+  border-left: 1px solid #f0f0f0;
 }
 
-.page-action-btn {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  padding: 6px 10px;
-  border-radius: 6px;
+.published-page__action {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #606266;
   cursor: pointer;
-  color: #6c757d;
-  transition: all 0.2s;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.page-action-btn:hover {
-  border-color: var(--color-primary);
-}
-
-.page-edit-btn:hover {
-  background: #e7f3ff;
+.published-page__action:hover {
+  background: #f5f7fa;
   color: var(--color-primary);
 }
 
-.page-structure-btn:hover {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+.published-page__action--danger:hover {
+  color: #c0392b;
+  background: #fef0f0;
 }
 
-.page-delete-btn:hover {
-  background: #fee;
-  color: #dc3545;
-  border-color: #dc3545;
-}
-
-.page-category {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-}
-
-/* Модальные окна */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 16px;
 }
 
 .modal-content {
-  background: white;
+  background: #fff;
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  max-width: 500px;
-  width: 100%;
+  width: min(560px, 100%);
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: auto;
 }
 
-.modal-content.modal-large {
-  max-width: 600px;
-}
-
-.modal-header {
+.modal-header,
+.modal-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
   border-bottom: 1px solid #e9ecef;
 }
 
-.modal-header h3 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: 1.25rem;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: #6c757d;
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.modal-close:hover {
-  background: #f0f0f0;
-  color: #333;
+.modal-footer {
+  border-bottom: none;
+  border-top: 1px solid #e9ecef;
+  justify-content: flex-end;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #888;
 }
 
 .form-group {
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #495057;
-}
-
-.checkbox-label {
   display: flex;
-  align-items: center;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .form-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e9ecef;
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  font: inherit;
 }
 
 .form-readonly {
   padding: 10px 12px;
   background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 6px;
-  color: #495057;
-  font-weight: 500;
-}
-
-.form-checkbox {
-  margin-right: 8px;
+  border-radius: 8px;
 }
 
 .form-hint {
-  display: block;
-  margin-top: 6px;
-  font-size: 0.85rem;
   color: #6c757d;
+  font-size: 0.82rem;
 }
 
-.modal-footer {
+.checkbox-label {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px;
-  border-top: 1px solid #e9ecef;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn {
-  padding: 10px 20px;
   border: none;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 500;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
   cursor: pointer;
-  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.btn-secondary {
+  background: #e9ecef;
+  color: #343a40;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 .btn:disabled {
@@ -874,77 +724,20 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-.btn-primary {
-  background: var(--color-primary);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-dark);
-}
-
-.btn-secondary {
-  background: #f8f9fa;
-  color: #495057;
-  border: 1px solid #e9ecef;
-}
-
-.btn-secondary:hover {
-  background: #e9ecef;
-}
-
 @media (max-width: 768px) {
-  .docs-page {
-    height: auto;
-    min-height: calc(100vh - 40px);
-    overflow: visible;
+  .published-page__list-wrap {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
-  .docs-layout {
-    flex: 1;
-    min-height: 0;
-    overflow: visible;
+  .published-page__item {
     flex-direction: column;
   }
 
-  /* В мобильной версии, когда выбран документ, скрываем сайдбар */
-  .docs-layout.has-content .docs-sidebar {
-    display: none;
-  }
-
-  .docs-main {
-    overflow-y: visible;
-    min-height: auto;
-    width: 100%;
-    display: block;
-    flex: 1;
-  }
-
-  .docs-header {
-    padding: 16px;
-  }
-
-  .header-content h1 {
-    font-size: 1.5rem;
-  }
-
-  .docs-index {
-    padding: 20px;
-  }
-
-  .pages-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .category-title {
-    font-size: 1.25rem;
-  }
-
-  .modal-content {
-    max-width: 100%;
-    margin: 10px;
+  .published-page__item-actions {
+    border-left: none;
+    border-top: 1px solid #f0f0f0;
+    justify-content: flex-end;
   }
 }
 </style>
-
-

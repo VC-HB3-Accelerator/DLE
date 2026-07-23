@@ -138,6 +138,7 @@ services:
       - ./shared:/app/shared
       - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl:ro
+      - blanc_xray_data:/app/blanc-xray-data
       # Доступ к Docker socket для управления контейнерами на VDS
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Доступ к системным файловым системам для мониторинга и управления
@@ -175,6 +176,13 @@ services:
       - OLLAMA_EMBED_MODEL=${OLLAMA_EMBEDDINGS_MODEL:-mxbai-embed-large:latest}
       # 🆕 Исправленный URL для Vector Search
       - VECTOR_SEARCH_URL=http://dapp-vector-search:8001
+      # LiveKit (ИИ-конференция): браузер ходит на wss://${DOMAIN}/livekit (nginx → dapp-livekit)
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - LIVEKIT_URL=wss://${DOMAIN}/livekit
+      # BlancVPN → Xray SOCKS (только для OpenAI)
+      - BLANC_XRAY_CONFIG_DIR=/app/blanc-xray-data
+      - BLANC_XRAY_SOCKS_URL=socks5://dapp-blanc-xray:1080
     # Команда запуска для production
     command: ["yarn", "run", "start"]
     # НЕ открываем порт 8000 наружу - только nginx подключается
@@ -217,6 +225,49 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  # BlancVPN subscription → SOCKS :1080 для OpenAI (geo-block)
+  blanc-xray:
+    build:
+      context: ./docker/blanc-xray
+      dockerfile: Dockerfile
+    container_name: dapp-blanc-xray
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    volumes:
+      - blanc_xray_data:/etc/xray
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # SFU для ИИ-конференции. Signaling — через nginx (wss://${DOMAIN}/livekit).
+  # Медиа (ICE): порты 7881/tcp и 7882/udp должны быть открыты на фаерволе VDS.
+  # ICE IP: STUN (use_external_ip=true). При необходимости задайте NODE_IP в environment вручную.
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: dapp-livekit
+    restart: unless-stopped
+    networks:
+      - dapp_network
+    environment:
+      - LIVEKIT_RTC_USE_EXTERNAL_IP=${LIVEKIT_RTC_USE_EXTERNAL_IP:-true}
+      - LIVEKIT_RTC_FORCE_TCP=${LIVEKIT_RTC_FORCE_TCP:-false}
+    command:
+      - --dev
+      - --bind
+      - "0.0.0.0"
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Certbot контейнер для автоматического получения SSL сертификатов
   # 🆕 Убрана зависимость от frontend-nginx - certbot может работать независимо
@@ -296,6 +347,7 @@ services:
       - backend
       - frontend
       - gitea
+      - livekit
     volumes:
       # SSL сертификаты Let's Encrypt (автоматически обновляются)
       - /etc/letsencrypt:/etc/letsencrypt:ro
@@ -339,3 +391,4 @@ volumes:
   vector_search_data:
   gitea_data:
   backend_node_modules:
+  blanc_xray_data:

@@ -13,11 +13,11 @@
 <template>
   <nav class="contact-details-nav">
     <router-link
-      v-for="item in navItems"
+      v-for="item in visibleNavItems"
       :key="item.name"
       :to="navTarget(item.name)"
       class="contact-details-nav-link"
-      active-class="is-active"
+      :class="{ 'is-active': isNavActive(item.name) }"
     >
       {{ t(item.labelKey) }}
     </router-link>
@@ -28,16 +28,34 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
+import { usePermissions } from '@/composables/usePermissions';
 
 const { t } = useI18n();
 const route = useRoute();
+const { isEditor } = usePermissions();
 
 const contactId = computed(() => route.params.id);
+
+const isRegisteredContact = computed(() => {
+  // Не ждём загрузки contact: id из URL достаточно для 1:1 кнопки
+  const id = contactId.value;
+  if (id == null || id === '' || id === 'new') return false;
+  if (typeof id === 'string' && id.startsWith('guest_')) return false;
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0;
+});
+
+const showConference = computed(() => isEditor.value && isRegisteredContact.value);
 
 const navItems = [
   { name: 'contact-details', labelKey: 'contacts.details.nav.chat' },
   { name: 'contact-profile', labelKey: 'contacts.details.nav.profile' },
+  { name: 'contact-conference', labelKey: 'contacts.details.nav.conference' },
 ];
+
+const visibleNavItems = computed(() =>
+  navItems.filter((item) => item.name !== 'contact-conference' || showConference.value)
+);
 
 function navTarget(name) {
   const query = {};
@@ -50,6 +68,17 @@ function navTarget(name) {
     params: { id: contactId.value },
     query
   };
+}
+
+function isNavActive(name) {
+  if (name === 'contact-conference') {
+    return (
+      route.name === 'contact-conference' ||
+      route.name === 'contact-conference-agent' ||
+      route.name === 'contact-conference-live'
+    );
+  }
+  return route.name === name;
 }
 </script>
 

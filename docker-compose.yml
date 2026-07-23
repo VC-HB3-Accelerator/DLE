@@ -138,6 +138,7 @@ services:
       - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl
       - ./shared:/app/shared
+      - blanc_xray_data:/app/blanc-xray-data
       - ~/.ssh:/root/.ssh:ro  # SSH ключи для подключения к VDS
     environment:
       - NODE_ENV=${NODE_ENV:-production}
@@ -157,6 +158,13 @@ services:
       # FRONTEND_URL настраивается в коде, не через env
       - VECTOR_SEARCH_URL=http://vector-search:8001
       - LOG_LEVEL=${LOG_LEVEL:-warn}
+      # LiveKit (срез B, локально --dev)
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://localhost:7880}
+      # BlancVPN → Xray SOCKS (только для OpenAI)
+      - BLANC_XRAY_CONFIG_DIR=/app/blanc-xray-data
+      - BLANC_XRAY_SOCKS_URL=socks5://dapp-blanc-xray:1080
       # Factory адреса теперь хранятся в базе данных
     # Убираем порты для продакшна - доступ только через nginx
     # ports:
@@ -218,6 +226,50 @@ services:
       # Live SEO HTML от backend pre-render (как в prod)
       - ./frontend/dist/blog:/usr/share/nginx/html/blog:ro
       - ./frontend/dist/content/published:/usr/share/nginx/html/content/published:ro
+
+  # BlancVPN (VLESS/SS subscription) → локальный SOCKS :1080 только для OpenAI
+  blanc-xray:
+    build:
+      context: ./docker/blanc-xray
+      dockerfile: Dockerfile
+    container_name: dapp-blanc-xray
+    restart: unless-stopped
+    volumes:
+      - blanc_xray_data:/etc/xray
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # SFU для ИИ-конференции (срез B). Локально: --dev (devkey/secret).
+  # node-ip=127.0.0.1 — иначе ICE отдаёт Docker IP (172.x), и браузер на Windows/WSL
+  # получает "could not establish pc connection". На VDS: LIVEKIT_NODE_IP=<публичный IP>.
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: dapp-livekit
+    restart: unless-stopped
+    environment:
+      - NODE_IP=${LIVEKIT_NODE_IP:-127.0.0.1}
+      # false: не подменять node-ip STUN-адресом (ломает WSL/Docker)
+      - LIVEKIT_RTC_USE_EXTERNAL_IP=${LIVEKIT_RTC_USE_EXTERNAL_IP:-false}
+      # TCP ICE надёжнее UDP localhost на WSL2; на VDS можно выставить false
+      - LIVEKIT_RTC_FORCE_TCP=${LIVEKIT_RTC_FORCE_TCP:-true}
+    command:
+      - --dev
+      - --bind
+      - "0.0.0.0"
+      - --node-ip
+      - ${LIVEKIT_NODE_IP:-127.0.0.1}
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
   # SSH Key Server отключен по безопасности (оставлен пример профиля dev при необходимости)
@@ -317,3 +369,4 @@ volumes:
   gitea_data:
   frontend_node_modules:
   backend_node_modules:
+  blanc_xray_data:

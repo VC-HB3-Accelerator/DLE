@@ -50,13 +50,21 @@
             {{ t('common.details') }}
           </button>
         </div>
+
+        <div class="management-block">
+          <h3>{{ t('settings.index.sidebarNotice.title') }}</h3>
+          <p>{{ t('settings.index.sidebarNotice.description') }}</p>
+          <button class="details-btn" @click="goToSidebarNotice">
+            {{ t('common.details') }}
+          </button>
+        </div>
       </div>
     </div>
 
     <NoAccessModal
       :show="showNoAccessModal"
       :title="t('settings.accessRestricted')"
-      :message="t('settings.regions.adminOnly')"
+      :message="noAccessMessage"
       @close="showNoAccessModal = false"
     />
   </div>
@@ -75,19 +83,31 @@ const router = useRouter();
 const { canManageSettings } = usePermissions();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 const showNoAccessModal = ref(false);
+const noAccessMessage = ref('');
 
-async function goToRegions() {
+async function ensureCanManageSettings(deniedMessageKey) {
   await checkAuth();
   if (isAuthenticated.value && address.value) {
     await checkUserAccessLevel(address.value);
   }
 
   if (!canManageSettings.value) {
+    noAccessMessage.value = t(deniedMessageKey);
     showNoAccessModal.value = true;
-    return;
+    return false;
   }
 
+  return true;
+}
+
+async function goToRegions() {
+  if (!(await ensureCanManageSettings('settings.regions.adminOnly'))) return;
   router.push('/settings/regions');
+}
+
+async function goToSidebarNotice() {
+  if (!(await ensureCanManageSettings('settings.sidebarNotice.adminOnly'))) return;
+  router.push('/settings/sidebar-notice');
 }
 </script>
 

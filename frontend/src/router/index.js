@@ -112,6 +112,12 @@ const routes = [
         component: () => import('@/views/settings/RegionSettingsView.vue'),
         meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
       },
+      {
+        path: 'sidebar-notice',
+        name: 'settings-sidebar-notice',
+        component: () => import('@/views/settings/SidebarNoticeSettingsView.vue'),
+        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+      },
     ]
   },
   {
@@ -191,6 +197,29 @@ const routes = [
         name: 'contact-profile',
         component: () => import('../views/contacts/ContactProfileView.vue'),
       },
+      {
+        path: 'conference',
+        component: () => import('../views/contacts/ConferenceSectionLayout.vue'),
+        meta: { permission: PERMISSIONS.EDIT_CONTACTS },
+        children: [
+          {
+            path: '',
+            name: 'contact-conference',
+            component: () => import('../views/contacts/ConferenceSettingsView.vue'),
+          },
+          {
+            path: 'agent',
+            name: 'contact-conference-agent',
+            component: () => import('../views/contacts/ConferenceAgentView.vue'),
+            meta: { editorOnly: true },
+          },
+          {
+            path: 'live/:sessionId',
+            name: 'contact-conference-live',
+            component: () => import('../views/contacts/ConferenceLiveView.vue'),
+          },
+        ],
+      },
     ],
   },
   {
@@ -199,6 +228,34 @@ const routes = [
     component: () => import('../views/contacts/ContactDeleteConfirm.vue'),
     props: true,
     meta: { permission: PERMISSIONS.DELETE_USER_DATA }
+  },
+  {
+    path: '/conferences',
+    component: () => import('../views/contacts/ConferenceHubLayout.vue'),
+    meta: { permission: PERMISSIONS.EDIT_CONTACTS },
+    children: [
+      {
+        path: '',
+        name: 'hub-conferences',
+        component: () => import('../views/contacts/ConferenceHubHomeView.vue'),
+      },
+      {
+        path: ':sessionId',
+        name: 'hub-conference',
+        component: () => import('../views/contacts/ConferenceHubSettingsView.vue'),
+      },
+      {
+        path: ':sessionId/agent',
+        name: 'hub-conference-agent',
+        component: () => import('../views/contacts/ConferenceAgentView.vue'),
+        meta: { editorOnly: true },
+      },
+      {
+        path: ':sessionId/live',
+        name: 'hub-conference-live',
+        component: () => import('../views/contacts/ConferenceLiveView.vue'),
+      },
+    ],
   },
   {
     path: '/contacts-list',
@@ -399,6 +456,17 @@ const routes = [
     component: () => import('../views/ConnectWalletView.vue')
   },
   {
+    path: '/conference/join',
+    name: 'conference-join',
+    component: () => import('../views/ConferenceJoinView.vue')
+  },
+  {
+    path: '/conference/live/:sessionId',
+    name: 'conference-participant-live',
+    component: () => import('../views/contacts/ConferenceLiveView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/groups',
     name: 'groups',
     component: () => import('../views/groups/GroupsView.vue')
@@ -420,8 +488,9 @@ router.beforeEach(async (to, from, next) => {
 
   const requiredPermission = to.meta?.permission;
   const requiresAuth = to.meta?.requiresAuth;
+  const editorOnly = to.matched.some((r) => r.meta?.editorOnly);
 
-  if (!requiredPermission && !requiresAuth) {
+  if (!requiredPermission && !requiresAuth && !editorOnly) {
     return next();
   }
 
@@ -437,24 +506,36 @@ router.beforeEach(async (to, from, next) => {
       return next({ name: 'home' });
     }
 
+    const userAccessLevel = authData.userAccessLevel;
+    let userRole = 'user';
+    if (userAccessLevel?.level === 'readonly') {
+      userRole = 'readonly';
+    } else if (userAccessLevel?.level === 'editor') {
+      userRole = 'editor';
+    }
+
+    if (editorOnly && userRole !== 'editor') {
+      const contactId = to.params?.id;
+      if (contactId) {
+        return next({ name: 'contact-conference', params: { id: contactId } });
+      }
+      return next({ name: 'home' });
+    }
+
     if (requiresAuth && !requiredPermission) {
       return next();
     }
 
-    const userAccessLevel = authData.userAccessLevel;
+    if (!requiredPermission) {
+      return next();
+    }
+
     if (!userAccessLevel) {
       console.log('[Router] Доступ запрещен: нет данных об уровне доступа');
       if (to.meta?.permissionFallback) {
         return next({ name: to.meta.permissionFallback });
       }
       return next({ name: 'home' });
-    }
-
-    let userRole = 'user';
-    if (userAccessLevel.level === 'readonly') {
-      userRole = 'readonly';
-    } else if (userAccessLevel.level === 'editor') {
-      userRole = 'editor';
     }
 
     if (!hasPermission(userRole, requiredPermission)) {

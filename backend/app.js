@@ -107,6 +107,7 @@ db.setPoolChangeCallback(sessionConfig.reloadSessionMiddleware);
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
 const contactSiteParserRoutes = require('./routes/contactSiteParser');
+const conferenceRoutes = require('./routes/conference');
 const identitiesRoutes = require('./routes/identities');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
@@ -156,6 +157,7 @@ function isPublicSeoEndpoint(url = '', method = 'GET') {
     path.startsWith('/api/pages/published/') ||
     path === '/api/settings/footer-dle' ||
     path === '/api/settings/region-urls' ||
+    path === '/api/settings/sidebar-notice' ||
     path === '/api/pages/public/sitemap.xml' ||
     path === '/api/pages/public/robots.txt'
   );
@@ -371,6 +373,7 @@ app.use('/api/tables', tablesRoutes); // ДОЛЖНО БЫТЬ ВЫШЕ!
 app.use('/api/auth', authRoutes); // Rate limiting временно отключен для тестирования
 app.use('/api/users', usersRoutes);
 app.use('/api/contact-site-parser', contactSiteParserRoutes);
+app.use('/api/conference', conferenceRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tokens', tokensRouter);

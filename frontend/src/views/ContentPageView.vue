@@ -174,6 +174,32 @@
                 class="form-input"
               />
             </div>
+            <div class="form-group">
+              <label for="seo-og-image">{{ t('content.editor.seoOgImage') }}</label>
+              <p class="form-hint">{{ t('content.editor.seoOgImageHint') }}</p>
+              <div class="og-image-row">
+                <input
+                  id="seo-og-image"
+                  ref="ogImageInputRef"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  class="form-input"
+                  @change="onOgImageChange"
+                />
+                <button
+                  v-if="form.seo.og_image"
+                  type="button"
+                  class="btn btn-outline og-image-clear"
+                  @click="clearOgImage"
+                >
+                  {{ t('content.editor.seoOgImageClear') }}
+                </button>
+              </div>
+              <p v-if="ogImageUploading" class="form-hint">{{ t('content.editor.seoOgImageUploading') }}</p>
+              <div v-if="ogImagePreviewUrl" class="og-image-preview">
+                <img :src="ogImagePreviewUrl" :alt="t('content.editor.seoOgImage')" />
+              </div>
+            </div>
           </div>
 
 
@@ -201,6 +227,7 @@ import { useI18n } from 'vue-i18n';
 import BaseLayout from '../components/BaseLayout.vue';
 import RichTextEditor from '../components/editor/RichTextEditor.vue';
 import pagesService from '../services/pagesService';
+import api from '../api/axios';
 import { PERMISSIONS } from './permissions.js';
 import { useAuthContext } from '../composables/useAuth';
 import { usePermissions } from '../composables/usePermissions';
@@ -250,7 +277,8 @@ const form = ref({
   seo: {
     title: '',
     description: '',
-    keywords: ''
+    keywords: '',
+    og_image: ''
   },
   settings: {
     autoPublish: false
@@ -269,6 +297,54 @@ const categories = ref([]);
 const isSubmitting = ref(false);
 const fileBlob = ref(null);
 const fileName = ref('');
+const ogImageUploading = ref(false);
+const ogImageInputRef = ref(null);
+
+const ogImagePreviewUrl = computed(() => {
+  const url = form.value.seo?.og_image;
+  if (!url) return '';
+  if (String(url).startsWith('http') || String(url).startsWith('data:')) return url;
+  if (typeof window === 'undefined') return url;
+  return `${window.location.origin}${String(url).startsWith('/') ? '' : '/'}${url}`;
+});
+
+async function onOgImageChange(e) {
+  const file = e.target?.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert(t('content.editor.seoOgImageInvalid'));
+    e.target.value = '';
+    return;
+  }
+  ogImageUploading.value = true;
+  try {
+    const fd = new FormData();
+    fd.append('media', file);
+    const response = await api.post('/uploads/media', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    const url = response?.data?.data?.url;
+    if (!url) {
+      throw new Error(t('content.editor.seoOgImageUploadError'));
+    }
+    form.value.seo.og_image = url;
+  } catch (error) {
+    console.error('[ContentPageView] og image upload:', error);
+    alert(
+      error?.response?.data?.error
+      || error?.message
+      || t('content.editor.seoOgImageUploadError')
+    );
+  } finally {
+    ogImageUploading.value = false;
+    if (e?.target) e.target.value = '';
+  }
+}
+
+function clearOgImage() {
+  form.value.seo.og_image = '';
+  if (ogImageInputRef.value) ogImageInputRef.value.value = '';
+}
 
 // Вычисляемые свойства
 const wordCount = computed(() => {
@@ -385,6 +461,7 @@ async function loadPageForEdit() {
       form.value.seo.title = page.seo?.title || '';
       form.value.seo.description = page.seo?.description || '';
       form.value.seo.keywords = page.seo?.keywords || '';
+      form.value.seo.og_image = page.seo?.og_image || page.seo?.image || '';
       form.value.status = page.status || 'draft';
       form.value.visibility = page.visibility || 'public';
       form.value.requiredPermission = page.required_permission || '';
@@ -708,6 +785,48 @@ onMounted(async () => {
 .form-textarea {
   resize: vertical;
   min-height: 100px;
+}
+
+.form-hint {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--color-grey-dark, #606266);
+  line-height: 1.4;
+}
+
+.og-image-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.og-image-row .form-input {
+  flex: 1 1 220px;
+}
+
+.og-image-clear {
+  flex: 0 0 auto;
+}
+
+.og-image-preview {
+  margin-top: 12px;
+  max-width: 320px;
+  border: 1px solid var(--color-border, #dcdfe6);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f7fa;
+}
+
+.og-image-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: contain;
+  margin: 0;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .content-stats {

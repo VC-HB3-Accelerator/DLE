@@ -15,7 +15,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const { initDbPool, getQuery } = require('../db');
-const { extractCoverFromHtml, buildCoverHtml } = require('../utils/blogCoverUtils');
+const { extractCoverFromHtml, buildCoverHtml, resolveSocialPreviewImage, resolveSocialPreviewVideo, parsePageSeo } = require('../utils/blogCoverUtils');
 
 // URL бэкенда для запроса статей (тот же контейнер)
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
@@ -133,6 +133,7 @@ function applySeoToAppShell(template, seo) {
     description = '',
     ogType = 'website',
     ogImage = '',
+    ogVideo = '',
     bodyHtml = '',
     jsonLd = null,
     robots = 'index, follow',
@@ -164,6 +165,11 @@ function applySeoToAppShell(template, seo) {
     .replace(/<meta\s+property=["']og:description["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:type["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+property=["']og:image["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+property=["']og:video["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']twitter:card["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']twitter:title["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']twitter:description["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']twitter:image["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '')
     .replace(/<script\s+type=["']application\/ld\+json["'][\s\S]*?<\/script>\s*/gi, '');
 
@@ -174,13 +180,22 @@ function applySeoToAppShell(template, seo) {
   const ogImageTag = ogImage
     ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">`
     : '';
+  const ogVideoTag = ogVideo
+    ? `\n  <meta property="og:video" content="${escapeHtml(ogVideo)}">\n  <meta property="og:video:type" content="video/mp4">`
+    : '';
+  const twitterImageTag = ogImage
+    ? `\n  <meta name="twitter:image" content="${escapeHtml(ogImage)}">`
+    : '';
 
   const ogBlock = `
   <link rel="canonical" href="${canonical}">
   <meta property="og:title" content="${safeTitle}">
   <meta property="og:description" content="${safeDescription}">
   <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="${ogType}">${ogImageTag}
+  <meta property="og:type" content="${ogType}">${ogImageTag}${ogVideoTag}
+  <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
+  <meta name="twitter:title" content="${safeTitle}">
+  <meta name="twitter:description" content="${safeDescription}">${twitterImageTag}
   <meta name="robots" content="${escapeHtml(robots)}">${jsonLdBlock}`;
 
   html = html.replace(/<\/head>/i, `${ogBlock}\n</head>`);
@@ -457,6 +472,19 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
     ? buildCoverHtml({ cover_url: coverUrl, cover_type: cover.cover_type }, title, escapeHtml)
     : '';
 
+  const seoObj = parsePageSeo(article.seo);
+  const ogImage = resolveSocialPreviewImage({
+    seo: seoObj,
+    cover,
+    content,
+    baseUrl
+  });
+  const ogVideo = resolveSocialPreviewVideo({
+    cover,
+    content,
+    baseUrl
+  });
+
   const metaParts = [];
   if (dateLabel) {
     metaParts.push(`<span class="meta-item">${escapeHtml(dateLabel)}</span>`);
@@ -493,11 +521,9 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   if (category) {
     jsonLd.articleSection = category;
   }
-  if (coverUrl && cover.cover_type !== 'video') {
-    jsonLd.image = coverUrl;
+  if (ogImage) {
+    jsonLd.image = ogImage;
   }
-
-  const ogImage = coverUrl && cover.cover_type !== 'video' ? coverUrl : undefined;
 
   const fromShell = applySeoToAppShell(appShellTemplate, {
     canonical,
@@ -505,6 +531,7 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
     description,
     ogType: 'article',
     ogImage,
+    ogVideo,
     bodyHtml: articleInnerHtml,
     jsonLd,
     robots: 'index, follow',
@@ -523,7 +550,10 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${canonical}">
-  <meta property="og:type" content="article">${ogImage ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}
+  <meta property="og:type" content="article">${ogImage ? `\n  <meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}${ogVideo ? `\n  <meta property="og:video" content="${escapeHtml(ogVideo)}">` : ''}
+  <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">${ogImage ? `\n  <meta name="twitter:image" content="${escapeHtml(ogImage)}">` : ''}
   <meta name="robots" content="index, follow">
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 </head>
@@ -532,15 +562,37 @@ function buildArticleHtml(article, baseUrl, appShellTemplate, pathPrefix = '/blo
 }
 
 /**
+ * Ссылка в SEO-списке: /blog и published со slug → /prefix/slug;
+ * published без slug → /content/published?page=id (как в DocsSidebar).
+ */
+function buildListItemHref(item, baseUrl, pathPrefix) {
+  if (!item) return null;
+  const slug = typeof item.slug === 'string' ? item.slug.trim() : '';
+  if (slug) {
+    return `${baseUrl}${pathPrefix}/${encodeURIComponent(slug)}`;
+  }
+  if (pathPrefix === '/content/published' && item.id != null && item.id !== '') {
+    return `${baseUrl}${pathPrefix}?page=${encodeURIComponent(String(item.id))}`;
+  }
+  return null;
+}
+
+function listItemLabel(item) {
+  if (!item) return '';
+  return item.title || item.slug || (item.id != null ? String(item.id) : '');
+}
+
+/**
  * HTML для списковых страниц (/blog, /content/published)
  */
 function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, appShellTemplate }) {
   const canonical = `${baseUrl}${pathPrefix}`;
-  const listItems = (items || [])
-    .filter((a) => a && a.slug)
+  const listable = (items || []).filter((a) => a && buildListItemHref(a, baseUrl, pathPrefix));
+  const listItems = listable
     .map((a) => {
-      const href = `${baseUrl}${pathPrefix}/${encodeURIComponent(String(a.slug).trim())}`;
-      const itemTitle = escapeHtml(a.title || a.slug);
+      const href = buildListItemHref(a, baseUrl, pathPrefix);
+      const label = listItemLabel(a);
+      const itemTitle = escapeHtml(label);
       const itemSummary = a.summary ? String(a.summary).trim() : '';
       const cover = a.cover_url
         ? { cover_url: a.cover_url, cover_type: a.cover_type || 'image' }
@@ -551,15 +603,19 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
           : `${baseUrl}${cover.cover_url.startsWith('/') ? '' : '/'}${cover.cover_url}`)
         : '';
       const coverHtml = coverSrc
-        ? buildCoverHtml({ cover_url: coverSrc, cover_type: cover.cover_type }, a.title || a.slug, escapeHtml)
+        ? buildCoverHtml({ cover_url: coverSrc, cover_type: cover.cover_type }, label, escapeHtml)
         : '';
       const summaryHtml = itemSummary
         ? `<p class="article-summary">${escapeHtml(itemSummary)}</p>`
+        : '';
+      const categoryHtml = a.category
+        ? `<p class="article-category">${escapeHtml(String(a.category))}</p>`
         : '';
       return `<li class="seo-list-item">
   <article>
     ${coverHtml}
     <h2 class="article-title"><a href="${href}">${itemTitle}</a></h2>
+    ${categoryHtml}
     ${summaryHtml}
   </article>
 </li>`;
@@ -575,21 +631,19 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
     <nav aria-label="Список страниц"><ul class="seo-article-list">${listItems}</ul></nav>
   </main>`;
 
-  const itemListElements = (items || [])
-    .filter((a) => a && a.slug)
-    .map((a, index) => {
-      const href = `${baseUrl}${pathPrefix}/${encodeURIComponent(String(a.slug).trim())}`;
-      const el = {
-        '@type': 'ListItem',
-        position: index + 1,
-        url: href,
-        name: a.title || a.slug
-      };
-      if (a.summary) {
-        el.description = String(a.summary).trim();
-      }
-      return el;
-    });
+  const itemListElements = listable.map((a, index) => {
+    const href = buildListItemHref(a, baseUrl, pathPrefix);
+    const el = {
+      '@type': 'ListItem',
+      position: index + 1,
+      url: href,
+      name: listItemLabel(a)
+    };
+    if (a.summary) {
+      el.description = String(a.summary).trim();
+    }
+    return el;
+  });
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -603,11 +657,24 @@ function buildListPageHtml({ title, description, pathPrefix, items, baseUrl, app
     }
   };
 
+  const first = listable[0];
+  const listOgImage = first
+    ? resolveSocialPreviewImage({
+      seo: first.og_image ? { og_image: first.og_image } : first.seo,
+      cover: first.cover_url
+        ? { cover_url: first.cover_url, cover_type: first.cover_type || 'image' }
+        : null,
+      content: first.content || '',
+      baseUrl
+    })
+    : resolveSocialPreviewImage({ baseUrl });
+
   return applySeoToAppShell(appShellTemplate, {
     canonical,
     title,
     description,
     ogType: 'website',
+    ogImage: listOgImage,
     bodyHtml,
     jsonLd,
     robots: 'index, follow',
@@ -792,6 +859,7 @@ async function getBlogArticles() {
         created_at: a.created_at || null,
         cover_url: a.cover_url || null,
         cover_type: a.cover_type || null,
+        og_image: a.og_image || null,
       }));
   } catch (error) {
     console.error('[pre-render] Ошибка получения статей через API /api/pages/blog/all:', error.message || error);
@@ -801,20 +869,27 @@ async function getBlogArticles() {
 
 async function getPublishedPages() {
   try {
-    const data = await fetchJsonFromApi('/api/pages/published/all');
+    // Тот же набор, что у SPA (/content/published): public + published.
+    // Без требования slug — иначе SEO-список пустой, а в UI документы есть.
+    const data = await fetchJsonFromApi('/api/pages/public/all');
     if (!Array.isArray(data)) return [];
     return data
-      .filter((a) => a && typeof a.slug === 'string' && a.slug.trim() !== '')
+      .filter((a) => a && a.id != null)
       .map((a) => ({
         id: a.id,
-        slug: a.slug,
-        title: a.title || a.slug,
+        slug: typeof a.slug === 'string' && a.slug.trim() ? a.slug.trim() : null,
+        title: a.title || a.slug || String(a.id),
         summary: a.summary || '',
         category: a.category || null,
-        created_at: a.created_at || null
+        created_at: a.created_at || null,
+        cover_url: a.cover_url || null,
+        cover_type: a.cover_type || null,
+        og_image: a.og_image || null,
+        seo: a.seo || null,
+        content: a.content || '',
       }));
   } catch (error) {
-    console.error('[pre-render] Ошибка /api/pages/published/all:', error.message || error);
+    console.error('[pre-render] Ошибка /api/pages/public/all:', error.message || error);
     return [];
   }
 }

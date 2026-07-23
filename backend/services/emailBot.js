@@ -548,6 +548,9 @@ class EmailBot {
     if (!this.settings) {
       this.settings = await this.loadSettings();
     }
+    if (!this.settings?.smtp_host) {
+      throw new Error('Email SMTP не настроен (нет smtp_host в email_settings)');
+    }
     if (!this.transporter) {
       this.transporter = await this.createTransporter();
     }

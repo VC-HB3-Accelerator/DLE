@@ -24,7 +24,25 @@
     "regions": {
       "title": "Regional servers",
       "description": "Switcher button labels and server URLs for the site header"
+    },
+    "sidebarNotice": {
+      "title": "Sidebar text",
+      "description": "Custom text after navigation buttons plus a Privacy Policy link"
     }
+  },
+  "sidebarNotice": {
+    "pageTitle": "Sidebar text",
+    "intro": "This text appears in the right sidebar right after the navigation buttons. The Privacy Policy link is always appended and cannot be removed.",
+    "textLabel": "Editor text",
+    "textPlaceholder": "Short message for visitors…",
+    "textHint": "Plain text only, up to 4000 characters.",
+    "fixedLinkLabel": "Always in the block",
+    "privacyLink": "Privacy Policy and consents",
+    "fixedLinkHint": "The link opens /content/published filtered to Privacy Policy and consents.",
+    "saved": "Sidebar text saved",
+    "saveError": "Could not save sidebar text",
+    "loadError": "Could not load sidebar text",
+    "adminOnly": "Only administrators can edit the sidebar text."
   },
   "regions": {
     "pageTitle": "Regional servers",
@@ -56,7 +74,7 @@
       "description": "Integration with OpenAI (GPT-4, GPT-3.5, etc.).",
       "pageTitle": "OpenAI: integration and settings",
       "label": "OpenAI API Key",
-      "providerDescription": "Enter your OpenAI API Key and (optionally) Base URL for custom endpoints."
+      "providerDescription": "Enter your OpenAI API Key. To bypass RU geo-IP blocks, enable BlancVPN (subscription URL)."
     },
     "ollama": {
       "title": "Ollama",
@@ -266,6 +284,16 @@
       "apiKey": "API Key:",
       "verify": "Verify",
       "baseUrl": "Base URL:",
+      "proxyEnabled": "Outbound proxy for OpenAI",
+      "proxyHint": "Workaround for geo-block: backend calls api.openai.com via your proxy.",
+      "proxyUrl": "Manual HTTP/SOCKS URL:",
+      "proxyUrlPlaceholder": "http://user:pass{'@'}host:port or socks5://host:port",
+      "blancEnabled": "BlancVPN for OpenAI",
+      "blancHint": "Paste your BlancVPN subscription URL (https://….withblancvpn.online/s/…). Backend fetches nodes, runs Xray, and routes OpenAI via SOCKS.",
+      "blancUrl": "BlancVPN subscription URL:",
+      "blancUrlPlaceholder": "https://….withblancvpn.online/s/…",
+      "blancMeta": "Node: {name} (nodes in subscription: {total})",
+      "manualProxySummary": "Advanced: manual HTTP/SOCKS (if no Blanc)",
       "llmModel": "Model (LLM):",
       "embeddingModel": "Embeddings model:",
       "deleteKey": "Delete key",

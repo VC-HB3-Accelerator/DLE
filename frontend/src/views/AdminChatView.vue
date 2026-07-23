@@ -16,12 +16,22 @@
       <span>{{ t('chat.privateChat') }}</span>
       <button class="close-btn" @click="goBack">×</button>
     </div>
+
+    <div v-if="conferenceId" class="conference-invite">
+      <div class="conference-invite-text">
+        <strong>{{ t('contacts.conference.participant.inviteTitle') }}</strong>
+        <span>{{ t('contacts.conference.participant.inviteHint') }}</span>
+      </div>
+      <el-button type="primary" :loading="joining" @click="startConference">
+        {{ t('contacts.conference.participant.start') }}
+      </el-button>
+    </div>
     
     <div v-if="isLoadingMessages" class="loading-container">
       <div class="loading">{{ t('chat.loadingMessages') }}</div>
     </div>
     
-    <div v-else class="chat-container">
+    <div v-else class="chat-container" :class="{ 'with-invite': conferenceId }">
       <ChatInterface
         :messages="messages"
         :attachments="chatAttachments"
@@ -45,10 +55,12 @@
 import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import BaseLayout from '../components/BaseLayout.vue';
 import ChatInterface from '../components/ChatInterface.vue';
 import { getPrivateMessages, sendPrivateMessage, getPrivateConversations, markPrivateMessagesAsRead } from '../services/messagesService.js';
 import { useAuthContext } from '@/composables/useAuth';
+import conferenceService from '@/services/conferenceService';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -56,47 +68,68 @@ const router = useRouter();
 const { userId } = useAuthContext();
 
 const adminId = computed(() => route.params.adminId);
+const inviteConferenceId = ref(null);
+const conferenceId = computed(() => {
+  const n = Number(route.query.conference);
+  if (Number.isInteger(n) && n > 0) return n;
+  return inviteConferenceId.value;
+});
 const currentUserId = computed(() => userId.value);
 const messages = ref([]);
 const chatAttachments = ref([]);
 const chatNewMessage = ref('');
 const isLoadingMessages = ref(false);
+const joining = ref(false);
+
+async function loadInviteForHost() {
+  if (route.query.conference) return;
+  try {
+    const data = await conferenceService.listMyInvites();
+    const host = Number(adminId.value);
+    const match = (data.invites || []).find((i) => Number(i.host_id) === host);
+    inviteConferenceId.value = match?.id || null;
+  } catch {
+    inviteConferenceId.value = null;
+  }
+}
+
+async function startConference() {
+  if (!conferenceId.value) return;
+  joining.value = true;
+  try {
+    const data = await conferenceService.joinSession(conferenceId.value);
+    await router.push({
+      name: 'conference-participant-live',
+      params: { sessionId: String(data.session.id) }
+    });
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.error || t('contacts.conference.participant.startError'));
+  } finally {
+    joining.value = false;
+  }
+}
 
 async function loadMessages() {
   if (!adminId.value) return;
   
   try {
     isLoadingMessages.value = true;
-    console.log('[AdminChatView] Загружаем приватные сообщения для админа:', adminId.value);
-    
-    // Получаем приватные чаты пользователя
     const conversationsResponse = await getPrivateConversations();
-    console.log('[AdminChatView] Приватные чаты:', conversationsResponse);
-    
-    // Находим чат с нужным админом
     const conversation = conversationsResponse.conversations?.find(conv => 
       conv.user_id == adminId.value
     );
     
     if (conversation) {
-      // Загружаем историю чата
       const messagesResponse = await getPrivateMessages(conversation.conversation_id);
-      console.log('[AdminChatView] История чата:', messagesResponse);
-      
       messages.value = messagesResponse?.messages || [];
-      
-      // Отмечаем сообщения как прочитанные
       try {
         await markPrivateMessagesAsRead(conversation.conversation_id);
-        console.log('[AdminChatView] Сообщения отмечены как прочитанные');
       } catch (error) {
         console.error('[AdminChatView] Ошибка отметки сообщений как прочитанных:', error);
       }
     } else {
       messages.value = [];
     }
-    
-    console.log('[AdminChatView] Загружено сообщений:', messages.value.length);
   } catch (error) {
     console.error('[AdminChatView] Ошибка загрузки сообщений:', error);
     messages.value = [];
@@ -105,25 +138,17 @@ async function loadMessages() {
   }
 }
 
-async function handleSendMessage({ message, attachments }) {
+async function handleSendMessage({ message }) {
   if (!message.trim() || !adminId.value) return;
   
   try {
-    console.log('[AdminChatView] Отправляем приватное сообщение:', message, 'админу:', adminId.value);
-    
     await sendPrivateMessage({
       recipientId: parseInt(adminId.value),
       content: message
     });
-    
-    // Очищаем поле ввода
     chatNewMessage.value = '';
     chatAttachments.value = [];
-    
-    // Перезагружаем сообщения
     await loadMessages();
-    
-    console.log('[AdminChatView] Сообщение отправлено успешно');
   } catch (error) {
     console.error('[AdminChatView] Ошибка отправки сообщения:', error);
   }
@@ -133,11 +158,12 @@ function goBack() {
   if (window.history.length > 1) {
     router.back();
   } else {
-    router.push({ name: 'crm' });
+    router.push({ name: 'personal-messages' });
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadInviteForHost();
   loadMessages();
 });
 </script>
@@ -152,6 +178,29 @@ onMounted(() => {
   border-bottom: 1px solid #ddd;
   font-size: 1.2rem;
   font-weight: bold;
+}
+
+.conference-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--color-primary-light, #ecf5ff);
+  border-bottom: 1px solid var(--color-border, #dcdfe6);
+}
+
+.conference-invite-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.conference-invite-text span {
+  color: var(--color-grey, #606266);
+  font-size: 0.9rem;
 }
 
 .close-btn {
@@ -171,6 +220,8 @@ onMounted(() => {
 .loading-container {
   height: 200px;
   position: relative;
+  padding: 2rem;
+  text-align: center;
 }
 
 .chat-container {
@@ -179,9 +230,8 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.loading-container {
-  padding: 2rem;
-  text-align: center;
+.chat-container.with-invite {
+  height: calc(100dvh - 190px);
 }
 
 .loading {
@@ -189,7 +239,6 @@ onMounted(() => {
   font-size: 1.1rem;
 }
 
-/* Стили для ChatInterface */
 :deep(.chat-messages) {
   flex: 1;
   overflow-y: auto;
@@ -207,48 +256,12 @@ onMounted(() => {
     font-size: 1rem;
   }
   
-  .close-btn {
-    font-size: 1.25rem;
-    padding: 0.2rem 0.4rem;
-  }
-  
   .chat-container {
     height: calc(100dvh - 100px);
   }
-  
-  :deep(.chat-messages) {
-    padding: 0.75rem;
-  }
-  
-  :deep(.chat-input) {
-    padding: 0.75rem;
-  }
-  
-  .loading-container {
-    padding: 1.5rem;
-  }
-  
-  .loading {
-    font-size: 1rem;
-  }
-}
 
-@media (max-width: 480px) {
-  .admin-chat-header {
-    padding: 0.5rem;
-    font-size: 0.9rem;
-  }
-  
-  .chat-container {
-    height: calc(100dvh - 80px);
-  }
-  
-  :deep(.chat-messages) {
-    padding: 0.5rem;
-  }
-  
-  :deep(.chat-input) {
-    padding: 0.5rem;
+  .chat-container.with-invite {
+    height: calc(100dvh - 180px);
   }
 }
 </style>

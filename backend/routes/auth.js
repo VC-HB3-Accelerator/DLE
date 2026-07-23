@@ -823,7 +823,7 @@ router.get('/check', async (req, res) => {
     // Добавляем специфические поля в зависимости от типа аутентификации
     if (authType === 'wallet') {
       response.address = req.session.address || null;
-    } else if (authType === 'email') {
+    } else if (authType === 'email' || authType === 'conference_magic') {
       response.email = req.session.email || null;
     } else if (authType === 'telegram') {
       response.telegramId = req.session.telegramId || null;

@@ -4,6 +4,7 @@
  */
 
 import api from '../api/axios';
+import { getPrivacyDocsUrl } from '../constants/publishedDocs';
 
 const blogEngagementService = {
   async getEngagement(pageId) {
@@ -54,10 +55,12 @@ const blogEngagementService = {
     return res.data;
   },
 
-  async subscribe(email, sourcePageId = null) {
+  async subscribe(email, sourcePageId = null, options = {}) {
     const res = await api.post('/blog/subscribe', {
       email,
       source_page_id: sourcePageId,
+      privacy_consent: Boolean(options.privacyConsent),
+      privacy_consent_url: options.privacyConsentUrl || getPrivacyDocsUrl(),
     });
     return res.data;
   },

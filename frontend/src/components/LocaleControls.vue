@@ -212,9 +212,9 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   width: 100%;
   height: 48px;
-  border: 1px solid var(--color-grey-light);
-  background: var(--color-light);
-  color: var(--color-dark);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-white, #fff);
   font-size: var(--font-size-md);
   padding: 0 15px;
   border-radius: var(--radius-lg);
@@ -227,7 +227,9 @@ onBeforeUnmount(() => {
 
 .locale-controls__dropdown-trigger:hover,
 .locale-controls__dropdown-trigger--open {
-  background: var(--color-grey-light);
+  background: var(--color-primary-dark, #388e3c);
+  border-color: var(--color-primary-dark, #388e3c);
+  color: var(--color-white, #fff);
 }
 
 .locale-controls__dropdown-label {
@@ -242,6 +244,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   font-size: 0.85rem;
   line-height: 1;
+  color: inherit;
   transition: transform 0.15s ease;
 }
 
@@ -281,11 +284,12 @@ onBeforeUnmount(() => {
 }
 
 .locale-controls__dropdown-item:hover {
-  background: var(--color-light, #f5f7fa);
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--color-primary);
 }
 
 .locale-controls__dropdown-item--active {
-  background: rgba(64, 158, 255, 0.08);
+  background: rgba(76, 175, 80, 0.14);
   color: var(--color-primary);
 }
 
@@ -306,7 +310,6 @@ onBeforeUnmount(() => {
   color: var(--color-primary);
   opacity: 0.75;
 }
-
 @media screen and (max-width: 480px) {
   .locale-controls__dropdown-trigger {
     height: 42px;

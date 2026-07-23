@@ -121,10 +121,81 @@ function buildCoverHtml(cover, title, escapeHtml) {
   return `<div class="article-cover"><img src="${escapeHtml(coverSrc)}" alt="${escapeHtml(title || '')}" loading="lazy"></div>`;
 }
 
+function parsePageSeo(seo) {
+  if (!seo) return {};
+  if (typeof seo === 'object') return seo;
+  if (typeof seo === 'string') {
+    try {
+      const parsed = JSON.parse(seo);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function absolutizeMediaUrl(url, baseUrl) {
+  const src = normalizeCoverUrl(url);
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src)) return src;
+  const base = String(baseUrl || '').replace(/\/$/, '');
+  return `${base}${src.startsWith('/') ? '' : '/'}${src}`;
+}
+
+/**
+ * Картинка для соцпревью (og:image):
+ * 1) seo.og_image (явная обложка из формы)
+ * 2) первое изображение в контенте / cover_type=image
+ * 3) fallback логотип сайта
+ * Видео само по себе в og:image не подходит — мессенджеры ждут JPEG/PNG.
+ */
+function resolveSocialPreviewImage({
+  seo = null,
+  cover = null,
+  content = '',
+  baseUrl = '',
+  fallbackPath = '/og-default.png'
+} = {}) {
+  const seoObj = parsePageSeo(seo);
+  const explicit = seoObj.og_image || seoObj.image || seoObj.social_image || null;
+  if (explicit) {
+    return absolutizeMediaUrl(explicit, baseUrl);
+  }
+
+  if (cover?.cover_url && cover.cover_type === 'image') {
+    return absolutizeMediaUrl(cover.cover_url, baseUrl);
+  }
+
+  const candidates = collectMediaCandidates(content || '');
+  const image = candidates.find((c) => c.cover_type === 'image');
+  if (image?.cover_url) {
+    return absolutizeMediaUrl(image.cover_url, baseUrl);
+  }
+
+  return absolutizeMediaUrl(fallbackPath, baseUrl);
+}
+
+function resolveSocialPreviewVideo({ cover = null, content = '', baseUrl = '' } = {}) {
+  if (cover?.cover_url && cover.cover_type === 'video') {
+    return absolutizeMediaUrl(cover.cover_url, baseUrl);
+  }
+  const video = collectMediaCandidates(content || '').find((c) => c.cover_type === 'video');
+  if (video?.cover_url) {
+    return absolutizeMediaUrl(video.cover_url, baseUrl);
+  }
+  return null;
+}
+
 module.exports = {
   extractCoverFromHtml,
   attachCoverToPage,
   normalizeCoverUrl,
   isUploadMediaUrl,
   buildCoverHtml,
+  parsePageSeo,
+  absolutizeMediaUrl,
+  resolveSocialPreviewImage,
+  resolveSocialPreviewVideo,
+  collectMediaCandidates,
 };

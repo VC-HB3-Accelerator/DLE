@@ -24,7 +24,25 @@
     "regions": {
       "title": "Региональные серверы",
       "description": "Кнопки и адреса серверов для переключателя в шапке"
+    },
+    "sidebarNotice": {
+      "title": "Текст в сайдбаре",
+      "description": "Произвольный текст после кнопок навигации и ссылка на Политику и согласия"
     }
+  },
+  "sidebarNotice": {
+    "pageTitle": "Текст в сайдбаре",
+    "intro": "Текст показывается в правом сайдбаре сразу после кнопок навигации. Ссылка на Политику и согласия всегда добавляется автоматически и не редактируется.",
+    "textLabel": "Текст редактора",
+    "textPlaceholder": "Краткое сообщение для посетителей…",
+    "textHint": "Обычный текст без HTML, до 4000 символов.",
+    "fixedLinkLabel": "Всегда в блоке",
+    "privacyLink": "Политика и согласия",
+    "fixedLinkHint": "Ссылка ведёт на /content/published с фильтром «Политика и согласия».",
+    "saved": "Текст сайдбара сохранён",
+    "saveError": "Не удалось сохранить текст сайдбара",
+    "loadError": "Не удалось загрузить текст сайдбара",
+    "adminOnly": "Редактирование текста сайдбара доступно только администраторам."
   },
   "regions": {
     "pageTitle": "Региональные серверы",
@@ -56,7 +74,7 @@
       "description": "Интеграция с OpenAI (GPT-4, GPT-3.5 и др.).",
       "pageTitle": "OpenAI: интеграция и настройки",
       "label": "OpenAI API Key",
-      "providerDescription": "Введите OpenAI API Key и (опционально) Base URL для кастомных endpoint."
+      "providerDescription": "Введите OpenAI API Key. Для обхода блокировки по IP РФ — включите BlancVPN (ссылка подписки)."
     },
     "ollama": {
       "title": "Ollama",
@@ -266,6 +284,16 @@
       "apiKey": "API Key:",
       "verify": "Verify",
       "baseUrl": "Base URL:",
+      "proxyEnabled": "Исходящий прокси для OpenAI",
+      "proxyHint": "Костыль для geo-block: backend ходит к api.openai.com через ваш прокси.",
+      "proxyUrl": "Ручной HTTP/SOCKS URL:",
+      "proxyUrlPlaceholder": "http://user:pass{'@'}host:port или socks5://host:port",
+      "blancEnabled": "BlancVPN для OpenAI",
+      "blancHint": "Вставьте ссылку подписки BlancVPN (https://….withblancvpn.online/s/…). Backend скачает узлы, поднимет Xray и будет ходить в OpenAI через SOCKS. Не нужен WireGuard и не нужна ручная vless:// в этом поле — именно subscription URL.",
+      "blancUrl": "Ссылка подписки BlancVPN:",
+      "blancUrlPlaceholder": "https://….withblancvpn.online/s/…",
+      "blancMeta": "Узел: {name} (всего в подписке: {total})",
+      "manualProxySummary": "Дополнительно: ручной HTTP/SOCKS (если нет Blanc)",
       "llmModel": "Модель (LLM):",
       "embeddingModel": "Embeddings-модель:",
       "deleteKey": "Удалить ключ",

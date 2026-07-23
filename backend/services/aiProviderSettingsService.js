@@ -11,10 +11,11 @@
  */
 
 const encryptedDb = require('./encryptedDatabaseService');
-const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const axios = require('axios');
 const ollamaConfig = require('./ollamaConfig');
+const openaiProxy = require('./openaiProxy');
+const blancVpnService = require('./blancVpnService');
 
 const TABLE = 'ai_providers_settings';
 const TIMEOUTS = ollamaConfig.getTimeouts();
@@ -24,7 +25,16 @@ async function getProviderSettings(provider) {
   return settings[0] || null;
 }
 
-async function upsertProviderSettings({ provider, api_key, base_url, selected_model, embedding_model }) {
+async function upsertProviderSettings({
+  provider,
+  api_key,
+  base_url,
+  selected_model,
+  embedding_model,
+  proxy_url,
+  proxy_enabled,
+  blanc_subscription_url
+}) {
   const data = {
     provider: provider,
     api_key: api_key,
@@ -34,37 +44,88 @@ async function upsertProviderSettings({ provider, api_key, base_url, selected_mo
     updated_at: new Date()
   };
 
+  if (provider === 'openai') {
+    if (proxy_url !== undefined) {
+      data.proxy_url = proxy_url ? openaiProxy.normalizeProxyUrl(proxy_url) : '';
+      if (data.proxy_url && !blancVpnService.isBlancSubscriptionUrl(data.proxy_url)) {
+        openaiProxy.assertManualProxyUrl(data.proxy_url);
+      }
+    }
+    if (proxy_enabled !== undefined) {
+      data.proxy_enabled = Boolean(proxy_enabled);
+    }
+    if (blanc_subscription_url !== undefined) {
+      const sub = String(blanc_subscription_url || '').trim();
+      if (sub) {
+        blancVpnService.assertBlancSubscriptionUrl(sub);
+        data.blanc_subscription_url = sub;
+      } else {
+        data.blanc_subscription_url = '';
+      }
+    }
+  }
+
   // Проверяем, существует ли запись
   const existing = await encryptedDb.getData(TABLE, { provider: provider }, 1);
-  
+
+  let saved;
   if (existing.length > 0) {
-    // Обновляем существующую запись по ID
-    return await encryptedDb.saveData(TABLE, data, { id: existing[0].id });
+    saved = await encryptedDb.saveData(TABLE, data, { id: existing[0].id });
   } else {
-    // Создаем новую запись
-    return await encryptedDb.saveData(TABLE, data);
+    saved = await encryptedDb.saveData(TABLE, data);
   }
+
+  // После сохранения — обновить Xray config из Blanc subscription
+  if (provider === 'openai') {
+    const merged = {
+      ...(existing[0] || {}),
+      ...data,
+      proxy_enabled: data.proxy_enabled !== undefined
+        ? data.proxy_enabled
+        : Boolean(existing[0]?.proxy_enabled),
+      blanc_subscription_url: data.blanc_subscription_url !== undefined
+        ? data.blanc_subscription_url
+        : (existing[0]?.blanc_subscription_url || '')
+    };
+    if (merged.proxy_enabled && merged.blanc_subscription_url) {
+      try {
+        await blancVpnService.applySubscription(merged.blanc_subscription_url);
+      } catch (e) {
+        const err = new Error(`BlancVPN: ${e.message}`);
+        err.status = e.status || 502;
+        throw err;
+      }
+    }
+  }
+
+  return saved || (await getProviderSettings(provider));
 }
 
 async function deleteProviderSettings(provider) {
   await encryptedDb.deleteData(TABLE, { provider: provider });
 }
 
-async function getProviderModels(provider, { api_key, base_url } = {}) {
+async function getProviderModels(provider, settings = {}) {
   try {
     if (provider === 'openai') {
-      const client = new OpenAI({ apiKey: api_key, baseURL: base_url });
+      const client = openaiProxy.createOpenAIClient({
+        api_key: settings.api_key,
+        base_url: settings.base_url,
+        proxy_url: settings.proxy_url,
+        proxy_enabled: settings.proxy_enabled,
+        blanc_subscription_url: settings.blanc_subscription_url
+      });
       const res = await client.models.list();
       return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
     }
     if (provider === 'anthropic') {
-      const client = new Anthropic({ apiKey: api_key, baseURL: base_url });
+      const client = new Anthropic({ apiKey: settings.api_key, baseURL: settings.base_url });
       const res = await client.models.list();
       return res.data ? res.data.map(m => ({ id: m.id, ...m })) : [];
     }
     if (provider === 'google') {
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: api_key, baseUrl: base_url });
+      const ai = new GoogleGenAI({ apiKey: settings.api_key, baseUrl: settings.base_url });
       const pager = await ai.models.list();
       const models = [];
       for await (const model of pager) {
@@ -73,30 +134,44 @@ async function getProviderModels(provider, { api_key, base_url } = {}) {
       return models;
     }
     if (provider === 'ollama') {
-      // Для Ollama — через ai-assistant.js
-      return [];
+      const baseUrl = settings.base_url || ollamaConfig.getBaseUrl();
+      const response = await axios.get(`${baseUrl}/api/tags`, {
+        timeout: TIMEOUTS.ollamaTags || 15000
+      });
+      return (response.data?.models || []).map((m) => ({
+        id: m.name,
+        name: m.name
+      }));
     }
     return [];
   } catch (error) {
+    const logger = require('../utils/logger');
+    logger.warn(`[aiProviderSettings] getProviderModels(${provider}):`, error.message);
     return [];
   }
 }
 
-async function verifyProviderKey(provider, { api_key, base_url } = {}) {
+async function verifyProviderKey(provider, settings = {}) {
   try {
     if (provider === 'openai') {
-      const client = new OpenAI({ apiKey: api_key, baseURL: base_url });
+      const client = openaiProxy.createOpenAIClient({
+        api_key: settings.api_key,
+        base_url: settings.base_url,
+        proxy_url: settings.proxy_url,
+        proxy_enabled: settings.proxy_enabled,
+        blanc_subscription_url: settings.blanc_subscription_url
+      });
       await client.models.list();
       return { success: true };
     }
     if (provider === 'anthropic') {
-      const client = new Anthropic({ apiKey: api_key, baseURL: base_url });
+      const client = new Anthropic({ apiKey: settings.api_key, baseURL: settings.base_url });
       await client.models.list();
       return { success: true };
     }
     if (provider === 'google') {
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: api_key, baseUrl: base_url });
+      const ai = new GoogleGenAI({ apiKey: settings.api_key, baseUrl: settings.base_url });
       const pager = await ai.models.list();
       for await (const _ of pager) {
         break;

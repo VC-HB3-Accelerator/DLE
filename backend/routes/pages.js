@@ -333,10 +333,23 @@ async function decryptPageRow(page) {
     }
   }
 
+  // seo/settings часто лежат как JSON-строка после decrypt_text
+  for (const field of ['seo', 'settings']) {
+    if (typeof decryptedPage[field] === 'string') {
+      try {
+        decryptedPage[field] = JSON.parse(decryptedPage[field]);
+      } catch {
+        /* keep string */
+      }
+    }
+  }
+
   return decryptedPage;
 }
 
 function sanitizeBlogListItem(page) {
+  const { parsePageSeo } = require('../utils/blogCoverUtils');
+  const seo = parsePageSeo(page.seo);
   return {
     id: page.id,
     slug: page.slug,
@@ -347,6 +360,7 @@ function sanitizeBlogListItem(page) {
     updated_at: page.updated_at,
     cover_url: page.cover_url || null,
     cover_type: page.cover_type || null,
+    og_image: seo.og_image || seo.image || null,
     reactions: page.reactions || null,
     likes_count: page.likes_count ?? page.reactions?.heart ?? 0,
     comments_count: page.comments_count ?? 0,
@@ -1765,6 +1779,7 @@ router.get('/blog/all', async (req, res) => {
         row.summary = decrypted.summary || row.summary;
         // content только для извлечения cover_url; в API-ответ не попадает (sanitizeBlogListItem)
         row.content = decrypted.content || row.content;
+        row.seo = decrypted.seo || row.seo;
       } catch (decryptErr) {
         console.warn(`[pages] GET /blog/all: decrypt failed for ${row.id}:`, decryptErr.message);
       }
@@ -2437,6 +2452,8 @@ Allow: /api/pages/blog/all
 Allow: /api/pages/blog/
 Allow: /api/pages/published/
 Allow: /api/settings/footer-dle
+Allow: /api/settings/region-urls
+Allow: /api/settings/sidebar-notice
 Allow: /api/pages/public/sitemap.xml
 Allow: /api/pages/public/robots.txt
 

@@ -444,6 +444,8 @@ router.get('/media/:id/file', async (req, res) => {
     res.setHeader('Accept-Ranges', 'bytes'); // Указываем, что поддерживаем Range requests
     res.setHeader('Content-Length', contentLength);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Кеширование на 1 год
+    // Соцсети/превьюеры тянут og:image с другого origin
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     
     // Правильное кодирование имени файла для HTTP заголовков (RFC 5987)
     // Экранируем специальные символы и используем ASCII для совместимости

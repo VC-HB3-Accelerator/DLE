@@ -321,6 +321,21 @@ function updatePageMetaTags() {
   updateOrCreateMeta('og:description', description, 'property');
   updateOrCreateMeta('og:type', 'article', 'property');
   updateOrCreateMeta('og:url', pageUrl, 'property');
+
+  const seoImage = seoData?.og_image || seoData?.image;
+  if (seoImage) {
+    const abs = String(seoImage).startsWith('http')
+      ? seoImage
+      : `${window.location.origin}${String(seoImage).startsWith('/') ? '' : '/'}${seoImage}`;
+    updateOrCreateMeta('og:image', abs, 'property');
+  } else if (page.value?.cover_url && page.value?.cover_type !== 'video') {
+    const coverUrl = page.value.cover_url.startsWith('http')
+      ? page.value.cover_url
+      : `${window.location.origin}${page.value.cover_url.startsWith('/') ? '' : '/'}${page.value.cover_url}`;
+    updateOrCreateMeta('og:image', coverUrl, 'property');
+  } else {
+    updateOrCreateMeta('og:image', `${window.location.origin}/og-default.png`, 'property');
+  }
   
   // Robots meta
   updateOrCreateMeta('robots', 'index, follow');

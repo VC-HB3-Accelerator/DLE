@@ -336,22 +336,45 @@ async function sendSubscribeConfirmationEmail(email, confirmUrl) {
   transporter.close();
 }
 
-async function subscribe(email, sourcePageId = null) {
+async function subscribe(email, sourcePageId = null, options = {}) {
   const normalized = String(email || '').trim().toLowerCase();
   if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
     throw new Error('Некорректный email');
   }
 
+  const privacyConsent = Boolean(options.privacyConsent ?? options.privacy_consent);
+  if (!privacyConsent) {
+    const err = new Error('Необходимо согласие с Политикой и согласиями');
+    err.code = 'PRIVACY_CONSENT_REQUIRED';
+    throw err;
+  }
+
+  const defaultConsentUrl = '/content/published?section=' + encodeURIComponent('политика и согласия');
+  const rawUrl = String(options.privacyConsentUrl || options.privacy_consent_url || defaultConsentUrl).trim();
+  const privacyConsentUrl = rawUrl || defaultConsentUrl;
+
   const token = crypto.randomBytes(32).toString('hex');
   const { rows } = await db.getQuery()(
-    `INSERT INTO blog_subscribers (email, confirm_token, source_page_id)
-     VALUES ($1, $2, $3)
+    `INSERT INTO blog_subscribers (
+       email,
+       confirm_token,
+       source_page_id,
+       privacy_consent,
+       privacy_consent_at,
+       privacy_consent_url
+     )
+     VALUES ($1, $2, $3, TRUE, NOW(), $4)
      ON CONFLICT (email) DO UPDATE SET
-       confirm_token = EXCLUDED.confirm_token,
-       confirmed_at = NULL,
-       source_page_id = COALESCE(EXCLUDED.source_page_id, blog_subscribers.source_page_id)
-     RETURNING id, email, confirm_token, confirmed_at`,
-    [normalized, token, sourcePageId]
+       confirm_token = CASE
+         WHEN blog_subscribers.confirmed_at IS NULL THEN EXCLUDED.confirm_token
+         ELSE blog_subscribers.confirm_token
+       END,
+       source_page_id = COALESCE(EXCLUDED.source_page_id, blog_subscribers.source_page_id),
+       privacy_consent = TRUE,
+       privacy_consent_at = NOW(),
+       privacy_consent_url = EXCLUDED.privacy_consent_url
+     RETURNING id, email, confirm_token, confirmed_at, privacy_consent, privacy_consent_at, privacy_consent_url`,
+    [normalized, token, sourcePageId, privacyConsentUrl]
   );
 
   if (rows[0].confirmed_at) {
@@ -389,7 +412,8 @@ async function confirmSubscribe(token) {
 
 async function listConfirmedSubscribers() {
   const { rows } = await db.getQuery()(
-    `SELECT id, email, confirmed_at, source_page_id, created_at
+    `SELECT id, email, confirmed_at, source_page_id, created_at,
+            privacy_consent, privacy_consent_at, privacy_consent_url
      FROM blog_subscribers
      WHERE confirmed_at IS NOT NULL
      ORDER BY confirmed_at DESC`

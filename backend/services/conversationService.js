@@ -232,9 +232,58 @@ async function updateConversationTitle(conversationId, userId, newTitle) {
   }
 }
 
+/**
+ * Приватная беседа editor↔участник (для лички / AdminChatView).
+ * conversations.user_id = hostId (открывается как adminId у участника).
+ */
+async function getOrCreatePrivateConversation(hostUserId, participantUserId) {
+  const hostId = Number(hostUserId);
+  const partId = Number(participantUserId);
+  if (!Number.isInteger(hostId) || !Number.isInteger(partId) || hostId <= 0 || partId <= 0) {
+    throw new Error('Некорректные id для приватной беседы');
+  }
+
+  const { rows: existing } = await db.getQuery()(
+    `SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at, c.conversation_type
+     FROM conversations c
+     INNER JOIN conversation_participants cp_host
+       ON cp_host.conversation_id = c.id AND cp_host.user_id = $1
+     INNER JOIN conversation_participants cp_part
+       ON cp_part.conversation_id = c.id AND cp_part.user_id = $2
+     WHERE c.conversation_type = 'private'
+       AND c.user_id = $1
+     ORDER BY c.updated_at DESC
+     LIMIT 1`,
+    [hostId, partId]
+  );
+  if (existing.length) return existing[0];
+
+  const { rows: created } = await db.getQuery()(
+    `INSERT INTO conversations (user_id, title, conversation_type)
+     VALUES ($1, $2, 'private')
+     RETURNING id, user_id, title, created_at, updated_at, conversation_type`,
+    [hostId, `Приватный чат ${hostId}-${partId}`]
+  );
+  const conversation = created[0];
+
+  await db.getQuery()(
+    `INSERT INTO conversation_participants (conversation_id, user_id)
+     SELECT $1, x FROM unnest(ARRAY[$2::int, $3::int]) AS x
+     WHERE NOT EXISTS (
+       SELECT 1 FROM conversation_participants
+       WHERE conversation_id = $1 AND user_id = x
+     )`,
+    [conversation.id, hostId, partId]
+  );
+
+  logger.info('[ConversationService] Создана private беседа:', conversation.id);
+  return conversation;
+}
+
 module.exports = {
   getOrCreateConversation,
   getOrCreatePublicConversation,
+  getOrCreatePrivateConversation,
   getConversationById,
   getUserConversations,
   touchConversation,
