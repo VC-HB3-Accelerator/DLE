@@ -203,9 +203,14 @@ const setupFirewall = async (options) => {
   log.info('Настройка firewall...');
   await execSshCommand('ufw --force enable', options);
   await execSshCommand('ufw allow ssh', options);
-  await execSshCommand('ufw allow 80', options);
-  await execSshCommand('ufw allow 443', options);
-  log.success('Firewall настроен');
+  await execSshCommand('ufw allow 80/tcp', options);
+  await execSshCommand('ufw allow 443/tcp', options);
+  // LiveKit ICE (см. docker-compose.prod.yml + ТЗ)
+  await execSshCommand('ufw allow 7881/tcp', options);
+  await execSshCommand('ufw allow 7882/udp', options);
+  // Gitea SSH (опционально, порт хоста 2223)
+  await execSshCommand('ufw allow 2223/tcp', options);
+  log.success('Firewall настроен (22, 80, 443, 7881/tcp, 7882/udp, 2223/tcp)');
 };
 
 module.exports = {

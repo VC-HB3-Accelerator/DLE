@@ -44,17 +44,17 @@
 
       <div class="blocks-column">
         <div class="management-block">
-          <h3>{{ t('settings.index.regions.title') }}</h3>
-          <p>{{ t('settings.index.regions.description') }}</p>
-          <button class="details-btn" @click="goToRegions">
+          <h3>{{ t('settings.index.sidebar.title') }}</h3>
+          <p>{{ t('settings.index.sidebar.description') }}</p>
+          <button class="details-btn" @click="goToSidebar">
             {{ t('common.details') }}
           </button>
         </div>
 
         <div class="management-block">
-          <h3>{{ t('settings.index.sidebarNotice.title') }}</h3>
-          <p>{{ t('settings.index.sidebarNotice.description') }}</p>
-          <button class="details-btn" @click="goToSidebarNotice">
+          <h3>{{ t('settings.index.updates.title') }}</h3>
+          <p>{{ t('settings.index.updates.description') }}</p>
+          <button class="details-btn" @click="goToUpdates">
             {{ t('common.details') }}
           </button>
         </div>
@@ -100,14 +100,14 @@ async function ensureCanManageSettings(deniedMessageKey) {
   return true;
 }
 
-async function goToRegions() {
-  if (!(await ensureCanManageSettings('settings.regions.adminOnly'))) return;
-  router.push('/settings/regions');
+async function goToSidebar() {
+  if (!(await ensureCanManageSettings('settings.sidebar.adminOnly'))) return;
+  router.push({ name: 'settings-sidebar' });
 }
 
-async function goToSidebarNotice() {
-  if (!(await ensureCanManageSettings('settings.sidebarNotice.adminOnly'))) return;
-  router.push('/settings/sidebar-notice');
+async function goToUpdates() {
+  if (!(await ensureCanManageSettings('settings.updates.adminOnly'))) return;
+  router.push({ name: 'settings-updates' });
 }
 </script>
 

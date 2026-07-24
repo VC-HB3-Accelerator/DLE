@@ -138,11 +138,28 @@ services:
       - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl
       - ./shared:/app/shared
+      - ./update-packs:/app/update-packs
+      - ./DLE_VERSION:/app/DLE_VERSION:ro
+      # Корень приложения для «Обновить здесь» (update.sh + compose)
+      - .:/host-project
       - blanc_xray_data:/app/blanc-xray-data
       - ~/.ssh:/root/.ssh:ro  # SSH ключи для подключения к VDS
+      - /var/run/docker.sock:/var/run/docker.sock  # start/stop Gitea; apply update.sh
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-8000}
+      - GITEA_CONTAINER_NAME=${GITEA_CONTAINER_NAME:-dapp-gitea}
+      - UPDATES_PACK_DIR=/app/update-packs
+      - UPDATES_STUB_MODE=${UPDATES_STUB_MODE:-0}
+      - DLE_APP_ROOT=/host-project
+      - DLE_VERSION_PATH=/host-project/DLE_VERSION
+      # self = раздача из локальной БД; клиенты ставят https://hb3-accelerator.com
+      - UPDATES_HUB_URL=${UPDATES_HUB_URL:-self}
+      - UPDATES_HUB_TOKEN=${UPDATES_HUB_TOKEN:-}
+      - UPDATES_GITEA_URL=${UPDATES_GITEA_URL:-}
+      - UPDATES_GITEA_TOKEN=${UPDATES_GITEA_TOKEN:-}
+      - UPDATES_GITEA_ASSET_TEMPLATE=${UPDATES_GITEA_ASSET_TEMPLATE:-}
+      - DLE_COMPOSE_FILE=${DLE_COMPOSE_FILE:-docker-compose.yml}
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-dapp_db}
@@ -223,9 +240,8 @@ services:
     depends_on:
       - backend
     volumes:
-      # Live SEO HTML от backend pre-render (как в prod)
-      - ./frontend/dist/blog:/usr/share/nginx/html/blog:ro
-      - ./frontend/dist/content/published:/usr/share/nginx/html/content/published:ro
+      # Весь dist с хоста — update overlay сразу в SPA (не только blog/published)
+      - ./frontend/dist:/usr/share/nginx/html:ro
 
   # BlancVPN (VLESS/SS subscription) → локальный SOCKS :1080 только для OpenAI
   blanc-xray:
@@ -345,12 +361,16 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:rw
       - /tmp:/tmp  # для временных файлов
       - ./ssl:/app/ssl  # для доступа к ключу шифрования
+      # Корень репо для overlay bind mounts при /vds/setup (backend, shared, dist, …)
+      - .:/host-project:ro
     security_opt:
       - no-new-privileges:true  # Запрет повышения привилегий
     ports:
       - '3000:3000'  # Локальный доступ
     environment:
       - NODE_ENV=${NODE_ENV:-development}
+      - HOST_PROJECT_ROOT=/host-project
+      - ENCRYPTION_KEY_PATH=/app/ssl/keys/full_db_encryption.key
     depends_on:
       - backend
     healthcheck:

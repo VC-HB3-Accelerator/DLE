@@ -25,9 +25,100 @@
       "title": "Regional servers",
       "description": "Switcher button labels and server URLs for the site header"
     },
+    "sidebar": {
+      "title": "Sidebar",
+      "description": "Sidebar text, languages, navigation buttons, and regional servers"
+    },
+    "updates": {
+      "title": "Updates",
+      "description": "Update this instance from the HB3 hub"
+    },
     "sidebarNotice": {
       "title": "Sidebar text",
       "description": "Custom text after navigation buttons plus a Privacy Policy link"
+    }
+  },
+  "updates": {
+    "pageTitle": "Updates",
+    "intro": "This instance requests an update from the HB3 hub, applies it here, and deletes the pack. Database, .env, and the encryption key are not touched.",
+    "adminOnly": "Only administrators can open the updates section.",
+    "versionsTitle": "Versions",
+    "currentVersion": "Current instance version",
+    "latestVersion": "Available update",
+    "minFrom": "Minimum version required",
+    "unknown": "unknown",
+    "noRelease": "No published updates yet",
+    "stubHint": "UPDATES_STUB_MODE is on: treasury license checks are temporarily skipped.",
+    "hubLabel": "Updates hub",
+    "applyTitle": "Update here",
+    "applyHint": "Downloads the pack from the hub, runs update.sh, and deletes the file. The page may go offline during recreate — refresh in a few minutes.",
+    "applyHere": "Update here",
+    "applying": "Starting update…",
+    "applyStarted": "Update {version} started. Wait for recreate, then refresh the page.",
+    "applyError": "Could not start the update",
+    "appRootMissing": "App root (update.sh) is not mounted into the backend (/host-project). Check compose.",
+    "dleContract": "Client DLE contract",
+    "dleContractPlaceholder": "0x…",
+    "dleContractHint": "Address of your DLE smart contract: the hub uses it to check update entitlement (token gate + treasury license). Usually filled automatically from your DLE list.",
+    "invalidContract": "Enter a valid DLE contract address (0x…)",
+    "loadError": "Could not load update information",
+    "hubSettingsTitle": "Hub & storage (database)",
+    "hubSettingsHint": "Distributor HB3 only (hub_url = self in DB). Stored in updates_hub_settings, not .env. Hidden on client instances.",
+    "hubUrl": "Hub URL (self = this instance distributes)",
+    "stubMode": "Stub mode (skip on-chain license checks)",
+    "giteaUrl": "Gitea URL",
+    "giteaOrg": "Gitea org",
+    "giteaRepo": "Gitea repo (private)",
+    "giteaAssetTemplate": "Asset URL template ({version}, {filename})",
+    "giteaToken": "Gitea API token",
+    "giteaHubOnlyHint": "Private Gitea pack storage — distributor hub only.",
+    "hubServiceToken": "Client ↔ hub service token",
+    "hubServiceTokenHint": "Same secret on HB3 and client VDS for inter-instance authorize.",
+    "tokenPlaceholder": "leave blank to keep unchanged",
+    "saveHubSettings": "Save settings",
+    "saving": "Saving…",
+    "hubSaved": "Settings saved to the database",
+    "hubSaveError": "Could not save settings"
+  },
+  "sidebar": {
+    "pageTitle": "Sidebar settings",
+    "intro": "Right-sidebar notice text, UI languages, optional nav buttons, and regional servers. Core links (Chat, Blog, Management) are always visible.",
+    "adminOnly": "Only administrators can edit sidebar settings.",
+    "tabs": {
+      "text": "Text",
+      "languages": "Languages",
+      "buttons": "Buttons",
+      "regions": "Regions"
+    },
+    "languages": {
+      "intro": "Choose which UI languages visitors can use. The language switcher in the sidebar appears only when two or more languages are selected.",
+      "hint": "At least one language is required. With a single language the Language button in the sidebar is hidden.",
+      "saved": "Language settings saved",
+      "saveError": "Could not save language settings",
+      "loadError": "Could not load language settings"
+    },
+    "buttons": {
+      "intro": "Choose which optional buttons to show. Enabling Repositories starts the Gitea container.",
+      "repositories": "Repositories (Gitea)",
+      "repositoriesHint": "Opens Gitea. Saving will start or stop the dapp-gitea container.",
+      "store": "Online store",
+      "storeHint": "Coming soon — not available yet.",
+      "giteaStatus": "Gitea status",
+      "giteaStates": {
+        "running": "running",
+        "exited": "stopped",
+        "created": "created",
+        "paused": "paused",
+        "restarting": "restarting",
+        "missing": "container not found",
+        "unavailable": "Docker unavailable",
+        "error": "error",
+        "unknown": "unknown"
+      },
+      "saved": "Button settings saved",
+      "saveError": "Could not save button settings",
+      "loadError": "Could not load button settings",
+      "giteaActionFailed": "Settings saved, but Gitea container state could not be changed"
     }
   },
   "sidebarNotice": {

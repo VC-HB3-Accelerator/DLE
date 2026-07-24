@@ -5,7 +5,11 @@
 
 <template>
   <div class="locale-controls">
-    <div ref="localeDropdownRef" class="locale-controls__dropdown">
+    <div
+      v-if="enabledLocales.length > 1"
+      ref="localeDropdownRef"
+      class="locale-controls__dropdown"
+    >
       <button
         type="button"
         class="locale-controls__dropdown-trigger"
@@ -27,7 +31,7 @@
         role="menu"
       >
         <li
-          v-for="loc in locales"
+          v-for="loc in enabledLocales"
           :key="loc"
           role="none"
         >
@@ -45,7 +49,7 @@
     </div>
 
     <div
-      v-if="serverList.length"
+      v-if="serverList.length > 1"
       ref="serverDropdownRef"
       class="locale-controls__dropdown"
     >
@@ -60,14 +64,13 @@
       >
         <span class="locale-controls__dropdown-label">{{ currentServerLabel }}</span>
         <span
-          v-if="serverList.length > 1"
           class="locale-controls__dropdown-chevron"
           aria-hidden="true"
         >▾</span>
       </button>
 
       <ul
-        v-if="serverMenuOpen && serverList.length > 1"
+        v-if="serverMenuOpen"
         class="locale-controls__dropdown-menu"
         role="menu"
       >
@@ -93,22 +96,26 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useLocale } from '../composables/useLocale';
 import {
   detectCurrentRegion,
   getRegionUrl,
   getRegionSwitcherList,
 } from '../config/regions';
+import { getEnabledLocalesCache } from '../config/enabledLocalesCache';
 import { fetchRegionUrls } from '../services/regionUrlsService';
+import { fetchSidebarNav } from '../services/sidebarNavService';
 
 const { currentLocale, setLocale, t } = useLocale();
 
-const locales = ['ru', 'en'];
 const localeMenuOpen = ref(false);
 const serverMenuOpen = ref(false);
 const localeDropdownRef = ref(null);
 const serverDropdownRef = ref(null);
+
+const enabledLocalesCache = getEnabledLocalesCache();
+const enabledLocales = computed(() => enabledLocalesCache.locales);
 
 const serverList = computed(() => getRegionSwitcherList());
 const currentServerId = computed(() => detectCurrentRegion());
@@ -118,6 +125,15 @@ const currentServerLabel = computed(() => {
   return current?.label || t('locale.servers');
 });
 
+function ensureCurrentLocaleAllowed() {
+  const allowed = enabledLocales.value;
+  if (!allowed.length) {
+    return;
+  }
+  if (!allowed.includes(currentLocale.value)) {
+    setLocale(allowed[0]);
+  }
+}
 function closeMenus() {
   localeMenuOpen.value = false;
   serverMenuOpen.value = false;
@@ -130,9 +146,6 @@ function toggleLocaleMenu() {
 }
 
 function toggleServerMenu() {
-  if (serverList.value.length <= 1) {
-    return;
-  }
   const next = !serverMenuOpen.value;
   closeMenus();
   serverMenuOpen.value = next;
@@ -183,9 +196,16 @@ function handleDocumentKeydown(event) {
 
 onMounted(() => {
   fetchRegionUrls().catch(() => {});
+  fetchSidebarNav()
+    .then(() => ensureCurrentLocaleAllowed())
+    .catch(() => {});
   document.addEventListener('click', handleDocumentClick);
   document.addEventListener('keydown', handleDocumentKeydown);
 });
+
+watch(enabledLocales, () => {
+  ensureCurrentLocaleAllowed();
+}, { deep: true });
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick);
@@ -212,9 +232,9 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   width: 100%;
   height: 48px;
-  border: 1px solid var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-white, #fff);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark);
   font-size: var(--font-size-md);
   padding: 0 15px;
   border-radius: var(--radius-lg);
@@ -227,9 +247,9 @@ onBeforeUnmount(() => {
 
 .locale-controls__dropdown-trigger:hover,
 .locale-controls__dropdown-trigger--open {
-  background: var(--color-primary-dark, #388e3c);
-  border-color: var(--color-primary-dark, #388e3c);
-  color: var(--color-white, #fff);
+  background: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-grey, #ced4da);
+  color: var(--color-dark);
 }
 
 .locale-controls__dropdown-label {
@@ -284,13 +304,14 @@ onBeforeUnmount(() => {
 }
 
 .locale-controls__dropdown-item:hover {
-  background: rgba(76, 175, 80, 0.1);
-  color: var(--color-primary);
+  background: var(--color-grey-light, #e9ecef);
+  color: var(--color-dark);
 }
 
 .locale-controls__dropdown-item--active {
-  background: rgba(76, 175, 80, 0.14);
-  color: var(--color-primary);
+  background: var(--color-grey-light, #e9ecef);
+  color: var(--color-dark);
+  font-weight: 600;
 }
 
 .locale-controls__dropdown-item-label {
@@ -307,8 +328,8 @@ onBeforeUnmount(() => {
 }
 
 .locale-controls__dropdown-item--active .locale-controls__dropdown-item-url {
-  color: var(--color-primary);
-  opacity: 0.75;
+  color: var(--color-grey, #777);
+  opacity: 0.9;
 }
 @media screen and (max-width: 480px) {
   .locale-controls__dropdown-trigger {

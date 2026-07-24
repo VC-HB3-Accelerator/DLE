@@ -95,6 +95,12 @@ const routes = [
         name: 'settings-webssh',
         component: () => import('../views/settings/WebSshSettingsView.vue'),
       },
+      {
+        path: 'updates',
+        name: 'settings-updates',
+        component: () => import('@/views/settings/UpdatesSettingsView.vue'),
+        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+      },
 
       {
         path: 'telegram',
@@ -107,16 +113,45 @@ const routes = [
         component: () => import('../views/settings/AI/EmailSettingsView.vue'),
       },
       {
-        path: 'regions',
-        name: 'settings-regions',
-        component: () => import('@/views/settings/RegionSettingsView.vue'),
+        path: 'sidebar',
+        name: 'settings-sidebar',
+        component: () => import('@/views/settings/SidebarSettingsView.vue'),
         meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+        redirect: { name: 'settings-sidebar-text' },
+        children: [
+          {
+            path: 'text',
+            name: 'settings-sidebar-text',
+            component: () => import('@/views/settings/SidebarTextSettingsTab.vue'),
+            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+          },
+          {
+            path: 'languages',
+            name: 'settings-sidebar-languages',
+            component: () => import('@/views/settings/SidebarLanguagesSettingsTab.vue'),
+            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+          },
+          {
+            path: 'buttons',
+            name: 'settings-sidebar-buttons',
+            component: () => import('@/views/settings/SidebarButtonsSettingsTab.vue'),
+            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+          },
+          {
+            path: 'regions',
+            name: 'settings-sidebar-regions',
+            component: () => import('@/views/settings/RegionSettingsView.vue'),
+            meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+          },
+        ],
       },
       {
         path: 'sidebar-notice',
-        name: 'settings-sidebar-notice',
-        component: () => import('@/views/settings/SidebarNoticeSettingsView.vue'),
-        meta: { permission: PERMISSIONS.MANAGE_SETTINGS, permissionFallback: 'settings-index' },
+        redirect: { name: 'settings-sidebar-text' },
+      },
+      {
+        path: 'regions',
+        redirect: { name: 'settings-sidebar-regions' },
       },
     ]
   },

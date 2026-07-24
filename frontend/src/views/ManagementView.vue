@@ -19,6 +19,23 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="management-container">
+      <nav class="management-top-nav">
+        <router-link
+          to="/management"
+          class="management-top-nav__link"
+          active-class="is-active"
+        >
+          {{ t('nav.management') }}
+        </router-link>
+        <router-link
+          to="/crm"
+          class="management-top-nav__link"
+          active-class="is-active"
+        >
+          {{ t('nav.crm') }}
+        </router-link>
+      </nav>
+
       <!-- Деплоированные DLE -->
       <div class="deployed-dles-section">
 
@@ -392,6 +409,37 @@ onMounted(() => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   margin-top: 20px;
   margin-bottom: 20px;
+}
+
+.management-top-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.management-top-nav__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: var(--block-radius, 8px);
+  border: 1px solid var(--color-border, #dcdfe6);
+  background: var(--color-white, #fff);
+  color: var(--color-grey, #606266);
+  text-decoration: none;
+  font-size: var(--font-size-md, 0.95rem);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.management-top-nav__link:hover {
+  border-color: var(--color-primary, #409eff);
+  color: var(--color-primary, #409eff);
+}
+
+.management-top-nav__link.is-active {
+  background: var(--color-primary, #409eff);
+  border-color: var(--color-primary, #409eff);
+  color: #fff;
 }
 
 .management-header {

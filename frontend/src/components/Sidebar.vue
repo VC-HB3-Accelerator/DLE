@@ -53,13 +53,11 @@
           <router-link to="/blog" class="nav-link-btn" active-class="active">
             <span>{{ t('nav.blog') }}</span>
           </router-link>
-          <router-link to="/crm" class="nav-link-btn" active-class="active">
-            <span>{{ t('nav.crm') }}</span>
-          </router-link>
-          <router-link to="/settings" class="nav-link-btn" active-class="active">
-            <span>{{ t('nav.settings') }}</span>
+          <router-link to="/management" class="nav-link-btn" active-class="active">
+            <span>{{ t('nav.management') }}</span>
           </router-link>
           <a
+            v-if="showRepositories"
             :href="giteaUrl"
             target="_blank"
             rel="noopener noreferrer"
@@ -182,7 +180,6 @@
 
 <script setup>
 import { defineProps, defineEmits, ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import eventBus from '../utils/eventBus';
 import EmailConnect from './identity/EmailConnect.vue';
 import TelegramConnect from './identity/TelegramConnect.vue';
@@ -190,10 +187,9 @@ import LocaleControls from './LocaleControls.vue';
 import { useAuthContext } from '@/composables/useAuth';
 import { useI18n } from 'vue-i18n';
 import { fetchSidebarNotice } from '@/services/sidebarNoticeService';
+import { fetchSidebarNav } from '@/services/sidebarNavService';
 import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
 
-const { t } = useI18n();
-const router = useRouter();
 const props = defineProps({
   modelValue: Boolean,
   isAuthenticated: Boolean,
@@ -202,13 +198,23 @@ const props = defineProps({
   tokenBalances: Array,
   identities: Array,
   isLoadingTokens: Boolean,
-  formattedLastUpdate: String
+  formattedLastUpdate: String,
 });
 
-const emit = defineEmits(['update:modelValue', 'wallet-auth', 'disconnect-wallet', 'telegram-auth', 'email-auth', 'cancel-email-auth']);
+const emit = defineEmits([
+  'update:modelValue',
+  'wallet-auth',
+  'disconnect-wallet',
+  'telegram-auth',
+  'email-auth',
+  'cancel-email-auth',
+  'cancel-telegram-auth',
+]);
 
+const { t } = useI18n();
 const { deleteIdentity } = useAuthContext();
 const sidebarNoticeText = ref('');
+const showRepositories = ref(false);
 const privacyDocsUrl = getPrivacyDocsUrl();
 
 async function loadSidebarNotice() {
@@ -221,7 +227,20 @@ async function loadSidebarNotice() {
   }
 }
 
-// URL страницы организации VC-HB3-Accelerator: локально — порт 3001; на продакшене — /gitea/
+async function loadSidebarNav() {
+  try {
+    const data = await fetchSidebarNav();
+    showRepositories.value = Boolean(data?.buttons?.repositories);
+  } catch (error) {
+    console.warn('[Sidebar] sidebar nav load failed:', error);
+    showRepositories.value = false;
+  }
+}
+
+async function loadSidebarExtras() {
+  await Promise.all([loadSidebarNotice(), loadSidebarNav()]);
+}
+
 const giteaUrl = computed(() => {
   if (typeof window === 'undefined') return '#';
   const { hostname, protocol } = window.location;
@@ -234,30 +253,24 @@ const giteaUrl = computed(() => {
   return `${protocol}//${hostname}/gitea/${path}`;
 });
 
-// Подписываемся на централизованные события очистки и обновления данных
 onMounted(() => {
-  loadSidebarNotice();
-
+  loadSidebarExtras();
   window.addEventListener('clear-application-data', () => {
     console.log('[Sidebar] Clearing sidebar data');
-    // Очищаем данные при выходе из системы
-    // Sidebar не нуждается в очистке данных
   });
-  
   window.addEventListener('refresh-application-data', () => {
     console.log('[Sidebar] Refreshing sidebar data');
-    loadSidebarNotice();
+    loadSidebarExtras();
   });
 });
 
 watch(
   () => props.modelValue,
   (open) => {
-    if (open) loadSidebarNotice();
+    if (open) loadSidebarExtras();
   }
 );
 
-// Обработчики событий
 const handleWalletAuth = () => {
   emit('wallet-auth');
 };
@@ -266,31 +279,21 @@ const disconnectWallet = () => {
   emit('disconnect-wallet');
 };
 
-// Функция закрытия сайдбара
 const closeSidebar = () => {
   emit('update:modelValue', false);
 };
 
-// Обработка события изменения авторизации
-const handleAuthEvent = (event) => {
-      // console.log('[Sidebar] Получено событие изменения авторизации:', event);
-  // Здесь можно обновить данные, если нужно дополнительное обновление
-};
+const handleAuthEvent = () => {};
 
-// Подписка на события
 let unsubscribe = null;
 onMounted(() => {
   unsubscribe = eventBus.on('auth-state-changed', handleAuthEvent);
 });
 
-// Очистка при размонтировании
 onBeforeUnmount(() => {
-  if (unsubscribe) {
-    unsubscribe();
-  }
+  if (unsubscribe) unsubscribe();
 });
 
-// Вспомогательные функции
 const truncateAddress = (address) => {
   if (!address) return '';
   return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
@@ -312,24 +315,6 @@ const handleDeleteIdentity = async (provider, providerId) => {
     await deleteIdentity(provider, providerId);
   }
 };
-
-// Добавляем watch для отслеживания props
-watch(() => props.tokenBalances, (newVal, oldVal) => {
-  console.log('[Sidebar] tokenBalances prop changed:', JSON.stringify(newVal));
-}, { deep: true });
-
-watch(() => props.isLoadingTokens, (newVal, oldVal) => {
-  console.log(`[Sidebar] isLoadingTokens prop changed: ${newVal}`);
-});
-
-// Добавляем отладочную информацию при монтировании
-onMounted(() => {
-  console.log('[Sidebar] Mounted with props:', {
-    isAuthenticated: props.isAuthenticated,
-    tokenBalances: props.tokenBalances,
-    isLoadingTokens: props.isLoadingTokens
-  });
-});
 </script>
 
 <style scoped>
@@ -439,9 +424,10 @@ onMounted(() => {
 }
 
 .nav-link-btn.active {
-  background-color: var(--color-primary);
-  color: var(--color-white);
-  border-color: var(--color-primary);
+  background-color: var(--color-grey-light, #e9ecef);
+  color: var(--color-dark);
+  border-color: var(--color-grey, #ced4da);
+  font-weight: 600;
 }
 
 .nav-link-btn:hover:not(.active) {
@@ -512,7 +498,7 @@ onMounted(() => {
 }
 
 h3 {
-  color: var(--color-primary);
+  color: var(--color-dark);
   margin-bottom: var(--spacing-md);
   font-size: var(--font-size-md);
 }
@@ -636,7 +622,7 @@ h3 {
 .token-balance-header {
   display: flex;
   font-weight: bold;
-  color: var(--color-primary, #4caf50);
+  color: var(--color-dark, #333);
   gap: 10px;
   margin-bottom: 6px;
 }
@@ -662,17 +648,18 @@ h3 {
 
 .connect-btn {
   margin-left: 10px;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
   border-radius: 6px;
   padding: 0.2rem 0.8rem;
   cursor: pointer;
   font-size: 0.95rem;
-  transition: background 0.2s;
+  transition: background 0.2s, border-color 0.2s;
 }
 .connect-btn:hover {
-  background: var(--color-primary-dark);
+  background: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-grey, #ced4da);
 }
 
 .auth-modal-panel {

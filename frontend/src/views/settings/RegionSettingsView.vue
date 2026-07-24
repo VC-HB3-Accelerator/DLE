@@ -4,9 +4,7 @@
 -->
 
 <template>
-  <div class="region-settings settings-panel">
-    <button class="close-btn" type="button" @click="router.push('/settings')">×</button>
-    <h2>{{ t('settings.regions.pageTitle') }}</h2>
+  <div class="region-settings">
     <p class="region-settings__intro">{{ t('settings.regions.intro') }}</p>
 
     <form class="region-settings__form" @submit.prevent="handleSave">
@@ -93,7 +91,6 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthContext } from '@/composables/useAuth';
 import { fetchRegionUrls, saveRegionUrls } from '@/services/regionUrlsService';
@@ -101,7 +98,6 @@ import { fetchRegionUrls, saveRegionUrls } from '@/services/regionUrlsService';
 const PRIMARY_ID = 'local';
 
 const { t } = useI18n();
-const router = useRouter();
 const { checkAuth, checkUserAccessLevel, address, isAuthenticated } = useAuthContext();
 
 const rows = ref([]);
@@ -213,10 +209,6 @@ onMounted(initPage);
 <style scoped>
 .region-settings {
   position: relative;
-  padding: var(--block-padding, 1.5rem);
-  background-color: var(--color-light, #f8f9fa);
-  border-radius: var(--radius-md, 12px);
-  margin-top: var(--spacing-lg, 1.5rem);
 }
 
 .region-settings__intro {
@@ -346,22 +338,5 @@ onMounted(initPage);
 .region-settings__save:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.close-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #bbb;
-  transition: color 0.2s;
-  z-index: 10;
-}
-
-.close-btn:hover {
-  color: #333;
 }
 </style>

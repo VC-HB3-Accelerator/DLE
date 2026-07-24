@@ -15,6 +15,7 @@
   "nav": {
     "chat": "Chat",
     "blog": "Feed",
+    "management": "Management",
     "crm": "CRM",
     "settings": "Settings",
     "repositories": "Repositories",
@@ -1101,6 +1102,8 @@
     "tablesDesc": "Create and manage data tables",
     "content": "Content",
     "contentDesc": "Manage content, pages, and publications",
+    "settings": "Settings",
+    "settingsDesc": "AI, blockchain, security, interface, and sidebar",
     "management": "Management",
     "managementDesc": "System administration and settings",
     "vds": "VDS Server",

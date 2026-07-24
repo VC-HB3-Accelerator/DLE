@@ -50,8 +50,10 @@ function createSessionMiddleware() {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      // На VDS сайт по HTTPS — Secure обязателен для стабильных cookie в Chrome/Android
-      secure: isProduction,
+      // 'auto': Secure только на HTTPS (по req.secure / X-Forwarded-Proto).
+      // Иначе при NODE_ENV=production + http://localhost:9000 браузер не сохраняет
+      // sessionId → verify OK, но /auth/check сразу guest (кошелёк «не подключился»).
+      secure: 'auto',
       sameSite: 'lax',
       path: '/',
     },

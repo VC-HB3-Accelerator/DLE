@@ -138,9 +138,13 @@ services:
       - ./shared:/app/shared
       - ./frontend/dist:/app/frontend_dist
       - ./ssl:/app/ssl:ro
+      - ./update-packs:/app/update-packs
+      - ./DLE_VERSION:/app/DLE_VERSION:ro
+      # Корень приложения для «Обновить здесь» (pack → update.sh → удаление)
+      - .:/host-project
       - blanc_xray_data:/app/blanc-xray-data
-      # Доступ к Docker socket для управления контейнерами на VDS
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Docker socket: Gitea + apply update.sh
+      - /var/run/docker.sock:/var/run/docker.sock
       # Доступ к системным файловым системам для мониторинга и управления
       # Монтируем напрямую для работы команд top, free, ps и т.д.
       - /proc:/host/proc:ro
@@ -159,6 +163,18 @@ services:
       - NODE_ENV=production
       - PORT=8000
       - FRONTEND_URL=https://${DOMAIN}
+      - UPDATES_PACK_DIR=/app/update-packs
+      - UPDATES_STUB_MODE=${UPDATES_STUB_MODE:-0}
+      - DLE_APP_ROOT=/host-project
+      - DLE_VERSION_PATH=/host-project/DLE_VERSION
+      - DLE_COMPOSE_FILE=${DLE_COMPOSE_FILE:-docker-compose.prod.yml}
+      # Клиент: https://hb3-accelerator.com; раздающий HB3: self
+      - UPDATES_HUB_URL=${UPDATES_HUB_URL:-https://hb3-accelerator.com}
+      - UPDATES_HUB_TOKEN=${UPDATES_HUB_TOKEN:-}
+      - UPDATES_PUBLIC_BASE_URL=${UPDATES_PUBLIC_BASE_URL:-}
+      - UPDATES_GITEA_URL=${UPDATES_GITEA_URL:-}
+      - UPDATES_GITEA_TOKEN=${UPDATES_GITEA_TOKEN:-}
+      - UPDATES_GITEA_ASSET_TEMPLATE=${UPDATES_GITEA_ASSET_TEMPLATE:-}
       # 🆕 Исправленные переменные БД с правильными именами хостов
       - DB_HOST=dapp-postgres
       - DB_PORT=5432
@@ -226,8 +242,9 @@ services:
       retries: 5
       start_period: 60s
 
-  # BlancVPN subscription → SOCKS :1080 для OpenAI (geo-block)
+  # BlancVPN / Xray sidecar
   blanc-xray:
+    image: digital_legal_entitydle-blanc-xray:latest
     build:
       context: ./docker/blanc-xray
       dockerfile: Dockerfile
@@ -353,9 +370,8 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       # Webroot для certbot
       - /var/www/certbot:/var/www/certbot
-      # Pre-rendered SEO HTML (блог и published)
-      - ./frontend/dist/blog:/usr/share/nginx/html/blog:ro
-      - ./frontend/dist/content/published:/usr/share/nginx/html/content/published:ro
+      # Весь dist с хоста — иначе update-pack overlay не попадает в SPA (в образе устаревший bake)
+      - ./frontend/dist:/usr/share/nginx/html:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f https://127.0.0.1/health || curl -f http://127.0.0.1/health || exit 1"]
       interval: 30s

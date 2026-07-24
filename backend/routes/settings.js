@@ -55,6 +55,7 @@ const dbSettingsService = require('../services/dbSettingsService');
 const footerDleService = require('../services/footerDleService');
 const regionUrlsService = require('../services/regionUrlsService');
 const sidebarNoticeService = require('../services/sidebarNoticeService');
+const sidebarNavService = require('../services/sidebarNavService');
 const { broadcastAuthTokenAdded, broadcastAuthTokenDeleted, broadcastAuthTokenUpdated } = require('../wsHub');
 
 // Логируем версию ethers для отладки
@@ -147,6 +148,34 @@ router.put('/sidebar-notice', requireAdmin, async (req, res) => {
     res.status(400).json({
       success: false,
       error: error.message || 'Не удалось сохранить текст сайдбара',
+    });
+  }
+});
+
+router.get('/sidebar-nav', async (req, res) => {
+  try {
+    const data = await sidebarNavService.getSettings();
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] Ошибка получения sidebar-nav:', error);
+    res.status(500).json({ success: false, error: 'Не удалось получить настройки кнопок сайдбара' });
+  }
+});
+
+router.put('/sidebar-nav', requireAdmin, async (req, res) => {
+  try {
+    const { buttons, locales } = req.body || {};
+    const sessionUserId = req.session?.userId;
+    const updatedBy = sessionUserId != null && Number.isFinite(Number(sessionUserId))
+      ? Number(sessionUserId)
+      : null;
+    const data = await sidebarNavService.setSettings({ buttons, locales, updatedBy });
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Settings] Ошибка сохранения sidebar-nav:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Не удалось сохранить настройки кнопок сайдбара',
     });
   }
 });

@@ -56,6 +56,7 @@ typings/
 .env
 .env.test
 .env.production
+.gitea-updates-token
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -207,9 +208,15 @@ backend/.env.production
 scripts/clean-server.sh
 scripts/export-template-for-release.sh
 scripts/replace-release-assets.sh
+scripts/export-update-for-release.sh
+scripts/gitea-upload-update-pack.sh
+scripts/setup-gitea-updates-repo.sh
+scripts/setup-gitea-db.sh
+scripts/prepare-clean-template.sh
 
 # Docker data and release archives - не коммитить в Git!
 docker-data/
+update-packs/
 dle-template.tar.gz
 dle-template.tar.gz.part-*
 dle-template.tar.gz.join.sh
@@ -217,6 +224,11 @@ dle-template.tar.gz.join.sh
 # Локальные скрипты разработки
 sync-to-vds.sh
 push-to-mirrors.sh
+
+# Версия инстанса пишется setup.sh / update.sh (не в git)
+DLE_VERSION
+backend/DLE_VERSION
+# update.sh — в публичном репо (нужен клиентам для apply-here); pack-скрипты автора — выше в ignore
 
 # Database initialization helper script
 scripts/internal/db/db_init_helper.sh
@@ -229,6 +241,8 @@ public-docs/
 
 # Техническая документация (внутренняя)
 docs/back-docs/
+docs.ru/back-docs/TZ_UI_STYLE_FOUNDATION.md
+docs.ru/tz-licensed-updates.md
 
 # Local data and drafts
 data/

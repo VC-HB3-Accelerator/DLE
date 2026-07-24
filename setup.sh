@@ -25,7 +25,7 @@ print_red() {
 }
 
 # Версия релиза для установки (обновляется при выходе нового релиза)
-ARCHIVE_VERSION="v1.0.3"
+ARCHIVE_VERSION="v1.0.6"
 
 # Базовый URL репозитория DLE на выбранном зеркале (без завершающего /).
 # Примеры:
@@ -428,6 +428,54 @@ import_images() {
   done
   
   print_green "✅ Все образы импортированы"
+
+  align_compose_project_with_loaded_images
+  # compose монтирует ./frontend/dist поверх образа — без файлов на хосте SPA пустой
+  extract_frontend_dist_from_nginx_image
+}
+
+# Имена образов в архиве = project name у автора (digital_legal_entitydle-*).
+# Клиент клонирует в DLE → без выравнивания compose пересоберёт всё с нуля.
+align_compose_project_with_loaded_images() {
+  local repo
+  repo=$(docker images --format '{{.Repository}}' | grep -E 'frontend-nginx$' | head -1 || true)
+  if [ -z "$repo" ]; then
+    print_yellow "⚠️  Не найден загруженный *-frontend-nginx — COMPOSE_PROJECT_NAME не выставлен"
+    return 0
+  fi
+  local prefix="${repo%-frontend-nginx}"
+  export COMPOSE_PROJECT_NAME="$prefix"
+  if [ -f .env ]; then
+    if grep -q '^COMPOSE_PROJECT_NAME=' .env; then
+      sed -i.bak "s/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=${prefix}/" .env && rm -f .env.bak
+    else
+      echo "COMPOSE_PROJECT_NAME=${prefix}" >> .env
+    fi
+  else
+    echo "COMPOSE_PROJECT_NAME=${prefix}" > .env
+  fi
+  print_green "✅ COMPOSE_PROJECT_NAME=${prefix} (совпадает с образами релиза)"
+}
+
+# Достать собранный SPA из frontend-nginx (для bind-mount ./frontend/dist)
+extract_frontend_dist_from_nginx_image() {
+  print_blue "📂 Извлечение frontend/dist из образа nginx…"
+  local image
+  image=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'frontend-nginx:latest$' | head -1 || true)
+  if [ -z "$image" ]; then
+    print_yellow "⚠️  Образ *-frontend-nginx:latest не найден — пропускаем extract dist"
+    return 0
+  fi
+  mkdir -p frontend/dist
+  local tmp="dle-nginx-dist-extract-$$"
+  if docker create --name "$tmp" "$image" >/dev/null \
+    && docker cp "$tmp:/usr/share/nginx/html/." frontend/dist/ \
+    && docker rm "$tmp" >/dev/null; then
+    print_green "✅ frontend/dist готов для bind-mount"
+  else
+    docker rm -f "$tmp" >/dev/null 2>&1 || true
+    print_yellow "⚠️  Не удалось извлечь dist из nginx — проверьте frontend/dist вручную"
+  fi
 }
 
 # Создание томов
@@ -543,6 +591,12 @@ start_application() {
     print_red "❌ Ошибка запуска приложения"
     print_yellow "Проверьте логи: docker-compose logs"
     exit 1
+  fi
+
+  # Версия для последующих update.sh
+  if [ -n "${ARCHIVE_VERSION:-}" ]; then
+    echo -n "$ARCHIVE_VERSION" > DLE_VERSION
+    print_green "✅ DLE_VERSION=$ARCHIVE_VERSION"
   fi
 }
 

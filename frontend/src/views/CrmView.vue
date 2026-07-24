@@ -19,9 +19,25 @@
     @auth-action-completed="$emit('auth-action-completed')"
   >
     <div class="crm-management">
+      <nav class="crm-top-nav">
+        <router-link
+          to="/management"
+          class="crm-top-nav__link"
+          active-class="is-active"
+        >
+          {{ t('nav.management') }}
+        </router-link>
+        <router-link
+          to="/crm"
+          class="crm-top-nav__link"
+          active-class="is-active"
+        >
+          {{ t('nav.crm') }}
+        </router-link>
+      </nav>
+
       <!-- Блоки CRM -->
-      <div class="management-blocks">
-        <!-- Столбец 1 -->
+      <div class="management-blocks">        <!-- Столбец 1 -->
         <div class="blocks-column">
           <div class="management-block">
             <h3>{{ t('crm.contacts') }}</h3>
@@ -45,11 +61,11 @@
             <p>{{ t('crm.contentDesc') }}</p>
             <button class="details-btn" @click="goToContent">{{ t('common.details') }}</button>
           </div>
-          
+
           <div class="management-block">
-            <h3>{{ t('crm.management') }}</h3>
-            <p>{{ t('crm.managementDesc') }}</p>
-            <button class="details-btn" @click="goToManagement">{{ t('common.details') }}</button>
+            <h3>{{ t('crm.settings') }}</h3>
+            <p>{{ t('crm.settingsDesc') }}</p>
+            <button class="details-btn" @click="goToSettings">{{ t('common.details') }}</button>
           </div>
         </div>
 
@@ -253,8 +269,8 @@ function goToContent() {
   router.push({ name: 'content-list' });
 }
 
-function goToManagement() {
-  router.push({ name: 'management' });
+function goToSettings() {
+  router.push({ name: 'settings-index' });
 }
 
 function goToWeb3App() {
@@ -272,6 +288,37 @@ function goToAcceleratorRegistration() {
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
   min-height: 100vh;
+}
+
+.crm-top-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.crm-top-nav__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: var(--block-radius, 8px);
+  border: 1px solid var(--color-border, #dcdfe6);
+  background: var(--color-white, #fff);
+  color: var(--color-grey, #606266);
+  text-decoration: none;
+  font-size: var(--font-size-md, 0.95rem);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.crm-top-nav__link:hover {
+  border-color: var(--color-primary, #409eff);
+  color: var(--color-primary, #409eff);
+}
+
+.crm-top-nav__link.is-active {
+  background: var(--color-primary, #409eff);
+  border-color: var(--color-primary, #409eff);
+  color: #fff;
 }
 
 .management-header {

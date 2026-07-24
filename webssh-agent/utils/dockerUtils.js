@@ -47,6 +47,7 @@ const exportDockerImages = async (sendWebSocketLog) => {
     { name: 'digital_legal_entitydle-backend:latest', file: 'dapp-backend.tar' },
     { name: 'digital_legal_entitydle-frontend:latest', file: 'dapp-frontend.tar' },
     { name: 'digital_legal_entitydle-frontend-nginx:latest', file: 'dapp-frontend-nginx.tar' },
+    { name: 'digital_legal_entitydle-blanc-xray:latest', file: 'dapp-blanc-xray.tar' },
     { name: 'digital_legal_entitydle-webssh-agent:latest', file: 'dapp-webssh-agent.tar' }
   ];
   
@@ -84,9 +85,15 @@ const exportDockerImages = async (sendWebSocketLog) => {
     }
   }
   
-  // Экспортируем данные из volumes (динамически определяем все volumes приложения)
+  // Volumes: шаблонные *_data (после этапа 2 ТЗ локал должен отдавать дефолты, не боевые данные)
   log.info('Экспорт данных из Docker volumes...');
   sendWebSocketLog('info', '📦 Экспорт данных из Docker volumes...', 'export_data', 70);
+  sendWebSocketLog(
+    'warning',
+    '⚠️ Volumes с локала уедут на VDS. Для чистого шаблона сначала выполните этап 2 (prepare-clean-template).',
+    'export_data',
+    70
+  );
   
   // Получаем список всех volumes приложения (без node_modules)
   const volumesList = await execLocalCommand('docker volume ls -q | grep -E "digital_legal_entitydle_|dapp_" | grep -v node_modules || true');
@@ -285,12 +292,46 @@ docker volume ls | grep dapp_`;
 };
 
 /**
+ * Pull публичных образов на VDS (LiveKit / Gitea / Certbot / alpine).
+ */
+const pullRemoteImages = async (options, sendWebSocketLog) => {
+  const { dockerUser } = options;
+  const compose = `cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml`;
+
+  log.info('Pull публичных образов на VDS (livekit, gitea, certbot)…');
+  sendWebSocketLog('info', '📥 Pull LiveKit / Gitea / Certbot…', 'pull', 91);
+
+  const pulls = [
+    `${compose} pull livekit`,
+    `${compose} pull gitea`,
+    `${compose} pull certbot`,
+    'docker pull alpine:latest',
+  ];
+
+  for (const cmd of pulls) {
+    try {
+      const result = await execSshCommand(cmd, options);
+      if (result.code !== 0) {
+        log.warn(`Pull предупреждение: ${cmd} → ${result.stderr || result.stdout}`);
+        sendWebSocketLog('warning', `⚠️ ${cmd}`, 'pull', 91);
+      }
+    } catch (error) {
+      log.warn(`Pull ошибка (продолжаем): ${error.message}`);
+      sendWebSocketLog('warning', `⚠️ Pull: ${error.message}`, 'pull', 91);
+    }
+  }
+
+  sendWebSocketLog('success', '✅ Pull публичных образов завершён', 'pull', 92);
+  log.success('Pull публичных образов завершён');
+};
+
+/**
  * Очистка временных файлов на локальной машине
  */
 const cleanupLocalFiles = async () => {
   log.info('Очистка временных файлов на хосте...');
   try {
-    await execLocalCommand("rm -f /tmp/dapp-*.tar /tmp/*_data.tar.gz /tmp/docker-images-and-data.tar.gz");
+    await execLocalCommand("rm -f /tmp/dapp-*.tar /tmp/*_data.tar.gz /tmp/docker-images-and-data.tar.gz /tmp/overlay_*.tar.gz");
     log.success('Временные файлы очищены');
   } catch (error) {
     log.error('Ошибка очистки файлов: ' + error.message);
@@ -301,5 +342,6 @@ module.exports = {
   exportDockerImages,
   transferDockerImages,
   importDockerImages,
+  pullRemoteImages,
   cleanupLocalFiles
 };

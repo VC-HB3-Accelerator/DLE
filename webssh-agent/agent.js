@@ -11,11 +11,12 @@ const WebSocket = require('ws');
 const log = require('./utils/logger');
 const { execSshCommand, execScpCommand } = require('./utils/sshUtils');
 const { checkSystemRequirements, SYSTEM_REQUIREMENTS } = require('./utils/systemUtils');
-const { exportDockerImages, transferDockerImages, importDockerImages, cleanupLocalFiles } = require('./utils/dockerUtils');
+const { exportDockerImages, transferDockerImages, importDockerImages, pullRemoteImages, cleanupLocalFiles } = require('./utils/dockerUtils');
 const { createAllUsers } = require('./utils/userUtils');
 const { cleanupVdsServer, setupRootSshKeys, disablePasswordAuth, setupFirewall } = require('./utils/cleanupUtils');
 const { createSshKeys } = require('./utils/localUtils');
-
+const { transferAppOverlay } = require('./utils/transferUtils');
+const crypto = require('crypto');
 const PUBLIC_KEY_PATH = path.join(os.homedir(), '.ssh', 'id_rsa.pub');
 
 const app = express();
@@ -124,12 +125,24 @@ const broadcastToWebSocket = (data) => {
 // Проверка здоровья агента
 app.get('/health', (req, res) => {
   log.info('Health check requested');
-  res.json({ 
-    status: 'ok', 
+  let hostProjectRoot = null;
+  let hostProjectReady = false;
+  try {
+    const { resolveHostProjectRoot } = require('./utils/transferUtils');
+    hostProjectRoot = resolveHostProjectRoot();
+    hostProjectReady = true;
+  } catch (error) {
+    hostProjectRoot = error.message;
+  }
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '1.1.0',
     vdsConfigured: vdsState.configured,
-    vdsDomain: vdsState.domain
+    vdsDomain: vdsState.domain,
+    hostProjectReady,
+    hostProjectRoot: hostProjectReady ? hostProjectRoot : null,
+    hostProjectError: hostProjectReady ? null : hostProjectRoot,
   });
 });
 
@@ -650,10 +663,16 @@ findtime = 3600
     // 12. Передача docker-compose.prod.yml на VDS
     log.info('Передача docker-compose.prod.yml на VDS...');
     await execScpCommand('/app/docker-compose.prod.yml', `/home/${dockerUser}/dapp/docker-compose.prod.yml`, options);
+
+    // 12.1 Bind-mount деревья (backend/shared/dist/blanc-xray/scripts)
+    await transferAppOverlay({
+      sshOptions: options,
+      dockerUser,
+      sendWebSocketLog,
+    });
     
-    // 13.1. 🆕 Nginx конфигурация встроена в Docker образ с валидацией переменных
+    // 13. Nginx конфигурация встроена в Docker образ frontend-nginx
     log.info('Nginx конфигурация встроена в Docker образ frontend-nginx');
-    log.info('Конфигурация будет применена автоматически при запуске контейнера');
     
     if (!domain || !email) {
       log.error('Критическая ошибка: отсутствуют обязательные переменные DOMAIN или EMAIL для nginx');
@@ -661,7 +680,11 @@ findtime = 3600
     }
     log.success(`Nginx будет настроен для домена: ${domain} с email: ${email}`);
     
-    // 14. 🆕 Создание полного .env файла со всеми переменными окружения
+    // 14. Полный .env (LiveKit / Gitea / Ollama)
+    const livekitApiKey = crypto.randomBytes(16).toString('hex');
+    const livekitApiSecret = crypto.randomBytes(32).toString('hex');
+    const giteaDbPassword = crypto.randomBytes(18).toString('base64url');
+
     const envContent = `# Основные настройки
 DOMAIN=${domain}
 BACKEND_CONTAINER=dapp-backend
@@ -672,6 +695,9 @@ DB_NAME=dapp_db
 DB_USER=dapp_user
 DB_PASSWORD=dapp_password
 
+# Gitea (PostgreSQL)
+GITEA_DB_PASSWORD=${giteaDbPassword}
+
 # Настройки Node.js
 NODE_ENV=production
 PORT=8000
@@ -680,46 +706,38 @@ PORT=8000
 OLLAMA_MODEL=qwen2.5:1.5b
 OLLAMA_EMBEDDINGS_MODEL=mxbai-embed-large:latest
 
+# LiveKit (ИИ-конференция)
+LIVEKIT_API_KEY=${livekitApiKey}
+LIVEKIT_API_SECRET=${livekitApiSecret}
+LIVEKIT_RTC_USE_EXTERNAL_IP=true
+LIVEKIT_RTC_FORCE_TCP=false
+
 # Настройки безопасности
 SSL_CERT_PATH=/etc/ssl/certs
 SSL_KEY_PATH=/etc/ssl/private
 
-# 🆕 Дополнительные переменные для WebSocket
-WS_BACKEND_CONTAINER=dapp-backend`;
+# WebSocket / nginx
+WS_BACKEND_CONTAINER=dapp-backend
+`;
     
-    // Создаем .env файл локально и передаем через SCP
     await fs.writeFile('/tmp/.env', envContent);
     await execScpCommand('/tmp/.env', `/home/${dockerUser}/dapp/.env`, options);
-    await fs.remove('/tmp/.env'); // Очищаем временный файл
+    await fs.remove('/tmp/.env');
     
-    // 15. Экспорт и передача Docker образов
+    // 15. Экспорт / передача / импорт образов + pull публичных
     await exportDockerImages(sendWebSocketLog);
     await transferDockerImages({ ...options, dockerUser }, sendWebSocketLog);
     await importDockerImages({ ...options, dockerUser }, sendWebSocketLog);
+    await pullRemoteImages({ ...options, dockerUser }, sendWebSocketLog);
     await cleanupLocalFiles();
     
     // 16. Запуск приложения
     log.info('Запуск приложения...');
     await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d`, options);
     
-    // 16.1. Настройка CORS заголовков в nginx для API
-    log.info('🔧 Настройка CORS заголовков в nginx для API...');
-    await execSshCommand(
-      `cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec frontend-nginx sed -i '/add_header X-XSS-Protection/a\\            add_header Access-Control-Allow-Origin \"https://${domain}\" always;\\            add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\\            add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-Requested-With\" always;\\            add_header Access-Control-Allow-Credentials \"true\" always;' /etc/nginx/nginx.conf`,
-      options
-    );
+    // SSL: временный сертификат уже создан; реальный — кнопка на /vds → /api/vds/ssl/renew
     
-    // Перезапускаем nginx с новой конфигурацией
-    await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart frontend-nginx`, options);
-    log.success('✅ CORS заголовки настроены в nginx для API');
-    
-    // 16.0. Получение реального SSL сертификата перенесено в backend (/api/vds/ssl/renew).
-    // Здесь агент создает только временный самоподписанный сертификат (см. шаг 11 выше).
-    // Для получения/обновления реального сертификата используйте кнопку
-    // "Получить / обновить SSL" на странице управления VDS в интерфейсе DLE,
-    // которая вызывает /api/vds/ssl/renew на backend.
-    
-    // 16.2. Ожидание готовности базы данных с повторными попытками
+    // 16.2 Ожидание postgres
     log.info('Ожидание готовности базы данных...');
     let dbReady = false;
     let attempts = 0;
@@ -740,15 +758,33 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     if (!dbReady) {
       log.error('База данных не готова после максимального количества попыток');
     }
+
+    // 16.2.1 Gitea DB/role
+    if (dbReady) {
+      log.info('Создание БД/роли Gitea…');
+      sendWebSocketLog('info', '🛠 Gitea database…', 'gitea_db', 93);
+      const giteaSetup = await execSshCommand(
+        `cd /home/${dockerUser}/dapp && GITEA_DB_PASSWORD='${giteaDbPassword}' COMPOSE_FILE=docker-compose.prod.yml POSTGRES_SERVICE=postgres bash scripts/setup-gitea-db.sh`,
+        options
+      );
+      if (giteaSetup.code !== 0) {
+        log.warn(`Gitea DB setup: ${giteaSetup.stderr || giteaSetup.stdout}`);
+        sendWebSocketLog('warning', '⚠️ Gitea DB: см. логи SSH', 'gitea_db', 93);
+      } else {
+        log.success('Gitea DB готова');
+        await execSshCommand(
+          `cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml up -d gitea`,
+          options
+        );
+      }
+    }
     
-    // 16.2. 🆕 Проверка целостности переданной базы данных
+    // 16.2.2 Проверка таблиц
     log.info('Проверка целостности переданной базы данных...');
     const tableCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T postgres psql -U dapp_user -d dapp_db -c "\\dt"`, options);
     
     if (tableCheckResult.code === 0 && tableCheckResult.stdout.includes('email_settings')) {
-      log.success('База данных содержит все необходимые таблицы (email_settings найдена)');
-      
-      // Дополнительная проверка количества таблиц
+      log.success('База данных содержит необходимые таблицы (email_settings найдена)');
       const tableCountResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T postgres psql -U dapp_user -d dapp_db -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"`, options);
       if (tableCountResult.code === 0) {
         log.info(`Количество таблиц в базе данных: ${tableCountResult.stdout.trim()}`);
@@ -757,15 +793,69 @@ WS_BACKEND_CONTAINER=dapp-backend`;
       log.warn('Предупреждение: база данных может быть пустой или неполной');
       log.info('Содержимое проверки таблиц: ' + tableCheckResult.stdout);
     }
+
+    // 16.2.3 yarn install
+    log.info('backend yarn install…');
+    sendWebSocketLog('info', '📦 yarn install в backend…', 'yarn', 94);
+    try {
+      await execSshCommand(
+        `cd /home/${dockerUser}/dapp && for i in 1 2 3 4 5 6; do
+           if docker compose -f docker-compose.prod.yml exec -T backend yarn install --frozen-lockfile; then exit 0; fi
+           sleep 5
+         done; exit 1`,
+        options
+      );
+    } catch (err) {
+      log.warn(`yarn install: ${err.message}`);
+      sendWebSocketLog('warning', '⚠️ yarn install не выполнен', 'yarn', 94);
+    }
+
+    // 16.2.4 migrations
+    log.info('Запуск миграций…');
+    sendWebSocketLog('info', '🗄️ Миграции БД…', 'migrations', 95);
+    try {
+      await execSshCommand(
+        `cd /home/${dockerUser}/dapp && for i in 1 2 3 4 5 6; do
+           if docker compose -f docker-compose.prod.yml exec -T backend node scripts/run-migrations.js; then exit 0; fi
+           echo "backend ещё не готов, повтор $i/6"
+           sleep 5
+         done; exit 1`,
+        options
+      );
+    } catch (err) {
+      log.warn(`migrations: ${err.message}`);
+      sendWebSocketLog('warning', '⚠️ Миграции не завершились', 'migrations', 95);
+    }
+
+    // 16.2.5 SEO prerender
+    log.info('SEO pre-render…');
+    sendWebSocketLog('info', '📰 SEO pre-render…', 'prerender', 96);
+    try {
+      await execSshCommand(
+        `cd /home/${dockerUser}/dapp && for i in 1 2 3 4 5 6 7 8; do
+           if docker compose -f docker-compose.prod.yml exec -T backend \
+             node -e "require('http').get('http://127.0.0.1:8000/api/pages/blog/all',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"; then
+             break
+           fi
+           sleep 5
+           if [ "$i" -eq 8 ]; then exit 1; fi
+         done
+         docker compose -f docker-compose.prod.yml exec -T backend \
+           node -e "require('http').get('http://127.0.0.1:8000/api/pages/public/sitemap.xml',r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))" || true
+         docker compose -f docker-compose.prod.yml exec -T backend node scripts/pre-render-blog.js`,
+        options
+      );
+    } catch (err) {
+      log.warn(`prerender: ${err.message}`);
+      sendWebSocketLog('warning', '⚠️ pre-render пропущен', 'prerender', 96);
+    }
     
-    // 16.3. 🆕 Улучшенная проверка ключа шифрования в контейнере backend
+    // 16.3 Ключ шифрования
     log.info('Проверка ключа шифрования в backend контейнере...');
     const keyCheckResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T backend ls -la /app/ssl/keys/`, options);
     
     if (keyCheckResult.code === 0 && keyCheckResult.stdout.includes('full_db_encryption.key')) {
       log.success('Ключ шифрования найден в backend контейнере');
-      
-      // Дополнительная проверка содержимого ключа
       const keyContentResult = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T backend head -c 50 /app/ssl/keys/full_db_encryption.key`, options);
       if (keyContentResult.code === 0) {
         log.info('Ключ шифрования доступен для чтения в контейнере');
@@ -773,12 +863,8 @@ WS_BACKEND_CONTAINER=dapp-backend`;
     } else {
       log.error('Критическая ошибка: ключ шифрования не найден в backend контейнере');
       log.info('Содержимое /app/ssl/keys/: ' + keyCheckResult.stdout);
-      log.info('Попытка повторного монтирования ключа...');
-      
-      // Перезапуск backend контейнера с правильным монтированием
       await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml restart backend`, options);
       await new Promise(resolve => setTimeout(resolve, 5000));
-      
       const retryKeyCheck = await execSshCommand(`cd /home/${dockerUser}/dapp && docker compose -f docker-compose.prod.yml exec -T backend ls -la /app/ssl/keys/`, options);
       if (retryKeyCheck.code === 0 && retryKeyCheck.stdout.includes('full_db_encryption.key')) {
         log.success('Ключ шифрования найден после перезапуска backend контейнера');
@@ -787,18 +873,34 @@ WS_BACKEND_CONTAINER=dapp-backend`;
       }
     }
     
-    // 17. Проверка статуса контейнеров
+    // 17. Статус контейнеров
     log.info('Проверка статуса контейнеров...');
     const containersResult = await execSshCommand('docker ps --format "table {{.Names}}\\t{{.Status}}"', options);
     log.info('Статус контейнеров:\\n' + containersResult.stdout);
     
     log.success('VDS настроена и приложение запущено');
+
+    // Версия инстанса для update.sh
+    try {
+      const { resolveHostProjectRoot } = require('./utils/transferUtils');
+      const root = resolveHostProjectRoot();
+      const verPath = path.join(root, 'DLE_VERSION');
+      let ver = 'v1.0.4';
+      if (await fs.pathExists(verPath)) {
+        ver = String(await fs.readFile(verPath, 'utf8')).trim() || ver;
+      }
+      await fs.writeFile('/tmp/DLE_VERSION', `${ver}\n`);
+      await execScpCommand('/tmp/DLE_VERSION', `/home/${dockerUser}/dapp/DLE_VERSION`, options);
+      await fs.remove('/tmp/DLE_VERSION').catch(() => {});
+      await execSshCommand(`chown ${dockerUser}:${dockerUser} /home/${dockerUser}/dapp/DLE_VERSION`, options);
+      log.success(`DLE_VERSION=${ver} записан на VDS`);
+    } catch (verErr) {
+      log.warn(`DLE_VERSION не записан: ${verErr.message}`);
+    }
     
-    // Отправляем финальный статус через WebSocket
     sendWebSocketStatus(true, `VDS ${domain} успешно настроена`);
     sendWebSocketLog('success', `🎉 VDS настроена успешно! Приложение доступно по адресу: https://${domain}`, 'complete', 100);
     
-    // Обновляем состояние VDS
     vdsState = {
       configured: true,
       domain: domain,
@@ -815,8 +917,9 @@ WS_BACKEND_CONTAINER=dapp-backend`;
       nextSteps: [
         '✅ Системные требования проверены',
         '✅ VDS настроена и готова к работе',
-        '✅ SSL сертификат получен',
+        'ℹ️ Временный SSL — получите реальный через кнопку на /vds',
         '✅ Docker контейнеры запущены',
+        '✅ Bind mounts / LiveKit / Gitea / Blanc учтены',
         '✅ Приложение доступно по адресу: https://' + domain
       ]
     });
@@ -872,7 +975,7 @@ app.post('/vds/diagnostics', logRequest, async (req, res) => {
     const dockerStatus = await execSshCommand('docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"', options);
     
     // 3. Проверка портов
-    const portsStatus = await execSshCommand('netstat -tlnp | grep -E ":(80|443|8000|9000|5432|11434|8001)"', options);
+    const portsStatus = await execSshCommand('netstat -tlnp 2>/dev/null | grep -E ":(80|443|8000|9000|5432|11434|8001|7880|7881|2223)" || ss -tlnp | grep -E ":(80|443|8000|9000|5432|11434|8001|7880|7881|2223)" || true', options);
     
     // 4. Проверка Docker nginx контейнера
     const nginxStatus = await execSshCommand('docker ps --filter "name=dapp-frontend-nginx" --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}" || echo "Docker nginx контейнер не найден"', options);
