@@ -38,7 +38,7 @@ DLE_BASE_URL="${DLE_BASE_URL:-}"
 ARCHIVE_BASE_URL=""
 CLONE_URL=""
 
-# Список частей архива (стандартные части для релиза v1.0.2+)
+# Список частей архива (v1.0.6: 6×~1G; при следующем релизе сверьте ls dle-template.tar.gz.part-*)
 ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-aa"
   "dle-template.tar.gz.part-ab"
@@ -46,9 +46,6 @@ ARCHIVE_PARTS=(
   "dle-template.tar.gz.part-ad"
   "dle-template.tar.gz.part-ae"
   "dle-template.tar.gz.part-af"
-  "dle-template.tar.gz.part-ag"
-  "dle-template.tar.gz.part-ah"
-  "dle-template.tar.gz.part-ai"
 )
 
 # Нормализация и применение базового URL зеркала
