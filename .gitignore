@@ -95,8 +95,14 @@ typings/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
+
+# Локальные sitemap / ссылки для VDS (не в репозитории)
+sitemap-erayti.xml
+sitemap-hb3-accelerator.com.xml
+sitemap-links-2-vds.txt
 
 # OS
 .DS_Store
