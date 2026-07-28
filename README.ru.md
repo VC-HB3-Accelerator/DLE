@@ -10,18 +10,56 @@
 
 ## Автоматическая установка (рекомендуется)
 
-**Для Linux/macOS/WSL.**  
-Минимальные требования к серверу: 4 ядра CPU, 16 GB RAM, 100 GB SSD.
+Минимальные требования: 4 ядра CPU, 16 GB RAM, 100 GB SSD.  
+Команда ставит ОС с **этого** репозитория и его релиза (clone + артефакты из того же хранилища). Скрипт скачивает артефакты релиза и разворачивает `docker-data`.
 
-Команда ставит ОС с **этого** репозитория и его релиза (clone + артефакты из того же хранилища).
+### Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
-Скрипт скачивает артефакты релиза и разворачивает `docker-data`.
+### macOS
 
+**Terminal**:
+
+1.
+```bash
+brew install --cask docker
+```
+
+2.
+```bash
+open -a Docker
+```
+
+Дождитесь запуска Docker Desktop.
+
+3.
+```bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
+  | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
+```
+
+### Windows
+
+PowerShell **от администратора**:
+
+1.
+```powershell
+wsl --install
+```
+
+2. Перезагрузка
+
+3.
+```powershell
+winget install -e --id Docker.DockerDesktop
+```
+```powershell
+wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
+```
 ## Что это
 
 **DLE** — шаблон персональной операционной системы для юридического лица: установка на собственной инфраструктуре (в т.ч. на локальном устройстве **в стране деятельности**), в ядре технологии — EVM и AI. Бессрочная лицензия; установленный экземпляр и право использования — ваш актив (см. [LICENSE.ru](LICENSE.ru)). В шаблоне заложены механизмы обезличивания, шифрования, обработки и хранения персональных данных — под требования применимого регулятора по защите данных в стране вашей деятельности, включая возможность локализации ПДн на своей площадке (см. [security.md — персональные данные](docs.ru/security.md#соответствие-требованиям-по-персональным-данным)).

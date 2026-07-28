@@ -10,18 +10,56 @@ An operating system for online registration of a digital legal entity profile in
 
 ## Automated install (recommended)
 
-**For Linux/macOS/WSL.**  
-Minimum server requirements: 4 CPU cores, 16 GB RAM, 100 GB SSD.
+Minimum requirements: 4 CPU cores, 16 GB RAM, 100 GB SSD.  
+This command installs the OS from **this** repository and its release (clone + artifacts from the same storage). The script downloads release artifacts and unpacks `docker-data`.
 
-This command installs the OS from **this** repository and its release (clone + artifacts from the same storage).
+### Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
 ```
 
-The script downloads release artifacts and unpacks `docker-data`.
+### macOS
 
+**Terminal**:
+
+1.
+```bash
+brew install --cask docker
+```
+
+2.
+```bash
+open -a Docker
+```
+
+Wait until Docker Desktop is running.
+
+3.
+```bash
+curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
+  | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
+```
+
+### Windows
+
+PowerShell **as Administrator**:
+
+1.
+```powershell
+wsl --install
+```
+
+2. Reboot
+
+3.
+```powershell
+winget install -e --id Docker.DockerDesktop
+```
+```powershell
+wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
+```
 ## What it is
 
 **DLE** is a personal operating system template for a legal entity: install on your own infrastructure (including a local device **in the country of activity**); the technology core is EVM and AI. Perpetual license; the installed instance and the right to use it are your asset (see [LICENSE](LICENSE)). The template includes mechanisms for depersonalization, encryption, processing, and storage of personal data — aligned with the applicable data-protection regulator’s requirements in the country where you operate, including the ability to keep personal data localized on your own site (see [security.md — personal data](docs.en/security.md#personal-data-regulatory-alignment)).
