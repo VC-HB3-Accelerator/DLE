@@ -15,6 +15,10 @@
 
 ### Linux
 
+**Шаг 1.** Откройте терминал.
+
+**Шаг 2.** Скопируйте и вставьте команду в терминал — **установка шаблона DLE** (Docker поставит скрипт сам, если его нет):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
@@ -22,21 +26,24 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
 
 ### macOS
 
-**Terminal**:
+**Шаг 1.** Откройте Terminal.
 
-1.
+**Шаг 2.** Скопируйте и вставьте команду в терминал — **установка Docker Desktop**:
+
 ```bash
 brew install --cask docker
 ```
 
-2.
+**Шаг 3.** Скопируйте и вставьте команду в терминал — **запуск Docker Desktop**:
+
 ```bash
 open -a Docker
 ```
 
 Дождитесь запуска Docker Desktop.
 
-3.
+**Шаг 4.** Скопируйте и вставьте команду в терминал — **установка шаблона DLE**:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
@@ -44,22 +51,30 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
 
 ### Windows
 
-PowerShell **от администратора**:
+**Шаг 1.** Откройте PowerShell от администратора.
 
-1.
+**Шаг 2.** Скопируйте и вставьте команду в терминал — **установка WSL**:
+
 ```powershell
 wsl --install
 ```
 
-2. Перезагрузка
+**Шаг 3.** **Перезагрузите Windows.**
 
-3.
+**Шаг 4.** Скопируйте и вставьте команду в терминал — **установка Docker Desktop**:
+
 ```powershell
 winget install -e --id Docker.DockerDesktop
 ```
+
+**Шаг 5.** Скопируйте и вставьте команду в терминал — **установка шаблона DLE**:
+
 ```powershell
-wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
+wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
 ```
+
+Установка в домашний каталог WSL (`~/DLE`), не на диск `C:`.
+
 ## Что это
 
 **DLE** — шаблон персональной операционной системы для юридического лица: установка на собственной инфраструктуре (в т.ч. на локальном устройстве **в стране деятельности**), в ядре технологии — EVM и AI. Бессрочная лицензия; установленный экземпляр и право использования — ваш актив (см. [LICENSE.ru](LICENSE.ru)). В шаблоне заложены механизмы обезличивания, шифрования, обработки и хранения персональных данных — под требования применимого регулятора по защите данных в стране вашей деятельности, включая возможность локализации ПДн на своей площадке (см. [security.md — персональные данные](docs.ru/security.md#соответствие-требованиям-по-персональным-данным)).

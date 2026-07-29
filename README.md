@@ -15,6 +15,10 @@ This command installs the OS from **this** repository and its release (clone + a
 
 ### Linux
 
+**Step 1.** Open a terminal.
+
+**Step 2.** Copy and paste the command into the terminal — **install the DLE template** (the script installs Docker automatically if missing):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
@@ -22,21 +26,24 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
 
 ### macOS
 
-**Terminal**:
+**Step 1.** Open Terminal.
 
-1.
+**Step 2.** Copy and paste the command into the terminal — **install Docker Desktop**:
+
 ```bash
 brew install --cask docker
 ```
 
-2.
+**Step 3.** Copy and paste the command into the terminal — **start Docker Desktop**:
+
 ```bash
 open -a Docker
 ```
 
 Wait until Docker Desktop is running.
 
-3.
+**Step 4.** Copy and paste the command into the terminal — **install the DLE template**:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh \
   | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE
@@ -44,22 +51,30 @@ curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.s
 
 ### Windows
 
-PowerShell **as Administrator**:
+**Step 1.** Open PowerShell as Administrator.
 
-1.
+**Step 2.** Copy and paste the command into the terminal — **install WSL**:
+
 ```powershell
 wsl --install
 ```
 
-2. Reboot
+**Step 3.** **Reboot Windows.**
 
-3.
+**Step 4.** Copy and paste the command into the terminal — **install Docker Desktop**:
+
 ```powershell
 winget install -e --id Docker.DockerDesktop
 ```
+
+**Step 5.** Copy and paste the command into the terminal — **install the DLE template**:
+
 ```powershell
-wsl bash -c "curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
+wsl bash -c "cd ~ && curl -fsSL https://raw.githubusercontent.com/VC-HB3-Accelerator/DLE/main/setup.sh | bash -s -- --base-url=https://github.com/VC-HB3-Accelerator/DLE"
 ```
+
+Install goes to the WSL home directory (`~/DLE`), not the `C:` drive.
+
 ## What it is
 
 **DLE** is a personal operating system template for a legal entity: install on your own infrastructure (including a local device **in the country of activity**); the technology core is EVM and AI. Perpetual license; the installed instance and the right to use it are your asset (see [LICENSE](LICENSE)). The template includes mechanisms for depersonalization, encryption, processing, and storage of personal data — aligned with the applicable data-protection regulator’s requirements in the country where you operate, including the ability to keep personal data localized on your own site (see [security.md — personal data](docs.en/security.md#personal-data-regulatory-alignment)).
