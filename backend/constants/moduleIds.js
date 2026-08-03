@@ -25,7 +25,11 @@ const MODULE_IDS = {
   TIMELOCK: '0x74696d656c6f636b000000000000000000000000000000000000000000000000',
   
   // Reader Module - модуль для чтения данных DLE
-  READER: '0x7265616465720000000000000000000000000000000000000000000000000000'
+  READER: '0x7265616465720000000000000000000000000000000000000000000000000000',
+
+  // Hierarchical Voting — ASCII "hierarchicalVoting" (19 байт) + zero-pad
+  // keccak256 не используем: в ядре исторически padded ASCII (см. AUDIT §4.5)
+  HIERARCHICAL_VOTING: '0x68696572617263686963616c566f74696e670000000000000000000000000000'
 };
 
 /**
@@ -35,7 +39,8 @@ const MODULE_IDS = {
 const MODULE_TYPE_TO_ID = {
   treasury: MODULE_IDS.TREASURY,
   timelock: MODULE_IDS.TIMELOCK,
-  reader: MODULE_IDS.READER
+  reader: MODULE_IDS.READER,
+  hierarchicalVoting: MODULE_IDS.HIERARCHICAL_VOTING
 };
 
 /**
@@ -45,7 +50,8 @@ const MODULE_TYPE_TO_ID = {
 const MODULE_ID_TO_TYPE = {
   [MODULE_IDS.TREASURY]: 'treasury',
   [MODULE_IDS.TIMELOCK]: 'timelock',
-  [MODULE_IDS.READER]: 'reader'
+  [MODULE_IDS.READER]: 'reader',
+  [MODULE_IDS.HIERARCHICAL_VOTING]: 'hierarchicalVoting'
 };
 
 /**
@@ -54,16 +60,18 @@ const MODULE_ID_TO_TYPE = {
 const MODULE_NAMES = {
   treasury: 'Treasury Module',
   timelock: 'Timelock Module',
-  reader: 'Reader Module'
+  reader: 'Reader Module',
+  hierarchicalVoting: 'Hierarchical Voting Module'
 };
 
 /**
  * Описания модулей
  */
 const MODULE_DESCRIPTIONS = {
-  treasury: 'Модуль для управления казной и финансовыми операциями DLE',
+  treasury: 'Модуль для управления казной и финансоческими операциями DLE',
   timelock: 'Модуль для задержки выполнения критических операций',
-  reader: 'Модуль для чтения и получения данных о состоянии DLE'
+  reader: 'Модуль для чтения и получения данных о состоянии DLE',
+  hierarchicalVoting: 'Модуль иерархического голосования (головной DLE → дочерние)'
 };
 
 module.exports = {

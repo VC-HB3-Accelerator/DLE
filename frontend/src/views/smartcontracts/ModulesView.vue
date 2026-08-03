@@ -689,11 +689,6 @@
                 <strong>{{ t('smartcontracts.modules.list.labelOkved') }}</strong> 
                 <span>{{ module.dleOkvedCodes.join(', ') }}</span>
               </div>
-              
-              <div class="detail-item" v-if="module.dleOktmo">
-                <strong>{{ t('smartcontracts.modules.list.labelOktmo') }}</strong> 
-                <span>{{ module.dleOktmo }}</span>
-              </div>
             </div>
 
             <div class="module-actions">

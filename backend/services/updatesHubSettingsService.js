@@ -251,11 +251,22 @@ async function saveSettings(payload = {}, updatedBy = null) {
           giteaRepo,
         ]
       );
+      try {
+        require('./updatesEntitlementService').clearEntitlementCache();
+      } catch {
+        // ignore
+      }
       return getSettings();
     }
     const err = new Error(`Ошибка сохранения: ${error.message}`);
     err.status = 500;
     throw err;
+  }
+
+  try {
+    require('./updatesEntitlementService').clearEntitlementCache();
+  } catch {
+    // ignore
   }
 
   return getSettings();

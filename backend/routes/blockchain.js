@@ -15,6 +15,16 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const rpcProviderService = require('../services/rpcProviderService');
 const { getSupportedChainIds } = require('../utils/networkLoader');
+const {
+  DLE_GET_DLE_INFO,
+  DLE_GET_CURRENT_CHAIN_ID,
+  DLE_GET_PROPOSALS_COUNT,
+  DLE_GET_PROPOSAL_SUMMARY,
+} = require('../constants/dleReadAbi');
+const {
+  fetchGovernanceParams,
+  ReaderNotFoundError,
+} = require('../services/dleReaderResolveService');
 
 // Функция для получения списка сетей из БД для данного DLE
 async function getSupportedChainIdsForDLE(dleAddress) {
@@ -46,6 +56,7 @@ router.post('/read-dle-info', async (req, res) => {
 
     // Определяем корректную сеть для данного адреса (или используем chainId из запроса)
     let provider, rpcUrl, targetChainId = req.body.chainId;
+    let foundContracts = [];
     
     // Получаем список сетей из базы данных для данного DLE
     const candidateChainIds = await getSupportedChainIdsForDLE(dleAddress);
@@ -59,10 +70,14 @@ router.post('/read-dle-info', async (req, res) => {
       if (!code || code === '0x') {
         return res.status(400).json({ success: false, error: `По адресу ${dleAddress} нет контракта в сети ${targetChainId}` });
       }
+      foundContracts.push({
+        chainId: Number(targetChainId),
+        currentChainId: Number(targetChainId),
+        provider,
+        rpcUrl,
+      });
     } else {
       // Ищем контракт во всех сетях
-      let foundContracts = [];
-      
       for (const cid of candidateChainIds) {
         try {
           const url = await rpcProviderService.getRpcUrlByChainId(cid);
@@ -70,10 +85,9 @@ router.post('/read-dle-info', async (req, res) => {
           const prov = new ethers.JsonRpcProvider(url);
           const code = await prov.getCode(dleAddress);
           if (code && code !== '0x') {
-            // Контракт найден, currentChainId теперь равен block.chainid
             foundContracts.push({
               chainId: cid,
-              currentChainId: cid, // currentChainId = block.chainid = cid
+              currentChainId: cid,
               provider: prov,
               rpcUrl: url
             });
@@ -85,31 +99,19 @@ router.post('/read-dle-info', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Не удалось найти сеть, где по адресу есть контракт' });
       }
       
-      // Выбираем первую доступную сеть (currentChainId - это governance chain, не primary)
       const primaryContract = foundContracts[0];
-      
-      if (primaryContract) {
-        // Используем основную сеть для чтения данных
-        provider = primaryContract.provider;
-        rpcUrl = primaryContract.rpcUrl;
-        targetChainId = primaryContract.chainId;
-      } else {
-        // Fallback: берем первый найденный контракт
-        const firstContract = foundContracts[0];
-        provider = firstContract.provider;
-        rpcUrl = firstContract.rpcUrl;
-        targetChainId = firstContract.chainId;
-      }
+      provider = primaryContract.provider;
+      rpcUrl = primaryContract.rpcUrl;
+      targetChainId = primaryContract.chainId;
     }
     
-    // ABI для чтения данных DLE
+    // ABI для чтения данных DLE (единый dleReadAbi)
     const dleAbi = [
-      // Актуальная сигнатура без oktmo
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
+      DLE_GET_DLE_INFO,
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
       "function quorumPercentage() external view returns (uint256)",
-      "function getCurrentChainId() external view returns (uint256)",
+      DLE_GET_CURRENT_CHAIN_ID,
       "function logoURI() external view returns (string memory)",
       "function getModuleAddress(bytes32 _moduleId) external view returns (address)"
     ];
@@ -220,54 +222,45 @@ router.post('/read-dle-info', async (req, res) => {
       }
     }
 
-    // Читаем информацию о модулях
+    // Читаем информацию о модулях (ASCII-padded MODULE_IDS, не keccak имени)
     const modules = {};
     try {
+      const { MODULE_IDS, MODULE_ID_TO_TYPE } = require('../constants/moduleIds');
       console.log(`[Blockchain] Читаем модули для DLE: ${dleAddress}`);
-      
-      // Определяем известные модули
-      const moduleNames = ['reader', 'treasury', 'timelock'];
-      
-      for (const moduleName of moduleNames) {
+      for (const [moduleId, moduleType] of Object.entries(MODULE_ID_TO_TYPE)) {
         try {
-          // Вычисляем moduleId (keccak256 от имени модуля)
-          const moduleId = ethers.keccak256(ethers.toUtf8Bytes(moduleName));
-          
-          // Получаем адрес модуля
           const moduleAddress = await dle.getModuleAddress(moduleId);
-          
           if (moduleAddress && moduleAddress !== ethers.ZeroAddress) {
-            modules[moduleName] = moduleAddress;
-            console.log(`[Blockchain] Модуль ${moduleName}: ${moduleAddress}`);
-          } else {
-            console.log(`[Blockchain] Модуль ${moduleName} не инициализирован`);
+            modules[moduleType] = moduleAddress;
+            console.log(`[Blockchain] Модуль ${moduleType}: ${moduleAddress}`);
           }
         } catch (moduleError) {
-          console.log(`[Blockchain] Ошибка при чтении модуля ${moduleName}:`, moduleError.message);
+          console.log(`[Blockchain] Ошибка при чтении модуля ${moduleType}:`, moduleError.message);
         }
       }
+      // unused MODULE_IDS silence
+      void MODULE_IDS;
     } catch (modulesError) {
       console.log(`[Blockchain] Ошибка при чтении модулей:`, modulesError.message);
     }
 
     // Собираем информацию о всех развернутых сетях
     const deployedNetworks = [];
-    if (typeof foundContracts !== 'undefined') {
+    if (Array.isArray(foundContracts) && foundContracts.length > 0) {
       for (const contract of foundContracts) {
         deployedNetworks.push({
           chainId: contract.chainId,
           address: dleAddress,
           currentChainId: contract.currentChainId,
-          isPrimary: false // currentChainId - это governance chain, не primary
+          isPrimary: false
         });
       }
     } else {
-      // Если chainId был указан в запросе, добавляем только эту сеть
       deployedNetworks.push({
-        chainId: targetChainId,
+        chainId: Number(targetChainId),
         address: dleAddress,
         currentChainId: Number(currentChainId),
-        isPrimary: Number(currentChainId) === targetChainId
+        isPrimary: Number(currentChainId) === Number(targetChainId)
       });
     }
 
@@ -278,8 +271,6 @@ router.post('/read-dle-info', async (req, res) => {
       location: dleInfo.location,
       coordinates: dleInfo.coordinates,
       jurisdiction: Number(dleInfo.jurisdiction),
-      // Поле oktmo удалено в актуальной версии контракта; сохраняем 0 для обратной совместимости
-      oktmo: 0,
       okvedCodes: dleInfo.okvedCodes,
       kpp: Number(dleInfo.kpp),
       creationTimestamp: Number(dleInfo.creationTimestamp),
@@ -358,13 +349,21 @@ router.post('/get-proposals', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const {
+      DLE_GET_PROPOSAL_SUMMARY,
+      DLE_CHECK_PROPOSAL_RESULT,
+      DLE_GET_PROPOSAL_STATE,
+      DLE_GET_CURRENT_CHAIN_ID,
+    } = require('../constants/dleReadAbi');
+
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
-    // ABI для чтения предложений (используем правильные функции из смарт-контракта)
+    // ABI для чтения предложений (актуальная сигнатура DLE без governanceChainId)
     const dleAbi = [
-      "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targets)",
-      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
-      "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
+      DLE_GET_PROPOSAL_SUMMARY,
+      DLE_CHECK_PROPOSAL_RESULT,
+      DLE_GET_PROPOSAL_STATE,
+      DLE_GET_CURRENT_CHAIN_ID,
       "event ProposalCreated(uint256 proposalId, address initiator, string description)"
     ];
 
@@ -418,9 +417,8 @@ router.post('/get-proposals', async (req, res) => {
           canceled: proposal.canceled,
           deadline: Number(proposal.deadline),
           initiator: proposal.initiator,
-          governanceChainId: Number(proposal.governanceChainId),
           snapshotTimepoint: Number(proposal.snapshotTimepoint),
-          targets: proposal.targets
+          targetChains: proposal.targetChains,
         });
         
         const proposalInfo = {
@@ -432,9 +430,10 @@ router.post('/get-proposals', async (req, res) => {
           canceled: proposal.canceled,
           deadline: Number(proposal.deadline),
           initiator: proposal.initiator,
-          governanceChainId: Number(proposal.governanceChainId),
+          // Сеть, с которой читаем (в Proposal нет governanceChainId)
+          governanceChainId: Number(chainId),
           snapshotTimepoint: Number(proposal.snapshotTimepoint),
-          targetChains: proposal.targets.map(targetChainId => Number(targetChainId)),
+          targetChains: (proposal.targetChains || []).map((targetChainId) => Number(targetChainId)),
           isPassed: isPassed,
           blockNumber: events[i].blockNumber
         };
@@ -520,7 +519,7 @@ router.post('/get-proposal-info', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     // ABI для чтения информации о предложении
     const dleAbi = [
@@ -614,7 +613,7 @@ router.post('/deactivate-dle', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     // ABI для проверки деактивации DLE
     const dleAbi = [
@@ -707,7 +706,7 @@ router.post('/check-deactivation-proposal-result', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function checkDeactivationProposalResult(uint256 _proposalId) public view returns (bool passed, bool quorumReached)"
@@ -785,7 +784,7 @@ router.post('/load-deactivation-proposals', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function deactivationProposalCounter() external view returns (uint256)",
@@ -889,7 +888,7 @@ router.post('/execute-proposal', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     const wallet = new ethers.Wallet(privateKey, provider);
     
     const dleAbi = [
@@ -965,7 +964,7 @@ router.post('/cancel-proposal', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function cancelProposal(uint256 _proposalId, string calldata reason) external"
@@ -1005,7 +1004,7 @@ router.post('/cancel-proposal', async (req, res) => {
 
 // УДАЛЕНО: дублируется в dleMultichain.js
 
-// Получить параметры управления
+// Получить параметры управления (через DLEReader)
 router.post('/get-governance-params', async (req, res) => {
   try {
     const { dleAddress } = req.body;
@@ -1043,40 +1042,35 @@ router.post('/get-governance-params', async (req, res) => {
         error: 'Не удалось найти сеть, где по адресу есть контракт'
       });
     }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
-    const dleAbi = [
-      "function getGovernanceParams() external view returns (uint256 quorumPct, uint256 chainId, uint256 supportedCount)"
-    ];
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const params = await fetchGovernanceParams({
+      dleAddress,
+      provider,
+      chainId: targetChainId,
+    });
 
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Получаем параметры управления
-    const params = await dle.getGovernanceParams();
-
-    console.log(`[Blockchain] Параметры управления:`, params);
+    console.log(`[Blockchain] Параметры управления (Reader ${params.readerAddress}):`, params);
 
     res.json({
       success: true,
       data: {
-        quorumPercentage: Number(params.quorumPct),
-        chainId: Number(params.chainId),
-        supportedCount: Number(params.supportedCount)
+        quorumPercentage: params.quorumPct,
+        chainId: params.chainId,
+        supportedCount: params.supportedCount,
+        totalSupply: params.totalSupply?.toString?.() ?? String(params.totalSupply),
+        proposalsCount: params.proposalsCount,
+        readerAddress: params.readerAddress,
       }
     });
 
   } catch (error) {
     console.error('[Blockchain] Ошибка при получении параметров управления:', error);
-    res.status(500).json({
+    const status = error instanceof ReaderNotFoundError ? 404 : 500;
+    res.status(status).json({
       success: false,
-      error: 'Ошибка при получении параметров управления: ' + error.message
+      error: 'Ошибка при получении параметров управления: ' + error.message,
+      code: error.code || undefined,
     });
   }
 });
@@ -1126,7 +1120,7 @@ router.post('/get-proposal-state', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function getProposalState(uint256 _proposalId) public view returns (uint8 state)"
@@ -1201,7 +1195,7 @@ router.post('/get-proposal-votes', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function getProposalVotes(uint256 _proposalId) external view returns (uint256 forVotes, uint256 againstVotes, uint256 totalVotes, uint256 quorumRequired)"
@@ -1279,7 +1273,7 @@ router.post('/get-proposals-count', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function getProposalsCount() external view returns (uint256)"
@@ -1353,7 +1347,7 @@ router.post('/list-proposals', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory)"
@@ -1429,7 +1423,7 @@ router.post('/get-voting-power-at', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function getVotingPowerAt(address voter, uint256 timepoint) external view returns (uint256)"
@@ -1505,7 +1499,7 @@ router.post('/get-quorum-at', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function getQuorumAt(uint256 timepoint) external view returns (uint256)"
@@ -1580,7 +1574,7 @@ router.post('/get-token-balance', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function balanceOf(address account) external view returns (uint256)"
@@ -1655,7 +1649,7 @@ router.post('/get-total-supply', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)"
@@ -1729,7 +1723,7 @@ router.post('/is-active', async (req, res) => {
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(targetChainId));
     
     const dleAbi = [
       "function isActive() external view returns (bool)"
@@ -1802,22 +1796,16 @@ router.post('/get-dle-analytics', async (req, res) => {
         error: 'Не удалось найти сеть, где по адресу есть контракт'
       });
     }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     
     const dleAbi = [
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
-      "function getProposalsCount() external view returns (uint256)",
+      DLE_GET_PROPOSALS_COUNT,
       "function quorumPercentage() external view returns (uint256)",
-      "function getCurrentChainId() external view returns (uint256)",
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))"
+      DLE_GET_CURRENT_CHAIN_ID,
+      DLE_GET_DLE_INFO
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
@@ -1949,18 +1937,12 @@ router.post('/get-dle-history', async (req, res) => {
         error: 'Не удалось найти сеть, где по адресу есть контракт'
       });
     }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     
     const dleAbi = [
-      "function getProposalsCount() external view returns (uint256)",
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))"
+      DLE_GET_PROPOSALS_COUNT,
+      DLE_GET_DLE_INFO
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);

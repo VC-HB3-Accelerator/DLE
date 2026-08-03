@@ -8,12 +8,35 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const logger = require('../utils/logger');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const updatesService = require('../services/updatesService');
 const updatesApplyService = require('../services/updatesApplyService');
 const updatesHubSettingsService = require('../services/updatesHubSettingsService');
+
+/** Защита hub RPC от перебора authorize (ТЗ §7). */
+const authorizeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.UPDATES_AUTHORIZE_RATE_LIMIT || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many authorize requests' },
+  keyGenerator: (req) => {
+    const dle = String(req.body?.dleContract || '').trim().toLowerCase();
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    return dle ? `${ip}:${dle}` : ip;
+  },
+});
+
+function clientErrorMessage(error) {
+  const status = error.status || 500;
+  if (status === 403) return 'Not entitled to updates';
+  if (status === 400 && error.code === 'invalid_dle') return 'Invalid dleContract';
+  return error.message || 'Request failed';
+}
 
 /**
  * Сессия пользователя ИЛИ сервисный токен из БД (hub_service_token).
@@ -106,7 +129,8 @@ router.get('/status', async (req, res) => {
   }
 });
 
-router.post('/authorize', requireAuthOrHubToken, async (req, res) => {
+router.post('/authorize', authorizeLimiter, requireAuthOrHubToken, async (req, res) => {
+  const requestId = req.get('x-request-id') || crypto.randomUUID();
   try {
     const { dleContract, fromVersion } = req.body || {};
     const walletAddress = req.hubServiceAuth
@@ -117,16 +141,25 @@ router.post('/authorize', requireAuthOrHubToken, async (req, res) => {
       userId: req.hubServiceAuth ? null : (req.session?.userId || null),
       walletAddress,
       req,
+      requestId,
     });
     logger.info(
       `[updates] authorize ok hubService=${Boolean(req.hubServiceAuth)} `
-      + `user=${req.session?.userId || '-'} dle=${dleContract} from=${fromVersion || '?'}`
+      + `user=${req.session?.userId || '-'} dle=${dleContract} from=${fromVersion || '?'} `
+      + `requestId=${requestId}`
     );
+    res.setHeader('X-Request-Id', requestId);
     return res.json({ success: true, data });
   } catch (error) {
     const status = error.status || 500;
-    logger.warn(`[updates] authorize denied: ${error.message}`);
-    return res.status(status).json({ success: false, error: error.message });
+    logger.warn(
+      `[updates] authorize denied: ${error.message} code=${error.code || '-'} requestId=${requestId}`
+    );
+    res.setHeader('X-Request-Id', requestId);
+    return res.status(status).json({
+      success: false,
+      error: clientErrorMessage(error),
+    });
   }
 });
 
@@ -162,7 +195,10 @@ router.post('/apply-here', requireAuth, async (req, res) => {
   } catch (error) {
     const status = error.status || 500;
     logger.warn(`[updates] apply-here: ${error.message}`);
-    return res.status(status).json({ success: false, error: error.message });
+    return res.status(status).json({
+      success: false,
+      error: clientErrorMessage(error),
+    });
   }
 });
 

@@ -208,7 +208,7 @@ Settings → Updates                        assertEntitled()
 
 1. Чеклист: auth_tokens заполнены, RPC живы, тестовый entitled/deny DLE.
 2. `stub_mode=false` на HB3 **только по явной команде**.
-3. Документ отката: снова `stub_mode=true` при инциденте RPC/False deny.
+3. Документ отката: [updates-stub-rollback.ru.md](./updates-stub-rollback.ru.md) — снова `stub_mode=true` при инциденте RPC/False deny.
 
 Оценка трудозатрат (ориентир): этап 1 — 1–2 дня; этапы 2–3 — ещё 2–5 дней (итого ~3–7 р.д. full).
 
@@ -216,15 +216,15 @@ Settings → Updates                        assertEntitled()
 
 ## 9. Критерии приёмки
 
-- [ ] При `stub_mode=false` DLE **без** TreasuryModule не получает pack (403).
-- [ ] При `stub_mode=false` DLE с казной, где `balanceOf(license) < min_balance` по всем `auth_tokens` — 403.
-- [ ] При `stub_mode=false` DLE с казной, где хотя бы по одному auth_token баланс ≥ `min_balance` — скачивание OK.
-- [ ] Изменение `min_balance` / состава `auth_tokens` на HB3 Security сразу влияет на допуск (с учётом TTL кэша, если включён).
-- [ ] Клиентский инстанс **не** читает свои local `auth_tokens` для entitlement updates.
-- [ ] Env `UPDATES_STUB_MODE` не требуется для работы; управление — БД `stub_mode`.
-- [ ] Аудит-логи содержат deny/ok с причинами.
-- [ ] На prod HB3 stub выключен только после чеклиста; откат задокументирован.
-- [ ] Нет деплоя/рестарта VDS без явной команды в рамках этой задачи (локальная разработка / PR).
+- [x] При `stub_mode=false` DLE **без** TreasuryModule не получает pack (403). *(unit)*
+- [x] При `stub_mode=false` DLE с казной, где `balanceOf(license) < min_balance` по всем `auth_tokens` — 403. *(unit)*
+- [x] При `stub_mode=false` DLE с казной, где хотя бы по одному auth_token баланс ≥ `min_balance` — скачивание OK. *(unit authorize path)*
+- [x] Изменение `min_balance` / состава `auth_tokens` на HB3 Security сразу влияет на допуск (сброс кэша entitlement при mutate + TTL).
+- [x] Клиентский инстанс **не** читает свои local `auth_tokens` для entitlement updates.
+- [x] Env `UPDATES_STUB_MODE` не требуется для работы; управление — БД `stub_mode`.
+- [x] Аудит-логи содержат deny/ok с причинами. *(лог + таблица `update_entitlement_audit`)*
+- [ ] На prod HB3 stub выключен только после чеклиста; откат задокументирован. *(откат: `docs.ru/updates-stub-rollback.ru.md`; stub off — по явной команде)*
+- [x] Нет деплоя/рестарта VDS без явной команды в рамках этой задачи (локальная разработка / PR).
 
 ---
 

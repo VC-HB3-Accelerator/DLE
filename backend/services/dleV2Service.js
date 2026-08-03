@@ -327,7 +327,6 @@ class DLEV2Service {
       location: params.location,
       coordinates: params.coordinates,
       jurisdiction: params.jurisdiction,
-      oktmo: params.oktmo,
       okvedCodes: params.okvedCodes || [],
       kpp: params.kpp,
       quorumPercentage: params.quorumPercentage,

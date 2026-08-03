@@ -13,13 +13,13 @@
 const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
-const rpcProviderService = require('../services/rpcProviderService');
-const { getSupportedChainIds } = require('../utils/networkLoader');
+const { DLE_GET_DLE_INFO, DLE_GET_PROPOSALS_COUNT, DLE_GET_PROPOSAL_SUMMARY } = require('../constants/dleReadAbi');
+const { resolveDleProvider } = require('../services/dleNetworkResolveService');
 
 // Получить аналитику DLE
 router.post('/get-dle-analytics', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -30,55 +30,24 @@ router.post('/get-dle-analytics', async (req, res) => {
 
     console.log(`[DLE Analytics] Получение аналитики для DLE: ${dleAddress}`);
 
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    let candidateChainIds = []; // Будет заполнено из deploy_params
-    
+    let provider, rpcUrl, targetChainId;
     try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
+      ({ provider, rpcUrl, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+        preferChainId,
+      }));
+    } catch (e) {
       return res.status(500).json({
         success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: e.message || 'Не удалось найти сеть, где по адресу есть контракт',
+        code: e.code,
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
     const dleAbi = [
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
-      "function getProposalsCount() external view returns (uint256)",
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))"
+      DLE_GET_PROPOSALS_COUNT,
+      DLE_GET_DLE_INFO
     ];
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
@@ -189,7 +158,7 @@ router.post('/get-dle-analytics', async (req, res) => {
 // Получить историю DLE
 router.post('/get-dle-history', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -200,54 +169,23 @@ router.post('/get-dle-history', async (req, res) => {
 
     console.log(`[DLE Analytics] Получение истории для DLE: ${dleAddress}`);
 
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    let candidateChainIds = []; // Будет заполнено из deploy_params
-    
+    let provider, targetChainId;
     try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
+      ({ provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+        preferChainId,
+      }));
+    } catch (e) {
       return res.status(500).json({
         success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: e.message || 'Не удалось найти сеть, где по адресу есть контракт',
+        code: e.code,
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
     const dleAbi = [
-      "function getProposalsCount() external view returns (uint256)",
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
-      "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targets)",
+      DLE_GET_PROPOSALS_COUNT,
+      DLE_GET_DLE_INFO,
+      DLE_GET_PROPOSAL_SUMMARY,
       "event ProposalCreated(uint256 proposalId, address initiator, string description)"
     ];
 

@@ -83,19 +83,21 @@
                 <ul class="networks-list">
                   <li v-for="net in dle.networks" :key="net.chainId" class="network-item">
                     <span class="chain-name">{{ getChainName(net.chainId) }}:</span>
-                    <a 
-                      :href="getExplorerUrl(net.chainId, net.address)" 
-                      target="_blank" 
+                    <a
+                      v-if="net.address"
+                      :href="getExplorerUrl(net.chainId, net.address)"
+                      target="_blank"
                       class="address-link"
                       @click.stop
                     >
                       {{ shortenAddress(net.address) }}
                       <i class="fas fa-external-link-alt"></i>
                     </a>
+                    <span v-else class="address-missing">—</span>
                   </li>
                 </ul>
               </div>
-              <div class="detail-item" v-else>
+              <div class="detail-item" v-else-if="dle.dleAddress">
                 <strong>{{ t('smartcontracts.management.contractAddresses') }}</strong>
                 <div class="addresses-list">
                   <div 
@@ -115,6 +117,10 @@
                     </a>
                   </div>
                 </div>
+              </div>
+              <div class="detail-item" v-else>
+                <strong>{{ t('smartcontracts.management.contractAddresses') }}</strong>
+                <span class="address-missing">Адрес ещё не записан (деплой не завершён)</span>
               </div>
               <div class="detail-item">
                 <strong>{{ t('smartcontracts.management.location') }}</strong> {{ dle.location }}
@@ -270,7 +276,6 @@ async function loadDeployedDles() {
                 location: blockchainData.location || dle.location,
                 coordinates: blockchainData.coordinates || dle.coordinates,
                 jurisdiction: blockchainData.jurisdiction || dle.jurisdiction,
-                oktmo: blockchainData.oktmo || dle.oktmo,
                 okvedCodes: blockchainData.okvedCodes || dle.okvedCodes,
                 kpp: blockchainData.kpp || dle.kpp,
                 // Информация о токенах из блокчейна

@@ -110,7 +110,7 @@ router.post('/get-proposals', async (req, res) => {
         const dleAbi = [
           "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
           "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
-          "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targetChains)",
+          "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] memory targetChains)",
           "function quorumPercentage() external view returns (uint256)",
           "function getPastTotalSupply(uint256 timepoint) external view returns (uint256)",
           "function totalSupply() external view returns (uint256)",
@@ -263,8 +263,9 @@ router.post('/get-proposals', async (req, res) => {
             
             try {
               const proposalData = await dle.getProposalSummary(proposalId);
-              governanceChainId = Number(proposalData.governanceChainId);
-              targetChains = proposalData.targetChains.map(chain => Number(chain));
+              // В Proposal нет governanceChainId — сеть чтения = текущий chainId цикла
+              governanceChainId = Number(chainId);
+              targetChains = (proposalData.targetChains || []).map(chain => Number(chain));
               
               // Получаем operation из отдельного вызова (если нужно)
               // operation не возвращается в getProposalSummary, но это не критично для мультиконтрактов
@@ -971,10 +972,11 @@ router.post('/list-proposals', async (req, res) => {
     }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const listChainId = 11155111;
     
     const dleAbi = [
       "function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory)",
-      "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targets)",
+      "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] memory targetChains)",
       "function getProposalState(uint256 _proposalId) external view returns (uint8 state)"
     ];
 
@@ -1004,9 +1006,9 @@ router.post('/list-proposals', async (req, res) => {
           canceled: proposal.canceled,
           deadline: Number(proposal.deadline),
           initiator: proposal.initiator,
-          governanceChainId: Number(proposal.governanceChainId),
+          governanceChainId: Number(listChainId),
           snapshotTimepoint: Number(proposal.snapshotTimepoint),
-          targetChains: proposal.targets.map(chain => Number(chain)),
+          targetChains: (proposal.targetChains || []).map(chain => Number(chain)),
           state: Number(state)
         });
       } catch (error) {
@@ -1021,7 +1023,7 @@ router.post('/list-proposals', async (req, res) => {
           canceled: false,
           deadline: 0,
           initiator: '0x0000000000000000000000000000000000000000',
-          governanceChainId: 0,
+          governanceChainId: Number(listChainId),
           snapshotTimepoint: 0,
           targetChains: [],
           state: 0
@@ -1422,7 +1424,7 @@ router.post('/find-proposal-by-tx', async (req, res) => {
             const fullDleAbi = [
               "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
               "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
-              "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targetChains)"
+              "function getProposalSummary(uint256 _proposalId) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] memory targetChains)"
             ];
             const fullDle = new ethers.Contract(dleAddress, fullDleAbi, provider);
             

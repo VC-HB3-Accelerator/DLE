@@ -17,37 +17,6 @@ const router = express.Router();
 
 
 /**
- * @route   GET /api/russian-classifiers/oktmo
- * @desc    Получить список кодов ОКТМО (муниципальные образования)
- * @access  Public
- */
-router.get('/oktmo', async (req, res, next) => {
-  try {
-    const filePath = path.join(__dirname, '../db/data/oktmo.json');
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'Файл с кодами ОКТМО не найден'
-      });
-    }
-    
-    const data = fs.readFileSync(filePath, 'utf8');
-    const oktmoData = JSON.parse(data);
-    
-    res.json({
-      success: true,
-      data: oktmoData.oktmo_codes || [],
-      count: oktmoData.oktmo_codes ? oktmoData.oktmo_codes.length : 0
-    });
-    
-  } catch (error) {
-    console.error('Ошибка при получении кодов ОКТМО:', error);
-    next(error);
-  }
-});
-
-/**
  * @route   GET /api/russian-classifiers/okved
  * @desc    Получить список кодов ОКВЭД (виды экономической деятельности)
  * @access  Public
@@ -170,16 +139,9 @@ router.get('/okved/:code', async (req, res, next) => {
  */
 router.get('/all', async (req, res, next) => {
   try {
-    const oktmoPath = path.join(__dirname, '../db/data/oktmo.json');
     const okvedPath = path.join(__dirname, '../db/data/okved.json');
     
     const result = {};
-    
-    // ОКТМО
-    if (fs.existsSync(oktmoPath)) {
-      const oktmoData = JSON.parse(fs.readFileSync(oktmoPath, 'utf8'));
-      result.oktmo = oktmoData.oktmo_codes || [];
-    }
     
     // ОКВЭД (полный список)
     if (fs.existsSync(okvedPath)) {

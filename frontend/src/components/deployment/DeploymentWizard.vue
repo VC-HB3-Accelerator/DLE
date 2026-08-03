@@ -275,7 +275,6 @@ const startDeployment = async () => {
       location: props.dleData.addressData?.fullAddress || t('common.notSpecified'),
       coordinates: props.dleData.coordinates || '0,0',
       jurisdiction: parseInt(props.dleData.jurisdiction) || 0,
-      oktmo: props.dleData.selectedOktmo || '',
       okvedCodes: props.dleData.selectedOkved || [],
       kpp: props.dleData.kppCode || '',
       quorumPercentage: props.dleData.governanceQuorum !== undefined ? props.dleData.governanceQuorum : 51,

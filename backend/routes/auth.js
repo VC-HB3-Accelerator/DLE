@@ -139,7 +139,7 @@ router.get('/nonce', async (req, res) => {
 // Верификация подписи и создание сессии
 router.post('/verify', async (req, res) => {
   try {
-    const { address, signature, nonce, issuedAt, siweLocale } = req.body;
+    const { address, signature, nonce, issuedAt, siweLocale, chainId: bodyChainId } = req.body;
 
     logger.info(`[verify] Verifying signature for address: ${address}`);
     logger.info(`[verify] Request body:`, JSON.stringify(req.body, null, 2));
@@ -150,6 +150,7 @@ router.post('/verify', async (req, res) => {
     logger.info(`[verify] Nonce from request: ${nonce}`);
     logger.info(`[verify] Address from request: ${address}`);
     logger.info(`[verify] Signature from request: ${signature}`);
+    logger.info(`[verify] chainId from request: ${bodyChainId}`);
 
     // Сохраняем гостевые ID до проверки (body.guestId — из localStorage фронта, приоритетнее сессии)
     const guestId = req.body.guestId || req.session.guestId;
@@ -271,16 +272,42 @@ router.post('/verify', async (req, res) => {
     const siweStatement = getSiweStatement(statementLocale);
 
     const { SiweMessage } = require('siwe');
+
+    // SIWE chainId = сеть кошелька (фронт шлёт eth_chainId); бэкенд обязан повторить то же значение
+    const parsedChainId = Number(bodyChainId);
+    let siweChainId = Number.isFinite(parsedChainId) && parsedChainId > 0 ? parsedChainId : null;
+    if (siweChainId == null) {
+      logger.warn('[verify] chainId missing in body, falling back to 1 (legacy clients)');
+      siweChainId = 1;
+    }
+    // Разумный whitelist: сети из deploy + распространённые L1/L2/testnet
+    let allowedChainIds = [1, 10, 56, 100, 137, 8453, 42161, 43114, 11155111, 17000, 421614, 84532, 1337, 31337];
+    try {
+      const { getSupportedChainIds } = require('../utils/networkLoader');
+      const fromDeploy = await getSupportedChainIds();
+      if (Array.isArray(fromDeploy) && fromDeploy.length) {
+        allowedChainIds = [...new Set([...allowedChainIds, ...fromDeploy.map(Number)])];
+      }
+    } catch (e) {
+      logger.warn(`[verify] getSupportedChainIds failed: ${e.message}`);
+    }
+    if (!allowedChainIds.includes(siweChainId)) {
+      logger.error(`[verify] Unsupported SIWE chainId: ${siweChainId}`);
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported chainId for SIWE: ${siweChainId}`,
+      });
+    }
     
     // Реконструируем SIWE-сообщение на бэкенде, НО уже с теми же полями,
-    // что и на фронтенде: domain, origin (uri), resources
+    // что и на фронтенде: domain, origin (uri), resources, chainId
     const message = new SiweMessage({
       domain,
       address: normalizedAddress,
       statement: siweStatement,
       uri: origin,
       version: '1',
-      chainId: 1,
+      chainId: siweChainId,
       nonce: nonce,
       issuedAt: messageIssuedAt,
       resources: resources,

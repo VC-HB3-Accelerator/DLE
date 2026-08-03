@@ -270,9 +270,14 @@ async function handleApplyHere() {
       version: job?.version || latest.value.version,
     });
   } catch (error) {
-    applyError.value = error.response?.data?.error
-      || error.message
-      || t('settings.updates.applyError');
+    const status = error.response?.status;
+    if (status === 403) {
+      applyError.value = t('settings.updates.notEntitled');
+    } else {
+      applyError.value = error.response?.data?.error
+        || error.message
+        || t('settings.updates.applyError');
+    }
   } finally {
     isApplying.value = false;
   }

@@ -16,6 +16,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
+interface ITreasuryDLE {
+    function initializer() external view returns (address);
+}
+
 // ERC-4337 интерфейсы для оплаты газа любым токеном
 interface IPaymaster {
     function validatePaymasterUserOp(
@@ -147,10 +151,23 @@ contract TreasuryModule is ReentrancyGuard {
     event GasPaymentTokenAdded(address indexed tokenAddress, uint256 rate);
     event GasPaymentTokenRemoved(address indexed tokenAddress);
     event GasPaidWithToken(address indexed tokenAddress, uint256 tokenAmount, uint256 nativeAmount);
+    event HierarchicalVotingModuleSet(address indexed module);
+    event ExternalVoteCast(address indexed targetDLE, uint256 proposalId, bool support);
+
+    // HierarchicalVotingModule A — единственный (кроме DLE) caller castExternalVote
+    address public hierarchicalVotingModule;
 
     // Модификаторы
     modifier onlyDLE() {
         require(msg.sender == dleContract, "Only DLE contract can call this");
+        _;
+    }
+
+    modifier onlyHivOrDLE() {
+        require(
+            msg.sender == hierarchicalVotingModule || msg.sender == dleContract,
+            "Only HV module or DLE"
+        );
         _;
     }
 
@@ -180,6 +197,53 @@ contract TreasuryModule is ReentrancyGuard {
 
         // Автоматически добавляем нативную монету сети
         _addNativeToken();
+    }
+
+    /**
+     * @dev Привязать HierarchicalVotingModule (DLE governance или initializer bootstrap).
+     */
+    function setHierarchicalVotingModule(address module) external {
+        require(
+            msg.sender == dleContract || msg.sender == ITreasuryDLE(dleContract).initializer(),
+            "Only DLE or initializer"
+        );
+        require(module != address(0), "HV module cannot be zero");
+        require(module.code.length > 0, "HV module has no code");
+        hierarchicalVotingModule = module;
+        emit HierarchicalVotingModuleSet(module);
+    }
+
+    /**
+     * @dev Узкий vote на внешнем DLE от имени казны (T2).
+     * Только HV-модуль или сам DLE. Без произвольного calldata.
+     */
+    function castExternalVote(
+        address targetDLE,
+        uint256 proposalId,
+        bool support
+    ) external onlyHivOrDLE whenNotPaused nonReentrant {
+        require(targetDLE != address(0), "Target DLE cannot be zero");
+        require(targetDLE.code.length > 0, "Target DLE has no code");
+        require(IERC20(targetDLE).balanceOf(address(this)) > 0, "No target tokens in treasury");
+
+        (bool success, ) = targetDLE.call(
+            abi.encodeWithSignature("vote(uint256,bool)", proposalId, support)
+        );
+        require(success, "External vote failed");
+
+        totalTransactions++;
+        emit ExternalVoteCast(targetDLE, proposalId, support);
+    }
+
+    /**
+     * @dev Self-delegate на токене B (DLE / ERC20Votes), чтобы казна имела getPastVotes.
+     */
+    function ensureVotingPower(address token) external whenNotPaused {
+        require(token != address(0) && token.code.length > 0, "Invalid token");
+        (bool success, ) = token.call(
+            abi.encodeWithSignature("delegate(address)", address(this))
+        );
+        require(success, "Self-delegate failed");
     }
 
     /**

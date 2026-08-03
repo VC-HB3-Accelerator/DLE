@@ -257,7 +257,13 @@ apply_overlay_tar() {
   local dest="$2"
   mkdir -p "$dest"
   # archive содержит top-level dirname (backend/...)
-  tar -xzf "$archive" -C "$(dirname "$dest")"
+  # DLE_VERSION: compose монтирует ./DLE_VERSION → /app/DLE_VERSION поверх bind
+  # ./backend→/app; путь backend/DLE_VERSION занят mountpoint → tar EEXIST.
+  # Версию пишем в корень APP_DIR отдельно в конце update.sh.
+  tar -xzf "$archive" -C "$(dirname "$dest")" \
+    --exclude='DLE_VERSION' \
+    --exclude='*/DLE_VERSION' \
+    --exclude='backend/DLE_VERSION'
 }
 
 if [ -f "$WORK/overlay/backend.tar.gz" ]; then

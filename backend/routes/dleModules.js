@@ -24,10 +24,11 @@ try {
 const rpcProviderService = require('../services/rpcProviderService');
 const { spawn } = require('child_process');
 const path = require('path');
-const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS } = require('../constants/moduleIds');
+const { MODULE_TYPE_TO_ID, MODULE_NAMES, MODULE_DESCRIPTIONS, MODULE_IDS } = require('../constants/moduleIds');
 const fs = require('fs');
 // broadcastModulesUpdate удален - используем deploymentWebSocketService
 const DeployParamsService = require('../services/deployParamsService');
+const { resolveDleProvider } = require('../services/dleNetworkResolveService');
 
 // Функция для получения информации о задеплоенных модулях из файлов деплоя
 async function getDeployedModulesInfo(dleAddress) {
@@ -65,7 +66,6 @@ async function getDeployedModulesInfo(dleAddress) {
           dleLocation: moduleData.dleLocation,
           dleJurisdiction: moduleData.dleJurisdiction,
           dleCoordinates: moduleData.dleCoordinates,
-          dleOktmo: moduleData.dleOktmo,
           dleOkvedCodes: moduleData.dleOkvedCodes || [],
           dleKpp: moduleData.dleKpp,
           dleQuorumPercentage: moduleData.dleQuorumPercentage,
@@ -505,10 +505,10 @@ router.post('/prepare-deploy-module-all-networks', async (req, res) => {
   }
 });
 
-// Получить все модули
+// Получить все модули (источник истины — on-chain getModuleAddress / MODULE_IDS)
 router.post('/get-all-modules', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -517,138 +517,103 @@ router.post('/get-all-modules', async (req, res) => {
       });
     }
 
-    console.log(`[DLE Modules] Получение всех модулей для DLE: ${dleAddress} из файлов деплоя`);
+    console.log(`[DLE Modules] Получение модулей on-chain для DLE: ${dleAddress}`);
 
-    // Получаем модули из файлов деплоя
-    const modules = await getDeployedModulesInfo(dleAddress);
-    console.log(`[DLE Modules] Найдено модулей в файлах: ${modules.length}`);
+    const { provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+      preferChainId,
+    });
 
-    if (modules.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          modules: [],
-          requiresGovernance: true,
-          totalModules: 0,
-          activeModules: 0,
-          supportedNetworks: []
+    const dle = new ethers.Contract(
+      dleAddress,
+      [
+        'function getModuleAddress(bytes32) view returns (address)',
+        'function isModuleActive(bytes32) view returns (bool)',
+      ],
+      provider
+    );
+
+    const networkNames = {
+      11155111: 'Sepolia',
+      17000: 'Holesky',
+      421614: 'Arbitrum Sepolia',
+      84532: 'Base Sepolia',
+    };
+    const getNetworkName = (cid) => networkNames[cid] || `Chain ${cid}`;
+    const getModuleDescription = (moduleType) =>
+      MODULE_DESCRIPTIONS[moduleType] || `Модуль ${moduleType}`;
+
+    // Файлы деплоя — только метаданные (опционально)
+    const fileModules = await getDeployedModulesInfo(dleAddress);
+    const fileByType = Object.fromEntries(
+      (fileModules || []).map((m) => [m.moduleType, m])
+    );
+
+    const formattedModules = [];
+    for (const [moduleType, moduleId] of Object.entries(MODULE_TYPE_TO_ID)) {
+      let moduleAddress = ethers.ZeroAddress;
+      let isActive = false;
+      try {
+        moduleAddress = await dle.getModuleAddress(moduleId);
+        if (moduleAddress && moduleAddress !== ethers.ZeroAddress) {
+          try {
+            isActive = await dle.isModuleActive(moduleId);
+          } catch (_) {
+            isActive = true;
+          }
         }
+      } catch (e) {
+        console.log(`[DLE Modules] skip ${moduleType}: ${e.message}`);
+        continue;
+      }
+
+      if (!moduleAddress || moduleAddress === ethers.ZeroAddress) {
+        continue;
+      }
+
+      const fromFile = fileByType[moduleType];
+      const addresses = [
+        {
+          chainId: Number(targetChainId),
+          address: moduleAddress,
+          networkName: getNetworkName(Number(targetChainId)),
+          isActive: Boolean(isActive),
+          verification: fromFile?.networks?.[0]?.verification || null,
+          verificationStatus: fromFile?.networks?.[0]?.verification || null,
+        },
+      ];
+
+      formattedModules.push({
+        // AnalyticsView ждёт id/address; ModulesView — moduleName/addresses
+        id: moduleType,
+        address: moduleAddress,
+        moduleId,
+        moduleName: MODULE_NAMES[moduleType] || moduleType.toUpperCase(),
+        moduleType,
+        moduleDescription: getModuleDescription(moduleType),
+        addresses,
+        isActive: Boolean(isActive),
+        deployedAt: fromFile?.deployTimestamp || null,
+        source: 'on-chain',
+        dleName: fromFile?.dleName,
+        dleSymbol: fromFile?.dleSymbol,
       });
     }
 
-    // Преобразуем модули из файлов в формат, ожидаемый frontend
-    const moduleGroups = {};
-    
-    for (const module of modules) {
-      const moduleType = module.moduleType;
-      const moduleId = ethers.keccak256(ethers.toUtf8Bytes(moduleType));
-      
-      // Создаем адреса для каждой сети
-      const addresses = module.networks.map(network => ({
-        chainId: network.chainId,
-        address: network.address,
-        networkName: getNetworkName(network.chainId),
-        isActive: network.success,
-        verification: network.verification,
-        verificationStatus: network.verification // Добавляем поле для frontend
-      }));
-      
-      moduleGroups[moduleType] = {
-        moduleId: moduleId,
-        moduleName: moduleType.toUpperCase(),
-        moduleDescription: getModuleDescription(moduleType),
-        addresses: addresses,
-        isActive: addresses.some(addr => addr.isActive),
-        deployedAt: module.deployTimestamp,
-        // Добавляем информацию о DLE
-        dleName: module.dleName,
-        dleSymbol: module.dleSymbol,
-        dleLocation: module.dleLocation,
-        dleJurisdiction: module.dleJurisdiction,
-        dleCoordinates: module.dleCoordinates,
-        dleOktmo: module.dleOktmo,
-        dleOkvedCodes: module.dleOkvedCodes,
-        dleKpp: module.dleKpp,
-        dleQuorumPercentage: module.dleQuorumPercentage,
-        dleLogoURI: module.dleLogoURI,
-        dleSupportedChainIds: module.dleSupportedChainIds,
-        dleInitialPartners: module.dleInitialPartners,
-        dleInitialAmounts: module.dleInitialAmounts
-      };
-    }
-    
-    // Вспомогательные функции
-    function getNetworkName(chainId) {
-      const networks = {
-        11155111: 'Sepolia',
-        17000: 'Holesky', 
-        421614: 'Arbitrum Sepolia',
-        84532: 'Base Sepolia'
-      };
-      return networks[chainId] || `Chain ${chainId}`;
-    }
-    
-    async function getFallbackRpcUrl(chainId) {
-      try {
-        // Получаем RPC URL из базы данных
-        const rpcService = require('../services/rpcProviderService');
-        const rpcUrl = await rpcService.getRpcUrlByChainId(chainId);
-        return rpcUrl;
-      } catch (error) {
-        console.error(`[DLE Modules] Ошибка получения RPC из базы данных для chain_id ${chainId}:`, error);
-        return null;
-      }
-    }
-    
-    function getEtherscanUrl(chainId) {
-      const etherscanUrls = {
-        11155111: 'https://sepolia.etherscan.io',
-        17000: 'https://holesky.etherscan.io',
-        421614: 'https://sepolia.arbiscan.io',
-        84532: 'https://sepolia.basescan.org'
-      };
-      return etherscanUrls[chainId] || null;
-    }
-    
-    function getModuleDescription(moduleType) {
-      const descriptions = {
-        treasury: 'Казначейство DLE - управление финансами, депозиты, выводы, дивиденды',
-        timelock: 'Модуль задержек исполнения - безопасность критических операций через таймлоки',
-        reader: 'Модуль чтения данных DLE - получение информации о контракте',
-        hierarchicalVoting: 'Модуль иерархического голосования - голосование в других DLE на основе токенов'
-      };
-      return descriptions[moduleType] || `Модуль ${moduleType}`;
-    }
+    console.log(`[DLE Modules] On-chain модулей: ${formattedModules.length}`);
 
-    // Преобразуем в массив модулей
-    const formattedModules = Object.values(moduleGroups);
-    
-    console.log(`[DLE Modules] Найдено типов модулей: ${formattedModules.length}`);
-
-    // Получаем поддерживаемые сети из параметров деплоя
-    let supportedNetworks = [];
+    let supportedNetworks = [
+      {
+        chainId: Number(targetChainId),
+        networkName: getNetworkName(Number(targetChainId)),
+        rpcUrl: null,
+        etherscanUrl: null,
+        networkIndex: 0,
+      },
+    ];
     try {
-      const deployParamsService = new DeployParamsService();
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        const supportedChainIds = params.supportedChainIds || [];
-        const rpcUrls = params.rpcUrls || params.rpc_urls || {};
-        
-        supportedNetworks = await Promise.all(supportedChainIds.map(async (chainId, index) => ({
-          chainId: Number(chainId),
-          networkName: getNetworkName(Number(chainId)),
-          rpcUrl: rpcUrls[chainId] || await getFallbackRpcUrl(chainId),
-          etherscanUrl: getEtherscanUrl(chainId),
-          networkIndex: index
-        })));
-      }
-      await deployParamsService.close();
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя:', error);
-      // НЕ показываем fallback цепочки - только те, что выбрал пользователь
-      supportedNetworks = [];
-    }
+      const rpcUrl = await rpcProviderService.getRpcUrlByChainId(Number(targetChainId));
+      supportedNetworks[0].rpcUrl = rpcUrl;
+    } catch (_) {}
 
     res.json({
       success: true,
@@ -656,16 +621,16 @@ router.post('/get-all-modules', async (req, res) => {
         modules: formattedModules,
         requiresGovernance: true,
         totalModules: formattedModules.length,
-        activeModules: formattedModules.length,
-        supportedNetworks: supportedNetworks
-      }
+        activeModules: formattedModules.filter((m) => m.isActive).length,
+        supportedNetworks,
+        chainId: Number(targetChainId),
+      },
     });
-
   } catch (error) {
     console.error('[DLE Modules] Ошибка при получении всех модулей:', error);
     res.status(500).json({
       success: false,
-      error: 'Ошибка при получении всех модулей: ' + error.message
+      error: 'Ошибка при получении всех модулей: ' + error.message,
     });
   }
 });
@@ -2321,7 +2286,7 @@ router.post('/verify-dle-all-networks', async (req, res) => {
               const location = saved?.location || '';
               const coordinates = saved?.coordinates || '';
               const jurisdiction = saved?.jurisdiction ?? 0;
-              const oktmo = saved?.oktmo || '';
+              const okvedCodes = Array.isArray(saved?.okvedCodes) ? saved.okvedCodes : [];
               const kpp = saved?.kpp ? Number(saved.kpp) : 0;
               const quorumPercentage = saved?.quorumPercentage ?? saved?.governanceSettings?.quorumPercentage ?? 51;
 
@@ -2388,9 +2353,9 @@ router.post('/verify-dle-all-networks', async (req, res) => {
                 compilerversion: 'v0.8.20+commit.a1b79de6',
                 constructorArguements: (async () => {
                   try {
+                    const { generateDLEConstructorArgs } = require('../utils/constructorArgsGenerator');
                     const fs = require('fs');
                     const path = require('path');
-const { getSupportedChainIds } = require('../utils/networkLoader');
                     const dlesDir = path.join(__dirname, '../contracts-data/dles');
                     let found = null;
                     if (fs.existsSync(dlesDir)) {
@@ -2404,18 +2369,81 @@ const { getSupportedChainIds } = require('../utils/networkLoader');
                     }
                     const initPartners = Array.isArray(found?.initialPartners) ? found.initialPartners : [];
                     const initAmounts = Array.isArray(found?.initialAmounts) ? found.initialAmounts : [];
-                    const scIds = Array.isArray(found?.networks) ? found.networks.map(n => Number(n.chainId)).filter(v => !isNaN(v)) : supportedChainIds;
-                    const currentCid = Number(found?.governanceSettings?.currentChainId || 1); // governance chain, не network.chainId
-                    const encoded = ethers.AbiCoder.defaultAbiCoder().encode(
-                      ['tuple(string,string,string,string,uint256,string,uint256,uint256,address[],uint256[],uint256[])', 'uint256', 'address'],
-                      [[name, symbol, location, coordinates, jurisdiction, oktmo, kpp, quorumPercentage, initPartners, initAmounts.map(a => BigInt(a)), scIds], BigInt(currentCid), initializer]
-                    );
-                    return encoded;
-                  } catch (_) {
-                    // Fallback на пустые массивы при отсутствии сохраненных параметров
+                    const scIds = Array.isArray(found?.networks)
+                      ? found.networks.map(n => Number(n.chainId)).filter(v => !isNaN(v))
+                      : supportedChainIds;
+                    const okvedFromCard = Array.isArray(found?.okvedCodes) ? found.okvedCodes : okvedCodes;
+
+                    const { dleConfig, initializer: initAddr } = generateDLEConstructorArgs({
+                      name,
+                      symbol,
+                      location,
+                      coordinates,
+                      jurisdiction,
+                      okvedCodes: okvedFromCard,
+                      kpp,
+                      quorumPercentage,
+                      initialPartners: initPartners,
+                      initialAmounts: initAmounts,
+                      supportedChainIds: scIds,
+                      initializer,
+                    });
+
+                    // Актуальный конструктор: (DLEConfig, address) — без oktmo и без chainId
                     return ethers.AbiCoder.defaultAbiCoder().encode(
-                      ['tuple(string,string,string,string,uint256,string,uint256,uint256,address[],uint256[],uint256[])', 'uint256', 'address'],
-                      [[name, symbol, location, coordinates, jurisdiction, oktmo, kpp, quorumPercentage, [], [], supportedChainIds], BigInt(network.chainId), initializer]
+                      [
+                        'tuple(string,string,string,string,uint256,string[],uint256,uint256,address[],uint256[],uint256[])',
+                        'address',
+                      ],
+                      [[
+                        dleConfig.name,
+                        dleConfig.symbol,
+                        dleConfig.location,
+                        dleConfig.coordinates,
+                        dleConfig.jurisdiction,
+                        dleConfig.okvedCodes,
+                        dleConfig.kpp,
+                        dleConfig.quorumPercentage,
+                        dleConfig.initialPartners,
+                        dleConfig.initialAmounts,
+                        dleConfig.supportedChainIds,
+                      ], initAddr]
+                    );
+                  } catch (encodeError) {
+                    console.error('[DLE Modules] Ошибка сборки constructor args:', encodeError.message);
+                    const { generateDLEConstructorArgs } = require('../utils/constructorArgsGenerator');
+                    const { dleConfig, initializer: initAddr } = generateDLEConstructorArgs({
+                      name,
+                      symbol,
+                      location,
+                      coordinates,
+                      jurisdiction,
+                      okvedCodes,
+                      kpp,
+                      quorumPercentage,
+                      initialPartners: [],
+                      initialAmounts: [],
+                      supportedChainIds,
+                      initializer,
+                    });
+                    return ethers.AbiCoder.defaultAbiCoder().encode(
+                      [
+                        'tuple(string,string,string,string,uint256,string[],uint256,uint256,address[],uint256[],uint256[])',
+                        'address',
+                      ],
+                      [[
+                        dleConfig.name,
+                        dleConfig.symbol,
+                        dleConfig.location,
+                        dleConfig.coordinates,
+                        dleConfig.jurisdiction,
+                        dleConfig.okvedCodes,
+                        dleConfig.kpp,
+                        dleConfig.quorumPercentage,
+                        dleConfig.initialPartners,
+                        dleConfig.initialAmounts,
+                        dleConfig.supportedChainIds,
+                      ], initAddr]
                     );
                   }
                 })()
@@ -3931,27 +3959,50 @@ function getModuleOperationsByType(moduleType) {
         category: 'Управление DLE'
       },
       {
-        id: 'createExternalVotingProposal',
-        name: 'Создать предложение внешнего голосования',
-        description: 'Создать предложение для голосования в другом DLE',
+        id: 'createExternalVoteOp',
+        name: 'Создать операцию голоса на B',
+        description: 'Операция vote на дочернем DLE через казну A (холдер A)',
         icon: '🗳️',
-        functionName: 'createExternalVotingProposal',
+        functionName: 'createExternalVoteOp',
         parameters: [
           { name: 'targetDLE', type: 'address', label: 'Целевой DLE', required: true },
-          { name: 'targetProposalId', type: 'uint256', label: 'ID предложения', required: true },
-          { name: 'support', type: 'bool', label: 'Поддержка', required: true },
-          { name: 'reason', type: 'string', label: 'Причина', required: true }
+          { name: 'targetProposalId', type: 'uint256', label: 'ID предложения на B', required: true },
+          { name: 'supportOnB', type: 'bool', label: 'Голос на B (за/против)', required: true },
+          { name: 'duration', type: 'uint256', label: 'Срок (сек)', required: true },
+          { name: 'executor', type: 'address', label: 'Представитель (executor)', required: true }
+        ],
+        category: 'Голосование'
+      },
+      {
+        id: 'approveOperation',
+        name: 'Поддержать операцию A→B',
+        description: 'Голос холдера A «за» операцию (сила со snapshot)',
+        icon: '👍',
+        functionName: 'approveOperation',
+        parameters: [
+          { name: 'opId', type: 'uint256', label: 'ID операции', required: true }
+        ],
+        category: 'Голосование'
+      },
+      {
+        id: 'rejectOperation',
+        name: 'Отклонить операцию A→B',
+        description: 'Голос холдера A «против» операции',
+        icon: '👎',
+        functionName: 'rejectOperation',
+        parameters: [
+          { name: 'opId', type: 'uint256', label: 'ID операции', required: true }
         ],
         category: 'Голосование'
       },
       {
         id: 'executeExternalVote',
-        name: 'Исполнить внешнее голосование',
-        description: 'Выполнить голосование в целевом DLE',
+        name: 'Исполнить голос казны на B',
+        description: 'Только executor после кворума A и for>against',
         icon: '✅',
         functionName: 'executeExternalVote',
         parameters: [
-          { name: 'proposalId', type: 'uint256', label: 'ID предложения', required: true }
+          { name: 'opId', type: 'uint256', label: 'ID операции', required: true }
         ],
         category: 'Голосование'
       },
@@ -3982,6 +4033,12 @@ function getModuleOperationsByType(moduleType) {
 }
 
 function getModuleAbi(moduleType) {
+  const {
+    READER_GET_PROPOSAL_SUMMARY,
+    READER_GET_GOVERNANCE_PARAMS,
+    READER_LIST_SUPPORTED_CHAINS,
+  } = require('../constants/dleReadAbi');
+
   const abis = {
     treasury: [
       "function addToken(address tokenAddress, string memory symbol, uint8 decimals) external",
@@ -3992,6 +4049,9 @@ function getModuleAbi(moduleType) {
       "function setPaymaster(address _paymaster) external",
       "function addGasPaymentToken(address tokenAddress, uint256 rate) external",
       "function emergencyPause() external",
+      "function setHierarchicalVotingModule(address module) external",
+      "function castExternalVote(address targetDLE, uint256 proposalId, bool support) external",
+      "function ensureVotingPower(address token) external",
       "function getTokenInfo(address tokenAddress) external view returns (TokenInfo memory)",
       "function getAllTokens() external view returns (address[] memory)",
       "function getTokenBalance(address tokenAddress) external view returns (uint256)"
@@ -4008,9 +4068,9 @@ function getModuleAbi(moduleType) {
       "function getActiveOperations() external view returns (bytes32[] memory)"
     ],
     reader: [
-      "function getProposalSummary(uint256 _proposalId) external view returns (uint256, string memory, uint256, uint256, bool, bool, uint256, address, uint256, uint256, uint256[], uint8, bool, bool)",
-      "function getGovernanceParams() external view returns (uint256, uint256, uint256, uint256, uint256)",
-      "function listSupportedChains() external view returns (uint256[] memory)",
+      READER_GET_PROPOSAL_SUMMARY,
+      READER_GET_GOVERNANCE_PARAMS,
+      READER_LIST_SUPPORTED_CHAINS,
       "function listProposals(uint256 offset, uint256 limit) external view returns (uint256[] memory, uint256)",
       "function getVotingPowerAt(address voter, uint256 timepoint) external view returns (uint256)",
       "function getQuorumAt(uint256 timepoint) external view returns (uint256)",
@@ -4024,12 +4084,16 @@ function getModuleAbi(moduleType) {
       "function setTreasuryModule(address _treasuryModule) external",
       "function addExternalDLE(address dleAddress, string memory name, string memory symbol) external",
       "function removeExternalDLE(address dleAddress) external",
-      "function createExternalVotingProposal(address targetDLE, uint256 targetProposalId, bool support, string memory reason) external returns (uint256)",
-      "function executeExternalVote(uint256 proposalId) external",
+      "function createExternalVoteOp(address targetDLE, uint256 targetProposalId, bool supportOnB, uint256 duration, address executor) external returns (uint256)",
+      "function approveOperation(uint256 opId) external",
+      "function rejectOperation(uint256 opId) external",
+      "function executeExternalVote(uint256 opId) external",
+      "function checkOpResult(uint256 opId) external view returns (bool, bool)",
       "function updateExternalDLEBalance(address dleAddress) external",
       "function updateAllExternalDLEBalances() external",
       "function getExternalDLEInfo(address dleAddress) external view returns (ExternalDLEInfo memory)",
       "function getAllExternalDLEs() external view returns (address[] memory)",
+      "function getExternalVoteOp(uint256 opId) external view returns (ExternalVoteOp memory)",
       "function getModuleStats() external view returns (uint256, uint256, uint256, uint256)"
     ]
   };

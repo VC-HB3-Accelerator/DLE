@@ -75,11 +75,21 @@ class UnifiedDeploymentService {
    * @param {Object} params - Параметры для валидации
    */
   validateDLEParams(params) {
-    const required = ['name', 'symbol', 'privateKey', 'supportedChainIds'];
-    const missing = required.filter(field => !params[field]);
+    const required = ['name', 'symbol', 'privateKey', 'supportedChainIds', 'jurisdiction', 'kpp', 'location'];
+    const missing = required.filter((field) => {
+      const v = params[field];
+      return v === undefined || v === null || v === '';
+    });
     
     if (missing.length > 0) {
       throw new Error(`Отсутствуют обязательные поля: ${missing.join(', ')}`);
+    }
+
+    if (Number(params.jurisdiction) === 0) {
+      throw new Error('jurisdiction обязателен (ISO 3166-1 numeric, без дефолта)');
+    }
+    if (Number(params.kpp) === 0) {
+      throw new Error('kpp обязателен (без страновых дефолтов)');
     }
 
     if (params.quorumPercentage < 1 || params.quorumPercentage > 100) {
@@ -117,10 +127,9 @@ class UnifiedDeploymentService {
       symbol: dleParams.symbol,
       location: dleParams.location || '',
       coordinates: dleParams.coordinates || '',
-      jurisdiction: dleParams.jurisdiction || 1,
-      oktmo: dleParams.oktmo || 45000000000,
+      jurisdiction: Number(dleParams.jurisdiction),
       okved_codes: dleParams.okvedCodes || [],
-      kpp: dleParams.kpp || 770101001,
+      kpp: Number(dleParams.kpp),
       quorum_percentage: dleParams.quorumPercentage || 51,
       initial_partners: dleParams.initialPartners || [],
       // initialAmounts в человекочитаемом формате, умножение на 1e18 происходит при деплое

@@ -150,6 +150,7 @@ services:
       - PORT=${PORT:-8000}
       - GITEA_CONTAINER_NAME=${GITEA_CONTAINER_NAME:-dapp-gitea}
       - UPDATES_PACK_DIR=/app/update-packs
+      # UPDATES_STUB_MODE — наследие; бекенд НЕ читает. Источник истины: updates_hub_settings.stub_mode (БД/UI).
       - UPDATES_STUB_MODE=${UPDATES_STUB_MODE:-0}
       - DLE_APP_ROOT=/host-project
       - DLE_VERSION_PATH=/host-project/DLE_VERSION

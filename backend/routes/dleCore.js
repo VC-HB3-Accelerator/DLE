@@ -13,13 +13,17 @@
 const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
-const rpcProviderService = require('../services/rpcProviderService');
-const { getSupportedChainIds } = require('../utils/networkLoader');
+const { DLE_GET_DLE_INFO, DLE_GET_CURRENT_CHAIN_ID } = require('../constants/dleReadAbi');
+const {
+  fetchGovernanceParams,
+  ReaderNotFoundError,
+} = require('../services/dleReaderResolveService');
+const { resolveDleProvider } = require('../services/dleNetworkResolveService');
 
 // Чтение данных DLE из блокчейна
 router.post('/read-dle-info', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -30,48 +34,26 @@ router.post('/read-dle-info', async (req, res) => {
 
     console.log(`[DLE Core] Чтение данных DLE из блокчейна: ${dleAddress}`);
 
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    // Получаем поддерживаемые сети из networkLoader
-    const { getSupportedChainIds } = require('../utils/networkLoader');
-    const candidateChainIds = await getSupportedChainIds();
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
+    let provider, targetChainId;
+    try {
+      ({ provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+        preferChainId,
+      }));
+    } catch (e) {
       return res.status(500).json({
         success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: e.message || 'Не удалось найти сеть, где по адресу есть контракт',
+        code: e.code,
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
-    // ABI для чтения данных DLE
+    // ABI для чтения данных DLE (единый модуль dleReadAbi)
     const dleAbi = [
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
+      DLE_GET_DLE_INFO,
       "function totalSupply() external view returns (uint256)",
       "function balanceOf(address account) external view returns (uint256)",
       "function quorumPercentage() external view returns (uint256)",
-      "function getCurrentChainId() external view returns (uint256)",
+      DLE_GET_CURRENT_CHAIN_ID,
       "function logoURI() external view returns (string memory)"
     ];
 
@@ -216,10 +198,10 @@ router.post('/read-dle-info', async (req, res) => {
   }
 });
 
-// Получить параметры управления
+// Получить параметры управления (через DLEReader)
 router.post('/get-governance-params', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -230,57 +212,46 @@ router.post('/get-governance-params', async (req, res) => {
 
     console.log(`[DLE Core] Получение параметров управления для DLE: ${dleAddress}`);
 
-    // Получаем RPC URL из параметров деплоя или используем Sepolia как fallback
-    let rpcUrl;
+    let provider, targetChainId;
     try {
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        const supportedChainIds = params.supportedChainIds || [];
-        const chainId = supportedChainIds.length > 0 ? supportedChainIds[0] : 11155111;
-        rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
-      } else {
-        rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем Sepolia:', error);
-      rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    }
-    
-    if (!rpcUrl) {
+      ({ provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+        preferChainId,
+      }));
+    } catch (e) {
       return res.status(500).json({
         success: false,
-        error: 'RPC URL не найден'
+        error: e.message || 'Не удалось найти сеть, где по адресу есть контракт',
+        code: e.code,
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
-    const dleAbi = [
-      "function getGovernanceParams() external view returns (uint256 quorumPct, uint256 chainId, uint256 supportedCount)"
-    ];
+    const params = await fetchGovernanceParams({
+      dleAddress,
+      provider,
+      chainId: targetChainId,
+    });
 
-    const dle = new ethers.Contract(dleAddress, dleAbi, provider);
-
-    // Получаем параметры управления
-    const params = await dle.getGovernanceParams();
-
-    console.log(`[DLE Core] Параметры управления:`, params);
+    console.log(`[DLE Core] Параметры управления (Reader ${params.readerAddress}):`, params);
 
     res.json({
       success: true,
       data: {
-        quorumPct: Number(params.quorumPct),
-        chainId: Number(params.chainId),
-        supportedCount: Number(params.supportedCount)
+        quorumPct: params.quorumPct,
+        chainId: params.chainId,
+        supportedCount: params.supportedCount,
+        totalSupply: params.totalSupply?.toString?.() ?? String(params.totalSupply),
+        proposalsCount: params.proposalsCount,
+        readerAddress: params.readerAddress,
       }
     });
 
   } catch (error) {
     console.error('[DLE Core] Ошибка при получении параметров управления:', error);
-    res.status(500).json({
+    const status = error instanceof ReaderNotFoundError ? 404 : 500;
+    res.status(status).json({
       success: false,
-      error: 'Ошибка при получении параметров управления: ' + error.message
+      error: 'Ошибка при получении параметров управления: ' + error.message,
+      code: error.code || undefined,
     });
   }
 });
@@ -288,7 +259,7 @@ router.post('/get-governance-params', async (req, res) => {
 // Проверить активность DLE
 router.post('/is-active', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -299,31 +270,7 @@ router.post('/is-active', async (req, res) => {
 
     console.log(`[DLE Core] Проверка активности DLE: ${dleAddress}`);
 
-    // Получаем RPC URL из параметров деплоя или используем Sepolia как fallback
-    let rpcUrl;
-    try {
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        const supportedChainIds = params.supportedChainIds || [];
-        const chainId = supportedChainIds.length > 0 ? supportedChainIds[0] : 11155111;
-        rpcUrl = await rpcProviderService.getRpcUrlByChainId(chainId);
-      } else {
-        rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем Sepolia:', error);
-      rpcUrl = await rpcProviderService.getRpcUrlByChainId(11155111);
-    }
-    
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const { provider } = await resolveDleProvider(dleAddress, { preferChainId });
     
     const dleAbi = [
       "function isActive() external view returns (bool)"
@@ -355,7 +302,7 @@ router.post('/is-active', async (req, res) => {
 // Проверка возможности деактивации DLE
 router.post('/deactivate-dle', async (req, res) => {
   try {
-    const { dleAddress, userAddress } = req.body;
+    const { dleAddress, userAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress || !userAddress) {
       return res.status(400).json({
@@ -366,49 +313,7 @@ router.post('/deactivate-dle', async (req, res) => {
 
     console.log(`[DLE Core] Проверка возможности деактивации DLE: ${dleAddress} пользователем: ${userAddress}`);
 
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    let candidateChainIds = []; // Будет заполнено из deploy_params
-    
-    try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
-      });
-    }
-
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
+    const { provider } = await resolveDleProvider(dleAddress, { preferChainId });
     
     // ABI для проверки деактивации DLE
     const dleAbi = [

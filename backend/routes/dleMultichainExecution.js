@@ -42,12 +42,22 @@ router.post('/get-proposal-multichain-info', async (req, res) => {
       });
     }
 
+    const {
+      DLE_GET_PROPOSAL_SUMMARY,
+      DLE_PROPOSALS_GETTER,
+      DLE_GET_PROPOSAL_STATE,
+      DLE_CHECK_PROPOSAL_RESULT,
+      DLE_GET_CURRENT_CHAIN_ID,
+    } = require('../constants/dleReadAbi');
+
     const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
     
     const dleAbi = [
-      "function proposals(uint256) external view returns (uint256 id, string memory description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, bytes memory operation, uint256 governanceChainId, uint256 snapshotTimepoint, uint256[] memory targetChains)",
-      "function getProposalState(uint256 _proposalId) external view returns (uint8 state)",
-      "function checkProposalResult(uint256 _proposalId) external view returns (bool passed, bool quorumReached)",
+      DLE_GET_PROPOSAL_SUMMARY,
+      DLE_PROPOSALS_GETTER,
+      DLE_GET_PROPOSAL_STATE,
+      DLE_CHECK_PROPOSAL_RESULT,
+      DLE_GET_CURRENT_CHAIN_ID,
       "function getSupportedChainCount() external view returns (uint256)",
       "function getSupportedChainId(uint256 _index) external view returns (uint256)"
     ];
@@ -55,16 +65,18 @@ router.post('/get-proposal-multichain-info', async (req, res) => {
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
     // Получаем данные предложения
-    const proposal = await dle.proposals(proposalId);
+    const proposal = await dle.getProposalSummary(proposalId);
+    const rawProposal = await dle.proposals(proposalId);
     const state = await dle.getProposalState(proposalId);
     const result = await dle.checkProposalResult(proposalId);
+    const currentChainId = Number(await dle.getCurrentChainId());
 
     // Получаем поддерживаемые сети
     const chainCount = await dle.getSupportedChainCount();
     const supportedChains = [];
     for (let i = 0; i < chainCount; i++) {
-      const chainId = await dle.getSupportedChainId(i);
-      supportedChains.push(Number(chainId));
+      const supportedChainId = await dle.getSupportedChainId(i);
+      supportedChains.push(Number(supportedChainId));
     }
 
     const proposalInfo = {
@@ -76,9 +88,10 @@ router.post('/get-proposal-multichain-info', async (req, res) => {
       canceled: proposal.canceled,
       deadline: Number(proposal.deadline),
       initiator: proposal.initiator,
-      operation: proposal.operation,
-      governanceChainId: Number(proposal.governanceChainId),
-      targetChains: proposal.targetChains.map(chain => Number(chain)),
+      operation: rawProposal.operation,
+      // Сеть, с которой читаем (в Proposal нет поля governanceChainId)
+      governanceChainId: currentChainId,
+      targetChains: (proposal.targetChains || []).map((c) => Number(c)),
       snapshotTimepoint: Number(proposal.snapshotTimepoint),
       state: Number(state),
       isPassed: result.passed,

@@ -92,7 +92,7 @@ function httpJson(method, urlString, { body, headers } = {}) {
           } catch {
             data = { raw: text };
           }
-          if (res.statusCode >= 400) {
+  if (res.statusCode >= 400) {
             const err = new Error(data?.error || data?.message || `HTTP ${res.statusCode}`);
             err.status = res.statusCode;
             err.data = data;

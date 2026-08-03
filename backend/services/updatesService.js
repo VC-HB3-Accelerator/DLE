@@ -3,8 +3,8 @@
  * All rights reserved.
  *
  * Закрытая раздача update-pack (ТЗ §3.4).
- * Слой B (token gate) + слой A (Treasury license) — заготовки;
- * полный on-chain entitlement — этап 4/5.
+ * Entitlement: license-токен из auth_tokens на балансе TreasuryModule
+ * (см. updatesEntitlementService.js).
  */
 
 const crypto = require('crypto');
@@ -83,31 +83,16 @@ async function getLatestRelease() {
 }
 
 /**
- * Заготовка entitlement (A+B). В STUB_MODE пропускает on-chain.
- * TODO этап 4/5:
- *  - B: контракт DLE в auth_tokens / token gate
- *  - A: Treasury DLE balanceOf(licenseToken) ≥ порога
+ * Entitlement: license ERC-20 из auth_tokens на балансе TreasuryModule.
+ * stub_mode в updates_hub_settings — только отладка.
  */
-async function assertEntitled({ dleContract, userId, walletAddress }) {
-  const contract = String(dleContract || '').trim().toLowerCase();
-  if (!/^0x[a-f0-9]{40}$/.test(contract)) {
-    const err = new Error('Invalid dleContract');
-    err.status = 400;
-    throw err;
-  }
-
-  const hubSettings = await require('./updatesHubSettingsService').getSettings();
-  if (hubSettings.stub_mode) {
-    logger.warn('[updates] stub_mode (БД): entitlement A+B пропущен');
-    return { stub: true, dleContract: contract, userId, walletAddress };
-  }
-
-  const err = new Error(
-    'Updates entitlement not configured yet (нужен token gate + Treasury license check). '
-    + 'Для тестов включите stub_mode в настройках обновлений.'
-  );
-  err.status = 501;
-  throw err;
+async function assertEntitled({ dleContract, userId, walletAddress, requestId }) {
+  return require('./updatesEntitlementService').assertEntitled({
+    dleContract,
+    userId,
+    walletAddress,
+    requestId,
+  });
 }
 
 async function createDownloadToken({ releaseId, dleContract, userId, walletAddress }) {
@@ -122,7 +107,7 @@ async function createDownloadToken({ releaseId, dleContract, userId, walletAddre
   return { token, expiresAt };
 }
 
-async function authorizeDownload({ dleContract, userId, walletAddress, req }) {
+async function authorizeDownload({ dleContract, userId, walletAddress, req, requestId }) {
   const release = await getLatestRelease();
   if (!release) {
     const err = new Error('No published update release');
@@ -130,7 +115,12 @@ async function authorizeDownload({ dleContract, userId, walletAddress, req }) {
     throw err;
   }
 
-  await assertEntitled({ dleContract, userId, walletAddress });
+  await assertEntitled({
+    dleContract,
+    userId,
+    walletAddress,
+    requestId: requestId || req?.id || req?.headers?.['x-request-id'] || null,
+  });
 
   const { rows } = await db.getQuery()(
     `SELECT id FROM update_releases WHERE version = $1 LIMIT 1`,

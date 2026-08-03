@@ -13,14 +13,22 @@
 const express = require('express');
 const router = express.Router();
 const { ethers } = require('ethers');
-const rpcProviderService = require('../services/rpcProviderService');
 const { MODULE_IDS, MODULE_ID_TO_TYPE, MODULE_NAMES } = require('../constants/moduleIds');
-const { getSupportedChainIds } = require('../utils/networkLoader');
+const {
+  DLE_GET_DLE_INFO,
+  DLE_GET_CURRENT_CHAIN_ID,
+  DLE_GET_PROPOSALS_COUNT,
+} = require('../constants/dleReadAbi');
+const {
+  fetchSupportedChains,
+  ReaderNotFoundError,
+} = require('../services/dleReaderResolveService');
+const { resolveDleProvider } = require('../services/dleNetworkResolveService');
 
 // Получить расширенную историю DLE
 router.post('/get-extended-history', async (req, res) => {
   try {
-    const { dleAddress } = req.body;
+    const { dleAddress, chainId: preferChainId } = req.body;
     
     if (!dleAddress) {
       return res.status(400).json({
@@ -31,56 +39,23 @@ router.post('/get-extended-history', async (req, res) => {
 
     console.log(`[DLE History] Получение расширенной истории для DLE: ${dleAddress}`);
 
-    // Определяем корректную сеть для данного адреса
-    let rpcUrl, targetChainId;
-    let candidateChainIds = []; // Будет заполнено из deploy_params
-    
+    let provider, targetChainId;
     try {
-      // Получаем поддерживаемые сети из параметров деплоя
-      const latestParams = await deployParamsService.getLatestDeployParams(1);
-      if (latestParams.length > 0) {
-        const params = latestParams[0];
-        candidateChainIds = params.supportedChainIds || candidateChainIds;
-      }
-    } catch (error) {
-      console.error('❌ Ошибка получения параметров деплоя, используем fallback:', error);
-    }
-    
-    for (const cid of candidateChainIds) {
-      try {
-        const url = await rpcProviderService.getRpcUrlByChainId(cid);
-        if (!url) continue;
-        const prov = new ethers.JsonRpcProvider(url);
-        const code = await prov.getCode(dleAddress);
-        if (code && code !== '0x') { 
-          rpcUrl = url; 
-          targetChainId = cid; 
-          break; 
-        }
-      } catch (_) {}
-    }
-    
-    if (!rpcUrl) {
+      ({ provider, chainId: targetChainId } = await resolveDleProvider(dleAddress, {
+        preferChainId,
+      }));
+    } catch (e) {
       return res.status(500).json({
         success: false,
-        error: 'Не удалось найти сеть, где по адресу есть контракт'
-      });
-    }
-    if (!rpcUrl) {
-      return res.status(500).json({
-        success: false,
-        error: 'RPC URL для Sepolia не найден'
+        error: e.message || 'Не удалось найти сеть, где по адресу есть контракт',
+        code: e.code,
       });
     }
 
-    const provider = new ethers.JsonRpcProvider(await rpcProviderService.getRpcUrlByChainId(chainId));
-    
     const dleAbi = [
-      "function getDLEInfo() external view returns (tuple(string name, string symbol, string location, string coordinates, uint256 jurisdiction, uint256 oktmo, string[] okvedCodes, uint256 kpp, uint256 creationTimestamp, bool isActive))",
-      "function getGovernanceParams() external view returns (uint256 quorumPct, uint256 chainId, uint256 supportedCount)",
-      "function getCurrentChainId() external view returns (uint256)",
-      "function listSupportedChains() external view returns (uint256[] memory)",
-      "function getProposalsCount() external view returns (uint256)",
+      DLE_GET_DLE_INFO,
+      DLE_GET_CURRENT_CHAIN_ID,
+      DLE_GET_PROPOSALS_COUNT,
       "event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage)",
       "event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp)",
       "event ModuleAdded(bytes32 moduleId, address moduleAddress)",
@@ -95,12 +70,15 @@ router.post('/get-extended-history', async (req, res) => {
 
     const dle = new ethers.Contract(dleAddress, dleAbi, provider);
 
-    // Получаем текущие данные для сравнения
+    // Паспорт/счётчики — с DLE; список сетей — с Reader
     const dleInfo = await dle.getDLEInfo();
-    const governanceParams = await dle.getGovernanceParams();
     const currentChainId = await dle.getCurrentChainId();
-    const supportedChains = await dle.listSupportedChains();
     const proposalsCount = await dle.getProposalsCount();
+    const { chains: supportedChains } = await fetchSupportedChains({
+      dleAddress,
+      provider,
+      chainId: targetChainId,
+    });
 
     const history = [];
 
@@ -118,7 +96,7 @@ router.post('/get-extended-history', async (req, res) => {
         symbol: dleInfo.symbol,
         location: dleInfo.location,
         jurisdiction: Number(dleInfo.jurisdiction),
-        supportedChains: supportedChains.map(chain => Number(chain))
+        supportedChains: supportedChains
       }
     });
 
@@ -343,16 +321,18 @@ router.post('/get-extended-history', async (req, res) => {
           creationTimestamp: Number(dleInfo.creationTimestamp),
           proposalsCount: Number(proposalsCount),
           currentChainId: Number(currentChainId),
-          supportedChains: supportedChains.map(chain => Number(chain))
+          supportedChains: supportedChains
         }
       }
     });
 
   } catch (error) {
     console.error('[DLE History] Ошибка при получении расширенной истории:', error);
-    res.status(500).json({
+    const status = error instanceof ReaderNotFoundError ? 404 : 500;
+    res.status(status).json({
       success: false,
-      error: 'Ошибка при получении расширенной истории: ' + error.message
+      error: 'Ошибка при получении расширенной истории: ' + error.message,
+      code: error.code || undefined,
     });
   }
 });

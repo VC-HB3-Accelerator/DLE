@@ -162,12 +162,12 @@
               </div>
               <div 
                 v-for="module in modules" 
-                :key="module.id"
+                :key="module.id || module.moduleId || module.address"
                 class="module-item"
               >
                 <div class="module-info">
-                  <span class="module-id">{{ module.id }}</span>
-                  <span class="module-address">{{ formatAddress(module.address) }}</span>
+                  <span class="module-id">{{ module.moduleName || module.id || module.moduleType }}</span>
+                  <span class="module-address">{{ formatAddress(module.address || module.addresses?.[0]?.address) }}</span>
                 </div>
                 <div class="module-status">
                   <span class="status-badge active">{{ t('smartcontracts.analytics.active') }}</span>

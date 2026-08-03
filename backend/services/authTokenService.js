@@ -32,6 +32,12 @@ async function saveAllAuthTokens(authTokens) {
       editor_threshold: token.editorThreshold == null ? null : Number(token.editorThreshold)
     });
   }
+
+  try {
+    require('./updatesEntitlementService').clearEntitlementCache();
+  } catch {
+    // entitlement service optional at boot
+  }
 }
 
 async function upsertAuthToken(token) {
@@ -80,6 +86,12 @@ async function upsertAuthToken(token) {
       editor_threshold: editorThreshold
     });
   }
+
+  try {
+    require('./updatesEntitlementService').clearEntitlementCache();
+  } catch {
+    // ignore
+  }
 }
 
 async function deleteAuthToken(address, network) {
@@ -87,6 +99,11 @@ async function deleteAuthToken(address, network) {
   try {
     await encryptedDb.deleteData('auth_tokens', { address, network });
     console.log(`[AuthTokenService] Токен успешно удален`);
+    try {
+      require('./updatesEntitlementService').clearEntitlementCache();
+    } catch {
+      // ignore
+    }
   } catch (error) {
     console.error(`[AuthTokenService] Ошибка при удалении токена:`, error);
     throw error;

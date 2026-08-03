@@ -1865,7 +1865,7 @@
     "privateGroupsDesc": "Просмотр и управление приватными группами"
   },
   "home": {
-    "pageTitle": "VC HB3 Accelerator — венчурный фонд и платформа DLE"
+    "pageTitle": "VC HB3 Accelerator — венчурный фонд и поставщик ПО"
   },
   "identity": {
     "wallet": {
@@ -2438,7 +2438,6 @@
         "labelLocation": "Местоположение:",
       "labelJurisdiction": "Юрисдикция:",
       "labelOkved": "ОКВЭД:",
-      "labelOktmo": "ОКТМО:",
       "activate": "Активировать",
         "activating": "Активация..."
       },

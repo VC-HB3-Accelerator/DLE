@@ -843,9 +843,6 @@
               <div v-if="lastApiResult && lastApiResult.coordinates && dleSettings.addressData.isVerified" class="coordinates-line">
                 {{ lastApiResult.coordinates.lat }} {{ lastApiResult.coordinates.lon }}
               </div>
-              <div v-if="dleSettings.selectedOktmo" class="oktmo-line">
-                {{ $t('deploy.form.oktmo_label') }} {{ dleSettings.selectedOktmo }}
-              </div>
             </div>
           </div>
 
@@ -1018,7 +1015,6 @@ const dleSettings = reactive({
   jurisdiction: '',
   
   // Российские классификаторы (только для РФ)
-  selectedOktmo: '',      // ОКТМО - муниципальные образования
   kppCode: '',            // КПП - код причины постановки на учет
   
   // Адресные данные для ручного заполнения
@@ -1059,7 +1055,6 @@ const isLoadingCountries = ref(false);
 
 // Состояние для российских классификаторов
 const russianClassifiers = reactive({
-  oktmo: [],
   okved: []
 });
 const isLoadingRussianClassifiers = ref(false);
@@ -1068,7 +1063,6 @@ const isLoadingRussianClassifiers = ref(false);
 const postalCodeInput = ref('');     // Поле ввода индекса
 const searchResults = ref([]);       // Результаты поиска по индексу
 const isSearchingAddress = ref(false);
-const autoSelectedOktmo = ref(false); // Флаг автоматического выбора ОКТМО
 const lastApiResult = ref(null);     // Последний результат от API
 let searchTimeout = null;
 
@@ -1162,12 +1156,6 @@ const selectedTokenStandardInfo = computed(() => {
 const selectedNetworkInfo = computed(() => {
   if (!dleSettings.deployNetwork) return null;
   return availableNetworks.value.find(network => network.network_id === dleSettings.deployNetwork);
-});
-
-// Информация об автоматически выбранном ОКТМО
-const autoSelectedOktmoInfo = computed(() => {
-  if (!dleSettings.selectedOktmo || !autoSelectedOktmo.value) return null;
-  return russianClassifiers.oktmo.find(oktmo => oktmo.code === dleSettings.selectedOktmo);
 });
 
 // ===== КАСКАДНАЯ СИСТЕМА КЛАССИФИКАТОРОВ =====
@@ -1582,8 +1570,7 @@ const blockchainData = computed(() => {
     // Координаты масштабированные на 1e6 для целых чисел в Solidity
     latitude: Math.round(lastApiResult.value.coordinates.lat * 1000000),
     longitude: Math.round(lastApiResult.value.coordinates.lon * 1000000),
-    postalCode: dleSettings.addressData.postalCode || '',
-    oktmoCode: dleSettings.selectedOktmo || ''
+    postalCode: dleSettings.addressData.postalCode || ''
   };
 });
 
@@ -1595,13 +1582,11 @@ const estimatedGasCost = computed(() => {
   // int256 (latitude) - 20,000 gas
   // int256 (longitude) - 20,000 gas  
   // string (postalCode) - ~600 gas per byte
-  // string (oktmoCode) - ~600 gas per byte
   
   const baseGas = 40000; // координаты
   const postalCodeGas = (blockchainData.value.postalCode.length || 0) * 600;
-  const oktmoGas = (blockchainData.value.oktmoCode.length || 0) * 600;
   
-  return baseGas + postalCodeGas + oktmoGas;
+  return baseGas + postalCodeGas;
 });
 
 // Форматирование ключей API для отображения
@@ -1654,7 +1639,6 @@ const saveFormData = () => {
         postalCodeInput: postalCodeInput.value,
         searchResults: searchResults.value,
         lastApiResult: lastApiResult.value,
-        autoSelectedOktmo: autoSelectedOktmo.value,
         // Мульти-чейн данные
         selectedNetworks: selectedNetworks.value,
         totalDeployCost: totalDeployCost.value,
@@ -1689,7 +1673,6 @@ const loadFormData = () => {
       // Восстанавливаем основные настройки DLE
       Object.assign(dleSettings, {
         jurisdiction: parsedData.jurisdiction || '',
-        selectedOktmo: parsedData.selectedOktmo || '',
         kppCode: parsedData.kppCode || '',
         addressData: parsedData.addressData || {
           postalCode: '',
@@ -1727,7 +1710,6 @@ const loadFormData = () => {
       postalCodeInput.value = parsedData.postalCodeInput || '';
       searchResults.value = parsedData.searchResults || [];
       lastApiResult.value = parsedData.lastApiResult || null;
-      autoSelectedOktmo.value = parsedData.autoSelectedOktmo || false;
       
       // Восстанавливаем мульти-чейн состояние
       selectedNetworks.value = parsedData.selectedNetworks || [];
@@ -1770,7 +1752,6 @@ const clearStoredData = () => {
 // Очистка всех выбранных данных
 const clearAllData = () => {
   dleSettings.jurisdiction = '';
-  dleSettings.selectedOktmo = '';
   dleSettings.kppCode = '';
   dleSettings.addressData = {
     postalCode: '',
@@ -1806,7 +1787,6 @@ const clearAllData = () => {
   postalCodeInput.value = '';
   searchResults.value = [];
   isSearchingAddress.value = false;
-  autoSelectedOktmo.value = false;
   lastApiResult.value = null;
   
   // Сбрасываем выбранные уровни ОКВЭД
@@ -1962,37 +1942,6 @@ const searchByPostalCode = async () => {
   }
 };
 
-// Автоматический поиск ОКТМО по адресу
-const findOktmoByAddress = (result) => {
-  // Получаем регион/область из результата поиска
-  const region = result.region || result.city || '';
-  
-  if (!region || !russianClassifiers.oktmo) {
-    return '';
-  }
-
-  // console.log(`[FindOktmo] Searching OKTMO for region: "${region}"`);
-  
-  // Ищем совпадение по названию региона
-  const foundOktmo = russianClassifiers.oktmo.find(oktmo => {
-    const oktmoTitle = oktmo.title.toLowerCase();
-    const searchRegion = region.toLowerCase();
-    
-    // Проверяем точное совпадение или вхождение
-    return oktmoTitle === searchRegion || 
-           oktmoTitle.includes(searchRegion) || 
-           searchRegion.includes(oktmoTitle);
-  });
-
-  if (foundOktmo) {
-    // console.log(`[FindOktmo] Found OKTMO: ${foundOktmo.code} - ${foundOktmo.title}`);
-    return foundOktmo.code;
-  }
-  
-  // console.log(`[FindOktmo] No OKTMO found for region: "${region}"`);
-  return '';
-};
-
 // Заполнение полей из результата поиска
 const fillFromSearchResult = (result) => {
   console.log('[FillFromSearchResult] Called with result:', result);
@@ -2023,16 +1972,6 @@ const fillFromSearchResult = (result) => {
   
   // Сохраняем результат API для отображения в превью
   lastApiResult.value = result;
-  
-  // Автоматически выбираем ОКТМО по адресу
-  const autoOktmo = findOktmoByAddress(result);
-  if (autoOktmo) {
-    dleSettings.selectedOktmo = autoOktmo;
-    autoSelectedOktmo.value = true;  // Помечаем как автовыбранный
-    // console.log(`[FillFromSearchResult] Auto-selected OKTMO: ${autoOktmo}`);
-  } else {
-    autoSelectedOktmo.value = false;
-  }
   
   // console.log('[FillFromSearchResult] Filled address data:', dleSettings.addressData);
   // console.log('[FillFromSearchResult] Saved API result:', result);
@@ -2122,7 +2061,6 @@ const clearAddress = () => {
   dleSettings.coordinates = '';
   postalCodeInput.value = '';
   searchResults.value = [];
-  autoSelectedOktmo.value = false;
   lastApiResult.value = null;
 };
 
@@ -2170,11 +2108,9 @@ const loadClassifiers = async () => {
       
       if (response.data && response.data.success) {
         const data = response.data.data;
-        russianClassifiers.oktmo = data.oktmo || [];
         russianClassifiers.okved = data.okved || [];
         
         console.log('Российские классификаторы загружены:', {
-          oktmo: russianClassifiers.oktmo.length,
           okved: russianClassifiers.okved.length
         });
         
@@ -2221,11 +2157,9 @@ const loadRussianClassifiers = async () => {
     
     if (response.data && response.data.success) {
       const data = response.data.data;
-      russianClassifiers.oktmo = data.oktmo || [];
       russianClassifiers.okved = data.okved || [];
       
       console.log('Российские классификаторы загружены:', {
-        oktmo: russianClassifiers.oktmo.length,
         okved: russianClassifiers.okved.length
       });
       
@@ -2563,26 +2497,12 @@ const togglePrivateKey = () => {
   showPrivateKey.value = !showPrivateKey.value;
 };
 
-// Наблюдатель за ручным изменением ОКТМО
-watch(() => dleSettings.selectedOktmo, (newOktmo, oldOktmo) => {
-  // Если ОКТМО изменился не через автовыбор, сбрасываем флаг
-  if (newOktmo !== oldOktmo && autoSelectedOktmo.value) {
-    // Добавляем небольшую задержку чтобы не сбрасывать флаг при автовыборе
-    setTimeout(() => {
-      if (dleSettings.selectedOktmo === newOktmo) {
-        autoSelectedOktmo.value = false;
-      }
-    }, 100);
-  }
-});
-
 // Наблюдатель за изменением юрисдикции
 watch(() => dleSettings.jurisdiction, (newJurisdiction, oldJurisdiction) => {
   console.log('Юрисдикция изменена:', oldJurisdiction, '->', newJurisdiction);
   
   // Сбрасываем российские классификаторы и поиск адреса при смене юрисдикции
   if (oldJurisdiction === '643') {
-    dleSettings.selectedOktmo = '';
     dleSettings.kppCode = '';
     dleSettings.mainOkvedCode = '';
     dleSettings.selectedOkved = [];
@@ -2591,7 +2511,6 @@ watch(() => dleSettings.jurisdiction, (newJurisdiction, oldJurisdiction) => {
   // Сбрасываем поиск адреса при любой смене юрисдикции
   dleSettings.addressData.postalCode = '';
   searchResults.value = [];
-  autoSelectedOktmo.value = false;
   lastApiResult.value = null;
   
   // Загружаем классификаторы в зависимости от выбранной страны
@@ -2875,7 +2794,6 @@ const startStagedDeployment = async () => {
       location: dleSettings.addressData.fullAddress || t('deploy.errors.notSpecified'),
       coordinates: dleSettings.coordinates || '0,0',
       jurisdiction: parseInt(dleSettings.jurisdiction) || 0,
-      oktmo: dleSettings.selectedOktmo || '',
       okvedCodes: dleSettings.selectedOkved || [],
       kpp: dleSettings.kppCode || '',
       
@@ -3063,7 +2981,6 @@ async function submitDeploy() {
       location: locationText.value,
       coordinates: dleSettings.coordinates || '',
       jurisdiction: Number(dleSettings.jurisdiction) || 1,
-      oktmo: Number(dleSettings.selectedOktmo) || null,
       okvedCodes: Array.isArray(dleSettings.selectedOkved) ? dleSettings.selectedOkved.map(x => String(x)) : [],
       kpp: dleSettings.kppCode ? Number(dleSettings.kppCode) : null,
       initialPartners: dleSettings.partners.map(p => p.address).filter(Boolean),
@@ -3816,12 +3733,6 @@ async function submitDeploy() {
   color: #28a745;
   font-weight: 500;
   margin-bottom: 0.25rem;
-}
-
-.oktmo-line {
-  font-size: 0.95rem;
-  color: #007bff;
-  font-weight: 500;
 }
 
 /* Стили для секции ОКВЭД */

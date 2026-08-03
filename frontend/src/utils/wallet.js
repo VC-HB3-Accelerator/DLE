@@ -38,6 +38,21 @@ const normalizeAddress = (address) => {
 };
 
 /**
+ * chainId активной сети кошелька (EIP-155), для SIWE.
+ */
+const getWalletChainId = async () => {
+  if (!window.ethereum) {
+    throw new Error(t('auth.metamaskNotInstalled'));
+  }
+  const hex = await window.ethereum.request({ method: 'eth_chainId' });
+  const chainId = Number.parseInt(hex, 16);
+  if (!Number.isFinite(chainId) || chainId <= 0) {
+    throw new Error('Invalid wallet chainId');
+  }
+  return chainId;
+};
+
+/**
  * Получает актуальный адрес из кошелька
  * ВАЖНО: используем ethereum.selectedAddress, т.к. некоторые кошельки
  * могут подписывать сообщением активным аккаунтом, игнорируя список eth_accounts.
@@ -182,14 +197,15 @@ export const connectWallet = async () => {
     }
 
     // Создаем SIWE сообщение с нормализованным адресом
-    // ВАЖНО: адрес в сообщении должен совпадать с адресом, который подписывает
+    // chainId = сеть кошелька в момент входа (не хардкод mainnet)
+    const walletChainId = await getWalletChainId();
     const message = new SiweMessage({
       domain,
       address: normalizedAddressForMessage, // Используем нормализованный адрес
       statement: getSiweStatement(),
       uri: origin,
       version: '1',
-      chainId: 1,
+      chainId: walletChainId,
       nonce: nonce,
       issuedAt: issuedAt,
       resources: sortedResources,
@@ -216,6 +232,7 @@ export const connectWallet = async () => {
     }
 
     // Логируем для отладки
+    console.log('🔐 [Frontend] Wallet chainId:', walletChainId);
     console.log('🔐 [Frontend] Domain:', domain);
     console.log('🔐 [Frontend] Origin:', origin);
     console.log('🔐 [Frontend] Address in message (original):', messageAddress);
@@ -251,6 +268,7 @@ export const connectWallet = async () => {
       signature,
       nonce,
       issuedAt: issuedAt,
+      chainId: walletChainId,
       siweLocale: getSiweLocale(),
       guestId: localStorage.getItem('guestId') || undefined,
     };

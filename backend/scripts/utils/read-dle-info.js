@@ -44,7 +44,6 @@ async function main() {
     console.log(`📍 Местонахождение: ${dleInfo.location}`);
     console.log(`🌍 Координаты: ${dleInfo.coordinates}`);
     console.log(`🏛️ Юрисдикция: ${dleInfo.jurisdiction}`);
-    console.log(`📊 ОКТМО: ${dleInfo.oktmo}`);
     console.log(`🏭 Коды ОКВЭД: ${dleInfo.okvedCodes.join(', ')}`);
     console.log(`🏢 КПП: ${dleInfo.kpp}`);
     console.log(`📅 Дата создания: ${new Date(Number(dleInfo.creationTimestamp) * 1000).toISOString()}`);

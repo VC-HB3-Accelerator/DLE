@@ -1864,7 +1864,7 @@
     "privateGroupsDesc": "View and manage private groups"
   },
   "home": {
-    "pageTitle": "VC HB3 Accelerator — venture fund and DLE platform"
+    "pageTitle": "VC HB3 Accelerator — venture fund and software provider"
   },
   "identity": {
     "wallet": {
@@ -2437,7 +2437,6 @@
         "labelLocation": "Location:",
       "labelJurisdiction": "Jurisdiction:",
       "labelOkved": "OKVED:",
-      "labelOktmo": "OKTMO:",
       "activate": "Activate",
         "activating": "Activating..."
       },

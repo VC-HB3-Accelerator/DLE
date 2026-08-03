@@ -162,7 +162,6 @@ function logConstructorArgs(params, context = 'unknown') {
   console.log(`  initialPartners: [${params.initialPartners.join(', ')}]`);
   console.log(`  initialAmounts: [${params.initialAmounts.join(', ')}]`);
   console.log(`  supportedChainIds: [${params.supportedChainIds.join(', ')}]`);
-  console.log(`  governanceChainId: 1 (Ethereum)`);
   console.log(`  initializer: ${params.initializer}`);
 }
 
