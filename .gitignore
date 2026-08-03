@@ -243,9 +243,8 @@ b2b/
 
 # Техническая документация (внутренняя)
 docs/back-docs/
-docs.ru/back-docs/TZ_UI_STYLE_FOUNDATION.md
-docs.ru/tz-licensed-updates.md
-docs.ru/tz-updates-treasury-check.md
+docs.ru/back-docs/
+docs.en/back-docs/
 
 # Local data and drafts
 data/

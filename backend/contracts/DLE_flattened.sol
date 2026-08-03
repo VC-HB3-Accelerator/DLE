@@ -5443,6 +5443,11 @@ interface IMultichainMetadata {
     function getMultichainAddresses() external view returns (uint256[] memory chainIds, address[] memory addresses);
 }
 
+/// @dev Модуль объявляет тонкий bridge для governance-вызовов (см. tz-module-bridge).
+interface IModuleBridgeSource {
+    function moduleBridge() external view returns (address);
+}
+
 // DLE (Digital Legal Entity) - основной контракт с модульной архитектурой
 contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMetadata {
     using ECDSA for bytes32;
@@ -5509,6 +5514,12 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     // Мульти-чейн
     mapping(uint256 => bool) public supportedChains;
     uint256[] public supportedChainIds;
+    /// @dev Фактический адрес того же DLE в другой сети (не address(this) наугад).
+    mapping(uint256 => address) public peerContracts;
+    /// @dev Исполнение предложения в конкретной сети (мультичейн).
+    mapping(uint256 => mapping(uint256 => bool)) public proposalExecutedInChain;
+    /// @dev Адрес активного модуля → true (для createProposal от модулей).
+    mapping(address => bool) public isModuleContract;
 
     // События
     event DLEInitialized(
@@ -5533,9 +5544,11 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     event ProposalExecutionApprovedInChain(uint256 proposalId, uint256 chainId);
     event ChainAdded(uint256 chainId);
     event ChainRemoved(uint256 chainId);
+    event PeerContractSet(uint256 indexed chainId, address peer);
     event DLEInfoUpdated(string name, string symbol, string location, string coordinates, uint256 jurisdiction, string[] okvedCodes, uint256 kpp);
     event QuorumPercentageUpdated(uint256 oldQuorumPercentage, uint256 newQuorumPercentage);
     event TokensTransferredByGovernance(address indexed sender, address indexed recipient, uint256 amount);
+    event OffchainActionApproved(uint256 indexed proposalId, bytes32 indexed actionId, bytes32 indexed kindHash, bytes32 payloadHash);
 
     event VotingDurationsUpdated(uint256 oldMinDuration, uint256 newMinDuration, uint256 oldMaxDuration, uint256 newMaxDuration);
     event LogoURIUpdated(string oldURI, string newURI);
@@ -5585,7 +5598,15 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     error ErrTransfersDisabled();
     error ErrApprovalsDisabled();
     error ErrProposalCanceled();
+    error ErrAlreadyExecutedInChain();
+    error ErrBadOffchainKind();
     
+    // Допустимые kind для offchainAction (хеш keccak256 строки)
+    bytes32 private constant OFFCHAIN_KIND_PAYMENT = keccak256("payment");
+    bytes32 private constant OFFCHAIN_KIND_NOTE = keccak256("note");
+    bytes32 private constant OFFCHAIN_KIND_DOCUMENT = keccak256("document");
+    bytes32 private constant OFFCHAIN_KIND_CUSTOM = keccak256("custom");
+
     // Константы безопасности (можно изменять через governance)
     uint256 public maxVotingDuration = 30 days; // Максимальное время голосования
     uint256 public minVotingDuration = 1 hours; // Минимальное время голосования
@@ -5597,6 +5618,15 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     ) ERC20(config.name, config.symbol) ERC20Permit(config.name) {
         if (_initializer == address(0)) revert ErrZeroAddress();
         initializer = _initializer;
+        _validateDLEInfoFields(
+            config.name,
+            config.symbol,
+            config.location,
+            config.jurisdiction,
+            config.kpp
+        );
+        if (!(config.quorumPercentage > 0 && config.quorumPercentage <= 100)) revert ErrBadQuorum();
+
         dleInfo = DLEInfo({
             name: config.name,
             symbol: config.symbol,
@@ -5616,6 +5646,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             supportedChains[config.supportedChainIds[i]] = true;
             supportedChainIds.push(config.supportedChainIds[i]);
         }
+        // Текущая сеть: peer = этот контракт
+        peerContracts[block.chainid] = address(this);
 
         // Распределяем начальные токены партнерам
         if (config.initialPartners.length != config.initialAmounts.length) revert ErrArrayMismatch();
@@ -5662,7 +5694,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         uint256[] memory _targetChains,
         uint256 /* _timelockDelay */
     ) external returns (uint256) {
-        if (balanceOf(msg.sender) == 0) revert ErrNotHolder();
+        // Держатель долей ИЛИ активный модуль (напр. HierarchicalVotingModule)
+        if (balanceOf(msg.sender) == 0 && !isModuleContract[msg.sender]) revert ErrNotHolder();
         if (_duration < minVotingDuration) revert ErrTooShort();
         if (_duration > maxVotingDuration) revert ErrTooLong();
         // _timelockDelay параметр игнорируется; timelock вынесем в отдельный модуль
@@ -5750,27 +5783,29 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     }
 
 
-    function executeProposal(uint256 _proposalId) external {
+    function executeProposal(uint256 _proposalId) external nonReentrant {
         Proposal storage proposal = proposals[_proposalId];
         if (proposal.id != _proposalId) revert ErrProposalMissing();
         if (proposal.executed) revert ErrProposalExecuted();
         if (proposal.canceled) revert ErrProposalCanceled();
-        // Проверяем, что текущая сеть поддерживается
+        if (proposalExecutedInChain[_proposalId][block.chainid]) revert ErrAlreadyExecutedInChain();
         if (!supportedChains[block.chainid]) revert ErrUnsupportedChain();
+        if (!_isTargetChain(proposal, block.chainid)) revert ErrBadTarget();
 
         (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
-        
-        // Предложение можно выполнить если:
-        // 1. Дедлайн истек ИЛИ кворум достигнут
+
+        // Дедлайн истёк ИЛИ кворум достигнут
         if (!(block.timestamp >= proposal.deadline || quorumReached)) revert ErrNotReady();
         if (!(passed && quorumReached)) revert ErrNotReady();
 
+        // Anti-replay: флаг текущей сети + локально закрыто (без ожидания чужих chainId)
+        proposalExecutedInChain[_proposalId][block.chainid] = true;
         proposal.executed = true;
-        
-        // Исполняем операцию
+
         _executeOperation(_proposalId, proposal.operation);
-        
+
         emit ProposalExecuted(_proposalId, proposal.operation);
+        emit ProposalExecutionApprovedInChain(_proposalId, block.chainid);
     }
 
 
@@ -5794,18 +5829,23 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         address[] calldata signers,
         bytes[] calldata signatures
     ) external nonReentrant {
-    Proposal storage proposal = proposals[_proposalId];
+        Proposal storage proposal = proposals[_proposalId];
         if (proposal.id != _proposalId) revert ErrProposalMissing();
         if (proposal.executed) revert ErrProposalExecuted();
         if (proposal.canceled) revert ErrProposalCanceled();
+        if (proposalExecutedInChain[_proposalId][block.chainid]) revert ErrAlreadyExecutedInChain();
         // Проверяем, что текущая сеть поддерживается
         if (!supportedChains[block.chainid]) revert ErrUnsupportedChain();
         // Проверяем, что текущая сеть является целевой для предложения
         if (!_isTargetChain(proposal, block.chainid)) revert ErrBadTarget();
 
+        // Как в executeProposal: итог ончейн-голосования обязателен (for > against + кворум)
+        (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
+        if (!(block.timestamp >= proposal.deadline || quorumReached)) revert ErrNotReady();
+        if (!(passed && quorumReached)) revert ErrNotReady();
+
         if (signers.length != signatures.length) revert ErrSigLengthMismatch();
         if (signers.length == 0) revert ErrNoSigners();
-        // Все держатели токенов имеют право голосовать
         
         bytes32 opHash = keccak256(proposal.operation);
         bytes32 structHash = keccak256(abi.encode(
@@ -5845,13 +5885,15 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
 
         uint256 pastSupply = getPastTotalSupply(proposal.snapshotTimepoint);
         uint256 quorumRequired = (pastSupply * quorumPercentage) / 100;
+        // Подписи = одобрение исполнения в этой сети; порог тот же, что кворум
         if (votesFor < quorumRequired) revert ErrNoPower();
 
+        proposalExecutedInChain[_proposalId][block.chainid] = true;
         proposal.executed = true;
+
         _executeOperation(_proposalId, proposal.operation);
         emit ProposalExecuted(_proposalId, proposal.operation);
         emit ProposalExecutionApprovedInChain(_proposalId, block.chainid);
-
     }
 
     /**
@@ -5866,7 +5908,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
      * @param _index Индекс цепочки
      */
     function getSupportedChainId(uint256 _index) public view returns (uint256) {
-        require(_index < supportedChainIds.length, "Invalid chain index");
+        if (_index >= supportedChainIds.length) revert ErrBadChain();
         return supportedChainIds[_index];
     }
 
@@ -5876,8 +5918,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
      */
     // Управление списком сетей теперь выполняется только через предложения
     function _addSupportedChain(uint256 _chainId) internal {
-        require(!supportedChains[_chainId], "Chain already supported");
-        require(_chainId != block.chainid, "Cannot add current chain");
+        if (supportedChains[_chainId]) revert ErrChainAlreadySupported();
+        if (_chainId == block.chainid) revert ErrBadChain();
         supportedChains[_chainId] = true;
         supportedChainIds.push(_chainId);
         emit ChainAdded(_chainId);
@@ -5888,8 +5930,8 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
      * @param _chainId ID цепочки
      */
     function _removeSupportedChain(uint256 _chainId) internal {
-        require(supportedChains[_chainId], "Chain not supported");
-        require(_chainId != block.chainid, "Cannot remove current chain");
+        if (!supportedChains[_chainId]) revert ErrChainNotSupported();
+        if (_chainId == block.chainid) revert ErrCannotRemoveCurrentChain();
         supportedChains[_chainId] = false;
         // Удаляем из массива
         for (uint256 i = 0; i < supportedChainIds.length; i++) {
@@ -5969,10 +6011,23 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
             // Операция обновления информации DLE
             (string memory name, string memory symbol, string memory location, string memory coordinates, uint256 jurisdiction, string[] memory okvedCodes, uint256 kpp) = abi.decode(data, (string, string, string, string, uint256, string[], uint256));
             _updateDLEInfo(name, symbol, location, coordinates, jurisdiction, okvedCodes, kpp);
+        } else if (selector == bytes4(keccak256("_setPeerContract(uint256,address)"))) {
+            (uint256 peerChainId, address peer) = abi.decode(data, (uint256, address));
+            _setPeerContract(peerChainId, peer);
         } else if (selector == bytes4(keccak256("offchainAction(bytes32,string,bytes32)"))) {
-            // Оффчейн операция для приложения: идентификатор, тип, хеш полезной нагрузки
-            // (bytes32 actionId, string memory kind, bytes32 payloadHash) = abi.decode(data, (bytes32, string, bytes32));
-            // Ончейн-побочных эффектов нет. Факт решения фиксируется событием ProposalExecuted.
+            // Оффчейн операция: идентификатор, тип (whitelist), хеш полезной нагрузки
+            (bytes32 actionId, string memory kind, bytes32 payloadHash) = abi.decode(data, (bytes32, string, bytes32));
+            bytes32 kindHash = keccak256(bytes(kind));
+            if (
+                kindHash != OFFCHAIN_KIND_PAYMENT
+                && kindHash != OFFCHAIN_KIND_NOTE
+                && kindHash != OFFCHAIN_KIND_DOCUMENT
+                && kindHash != OFFCHAIN_KIND_CUSTOM
+            ) revert ErrBadOffchainKind();
+            emit OffchainActionApproved(_proposalId, actionId, kindHash, payloadHash);
+        } else if (selector == bytes4(keccak256("_callModuleBridge(bytes32,bytes)"))) {
+            (bytes32 moduleId, bytes memory callData) = abi.decode(data, (bytes32, bytes));
+            _callModuleBridge(moduleId, callData);
         } else {
             revert ErrInvalidOperation();
         }
@@ -5997,11 +6052,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         string[] memory _okvedCodes,
         uint256 _kpp
     ) internal {
-        if (bytes(_name).length == 0) revert ErrNameEmpty();
-        if (bytes(_symbol).length == 0) revert ErrSymbolEmpty();
-        if (bytes(_location).length == 0) revert ErrLocationEmpty();
-        if (_jurisdiction == 0) revert ErrBadJurisdiction();
-        if (_kpp == 0) revert ErrBadKPP();
+        _validateDLEInfoFields(_name, _symbol, _location, _jurisdiction, _kpp);
 
         dleInfo.name = _name;
         dleInfo.symbol = _symbol;
@@ -6012,6 +6063,27 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         dleInfo.kpp = _kpp;
 
         emit DLEInfoUpdated(_name, _symbol, _location, _coordinates, _jurisdiction, _okvedCodes, _kpp);
+    }
+
+    function _validateDLEInfoFields(
+        string memory _name,
+        string memory _symbol,
+        string memory _location,
+        uint256 _jurisdiction,
+        uint256 _kpp
+    ) internal pure {
+        if (bytes(_name).length == 0) revert ErrNameEmpty();
+        if (bytes(_symbol).length == 0) revert ErrSymbolEmpty();
+        if (bytes(_location).length == 0) revert ErrLocationEmpty();
+        if (_jurisdiction == 0) revert ErrBadJurisdiction();
+        if (_kpp == 0) revert ErrBadKPP();
+    }
+
+    function _setPeerContract(uint256 _chainId, address _peer) internal {
+        if (!supportedChains[_chainId]) revert ErrChainNotSupported();
+        if (_peer == address(0)) revert ErrZeroAddress();
+        peerContracts[_chainId] = _peer;
+        emit PeerContractSet(_chainId, _peer);
     }
 
     /**
@@ -6158,7 +6230,20 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         );
     }
 
-    // Treasury операции перенесены в TreasuryModule для экономии байт-кода
+    // Money / module ops: тонкий ModuleBridge (адрес = module.moduleBridge())
+
+    /**
+     * @dev Вызов только bridge, объявленного самим активным модулем (не произвольный call).
+     */
+    function _callModuleBridge(bytes32 _moduleId, bytes memory _callData) internal {
+        if (!activeModules[_moduleId]) revert ErrProposalMissing();
+        address module = modules[_moduleId];
+        address bridge = IModuleBridgeSource(module).moduleBridge();
+        if (bridge == address(0)) revert ErrZeroAddress();
+        if (_callData.length < 4) revert ErrInvalidOperation();
+        (bool ok, ) = bridge.call(_callData);
+        if (!ok) revert ErrInvalidOperation();
+    }
 
     /**
      * @dev Добавить модуль (внутренняя функция, вызывается через кворум)
@@ -6171,6 +6256,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
 
         modules[_moduleId] = _moduleAddress;
         activeModules[_moduleId] = true;
+        isModuleContract[_moduleAddress] = true;
 
         emit ModuleAdded(_moduleId, _moduleAddress);
     }
@@ -6182,8 +6268,12 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     function _removeModule(bytes32 _moduleId) internal {
         if (!activeModules[_moduleId]) revert ErrProposalMissing();
 
+        address moduleAddress = modules[_moduleId];
         delete modules[_moduleId];
         activeModules[_moduleId] = false;
+        if (moduleAddress != address(0)) {
+            isModuleContract[moduleAddress] = false;
+        }
 
         emit ModuleRemoved(_moduleId);
     }
@@ -6235,14 +6325,6 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
     }
 
     /**
-     * @dev Получить URI логотипа токена (альтернативная функция для блокчейн-сканеров)
-     * @return URI логотипа или пустую строку если не установлен
-     */
-    function logo() external view returns (string memory) {
-        return logoURI;
-    }
-
-    /**
      * @dev Получить информацию о мультичейн развертывании для блокчейн-сканеров
      * @return chains Массив всех поддерживаемых chain ID (все сети равноправны)
      * @return defaultVotingChain ID сети по умолчанию для голосования (может быть любая из поддерживаемых)
@@ -6261,110 +6343,31 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         address[] memory addrs = new address[](supportedChainIds.length);
         
         for (uint256 i = 0; i < supportedChainIds.length; i++) {
-            chains[i] = supportedChainIds[i];
-            addrs[i] = address(this); // Детерминированный деплой обеспечивает одинаковые адреса
+            uint256 cid = supportedChainIds[i];
+            chains[i] = cid;
+            if (cid == block.chainid) {
+                addrs[i] = address(this);
+            } else {
+                // Только фактически зарегистрированный peer; иначе 0 (не врать сканерам)
+                addrs[i] = peerContracts[cid];
+            }
         }
         
         return (chains, addrs);
     }
-
-    /**
-     * @dev Получить мультичейн метаданные в JSON формате для блокчейн-сканеров
-     * @return metadata JSON строка с информацией о мультичейн развертывании
-     * 
-     * Архитектура: Single-Chain Governance - голосование происходит в одной сети,
-     * но исполнение может быть в любой из поддерживаемых сетей через подписи.
-     */
-    function getMultichainMetadata() external view returns (string memory metadata) {
-        // Формируем JSON с информацией о мультичейн развертывании
-        string memory json = string(abi.encodePacked(
-            '{"multichain": {',
-            '"supportedChains": ['
-        ));
-        
-        for (uint256 i = 0; i < supportedChainIds.length; i++) {
-            if (i > 0) {
-                json = string(abi.encodePacked(json, ','));
-            }
-            json = string(abi.encodePacked(json, _toString(supportedChainIds[i])));
-        }
-        
-        json = string(abi.encodePacked(
-            json,
-            '],',
-            '"defaultVotingChain": ',
-            _toString(block.chainid),
-            ',',
-            '"note": "All chains are equal, voting can happen on any supported chain",',
-            '"contractAddress": "',
-            _toHexString(address(this)),
-            '"',
-            '}}'
-        ));
-        
-        return json;
-    }
-
-    /**
-     * @dev Вспомогательная функция для конвертации uint256 в string
-     */
-    function _toString(uint256 value) internal pure returns (string memory) {
-        if (value == 0) {
-            return "0";
-        }
-        uint256 temp = value;
-        uint256 digits;
-        while (temp != 0) {
-            digits++;
-            temp /= 10;
-        }
-        bytes memory buffer = new bytes(digits);
-        while (value != 0) {
-            digits -= 1;
-            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
-            value /= 10;
-        }
-        return string(buffer);
-    }
-
-    /**
-     * @dev Вспомогательная функция для конвертации address в hex string
-     */
-    function _toHexString(address addr) internal pure returns (string memory) {
-        return _toHexString(abi.encodePacked(addr));
-    }
-
-    /**
-     * @dev Вспомогательная функция для конвертации bytes в hex string
-     */
-    function _toHexString(bytes memory data) internal pure returns (string memory) {
-        bytes memory alphabet = "0123456789abcdef";
-        bytes memory str = new bytes(2 + data.length * 2);
-        str[0] = "0";
-        str[1] = "x";
-        for (uint256 i = 0; i < data.length; i++) {
-            str[2 + i * 2] = alphabet[uint256(uint8(data[i] >> 4))];
-            str[3 + i * 2] = alphabet[uint256(uint8(data[i] & 0x0f))];
-        }
-        return string(str);
-    }
-
 
     // API функции вынесены в отдельный reader контракт для экономии байт-кода
 
     // 0=Pending, 1=Succeeded, 2=Defeated, 3=Executed, 4=Canceled, 5=ReadyForExecution
     function getProposalState(uint256 _proposalId) public view returns (uint8 state) {
         Proposal storage p = proposals[_proposalId];
-        require(p.id == _proposalId, "Proposal does not exist");
+        if (p.id != _proposalId) revert ErrProposalMissing();
         if (p.canceled) return 4;
         if (p.executed) return 3;
         (bool passed, bool quorumReached) = checkProposalResult(_proposalId);
-        bool votingOver = block.timestamp >= p.deadline;
-        bool ready = passed && quorumReached;
-        if (ready) return 5; // ReadyForExecution
-        if (passed && (votingOver || quorumReached)) return 1; // Succeeded
-        if (votingOver && !passed) return 2; // Defeated
-        return 0; // Pending
+        if (passed && quorumReached) return 5;
+        if (block.timestamp >= p.deadline && !passed) return 2;
+        return 0;
     }
 
     // Функции для подсчёта голосов вынесены в reader контракт
@@ -6383,7 +6386,7 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         uint256[] memory targetChains
     ) {
         Proposal storage p = proposals[_proposalId];
-        require(p.id == _proposalId, "Proposal does not exist");
+        if (p.id != _proposalId) revert ErrProposalMissing();
 
         return (
             p.id,
@@ -6399,12 +6402,19 @@ contract DLE is ERC20, ERC20Permit, ERC20Votes, ReentrancyGuard, IMultichainMeta
         );
     }
 
+    /// @dev Число предложений (для Reader / агрегаторов без перебора allProposalIds)
+    function getProposalsCount() external view returns (uint256) {
+        return allProposalIds.length;
+    }
+
     // Деактивация вынесена в отдельный модуль. См. DeactivationModule.
     function isActive() external view returns (bool) {
         return dleInfo.isActive;
     }
     // ===== Вспомогательные функции =====
     function _isTargetChain(Proposal storage p, uint256 chainId) internal view returns (bool) {
+        // Пустой список = исполнение на текущей (любой поддерживаемой) сети
+        if (p.targetChains.length == 0) return true;
         for (uint256 i = 0; i < p.targetChains.length; i++) {
             if (p.targetChains[i] == chainId) return true;
         }

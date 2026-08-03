@@ -152,14 +152,25 @@ contract TreasuryModule is ReentrancyGuard {
     event GasPaymentTokenRemoved(address indexed tokenAddress);
     event GasPaidWithToken(address indexed tokenAddress, uint256 tokenAmount, uint256 nativeAmount);
     event HierarchicalVotingModuleSet(address indexed module);
+    event FundsBridgeSet(address indexed bridge);
     event ExternalVoteCast(address indexed targetDLE, uint256 proposalId, bool support);
 
     // HierarchicalVotingModule A — единственный (кроме DLE) caller castExternalVote
     address public hierarchicalVotingModule;
+    /// @dev Тонкий ModuleBridge для денежных ops (transfer/batch); задаётся governance / bootstrap.
+    address public fundsBridge;
 
     // Модификаторы
     modifier onlyDLE() {
         require(msg.sender == dleContract, "Only DLE contract can call this");
+        _;
+    }
+
+    modifier onlyDLEOrFundsBridge() {
+        require(
+            msg.sender == dleContract || msg.sender == fundsBridge,
+            "Only DLE or funds bridge"
+        );
         _;
     }
 
@@ -211,6 +222,29 @@ contract TreasuryModule is ReentrancyGuard {
         require(module.code.length > 0, "HV module has no code");
         hierarchicalVotingModule = module;
         emit HierarchicalVotingModuleSet(module);
+    }
+
+    /**
+     * @dev Привязать TreasuryBridge. Первый раз — DLE или initializer; далее только DLE.
+     */
+    function setFundsBridge(address bridge) external {
+        require(bridge != address(0), "Bridge cannot be zero");
+        require(bridge.code.length > 0, "Bridge has no code");
+        address init = ITreasuryDLE(dleContract).initializer();
+        if (fundsBridge == address(0)) {
+            require(
+                msg.sender == dleContract || msg.sender == init,
+                "Only DLE or initializer"
+            );
+        } else {
+            require(msg.sender == dleContract, "Only DLE contract can call this");
+        }
+        fundsBridge = bridge;
+        emit FundsBridgeSet(bridge);
+    }
+
+    function moduleBridge() external view returns (address) {
+        return fundsBridge;
     }
 
     /**
@@ -362,7 +396,7 @@ contract TreasuryModule is ReentrancyGuard {
         address recipient,
         uint256 amount,
         bytes32 proposalId
-    ) external onlyDLE whenNotPaused validToken(tokenAddress) nonReentrant {
+    ) external onlyDLEOrFundsBridge whenNotPaused validToken(tokenAddress) nonReentrant {
         require(recipient != address(0), "Recipient cannot be zero");
         require(amount > 0, "Amount must be positive");
 
@@ -399,7 +433,7 @@ contract TreasuryModule is ReentrancyGuard {
     function batchTransfer(
         BatchTransfer[] memory transfers,
         bytes32 proposalId
-    ) external onlyDLE whenNotPaused nonReentrant {
+    ) external onlyDLEOrFundsBridge whenNotPaused nonReentrant {
         require(transfers.length > 0, "No transfers provided");
         require(transfers.length <= 100, "Too many transfers"); // Защита от DoS
 

@@ -1,0 +1,8 @@
+{
+  "retiredAt": "2026-08-03",
+  "reason": "Parent A HV soft-retired; MultiTest is canonical",
+  "snapshot": "archive/hv-sepolia-deploy.json",
+  "dleA": "0x7C6D6652cc637d044Ce7D3B0441C70359A57eE99",
+  "childB": "0xf430BE9B8a4a41439e9E6d946d73F4CeEcA201ca",
+  "audit": "data-room/stage-a/AUDIT-DEPLOYMENTS-RETIRE-Parent-A.ru.md"
+}

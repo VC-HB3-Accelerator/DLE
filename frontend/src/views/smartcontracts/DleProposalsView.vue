@@ -79,10 +79,9 @@
 
         <!-- Пустое состояние -->
         <div v-else-if="filteredProposals.length === 0" class="empty-state">
-          <div class="empty-icon">📄</div>
           <h3>{{ t('smartcontracts.proposals.emptyTitle') }}</h3>
           <p>{{ t('smartcontracts.proposals.emptyDescription') }}</p>
-          <button @click="loadProposals" class="btn btn-primary">{{ t('common.reload') }}</button>
+          <button @click="loadProposals" class="btn-action">{{ t('common.reload') }}</button>
         </div>
 
         <!-- Список предложений -->
@@ -99,24 +98,19 @@
             
             <div class="proposal-meta">
               <div class="meta-item">
-                <span>👤</span>
                 <span>{{ t('smartcontracts.proposals.initiator') }} {{ proposal.initiator }}</span>
               </div>
               <div class="meta-item">
-                <span>🔗</span>
                 <span>ID: {{ proposal.uniqueId }}</span>
               </div>
               <!-- Мульти-чейн информация -->
               <div v-if="proposal.chains && proposal.chains.length > 1" class="meta-item multichain-info">
-                <span>🌐</span>
                 <span>{{ t('smartcontracts.proposals.chainsCount', { count: proposal.chains.length, names: proposal.chains.map(c => getChainDisplayName(c)).join(', ') }) }}</span>
               </div>
               <div v-else class="meta-item">
-                <span>⛓️</span>
                 <span>{{ t('smartcontracts.proposals.chainLabel') }} {{ proposal.chainId ? getChainDisplayName(proposal.chains?.[0] || { chainId: proposal.chainId }) : 'N/A' }}</span>
               </div>
               <div class="meta-item">
-                <span>📄</span>
                 <span>{{ t('smartcontracts.proposals.hashLabel') }} {{ ((proposal.transactionHash || proposal.chains?.[0]?.transactionHash || '')).substring(0, 10) }}...</span>
               </div>
             </div>
@@ -145,7 +139,7 @@
                       <span v-else-if="chain.deadline && chain.deadline < Date.now() / 1000">{{ t('smartcontracts.proposals.chainStatus.expired') }}</span>
                       <span v-else-if="Number(chain.state) === 5">{{ t('smartcontracts.proposals.chainStatus.ready') }}</span>
                       <span v-else-if="Number(chain.state) === 0">{{ t('smartcontracts.proposals.chainStatus.active') }}</span>
-                      <span v-else>⚪ {{ chain.state }}</span>
+                      <span v-else>{{ chain.state }}</span>
                     </span>
                   </div>
                   <div class="chain-details-info">
@@ -156,8 +150,8 @@
                     <div class="chain-detail-item">
                       <span class="detail-label">{{ t('smartcontracts.proposals.votesLabel') }}</span>
                       <span class="detail-value">
-                        👍 {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE | 
-                        👎 {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
+                        {{ t('common.forVote') }} {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE |
+                        {{ t('common.againstVote') }} {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
                       </span>
                     </div>
                     <div class="chain-detail-item">
@@ -197,7 +191,7 @@
                       <span v-else-if="chain.canceled">{{ t('smartcontracts.proposals.chainStatus.cancelled') }}</span>
                       <span v-else-if="chain.state === 5">{{ t('smartcontracts.proposals.chainStatus.ready') }}</span>
                       <span v-else-if="Number(chain.state) === 0">{{ t('smartcontracts.proposals.chainStatus.active') }}</span>
-                      <span v-else>⚪ {{ chain.state }}</span>
+                      <span v-else>{{ chain.state }}</span>
                     </span>
                   </div>
                   <div class="chain-details-info">
@@ -208,8 +202,8 @@
                     <div class="chain-detail-item">
                       <span class="detail-label">{{ t('smartcontracts.proposals.votesLabel') }}</span>
                       <span class="detail-value">
-                        👍 {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE | 
-                        👎 {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
+                        {{ t('common.forVote') }} {{ chain.forVotes ? (Number(chain.forVotes) / 1e18).toFixed(2) : '0.00' }} DLE |
+                        {{ t('common.againstVote') }} {{ chain.againstVotes ? (Number(chain.againstVotes) / 1e18).toFixed(2) : '0.00' }} DLE
                       </span>
                     </div>
                     <div class="chain-detail-item">
@@ -244,7 +238,7 @@
               <button 
                 v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
                 @click="voteOnProposal(proposal.id, true)" 
-                class="btn btn-success"
+                class="btn-action"
                 :disabled="isVoting"
               >
                 {{ isVoting ? t('common.voting') : t('common.forVote') }}
@@ -252,7 +246,7 @@
               <button 
                 v-if="proposal.chains && proposal.chains.length > 1 ? canVoteMultichain(proposal) : canVote(proposal)" 
                 @click="voteOnProposal(proposal.id, false)" 
-                class="btn btn-danger"
+                class="btn-action"
                 :disabled="isVoting"
               >
                 {{ isVoting ? t('common.voting') : t('common.againstVote') }}
@@ -260,7 +254,7 @@
               <button 
                 v-if="proposal.chains && proposal.chains.length > 1 ? canExecuteMultichain(proposal) : canExecute(proposal)" 
                 @click="executeProposal(proposal.id)" 
-                class="btn btn-primary"
+                class="btn-action"
                 :disabled="isExecuting"
               >
                 {{ isExecuting ? t('common.executing') : t('common.execute') }}
@@ -268,7 +262,7 @@
               <button 
                 v-if="canCancel(proposal)" 
                 @click="cancelProposal(proposal.id)" 
-                class="btn btn-warning"
+                class="btn-action"
                 :disabled="isCancelling"
               >
                 {{ isCancelling ? t('common.cancelling') : t('common.cancel') }}
@@ -422,98 +416,90 @@ export default {
 
 <style scoped>
 .proposals-page {
-  min-height: 100vh;
-  background: #f0f0f0;
   padding: 20px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light, #e9ecef);
+  margin-top: 20px;
   margin-bottom: 20px;
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid #ddd;
-}
-
-.header-content h1 {
-  color: #333;
-  margin: 0;
-  font-size: 24px;
-  font-weight: bold;
-}
-
-.header-content p {
-  color: #666;
-  margin: 5px 0 0 0;
 }
 
 .close-btn {
-  background: #ccc;
-  border: none;
-  color: #333;
-  font-size: 18px;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background-color: var(--color-white);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey, #ced4da);
+  border-radius: var(--radius-lg);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 .close-btn:hover {
-  background: #999;
+  background-color: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-dark, #333);
 }
 
 .auth-notice {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .alert {
-  padding: 15px;
-  border-radius: 5px;
-  border: 1px solid;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
 }
 
 .alert-info {
-  background: #e7f3ff;
-  border-color: #0dcaf0;
-  color: #0dcaf0;
+  background: var(--color-light, #f8f9fa);
+  border-color: var(--color-grey-light, #e4e7ed);
+  color: var(--color-dark, #333);
 }
 
 .proposals-content {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid #ddd;
+  background: transparent;
+  padding: 0;
+  border: none;
 }
-
 
 .proposals-filters {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #ddd;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-grey-light, #e9ecef);
+  flex-wrap: wrap;
 }
 
 .filter-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .filter-group label {
-  font-weight: bold;
-  color: #333;
+  font-weight: 600;
+  color: var(--color-dark, #333);
+  font-size: 0.9rem;
 }
 
 .filter-group select,
 .filter-group input {
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  border-radius: var(--radius-lg);
+  font-size: 0.95rem;
+  background: var(--color-white);
+  color: var(--color-dark, #333);
 }
 
 .filter-group input {
@@ -523,13 +509,14 @@ export default {
 .loading-state {
   text-align: center;
   padding: 40px;
+  color: var(--color-grey-dark, #666);
 }
 
 .spinner {
-  width: 30px;
-  height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #007bff;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-grey-light, #e9ecef);
+  border-top: 2px solid var(--color-dark, #333);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 10px;
@@ -542,220 +529,183 @@ export default {
 
 .empty-state {
   text-align: center;
-  padding: 40px;
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: #999;
-  margin-bottom: 10px;
+  padding: 48px 24px;
+  background: var(--color-light, #f8f9fa);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-grey, #ced4da);
 }
 
 .empty-state h3 {
-  color: #333;
-  margin-bottom: 5px;
+  color: var(--color-dark, #333);
+  margin: 0 0 6px;
+  font-size: 1.1rem;
 }
 
 .empty-state p {
-  color: #666;
-  margin-bottom: 20px;
+  color: var(--color-grey-dark, #666);
+  margin: 0 0 16px;
 }
 
 .proposals-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
+  gap: 14px;
 }
 
 .proposal-card {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid #ddd;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.proposal-card:hover {
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .proposal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .proposal-id {
-  font-weight: bold;
-  color: #007bff;
-  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-dark, #333);
+  font-size: 0.95rem;
 }
 
 .proposal-status {
-  padding: 5px 10px;
-  border-radius: 15px;
-  font-size: 12px;
-  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: var(--radius-lg);
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  white-space: nowrap;
 }
 
-.status-active {
-  background: #d4edda;
-  color: #155724;
-}
-
-.status-succeeded {
-  background: #d1ecf1;
-  color: #0c5460;
-}
-
-.status-defeated {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.status-executed {
-  background: #cce5ff;
-  color: #004085;
-}
-
-.status-cancelled {
-  background: #f8d7da;
-  color: #721c24;
-}
-
+.status-active,
+.status-succeeded,
+.status-defeated,
+.status-executed,
+.status-cancelled,
 .status-ready {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
 }
 
 .proposal-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 15px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-dark, #333);
+  margin-bottom: 12px;
   line-height: 1.4;
 }
 
 .proposal-meta {
   display: flex;
-  gap: 15px;
-  margin-bottom: 15px;
+  gap: 10px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
 .meta-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #666;
-  font-size: 14px;
+  color: var(--color-grey-dark, #666);
+  font-size: 0.875rem;
+}
+
+.multichain-info {
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  padding: 4px 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  font-weight: 500;
 }
 
 .proposal-progress {
-  margin-bottom: 15px;
+  margin-bottom: 14px;
 }
 
 .progress-bar {
   width: 100%;
   height: 6px;
-  background: #e9ecef;
+  background: var(--color-grey-light, #e9ecef);
   border-radius: 3px;
   overflow: hidden;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 
 .progress-fill {
   height: 100%;
-  background: #28a745;
+  background: var(--color-dark, #555);
   transition: width 0.3s ease;
 }
 
 .progress-text {
-  font-size: 14px;
-  color: #666;
-  font-weight: bold;
+  font-size: 0.875rem;
+  color: var(--color-grey-dark, #666);
+  font-weight: 500;
 }
 
 .votes-info {
   display: flex;
-  gap: 15px;
+  gap: 8px;
   margin-top: 10px;
   flex-wrap: wrap;
 }
 
 .vote-count {
-  font-size: 12px;
-  color: #555;
-  background: #f8f9fa;
+  font-size: 0.8rem;
+  color: var(--color-dark, #333);
+  background: var(--color-light, #f8f9fa);
   padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .proposal-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 5px;
-  font-size: 14px;
-  font-weight: bold;
+.btn-action {
+  height: 40px;
+  background-color: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  border-radius: var(--radius-lg);
+  padding: 0 16px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
-.btn:disabled {
-  opacity: 0.6;
+.btn-action:hover:not(:disabled) {
+  background-color: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-grey, #ced4da);
+}
+
+.btn-action:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-success {
-  background: #28a745;
-  color: white;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-primary {
-  background: #007bff;
-  color: white;
-}
-
-.btn-warning {
-  background: #ffc107;
-  color: #333;
-}
-
-.multichain-info {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-weight: 600;
-}
-
 .chains-details {
-  margin-top: 15px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--color-light, #f8f9fa);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .chains-header {
-  margin-bottom: 10px;
-  color: #333;
-  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--color-dark, #333);
+  font-size: 0.875rem;
 }
 
 .chains-list {
@@ -767,48 +717,37 @@ export default {
 .chain-item {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e9ecef;
-  font-size: 13px;
-  margin-bottom: 10px;
+  background: var(--color-white);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-grey-light, #e9ecef);
+  font-size: 0.8125rem;
 }
 
-.chain-item:last-child {
-  margin-bottom: 0;
-}
-
-.chain-item.chain-active {
-  border-left: 4px solid #28a745;
-}
-
-.chain-item.chain-executed {
-  border-left: 4px solid #007bff;
-  opacity: 0.7;
-}
-
+.chain-item.chain-active,
+.chain-item.chain-executed,
 .chain-item.chain-canceled {
-  border-left: 4px solid #dc3545;
-  opacity: 0.7;
+  opacity: 1;
+  border-left: 3px solid var(--color-grey, #ced4da);
 }
 
 .chain-main-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .chain-name {
   font-weight: 600;
-  color: #333;
-  font-size: 14px;
+  color: var(--color-dark, #333);
+  font-size: 0.875rem;
 }
 
 .chain-status {
-  font-size: 12px;
-  color: #666;
+  font-size: 0.75rem;
+  color: var(--color-grey-dark, #666);
 }
 
 .chain-details-info {
@@ -816,52 +755,50 @@ export default {
   flex-direction: column;
   gap: 6px;
   padding-top: 8px;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .chain-detail-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 0.75rem;
 }
 
 .detail-label {
   font-weight: 600;
-  color: #666;
-  margin-right: 10px;
+  color: var(--color-grey-dark, #666);
 }
 
 .detail-value {
-  color: #333;
+  color: var(--color-dark, #333);
   text-align: right;
   flex: 1;
 }
 
-.detail-value.quorum-reached {
-  color: #28a745;
-  font-weight: 600;
-}
-
+.detail-value.quorum-reached,
 .detail-value.quorum-not-reached {
-  color: #dc3545;
+  color: var(--color-dark, #333);
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {
   .proposals-page {
-    padding: 10px;
+    padding: 12px;
   }
-  
+
   .proposals-filters {
     flex-direction: column;
     gap: 10px;
   }
-  
+
   .filter-group input {
     min-width: auto;
     width: 100%;
+    box-sizing: border-box;
   }
-  
+
   .proposals-grid {
     grid-template-columns: 1fr;
   }

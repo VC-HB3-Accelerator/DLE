@@ -253,26 +253,7 @@ function formatOperation(decodedOperation) {
   }
 }
 
-/**
- * Получает название сети по ID
- * @param {number} chainId - ID сети
- * @returns {string} - Название сети
- */
-function getChainName(chainId) {
-  const chainNames = {
-    1: 'Ethereum Mainnet',
-    11155111: 'Sepolia',
-    17000: 'Holesky',
-    421614: 'Arbitrum Sepolia',
-    84532: 'Base Sepolia',
-    137: 'Polygon',
-    80001: 'Polygon Mumbai',
-    56: 'BSC',
-    97: 'BSC Testnet'
-  };
-  
-  return chainNames[chainId] || `Chain ${chainId}`;
-}
+const { getChainName } = require('./chainNames');
 
 module.exports = {
   decodeOperation,

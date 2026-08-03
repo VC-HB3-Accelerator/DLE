@@ -1,0 +1,21 @@
+{
+  "moduleType": "reader",
+  "dleAddress": "0x7C6D6652cc637d044Ce7D3B0441C70359A57eE99",
+  "deployTimestamp": "2026-08-03T18:18:24.929Z",
+  "dleName": "Parent A HV",
+  "dleSymbol": "PAHV",
+  "dleSupportedChainIds": [
+    11155111
+  ],
+  "networks": [
+    {
+      "chainId": 11155111,
+      "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+      "address": "0xcF551bcB93E496a45B0F9EEa774ab3E200be3265",
+      "bridgeAddress": null,
+      "bridgeWired": false,
+      "success": true,
+      "verification": "skipped"
+    }
+  ]
+}

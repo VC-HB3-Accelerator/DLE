@@ -660,8 +660,30 @@
                       <i class="fas fa-times-circle" v-else-if="addr.verificationStatus === 'failed'"></i>
                       <i class="fas fa-clock" v-else></i>
                     </span>
+                    <div v-if="addr.bridgeAddress" class="bridge-row">
+                      <span class="network-badge">Bridge</span>
+                      <a
+                        :href="getEtherscanUrl(addr.bridgeAddress, addr.networkIndex, addr.chainId)"
+                        target="_blank"
+                        class="address-link"
+                      >
+                        {{ shortenAddress(addr.bridgeAddress) }}
+                        <i class="fas fa-external-link-alt"></i>
+                      </a>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              <div class="detail-item" v-if="module.bridgeAddress && !module.addresses?.some(a => a.bridgeAddress)">
+                <strong>TreasuryBridge:</strong>
+                <a
+                  :href="getEtherscanUrl(module.bridgeAddress, 0, null)"
+                  target="_blank"
+                  class="address-link"
+                >
+                  {{ shortenAddress(module.bridgeAddress) }}
+                </a>
               </div>
               
               <div class="detail-item" v-if="module.deployedAt">
@@ -1699,8 +1721,19 @@ onUnmounted(() => {
 
 .address-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.bridge-row {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-left: 4px;
+  opacity: 0.92;
 }
 
 .module-actions {

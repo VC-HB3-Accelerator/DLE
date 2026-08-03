@@ -13,6 +13,58 @@
 const express = require('express');
 const router = express.Router();
 const deployParamsService = require('../services/deployParamsService');
+const { resolveDleProvider } = require('../services/dleNetworkResolveService');
+const {
+  fetchSupportedChains,
+  ReaderNotFoundError,
+} = require('../services/dleReaderResolveService');
+const { getChainName } = require('../utils/chainNames');
+
+/**
+ * Список поддерживаемых сетей DLE через DLEReader.listSupportedChains
+ * POST /api/dle-multichain/get-supported-chains
+ */
+router.post('/get-supported-chains', async (req, res) => {
+  try {
+    const { dleAddress, chainId: preferChainId } = req.body || {};
+
+    if (!dleAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Адрес DLE обязателен',
+      });
+    }
+
+    const { provider, chainId } = await resolveDleProvider(dleAddress, { preferChainId });
+    const { chains, readerAddress } = await fetchSupportedChains({
+      dleAddress,
+      provider,
+      chainId,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        chains,
+        readerAddress,
+        chainId,
+        items: chains.map((id) => ({
+          chainId: id,
+          name: getChainName(id),
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('[DLE Multichain] get-supported-chains:', error);
+    const status = error instanceof ReaderNotFoundError ? 404 : 500;
+    res.status(status).json({
+      success: false,
+      error: error.message || 'Не удалось получить список сетей',
+      code: error.code || undefined,
+    });
+  }
+});
+
 
 /**
  * Получить адрес контракта в указанной сети для мультичейн голосования

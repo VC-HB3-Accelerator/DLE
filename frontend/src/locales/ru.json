@@ -147,6 +147,8 @@
       "other": "Другое"
     },
     "reload": "Перезагрузить",
+    "prev": "Назад",
+    "next": "Вперёд",
     "execute": "Выполнить",
     "voting": "Голосование...",
     "executing": "Выполнение...",
@@ -2004,13 +2006,13 @@
       "proposalIdLabel": "ID предложения:",
       "votesLabel": "Голоса:",
       "quorumLabel": "Кворум:",
-      "quorumReached": "✅ Достигнут",
-      "quorumNotReached": "❌ Не достигнут",
+      "quorumReached": "Достигнут",
+      "quorumNotReached": "Не достигнут",
       "quorumRequired": "({amount} DLE требуется)",
       "quorumProgress": "Кворум: {current}% (требуется: {required}%)",
-      "votesFor": "👍 За: {count}",
-      "votesAgainst": "👎 Против: {count}",
-      "votesTotal": "📊 Всего: {count}",
+      "votesFor": "За: {count}",
+      "votesAgainst": "Против: {count}",
+      "votesTotal": "Всего: {count}",
       "filter": {
         "active": "Активные",
         "succeeded": "Успешные",
@@ -2028,11 +2030,11 @@
         "ready": "Готово к выполнению"
       },
       "chainStatus": {
-        "executed": "✅ Выполнено",
-        "cancelled": "❌ Отменено",
-        "expired": "⏰ Истекло",
-        "ready": "🟡 Готово к выполнению",
-        "active": "🟢 Активно",
+        "executed": "Выполнено",
+        "cancelled": "Отменено",
+        "expired": "Истекло",
+        "ready": "Готово к выполнению",
+        "active": "Активно",
         "inactive": "Неактивно"
       },
       "composableErrors": {
@@ -2296,6 +2298,8 @@
       "sortByDate": "По дате",
       "sortByType": "По типу",
       "sortByTitle": "По названию",
+      "sortDesc": "По убыванию",
+      "sortAsc": "По возрастанию",
       "emptyState": "Нет событий, соответствующих фильтрам",
       "success": "Успешно",
       "explorer": "Explorer",

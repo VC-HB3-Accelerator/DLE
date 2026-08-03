@@ -89,132 +89,115 @@ export function useProposals(dleAddress, isAuthenticated, userAddress) {
       // Группируем предложения по описанию для создания мульти-чейн представлений
       const proposalsByDescription = new Map();
 
-      // Загружаем предложения из каждой цепочки
-      for (const dle of allDles) {
-        if (!dle.networks || dle.networks.length === 0) continue;
+      const getTimestamp = (p) => {
+        if (p?.timestamp) return Number(p.timestamp);
+        if (p?.createdAt) {
+          if (typeof p.createdAt === 'string') {
+            return Math.floor(new Date(p.createdAt).getTime() / 1000);
+          }
+          return Number(p.createdAt);
+        }
+        return Math.floor(Date.now() / 1000);
+      };
 
-        // КРИТИЧНО: Пропускаем DLE, если ни один из его адресов не совпадает с запрошенным dleAddress
-        const hasMatchingAddress = dle.networks.some(network => 
-          network.address && network.address.toLowerCase() === (dleAddress.value || '').toLowerCase()
+      // Один запрос на адрес: бэкенд уже читает все сети контракта
+      const seenAddresses = new Set();
+      for (const dle of allDles) {
+        const networks = dle.networks || dle.deployedNetworks || [];
+        if (networks.length === 0) continue;
+
+        const hasMatchingAddress = networks.some(
+          (network) =>
+            network.address &&
+            network.address.toLowerCase() === (dleAddress.value || '').toLowerCase()
         );
-        
+
         if (dleAddress.value && !hasMatchingAddress) {
-          console.log(`[Proposals] Пропускаем DLE ${dle.dleAddress || 'N/A'}: адрес ${dleAddress.value} не найден в networks`);
+          console.log(
+            `[Proposals] Пропускаем DLE ${dle.dleAddress || 'N/A'}: адрес ${dleAddress.value} не найден в networks`
+          );
           continue;
         }
 
-        for (const network of dle.networks) {
-          try {
-            console.log(`[Proposals] Загружаем предложения из цепочки ${network.chainId}, адрес: ${network.address}`);
-            const response = await getProposals(network.address);
+        const addr =
+          (dleAddress.value && hasMatchingAddress ? dleAddress.value : null) ||
+          dle.dleAddress ||
+          networks[0]?.address;
+        if (!addr) continue;
+        const keyAddr = addr.toLowerCase();
+        if (seenAddresses.has(keyAddr)) continue;
+        seenAddresses.add(keyAddr);
 
-            console.log(`[Proposals] Ответ для цепочки ${network.chainId}:`, {
-              success: response.success,
-              proposalsCount: response.data?.proposals?.length || 0,
-              hasError: !!response.error
-            });
+        try {
+          console.log(`[Proposals] Загружаем предложения одним запросом для ${addr}`);
+          const response = await getProposals(addr);
 
-            if (response.success) {
-              // Бэкенд возвращает: { success: true, data: { proposals: [...], totalCount: ... } }
-              const chainProposals = (response.data?.data?.proposals || response.data?.proposals || []);
-              console.log(`[Proposals] Получено предложений для цепочки ${network.chainId}: ${chainProposals.length}`, chainProposals);
+          console.log(`[Proposals] Ответ:`, {
+            success: response.success,
+            proposalsCount: response.data?.proposals?.length || 0,
+            hasError: !!response.error,
+          });
 
-              // Добавляем информацию о цепочке к каждому предложению
-              chainProposals.forEach(proposal => {
-                proposal.chainId = network.chainId;
-                proposal.contractAddress = network.address;
-                proposal.networkName = getChainName(network.chainId);
+          if (!response.success) continue;
 
-                // Группируем предложения по описанию и инициатору
-                const key = `${proposal.description}_${proposal.initiator}`;
-                
-                // Преобразуем время создания в число для сравнения
-                // createdAt может быть ISO строкой или числом, timestamp - число в секундах
-                const getTimestamp = (proposal) => {
-                  if (proposal.timestamp) return Number(proposal.timestamp); // timestamp в секундах
-                  if (proposal.createdAt) {
-                    if (typeof proposal.createdAt === 'string') {
-                      return Math.floor(new Date(proposal.createdAt).getTime() / 1000); // ISO строка -> секунды
-                    }
-                    return Number(proposal.createdAt);
-                  }
-                  return Math.floor(Date.now() / 1000);
-                };
-                
-                const proposalTimestamp = getTimestamp(proposal);
-                
-                if (!proposalsByDescription.has(key)) {
-                  proposalsByDescription.set(key, {
-                    id: proposal.id, // ID из первой найденной сети
-                    description: proposal.description,
-                    initiator: proposal.initiator,
-                    deadline: proposal.deadline,
-                    chains: new Map(),
-                    createdAt: proposalTimestamp, // Время создания в секундах
-                    uniqueId: key
-                  });
-                }
+          const chainProposals = response.data?.proposals || response.data?.data?.proposals || [];
+          console.log(`[Proposals] Получено предложений: ${chainProposals.length}`);
 
-                // Добавляем информацию о цепочке
-                const group = proposalsByDescription.get(key);
-                // Если в этой сети уже есть предложение с таким ключом, выбираем более позднее (актуальное)
-                const existingChainData = group.chains.get(network.chainId);
-                
-                // Унифицируем state - всегда число
-                const normalizedState = typeof proposal.state === 'string' 
-                  ? (proposal.state === 'active' ? 0 : NaN) 
-                  : Number(proposal.state);
-                
-                // Убеждаемся, что id есть (fallback к proposalId из события, если id отсутствует)
-                const proposalId = proposal.id !== undefined && proposal.id !== null 
-                  ? Number(proposal.id) 
-                  : (proposal.proposalId !== undefined ? Number(proposal.proposalId) : null);
-                
-                if (existingChainData) {
-                  // Если уже есть предложение в этой сети, сравниваем по времени создания
-                  const existingTime = getTimestamp(existingChainData);
-                  // Оставляем более позднее предложение (актуальное)
-                  if (proposalTimestamp > existingTime) {
-                    group.chains.set(network.chainId, {
-                      ...proposal,
-                      id: proposalId !== null ? proposalId : existingChainData.id, // Используем id с fallback
-                      chainId: network.chainId,
-                      contractAddress: network.address,
-                      networkName: getChainName(network.chainId),
-                      state: normalizedState, // Унифицированный state (число)
-                      timestamp: proposalTimestamp // Сохраняем числовой timestamp для удобства
-                    });
-                  }
-                  // Иначе оставляем существующее
-                } else {
-                  // Первое предложение в этой сети для данной группы
-                  group.chains.set(network.chainId, {
-                    ...proposal,
-                    id: proposalId !== null ? proposalId : 0, // Fallback к 0, если id отсутствует
-                    chainId: network.chainId,
-                    contractAddress: network.address,
-                    networkName: getChainName(network.chainId),
-                    state: normalizedState, // Унифицированный state (число)
-                    timestamp: proposalTimestamp // Сохраняем числовой timestamp для удобства
-                  });
-                }
-                
-                // Обновляем createdAt группы - минимальное время из всех предложений
-                // После добавления нового предложения пересчитываем минимальное время
-                const allChainTimes = Array.from(group.chains.values())
-                  .map(c => getTimestamp(c));
-                group.createdAt = Math.min(...allChainTimes, proposalTimestamp);
+          chainProposals.forEach((proposal) => {
+            const netChainId = Number(proposal.chainId);
+            proposal.chainId = netChainId;
+            proposal.contractAddress = addr;
+            proposal.networkName = getChainName(netChainId);
+
+            const key = `${proposal.description}_${proposal.initiator}`;
+            const proposalTimestamp = getTimestamp(proposal);
+
+            if (!proposalsByDescription.has(key)) {
+              proposalsByDescription.set(key, {
+                id: proposal.id,
+                description: proposal.description,
+                initiator: proposal.initiator,
+                deadline: proposal.deadline,
+                chains: new Map(),
+                createdAt: proposalTimestamp,
+                uniqueId: key,
               });
             }
-            } catch (error) {
-            console.error(`Ошибка загрузки предложений из цепочки ${network.chainId}:`, error);
-            console.error(`Детали ошибки для цепочки ${network.chainId}:`, {
-              chainId: network.chainId,
-              address: network.address,
-              errorMessage: error.message,
-              errorStack: error.stack
-            });
-          }
+
+            const group = proposalsByDescription.get(key);
+            const existingChainData = group.chains.get(netChainId);
+            const normalizedState =
+              typeof proposal.state === 'string'
+                ? proposal.state === 'active'
+                  ? 0
+                  : NaN
+                : Number(proposal.state);
+            const proposalId =
+              proposal.id !== undefined && proposal.id !== null
+                ? Number(proposal.id)
+                : proposal.proposalId !== undefined
+                  ? Number(proposal.proposalId)
+                  : null;
+
+            const chainEntry = {
+              ...proposal,
+              id: proposalId !== null ? proposalId : existingChainData?.id || 0,
+              chainId: netChainId,
+              contractAddress: addr,
+              networkName: getChainName(netChainId),
+              state: isNaN(normalizedState) ? 0 : normalizedState,
+              timestamp: proposalTimestamp,
+            };
+
+            if (!existingChainData || proposalTimestamp >= getTimestamp(existingChainData)) {
+              group.chains.set(netChainId, chainEntry);
+            }
+
+            const allChainTimes = Array.from(group.chains.values()).map((c) => getTimestamp(c));
+            group.createdAt = Math.min(...allChainTimes, proposalTimestamp);
+          });
+        } catch (error) {
+          console.error(`[Proposals] Ошибка загрузки предложений для ${addr}:`, error);
         }
       }
 

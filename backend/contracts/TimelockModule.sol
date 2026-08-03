@@ -6,6 +6,10 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+interface IDLEBridgeHost {
+    function initializer() external view returns (address);
+}
+
 /**
  * @title TimelockModule
  * @dev Модуль временной задержки для критических операций DLE
@@ -39,6 +43,8 @@ contract TimelockModule is ReentrancyGuard {
     
     // Основные настройки
     address public immutable dleContract;      // Адрес DLE контракта
+    /// @dev Тонкий TimelockBridge для governance-ops.
+    address public opsBridge;
     uint256 public defaultDelay = 2 days;      // Стандартная задержка
     uint256 public emergencyDelay = 30 minutes; // Экстренная задержка
     uint256 public maxDelay = 30 days;         // Максимальная задержка
@@ -73,10 +79,19 @@ contract TimelockModule is ReentrancyGuard {
     event DelayUpdated(bytes4 indexed selector, uint256 oldDelay, uint256 newDelay);
     event DefaultDelayUpdated(uint256 oldDelay, uint256 newDelay);
     event EmergencyExecution(bytes32 indexed operationId, string reason);
+    event ModuleBridgeSet(address indexed bridge);
     
     // Модификаторы
     modifier onlyDLE() {
         require(msg.sender == dleContract, "Only DLE can call");
+        _;
+    }
+
+    modifier onlyDLEOrBridge() {
+        require(
+            msg.sender == dleContract || msg.sender == opsBridge,
+            "Only DLE or bridge"
+        );
         _;
     }
     
@@ -97,6 +112,26 @@ contract TimelockModule is ReentrancyGuard {
         // Настраиваем задержки для разных типов операций
         _setupOperationDelays();
     }
+
+    /**
+     * @dev Привязать TimelockBridge. Первый раз — DLE или initializer; далее только DLE.
+     */
+    function setModuleBridge(address bridge) external {
+        require(bridge != address(0), "Bridge cannot be zero");
+        require(bridge.code.length > 0, "Bridge has no code");
+        address init = IDLEBridgeHost(dleContract).initializer();
+        if (opsBridge == address(0)) {
+            require(msg.sender == dleContract || msg.sender == init, "Only DLE or initializer");
+        } else {
+            require(msg.sender == dleContract, "Only DLE can call");
+        }
+        opsBridge = bridge;
+        emit ModuleBridgeSet(bridge);
+    }
+
+    function moduleBridge() external view returns (address) {
+        return opsBridge;
+    }
     
     /**
      * @dev Поставить операцию в очередь (вызывается из DLE)
@@ -108,7 +143,7 @@ contract TimelockModule is ReentrancyGuard {
         address target,
         bytes memory data,
         string memory description
-    ) external onlyDLE returns (bytes32) {
+    ) external onlyDLEOrBridge returns (bytes32) {
         require(target != address(0), "Target cannot be zero");
         require(data.length >= 4, "Invalid operation data");
         
@@ -182,7 +217,7 @@ contract TimelockModule is ReentrancyGuard {
     function cancelOperation(
         bytes32 operationId, 
         string memory reason
-    ) external onlyDLE validOperation(operationId) {
+    ) external onlyDLEOrBridge validOperation(operationId) {
         QueuedOperation storage operation = queuedOperations[operationId];
         
         operation.cancelled = true;
@@ -199,7 +234,7 @@ contract TimelockModule is ReentrancyGuard {
     function emergencyExecute(
         bytes32 operationId,
         string memory reason
-    ) external onlyDLE nonReentrant validOperation(operationId) {
+    ) external onlyDLEOrBridge nonReentrant validOperation(operationId) {
         QueuedOperation storage operation = queuedOperations[operationId];
         
         // Проверяем что операция помечена как экстренная
@@ -233,7 +268,7 @@ contract TimelockModule is ReentrancyGuard {
         uint256 newDelay,
         bool isCritical,
         bool isEmergency
-    ) external onlyDLE {
+    ) external onlyDLEOrBridge {
         require(newDelay >= minDelay, "Delay too short");
         require(newDelay <= maxDelay, "Delay too long");
         
@@ -249,7 +284,7 @@ contract TimelockModule is ReentrancyGuard {
      * @dev Обновить стандартную задержку (только через governance)
      * @param newDelay Новая стандартная задержка
      */
-    function updateDefaultDelay(uint256 newDelay) external onlyDLE {
+    function updateDefaultDelay(uint256 newDelay) external onlyDLEOrBridge {
         require(newDelay >= minDelay, "Delay too short");
         require(newDelay <= maxDelay, "Delay too long");
         

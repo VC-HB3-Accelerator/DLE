@@ -70,6 +70,8 @@ contract HierarchicalVotingModule is ReentrancyGuard {
 
     address public immutable dleContract;
     address public treasuryModule;
+    /// @dev Тонкий HierarchicalVotingBridge.
+    address public opsBridge;
 
     mapping(address => ExternalDLEInfo) public externalDLEs;
     address[] public externalDLEList;
@@ -85,6 +87,7 @@ contract HierarchicalVotingModule is ReentrancyGuard {
     uint256 public totalExternalVotesExecuted;
 
     event TreasuryModuleSet(address indexed treasuryModule, uint256 timestamp);
+    event ModuleBridgeSet(address indexed bridge);
     event ExternalDLEAdded(
         address indexed dleAddress,
         string name,
@@ -118,10 +121,20 @@ contract HierarchicalVotingModule is ReentrancyGuard {
         _;
     }
 
-    /// @dev Bootstrap после деплоя: initializer A или сам DLE (governance callback).
+    modifier onlyDLEOrBridge() {
+        require(
+            msg.sender == dleContract || msg.sender == opsBridge,
+            "Only DLE or bridge"
+        );
+        _;
+    }
+
+    /// @dev Bootstrap после деплоя: initializer A или сам DLE (governance callback) или bridge.
     modifier onlyDLEOrInitializer() {
         require(
-            msg.sender == dleContract || msg.sender == IDLEHierarchy(dleContract).initializer(),
+            msg.sender == dleContract
+                || msg.sender == opsBridge
+                || msg.sender == IDLEHierarchy(dleContract).initializer(),
             "Only DLE or initializer"
         );
         _;
@@ -136,6 +149,26 @@ contract HierarchicalVotingModule is ReentrancyGuard {
         require(_dleContract != address(0), "DLE contract cannot be zero");
         dleContract = _dleContract;
         treasuryModule = address(0);
+    }
+
+    function setModuleBridge(address bridge) external {
+        require(bridge != address(0), "Bridge cannot be zero");
+        require(bridge.code.length > 0, "Bridge has no code");
+        address init = IDLEHierarchy(dleContract).initializer();
+        if (opsBridge == address(0)) {
+            require(
+                msg.sender == dleContract || msg.sender == init,
+                "Only DLE or initializer"
+            );
+        } else {
+            require(msg.sender == dleContract, "Only DLE contract can call this");
+        }
+        opsBridge = bridge;
+        emit ModuleBridgeSet(bridge);
+    }
+
+    function moduleBridge() external view returns (address) {
+        return opsBridge;
     }
 
     function setTreasuryModule(address _treasuryModule) external onlyDLEOrInitializer {
@@ -175,7 +208,7 @@ contract HierarchicalVotingModule is ReentrancyGuard {
         emit ExternalDLEAdded(dleAddress, name, symbol, tokenBalance, block.timestamp);
     }
 
-    function removeExternalDLE(address dleAddress) external onlyDLE validExternalDLE(dleAddress) {
+    function removeExternalDLE(address dleAddress) external onlyDLEOrBridge validExternalDLE(dleAddress) {
         require(externalDLEs[dleAddress].tokenBalance == 0, "Token balance must be zero");
 
         uint256 index = externalDLEIndex[dleAddress];
@@ -195,14 +228,14 @@ contract HierarchicalVotingModule is ReentrancyGuard {
         emit ExternalDLERemoved(dleAddress, block.timestamp);
     }
 
-    function updateExternalDLEBalance(address dleAddress) external onlyDLE validExternalDLE(dleAddress) {
+    function updateExternalDLEBalance(address dleAddress) external onlyDLEOrBridge validExternalDLE(dleAddress) {
         uint256 oldBalance = externalDLEs[dleAddress].tokenBalance;
         uint256 newBalance = IERC20(dleAddress).balanceOf(treasuryModule);
         externalDLEs[dleAddress].tokenBalance = newBalance;
         emit ExternalDLEBalanceUpdated(dleAddress, oldBalance, newBalance);
     }
 
-    function updateAllExternalDLEBalances() external onlyDLE {
+    function updateAllExternalDLEBalances() external onlyDLEOrBridge {
         for (uint256 i = 0; i < externalDLEList.length; i++) {
             address dleAddress = externalDLEList[i];
             if (externalDLEs[dleAddress].isActive) {

@@ -1,0 +1,20 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "dleA": "0x7C6D6652cc637d044Ce7D3B0441C70359A57eE99",
+  "treasury": "0x32a00A3e2Fca29E1d758F04752c85e322653d9A3",
+  "treasuryBridge": "0xc0a96f339Aa85AAc8e4A1e577c2ea4b4222409Db",
+  "hierarchicalVoting": "0xf35a6ee853F54E06Bcf31B9D564Dbf2637185e64",
+  "reader": "0xcF551bcB93E496a45B0F9EEa774ab3E200be3265",
+  "dleB": "0xf430BE9B8a4a41439e9E6d946d73F4CeEcA201ca",
+  "deployer": "0x15A4ed4759e5762174b300a4Cf51cc17ad967f4d",
+  "explorers": {
+    "dleA": "https://sepolia.etherscan.io/address/0x7C6D6652cc637d044Ce7D3B0441C70359A57eE99",
+    "treasury": "https://sepolia.etherscan.io/address/0x32a00A3e2Fca29E1d758F04752c85e322653d9A3",
+    "treasuryBridge": "https://sepolia.etherscan.io/address/0xc0a96f339Aa85AAc8e4A1e577c2ea4b4222409Db",
+    "hv": "https://sepolia.etherscan.io/address/0xf35a6ee853F54E06Bcf31B9D564Dbf2637185e64",
+    "reader": "https://sepolia.etherscan.io/address/0xcF551bcB93E496a45B0F9EEa774ab3E200be3265",
+    "dleB": "https://sepolia.etherscan.io/address/0xf430BE9B8a4a41439e9E6d946d73F4CeEcA201ca"
+  },
+  "savedAt": "2026-08-03T18:18:24.928Z"
+}

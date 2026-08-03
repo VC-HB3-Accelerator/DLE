@@ -400,6 +400,96 @@ async function deployModuleInNetwork(rpcUrl, pk, salt, initCodeHash, targetNonce
   return { address: deployedAddress, chainId: chainId };
 }
 
+/**
+ * Деплой тонкого ModuleBridge + wiring (setFundsBridge / setModuleBridge).
+ * Вызывать ПОСЛЕ деплоя всех модулей в сети, чтобы не сдвинуть CREATE2 nonce.
+ */
+const MODULE_BRIDGE_CONFIG = {
+  treasury: {
+    bridgeContract: 'TreasuryBridge',
+    setter: 'setFundsBridge(address)',
+  },
+  timelock: {
+    bridgeContract: 'TimelockBridge',
+    setter: 'setModuleBridge(address)',
+  },
+  hierarchicalVoting: {
+    bridgeContract: 'HierarchicalVotingBridge',
+    setter: 'setModuleBridge(address)',
+  },
+  reader: {
+    bridgeContract: 'ReaderBridge',
+    setter: 'setModuleBridge(address)',
+  },
+};
+
+async function deployAndWireModuleBridge({
+  chainId,
+  pk,
+  moduleType,
+  dleAddress,
+  moduleAddress,
+  walletAddress,
+}) {
+  const { ethers } = hre;
+  const cfg = MODULE_BRIDGE_CONFIG[moduleType];
+  if (!cfg) {
+    return { bridgeAddress: null, wired: false, skipped: true };
+  }
+
+  const { provider, wallet } = await createRPCConnection(chainId, pk, {
+    maxRetries: 3,
+    timeout: 30000,
+  });
+
+  const BridgeFactory = await hre.ethers.getContractFactory(cfg.bridgeContract);
+  const feeOverrides = await getFeeOverrides(provider);
+  const bridge = await BridgeFactory.connect(wallet).deploy(dleAddress, moduleAddress, feeOverrides);
+  await bridge.waitForDeployment();
+  const bridgeAddress = await bridge.getAddress();
+  logger.info(
+    `[MODULES_DBG] chainId=${chainId} ${cfg.bridgeContract} deployed at ${bridgeAddress} for ${moduleType}`
+  );
+
+  const module = await ethers.getContractAt(
+    [
+      `function ${cfg.setter}`,
+      'function moduleBridge() view returns (address)',
+      'function fundsBridge() view returns (address)',
+    ],
+    moduleAddress,
+    wallet
+  );
+
+  let wired = false;
+  try {
+    const setterName = cfg.setter.split('(')[0];
+    const tx = await module[setterName](bridgeAddress, feeOverrides);
+    await tx.wait();
+    wired = true;
+    logger.info(`[MODULES_DBG] chainId=${chainId} ${setterName} OK → ${bridgeAddress}`);
+  } catch (e) {
+    logger.warn(
+      `[MODULES_DBG] chainId=${chainId} wire ${moduleType} bridge failed: ${e.message}`
+    );
+  }
+
+  let onChainBridge = ethers.ZeroAddress;
+  try {
+    onChainBridge = await module.moduleBridge();
+  } catch (_) {
+    try {
+      onChainBridge = await module.fundsBridge();
+    } catch (__) {}
+  }
+
+  return {
+    bridgeAddress,
+    wired: wired || String(onChainBridge).toLowerCase() === String(bridgeAddress).toLowerCase(),
+    deployer: walletAddress || wallet.address,
+  };
+}
+
 
 // Деплой всех модулей в одной сети
 async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesToDeploy, moduleInits, targetNonces, params) {
@@ -520,6 +610,30 @@ async function deployAllModulesInNetwork(chainId, pk, salt, dleAddress, modulesT
         error: error.message 
       };
       logger.error(`[MODULES_DBG] Ошибка деплоя модуля ${moduleType} в сети ${net.name || net.chainId}: ${error.message}`);
+    }
+  }
+
+  // После модулей: ModuleBridge на каждый успешный модуль (не трогает precomputed nonce модулей)
+  for (const moduleType of Object.keys(results)) {
+    const mod = results[moduleType];
+    if (!(mod && mod.success && mod.address && MODULE_BRIDGE_CONFIG[moduleType])) continue;
+    try {
+      const bridgeInfo = await deployAndWireModuleBridge({
+        chainId: numericChainId,
+        pk,
+        moduleType,
+        dleAddress,
+        moduleAddress: mod.address,
+        walletAddress: wallet.address,
+      });
+      results[moduleType].bridgeAddress = bridgeInfo.bridgeAddress;
+      results[moduleType].bridgeWired = bridgeInfo.wired;
+      logger.info(
+        `[MODULES_DBG] ${moduleType} bridge ${bridgeInfo.bridgeAddress} (wired=${bridgeInfo.wired})`
+      );
+    } catch (bridgeErr) {
+      results[moduleType].bridgeError = bridgeErr.message;
+      logger.error(`[MODULES_DBG] ${moduleType} bridge failed: ${bridgeErr.message}`);
     }
   }
   
@@ -845,6 +959,9 @@ async function main() {
         chainId: deployResult.chainId ?? null,
         rpcUrl: rpcUrl,
         address: moduleResult?.success ? moduleResult.address : null,
+        bridgeAddress: moduleResult?.bridgeAddress || null,
+        bridgeWired: moduleResult?.bridgeWired || false,
+        bridgeError: moduleResult?.bridgeError || null,
         verification: verification,
         success: moduleResult?.success || false,
         error: moduleResult?.error || null
@@ -888,6 +1005,8 @@ async function main() {
       modules: result.modules ? Object.entries(result.modules).map(([type, module]) => ({
         type: type,
         address: module.address,
+        bridgeAddress: module.bridgeAddress || null,
+        bridgeWired: module.bridgeWired || false,
         success: module.success,
         verification: module.verification,
         error: module.error

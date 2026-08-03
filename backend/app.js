@@ -394,6 +394,7 @@ app.use('/api/tags', tagsRoutes); // Добавляем маршрут тего�
 app.use('/api/blockchain', blockchainRoutes); // Добавляем маршрут blockchain
 app.use('/api/dle-core', dleCoreRoutes); // Основные функции DLE
 app.use('/api/dle-core', dleMultichainRoutes); // Мультичейн функции (используем тот же префикс)
+app.use('/api/dle-multichain', dleMultichainRoutes); // FE Analytics: /dle-multichain/get-supported-chains
 app.use('/api/dle-proposals', dleProposalsRoutes); // Функции предложений
 app.use('/api/dle-modules', dleModulesRoutes); // Функции модулей
 app.use('/api/module-deployment', moduleDeploymentRoutes); // Деплой модулей

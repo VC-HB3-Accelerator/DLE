@@ -1,0 +1,30 @@
+{
+  "network": "multi-testnets",
+  "chainIds": [
+    11155111,
+    421614,
+    84532
+  ],
+  "deployer": "0x15A4ed4759e5762174b300a4Cf51cc17ad967f4d",
+  "dleA": "0xB55060a59D7c1135984CAA273ED9bd453A651350",
+  "treasury": "0x0e2aE4a0B93312942de00bd584B1208A1C7EA0c5",
+  "hierarchicalVoting": "0x0B8e6D177f1B2C8bc96d209aCD90CE7F16861928",
+  "reader": "0xfbf66Bb0804E24822224e9F5D7967B94b06B8EBB",
+  "timelock": "0x0699eBbAF4536D41ED63906eEfE391Fae87793DB",
+  "bridges": {
+    "84532": {
+      "treasury": "0x8AAc3DbFdC0c24d9e4D3bFb878f53aad140C4503",
+      "hv": "0xB4b4A481377198d9713248aF3EFa9C13F93b8456"
+    },
+    "421614": {
+      "treasury": "0x213d596e36094DD6409E8913E2612fe1F5202FBa",
+      "hv": "0x8C5664Fa4C2C18ed74fEbC11DCA242077e523CF3"
+    },
+    "11155111": {
+      "treasury": "0x213d596e36094DD6409E8913E2612fe1F5202FBa",
+      "hv": "0x8C5664Fa4C2C18ed74fEbC11DCA242077e523CF3"
+    }
+  },
+  "dleB": "0xafaD65EdbFeCAe4f6c0D159f667BF5d7e65a2d2b",
+  "savedAt": "2026-08-03T19:29:12.251Z"
+}

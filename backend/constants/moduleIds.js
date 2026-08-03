@@ -28,7 +28,7 @@ const MODULE_IDS = {
   READER: '0x7265616465720000000000000000000000000000000000000000000000000000',
 
   // Hierarchical Voting — ASCII "hierarchicalVoting" (19 байт) + zero-pad
-  // keccak256 не используем: в ядре исторически padded ASCII (см. AUDIT §4.5)
+  // keccak256 не используем: в ядре исторически padded ASCII
   HIERARCHICAL_VOTING: '0x68696572617263686963616c566f74696e670000000000000000000000000000'
 };
 

@@ -346,8 +346,13 @@ class DeployParamsService {
       
       // Используем encryptedDb для автоматического расшифрования
       const result = await encryptedDb.getData('deploy_params', {}, limit, 'created_at DESC');
+
+      // Soft-retired контуры (Parent A HV и т.п.) не отдаём в UI-список
+      const activeRows = (result || []).filter(
+        (row) => String(row.deployment_status || '').toLowerCase() !== 'archived'
+      );
       
-      return result.map(row => {
+      return activeRows.map(row => {
         // Парсим deployResult для извлечения адресов всех сетей
         let deployedNetworks = [];
         console.log(`🔍 [DEBUG] Processing deployment ${row.deployment_id}, deploy_result exists:`, !!row.deploy_result);

@@ -80,8 +80,8 @@
             <p class="tokenomics-value">{{ tokenomics.topHolderPercentage }}%</p>
             <p class="tokenomics-label">{{ formatAddress(tokenomics.topHolderAddress) }}</p>
           </div>
-              </div>
-            </div>
+        </div>
+      </div>
 
       <!-- Управление -->
       <div class="governance-section">
@@ -106,13 +106,13 @@
           <div class="governance-card">
             <h3>{{ t('smartcontracts.analytics.supportedChains') }}</h3>
             <p class="governance-value">{{ governance.supportedChainsCount }}</p>
-            </div>
+          </div>
           <div class="governance-card">
             <h3>{{ t('smartcontracts.analytics.currentChain') }}</h3>
             <p class="governance-value">{{ getChainName(governance.currentChainId) }}</p>
           </div>
         </div>
-              </div>
+      </div>
 
       <!-- Статистика предложений -->
       <div class="proposals-section">
@@ -170,7 +170,7 @@
                   <span class="module-address">{{ formatAddress(module.address || module.addresses?.[0]?.address) }}</span>
                 </div>
                 <div class="module-status">
-                  <span class="status-badge active">{{ t('smartcontracts.analytics.active') }}</span>
+                  <span class="status-badge">{{ t('smartcontracts.analytics.active') }}</span>
                 </div>
               </div>
             </div>
@@ -185,8 +185,8 @@
           <div class="multichain-card">
             <h3>{{ t('smartcontracts.analytics.supportedChains') }}</h3>
             <div class="chains-list">
-              <div 
-                v-for="chainId in multichain.supportedChains" 
+              <div
+                v-for="chainId in multichain.supportedChains"
                 :key="chainId"
                 class="chain-item"
               >
@@ -195,8 +195,8 @@
               </div>
             </div>
           </div>
-            </div>
-          </div>
+        </div>
+      </div>
 
       <!-- Топ держатели -->
       <div class="holders-section">
@@ -204,8 +204,8 @@
         <div class="holders-grid">
           <div class="holders-card">
             <div class="holders-list">
-              <div 
-                v-for="(holder, index) in topHolders" 
+              <div
+                v-for="(holder, index) in topHolders"
                 :key="holder.address"
                 class="holder-item"
               >
@@ -214,11 +214,11 @@
                   <div class="holder-address">{{ formatAddress(holder.address) }}</div>
                   <div class="holder-balance">{{ formatNumber(holder.balance) }} {{ t('smartcontracts.analytics.tokensUnit') }}</div>
                 </div>
-                <div class="holder-percentage">{{ holder.percentage.toFixed(2) }}%</div>
-            </div>
+                <div class="holder-percentage">{{ Number(holder.percentage || 0).toFixed(2) }}%</div>
+              </div>
               <div v-if="topHolders.length === 0" class="no-holders">
                 <p>{{ t('smartcontracts.analytics.noHoldersData') }}</p>
-          </div>
+              </div>
             </div>
           </div>
         </div>
@@ -572,59 +572,35 @@ onMounted(() => {
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
   margin-bottom: 20px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 40px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
-}
-
-.header-content {
-  flex-grow: 1;
-}
-
-.page-header h1 {
-  color: var(--color-primary);
-  font-size: 2.5rem;
-  margin: 0 0 10px 0;
-}
-
-.page-header p {
-  color: var(--color-grey-dark);
-  font-size: 1.1rem;
-  margin: 0;
-}
-
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background-color: var(--color-white);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey, #ced4da);
+  border-radius: var(--radius-lg);
+  font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: background-color 0.2s, border-color 0.2s;
   flex-shrink: 0;
 }
 
 .close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
+  background-color: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-dark, #333);
 }
 
-/* Секции */
 .info-section,
 .tokenomics-section,
 .governance-section,
@@ -632,7 +608,7 @@ onMounted(() => {
 .modules-section,
 .multichain-section,
 .holders-section {
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .info-section h2,
@@ -642,357 +618,226 @@ onMounted(() => {
 .modules-section h2,
 .multichain-section h2,
 .holders-section h2 {
-  color: var(--color-primary);
-  margin-bottom: 20px;
-  font-size: 1.8rem;
+  color: var(--color-dark, #333);
+  margin-bottom: 16px;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
-/* Основная информация */
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
 }
 
-.info-card {
-  background: #f8f9fa;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  border-left: 4px solid var(--color-primary);
+.info-card,
+.tokenomics-card,
+.governance-card,
+.proposals-card,
+.modules-card,
+.multichain-card,
+.holders-card {
+  background: var(--color-light, #f8f9fa);
+  padding: 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
-.info-card h3 {
-  color: var(--color-primary);
+.info-card h3,
+.tokenomics-card h3,
+.governance-card h3,
+.proposals-card h3,
+.modules-card h3,
+.multichain-card h3 {
+  color: var(--color-dark, #333);
   margin-bottom: 10px;
-  font-size: 1rem;
-  text-transform: uppercase;
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
 .info-value {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 500;
   margin: 0;
-  color: var(--color-grey-dark);
+  color: var(--color-dark, #333);
 }
 
-.status-active {
-  color: #28a745 !important;
-}
-
+.status-active,
 .status-inactive {
-  color: #dc3545 !important;
+  color: var(--color-dark, #333) !important;
 }
 
-/* Токеномика */
-.tokenomics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.tokenomics-card {
-  background: white;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-  text-align: center;
-}
-
-.tokenomics-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 15px;
-  font-size: 1.2rem;
-}
-
-.tokenomics-value {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  margin: 10px 0;
-}
-
-.tokenomics-label {
-  color: var(--color-grey-dark);
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-/* Управление */
+.tokenomics-grid,
 .governance-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  gap: 12px;
 }
 
+.tokenomics-card,
 .governance-card {
-  background: white;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
   text-align: center;
+  background: var(--color-white);
 }
 
-.governance-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 10px;
-  font-size: 1rem;
-}
-
+.tokenomics-value,
 .governance-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--color-secondary);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--color-dark, #333);
+  margin: 8px 0;
+}
+
+.tokenomics-label {
+  color: var(--color-grey-dark, #666);
+  font-size: 0.875rem;
   margin: 0;
 }
 
-/* Предложения */
-.proposals-grid {
+.proposals-grid,
+.modules-grid,
+.multichain-grid,
+.holders-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 20px;
+  gap: 12px;
 }
 
-.proposals-card {
-  background: white;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-}
-
-.proposals-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 20px;
-  font-size: 1.3rem;
+.proposals-card,
+.modules-card,
+.multichain-card,
+.holders-card {
+  background: var(--color-white);
 }
 
 .proposals-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .stat-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
-  background: #f8f9fa;
+  padding: 10px 12px;
+  background: var(--color-light, #f8f9fa);
   border-radius: var(--radius-sm);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .stat-label {
-  color: var(--color-grey-dark);
-  font-size: 0.9rem;
+  color: var(--color-grey-dark, #666);
+  font-size: 0.875rem;
 }
 
 .stat-value {
   font-weight: 600;
-  color: var(--color-primary);
-  font-size: 1.1rem;
+  color: var(--color-dark, #333);
+  font-size: 1rem;
 }
 
-/* Модули */
-.modules-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-.modules-card {
-  background: white;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-}
-
-.modules-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 20px;
-  font-size: 1.3rem;
-}
-
-.modules-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.module-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: var(--radius-sm);
-}
-
-.module-info {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.module-id {
-  font-weight: 600;
-  color: var(--color-primary);
-  font-family: monospace;
-}
-
-.module-address {
-  font-family: monospace;
-  font-size: 0.9rem;
-  color: var(--color-grey-dark);
-}
-
-.status-badge {
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.status-badge.active {
-  background: #d4edda;
-  color: #155724;
-}
-
-.no-modules {
-  text-align: center;
-  padding: 20px;
-  color: var(--color-grey-dark);
-}
-
-/* Мульти-чейн */
-.multichain-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-.multichain-card {
-  background: white;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-}
-
-.multichain-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 20px;
-  font-size: 1.3rem;
-}
-
-.chains-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chain-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: var(--radius-sm);
-}
-
-.chain-name {
-  font-weight: 600;
-  color: var(--color-primary);
-}
-
-.chain-id {
-  font-family: monospace;
-  color: var(--color-grey-dark);
-  font-size: 0.9rem;
-}
-
-/* Держатели */
-.holders-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-.holders-card {
-  background: white;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-}
-
+.modules-list,
+.chains-list,
 .holders-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+}
+
+.module-item,
+.chain-item,
+.holder-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-light, #f8f9fa);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-grey-light, #e9ecef);
+}
+
+.module-info,
+.holder-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.module-id,
+.chain-name,
+.holder-address {
+  font-weight: 600;
+  color: var(--color-dark, #333);
+}
+
+.module-id,
+.module-address,
+.holder-address,
+.chain-id {
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+.module-address,
+.chain-id,
+.holder-balance {
+  color: var(--color-grey-dark, #666);
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: var(--radius-lg);
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+}
+
+.no-modules,
+.no-holders {
+  text-align: center;
+  padding: 20px;
+  color: var(--color-grey-dark, #666);
 }
 
 .holder-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px;
-  background: #f8f9fa;
-  border-radius: var(--radius-sm);
+  justify-content: flex-start;
 }
 
 .holder-rank {
-  font-weight: 700;
-  color: var(--color-primary);
-  min-width: 30px;
+  font-weight: 600;
+  color: var(--color-dark, #333);
+  min-width: 32px;
 }
 
 .holder-info {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.holder-address {
-  font-family: monospace;
-  font-weight: 600;
-  color: var(--color-grey-dark);
-}
-
-.holder-balance {
-  font-size: 0.9rem;
-  color: var(--color-grey-dark);
 }
 
 .holder-percentage {
   font-weight: 600;
-  color: var(--color-secondary);
-  min-width: 60px;
+  color: var(--color-dark, #333);
+  min-width: 56px;
   text-align: right;
 }
 
-.no-holders {
-  text-align: center;
-  padding: 20px;
-  color: var(--color-grey-dark);
-}
-
-/* Адаптивность */
 @media (max-width: 768px) {
   .info-grid,
   .tokenomics-grid,
-  .governance-grid {
-    grid-template-columns: 1fr;
-  }
-  
+  .governance-grid,
   .proposals-stats {
     grid-template-columns: 1fr;
   }
-  
+
   .holder-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
   }
-  
+
   .holder-percentage {
     align-self: flex-end;
   }

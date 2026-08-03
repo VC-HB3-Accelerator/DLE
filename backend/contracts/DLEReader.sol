@@ -60,6 +60,7 @@ interface IDLEReader {
     function isChainSupported(uint256) external view returns (bool);
     function isModuleActive(bytes32) external view returns (bool);
     function getModuleAddress(bytes32) external view returns (address);
+    function initializer() external view returns (address);
 }
 
 /**
@@ -75,11 +76,31 @@ interface IDLEReader {
 contract DLEReader {
 
     address public immutable dleContract;
+    address public opsBridge;
+
+    event ModuleBridgeSet(address indexed bridge);
 
     constructor(address _dleContract) {
         require(_dleContract != address(0), "DLE contract cannot be zero");
         require(_dleContract.code.length > 0, "DLE contract must exist");
         dleContract = _dleContract;
+    }
+
+    function setModuleBridge(address bridge) external {
+        require(bridge != address(0), "Bridge cannot be zero");
+        require(bridge.code.length > 0, "Bridge has no code");
+        address init = IDLEReader(dleContract).initializer();
+        if (opsBridge == address(0)) {
+            require(msg.sender == dleContract || msg.sender == init, "Only DLE or initializer");
+        } else {
+            require(msg.sender == dleContract, "Only DLE");
+        }
+        opsBridge = bridge;
+        emit ModuleBridgeSet(bridge);
+    }
+
+    function moduleBridge() external view returns (address) {
+        return opsBridge;
     }
 
     // ===== АГРЕГИРОВАННЫЕ ДАННЫЕ =====

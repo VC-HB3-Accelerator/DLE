@@ -16,7 +16,7 @@
     "test:contracts": "hardhat test",
     "test:contracts:hv": "hardhat test test/hierarchical-voting*.test.js",
     "test:contracts:audit": "hardhat test test/dle-core-audit.test.js test/dle-execute-by-signatures.test.js test/dle-reader-resolve.test.js",
-    "test:contracts:modules": "hardhat test test/timelock-module.test.js test/treasury-module.test.js test/treasury-module-surface.test.js test/treasury-paygas.test.js test/dle-reader-module.test.js test/dle-reader-surface.test.js test/dle-reader-resolve.test.js test/hierarchical-voting-t2.test.js test/hierarchical-voting-t2-extended.test.js test/hierarchical-voting-surface.test.js test/hierarchical-voting-edges.test.js test/dle-core-audit.test.js test/dle-execute-by-signatures.test.js",
+    "test:contracts:modules": "hardhat test test/timelock-module.test.js test/treasury-module.test.js test/treasury-module-surface.test.js test/treasury-paygas.test.js test/dle-reader-module.test.js test/dle-reader-surface.test.js test/dle-reader-resolve.test.js test/hierarchical-voting-t2.test.js test/hierarchical-voting-t2-extended.test.js test/hierarchical-voting-surface.test.js test/hierarchical-voting-edges.test.js test/dle-core-audit.test.js test/dle-execute-by-signatures.test.js test/dle-execute-anti-replay.test.js test/treasury-bridge-governance.test.js",
     "test:contracts:modules-core": "hardhat test test/treasury-module*.test.js test/treasury-paygas.test.js test/dle-reader*.test.js test/hierarchical-voting*.test.js test/dle-core-audit.test.js test/dle-execute-by-signatures.test.js",
     "check-ollama": "node scripts/check-ollama-models.js",
     "check-ethers": "node scripts/check-ethers-v6-compatibility.js",

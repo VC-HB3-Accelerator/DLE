@@ -147,6 +147,8 @@
       "other": "Other"
     },
     "reload": "Reload",
+    "prev": "Back",
+    "next": "Next",
     "execute": "Execute",
     "voting": "Voting...",
     "executing": "Executing...",
@@ -2003,13 +2005,13 @@
       "proposalIdLabel": "Proposal ID:",
       "votesLabel": "Votes:",
       "quorumLabel": "Quorum:",
-      "quorumReached": "✅ Reached",
-      "quorumNotReached": "❌ Not reached",
+      "quorumReached": "Reached",
+      "quorumNotReached": "Not reached",
       "quorumRequired": "({amount} DLE required)",
       "quorumProgress": "Quorum: {current}% (required: {required}%)",
-      "votesFor": "👍 For: {count}",
-      "votesAgainst": "👎 Against: {count}",
-      "votesTotal": "📊 Total: {count}",
+      "votesFor": "For: {count}",
+      "votesAgainst": "Against: {count}",
+      "votesTotal": "Total: {count}",
       "filter": {
         "active": "Active",
         "succeeded": "Succeeded",
@@ -2027,11 +2029,11 @@
         "ready": "Ready for execution"
       },
       "chainStatus": {
-        "executed": "✅ Executed",
-        "cancelled": "❌ Cancelled",
-        "expired": "⏰ Expired",
-        "ready": "🟡 Ready for execution",
-        "active": "🟢 Active",
+        "executed": "Executed",
+        "cancelled": "Cancelled",
+        "expired": "Expired",
+        "ready": "Ready for execution",
+        "active": "Active",
         "inactive": "Inactive"
       },
       "composableErrors": {
@@ -2295,6 +2297,8 @@
       "sortByDate": "By date",
       "sortByType": "By type",
       "sortByTitle": "By title",
+      "sortDesc": "Descending",
+      "sortAsc": "Ascending",
       "emptyState": "No events match the selected filters",
       "success": "Successful",
       "explorer": "Explorer",

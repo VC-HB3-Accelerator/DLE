@@ -74,8 +74,8 @@
           </div>
           
           <div class="filters-actions">
-            <button @click="applyFilters" class="btn-primary">{{ t('smartcontracts.history.applyFilters') }}</button>
-            <button @click="clearFilters" class="btn-secondary">{{ t('smartcontracts.history.reset') }}</button>
+            <button @click="applyFilters" class="btn-action">{{ t('smartcontracts.history.applyFilters') }}</button>
+            <button @click="clearFilters" class="btn-action">{{ t('smartcontracts.history.reset') }}</button>
           </div>
         </div>
       </div>
@@ -121,8 +121,8 @@
               <option value="type">{{ t('smartcontracts.history.sortByType') }}</option>
               <option value="title">{{ t('smartcontracts.history.sortByTitle') }}</option>
             </select>
-            <button @click="toggleSortOrder" class="sort-btn">
-              {{ sortOrder === 'desc' ? '↓' : '↑' }}
+            <button @click="toggleSortOrder" class="btn-action sort-btn">
+              {{ sortOrder === 'desc' ? t('smartcontracts.history.sortDesc') : t('smartcontracts.history.sortAsc') }}
             </button>
           </div>
         </div>
@@ -132,19 +132,14 @@
         </div>
         <div v-else class="history-list">
           <div 
-            v-for="event in filteredHistory" 
-            :key="event.id" 
+            v-for="event in pagedHistory" 
+            :key="event.uniqueId || `${event.type}-${event.blockNumber}-${event.transactionHash}-${event.id}`" 
             class="history-item"
-            :class="event.type"
           >
-            <div class="event-icon">
-              <span class="icon">{{ getEventIcon(event.type) }}</span>
-            </div>
-            
             <div class="event-content">
               <div class="event-header">
                 <h3>{{ getEventTitle(event) }}</h3>
-                <span class="event-status success">
+                <span class="event-status">
                   {{ t('smartcontracts.history.success') }}
                 </span>
               </div>
@@ -166,10 +161,10 @@
             </div>
             
             <div class="event-actions">
-              <button @click="viewDetails(event)" class="btn-secondary">
+              <button @click="viewDetails(event)" class="btn-action">
                 {{ t('common.details') }}
               </button>
-              <button @click="viewOnExplorer(event)" class="btn-secondary">
+              <button @click="viewOnExplorer(event)" class="btn-action">
                 {{ t('smartcontracts.history.explorer') }}
               </button>
             </div>
@@ -181,9 +176,9 @@
           <button 
             @click="changePage(currentPage - 1)" 
             :disabled="currentPage === 1"
-            class="page-btn"
+            class="btn-action"
           >
-            ←
+            {{ t('common.prev') }}
           </button>
           
           <span class="page-info">
@@ -193,9 +188,9 @@
           <button 
             @click="changePage(currentPage + 1)" 
             :disabled="currentPage === totalPages"
-            class="page-btn"
+            class="btn-action"
           >
-            →
+            {{ t('common.next') }}
           </button>
         </div>
       </div>
@@ -215,7 +210,7 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">{{ t('smartcontracts.history.status') }}</span>
-                <span class="detail-value success">
+                <span class="detail-value">
                   {{ t('smartcontracts.history.success') }}
                 </span>
               </div>
@@ -317,27 +312,31 @@ const history = ref([]);
 async function loadDleData() {
   try {
     isLoadingDle.value = true;
-    
+
     if (!dleAddress.value) {
       console.error('Адрес DLE не указан');
       return;
     }
 
-    // Читаем данные из блокчейна
-    const response = await api.post('/blockchain/read-dle-info', {
-      dleAddress: dleAddress.value
-    });
-    
-    if (response.data.success) {
-      selectedDle.value = response.data.data;
-      
-      // Загружаем историю событий
-      await loadEventHistory();
-    } else {
-      console.error('[HistoryView] Ошибка загрузки DLE:', response.data.error);
+    // История первой (без тяжёлого read-dle-info), чтобы страница не «висела»
+    const historyPromise = loadEventHistory();
+
+    try {
+      const response = await api.post('/blockchain/read-dle-info', {
+        dleAddress: dleAddress.value,
+      });
+      if (response.data.success) {
+        selectedDle.value = response.data.data;
+      } else {
+        console.error('[HistoryView] Ошибка загрузки DLE:', response.data.error);
+        selectedDle.value = { dleAddress: dleAddress.value };
+      }
+    } catch (error) {
+      console.error('[HistoryView] Ошибка загрузки DLE:', error);
+      selectedDle.value = { dleAddress: dleAddress.value };
     }
-  } catch (error) {
-    console.error('[HistoryView] Ошибка загрузки DLE:', error);
+
+    await historyPromise;
   } finally {
     isLoadingDle.value = false;
   }
@@ -373,65 +372,64 @@ onMounted(() => {
 
 // Вычисляемые свойства
 const filteredHistory = computed(() => {
-  let filtered = history.value;
-  
-  // Фильтр по типу события
+  // ВАЖНО: всегда новая копия — .sort на history.value вызывает бесконечный цикл реактивности
+  let filtered = [...history.value];
+
   if (filters.value.eventType) {
-    filtered = filtered.filter(event => event.type === filters.value.eventType);
+    filtered = filtered.filter((event) => event.type === filters.value.eventType);
   }
-  
-  // Фильтр по статусу - убираем, так как все события успешны
-  // if (filters.value.status) {
-  //   filtered = filtered.filter(event => event.status === filters.value.status);
-  // }
-  
-  // Фильтр по датам
+
   if (filters.value.dateFrom) {
     const fromDate = new Date(filters.value.dateFrom).getTime();
-    filtered = filtered.filter(event => event.timestamp >= fromDate);
+    filtered = filtered.filter((event) => Number(event.timestamp) >= fromDate);
   }
-  
+
   if (filters.value.dateTo) {
-    const toDate = new Date(filters.value.dateTo).getTime();
-    filtered = filtered.filter(event => event.timestamp <= toDate);
+    const toDate = new Date(filters.value.dateTo).getTime() + 24 * 60 * 60 * 1000 - 1;
+    filtered = filtered.filter((event) => Number(event.timestamp) <= toDate);
   }
-  
-  // Поиск
+
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(event => 
-      event.title.toLowerCase().includes(query) ||
-      event.description.toLowerCase().includes(query) ||
-      (event.transactionHash && event.transactionHash.toLowerCase().includes(query))
+    filtered = filtered.filter(
+      (event) =>
+        (event.title || '').toLowerCase().includes(query) ||
+        (event.description || '').toLowerCase().includes(query) ||
+        (event.transactionHash && event.transactionHash.toLowerCase().includes(query))
     );
   }
-  
-  // Сортировка
+
+  const dir = sortOrder.value === 'desc' ? -1 : 1;
   filtered.sort((a, b) => {
     let aValue = a[sortBy.value];
     let bValue = b[sortBy.value];
-    
+
     if (sortBy.value === 'timestamp') {
-      aValue = new Date(aValue).getTime();
-      bValue = new Date(bValue).getTime();
-    }
-    
-    if (sortOrder.value === 'desc') {
-      return bValue > aValue ? 1 : -1;
+      aValue = Number(aValue) || 0;
+      bValue = Number(bValue) || 0;
     } else {
-      return aValue > bValue ? 1 : -1;
+      aValue = String(aValue ?? '');
+      bValue = String(bValue ?? '');
     }
+
+    if (aValue === bValue) return 0;
+    return aValue > bValue ? dir : -dir;
   });
-  
+
   return filtered;
 });
 
 const totalOperations = computed(() => history.value.length);
-const successfulOperations = computed(() => history.value.length); // Все события из блокчейна успешны
-const failedOperations = computed(() => 0); // Нет неуспешных событий в блокчейне
-const pendingOperations = computed(() => 0); // Нет ожидающих событий в блокчейне
+const successfulOperations = computed(() => history.value.length);
+const failedOperations = computed(() => 0);
+const pendingOperations = computed(() => 0);
 
-const totalPages = computed(() => Math.ceil(filteredHistory.value.length / itemsPerPage.value));
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredHistory.value.length / itemsPerPage.value)));
+
+const pagedHistory = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  return filteredHistory.value.slice(start, start + itemsPerPage.value);
+});
 
 // Методы
 const applyFilters = () => {
@@ -468,35 +466,18 @@ const changePage = (page) => {
   }
 };
 
-const getEventIcon = (type) => {
-  const icons = {
-    dle_created: '🏢',
-    proposal_created: '📋',
-    proposal_executed: '✅',
-    proposal_cancelled: '❌',
-    module_added: '🔧',
-    module_removed: '🔧',
-    chain_added: '🌐',
-    chain_removed: '🌐',
-    chain_updated: '🔄',
-    quorum_updated: '📊',
-    dle_info_updated: '📝',
-    proposal_execution_approved: '👍'
-  };
-  return icons[type] || '📄';
-};
-
 const getEventTitle = (event) => {
   return event.title || t('smartcontracts.history.defaultOperation');
 };
 
-const getStatusText = () => {
-  return t('smartcontracts.history.success');
-};
-
 const formatDate = (timestamp) => {
   const dateLocale = locale.value === 'en' ? 'en-US' : 'ru-RU';
-  return new Date(timestamp).toLocaleString(dateLocale);
+  const n = Number(timestamp);
+  // backend иногда кладёт blockNumber*1000 вместо unix ms — не форматируем как дату
+  if (!Number.isFinite(n) || n < 1e11 || n > 1e14) {
+    return n ? String(n) : '—';
+  }
+  return new Date(n).toLocaleString(dateLocale);
 };
 
 const formatHash = (hash) => {
@@ -505,11 +486,17 @@ const formatHash = (hash) => {
 };
 
 const formatDataValue = (value) => {
+  if (value == null) return '';
+  if (typeof value === 'bigint') return value.toString();
+  if (Array.isArray(value)) return value.map((v) => formatDataValue(v)).join(', ');
   if (typeof value === 'object') {
-    return JSON.stringify(value);
+    try {
+      return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
+    } catch (_) {
+      return String(value);
+    }
   }
   if (typeof value === 'string' && value.startsWith('0x') && value.length === 42) {
-    // Это адрес - форматируем его
     return value.substring(0, 6) + '...' + value.substring(value.length - 4);
   }
   if (typeof value === 'number') {
@@ -536,161 +523,128 @@ const viewOnExplorer = (event) => {
   padding: 20px;
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--color-grey-light, #e9ecef);
   margin-top: 20px;
   margin-bottom: 20px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 40px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
-}
-
-.header-content {
-  flex-grow: 1;
-}
-
-.page-header h1 {
-  color: var(--color-primary);
-  font-size: 2.5rem;
-  margin: 0 0 10px 0;
-}
-
-.page-header p {
-  color: var(--color-grey-dark);
-  font-size: 1.1rem;
-  margin: 0;
-}
-
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background-color: var(--color-white);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey, #ced4da);
+  border-radius: var(--radius-lg);
+  font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: background-color 0.2s, border-color 0.2s;
   flex-shrink: 0;
 }
 
 .close-btn:hover {
-  background: #f0f0f0;
-  color: #333;
+  background-color: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-dark, #333);
 }
 
-/* Секции */
 .filters-section,
 .stats-section,
 .history-section {
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .filters-section h2,
 .stats-section h2,
 .history-section h2 {
-  color: var(--color-primary);
-  margin-bottom: 20px;
-  font-size: 1.8rem;
+  color: var(--color-dark, #333);
+  margin-bottom: 16px;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
-/* Фильтры */
 .filters-form {
-  background: #f8f9fa;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
+  background: var(--color-light, #f8f9fa);
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .filters-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .filter-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .filter-group label {
   font-weight: 600;
-  color: var(--color-grey-dark);
+  color: var(--color-dark, #333);
+  font-size: 0.9rem;
 }
 
 .filter-group input,
-.filter-group select {
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: var(--radius-sm);
-  font-size: 1rem;
+.filter-group select,
+.search-box input,
+.sort-controls select {
+  padding: 10px 12px;
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  border-radius: var(--radius-lg);
+  font-size: 0.95rem;
+  background: var(--color-white);
+  color: var(--color-dark, #333);
 }
 
 .filters-actions {
   display: flex;
-  gap: 15px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-/* Статистика */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
 }
 
 .stat-card {
-  background: #f8f9fa;
-  padding: 25px;
-  border-radius: var(--radius-lg);
-  border-left: 4px solid var(--color-primary);
+  background: var(--color-light, #f8f9fa);
+  padding: 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-grey-light, #e9ecef);
   text-align: center;
 }
 
 .stat-card h3 {
-  color: var(--color-primary);
-  margin-bottom: 15px;
-  font-size: 1rem;
-  text-transform: uppercase;
+  color: var(--color-dark, #333);
+  margin-bottom: 10px;
+  font-size: 0.85rem;
   font-weight: 600;
 }
 
 .stat-value {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: 600;
   margin: 0;
-  color: var(--color-primary);
+  color: var(--color-dark, #333);
 }
 
-.stat-value.success {
-  color: #28a745;
-}
-
-.stat-value.error {
-  color: #dc3545;
-}
-
-.stat-value.pending {
-  color: #ffc107;
-}
-
-/* История операций */
 .history-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  gap: 20px;
+  margin-bottom: 16px;
+  gap: 16px;
 }
 
 .search-box {
@@ -699,128 +653,100 @@ const viewOnExplorer = (event) => {
 
 .search-box input {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: var(--radius-sm);
-  font-size: 1rem;
+  box-sizing: border-box;
 }
 
 .sort-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.sort-controls select {
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: var(--radius-sm);
-  font-size: 1rem;
+.btn-action {
+  height: 40px;
+  background-color: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  border-radius: var(--radius-lg);
+  padding: 0 16px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.btn-action:hover:not(:disabled) {
+  background-color: var(--color-grey-light, #e9ecef);
+  border-color: var(--color-grey, #ced4da);
+}
+
+.btn-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .sort-btn {
-  background: var(--color-secondary);
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
+  white-space: nowrap;
 }
 
-/* Список истории */
 .history-list {
   display: grid;
-  gap: 20px;
+  gap: 12px;
 }
 
 .history-item {
   display: flex;
-  gap: 20px;
-  padding: 25px;
-  background: white;
-  border-radius: var(--radius-lg);
-  border: 1px solid #e9ecef;
-  transition: all 0.3s ease;
-}
-
-.history-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.history-item.success {
-  border-left: 4px solid #28a745;
-}
-
-.history-item.pending {
-  border-left: 4px solid #ffc107;
-}
-
-.history-item.failed {
-  border-left: 4px solid #dc3545;
-}
-
-.event-icon {
-  flex-shrink: 0;
-}
-
-.event-icon .icon {
-  font-size: 2rem;
-  display: block;
+  gap: 16px;
+  padding: 18px;
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .event-content {
   flex-grow: 1;
+  min-width: 0;
 }
 
 .event-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .event-header h3 {
   margin: 0;
-  color: var(--color-primary);
-  font-size: 1.2rem;
-}
-
-.event-status {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  color: var(--color-dark, #333);
+  font-size: 1.05rem;
   font-weight: 600;
 }
 
-.event-status.success {
-  background: #d4edda;
-  color: #155724;
-}
-
-.event-status.pending {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.event-status.failed {
-  background: #f8d7da;
-  color: #721c24;
+.event-status {
+  padding: 4px 10px;
+  border-radius: var(--radius-lg);
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--color-light, #f8f9fa);
+  color: var(--color-dark, #333);
+  border: 1px solid var(--color-grey-light, #e4e7ed);
+  white-space: nowrap;
 }
 
 .event-description {
-  margin: 0 0 15px 0;
-  color: var(--color-grey-dark);
+  margin: 0 0 12px 0;
+  color: var(--color-grey-dark, #666);
   line-height: 1.5;
 }
 
 .event-meta {
   display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-  font-size: 0.9rem;
-  color: var(--color-grey-dark);
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+  color: var(--color-grey-dark, #666);
 }
 
 .event-hash,
@@ -830,7 +756,7 @@ const viewOnExplorer = (event) => {
 
 .event-data {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .data-item {
@@ -841,64 +767,38 @@ const viewOnExplorer = (event) => {
 
 .data-label {
   font-weight: 600;
-  color: var(--color-grey-dark);
+  color: var(--color-grey-dark, #666);
   min-width: 120px;
 }
 
 .data-value {
-  color: var(--color-primary);
+  color: var(--color-dark, #333);
 }
 
 .event-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-/* Пагинация */
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
-  margin-top: 30px;
-}
-
-.page-btn {
-  background: var(--color-secondary);
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.page-btn:hover:not(:disabled) {
-  background: var(--color-secondary-dark);
-}
-
-.page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: 16px;
+  margin-top: 24px;
 }
 
 .page-info {
-  font-size: 1rem;
-  color: var(--color-grey-dark);
+  font-size: 0.95rem;
+  color: var(--color-grey-dark, #666);
 }
 
-/* Модальное окно */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -906,8 +806,9 @@ const viewOnExplorer = (event) => {
 }
 
 .modal-content {
-  background: white;
+  background: var(--color-white);
   border-radius: var(--radius-lg);
+  border: 1px solid var(--color-grey-light, #e9ecef);
   width: 90%;
   max-width: 600px;
   max-height: 90vh;
@@ -918,13 +819,14 @@ const viewOnExplorer = (event) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e9ecef;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-grey-light, #e9ecef);
 }
 
 .modal-header h3 {
   margin: 0;
-  color: var(--color-primary);
+  color: var(--color-dark, #333);
+  font-size: 1.1rem;
 }
 
 .modal-body {
@@ -933,136 +835,112 @@ const viewOnExplorer = (event) => {
 
 .event-details-full {
   display: grid;
-  gap: 15px;
+  gap: 12px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-grey-light, #eee);
 }
 
 .detail-label {
   font-weight: 600;
-  color: var(--color-grey-dark);
+  color: var(--color-grey-dark, #666);
 }
 
 .detail-value {
-  color: var(--color-primary);
+  color: var(--color-dark, #333);
   font-family: monospace;
   word-break: break-all;
+  text-align: right;
 }
 
 .detail-section {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 .detail-section h4 {
-  color: var(--color-primary);
-  margin-bottom: 15px;
+  color: var(--color-dark, #333);
+  margin-bottom: 12px;
 }
 
 .data-grid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .data-item-full {
   display: flex;
-  gap: 15px;
+  gap: 12px;
   padding: 10px;
-  background: #f8f9fa;
+  background: var(--color-light, #f8f9fa);
   border-radius: var(--radius-sm);
+  border: 1px solid var(--color-grey-light, #e9ecef);
 }
 
-/* Кнопки */
-.btn-primary {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-  background: var(--color-primary-dark);
-}
-
-.btn-secondary {
-  background: var(--color-secondary);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.btn-secondary:hover {
-  background: var(--color-secondary-dark);
-}
-
-/* Состояния */
 .empty-state {
   text-align: center;
-  padding: 60px;
-  color: var(--color-grey-dark);
-  background: #f8f9fa;
-  border-radius: var(--radius-lg);
-  border: 2px dashed #dee2e6;
+  padding: 48px 24px;
+  color: var(--color-grey-dark, #666);
+  background: var(--color-light, #f8f9fa);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-grey, #ced4da);
 }
 
 .empty-state p {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   .filters-row {
     grid-template-columns: 1fr;
   }
-  
+
   .history-controls {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .history-item {
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
   }
-  
+
   .event-actions {
     flex-direction: row;
-    justify-content: flex-start;
+    flex-wrap: wrap;
   }
-  
+
   .event-meta {
     flex-direction: column;
-    gap: 5px;
+    gap: 6px;
   }
-  
+
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
-  
+
   .filters-actions {
     flex-direction: column;
   }
-  
+
+  .filters-actions .btn-action {
+    width: 100%;
+  }
+
   .detail-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+    gap: 4px;
+  }
+
+  .detail-value {
+    text-align: left;
   }
 }
 </style> 

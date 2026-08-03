@@ -571,10 +571,38 @@ router.post('/get-all-modules', async (req, res) => {
       }
 
       const fromFile = fileByType[moduleType];
+      let bridgeAddress =
+        fromFile?.networks?.find((n) => Number(n.chainId) === Number(targetChainId))?.bridgeAddress ||
+        fromFile?.networks?.[0]?.bridgeAddress ||
+        null;
+
+      // Treasury: читать moduleBridge() on-chain (источник истины после wiring)
+      if (moduleType === 'treasury' && moduleAddress && moduleAddress !== ethers.ZeroAddress) {
+        try {
+          const treasury = new ethers.Contract(
+            moduleAddress,
+            ['function moduleBridge() view returns (address)', 'function fundsBridge() view returns (address)'],
+            provider
+          );
+          let onChainBridge = ethers.ZeroAddress;
+          try {
+            onChainBridge = await treasury.moduleBridge();
+          } catch (_) {
+            onChainBridge = await treasury.fundsBridge();
+          }
+          if (onChainBridge && onChainBridge !== ethers.ZeroAddress) {
+            bridgeAddress = onChainBridge;
+          }
+        } catch (e) {
+          console.log(`[DLE Modules] treasury.moduleBridge skip: ${e.message}`);
+        }
+      }
+
       const addresses = [
         {
           chainId: Number(targetChainId),
           address: moduleAddress,
+          bridgeAddress: bridgeAddress || null,
           networkName: getNetworkName(Number(targetChainId)),
           isActive: Boolean(isActive),
           verification: fromFile?.networks?.[0]?.verification || null,
@@ -586,6 +614,7 @@ router.post('/get-all-modules', async (req, res) => {
         // AnalyticsView ждёт id/address; ModulesView — moduleName/addresses
         id: moduleType,
         address: moduleAddress,
+        bridgeAddress: bridgeAddress || null,
         moduleId,
         moduleName: MODULE_NAMES[moduleType] || moduleType.toUpperCase(),
         moduleType,

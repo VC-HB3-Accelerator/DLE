@@ -24,6 +24,7 @@ const {
   ReaderNotFoundError,
 } = require('../services/dleReaderResolveService');
 const { resolveDleProvider } = require('../services/dleNetworkResolveService');
+const { getChainName } = require('../utils/chainNames');
 
 // Получить расширенную историю DLE
 router.post('/get-extended-history', async (req, res) => {
@@ -96,217 +97,221 @@ router.post('/get-extended-history', async (req, res) => {
         symbol: dleInfo.symbol,
         location: dleInfo.location,
         jurisdiction: Number(dleInfo.jurisdiction),
-        supportedChains: supportedChains
-      }
+        supportedChains: supportedChains,
+      },
     });
 
-    // 2. История изменений настроек (кворум, цепочка)
+    // Логи: короткое окно + чанки (Base Sepolia лимит ~2000 блоков)
     const currentBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, currentBlock - 10000);
+    const searchRange = 8_000;
+    const chunkSize = 1_500;
+    const fromBlock = Math.max(0, currentBlock - searchRange);
+
+    async function queryEventChunks(eventName) {
+      const out = [];
+      for (let start = fromBlock; start <= currentBlock; start += chunkSize) {
+        const end = Math.min(start + chunkSize - 1, currentBlock);
+        try {
+          const part = await dle.queryFilter(eventName, start, end);
+          out.push(...part);
+        } catch (e) {
+          console.log(
+            `[DLE History] ${eventName} ${start}-${end} skip:`,
+            e.shortMessage || e.message
+          );
+        }
+      }
+      return out;
+    }
+
+    function pushEvent(type, title, description, event, details) {
+      history.push({
+        id: history.length + 1,
+        type,
+        title,
+        description,
+        // blockNumber как ключ сортировки (не unix ms); FE это учитывает
+        timestamp: Number(event.blockNumber) || 0,
+        blockNumber: event.blockNumber,
+        transactionHash: event.transactionHash,
+        details,
+      });
+    }
 
     try {
-      // События изменения кворума
-      const quorumEvents = await dle.queryFilter('QuorumPercentageUpdated', fromBlock, currentBlock);
-      for (let i = 0; i < quorumEvents.length; i++) {
-        const event = quorumEvents[i];
-        history.push({
-          id: history.length + 1,
-          type: 'quorum_updated',
-          title: 'Изменен кворум',
-          description: `Кворум изменен с ${Number(event.args.oldQuorumPercentage)}% на ${Number(event.args.newQuorumPercentage)}%`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
+      const quorumEvents = await queryEventChunks('QuorumPercentageUpdated');
+      for (const event of quorumEvents) {
+        pushEvent(
+          'quorum_updated',
+          'Изменен кворум',
+          `Кворум изменен с ${Number(event.args.oldQuorumPercentage)}% на ${Number(event.args.newQuorumPercentage)}%`,
+          event,
+          {
             oldQuorum: Number(event.args.oldQuorumPercentage),
-            newQuorum: Number(event.args.newQuorumPercentage)
+            newQuorum: Number(event.args.newQuorumPercentage),
           }
-        });
+        );
       }
 
-
-      // События обновления информации DLE
-      const infoEvents = await dle.queryFilter('DLEInfoUpdated', fromBlock, currentBlock);
-      for (let i = 0; i < infoEvents.length; i++) {
-        const event = infoEvents[i];
-        history.push({
-          id: history.length + 1,
-          type: 'dle_info_updated',
-          title: 'Обновлена информация DLE',
-          description: `Обновлена информация: ${event.args.name} (${event.args.symbol})`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
+      const infoEvents = await queryEventChunks('DLEInfoUpdated');
+      for (const event of infoEvents) {
+        pushEvent(
+          'dle_info_updated',
+          'Обновлена информация DLE',
+          `Обновлена информация: ${event.args.name} (${event.args.symbol})`,
+          event,
+          {
             name: event.args.name,
             symbol: event.args.symbol,
             location: event.args.location,
-            jurisdiction: Number(event.args.jurisdiction)
+            jurisdiction: Number(event.args.jurisdiction),
           }
-        });
+        );
       }
 
-      // 3. История модулей
-      const moduleAddedEvents = await dle.queryFilter('ModuleAdded', fromBlock, currentBlock);
-      for (let i = 0; i < moduleAddedEvents.length; i++) {
-        const event = moduleAddedEvents[i];
+      const moduleAddedEvents = await queryEventChunks('ModuleAdded');
+      for (const event of moduleAddedEvents) {
         const moduleName = getModuleName(event.args.moduleId);
-        history.push({
-          id: history.length + 1,
-          type: 'module_added',
-          title: 'Модуль добавлен',
-          description: `Добавлен модуль "${moduleName}"`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            moduleId: event.args.moduleId,
-            moduleName: moduleName,
-            moduleAddress: event.args.moduleAddress
-          }
+        pushEvent('module_added', 'Модуль добавлен', `Добавлен модуль "${moduleName}"`, event, {
+          moduleId: event.args.moduleId,
+          moduleName,
+          moduleAddress: event.args.moduleAddress,
         });
       }
 
-      const moduleRemovedEvents = await dle.queryFilter('ModuleRemoved', fromBlock, currentBlock);
-      for (let i = 0; i < moduleRemovedEvents.length; i++) {
-        const event = moduleRemovedEvents[i];
+      const moduleRemovedEvents = await queryEventChunks('ModuleRemoved');
+      for (const event of moduleRemovedEvents) {
         const moduleName = getModuleName(event.args.moduleId);
-        history.push({
-          id: history.length + 1,
-          type: 'module_removed',
-          title: 'Модуль удален',
-          description: `Удален модуль "${moduleName}"`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            moduleId: event.args.moduleId,
-            moduleName: moduleName
-          }
+        pushEvent('module_removed', 'Модуль удален', `Удален модуль "${moduleName}"`, event, {
+          moduleId: event.args.moduleId,
+          moduleName,
         });
       }
 
-      // 4. Мульти-чейн история
-      const chainAddedEvents = await dle.queryFilter('ChainAdded', fromBlock, currentBlock);
-      for (let i = 0; i < chainAddedEvents.length; i++) {
-        const event = chainAddedEvents[i];
+      const chainAddedEvents = await queryEventChunks('ChainAdded');
+      for (const event of chainAddedEvents) {
         const chainName = getChainName(Number(event.args.chainId));
-        history.push({
-          id: history.length + 1,
-          type: 'chain_added',
-          title: 'Сеть добавлена',
-          description: `Добавлена сеть "${chainName}" (ID: ${Number(event.args.chainId)})`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            chainId: Number(event.args.chainId),
-            chainName: chainName
-          }
-        });
+        pushEvent(
+          'chain_added',
+          'Сеть добавлена',
+          `Добавлена сеть "${chainName}" (ID: ${Number(event.args.chainId)})`,
+          event,
+          { chainId: Number(event.args.chainId), chainName }
+        );
       }
 
-      const chainRemovedEvents = await dle.queryFilter('ChainRemoved', fromBlock, currentBlock);
-      for (let i = 0; i < chainRemovedEvents.length; i++) {
-        const event = chainRemovedEvents[i];
+      const chainRemovedEvents = await queryEventChunks('ChainRemoved');
+      for (const event of chainRemovedEvents) {
         const chainName = getChainName(Number(event.args.chainId));
-        history.push({
-          id: history.length + 1,
-          type: 'chain_removed',
-          title: 'Сеть удалена',
-          description: `Удалена сеть "${chainName}" (ID: ${Number(event.args.chainId)})`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            chainId: Number(event.args.chainId),
-            chainName: chainName
-          }
-        });
+        pushEvent(
+          'chain_removed',
+          'Сеть удалена',
+          `Удалена сеть "${chainName}" (ID: ${Number(event.args.chainId)})`,
+          event,
+          { chainId: Number(event.args.chainId), chainName }
+        );
       }
 
-      const executionApprovedEvents = await dle.queryFilter('ProposalExecutionApprovedInChain', fromBlock, currentBlock);
-      for (let i = 0; i < executionApprovedEvents.length; i++) {
-        const event = executionApprovedEvents[i];
+      const executionApprovedEvents = await queryEventChunks('ProposalExecutionApprovedInChain');
+      for (const event of executionApprovedEvents) {
         const chainName = getChainName(Number(event.args.chainId));
-        history.push({
-          id: history.length + 1,
-          type: 'proposal_execution_approved',
-          title: 'Исполнение предложения одобрено',
-          description: `Исполнение предложения #${Number(event.args.proposalId)} одобрено в сети "${chainName}"`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
+        pushEvent(
+          'proposal_execution_approved',
+          'Исполнение предложения одобрено',
+          `Исполнение предложения #${Number(event.args.proposalId)} одобрено в сети "${chainName}"`,
+          event,
+          {
             proposalId: Number(event.args.proposalId),
             chainId: Number(event.args.chainId),
-            chainName: chainName
+            chainName,
           }
-        });
+        );
       }
 
-      // 5. События предложений (базовые)
-      const proposalEvents = await dle.queryFilter('ProposalCreated', fromBlock, currentBlock);
-      for (let i = 0; i < proposalEvents.length; i++) {
-        const event = proposalEvents[i];
-        history.push({
-          id: history.length + 1,
-          type: 'proposal_created',
-          title: `Предложение #${Number(event.args.proposalId)} создано`,
-          description: event.args.description,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
+      const proposalEvents = await queryEventChunks('ProposalCreated');
+      for (const event of proposalEvents) {
+        pushEvent(
+          'proposal_created',
+          `Предложение #${Number(event.args.proposalId)} создано`,
+          event.args.description,
+          event,
+          {
             proposalId: Number(event.args.proposalId),
             initiator: event.args.initiator,
-            description: event.args.description
+            description: event.args.description,
           }
-        });
+        );
       }
 
-      const proposalExecutedEvents = await dle.queryFilter('ProposalExecuted', fromBlock, currentBlock);
-      for (let i = 0; i < proposalExecutedEvents.length; i++) {
-        const event = proposalExecutedEvents[i];
-        history.push({
-          id: history.length + 1,
-          type: 'proposal_executed',
-          title: `Предложение #${Number(event.args.proposalId)} исполнено`,
-          description: `Предложение успешно исполнено`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            proposalId: Number(event.args.proposalId),
-            operation: event.args.operation
-          }
-        });
+      const proposalExecutedEvents = await queryEventChunks('ProposalExecuted');
+      for (const event of proposalExecutedEvents) {
+        pushEvent(
+          'proposal_executed',
+          `Предложение #${Number(event.args.proposalId)} исполнено`,
+          'Предложение успешно исполнено',
+          event,
+          { proposalId: Number(event.args.proposalId), operation: event.args.operation }
+        );
       }
 
-      const proposalCancelledEvents = await dle.queryFilter('ProposalCancelled', fromBlock, currentBlock);
-      for (let i = 0; i < proposalCancelledEvents.length; i++) {
-        const event = proposalCancelledEvents[i];
-        history.push({
-          id: history.length + 1,
-          type: 'proposal_cancelled',
-          title: `Предложение #${Number(event.args.proposalId)} отменено`,
-          description: `Причина: ${event.args.reason}`,
-          timestamp: event.blockNumber * 1000,
-          blockNumber: event.blockNumber,
-          transactionHash: event.transactionHash,
-          details: {
-            proposalId: Number(event.args.proposalId),
-            reason: event.args.reason
-          }
-        });
+      const proposalCancelledEvents = await queryEventChunks('ProposalCancelled');
+      for (const event of proposalCancelledEvents) {
+        pushEvent(
+          'proposal_cancelled',
+          `Предложение #${Number(event.args.proposalId)} отменено`,
+          `Причина: ${event.args.reason}`,
+          event,
+          { proposalId: Number(event.args.proposalId), reason: event.args.reason }
+        );
       }
 
+      // Fallback: если логов ProposalCreated нет — взять summary по count
+      if (proposalEvents.length === 0 && Number(proposalsCount) > 0) {
+        const summaryAbi = [
+          'function getProposalSummary(uint256) view returns (uint256 id, string description, uint256 forVotes, uint256 againstVotes, bool executed, bool canceled, uint256 deadline, address initiator, uint256 snapshotTimepoint, uint256[] targetChains)',
+          'function getProposalState(uint256) view returns (uint8)',
+        ];
+        const dleSum = new ethers.Contract(dleAddress, summaryAbi, provider);
+        const n = Number(proposalsCount);
+        for (let i = 0; i < n; i++) {
+          try {
+            const s = await dleSum.getProposalSummary(i);
+            const st = Number(await dleSum.getProposalState(i));
+            const snap = Number(s.snapshotTimepoint);
+            const ts = snap > 1e9 ? snap * 1000 : Number(s.deadline) > 1e9 ? Number(s.deadline) * 1000 : Date.now();
+            history.push({
+              id: history.length + 1,
+              type: s.executed || st === 3 ? 'proposal_executed' : 'proposal_created',
+              title:
+                s.executed || st === 3
+                  ? `Предложение #${i} исполнено`
+                  : `Предложение #${i} создано`,
+              description: s.description,
+              timestamp: ts,
+              blockNumber: null,
+              transactionHash: null,
+              details: {
+                proposalId: i,
+                initiator: s.initiator,
+                state: st,
+                fromSummary: true,
+              },
+            });
+          } catch (e) {
+            console.log(`[DLE History] summary ${i}:`, e.message);
+          }
+        }
+      }
     } catch (error) {
       console.log(`[DLE History] Ошибка при получении событий:`, error.message);
     }
 
-    // Сортируем по времени (новые сверху)
-    history.sort((a, b) => b.timestamp - a.timestamp);
+    history.sort((a, b) => {
+      const bt = Number(b.timestamp) || 0;
+      const at = Number(a.timestamp) || 0;
+      if (bt !== at) return bt - at;
+      return (Number(b.blockNumber) || 0) - (Number(a.blockNumber) || 0);
+    });
 
     console.log(`[DLE History] Расширенная история получена:`, history.length, 'событий');
 
@@ -321,9 +326,9 @@ router.post('/get-extended-history', async (req, res) => {
           creationTimestamp: Number(dleInfo.creationTimestamp),
           proposalsCount: Number(proposalsCount),
           currentChainId: Number(currentChainId),
-          supportedChains: supportedChains
-        }
-      }
+          supportedChains: supportedChains,
+        },
+      },
     });
 
   } catch (error) {
@@ -354,18 +359,6 @@ function getModuleName(moduleId) {
   };
   
   return additionalModuleNames[moduleId] || `Module ${moduleId}`;
-}
-
-function getChainName(chainId) {
-  const chainNames = {
-    1: 'Ethereum Mainnet',
-    11155111: 'Sepolia Testnet',
-    137: 'Polygon',
-    56: 'BSC',
-    42161: 'Arbitrum One',
-    17000: 'Holesky Testnet'
-  };
-  return chainNames[chainId] || `Chain ID: ${chainId}`;
 }
 
 // Экспортируем функции для использования в других модулях
