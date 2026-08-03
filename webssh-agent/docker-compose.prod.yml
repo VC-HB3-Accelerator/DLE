@@ -325,7 +325,8 @@ services:
     environment:
       - USER_UID=1000
       - USER_GID=1000
-      - GITEA__server__ROOT_URL=https://${DOMAIN}/gitea/
+      # Без хвоста / — иначе og:url часто склеивается в …/gitea//gitea/…
+      - GITEA__server__ROOT_URL=https://${DOMAIN}/gitea
       - GITEA__server__SERVE_FROM_SUB_PATH=true
       - GITEA__server__HTTP_PORT=3000
       - GITEA__server__SSH_LISTEN_PORT=22

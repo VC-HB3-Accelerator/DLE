@@ -151,7 +151,7 @@ function formatAddress(address) {
 async function loadPages() {
   try {
     isLoading.value = true;
-    pages.value = await pagesService.getPublicPages();
+    pages.value = await pagesService.getPublishedPagesList();
   } catch (error) {
     console.error('Ошибка загрузки публичных страниц:', error);
     pages.value = [];

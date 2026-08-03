@@ -869,9 +869,9 @@ async function getBlogArticles() {
 
 async function getPublishedPages() {
   try {
-    // Тот же набор, что у SPA (/content/published): public + published.
-    // Без требования slug — иначе SEO-список пустой, а в UI документы есть.
-    const data = await fetchJsonFromApi('/api/pages/public/all');
+    // Только non-blog (как /api/pages/published/all и sitemap).
+    // /public/all включает show_in_blog — из‑за этого появлялись дубли с разными canonical.
+    const data = await fetchJsonFromApi('/api/pages/published/all');
     if (!Array.isArray(data)) return [];
     return data
       .filter((a) => a && a.id != null)
@@ -889,8 +889,24 @@ async function getPublishedPages() {
         content: a.content || '',
       }));
   } catch (error) {
-    console.error('[pre-render] Ошибка /api/pages/public/all:', error.message || error);
+    console.error('[pre-render] Ошибка /api/pages/published/all:', error.message || error);
     return [];
+  }
+}
+
+/**
+ * Для статей блога под /content/published/:slug — stub noindex + canonical → /blog/:slug.
+ * Убирает конфликт «две user-каноники» в GSC на устаревших HTML.
+ */
+function writeBlogPublishedRedirectStubs(blogArticles, publicBaseUrl) {
+  for (const article of blogArticles || []) {
+    const slug = typeof article?.slug === 'string' ? article.slug.trim() : '';
+    if (!slug) continue;
+    const canonicalUrl = `${publicBaseUrl}/blog/${encodeURIComponent(slug)}`;
+    const targetPath = `/blog/${encodeURIComponent(slug)}`;
+    const html = buildRedirectStubHtml({ canonicalUrl, targetPath });
+    const outPath = path.join(PUBLISHED_OUTPUT_DIR, `${sanitizeFileSlug(slug)}.html`);
+    saveHtml(html, outPath, PUBLISHED_OUTPUT_DIR);
   }
 }
 
@@ -1034,6 +1050,20 @@ async function preRenderBlog(options = {}) {
     });
   }
 
+  // Blog→published stubs: после published-статей, чтобы не оставить indexable дубль
+  try {
+    if (renderPublishedArticles || renderBlogArticles) {
+      const stubsSource = specificSlug
+        ? blogArticles.filter((a) => a.slug && a.slug.trim() === specificSlug.trim())
+        : blogArticles;
+      if (stubsSource.length) {
+        writeBlogPublishedRedirectStubs(stubsSource, publicBaseUrl);
+      }
+    }
+  } catch (blogStubErr) {
+    console.warn('[pre-render] Ошибка blog→published stubs:', blogStubErr.message);
+  }
+
   // Redirect stubs для старых slug (после статей, чтобы не затереть канон)
   try {
     if (specificSlug) {
@@ -1089,6 +1119,11 @@ async function publishSeoForPage(page) {
       renderPublishedArticles: !showInBlog,
       specificSlug: slug,
     });
+
+    // После blog-publish гарантируем stub на published-пути (canonical → /blog)
+    if (showInBlog) {
+      writeBlogPublishedRedirectStubs([{ slug }], publicBaseUrl);
+    }
 
     if (!fs.existsSync(filePath)) {
       return {

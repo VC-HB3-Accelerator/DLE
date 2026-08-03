@@ -97,6 +97,7 @@ typings/
 .vscode/
 .idea/
 .cursor/
+canvases/
 *.swp
 *.swo
 
@@ -238,6 +239,7 @@ blog-content/
 
 # Public docs (загружены в БД)
 public-docs/
+b2b/
 
 # Техническая документация (внутренняя)
 docs/back-docs/
@@ -247,6 +249,12 @@ docs.ru/tz-updates-treasury-check.md
 
 # Local data and drafts
 data/
+
+# Investor pitch exports (локальные PDF/HTML/MD, не в git)
+investor-materials/
+
+# Внутренние черновики переговоров / data room (не публичный репозиторий)
+data-room/
 
 # Ollama: выбранная пользователем модель для предзагрузки (генерируется backend)
 shared/ollama_preload_model.txt

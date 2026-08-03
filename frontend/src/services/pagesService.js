@@ -62,6 +62,11 @@ export default {
     });
     return res.data;
   },
+  /** Документы /content/published (без статей блога). */
+  async getPublishedPagesList() {
+    const res = await api.get('/pages/published/all');
+    return Array.isArray(res.data) ? res.data : [];
+  },
   async getBlogPages(params = {}) {
     const queryParams = new URLSearchParams();
     if (params.category) queryParams.append('category', params.category);

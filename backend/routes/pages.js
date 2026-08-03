@@ -2021,7 +2021,7 @@ router.get('/blog/:slug', async (req, res) => {
   }
 });
 
-// Список публичных страниц (не блог) для SEO / pre-render
+// Список публичных страниц (не блог) для SEO / pre-render / UI /content/published
 router.get('/published/all', async (req, res) => {
   try {
     const tableName = `admin_pages_simple`;
@@ -2032,11 +2032,14 @@ router.get('/published/all', async (req, res) => {
       return res.json([]);
     }
     const { rows } = await db.getQuery()(`
-      SELECT id, slug, title, summary, updated_at, created_at
+      SELECT *
       FROM ${tableName}
       WHERE status = 'published' AND visibility = 'public'
         AND (show_in_blog IS NULL OR show_in_blog = FALSE)
-      ORDER BY created_at DESC
+      ORDER BY
+        COALESCE(category, '') ASC,
+        COALESCE(order_index, 0) ASC,
+        created_at DESC
     `);
     await ensureMissingSlugs(rows, tableName);
     res.json(rows.filter((r) => r.slug && String(r.slug).trim()));
@@ -2137,8 +2140,27 @@ router.get('/published/:slug', async (req, res) => {
     }
     
     console.log(`[pages] GET /published/:slug: страница найдена, id: ${rows[0].id}, slug: ${rows[0].slug}`);
-    
+
     const decryptedPage = await decryptPageRow(rows[0]);
+
+    // Blog-статьи канонически живут на /blog/:slug — не отдаём второй indexable URL
+    const showInBlog = decryptedPage.show_in_blog === true
+      || decryptedPage.show_in_blog === 'true'
+      || decryptedPage.show_in_blog === 1
+      || decryptedPage.show_in_blog === '1';
+    if (showInBlog && decryptedPage.slug) {
+      const redirectSlug = String(decryptedPage.slug).trim();
+      const redirectPath = `/blog/${encodeURIComponent(redirectSlug)}`;
+      res.set('X-Canonical-Slug', redirectSlug);
+      res.set('Location', redirectPath);
+      return res.status(301).json({
+        redirect: true,
+        redirectSlug,
+        redirectPath,
+        page: decryptedPage,
+      });
+    }
+
     res.json(decryptedPage);
   } catch (error) {
     console.error('Ошибка получения публичной страницы по slug:', error);
@@ -2159,7 +2181,7 @@ router.get('/public/structure', async (req, res) => {
       return res.json({ categories: [] });
     }
     
-    // Получаем все опубликованные публичные страницы
+    // Документы для /content/published (без blog — каноника на /blog)
     const { rows } = await db.getQuery()(`
       SELECT 
         id,
@@ -2173,6 +2195,7 @@ router.get('/public/structure', async (req, res) => {
         created_at
       FROM ${tableName} 
       WHERE visibility = 'public' AND status = 'published'
+        AND (show_in_blog IS NULL OR show_in_blog = FALSE)
       ORDER BY 
         COALESCE(category, '') ASC,
         COALESCE(order_index, 0) ASC,
@@ -2568,9 +2591,10 @@ router.get('/public/sitemap.xml', async (req, res) => {
     
     // Генерируем XML sitemap (каждый <url> в одну строку — удобно для grep и без переносов внутри <loc>)
     let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    // Без trailing slash у списков — как rel=canonical в prerender/Vue (иначе GSC: canonical mismatch)
     sitemap += `  <url><loc>${escapeXml(baseUrl + '/')}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
-    sitemap += `  <url><loc>${escapeXml(baseUrl + '/blog/')}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
-    sitemap += `  <url><loc>${escapeXml(baseUrl + '/content/published/')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/blog')}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
+    sitemap += `  <url><loc>${escapeXml(baseUrl + '/content/published')}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n`;
 
     if (existsRes.rows[0].exists) {
       const { rows: blogPages } = await db.getQuery()(`

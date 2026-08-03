@@ -438,7 +438,7 @@ async function savePageStructure() {
 async function loadPages() {
   try {
     isLoading.value = true;
-    const loadedPages = await pagesService.getPublicPages();
+    const loadedPages = await pagesService.getPublishedPagesList();
     pages.value = Array.isArray(loadedPages) ? loadedPages : [];
   } catch {
     // keep previous
