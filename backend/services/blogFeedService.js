@@ -13,86 +13,54 @@ const DEFAULT_FILTERS = [
   { slug: 'views', label_ru: 'По просмотрам', label_en: 'By views', sort_by: 'views', is_default: false, is_active: true, position: 2 },
   { slug: 'likes', label_ru: 'По лайкам', label_en: 'By likes', sort_by: 'likes', is_default: false, is_active: true, position: 3 },
   { slug: 'comments', label_ru: 'По комментариям', label_en: 'By comments', sort_by: 'comments', is_default: false, is_active: true, position: 4 },
-  {
-    slug: 'politika-i-soglasiya',
-    label_ru: 'Политика и согласия',
-    label_en: 'Policy & consent',
-    sort_by: 'new',
-    is_default: false,
-    is_active: true,
-    position: 5,
-  },
 ];
 
-/** Раздел опубликованных юрдоков ↔ фильтр ленты /blog */
+/** Legacy slug фильтра ленты (перенесен в /content/published). */
 const PRIVACY_BLOG_FILTER_SLUG = 'politika-i-soglasiya';
 const PRIVACY_SECTION = 'политика и согласия';
 
 /**
- * Гарантирует фильтр «Политика и согласия» и членство published-доков раздела.
+ * Юрдоки раздела «политика и согласия» живут в /content/published, не в ленте /blog:
+ * show_in_blog = false, фильтр politika-i-soglasiya удаляется.
  */
-async function ensurePrivacyBlogFilter() {
-  if (!(await tableExists('blog_feed_filters'))) {
-    return { ok: false, reason: 'no_filters_table' };
-  }
-
-  await db.getQuery()(
+async function detachPrivacyFromBlog() {
+  const pagesResult = await db.getQuery()(
     `UPDATE admin_pages_simple
-     SET show_in_blog = TRUE, updated_at = NOW()
-     WHERE LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM($1))
-       AND status = 'published'
-       AND visibility = 'public'
-       AND COALESCE(is_system_template, FALSE) = FALSE`,
-    [PRIVACY_SECTION]
-  );
-
-  const existing = await db.getQuery()(
-    `SELECT id FROM blog_feed_filters WHERE slug = $1 LIMIT 1`,
-    [PRIVACY_BLOG_FILTER_SLUG]
-  );
-
-  let filterId = existing.rows[0]?.id || null;
-  if (!filterId) {
-    const { rows: maxPos } = await db.getQuery()(
-      `SELECT COALESCE(MAX(position), -1) AS m FROM blog_feed_filters`
-    );
-    const position = Number(maxPos[0]?.m ?? -1) + 1;
-    const inserted = await db.getQuery()(
-      `INSERT INTO blog_feed_filters
-        (slug, label_ru, label_en, sort_by, is_default, is_active, position, updated_at)
-       VALUES ($1, $2, $3, 'new', false, true, $4, NOW())
-       RETURNING id`,
-      [PRIVACY_BLOG_FILTER_SLUG, 'Политика и согласия', 'Policy & consent', position]
-    );
-    filterId = inserted.rows[0]?.id;
-  }
-
-  if (!filterId || !(await tableExists('blog_feed_filter_pages'))) {
-    return { ok: Boolean(filterId), filterId, pages: 0 };
-  }
-
-  const pages = await db.getQuery()(
-    `SELECT id FROM admin_pages_simple
+     SET show_in_blog = FALSE, updated_at = NOW()
      WHERE LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM($1))
        AND status = 'published'
        AND visibility = 'public'
        AND COALESCE(is_system_template, FALSE) = FALSE
-       AND COALESCE(show_in_blog, FALSE) = TRUE
-     ORDER BY COALESCE(order_index, 0) ASC, id ASC`,
+     RETURNING id`,
     [PRIVACY_SECTION]
   );
 
-  await db.getQuery()(`DELETE FROM blog_feed_filter_pages WHERE filter_id = $1`, [filterId]);
-  for (let i = 0; i < pages.rows.length; i += 1) {
-    await db.getQuery()(
-      `INSERT INTO blog_feed_filter_pages (filter_id, page_id, position)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (filter_id, page_id) DO UPDATE SET position = EXCLUDED.position`,
-      [filterId, pages.rows[i].id, i]
+  let removedFilter = false;
+  if (await tableExists('blog_feed_filters')) {
+    const existing = await db.getQuery()(
+      `SELECT id FROM blog_feed_filters WHERE slug = $1 LIMIT 1`,
+      [PRIVACY_BLOG_FILTER_SLUG]
     );
+    const filterId = existing.rows[0]?.id || null;
+    if (filterId) {
+      if (await tableExists('blog_feed_filter_pages')) {
+        await db.getQuery()(`DELETE FROM blog_feed_filter_pages WHERE filter_id = $1`, [filterId]);
+      }
+      await db.getQuery()(`DELETE FROM blog_feed_filters WHERE id = $1`, [filterId]);
+      removedFilter = true;
+    }
   }
 
-  return { ok: true, filterId, pages: pages.rows.length };
+  return {
+    ok: true,
+    pagesDetached: pagesResult.rows.length,
+    filterRemoved: removedFilter,
+  };
+}
+
+/** @deprecated Используйте detachPrivacyFromBlog */
+async function ensurePrivacyBlogFilter() {
+  return detachPrivacyFromBlog();
 }
 
 function slugify(value) {
@@ -558,4 +526,5 @@ module.exports = {
   setPageFilterIds,
   applyFilterPageRestriction,
   ensurePrivacyBlogFilter,
+  detachPrivacyFromBlog,
 };

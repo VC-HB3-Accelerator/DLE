@@ -17,7 +17,8 @@
  * - /content/templates ← is_system_template = true (draft)
  * - /content/published?section=политика%20и%20согласия ← копии public-доков
  *   (status=published, visibility=public, category=политика и согласия,
- *    show_in_blog=true, is_system_template=false) + фильтр ленты /blog
+ *    show_in_blog=false, is_system_template=false)
+ * - С ленты /blog эти доки и фильтр politika-i-soglasiya снимаются
  * - Идемпотентно: повторный запуск обновляет тело/summary, не плодит дубли
  * - Вызывается из scripts/run-migrations.js после SQL-миграций (установка ОС / update)
  */
@@ -269,7 +270,7 @@ async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
        SET summary = $2, content = $3, seo = $4,
            status = 'published', visibility = 'public',
            required_permission = NULL, format = $5, mime_type = $6, storage_type = $7,
-           is_system_template = FALSE, show_in_blog = TRUE,
+           is_system_template = FALSE, show_in_blog = FALSE,
            category = $8, slug = $9, order_index = $10,
            updated_at = NOW()
        WHERE id = $1`,
@@ -295,7 +296,7 @@ async function upsertPublishedPrivacyDoc(tableName, template, orderIndex) {
       (author_address, title, summary, content, seo, status, visibility, required_permission,
        format, mime_type, storage_type, is_system_template, show_in_blog, category, slug, order_index)
      VALUES (NULL, $1, $2, $3, $4, 'published', 'public', NULL,
-             $5, $6, $7, FALSE, TRUE, $8, $9, $10)`,
+             $5, $6, $7, FALSE, FALSE, $8, $9, $10)`,
     [
       template.title,
       template.summary,
@@ -376,12 +377,12 @@ async function seedLegalTemplates() {
     publishedUpdated += res.updated;
   }
 
-  let blogFilter = null;
+  let blogDetach = null;
   try {
     const blogFeedService = require('../../services/blogFeedService');
-    blogFilter = await blogFeedService.ensurePrivacyBlogFilter();
+    blogDetach = await blogFeedService.detachPrivacyFromBlog();
   } catch (err) {
-    console.warn('[seed:legal] ensurePrivacyBlogFilter:', err.message);
+    console.warn('[seed:legal] detachPrivacyFromBlog:', err.message);
   }
 
   return {
@@ -390,7 +391,7 @@ async function seedLegalTemplates() {
     publishedInserted,
     publishedUpdated,
     privacySection: PRIVACY_SECTION,
-    blogFilter,
+    blogDetach,
   };
 }
 

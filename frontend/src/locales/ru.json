@@ -1221,7 +1221,6 @@
         "previewContactPlaceholder": "Выберите контакт",
         "previewContactOption": "Контакт ID {id}",
         "previewNoContacts": "Нет выбранных контактов. Вернитесь к списку контактов или вкладке «Создать рассылку» с ids в URL.",
-        "previewUserId": "ID контакта",
         "openContactChat": "Открыть чат контакта",
         "historyTitle": "История сгенерированных сообщений",
         "historyHint": "Нажмите на запись — откроется профиль с чатом. Если черновики подготовлены, текст подставится в поле ввода.",
@@ -1646,7 +1645,19 @@
       "tagsAdded": "Теги успешно добавлены.",
       "tagsAddError": "Ошибка добавления тегов: {error}",
       "tagRemoved": "Тег успешно удален.",
-      "tagRemoveError": "Ошибка удаления тега: {error}"
+      "tagRemoveError": "Ошибка удаления тега: {error}",
+      "consentsLabel": "Согласия:",
+      "privacyLink": "Политика и согласия",
+      "consentsHint": "Галочка включена при активном согласии канала. Снятие удаляет идентификатор (или весь профиль, если он последний). Без согласия галочка недоступна.",
+      "consentCheckbox": "Согласие",
+      "consentCheckboxTitle": "Снимите, чтобы отозвать согласие и удалить идентификатор",
+      "revokeIdentityTitle": "Отозвать согласие",
+      "revokeIdentityConfirm": "Удалить идентификатор {provider} и связанные согласия? Действие необратимо.",
+      "revokeLastIdentityConfirm": "Это последний идентификатор. Профиль контакта и все согласия будут удалены. Продолжить?",
+      "identityRevoked": "Идентификатор и согласия удалены",
+      "profileDeletedViaConsent": "Профиль удалён вместе с согласиями",
+      "revokeIdentityError": "Не удалось отозвать согласие",
+      "consentCheckboxReadonly": "Нет активного согласия по этому каналу (только просмотр)"
     },
     "tagsTable": {
       "name": "Теги клиентов",
@@ -2461,9 +2472,9 @@
         "labelAddresses": "Адреса в сетях:",
         "labelDeployDate": "Дата деплоя:",
         "labelLocation": "Местоположение:",
-      "labelJurisdiction": "Юрисдикция:",
-      "labelOkved": "ОКВЭД:",
-      "activate": "Активировать",
+        "labelJurisdiction": "Юрисдикция:",
+        "labelOkved": "ОКВЭД:",
+        "activate": "Активировать",
         "activating": "Активация..."
       },
       "alerts": {

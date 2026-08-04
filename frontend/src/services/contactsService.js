@@ -49,6 +49,10 @@ export default {
     const res = await api.post('/users/create', data);
     return res.data;
   },
+  async revokeIdentityConsent(id, provider) {
+    const res = await api.post(`/users/${id}/revoke-identity-consent`, { provider });
+    return res.data;
+  },
   async deleteContact(id) {
     try {
       const res = await api.delete(`/users/${id}`);

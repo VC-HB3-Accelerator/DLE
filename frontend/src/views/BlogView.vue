@@ -172,6 +172,22 @@ function goToIndex() {
 }
 
 
+function readFilterFromRoute() {
+  const q = route.query.filter;
+  return typeof q === 'string' && q.trim() ? q.trim() : '';
+}
+
+function syncFilterQuery(slug) {
+  if (currentPageId.value || currentSlug.value) return;
+  const current = typeof route.query.filter === 'string' ? route.query.filter : '';
+  if (current === slug) return;
+  const query = { ...route.query };
+  delete query.subscribed;
+  if (slug) query.filter = slug;
+  else delete query.filter;
+  router.replace({ name: 'blog', query }).catch(() => {});
+}
+
 async function loadFeedFilters() {
   try {
     const filters = await blogFeedService.getFeedFilters();
@@ -315,17 +331,41 @@ watch(() => pages.value, () => {
 }, { immediate: true });
 
 watch(activeFilter, async (slug, prev) => {
-  if (!slug || !prev || slug === prev) return;
+  if (!slug) return;
+  if (prev) {
+    syncFilterQuery(slug);
+  }
+  if (!prev || slug === prev) return;
   if (currentPageId.value || currentSlug.value) return;
   await loadPages();
 });
 
+watch(
+  () => route.query.filter,
+  async (filterQuery) => {
+    if (currentPageId.value || currentSlug.value) return;
+    const next = typeof filterQuery === 'string' && filterQuery.trim()
+      ? filterQuery.trim()
+      : '';
+    if (!next || next === activeFilter.value) return;
+    if (feedFilters.value.length && !feedFilters.value.some((f) => f.slug === next)) return;
+    activeFilter.value = next;
+  }
+);
+
 onMounted(async () => {
+  const fromUrl = readFilterFromRoute();
+  if (fromUrl) {
+    activeFilter.value = fromUrl;
+  }
+
   await loadFeedFilters();
   await loadPages();
-  
+
   if (route.query.subscribed === '1') {
-    router.replace({ name: 'blog', query: {} });
+    const query = {};
+    if (activeFilter.value) query.filter = activeFilter.value;
+    router.replace({ name: 'blog', query });
   }
 
   // Устанавливаем мета-теги только если не открыта отдельная статья

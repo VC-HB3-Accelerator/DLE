@@ -161,7 +161,7 @@ async function getConsentDocuments(missingConsents = []) {
     
     // Получаем список документов для подписания
     const { rows: documents } = await db.getQuery()(`
-      SELECT id, title, summary
+      SELECT id, title, summary, slug
       FROM admin_pages_simple
       WHERE status = 'published' 
         AND visibility = 'public'
@@ -169,13 +169,19 @@ async function getConsentDocuments(missingConsents = []) {
       ORDER BY created_at DESC
     `, [documentsToShow]);
     
-    return documents.map(doc => ({
-      id: doc.id,
-      title: doc.title,
-      summary: doc.summary,
-      consentType: DOCUMENT_CONSENT_MAP[doc.title],
-      url: `/content/published/${doc.id}`
-    }));
+    return documents.map(doc => {
+      const slug = doc.slug && String(doc.slug).trim() ? String(doc.slug).trim() : null;
+      return {
+        id: doc.id,
+        title: doc.title,
+        summary: doc.summary,
+        slug,
+        consentType: DOCUMENT_CONSENT_MAP[doc.title],
+        url: slug
+          ? `/content/published/${encodeURIComponent(slug)}`
+          : `/content/published?page=${doc.id}`,
+      };
+    });
   } catch (error) {
     logger.error('[ConsentService] Ошибка получения документов:', error);
     return [];
@@ -275,6 +281,97 @@ function formatConsentMessage({ channel = 'web', missingConsents = [], consentDo
 }
 
 /**
+ * Выдать недостающие согласия DOCUMENT_CONSENT_MAP (SIWE / grant-flow).
+ * channel: web | wallet | telegram | email
+ * @returns {Promise<{created:number,updated:number,missingBefore:string[]}>}
+ */
+async function grantMissingConsents({
+  userId = null,
+  walletAddress = null,
+  channel = 'web',
+  ipAddress = null,
+  userAgent = null,
+} = {}) {
+  const consentCheck = await checkConsents({ userId, walletAddress });
+  if (!consentCheck.needsConsent) {
+    return { created: 0, updated: 0, missingBefore: [] };
+  }
+
+  const docs = await getConsentDocuments(consentCheck.missingConsents);
+  let created = 0;
+  let updated = 0;
+
+  for (const doc of docs) {
+    const consentType = doc.consentType;
+    if (!consentType) continue;
+
+    const checkParams = [consentType];
+    let checkQuery = `
+      SELECT id FROM consent_logs
+      WHERE status = 'granted' AND consent_type = $1 AND (
+    `;
+    if (userId) {
+      checkQuery += `user_id = $${checkParams.length + 1}`;
+      checkParams.push(userId);
+    }
+    if (walletAddress) {
+      if (userId) checkQuery += ' OR ';
+      checkQuery += `wallet_address = $${checkParams.length + 1}`;
+      checkParams.push(walletAddress);
+    }
+    checkQuery += ')';
+
+    if (!userId && !walletAddress) {
+      logger.warn('[ConsentService] grantMissingConsents: нет userId и walletAddress');
+      break;
+    }
+
+    const existing = await db.getQuery()(checkQuery, checkParams);
+
+    if (existing.rows.length > 0) {
+      await db.getQuery()(
+        `UPDATE consent_logs
+         SET document_id = $1,
+             document_title = $2,
+             signed_at = NOW(),
+             revoked_at = NULL,
+             ip_address = COALESCE($3, ip_address),
+             user_agent = COALESCE($4, user_agent),
+             channel = COALESCE($5, channel),
+             updated_at = NOW()
+         WHERE id = $6`,
+        [doc.id, doc.title, ipAddress, userAgent, channel, existing.rows[0].id]
+      );
+      updated += 1;
+    } else {
+      await db.getQuery()(
+        `INSERT INTO consent_logs (
+           user_id, wallet_address, document_id, document_title,
+           consent_type, status, signed_at, ip_address, user_agent, channel,
+           created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, 'granted', NOW(), $6, $7, $8, NOW(), NOW())`,
+        [
+          userId,
+          walletAddress,
+          doc.id,
+          doc.title,
+          consentType,
+          ipAddress,
+          userAgent,
+          channel,
+        ]
+      );
+      created += 1;
+    }
+  }
+
+  logger.info(
+    `[ConsentService] grantMissingConsents: userId=${userId}, wallet=${walletAddress}, channel=${channel}, created=${created}, updated=${updated}`
+  );
+  return { created, updated, missingBefore: consentCheck.missingConsents };
+}
+
+/**
  * Получить полную информацию о согласиях и сформировать системное сообщение
  * @param {Object} params - Параметры
  * @param {number|null} params.userId - ID пользователя
@@ -316,6 +413,7 @@ async function getConsentSystemMessage({ userId = null, walletAddress = null, ch
 module.exports = {
   checkConsents,
   getConsentDocuments,
+  grantMissingConsents,
   formatConsentMessage,
   getConsentSystemMessage,
   getBaseUrl,

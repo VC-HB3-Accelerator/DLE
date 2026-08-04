@@ -35,7 +35,7 @@ router.get('/documents', async (req, res) => {
     // Получаем документы для подписания по названиям
     const documentTitles = Object.keys(DOCUMENT_CONSENT_MAP);
     const { rows } = await db.getQuery()(`
-      SELECT id, title, summary, content, created_at, updated_at
+      SELECT id, title, summary, content, slug, created_at, updated_at
       FROM ${tableName} 
       WHERE status = 'published' 
         AND visibility = 'public'
@@ -43,11 +43,18 @@ router.get('/documents', async (req, res) => {
       ORDER BY created_at DESC
     `, [documentTitles]);
     
-    // Добавляем тип согласия к каждому документу
-    const documents = rows.map(doc => ({
-      ...doc,
-      consentType: DOCUMENT_CONSENT_MAP[doc.title] || null,
-    }));
+    // Добавляем тип согласия и публичный URL (по slug)
+    const documents = rows.map(doc => {
+      const slug = doc.slug && String(doc.slug).trim() ? String(doc.slug).trim() : null;
+      return {
+        ...doc,
+        slug,
+        consentType: DOCUMENT_CONSENT_MAP[doc.title] || null,
+        url: slug
+          ? `/content/published/${encodeURIComponent(slug)}`
+          : `/content/published?page=${doc.id}`,
+      };
+    });
     
     res.json(documents);
   } catch (error) {

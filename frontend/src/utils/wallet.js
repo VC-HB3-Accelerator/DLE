@@ -142,14 +142,24 @@ export const connectWallet = async () => {
     // Получаем список документов для подписания
     // ВАЖНО: Пути должны точно совпадать с бэкендом для успешной верификации SIWE
     let resources = [`${origin}/api/auth/verify`];
-    // Добавляем общую ссылку на страницу опубликованных документов
+    // Хаб публичных документов + раздел «Политика и согласия» (пути = бэкенд auth/verify)
     resources.push(`${origin}/content/published`);
+    resources.push(
+      `${origin}/content/published?section=${encodeURIComponent('политика и согласия')}`
+    );
     try {
       const docsResponse = await api.get('/consent/documents');
       if (docsResponse.data && docsResponse.data.length > 0) {
         docsResponse.data.forEach(doc => {
-          // Используем тот же путь, что и на бэкенде: /content/published/${doc.id}
-          resources.push(`${origin}/content/published/${doc.id}`);
+          // Тот же путь, что и на бэкенде auth/verify
+          const slug = doc.slug && String(doc.slug).trim() ? String(doc.slug).trim() : null;
+          if (slug) {
+            resources.push(`${origin}/content/published/${encodeURIComponent(slug)}`);
+          } else if (doc.url && String(doc.url).startsWith('/')) {
+            resources.push(`${origin}${doc.url}`);
+          } else if (doc.id) {
+            resources.push(`${origin}/content/published?page=${doc.id}`);
+          }
         });
       }
     } catch (error) {

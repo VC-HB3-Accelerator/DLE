@@ -28,6 +28,8 @@ const sessionService = require('../services/session-service');
 // Используем централизованный сервис для работы с согласиями
 const consentService = require('../services/consentService');
 const { DOCUMENT_CONSENT_MAP } = consentService;
+const siweLoginAuditService = require('../services/siweLoginAuditService');
+const { ROLES } = require('../shared/permissions');
 
 const fs = require('fs');
 const path = require('path');
@@ -246,19 +248,27 @@ router.post('/verify', async (req, res) => {
     );
     
     let resources = [`${baseUrlForResources}/api/auth/verify`];
-    // Добавляем общую ссылку на страницу опубликованных документов
+    // Хаб публичных документов + раздел «Политика и согласия» (пути = фронт SIWE)
     resources.push(`${baseUrlForResources}/content/published`);
+    resources.push(
+      `${baseUrlForResources}/content/published?section=${encodeURIComponent('политика и согласия')}`
+    );
     if (tableExistsRes.rows[0].exists) {
       const { rows: documents } = await db.getQuery()(`
-        SELECT id FROM ${tableName} 
+        SELECT id, slug FROM ${tableName} 
         WHERE status = 'published' 
           AND visibility = 'public'
           AND title = ANY($1)
       `, [documentTitles]);
       
-      // Добавляем ссылки на документы в resources (используем домен из БД)
+      // Добавляем ссылки на документы в resources (пути = фронт SIWE)
       documents.forEach(doc => {
-        resources.push(`${baseUrlForResources}/content/published/${doc.id}`);
+        const slug = doc.slug && String(doc.slug).trim() ? String(doc.slug).trim() : null;
+        if (slug) {
+          resources.push(`${baseUrlForResources}/content/published/${encodeURIComponent(slug)}`);
+        } else {
+          resources.push(`${baseUrlForResources}/content/published?page=${doc.id}`);
+        }
       });
     }
     
@@ -333,6 +343,13 @@ router.post('/verify', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
 
+    let messageText = '';
+    try {
+      messageText = messageToVerify.prepareMessage();
+    } catch (prepErr) {
+      messageText = String(messageToVerify || '');
+    }
+
     // СРАЗУ проверяем уровень доступа пользователя
     logger.info(`[verify] Checking access level for address: ${normalizedAddress}`);
     let userAccessLevel = await authService.getUserAccessLevel(normalizedAddress);
@@ -384,6 +401,40 @@ router.post('/verify', async (req, res) => {
 
     // Сохраняем сессию
     await sessionService.saveSession(req.session);
+
+    const clientIp = req.ip || req.headers['x-forwarded-for'] || null;
+    const clientUa = req.get('user-agent') || null;
+
+    // Аудит SIWE wallet-login (ошибка не прерывает вход)
+    try {
+      await siweLoginAuditService.record({
+        userId,
+        address: normalizedAddress,
+        chainId: siweChainId,
+        issuedAt: messageIssuedAt,
+        statement: siweStatement,
+        resources,
+        messageText,
+        signature,
+        ipAddress: clientIp,
+        userAgent: clientUa,
+      });
+    } catch (auditErr) {
+      logger.warn(`[verify] siweLoginAudit record failed: ${auditErr.message}`);
+    }
+
+    // SIWE statement = согласие на документы из Resources → пишем consent_logs (channel web)
+    try {
+      await consentService.grantMissingConsents({
+        userId,
+        walletAddress: normalizedAddress,
+        channel: 'web',
+        ipAddress: clientIp,
+        userAgent: clientUa,
+      });
+    } catch (consentErr) {
+      logger.warn(`[verify] grantMissingConsents failed: ${consentErr.message}`);
+    }
 
     // Связываем гостевые сообщения с пользователем
     await sessionService.linkGuestMessages(req.session, userId);
@@ -1268,6 +1319,29 @@ router.get('/permissions', requireAuth, async (req, res) => {
       success: false,
       error: 'Ошибка получения прав доступа'
     });
+  }
+});
+
+router.get('/siwe-login-audit', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const { rows } = await db.getQuery()('SELECT role FROM users WHERE id = $1', [userId]);
+    const role = rows[0]?.role;
+    if (role !== ROLES.EDITOR && role !== 'editor') {
+      return res.status(403).json({ success: false, error: 'Editor only' });
+    }
+    const data = await siweLoginAuditService.listForEditor({
+      limit: req.query.limit,
+      offset: req.query.offset,
+      address: req.query.address || null,
+    });
+    return res.json({ success: true, ...data });
+  } catch (error) {
+    logger.error(`[siwe-login-audit] ${error.message}`);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

@@ -25,9 +25,22 @@
           </span>
         </div>
 
+        <div v-if="!isCreateMode" class="info-row consent-policy-row">
+          <span class="info-label">{{ t('contacts.details.consentsLabel') }}</span>
+          <span class="info-value">
+            <a
+              class="consent-policy-link"
+              :href="privacyDocsUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ t('contacts.details.privacyLink') }}</a>
+            <span class="consent-policy-hint">{{ t('contacts.details.consentsHint') }}</span>
+          </span>
+        </div>
+
         <div class="info-row">
           <span class="info-label">{{ t('contacts.details.email') }}</span>
-          <span class="info-value">
+          <span class="info-value info-value--with-consent">
             <input
               v-if="canEditContacts"
               v-model="draftEmail"
@@ -44,12 +57,26 @@
               :title="getFieldTitle('email', contact.email)"
               @click="toggleFieldReveal('email')"
             >{{ getPersonalFieldDisplay('email', contact.email) }}</span>
+            <label
+              v-if="!isCreateMode && identityPresent('email')"
+              class="consent-check"
+              :class="{ 'consent-check--readonly': !consentGranted('email') }"
+              :title="consentGranted('email') ? t('contacts.details.consentCheckboxTitle') : t('contacts.details.consentCheckboxReadonly')"
+            >
+              <input
+                type="checkbox"
+                :checked="consentGranted('email')"
+                :disabled="!canRevokeConsent || consentBusy === 'email' || !consentGranted('email')"
+                @change="onConsentToggle('email', $event)"
+              />
+              <span>{{ t('contacts.details.consentCheckbox') }}</span>
+            </label>
           </span>
         </div>
 
         <div class="info-row">
           <span class="info-label">{{ t('contacts.details.telegram') }}</span>
-          <span class="info-value">
+          <span class="info-value info-value--with-consent">
             <input
               v-if="canEditContacts"
               v-model="draftTelegram"
@@ -65,12 +92,26 @@
               :title="getFieldTitle('telegram', contact.telegram)"
               @click="toggleFieldReveal('telegram')"
             >{{ getPersonalFieldDisplay('telegram', contact.telegram) }}</span>
+            <label
+              v-if="!isCreateMode && identityPresent('telegram')"
+              class="consent-check"
+              :class="{ 'consent-check--readonly': !consentGranted('telegram') }"
+              :title="consentGranted('telegram') ? t('contacts.details.consentCheckboxTitle') : t('contacts.details.consentCheckboxReadonly')"
+            >
+              <input
+                type="checkbox"
+                :checked="consentGranted('telegram')"
+                :disabled="!canRevokeConsent || consentBusy === 'telegram' || !consentGranted('telegram')"
+                @change="onConsentToggle('telegram', $event)"
+              />
+              <span>{{ t('contacts.details.consentCheckbox') }}</span>
+            </label>
           </span>
         </div>
 
         <div class="info-row">
           <span class="info-label">{{ t('contacts.details.wallet') }}</span>
-          <span class="info-value">
+          <span class="info-value info-value--with-consent">
             <input
               v-if="canEditContacts"
               v-model="draftWallet"
@@ -86,6 +127,20 @@
               :title="getFieldTitle('wallet', contact.wallet)"
               @click="toggleFieldReveal('wallet')"
             >{{ getPersonalFieldDisplay('wallet', contact.wallet) }}</span>
+            <label
+              v-if="!isCreateMode && identityPresent('wallet')"
+              class="consent-check"
+              :class="{ 'consent-check--readonly': !consentGranted('wallet') }"
+              :title="consentGranted('wallet') ? t('contacts.details.consentCheckboxTitle') : t('contacts.details.consentCheckboxReadonly')"
+            >
+              <input
+                type="checkbox"
+                :checked="consentGranted('wallet')"
+                :disabled="!canRevokeConsent || consentBusy === 'wallet' || !consentGranted('wallet')"
+                @change="onConsentToggle('wallet', $event)"
+              />
+              <span>{{ t('contacts.details.consentCheckbox') }}</span>
+            </label>
           </span>
         </div>
 
@@ -285,16 +340,31 @@ import messagesService from '@/services/messagesService.js';
 import { getConversationByUserId, getMessagesByConversationId } from '@/services/messagesService.js';
 import { usePermissions } from '@/composables/usePermissions';
 import { useContactDetailsContext } from '@/composables/useContactDetails';
+import { useAuthContext } from '@/composables/useAuth';
 import tablesService from '@/services/tablesService';
 import { useTagsWebSocket } from '@/composables/useTagsWebSocket';
 import { getClientTagsTableMeta, findClientTagsTableInList, loadClientTagsList } from '@/utils/clientTagsTable';
 import { stripAutoEnrichMarkers } from '@/utils/helpers';
+import { getPrivacyDocsUrl } from '@/constants/publishedDocs';
 
 const { t } = useI18n();
 const router = useRouter();
 const { canEditContacts, canDeleteData, canManageTags, canBlockUsers } = usePermissions();
 const { contact, userId, isCreateMode, reloadContact } = useContactDetailsContext();
+const { userId: authUserId, disconnect } = useAuthContext();
 
+const privacyDocsUrl = getPrivacyDocsUrl();
+const consentBusy = ref(null);
+
+const isOwnProfile = computed(() => {
+  const cid = contact.value?.id;
+  const aid = authUserId.value;
+  if (cid == null || aid == null) return false;
+  return String(cid) === String(aid);
+});
+
+/** Снимать включённую галочку: редактор или сам пользователь на своём профиле */
+const canRevokeConsent = computed(() => canDeleteData.value || isOwnProfile.value);
 const lastMessageDate = ref(null);
 const editableName = ref('');
 const draftEmail = ref('');
@@ -744,6 +814,75 @@ function deleteContact() {
   router.push({ name: 'contact-delete-confirm', params: { id: contact.value.id } });
 }
 
+function identityPresent(provider) {
+  const c = contact.value;
+  if (!c) return false;
+  const v = c[provider];
+  return !!(v && String(v).trim());
+}
+
+function consentGranted(provider) {
+  const by = contact.value?.consents?.byProvider?.[provider];
+  return Boolean(by?.hasGranted);
+}
+
+function countContactIdentities() {
+  return ['email', 'telegram', 'wallet'].filter((p) => identityPresent(p)).length;
+}
+
+async function onConsentToggle(provider, event) {
+  const checked = event?.target?.checked;
+  if (checked || !consentGranted(provider)) {
+    // согласие ставится в продукте; без granted снятие недоступно
+    event.target.checked = consentGranted(provider);
+    return;
+  }
+  if (!canRevokeConsent.value || !contact.value?.id) {
+    event.target.checked = true;
+    return;
+  }
+
+  const last = countContactIdentities() <= 1;
+  try {
+    await ElMessageBox.confirm(
+      last
+        ? t('contacts.details.revokeLastIdentityConfirm')
+        : t('contacts.details.revokeIdentityConfirm', { provider: t(`contacts.details.${provider}`) }),
+      t('contacts.details.revokeIdentityTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+      }
+    );
+  } catch {
+    event.target.checked = true;
+    return;
+  }
+
+  consentBusy.value = provider;
+  try {
+    const result = await contactsService.revokeIdentityConsent(contact.value.id, provider);
+    if (result?.deletedUser) {
+      ElMessage.success(t('contacts.details.profileDeletedViaConsent'));
+      if (isOwnProfile.value) {
+        try { await disconnect(); } catch (_) { /* ignore */ }
+        router.push({ name: 'home' });
+      } else {
+        router.push({ name: 'contacts-list' });
+      }
+      return;
+    }
+    await reloadContact();
+    ElMessage.success(t('contacts.details.identityRevoked'));
+  } catch (e) {
+    event.target.checked = true;
+    ElMessage.error(e?.response?.data?.error || e?.message || t('contacts.details.revokeIdentityError'));
+  } finally {
+    consentBusy.value = null;
+  }
+}
+
 function showBlockStatusMessage(msg, type = 'info') {
   ElMessageBox.alert(msg, t('contacts.details.blockStatusTitle'), { type });
 }
@@ -1168,6 +1307,44 @@ watch(contact, () => {
 
 .contact-files__input {
   display: none;
+}
+
+.info-value--with-consent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.consent-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  color: var(--color-text-secondary, #6c757d);
+  cursor: pointer;
+  user-select: none;
+}
+
+.consent-check--readonly {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.consent-check input {
+  margin: 0;
+}
+
+.consent-policy-link {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.consent-policy-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: var(--color-text-secondary, #6c757d);
 }
 
 @media (max-width: 768px) {

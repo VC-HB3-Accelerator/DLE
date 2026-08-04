@@ -18,9 +18,21 @@ const multer = require('multer');
 const db = require('../db');
 const logger = require('../utils/logger');
 const { requireAuth } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permissions');
-const { PERMISSIONS, ROLES } = require('../shared/permissions');
-const { deleteUserById } = require('../services/userDeleteService');
+const { requirePermission, getUserRole } = require('../middleware/permissions');
+const { PERMISSIONS, ROLES, hasPermission } = require('../shared/permissions');
+
+/** user / readonly в CRM: только свой профиль + editors */
+function isCrmLimitedRole(role) {
+  return role === ROLES.USER || role === ROLES.READONLY || role === 'user' || role === 'readonly';
+}
+const { deleteUserById, listConsentsForUser, buildConsentsPayload, revokeIdentityConsent } = require('../services/userDeleteService');
+const { getPrivacyDocsUrlPath } = (() => {
+  // зеркало frontend getPrivacyDocsUrl (без Vue)
+  const section = encodeURIComponent('политика и согласия');
+  return {
+    getPrivacyDocsUrlPath: () => `/content/published?section=${section}`,
+  };
+})();
 const userContactFilesService = require('../services/userContactFilesService');
 const { broadcastContactsUpdate } = require('../wsHub');
 const {
@@ -120,7 +132,7 @@ router.get('/', requireAuth, async (req, res, next) => {
     const limit = allowedLimits.includes(parsedLimit) ? parsedLimit : 1000;
     const offset = Math.max(parseInt(offsetParam, 10) || 0, 0);
     const adminId = req.user && req.user.id;
-    const userRole = req.user.role;
+    const userRole = await getUserRole(req);
 
     // Получаем ключ шифрования
     const fs = require('fs');
@@ -134,10 +146,10 @@ router.get('/', requireAuth, async (req, res, next) => {
     const params = [];
     let idx = 1;
 
-    // Фильтрация для USER - видит только editor админов и себя
-    if (userRole === 'user') {
-      where.push(`(u.role = '${ROLES.EDITOR}' OR u.id = $${idx++})`);
-      params.push(req.user.id);
+    // user / readonly: только editor (админ) и свой профиль — не весь CRM
+    if (isCrmLimitedRole(userRole)) {
+      where.push(`(u.role = $${idx++} OR u.id = $${idx++})`);
+      params.push(ROLES.EDITOR, req.user.id);
     }
 
     // Фильтр по дате создания контакта
@@ -326,7 +338,8 @@ router.get('/', requireAuth, async (req, res, next) => {
     // --- Гостевые контакты (на первой странице) + их количество в total на всех страницах ---
     let guestContacts = [];
     let guestCount = 0;
-    const canIncludeGuests = tagIdArr.length === 0
+    const canIncludeGuests = !isCrmLimitedRole(userRole)
+      && tagIdArr.length === 0
       && !search
       && !createdDateFrom
       && !createdDateTo
@@ -845,6 +858,57 @@ router.delete('/:id/files/:fileId', requireAuth, requirePermission(PERMISSIONS.E
   }
 });
 
+// POST /api/users/:id/revoke-identity-consent — снятие согласия канала = удаление identity / профиля
+// Редактор (DELETE_USER_DATA) или сам пользователь на своём профиле; только при active granted.
+router.post(
+  '/:id/revoke-identity-consent',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const userIdParam = req.params.id;
+      if (String(userIdParam).startsWith('guest_')) {
+        return res.status(400).json({ success: false, error: 'Гостевой контакт не поддерживается' });
+      }
+      const userId = Number(userIdParam);
+      if (!Number.isFinite(userId)) {
+        return res.status(400).json({ success: false, error: 'Invalid user ID' });
+      }
+
+      const sessionUserId = Number(req.session?.userId);
+      const isSelf = Number.isFinite(sessionUserId) && sessionUserId === userId;
+
+      let isEditor = false;
+      try {
+        const { getUserRole } = require('../middleware/permissions');
+        const { hasPermission } = require('../shared/permissions');
+        const role = await getUserRole(req);
+        isEditor = hasPermission(role, PERMISSIONS.DELETE_USER_DATA);
+      } catch (permErr) {
+        console.warn('[revoke-identity-consent] role check:', permErr.message);
+      }
+
+      if (!isSelf && !isEditor) {
+        return res.status(403).json({ success: false, error: 'Доступ запрещен' });
+      }
+
+      const provider = String(req.body?.provider || '').trim().toLowerCase();
+      const result = await revokeIdentityConsent({
+        userId,
+        provider,
+        privacyUrl: getPrivacyDocsUrlPath(),
+      });
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      broadcastContactsUpdate();
+      return res.json(result);
+    } catch (e) {
+      console.error('[revoke-identity-consent]', e);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  }
+);
+
 // DELETE /api/users/:id — удалить контакт и все связанные данные
 // Удаление пользователя
 router.delete('/:id', requireAuth, requirePermission(PERMISSIONS.DELETE_USER_DATA), async (req, res) => {
@@ -1114,9 +1178,14 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
 
   try {
     const query = db.getQuery();
+    const viewerRole = req.userRole || await getUserRole(req);
+    const viewerId = req.user?.id || req.session?.userId;
 
     // Проверяем, это гостевой идентификатор (формат: guest_123)
     if (userId.startsWith('guest_')) {
+      if (isCrmLimitedRole(viewerRole)) {
+        return res.status(403).json({ error: 'Доступ к гостевым контактам запрещен' });
+      }
       const guestId = parseInt(userId.replace('guest_', ''));
       
       if (isNaN(guestId)) {
@@ -1206,11 +1275,19 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
     }
 
     // Получаем пользователя (зарегистрированный)
-    const userResult = await query('SELECT id, created_at, preferred_language, is_blocked FROM users WHERE id = $1', [userId]);
+    const userResult = await query('SELECT id, created_at, preferred_language, is_blocked, role FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     const user = userResult.rows[0];
+
+    if (isCrmLimitedRole(viewerRole)) {
+      const isSelf = Number(user.id) === Number(viewerId);
+      const isEditor = user.role === ROLES.EDITOR || user.role === 'editor';
+      if (!isSelf && !isEditor) {
+        return res.status(403).json({ error: 'Доступ к этому контакту запрещен' });
+      }
+    }
 
     // Получаем идентификаторы
     const identitiesResult = await query('SELECT CASE WHEN provider_encrypted IS NULL OR provider_encrypted = \'\' THEN NULL ELSE decrypt_text(provider_encrypted, $2) END as provider, CASE WHEN provider_id_encrypted IS NULL OR provider_id_encrypted = \'\' THEN NULL ELSE decrypt_text(provider_id_encrypted, $2) END as provider_id FROM user_identities WHERE user_id = $1', [userId, encryptionKey]);
@@ -1245,6 +1322,23 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.VIEW_CONTACTS), as
           crm_link: extras.link,
           crm_files: extras.files
         };
+      })()),
+      ...(await (async () => {
+        try {
+          const items = await listConsentsForUser(userId);
+          return {
+            consents: buildConsentsPayload(
+              items,
+              identityMap.wallet || null,
+              getPrivacyDocsUrlPath()
+            ),
+          };
+        } catch (consentErr) {
+          console.warn('[users/:id] consents:', consentErr.message);
+          return {
+            consents: buildConsentsPayload([], identityMap.wallet || null, getPrivacyDocsUrlPath()),
+          };
+        }
       })())
     });
   } catch (e) {
